@@ -1,16 +1,17 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
-import mmap
+import json
 import logging
+import mmap
 import os
 from contextlib import ExitStack
-from zlib import decompress
 from typing import Dict, List, Union
+from zlib import decompress
 
+import numba as nb
 import numpy as np
 import pandas as pd
-import json
 
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 uncompressedMask = 1 << 1
 intensityMask = 1
+
+
+CURRENT_DIRECTORY = str(os.getcwd())
 
 
 class Footprint:
@@ -58,11 +62,23 @@ class Footprint:
 
         Args:
             static_path: (str) the path to the static files directory
-            ignore_file_type: (Set[str]) type of file to be skipped in the hierarchy
+            ignore_file_type: (Set[str]) type of file to be skipped in the hierarchy. This can be a choice of:
+
+            parquet
+            json
+            z
+            bin
+            idx
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
-        priorities = [FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv]
+        priorities = [
+            FootprintParquet,
+            FootprintBinZ,
+            FootprintBin,
+            FootprintCsv
+        ]
+
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
                 if (not os.path.isfile(os.path.join(static_path, filename))
@@ -116,7 +132,7 @@ class FootprintCsv(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (EventCSV) the event that was extracted
+        Returns: (np.array[EventCSV]) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
@@ -213,7 +229,7 @@ class FootprintBinZ(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (Event) the event that was extracted
+        Returns: (np.array[Event]) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
@@ -225,11 +241,19 @@ class FootprintBinZ(Footprint):
 
 
 class FootprintParquet(Footprint):
+    """
+    This class is responsible for loading event data from parquet event data.
 
+    Attributes (when in context):
+        pfootprint (np.array): loaded data from the parquet file which has header and then Event data
+        num_intensity_bins (int): number of intensity bins in the data
+        has_intensity_uncertainty (bool): if the data has uncertainty
+        footprint_index (dict): map of footprint IDs with the index in the data
+    """
     footprint_filenames: List[str] = [parquetfootprint_filename, parquetfootprint_meta_filename]
 
     def __enter__(self):
-        self.pfootprint = self.stack.enter_context(self.read_parquet_file())
+        self.pfootprint  = self.read_parquet_file()
 
         with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'r') as outfile:
             meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
@@ -250,15 +274,42 @@ class FootprintParquet(Footprint):
         return self
 
     def get_event(self, event_id: int):
+        """
+        Gets the event from self.pfootprint based off the event ID passed in.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (np.array[Event]) the event that was extracted
+        """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
             return
         else:
-            return self.pfootprint[event_info['offset']: event_info['offset'] + event_info['size']]
-
+            data = self.pfootprint[event_info['offset'] - 8: event_info['offset'] + event_info['size'] - 8]
+            return data
 
     def read_parquet_file(self) -> np.array:
-        import pyarrow.parquet as pq
+        """
+        Reads footprint data from a parquet file.
 
+        Returns: (np.array) footprint data loaded from the parquet file
+        """
         path: str = str(self.static_path) + "/" + parquetfootprint_filename
-        return pq.read_table(path).to_pandas().to_numpy(dtype=Event)
+
+        data = pd.read_parquet(path)
+
+        areaperil_id = data["areaperil_id"].to_numpy()
+        intensity_bin_id = data["intensity_bin_id"].to_numpy()
+        probability = data["probability"].to_numpy()
+
+        buffer = np.empty(len(areaperil_id), dtype=Event)
+        outcome = stitch_data(areaperil_id, intensity_bin_id, probability, buffer)
+        return np.array(outcome, dtype=Event)
+
+
+@nb.jit
+def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):
+    for x in range(0, len(buffer)):
+        buffer[x] = (areaperil_id[x], intensity_bin_id[x], probability[x])
+    return buffer

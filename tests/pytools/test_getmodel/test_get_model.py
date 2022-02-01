@@ -76,6 +76,9 @@ class GetModelTests(TestCase):
             df = pd.DataFrame(data)
             print(df.head())
 
+    def test_simple(self):
+        print("running")
+
         #
         # with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
         #     json.dump(meta_data, outfile)

@@ -17,6 +17,7 @@ from numba.typed import Dict
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+from oasislmf.pytools.getmodel.footprint import Event
 import atexit
 import psutil
 
@@ -598,16 +599,15 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                 break
 
             if data_server:
-                # try:
                 event_footprint = FootprintLayerClient.get_event(event_ids[0])
                 logger.info(f"got {len(event_footprint)} footprint data from server")
-                # except:
-                #     event_footprint = None
-                #     logger.error(f"event ID {event_ids[0]} failed to be received")
             else:
                 event_footprint = footprint_obj.get_event(event_ids[0])
 
             if event_footprint is not None:
+                event_placeholder = event_footprint
+                    # file.write("\n")
+                    # file.write(str(nb.typeof(np.zeros(1, dtype=areaperil_int))))
                 for cursor_bytes in doCdf(event_ids[0],
                       num_intensity_bins, event_footprint,
                       areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
@@ -618,6 +618,11 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                         stream_out.write(mv[:cursor_bytes])
                     else:
                         break
+
+        with open("./data_type.txt", "a") as file:
+            # file.write(str(nb.typeof(event_placeholder)))
+            file.write(str(footprint_obj.footprint_index.get(1)))
+            file.write("\n")
         logger.debug('doCdf done')
         memory_buffer.append(f"finish getmodel memory: {get_process_memory()}")
         from random import randint
