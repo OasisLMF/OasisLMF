@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from .gul import manager, logger
-
 import argparse
 import logging
+
+from oasislmf.pytools.gul import manager, logger
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
@@ -15,7 +15,10 @@ parser = argparse.ArgumentParser(
 # parser.add_argument('-j', '--correlated-outfile', help='filename of correlated output', type=str, action='store', dest='corr_outfile')
 parser.add_argument('-S', help='Sample size (default 0).', default=0, type=int, action='store', dest='samplesize')
 # parser.add_argument('-v', '--version', help='gulpy version', action='store_true')
+parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
+parser.add_argument('--run-dir', help='path to the run directory', default='.')
 parser.add_argument('--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)', default=30, type=int)
+
 
 # [WIP] [TO BE REMOVED]
 # args that were in gulcalc but are not currently implemented in gulpy.
