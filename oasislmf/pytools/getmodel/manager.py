@@ -536,7 +536,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
     static_path = os.path.join(run_dir, 'static')
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
-    memory_buffer = []
 
     if data_server:
         logger.debug("data server active")
@@ -547,7 +546,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
         logger.debug("data server not active")
 
     with ExitStack() as stack:
-        memory_buffer.append(f"start getmodel memory: {get_process_memory()}")
         if file_in is None:
             streams_in = sys.stdin.buffer
         else:
@@ -574,7 +572,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
-        memory_buffer.append(f"middle getmodel memory: {get_process_memory()}")
 
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
@@ -590,7 +587,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
 
         # header
         stream_out.write(np.uint32(1).tobytes())
-        memory_buffer.append(f"start CDF getmodel memory: {get_process_memory()}")
 
         logger.debug('doCdf starting')
         while True:
@@ -623,11 +619,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
             file.write(str(footprint_obj.footprint_index.get(1)))
             file.write("\n")
         logger.debug('doCdf done')
-        memory_buffer.append(f"finish getmodel memory: {get_process_memory()}")
-        from random import randint
-
-        log_path = str(os.getcwd()) + f"/{randint(1,900)}_model_memory.txt"
-        memory_message = "\n".join(memory_buffer)
 
         with open(log_path, "w") as file:
             file.write(memory_message)
