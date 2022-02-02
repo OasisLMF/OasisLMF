@@ -51,9 +51,10 @@ def read_csv(static_path: str):
     pass
 
 
-@nb.jit
+# currently not for numba due to numba not supporting advanced indexing and slicing
+# @nb.jit
 def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):
-    for x in range(0, len(buffer)):
+    for x in range(0, buffer.size):
         buffer[x] = (areaperil_id[x], intensity_bin_id[x], probability[x])
     return buffer
 

@@ -308,8 +308,20 @@ class FootprintParquet(Footprint):
         return np.array(outcome, dtype=Event)
 
 
-@nb.jit
+# currently not for numba due to numba not supporting advanced indexing and slicing
+# @nb.jit
 def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):
+    """
+
+
+    Args:
+        areaperil_id:
+        intensity_bin_id:
+        probability:
+        buffer:
+
+    Returns:
+    """
     for x in range(0, len(buffer)):
         buffer[x] = (areaperil_id[x], intensity_bin_id[x], probability[x])
     return buffer
