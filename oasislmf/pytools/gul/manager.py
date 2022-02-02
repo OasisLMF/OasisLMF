@@ -41,11 +41,36 @@ def get_coverages(input_path, ignore_file_type=set()):
     return coverages
 
 
-def run(*args, **kwargs):
+def run(run_dir, ignore_file_type, **kwargs):
     """
     Runs the main process of the gul calculation.
 
+    Args:
+        run_dir: (str) the directory of where the process is running
+        ignore_file_type: set(str) file extension to ignore when loading
+
     """
-    logger.info("Hello world!")
+    logger.info("starting gulpy")
+
+    static_path = os.path.join(run_dir, 'static')
+    input_path = os.path.join(run_dir, 'input')
+    ignore_file_type = set(ignore_file_type)
+
+    static_path = 'static/'
+    # TODO: store static_path in a paraparameters file
+    damage_bins = get_mean_damage_bins(static_path)
+
+    input_path = 'input/'
+    # TODO: store input_path in a paraparameters file
+    items = get_items(input_path)
+    coverages = get_coverages(input_path)
+
+    # get random numbers
+    # getRands rnd(opt.rndopt, opt.rand_vector_size, opt.rand_seed);
+    # getRands rnd0(opt.rndopt, opt.rand_vector_size, opt.rand_seed);
+
+    # run gulcalc
+
+    logger.info("gulpy is finished")
 
     return 0
