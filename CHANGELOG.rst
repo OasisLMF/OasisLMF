@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.23`_
+ ---------
+* [#977](https://github.com/OasisLMF/OasisLMF/pull/977) - Update ktools to v3.7.4
+* [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
+.. _`1.15.23`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.22...1.15.23
+
 * [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
 .. _`1.15.22`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.21...1.15.22
 
