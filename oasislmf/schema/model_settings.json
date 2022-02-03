@@ -625,6 +625,7 @@
             "numeric_parameters":{
                "title":"unbounded numeric paramters",
                "type":"array",
+               "description":"WARNING: option flagged for removal, superseded by `integer_parameters` and `float_parameters`",
                "uniqueItems":true,
                "items":{
                   "type":"object",
@@ -664,6 +665,57 @@
                         "type":"number",
                         "title":"Initial value, integer or float",
                         "description":"Default integer or float 'value' set for variable"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default"
+                  ]
+               }
+            },
+            "integer_parameters":{
+               "title":"Integer paramters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"Integer option",
+                  "description":"Select float value",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "all",
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"integer",
+                        "title":"Initial integer value",
+                        "description":"Default integer 'value' set for variable"
                      }
                   },
                   "required":[
