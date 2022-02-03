@@ -8,7 +8,15 @@ import pyarrow.parquet as pq
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 
-def convert_bin_to_parquet(static_path):
+def convert_bin_to_parquet(static_path: str) -> None:
+    """
+    Converts the data from a binary file to a parquet file.
+
+    Args:
+        static_path: (str) the path to the static file
+
+    Returns: None
+    """
     with ExitStack() as stack:
         footprint_obj = stack.enter_context(Footprint.load(static_path=static_path,
                                                            ignore_file_type={'z', 'csv', 'parquet'}))

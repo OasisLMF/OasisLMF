@@ -9,7 +9,6 @@ from contextlib import ExitStack
 from typing import Dict, List, Union
 from zlib import decompress
 
-import numba as nb
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
@@ -79,7 +78,8 @@ class Footprint:
             FootprintBin,
             FootprintCsv
         ]
-
+        with open(CURRENT_DIRECTORY + "/ignores.txt", "w") as file:
+            file.write(str(ignore_file_type))
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
                 if (not os.path.isfile(os.path.join(static_path, filename))
@@ -246,7 +246,6 @@ class FootprintParquet(Footprint):
     This class is responsible for loading event data from parquet event data.
 
     Attributes (when in context):
-        pfootprint (np.array): loaded data from the parquet file which has header and then Event data
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         footprint_index (dict): map of footprint IDs with the index in the data
@@ -264,7 +263,7 @@ class FootprintParquet(Footprint):
 
     def get_event(self, event_id: int):
         """
-        Gets the event from self.pfootprint based off the event ID passed in.
+        Gets the event data from the partitioned parquet data file.
 
         Args:
             event_id: (int) the ID belonging to the Event being extracted
@@ -276,8 +275,6 @@ class FootprintParquet(Footprint):
         except OSError:
             return None
         df = handle.read().to_pandas()
-        # if len(df) == 0:
-        #     return None
         numpy_data = self.prepare_data(data_frame=df)
         return numpy_data
 

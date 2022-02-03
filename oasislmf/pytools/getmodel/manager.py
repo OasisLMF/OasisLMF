@@ -600,9 +600,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                 event_footprint = footprint_obj.get_event(event_ids[0])
 
             if event_footprint is not None:
-                event_placeholder = event_footprint
-                    # file.write("\n")
-                    # file.write(str(nb.typeof(np.zeros(1, dtype=areaperil_int))))
                 for cursor_bytes in doCdf(event_ids[0],
                       num_intensity_bins, event_footprint,
                       areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
