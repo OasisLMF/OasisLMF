@@ -12,6 +12,7 @@ from zlib import decompress
 import numba as nb
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
@@ -253,24 +254,12 @@ class FootprintParquet(Footprint):
     footprint_filenames: List[str] = [parquetfootprint_filename, parquetfootprint_meta_filename]
 
     def __enter__(self):
-        self.pfootprint  = self.read_parquet_file()
-
         with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'r') as outfile:
             meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
 
         self.num_intensity_bins = int(meta_data['num_intensity_bins'])
         self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
 
-        footprint_mmap = np.memmap(
-            os.path.join(self.static_path, footprint_index_filename),
-            dtype=EventIndexBin,
-            mode='r'
-        )
-
-        self.footprint_index = pd.DataFrame(
-            footprint_mmap,
-            columns=footprint_mmap.dtype.names
-        ).set_index('event_id').to_dict('index')
         return self
 
     def get_event(self, event_id: int):
@@ -282,26 +271,26 @@ class FootprintParquet(Footprint):
 
         Returns: (np.array[Event]) the event that was extracted
         """
-        event_info = self.footprint_index.get(event_id)
-        if event_info is None:
-            return
-        else:
-            data = self.pfootprint[event_info['offset'] - 8: event_info['offset'] + event_info['size'] - 8]
-            return data
+        try:
+            handle = pq.ParquetDataset(f'./static/footprint.parquet/event_id={event_id}')
+        except OSError:
+            return None
+        df = handle.read().to_pandas()
+        # if len(df) == 0:
+        #     return None
+        numpy_data = self.prepare_data(data_frame=df)
+        return numpy_data
 
-    def read_parquet_file(self) -> np.array:
+    @staticmethod
+    def prepare_data(data_frame: pd.DataFrame) -> np.array:
         """
         Reads footprint data from a parquet file.
 
         Returns: (np.array) footprint data loaded from the parquet file
         """
-        path: str = str(self.static_path) + "/" + parquetfootprint_filename
-
-        data = pd.read_parquet(path)
-
-        areaperil_id = data["areaperil_id"].to_numpy()
-        intensity_bin_id = data["intensity_bin_id"].to_numpy()
-        probability = data["probability"].to_numpy()
+        areaperil_id = data_frame["areaperil_id"].to_numpy()
+        intensity_bin_id = data_frame["intensity_bin_id"].to_numpy()
+        probability = data_frame["probability"].to_numpy()
 
         buffer = np.empty(len(areaperil_id), dtype=Event)
         outcome = stitch_data(areaperil_id, intensity_bin_id, probability, buffer)

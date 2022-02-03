@@ -613,13 +613,3 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                         stream_out.write(mv[:cursor_bytes])
                     else:
                         break
-
-        with open("./data_type.txt", "a") as file:
-            # file.write(str(nb.typeof(event_placeholder)))
-            file.write(str(footprint_obj.footprint_index.get(1)))
-            file.write("\n")
-        logger.debug('doCdf done')
-
-        with open(log_path, "w") as file:
-            file.write(memory_message)
-
