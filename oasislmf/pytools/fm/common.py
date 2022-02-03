@@ -81,4 +81,4 @@ items_dtype = np.dtype([('item_id', 'i4'),
                         ('vulnerability_id', 'i4'),
                         ('group_id', 'i4')])
 
-EXTRA_VALUES = 2
+EXTRA_VALUES = 3
