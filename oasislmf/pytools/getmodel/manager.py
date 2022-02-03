@@ -4,6 +4,7 @@ This file is the entry point for the python get model command for the package
 TODO: use selector and select for output
 
 """
+import atexit
 import logging
 import os
 import sys
@@ -14,13 +15,9 @@ import numpy as np
 import pyarrow.parquet as pq
 from numba.typed import Dict
 
+from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.footprint import Event
-import atexit
-import psutil
-
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +76,6 @@ VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
                                           ]))
 
 vuln_offset = 4
-
-
-def get_process_memory():
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    return mem_info.rss
 
 
 @nb.jit(cache=True)
