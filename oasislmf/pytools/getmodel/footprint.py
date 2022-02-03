@@ -298,7 +298,7 @@ class FootprintParquet(Footprint):
 # @nb.jit
 def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):
     """
-
+    Creates a list of tuples from three np.arrays.
 
     Args:
         areaperil_id:
