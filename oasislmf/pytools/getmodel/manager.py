@@ -4,6 +4,7 @@ This file is the entry point for the python get model command for the package
 TODO: use selector and select for output
 
 """
+import atexit
 import logging
 import os
 import sys
@@ -14,10 +15,9 @@ import numpy as np
 import pyarrow.parquet as pq
 from numba.typed import Dict
 
+from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-import atexit
 
 logger = logging.getLogger(__name__)
 
@@ -587,7 +587,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
 
             if data_server:
                 event_footprint = FootprintLayerClient.get_event(event_ids[0])
-                logger.info(f"got {len(event_footprint)} footprint data from server")
             else:
                 event_footprint = footprint_obj.get_event(event_ids[0])
 
@@ -602,4 +601,3 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                         stream_out.write(mv[:cursor_bytes])
                     else:
                         break
-        logger.debug('doCdf done')

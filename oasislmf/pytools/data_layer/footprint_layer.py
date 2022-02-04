@@ -26,6 +26,9 @@ TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 PROCESSES_SUPPORTED = 100
 
+from random import randint
+MODEL_LOG_PATH = str(os.getcwd()) + f"/{randint(1,900)}_model_log.txt"
+
 
 class OperationEnum(Enum):
     """
@@ -48,20 +51,27 @@ class FootprintLayer:
         ignore_file_type (Set[str]): collection of file types to ignore when loading
         file_data (Optional[Footprint]): footprint object to load
         socket (Optional[socket.socket]): the TCP socket in which data is sent
+        count (int): the number of processes currently relying on the server
+        total_expected (int): the total number of reliant processes expected
+        total_served (int): the total number of processes that have ever registered through the server's lifetime
     """
-    def __init__(self, static_path: str, ignore_file_type: Set[str] = set()) -> None:
+    def __init__(self, static_path: str, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
         """
         The constructor for the FootprintLayer class.
 
         Args:
             static_path: (str) path to the static file to load the data
             ignore_file_type: (Set[str]) collection of file types to ignore when loading
+            total_expected: (int) the total number of reliant processes expected
+
         """
         self.static_path: str = static_path
         self.ignore_file_type: Set[str] = ignore_file_type
         self.file_data: Optional[Footprint] = None
         self.socket: Optional[socket.socket] = None
         self.count: int = 0
+        self.total_expected: int = total_expected
+        self.total_served: int = 0
         self._define_socket()
 
     def _define_socket(self) -> None:
@@ -85,9 +95,10 @@ class FootprintLayer:
         """
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
         # atexit.register(_shutdown_port, self.socket)
+        pass
 
     @staticmethod
-    def _stream_footprint_data(event_data: np.array, connection: socket.socket) -> None:
+    def _stream_footprint_data(event_data: np.array, connection: socket.socket, event_id: int) -> None:
         """
         Serialises data then splits it into chunks of 500 in turn streaming through a connection.
 
@@ -98,16 +109,11 @@ class FootprintLayer:
         Returns: None
         """
         raw_data: bytes = pickle.dumps(event_data)
-        number_of_chunks: int = int(math.ceil(len(raw_data) / 500))
 
-        raw_data_buffer: List[bytes] = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
-
-        logging.info(f"{number_of_chunks} chunks about to be sent: {datetime.datetime.now()}")
-        connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
+        raw_data_buffer: List[bytes] = [raw_data[i:i + 60000] for i in range(0, len(raw_data), 60000)]
 
         for chunk in raw_data_buffer:
             connection.sendall(chunk)
-        logging.info(f"{number_of_chunks} chunks have been sent: {datetime.datetime.now()}")
 
     @staticmethod
     def _extract_header(header_data: bytes) -> Tuple[OperationEnum, Optional[int]]:
@@ -155,12 +161,12 @@ class FootprintLayer:
                             event_data = self.file_data.get_event(event_id=event_id)
 
                             if event_id in self.file_data.footprint_index:
-                                logging.error(f'event_id "{event_id}" retrieved from footprint index')
+                                logging.info(f'event_id "{event_id}" retrieved from footprint index')
                                 del self.file_data.footprint_index[event_id]
                             else:
                                 logging.error(f'event_id "{event_id}" not in footprint_index')
 
-                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
+                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection, event_id=event_id)
 
                         elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
 
@@ -169,19 +175,20 @@ class FootprintLayer:
 
                         elif operation == OperationEnum.REGISTER:
                             self.count += 1
+                            self.total_served += 1
                             logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
 
                         elif operation == OperationEnum.UNREGISTER:
                             self.count -= 1
                             logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
-                            if self.count <= 0:
+                            if self.count <= 0 and self.total_expected == self.total_served:
                                 logging.info(f"breaking event loop: {datetime.datetime.now()}")
                                 self.socket.shutdown(socket.SHUT_RDWR)
                                 break
                         connection.close()
                 # Catch all errors, send to logger and keep running        
                 except Exception as e:
-                    logging.error(e)                   
+                    logging.error(e)
             connection.close()
 
 
@@ -231,6 +238,10 @@ class FootprintLayerClient:
 
         Returns: None
         """
+        connection_viable: bool = False
+        while connection_viable is False:
+            connection_viable = FootprintLayerClient.poll()
+
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
@@ -280,12 +291,13 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.GET_DATA.value + int(event_id).to_bytes(8, byteorder='big')
         current_socket.sendall(data)
 
-        number_of_chunks: bytes = current_socket.recv(32)
-        number_of_chunks: int = int.from_bytes(number_of_chunks, 'big')
-
         raw_data_buffer: List[bytes] = []
-        for _ in range(number_of_chunks + 1):
-            raw_data_buffer.append(current_socket.recv(500))
+
+        while True:
+            raw_data = current_socket.recv(6000)
+            if not raw_data:
+                break
+            raw_data_buffer.append(raw_data)
 
         return pickle.loads(b"".join(raw_data_buffer))
 
@@ -295,11 +307,12 @@ def _shutdown_port(connection: socket.socket) -> None:
     connection.shutdown(socket.SHUT_RDWR)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
+    parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
     args = parser.parse_args()
-    server = FootprintLayer(args.p)
+    server = FootprintLayer(static_path=args.p, total_expected=args.n)
     server.listen()
 
 

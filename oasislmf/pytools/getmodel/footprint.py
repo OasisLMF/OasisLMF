@@ -1,23 +1,43 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
-import mmap
+import json
 import logging
+import mmap
 import os
 from contextlib import ExitStack
+from typing import Dict, List, Union
 from zlib import decompress
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
-                     csvfootprint_filename)
+                     csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename)
 
 logger = logging.getLogger(__name__)
 
 uncompressedMask = 1 << 1
 intensityMask = 1
+
+
+CURRENT_DIRECTORY = str(os.getcwd())
+
+
+class OasisFootPrintError(Exception):
+    """
+    Raises exceptions when loading footprints.
+    """
+    def __init__(self, message: str) -> None:
+        """
+        The constructor of the OasisFootPrintError class.
+
+        Args:
+            message: (str) the message to be raised
+        """
+        super().__init__(message)
 
 
 class Footprint:
@@ -56,26 +76,42 @@ class Footprint:
 
         Args:
             static_path: (str) the path to the static files directory
-            ignore_file_type: (Set[str]) type of file to be skipped in the hierarchy
+            ignore_file_type: (Set[str]) type of file to be skipped in the hierarchy. This can be a choice of:
+
+            parquet
+            json
+            z
+            bin
+            idx
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
-        priorities = [FootprintBinZ, FootprintBin, FootprintCsv]
+        priorities = [
+            FootprintParquet,
+            FootprintBinZ,
+            FootprintBin,
+            FootprintCsv
+        ]
+
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
-                if (not os.path.isfile(os.path.join(static_path, filename))
+                if (not os.path.exists(os.path.join(static_path, filename))
                         or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
                     break
             else:
                 valid = True
-
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {os.path.join(static_path, filename)}")
                 return footprint_class(static_path)
         else:
-            raise Exception(f"no valid footprint in {static_path}")
+            if os.path.isfile(f"{static_path}/footprint.parquet"):
+                raise OasisFootPrintError(
+                    message=f"footprint.parquet needs to be partitioned in order to work, please see: "
+                            f"oasislmf.pytools.data_layer.conversions.footprint => convert_bin_to_parquet"
+                )
+            raise OasisFootPrintError(message=f"no valid footprint in {static_path}")
 
     def get_event(self, event_id):
         raise NotImplementedError()
@@ -114,7 +150,7 @@ class FootprintCsv(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (EventCSV) the event that was extracted
+        Returns: (np.array[EventCSV]) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
@@ -164,7 +200,7 @@ class FootprintBin(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (Event) the event that was extracted
+        Returns: (np.array(Event)) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
@@ -211,7 +247,7 @@ class FootprintBinZ(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (Event) the event that was extracted
+        Returns: (np.array[Event]) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
@@ -220,3 +256,76 @@ class FootprintBinZ(Footprint):
             zdata = self.zfootprint[event_info['offset']: event_info['offset']+event_info['size']]
             data = decompress(zdata)
             return np.frombuffer(data, Event)
+
+
+class FootprintParquet(Footprint):
+    """
+    This class is responsible for loading event data from parquet event data.
+
+    Attributes (when in context):
+        num_intensity_bins (int): number of intensity bins in the data
+        has_intensity_uncertainty (bool): if the data has uncertainty
+        footprint_index (dict): map of footprint IDs with the index in the data
+    """
+    footprint_filenames: List[str] = [parquetfootprint_filename, parquetfootprint_meta_filename]
+
+    def __enter__(self):
+        with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'r') as outfile:
+            meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
+
+        self.num_intensity_bins = int(meta_data['num_intensity_bins'])
+        self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
+
+        return self
+
+    def get_event(self, event_id: int):
+        """
+        Gets the event data from the partitioned parquet data file.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (np.array[Event]) the event that was extracted
+        """
+        try:
+            handle = pq.ParquetDataset(f'./static/footprint.parquet/event_id={event_id}')
+        except OSError:
+            return None
+
+        df = handle.read().to_pandas()
+        numpy_data = self.prepare_data(data_frame=df)
+        return numpy_data
+
+    @staticmethod
+    def prepare_data(data_frame: pd.DataFrame) -> np.array:
+        """
+        Reads footprint data from a parquet file.
+
+        Returns: (np.array) footprint data loaded from the parquet file
+        """
+        areaperil_id = data_frame["areaperil_id"].to_numpy()
+        intensity_bin_id = data_frame["intensity_bin_id"].to_numpy()
+        probability = data_frame["probability"].to_numpy()
+
+        buffer = np.empty(len(areaperil_id), dtype=Event)
+        outcome = stitch_data(areaperil_id, intensity_bin_id, probability, buffer)
+        return np.array(outcome, dtype=Event)
+
+
+# currently not for numba due to numba not supporting advanced indexing and slicing
+# @nb.jit
+def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):
+    """
+    Creates a list of tuples from three np.arrays.
+
+    Args:
+        areaperil_id:
+        intensity_bin_id:
+        probability:
+        buffer:
+
+    Returns:
+    """
+    for x in range(0, len(buffer)):
+        buffer[x] = (areaperil_id[x], intensity_bin_id[x], probability[x])
+    return buffer

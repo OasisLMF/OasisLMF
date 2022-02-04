@@ -38,47 +38,47 @@ class GetModelTests(TestCase):
     bin => all files
     parquet => vulnerability only
     """
+    pass
     # def test_outcome(self):
     #     from multiprocessing.shared_memory import SharedMemory
 
-    # def test_socket_communication(self):
-    #     from multiprocessing import Process
-    #     import time
-    #     import socket
-    #     import ctypes
-    #     import pickle
-    #     from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+    # def test_convert_footprint_to_parquet(self):
+    #     from oasislmf.pytools.getmodel.footprint import Footprint
+    #     from contextlib import ExitStack
+    #     import json
+    #     import numpy as np
+    #     import pandas as pd
     #
-    #     # FootprintLayerClient.register(
-    #     #     static_path="/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/600/static/"
-    #     # )
-    #     data = FootprintLayerClient.get_event(event_id=5)
-    #     number_of_intensity_bins = FootprintLayerClient.get_number_of_intensity_bins()
-    #     print("")
-    #     print(number_of_intensity_bins)
-    #     FootprintLayerClient.unregister()
-        # TCP_IP = '127.0.0.1'
-        # TCP_PORT = 8080
-        #
-        # # footprint_layer = FootprintLayer(static_path="./static/")
-        # # my_other_process = Process(target=footprint_layer.listen)
-        # # my_other_process.start()
-        #
-        # # time.sleep(5)
-        # print("something is happening")
-        # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # s.connect((TCP_IP, TCP_PORT))
-        # s.sendall((5).to_bytes(8, byteorder='big'))
-        #
-        # # while True:
-        # data_length_bytes = s.recv(8)
-        #     # if data_id_data:
-        # data_length = int.from_bytes(data_length_bytes, 'big')
-        # raw_data = s.recv(data_length)
-        # data = pickle.loads(raw_data)
-        # s.close()
-        # print(data)
-        # my_other_process.terminate()
+    #     static_path: str = "./conversions/"
+    #
+    #     with ExitStack() as stack:
+    #         footprint_obj = stack.enter_context(Footprint.load(static_path=static_path,
+    #                                                            ignore_file_type={
+    #                                                                'footprint.bin.z',
+    #                                                                'footprint.idx.z'
+    #                                                                }
+    #                                                            )
+    #                                             )
+    #         # areaperil_id, intensity_bin_id, probability
+    #
+    #         buffer = []
+    #
+    #         for key in footprint_obj.footprint_index.keys():
+    #             buffer.append(footprint_obj.get_event(key))
+    #
+    #         data = np.concatenate(buffer)
+    #
+    #         meta_data = {
+    #             "num_intensity_bins": footprint_obj.num_intensity_bins,
+    #             "has_intensity_uncertainty": True if footprint_obj.has_intensity_uncertainty is 1 else False
+    #         }
+    #         print(meta_data)
+    #         print(data[0])
+    #         df = pd.DataFrame(data)
+    #         print(df.head())
+    #
+        # with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
+        #     json.dump(meta_data, outfile)
 
     # def test_load_parquet(self):
     #     vulns_dict = get_items(input_path="./")[0]
@@ -111,9 +111,28 @@ class GetModelTests(TestCase):
     #     print(id(vuln_table_two))
 
     # def test_load_footprint(self):
-    #     with Footprint.load(static_path="./static/") as test:
+    #     from oasislmf.pytools.getmodel.footprint import Footprint
+    #     import pandas as pd
+    #     import pyarrow as pa
+    #     import pyarrow.parquet as pq
+    #
+    #     with Footprint.load(static_path="./conversions/") as test:
     #         outcome = test
-    #     print(outcome)
+    #         print(outcome)
+            # print("here is the outcome: ", outcome.footprint_index)
+
+        # buffer = []
+        #
+        # for key in outcome.footprint_index.keys():
+        #     row = outcome.footprint_index[key]
+        #     row["event_id"] = key
+        #     buffer.append(row)
+        # df = pd.DataFrame(buffer)
+        # print(df.head())
+        # table = pa.Table.from_pandas(df)
+        # pq.write_table(table, "./footprint.parquet")
+
+            # print(outcome.footprint_index.head())
 
     # def test_update(self):
     #     vulns_dict = get_items(input_path="./", file_type="bin")[0]

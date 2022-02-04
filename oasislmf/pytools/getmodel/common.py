@@ -12,6 +12,8 @@ footprint_index_filename = 'footprint.idx'
 zfootprint_filename = 'footprint.bin.z'
 zfootprint_index_filename = 'footprint.idx.z'
 csvfootprint_filename = 'footprint.csv'
+parquetfootprint_filename = "footprint.parquet"
+parquetfootprint_meta_filename = "footprint_parquet_meta.json"
 
 areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
 oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
