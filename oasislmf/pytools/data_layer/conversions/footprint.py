@@ -49,5 +49,4 @@ def main() -> None:
 
     Returns: None
     """
-    path: str = str(os.path.join(os.getcwd(), "footprint.parquet"))
     convert_bin_to_parquet(static_path=str(os.getcwd()))
