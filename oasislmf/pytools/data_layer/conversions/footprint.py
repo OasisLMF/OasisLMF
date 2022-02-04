@@ -1,4 +1,5 @@
 import json
+import os
 from contextlib import ExitStack
 
 import pandas as pd
@@ -35,7 +36,18 @@ def convert_bin_to_parquet(static_path: str) -> None:
                 pa.Table.from_pandas(df),
                 root_path=f'{static_path}/footprint.parquet',
                 partition_cols=['event_id'],
-                compression="gzip"
+                compression="BROTLI"
             )
         with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
             json.dump(meta_data, outfile)
+
+
+def main() -> None:
+    """
+    The entrypoint for convertbintoparquet command converting the footprint.bin file in the current directory to a
+    footprint.parquet file.
+
+    Returns: None
+    """
+    path: str = str(os.path.join(os.getcwd(), "footprint.parquet"))
+    convert_bin_to_parquet(static_path=path)

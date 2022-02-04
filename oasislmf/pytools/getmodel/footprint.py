@@ -26,6 +26,20 @@ intensityMask = 1
 CURRENT_DIRECTORY = str(os.getcwd())
 
 
+class OasisFootPrintError(Exception):
+    """
+    Raises exceptions when loading footprints.
+    """
+    def __init__(self, message: str) -> None:
+        """
+        The constructor of the OasisFootPrintError class.
+
+        Args:
+            message: (str) the message to be raised
+        """
+        super().__init__(message)
+
+
 class Footprint:
     """
     This class is the base class for the footprint loaders.
@@ -94,7 +108,12 @@ class Footprint:
                     logger.debug(f"loading {os.path.join(static_path, filename)}")
                 return footprint_class(static_path)
         else:
-            raise Exception(f"no valid footprint in {static_path}")
+            if os.path.isfile(f"{static_path}/footprint.parquet"):
+                raise OasisFootPrintError(
+                    message=f"footprint.parquet needs to be partitioned in order to work, please see: "
+                            f"oasislmf.pytools.data_layer.conversions.footprint => convert_bin_to_parquet"
+                )
+            raise OasisFootPrintError(message=f"no valid footprint in {static_path}")
 
     def get_event(self, event_id):
         raise NotImplementedError()
@@ -274,6 +293,7 @@ class FootprintParquet(Footprint):
             handle = pq.ParquetDataset(f'./static/footprint.parquet/event_id={event_id}')
         except OSError:
             return None
+
         df = handle.read().to_pandas()
         numpy_data = self.prepare_data(data_frame=df)
         return numpy_data
