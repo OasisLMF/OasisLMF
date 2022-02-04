@@ -2,7 +2,7 @@
 
 LOG_DIR='/var/log/oasis/'
 LOG_BUILD=$LOG_DIR'install_oasislmf.log'
-LOG_TOX=$LOG_DIR'oasislmf.log'
+LOG_TOX=$LOG_DIR'test_oasislmf.log'
 LOG_FLAKE=$LOG_DIR'pep8_oasislmf.log'
 LOG_COV=$LOG_DIR'coverage_oasislmf.log'
 
