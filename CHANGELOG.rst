@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.23.5`_
+ ---------
+* [#978](https://github.com/OasisLMF/OasisLMF/pull/979) - Model Schema update - replace `numeric_parameters` with `integer_parameters` 
+* [#980](https://github.com/OasisLMF/OasisLMF/pull/980) - Feature/976 quantile
+* [#975](https://github.com/OasisLMF/OasisLMF/pull/973) - Reinsurance prep won't run with pandas 1.4.0
+.. _`1.23.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.2...1.23.5
+
 `1.23.2`_
  ---------
 * [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
