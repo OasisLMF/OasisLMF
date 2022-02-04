@@ -92,8 +92,7 @@ class Footprint:
             FootprintBin,
             FootprintCsv
         ]
-        with open(CURRENT_DIRECTORY + "/ignores.txt", "w") as file:
-            file.write(str(ignore_file_type))
+
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
                 if (not os.path.isfile(os.path.join(static_path, filename))
