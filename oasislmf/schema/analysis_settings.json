@@ -287,6 +287,17 @@
             "title": "User set event ids",
             "description": "List of event ids as integers '[1, 5, 123 .. etc]'"
         },
+        "quantiles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+            },
+            "title": "User set quantile points",
+            "description": "List of quantiles as float values '[0.0, 0.2, 0.4 .. etc]'"
+        },
         "model_settings": {
             "type": "object",
             "title": "Model settings",

@@ -34,9 +34,9 @@ from pathlib import Path
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
+from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
-
 
 
 @oasis_log
@@ -219,6 +219,27 @@ def _create_events_bin(run_dir, event_ids):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
 
+def _create_quantile_bin(run_dir, quantiles):
+    csv_fp = os.path.join(run_dir, 'input', 'quantile.csv')
+    bin_fp = os.path.join(run_dir, 'input', 'quantile.bin')
+    pd.DataFrame(
+        quantiles,
+        dtype='float',
+        columns =['quantile']).sort_values(ascending=True, by=['quantile']
+    ).to_csv(csv_fp, index=False)
+
+    try:
+        cmd_str = "quantiletobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
+        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+    except subprocess.CalledProcessError as e:
+        raise OasisException("Error while converting quantile.csv to ktools binary format: {}".format(e))
+
+def _load_default_quantile_bin(run_dir):
+    default_quantile_fp = os.path.join(STATIC_DATA_FP, 'quantile.csv')
+    _create_quantile_bin(run_dir,
+        pd.read_csv(default_quantile_fp)["quantile"].tolist()
+    )
+
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
     bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
     if not os.path.exists(bin_fp):
@@ -250,19 +271,19 @@ def _calc_selected(analysis_settings, calc_type_list):
     gul_section = analysis_settings.get('gul_summaries')
     il_section = analysis_settings.get('il_summaries')
     ri_section = analysis_settings.get('ri_summaries')
-    
+
     for calc_type in calc_type_list:
 
         if gul_section:
             if any(gul_summary.get(calc_type, None) or gul_summary.get('ord_output', {}).get(calc_type) for gul_summary in gul_section):
-                return True 
+                return True
         if il_section:
             if any(il_summary.get(calc_type, None) or il_summary.get('ord_output', {}).get(calc_type) for il_summary in il_section):
                 return True
         if ri_section:
             if any(ri_summary.get(calc_type, None) or ri_summary.get('ord_output', {}).get(calc_type) for ri_summary in ri_section):
-                return True 
-    return False 
+                return True
+    return False
 
 
 def _leccalc_selected(analysis_settings):
@@ -299,12 +320,25 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
     try:
         model_settings = analysis_settings.get('model_settings', {})
+        # Prepare events.bin
         if analysis_settings.get('event_ids'):
             # Create events file from user input
             _create_events_bin(run_dir, analysis_settings.get('event_ids'))
         else:
             # copy selected event set from static
             _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
+
+        # Prepare quantile.bin
+        if analysis_settings.get('quantiles'):
+            # 1. Create quantile file from user input
+            _create_quantile_bin(run_dir, analysis_settings.get('quantiles'))
+        elif  _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
+            # 2. copy quantile file from model data
+            if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
+                _prepare_input_bin(run_dir, 'quantile', model_settings, ri=ri)
+            else:
+            # 3. Create quantile file from package `_data/quantile.csv`
+                _load_default_quantile_bin(run_dir)
 
         # Prepare occurrence / returnperiod depending on output calcs selected
         if _leccalc_selected(analysis_settings):
@@ -322,11 +356,11 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         ]):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
+        # Prepare periods.bin
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
 
-        if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
-            _prepare_input_bin(run_dir, 'quantile', model_settings, ri=ri)
+
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
 
