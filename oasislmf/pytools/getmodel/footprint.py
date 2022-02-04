@@ -95,13 +95,12 @@ class Footprint:
 
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
-                if (not os.path.isfile(os.path.join(static_path, filename))
+                if (not os.path.exists(os.path.join(static_path, filename))
                         or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
                     break
             else:
                 valid = True
-
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {os.path.join(static_path, filename)}")
