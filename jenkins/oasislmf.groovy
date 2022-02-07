@@ -139,7 +139,9 @@ node {
                  [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set parquet'],
                  [$class: 'BooleanParameterValue', name: 'BUILD_WORKER', value: true]
             ]
-            pipeline = "oasis_PiWind/$model_branch"
+
+            job_branch_name = model_branch.replace("/", "%2F")
+            pipeline = "oasis_PiWind/$job_branch_name"
             createStage(pipeline, job_params, true).call()
         } else {
             // Only check that the MDK runs and creates non-empty files
