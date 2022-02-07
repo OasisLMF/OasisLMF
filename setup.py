@@ -24,7 +24,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.7.4'
+KTOOLS_VERSION = '3.7.5'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
