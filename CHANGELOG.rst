@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.23.6`_
+ ---------
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/984) - Unexpected output change in PiWind testing 
+* [#973](https://github.com/OasisLMF/OasisLMF/pull/973) - manage -4 and pass through -5 sidx
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/982) - Unexpected output change in PiWind testing 
+.. _`1.23.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.5...1.23.6
+
 `1.23.5`_
  ---------
 * [#978](https://github.com/OasisLMF/OasisLMF/pull/979) - Model Schema update - replace `numeric_parameters` with `integer_parameters` 
