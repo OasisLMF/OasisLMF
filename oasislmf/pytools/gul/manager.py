@@ -3,14 +3,16 @@ This file is the entry point for the gul command for the package.
 
 """
 
-from oasislmf.pytools.getmodel.common import oasis_float
-from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_items
-
+import sys
 import os
+import logging
+from contextlib import ExitStack
 import numpy as np
 from scipy.stats import qmc
 
-import logging
+from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_items
+from oasislmf.pytools.getmodel.common import oasis_float
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,11 +33,13 @@ def get_coverages(input_path, ignore_file_type=set()):
 
     if "coverages.bin" in input_files and "bin" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'coverages.csv')}")
-        coverages = np.fromfile(os.path.join(input_path, "coverages.bin"), dtype=oasis_float)
+        coverages = np.fromfile(os.path.join(
+            input_path, "coverages.bin"), dtype=oasis_float)
 
     elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'coverages.csv')}")
-        coverages = np.genfromtxt(os.path.join(input_path, "coverages.csv"), dtype=oasis_float, delimiter=",")
+        coverages = np.genfromtxt(os.path.join(
+            input_path, "coverages.csv"), dtype=oasis_float, delimiter=",")
 
     else:
         raise FileNotFoundError(f'coverages file not found at {input_path}')
@@ -46,7 +50,7 @@ def get_coverages(input_path, ignore_file_type=set()):
 def generate_rands(N=100, method='uniform', d=1, rng=None, seed=None):
     """
     Generate random numbers.
-    
+
     Args:
         N: int, optional
             Number of random numbers to generate.
@@ -64,18 +68,18 @@ def generate_rands(N=100, method='uniform', d=1, rng=None, seed=None):
             If a list of integers is provided, the function creates as many random 
             number generators as the length of the list and draws `N` from each
             random number generator. 
-            
+
     Returns: np.array[oasis_float]
         The random numbers.
-        
+
     Notes:
         Currently, the implemented methods are:
             'uniform': uniform distribution between 0 and 1 (uses scipy).
             'LHS'    : Latin Hypercube Sampling (uses the smt package).
-            
+
         Docs of the smt package for LHS are at:
         https://smt.readthedocs.io/en/latest/_src_docs/sampling_methods/lhs.html
-    
+
     """
     if not rng:
         if isinstance(seed, list):
@@ -86,7 +90,8 @@ def generate_rands(N=100, method='uniform', d=1, rng=None, seed=None):
     if isinstance(rng, list):
         if method == 'uniform':
             # uniform sampling
-            rndm = np.array([rng_.uniform(0, 1, size=N) for rng_ in rng])  # .reshape((d, N))
+            rndm = np.array([rng_.uniform(0, 1, size=N)
+                            for rng_ in rng])  # .reshape((d, N))
 
         elif method == 'LHS':
             # latin hypercube sampling
@@ -95,14 +100,16 @@ def generate_rands(N=100, method='uniform', d=1, rng=None, seed=None):
 
         elif method == 'Sobol':
             # Sobol sequences
-            samplers = [qmc.Sobol(d=1, scramble=False, seed=rng_) for rng_ in rng]
+            samplers = [qmc.Sobol(d=1, scramble=False, seed=rng_)
+                        for rng_ in rng]
 
             # check if N is power of 2
             N_base2 = np.log2(N)
 
             if N_base2.is_integer():
                 # N is a power of 2
-                rndm = np.array([sampler.random_base2(m=int(N_base2)) for sampler in samplers])
+                rndm = np.array([sampler.random_base2(m=int(N_base2))
+                                for sampler in samplers])
             else:
                 # print("WARNING: Sobol sequences can be affected in their balance for sample numbers that are not powers of 2")
                 # print("         See notes at https://scipy.github.io/devdocs/reference/generated/scipy.stats.qmc.Sobol.html")
@@ -197,6 +204,25 @@ def run(run_dir, ignore_file_type, sample_size,):
     items = get_items(input_path)
     coverages = get_coverages(input_path)
     Ncoverages = coverages
+
+    with ExitStack() as stack:
+        if file_in is None:
+            streams_in = sys.stdin.buffer
+        else:
+            streams_in = stack.enter_context(open(file_in, 'rb'))
+
+        if file_out is None:
+            stream_out = sys.stdout.buffer
+        else:
+            stream_out = stack.enter_context(open(file_out, 'wb'))
+
+        event_id_mv = memoryview(bytearray(4))
+        event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
+    logger.debug('gulcalc starting')
+    while True:
+        len_read = streams_in.readinto(event_id_mv)
+        if len_read == 0:
+            break
 
     # get random numbers
     # getRands rnd(opt.rndopt, opt.rand_vector_size, opt.rand_seed);
