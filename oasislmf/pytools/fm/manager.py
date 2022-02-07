@@ -104,18 +104,11 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         event_writer_cls = EventWriterSparse
 
     with tempfile.TemporaryDirectory() as tempdir:
-        (max_sidx_val, max_sidx_count, len_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-         extras_indptr, extras_val, children, computes) = init_variable_sparse(compute_info, max_sidx_val, tempdir, low_memory)
+        (max_sidx_val, max_sidx_count, len_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, extras_indptr, extras_val,
+         children, computes) = init_variable_sparse(compute_info, max_sidx_val, tempdir, low_memory)
 
-        if allocation_rule == 0:
-            pass_through_out = np.zeros_like(pass_through)
-        else:
-            pass_through_out = pass_through
-        
-        with event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes) as event_writer:
-            for event_id, compute_i in read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
-                                                           loss_indptr, loss_val, pass_through, len_array, computes):
+        with event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, max_sidx_val, computes) as event_writer:
+            for event_id, compute_i in read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, len_array, computes):
                 compute_i = compute_event_sparse(compute_info,
                                            net_loss,
                                            nodes_array,
