@@ -1,10 +1,10 @@
-//SUB JOB TEMPLATE                                                                                                                                                 
+//SUB JOB TEMPLATE
 def createStage(stage_name, stage_params, propagate_flag) {
     return {
         stage("Test: ${stage_name}") {
             build job: "${stage_name}", parameters: stage_params, propagate: propagate_flag
         }
-    }   
+    }
 }
 
 node {
@@ -133,16 +133,16 @@ node {
         }
 
         if (params.TEST_WORKER) {
-            // Test current branch using a model_worker image and checking expected output 
+            // Test current branch using a model_worker image and checking expected output
             job_params = [
-                 [$class: 'StringParameterValue',  name: 'MDK_BRANCH', value: source_branch],
+                 [$class: 'StringParameterValue',  name: 'MDK_BRANCH', value: MDK_BRANCH],
                  [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set parquet'],
                  [$class: 'BooleanParameterValue', name: 'BUILD_WORKER', value: true]
             ]
             pipeline = "oasis_PiWind/$model_branch"
             createStage(pipeline, job_params, true).call()
         } else {
-            // Only check that the MDK runs and creates non-empty files 
+            // Only check that the MDK runs and creates non-empty files
             stage('Run MDK: PiWind 3.8') {
                 dir(build_workspace) {
                     sh "sed -i 's/FROM.*/FROM python:3.8/g' docker/Dockerfile.mdk-tester"
