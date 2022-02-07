@@ -1,3 +1,11 @@
+//SUB JOB TEMPLATE
+def createStage(stage_name, stage_params, propagate_flag) {
+    return {
+        stage("Test: ${stage_name}") {
+            build job: "${stage_name}", parameters: stage_params, propagate: propagate_flag
+        }
+    }
+}
 
 node {
     hasFailed = false
@@ -23,6 +31,7 @@ node {
         [$class: 'StringParameterDefinition',  description: "Jenkins credential for GPG",        name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
         [$class: 'StringParameterDefinition',  description: "Jenkins credential for passphrase", name: 'GPG_PASSPHRASE', defaultValue: 'gpg-passphrase'],
         [$class: 'StringParameterDefinition',  description: "Jenkins credentials Twine",         name: 'TWINE_ACCOUNT', defaultValue: 'sams_twine_account'],
+        [$class: 'BooleanParameterDefinition', description: "Test worker build",                 name: 'TEST_WORKER', defaultValue: Boolean.valueOf(true)],
         [$class: 'BooleanParameterDefinition', description: "Create release if checked",         name: 'PUBLISH', defaultValue: Boolean.valueOf(false)],
         [$class: 'BooleanParameterDefinition', description: "Mark as pre-released software",     name: 'PRE_RELEASE', defaultValue: Boolean.valueOf(false)],
         [$class: 'BooleanParameterDefinition', description: "Perform a gitflow merge",           name: 'AUTO_MERGE', defaultValue: Boolean.valueOf(true)],
@@ -123,11 +132,23 @@ node {
             }
         }
 
-        stage('Run MDK: PiWind 3.8') {
-            dir(build_workspace) {
-                sh "sed -i 's/FROM.*/FROM python:3.8/g' docker/Dockerfile.mdk-tester"
-                sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:3.8 .'
-                sh "docker run mdk-runner:3.8 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
+        if (params.TEST_WORKER) {
+            // Test current branch using a model_worker image and checking expected output
+            job_params = [
+                 [$class: 'StringParameterValue',  name: 'MDK_BRANCH', value: MDK_BRANCH],
+                 [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set parquet'],
+                 [$class: 'BooleanParameterValue', name: 'BUILD_WORKER', value: true]
+            ]
+            pipeline = "oasis_PiWind/$model_branch"
+            createStage(pipeline, job_params, true).call()
+        } else {
+            // Only check that the MDK runs and creates non-empty files
+            stage('Run MDK: PiWind 3.8') {
+                dir(build_workspace) {
+                    sh "sed -i 's/FROM.*/FROM python:3.8/g' docker/Dockerfile.mdk-tester"
+                    sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:3.8 .'
+                    sh "docker run mdk-runner:3.8 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
+                }
             }
         }
 
