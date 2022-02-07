@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.25.0`_
+ ---------
+* [#961](https://github.com/OasisLMF/OasisLMF/pull/961) - Feature/docs
+* [#973](https://github.com/OasisLMF/OasisLMF/pull/973) - manage -4 and pass through -5 sidx
+* [#963](https://github.com/OasisLMF/OasisLMF/pull/974) - Add supported OED versions to model metadata (model_settings.json)
+* [#978](https://github.com/OasisLMF/OasisLMF/pull/979) - Model Schema update - replace `numeric_parameters` with `integer_parameters` 
+* [#980](https://github.com/OasisLMF/OasisLMF/pull/980) - Feature/976 quantile
+* [#981](https://github.com/OasisLMF/OasisLMF/pull/981) - Footprint server profiling
+.. _`1.25.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.24.1...1.25.0
+
 * [#971](https://github.com/OasisLMF/OasisLMF/pull/972) - Numpy installation issues 
 .. _`1.24.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.24.0...1.24.1
 
