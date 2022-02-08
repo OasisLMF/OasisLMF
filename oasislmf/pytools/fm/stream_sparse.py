@@ -214,7 +214,7 @@ def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
             node_loss_start = loss_indptr[node['ba'] + layer]
             if output_id and node_val_len:  # if output is not in xref output_id is 0
                 if i_index == -1:
-                    if nb_values - cursor < 4: # header + -5, -3, -1 sample
+                    if nb_values - cursor < 5: # header + -5, -3, -1 sample
                         return cursor * number_size, compute_i, layer, i_index
                     else:
                         # write the header

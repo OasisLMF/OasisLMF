@@ -485,7 +485,7 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     therefore we can use only sidx_indexes to tract the length of each node values
     """
     max_sidx_count = max_sidx_val + EXTRA_VALUES
-    len_array = max_sidx_val + 4
+    len_array = max_sidx_val + 6
 
     if low_memory:
         sidx_val = np.memmap(os.path.join(temp_dir, "sidx_val.bin"), mode='w+',
