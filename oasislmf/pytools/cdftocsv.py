@@ -63,9 +63,7 @@ def run(run_dir, skip_header, file_in=None, file_out=None):
             total_bins = damage_bins.shape[0]
 
         # determine stream type
-        stream_type_mv = memoryview(bytearray(4))
-        stream_type = np.ndarray(1, buffer=stream_type_mv, dtype='i4')
-        len_read = streams_in.readinto(stream_type_mv)
+        stream_type = np.frombuffer(streams_in.read(4), dtype='i4')
 
         if stream_type[0] != 1:
             raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
