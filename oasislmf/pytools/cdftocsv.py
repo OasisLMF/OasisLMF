@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
-parser.add_argument('--run-dir', help='path to the run directory', default='.')
+parser.add_argument('--run-dir', help='path to the run directory (default: ".")', default='.')
 
 
 def run(run_dir, skip_header):
