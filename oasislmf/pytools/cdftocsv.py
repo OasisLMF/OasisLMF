@@ -83,9 +83,9 @@ def run(run_dir, skip_header, file_in=None, file_out=None):
         # each record from getmodel is expected to contain:
         # 1 damagecdfrec obj, 1 int (Nbins), a number `Nbins` of ProbMean objects
         while True:
-            len_read = streams_in.readinto1(damagecdf_mv)
-            len_read = streams_in.readinto1(Nbins_mv)
-            len_read = streams_in.readinto1(rec_mv[:Nbins[0] * ProbMean.size])
+            len_read = streams_in.readinto(damagecdf_mv)
+            len_read = streams_in.readinto(Nbins_mv)
+            len_read = streams_in.readinto(rec_mv[:Nbins[0] * ProbMean.size])
 
             # exit if the stream has ended
             if len_read == 0:
