@@ -354,6 +354,7 @@ setup(
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
             'modelpy=oasislmf.pytools.modelpy:main',
+            'cdftocsvpy=oasislmf.pytools.cdftocsv:main',
             'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
