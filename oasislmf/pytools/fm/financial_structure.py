@@ -23,7 +23,7 @@ node_type = types.UniTuple(nb_oasis_int, 2)
 output_type = types.UniTuple(nb_oasis_int, 2)
 layer_type = types.UniTuple(nb_oasis_int, 3)
 
-# finacial structure processed array
+# financial structure processed array
 nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
                                          ('level_id', np_oasis_int),
                                          ('agg_id', np_oasis_int),
@@ -31,12 +31,9 @@ nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
                                          ('profile_len', np_oasis_int),
                                          ('profiles', np_oasis_int),
                                          ('loss', np_oasis_int),
-                                         ('il', np_oasis_int),
+                                         ('net_loss', np_oasis_int),
                                          ('extra', np_oasis_int),
-                                         ('ba', np_oasis_int),
-                                         ('realloc', np_oasis_int),
                                          ('is_reallocating', np.uint8),
-                                         ('under_limit_sum', np_oasis_int),
                                          ('parent_len', np_oasis_int),
                                          ('parent', np_oasis_int),
                                          ('children', np_oasis_int),
@@ -45,6 +42,7 @@ nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
 
 compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('max_level', np_oasis_int),
+                                          ('max_layer', np_oasis_int),
                                           ('node_len', np_oasis_int),
                                           ('children_len', np_oasis_int),
                                           ('parents_len', np_oasis_int),
@@ -60,6 +58,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
 profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
                                            ('i_end', np_oasis_int),
                                           ]))
+
 
 def load_static(static_path):
     """
@@ -313,7 +312,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         node_profiles_array:
         output_array:
     """
-    # policytc_id_to_profile_index
+    ##### policytc_id_to_profile_index ####
+    # policies may have multiple step, crate a mapping between policytc_id and the start and end index in fm_profile file
     max_policytc_id = np.max(fm_profile['policytc_id'])
     policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=profile_index_dtype)
     has_tiv_policy = Dict.empty(np_oasis_int, np_oasis_int)
@@ -340,11 +340,12 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         if level_node_len[programme['level_id']] < programme['to_agg_id']:
             level_node_len[programme['level_id']] = programme['to_agg_id']
 
-    # fm_policytc
+    ##### fm_policytc (level_id agg_id layer_id => policytc_id) #####
+    # programme_node_to_layers dict of (level_id, agg_id) => list of (layer_id, policy_index_start, policy_index_end)
+    # for each policy needing tiv, we duplicate the policy for each node to then later on calculate the % tiv parameters
     programme_node_to_layers = Dict.empty(node_type, List.empty_list(layer_type))
     i_new_fm_profile = fm_profile.shape[0]
     new_fm_profile_list = List.empty_list(np.int64)
-    # programme_node_to_layers = {}
     for i in range(fm_policytc.shape[0]):
         policytc = fm_policytc[i]
         programme_node = (np_oasis_int(policytc['level_id']), np_oasis_int(policytc['agg_id']))
@@ -366,10 +367,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             _list = List.empty_list(layer_type)
             _list.append(layer)
             programme_node_to_layers[programme_node] = _list
-            # programme_node_to_layers[programme_node] = [layer]
         else:
             programme_node_to_layers[programme_node].append(layer)
 
+    # create a new fm_profile with all the needed duplicated %tiv profiles
     if i_new_fm_profile - fm_profile.shape[0]:
         new_fm_profile = np.empty(i_new_fm_profile, dtype=fm_profile.dtype)
         new_fm_profile[:fm_profile.shape[0]] = fm_profile[:]
@@ -391,8 +392,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     else:
         out_level = start_level
 
+    ##### xref #####
+    # create mapping node (level_id, agg_id) => list of (layer_id, output_id)
     node_to_output_id = Dict.empty(node_type, List.empty_list(output_type))
-    # node_to_output_id = {}
 
     output_len = 0
     for i in range(fm_xref.shape[0]):
@@ -407,28 +409,37 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             _list = List.empty_list(output_type)
             _list.append((np_oasis_int(xref['layer_id']), np_oasis_int(xref['output_id'])))
             node_to_output_id[programme_node] = _list
-            # node_to_output_id[programme_node] = [(np_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id']))]
 
-    # programme
-    parent_to_children = Dict.empty(node_type, List.empty_list(node_type))
-    child_to_parents = Dict.empty(node_type, List.empty_list(node_type))
+    ##### programme ####
+    # node_layers will contain the number of layer for each nodes
     node_layers = Dict.empty(node_type, np_oasis_int)
-    # parent_to_children = {}
-    # child_to_parents = {}
-    # node_layers = {}
-    children_len = 1
-    parents_len = 0
 
+    # fill up node_layers with the number of policies for each node
     for programme in fm_programme:
         parent = (np_oasis_int(programme['level_id']), np_oasis_int(programme['to_agg_id']))
         if parent not in node_layers:
             node_layers[parent] = np_oasis_int(len(programme_node_to_layers[parent]))
 
+
+    # create 2 mapping to get the parents and the childs of each nodes
+    # update the number of layer for nodes based on the number of layer of their parents
+    # go through each level from top to botom
+    parent_to_children = Dict.empty(node_type, List.empty_list(node_type))
+    child_to_parents = Dict.empty(node_type, List.empty_list(node_type))
+
+    children_len = 1
+    parents_len = 0
+
+    # go through each level from top to botom
     for level in range(max_level, start_level, -1):
         for programme in fm_programme:
             if programme['level_id'] == level:
                 parent = (np_oasis_int(programme['level_id']), np_oasis_int(programme['to_agg_id']))
-                child_programme = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
+
+                if programme['from_agg_id'] > 0: # level of node is programme['level_id'] - 1
+                    child_programme = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
+                else: # negative agg_id level is item level
+                    child_programme = (np_oasis_int(1), np_oasis_int(-programme['from_agg_id']))
 
                 if parent not in parent_to_children:
                     children_len += 2
@@ -441,55 +452,22 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                     parent_to_children[parent].append(child_programme)
 
                 parents_len += 1
-                _list = List.empty_list(node_type)
-                _list.append(parent)
-                child_to_parents[child_programme] = _list
+                if child_programme not in child_to_parents:
+                    _list = List.empty_list(node_type)
+                    _list.append(parent)
+                    child_to_parents[child_programme] = _list
+                else:
+                    child_to_parents[child_programme].insert(0, parent)
                 # child_to_parents[child_programme] = [parent]
                 node_layers[child_programme] = node_layers[parent]
 
-    if allocation_rule == 0:
-        node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
-        for i in range(start_level, level_node_len.shape[0]):
-            node_level_start[i+1]= node_level_start[i] + level_node_len[i]
-        steps = max_level + (1 - start_level)
-        compute_len = node_level_start[-1] + steps + level_node_len[-1] + 1
+    # compute number of steps (steps), max size of each level node_level_start, max size of node to compute (compute_len)
+    node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
+    for i in range(start_level, level_node_len.shape[0]):
+        node_level_start[i+1]= node_level_start[i] + level_node_len[i]
+    steps = max_level + (1 - start_level)
+    compute_len = node_level_start[-1] + steps + level_node_len[-1] + 1
 
-    elif allocation_rule == 1:
-        node_level_start = np.zeros(level_node_len.shape[0] + 2, np_oasis_int)
-        for i in range(start_level, level_node_len.shape[0]):
-            node_level_start[i+1]= node_level_start[i] + level_node_len[i]
-        node_level_start[-2] = node_level_start[-3] + level_node_len[-1]
-        node_level_start[-1] = node_level_start[-2] + level_node_len[start_level]
-
-        steps = (max_level + (1 - start_level)) + 1
-
-        # add level to do the ba
-        for agg_id in range(1, level_node_len[max_level] + 1):
-            parent = (np_oasis_int(max_level + 1), np_oasis_int(agg_id))
-            top_node = (np_oasis_int(max_level), np_oasis_int(agg_id))
-            children = get_all_children(parent_to_children, top_node, True)
-            children_len += len(children) + 1
-            parent_to_children[parent] = children
-
-            parents_len += 1
-            _list = List.empty_list(node_type)
-            _list.append(parent)
-            child_to_parents[top_node] = _list
-            # child_to_parents[top_node] = [parent]
-            node_layers[parent] = node_layers[top_node]
-            for child_programme in children:
-                parents_len += 1
-                child_to_parents[child_programme].append(parent)
-
-        compute_len = node_level_start[-1] + steps + level_node_len[-1] +1
-
-    elif allocation_rule == 2 :
-        node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
-        for i in range(start_level, max_level + 1):
-            node_level_start[i+1]= node_level_start[i] + level_node_len[i]
-
-        steps = 2 * (max_level + (1 - start_level)) - 1
-        compute_len = 2 * node_level_start[-1] + steps + 1
 
     output_array_size = 0
     for node, layer_size in node_layers.items():
@@ -521,12 +499,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             # layers
             node['layer_len'] = node_layers[node_programme]
             node['loss'], loss_i = loss_i, loss_i + node['layer_len']
-            node['il'], loss_i = loss_i, loss_i + node['layer_len']
-            node['ba'], loss_i = loss_i, loss_i + node['layer_len']
+            if level == start_level:
+                node['net_loss'], loss_i = loss_i, loss_i + 1
 
             node['extra'] = null_index
-            node['realloc'] = null_index
-            node['under_limit_sum'] = null_index
             node['is_reallocating'] = 0
 
             # children
@@ -587,9 +563,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                                 child = nodes_array[node_level_start[child_programme[0]] + child_programme[1]]
                                 if child['extra'] == null_index:
                                     child['extra'], extra_i = extra_i, extra_i + node['layer_len']
-                                    if allocation_rule == 2 and fm_profile[profile_index]['calcrule_id'] != 27:
-                                        child['under_limit_sum'], loss_i = loss_i, loss_i + node['layer_len']
-                                        child['realloc'], loss_i = loss_i, loss_i + node['layer_len']
 
                             break
 
@@ -604,23 +577,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                         output_array[node['output_ids'] + layer - 1] = output_id
                 else:
                     raise KeyError("Some output nodes are missing output_ids")
-
-    if allocation_rule == 1:
-        for agg_id in range(1, level_node_len[max_level] + 1):
-            node_programme = (np_oasis_int(max_level + 1), np_oasis_int(agg_id))
-            top_node = nodes_array[node_level_start[max_level] + agg_id]
-            node, node_i = nodes_array[node_i], node_i + 1
-            node['node_id'] = top_node['node_id']
-            node['layer_len'] = top_node['layer_len']
-            node['profile_len'] = 1
-            node['loss'], loss_i = loss_i, loss_i + node['layer_len']
-            node['il'] = node['loss']
-            node['ba'] = top_node['ba']
-            node['extra'] = top_node['extra']
-            node['realloc'] = top_node['realloc']
-            node['under_limit_sum'] = top_node['under_limit_sum']
-            # children
-            node['children'], children_i = children_i, children_i + 1 + len(parent_to_children[node_programme])
 
     compute_infos = np.empty(1, dtype=compute_info_dtype)
     compute_info = compute_infos[0]
@@ -637,6 +593,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['items_len'] = level_node_len[0]
     compute_info['output_len'] = output_len
     compute_info['stepped'] = stepped is not None
+    compute_info['max_layer'] = max(nodes_array['layer_len'][1:])
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
