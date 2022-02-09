@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.25.1`_
+ ---------
+* [#987](https://github.com/OasisLMF/OasisLMF/pull/985) - Add a Python implementation of the `cdftocsv` tool
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/988) - Unexpected output change in PiWind testing 
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/982) - Unexpected output change in PiWind testing 
+.. _`1.25.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.25.0...1.25.1
+
 `1.25.0`_
  ---------
 * [#961](https://github.com/OasisLMF/OasisLMF/pull/961) - Feature/docs
