@@ -5,25 +5,23 @@ __all__ = [
     'write_items_file',
     'write_complex_items_file'
 ]
-
 import copy
 import os
 import sys
 import warnings
-import logging
-
 from collections import OrderedDict
 
-import numpy as np
 import pandas as pd
 
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_array,
     factorize_ndarray,
-    get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
+)
+from ..utils.defaults import (
+    SOURCE_IDX,
 )
 from ..utils.defaults import (
     get_default_exposure_profile,
@@ -34,9 +32,6 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.fm import SUPPORTED_FM_LEVELS
 from ..utils.log import oasis_log
-from ..utils.defaults import (
-    SOURCE_IDX,
-)
 from ..utils.path import as_path
 from ..utils.profiles import (
     get_fm_terms_oed_columns,
