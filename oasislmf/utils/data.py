@@ -706,7 +706,7 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
         else:
             return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
     else:
-        return (df[usecols].groupby(group_by).cumcount()) + 1
+        return (df[usecols].groupby(group_by, observed=True).cumcount()) + 1
 
 
 def get_json(src_fp):
