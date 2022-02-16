@@ -430,7 +430,8 @@ def write_gul_input_files(
     gul_inputs_df,
     target_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
-    chunksize=(2 * 10 ** 5)
+    chunksize=(2 * 10 ** 5),
+    hash_ids=False
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -454,6 +455,9 @@ def write_gul_input_files(
     :param chunksize: The chunk size to use when writing out the
                       input files
     :type chunksize: int
+
+    :param hash_ids: Hashes the group_id of data if set to True
+    :type hash_ids: bool (default True)
 
     :return: GUL input files dict
     :rtype: dict
@@ -481,5 +485,8 @@ def write_gul_input_files(
     # Write the files serially
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
+
+    if hash_ids is True:
+        pass
 
     return gul_input_files

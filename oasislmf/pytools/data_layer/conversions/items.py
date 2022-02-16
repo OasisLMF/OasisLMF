@@ -23,7 +23,7 @@ def process_hashed_item(item_data: "np.array[Item]", total_len: int) -> "np.arra
         buffer[x]["coverage_id"] = item_data[x]["coverage_id"]
         buffer[x]["areaperil_id"] = item_data[x]["areaperil_id"]
         buffer[x]["vulnerability_id"] = item_data[x]["vulnerability_id"]
-        buffer[x]["group_id"] = _generate_group_id_hash(group_id=item_data[x]["group_id"])
+        buffer[x]["group_id"] = generate_group_id_hash(group_id=item_data[x]["group_id"])
     return buffer
 
 
@@ -41,7 +41,7 @@ def convert_item_file_ids_to_hash(static_path: str) -> None:
 
     for x in range(item_data.shape[0]):
         group_id = item_data[x]["group_id"]
-        hashed_id = _generate_group_id_hash(group_id=item_data[x]["group_id"])
+        hashed_id = generate_group_id_hash(group_id=item_data[x]["group_id"])
         group_id_map[group_id] = hashed_id
         item_data[x]["group_id"] = hashed_id
 
@@ -50,7 +50,7 @@ def convert_item_file_ids_to_hash(static_path: str) -> None:
         file.write(json_data)
 
 
-def _generate_group_id_hash(group_id: int) -> int:
+def generate_group_id_hash(group_id: int) -> int:
     """
     Generates a hashed version of the group_id
 

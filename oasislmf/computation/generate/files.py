@@ -103,6 +103,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {"name": "hashed_group_id",            "type": str2bool, "const": False,             "default": False, "help": "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -121,7 +122,6 @@ class GenerateFiles(ComputationStep):
             return self.oasis_files_dir
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
-
 
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
@@ -256,7 +256,8 @@ class GenerateFiles(ComputationStep):
             gul_inputs_df,
             target_dir,
             oasis_files_prefixes=files_prefixes['gul'],
-            chunksize=self.write_chunksize
+            chunksize=self.write_chunksize,
+
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
