@@ -650,7 +650,8 @@ def get_dtypes_and_required_cols(get_dtypes):
     """
     dtypes = get_dtypes()
     col_dtypes = {
-        k: v['py_dtype'].lower() for k, v in dtypes.items()
+    #    k: v['py_dtype'].lower() for k, v in dtypes.items()
+        k: v['py_dtype'].lower() for k, v in dtypes.items() if v['py_dtype'] == 'category'
     }
     required_cols = [
         k for k, v in dtypes.items()
