@@ -328,7 +328,20 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
 
 def get_mean_damage_bins(static_path, ignore_file_type=set()):
     """
-    Loads the mean damage bins from the damage_bin_dict file.
+    Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
+
+    Args:
+        static_path: (str) the path pointing to the static file where the data is
+        ignore_file_type: set(str) file extension to ignore when loading
+
+    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    """
+    return get_damage_bins(static_path, ignore_file_type)['interpolation']
+
+
+def get_damage_bins(static_path, ignore_file_type=set()):
+    """
+    Loads the damage bins from the damage_bin_dict file.
 
     Args:
         static_path: (str) the path pointing to the static file where the data is
@@ -339,11 +352,10 @@ def get_mean_damage_bins(static_path, ignore_file_type=set()):
     input_files = set(os.listdir(static_path))
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.bin')}")
-        return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)['interpolation']
+        return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
-        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)[
-            'interpolation']
+        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)
     else:
         raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
