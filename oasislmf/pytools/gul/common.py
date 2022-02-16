@@ -16,3 +16,9 @@ damagecdfrec = nb.from_dtype(np.dtype([('event_id', np.int32),
                                        ('areaperil_id', areaperil_int),
                                        ('vulnerability_id', np.int32)
                                        ]))
+
+# unused
+Item_map = nb.from_dtype(np.dtype([('id', np.int32),
+                                   ('coverage_id', np.int32),
+                                   ('group_id', np.int32)
+                                   ]))
