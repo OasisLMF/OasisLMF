@@ -18,6 +18,7 @@ parser.add_argument('-S', help='Sample size (default 0).', default=0, type=int, 
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--run-dir', help='path to the run directory', default='.')
 parser.add_argument('--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)', default=30, type=int)
+parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
 
 
 # [WIP] [TO BE REMOVED]
