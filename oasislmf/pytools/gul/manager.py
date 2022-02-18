@@ -22,6 +22,12 @@ gul_header = np.int32(1 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
 
+MEAN_IDX = -1
+STD_DEV_IDX = -2
+TIV_IDX = -3
+CHANCE_OF_LOSS_IDX = -4
+MAX_LOSS_IDX = -5
+
 
 def read_stream(run_dir):
     """Read the getmoudel output stream.
@@ -286,6 +292,7 @@ class LossWriter(object):
         # flush out when the memoryview is full
         if self.cursor == self.nb_number - 1 or force:
             self.lossout.write(self.sample_rec[:self.cursor])
+            print(self.sample_rec[:self.cursor])
             self.cursor = 0
 
     def write_sample_rec(self, event_id, item_id, sidx, loss):
@@ -322,13 +329,45 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
         tiv, rec['prob_to'], rec['bin_mean'], Nbins, damage_bins[-1]['bin_to']
     )
 
-    MAX_LOSS_IDX = 10
+    # MEAN_IDX = -1
+    # STD_DEV_IDX = -2
+    # TIV_IDX = -3
+    # CHANCE_OF_LOSS_IDX = -4
+    # MAX_LOSS_IDX = -5
 
     loss_writer.write_sample_rec(
         damagecdf['event_id'],
         item_map[item_key]['item_id'],
         MAX_LOSS_IDX,
         max_loss
+    )
+
+    loss_writer.write_sample_rec(
+        damagecdf['event_id'],
+        item_map[item_key]['item_id'],
+        CHANCE_OF_LOSS_IDX,
+        chance_of_loss
+    )
+
+    loss_writer.write_sample_rec(
+        damagecdf['event_id'],
+        item_map[item_key]['item_id'],
+        TIV_IDX,
+        tiv
+    )
+
+    loss_writer.write_sample_rec(
+        damagecdf['event_id'],
+        item_map[item_key]['item_id'],
+        STD_DEV_IDX,
+        std_dev
+    )
+
+    loss_writer.write_sample_rec(
+        damagecdf['event_id'],
+        item_map[item_key]['item_id'],
+        MEAN_IDX,
+        gul_mean
     )
 
     # t1_nb2 = time.time()
