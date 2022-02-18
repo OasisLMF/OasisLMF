@@ -18,7 +18,22 @@ damagecdfrec = nb.from_dtype(np.dtype([('event_id', np.int32),
                                        ]))
 
 # unused
-Item_map = nb.from_dtype(np.dtype([('id', np.int32),
+Item_map_rec = nb.from_dtype(np.dtype([('item_id', np.int32),
                                    ('coverage_id', np.int32),
                                    ('group_id', np.int32)
                                    ]))
+
+gulSampleslevelHeader = nb.from_dtype(np.dtype([('event_id', 'i4'),
+                                                ('item_id', 'i4'),
+                                                ]))
+
+gulSampleslevelRec = nb.from_dtype(np.dtype([('sidx', 'i4'),
+                                             ('loss', oasis_float),
+                                             ]))
+
+
+gulSampleFullRecord = nb.from_dtype(np.dtype([('event_id', 'i4'),
+                                              ('item_id', 'i4'),
+                                              ('sidx', 'i4'),
+                                              ('loss', oasis_float),
+                                              ]))

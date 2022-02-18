@@ -11,7 +11,8 @@ parser = argparse.ArgumentParser(
 )
 
 # parser.add_argument('-a', '--allocation-rule', help='back-allocation rule', default=0, type=int, action='store', dest='alloc_rule')
-# parser.add_argument('-i', '--items-outfile', help='filename of items output', type=str, action='store', dest='items_outfile')
+parser.add_argument('-i', '--items-outfile', help='filename of items output',
+                    type=str, action='store', dest='items_outfile')
 # parser.add_argument('-j', '--correlated-outfile', help='filename of correlated output', type=str, action='store', dest='corr_outfile')
 parser.add_argument('-S', help='Sample size (default 0).', default=0, type=int, action='store', dest='sample_size')
 # parser.add_argument('-v', '--version', help='gulpy version', action='store_true')

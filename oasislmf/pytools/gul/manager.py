@@ -3,6 +3,7 @@ This file is the entry point for the gul command for the package.
 
 """
 
+from importlib.metadata import files
 import time
 import sys
 import os
@@ -13,8 +14,10 @@ import numba as nb
 
 from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_damage_bins, get_items
 from oasislmf.pytools.getmodel.common import oasis_float
+from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, gulSampleFullRecord
 
-from oasislmf.pytools.gul.common import ProbMean, damagecdfrec
+from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, Item_map_rec
+gul_header = np.int32(1 << 24).tobytes()
 
 
 logger = logging.getLogger(__name__)
@@ -138,21 +141,7 @@ def generate_hash(group_id, event_id, rand_seed=0, correlated=False):
     return hashed
 
 
-def print_cdftocsv(damagecdf, Nbins, rec):
-    # print out in csv format
-
-    csv_line_fixed = "{}".format(damagecdf['event_id'][0]) + ","
-    csv_line_fixed += "{}".format(damagecdf['areaperil_id'][0]) + ","
-    csv_line_fixed += "{}".format(damagecdf['vulnerability_id'][0]) + ","
-
-    for i in range(Nbins[0]):
-        csv_line = csv_line_fixed
-        csv_line += "{}".format(i + 1) + ","   # bin index starts from 1
-        csv_line += "{:8.6f},{:8.6f}".format(rec[i]["prob_to"], rec[i]["bin_mean"])
-
-        yield csv_line
-
-
+# TODO probably I can use getmodel get_items. double check
 def gul_get_items(input_path, ignore_file_type=set()):
     """
     Loads the items from the items file.
@@ -186,8 +175,8 @@ def generate_item_map(items):
 
     item_map = {}
     for item in items:
-        item_map[item[['areaperil_id', 'vulnerability_id']]] = np.array(
-            (item['id'], item['coverage_id'], item['group_id']), dtype=Item_map
+        item_map[tuple(item[['areaperil_id', 'vulnerability_id']])] = np.array(
+            (item['id'], item['coverage_id'], item['group_id']), dtype=Item_map_rec
         )
 
     return item_map
@@ -218,9 +207,11 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
     input_path = 'input/'
     # TODO: store input_path in a paraparameters file
     items = gul_get_items(input_path)
-    areaperil_id_vuln_id_to_coverage_id = {}
-    for item in items:
-        areaperil_id_vuln_id_to_coverage_id[tuple(item[['areaperil_id', 'vulnerability_id']])] = item['coverage_id']
+    # areaperil_id_vuln_id_to_coverage_id = {}
+    # for item in items:
+    #     areaperil_id_vuln_id_to_coverage_id[tuple(item[['areaperil_id', 'vulnerability_id']])] = item['coverage_id']
+
+    item_map = generate_item_map(items)
 
     # TODO NOW: understand how to get tiv from the iterator provably needs the items dict
     # check with Stephane if the architecture is ok or not
@@ -235,18 +226,13 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
             streams_in = stack.enter_context(open(file_in, 'rb'))
 
         if file_out is None:
-            stream_out = sys.stdout
+            stream_out = sys.stdout.buffer
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        # event_id_mv = memoryview(bytearray(4))
-        # event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
-
-        # logger.debug('gulcalc starting')
-        # while True:
-        #     len_read = streams_in.readinto(event_id_mv)
-        #     if len_read == 0:
-        #         break
+        # prepare output buffer
+        stream_out.write(gul_header)
+        stream_out.write(np.int32(sample_size).tobytes())
 
         # get random numbers
         # getRands rnd(opt.rndopt, opt.rand_vector_size, opt.rand_seed);
@@ -257,27 +243,68 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
         # rands = generate_rands(N=100, method='uniform', d=1, rng=None, seed=seed)
         # run gulcalc
 
+        writer = LossWriter(stream_out, sample_size)
+
         # get the stream, for each entry in the stream:
         for damagecdf, Nbins, rec in read_stream(run_dir):
             # uncomment below as a debug
             # it should print out the cdf
             # for line in print_cdftocsv(damagecdf, Nbins, rec):
             #     stream_out.write(line + "\n")
-            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages, areaperil_id_vuln_id_to_coverage_id)
+            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages, item_map, writer)
 
         logger.info("gulpy is finished")
+
+        # flush all the remaining data
+        writer.flush(force=True)
 
     return 0
 
 
-def itemoutputgul(*args):
-    pass
+class LossWriter(object):
+
+    def __init__(self, lossout, len_sample, buff_size=65536) -> None:
+
+        # maximum size of
+        self.number_size = gulSampleFullRecord.size
+        # self.number_size = 4  # setting it to 4 following fm/stream.py but need to understand why
+
+        self.len_sample = len_sample
+        self.lossout = lossout
+        self.buff_size = buff_size
+        self.nb_number = self.buff_size // self.number_size
+        self.mv = memoryview(bytearray(self.nb_number * self.number_size))
+
+        self.cursor = 0
+
+        # self.sample_header = np.ndarray(self.number_size, buffer=self.mv, dtype=gulSampleslevelHeader)
+        # self.sample_rec = np.ndarray(self.number_size, buffer=self.mv, dtype=gulSampleslevelRec)
+        self.sample_rec = np.ndarray(self.nb_number, buffer=self.mv, dtype=gulSampleFullRecord)
+
+    def flush(self, force=False):
+
+        # flush out when the memoryview is full
+        if self.cursor == self.nb_number - 1 or force:
+            self.lossout.write(self.sample_rec[:self.cursor])
+            self.cursor = 0
+
+    def write_sample_rec(self, event_id, item_id, sidx, loss):
+
+        self.flush()
+
+        self.sample_rec[self.cursor] = (event_id, item_id, sidx, loss)
+        self.cursor += 1
 
 
-def processrec(damagecdf, Nbins, rec, damage_bins, coverages, areaperil_id_vuln_id_to_coverage_id):
+# def itemoutputgul(event_id, item_id, sidx, loss, writer):
 
-    coverage_id_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
-    coverage_id = areaperil_id_vuln_id_to_coverage_id[coverage_id_key]
+#     writer.write_sample_rec(event_id, item_id, sidx, loss)
+
+
+def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer):
+
+    item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
+    coverage_id = item_map[item_key]['coverage_id']
     tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
 
     # t0 = time.time()
@@ -291,7 +318,19 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, areaperil_id_vuln_
     # print("time output_mean_np_nb: ", t1_nb - t0_nb, "speedup:", (t1 - t0) / (t1_nb - t0_nb))
 
     # t0_nb2 = time.time()
-    oum_nb2 = output_mean(tiv, rec['prob_to'], rec['bin_mean'], Nbins, damage_bins[-1]['bin_to'])
+    gul_mean, std_dev, chance_of_loss, max_loss = output_mean(
+        tiv, rec['prob_to'], rec['bin_mean'], Nbins, damage_bins[-1]['bin_to']
+    )
+
+    MAX_LOSS_IDX = 10
+
+    loss_writer.write_sample_rec(
+        damagecdf['event_id'],
+        item_map[item_key]['item_id'],
+        MAX_LOSS_IDX,
+        max_loss
+    )
+
     # t1_nb2 = time.time()
     # print("time output_mean: ", t1_nb2 - t0_nb2, "speedup:", (t1 - t0) / (t1_nb2 - t0_nb2))
 
@@ -300,8 +339,6 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, areaperil_id_vuln_
     # print(coverage_id, tiv, oum_nb2)  # debug
     # np.testing.assert_allclose(oum, oum_nb)  # raise error if results are different
     # np.testing.assert_allclose(oum, oum_nb2)  # raise error if results are different
-
-    # itemoutputgul(sidx=max_loss_idx, loss=max_loss)
 
 
 # def output_mean_py(tiv, pp, damage_bins):
