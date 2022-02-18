@@ -3,7 +3,7 @@
 import sys
 import argparse
 
-from oasislmf.pytools.gul.manager import read_stream, print_cdftocsv
+from oasislmf.pytools.gul.manager import read_stream
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
@@ -12,6 +12,21 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
 parser.add_argument('--run-dir', help='path to the run directory (default: ".")', default='.')
+
+
+def print_cdftocsv(damagecdf, Nbins, rec):
+    # print out in csv format
+
+    csv_line_fixed = "{}".format(damagecdf['event_id'][0]) + ","
+    csv_line_fixed += "{}".format(damagecdf['areaperil_id'][0]) + ","
+    csv_line_fixed += "{}".format(damagecdf['vulnerability_id'][0]) + ","
+
+    for i in range(Nbins[0]):
+        csv_line = csv_line_fixed
+        csv_line += "{}".format(i + 1) + ","   # bin index starts from 1
+        csv_line += "{:8.6f},{:8.6f}".format(rec[i]["prob_to"], rec[i]["bin_mean"])
+
+        yield csv_line
 
 
 def run(run_dir, skip_header):
@@ -29,7 +44,10 @@ def run(run_dir, skip_header):
     """
     stream_out = sys.stdout
 
-    for damagecdf, Nbins, rec in read_stream(run_dir, skip_header):
+    if not skip_header:
+        stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
+
+    for damagecdf, Nbins, rec in read_stream(run_dir):
         for line in print_cdftocsv(damagecdf, Nbins, rec):
             stream_out.write(line + "\n")
 

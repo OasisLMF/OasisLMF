@@ -20,14 +20,11 @@ from oasislmf.pytools.gul.common import ProbMean, damagecdfrec
 logger = logging.getLogger(__name__)
 
 
-def read_stream(run_dir, skip_header):
-    """Run cdftocsv command: convert the cdf output from getmodel into csv format.
-    The binary data is read from an input stream, and the csv file is streamed to stdout.
+def read_stream(run_dir):
+    """Read the getmoudel output stream.
 
     Args:
         run_dir ([str]): Path to the run directory.
-
-        skip_header ([bool]): If True, does not print the csv header.
 
     Raises:
         ValueError: If the stream type is not 1.
@@ -35,7 +32,6 @@ def read_stream(run_dir, skip_header):
     """
     # set up the streams
     streams_in = sys.stdin.buffer
-    stream_out = sys.stdout
 
     # get damage bins from file
     static_path = os.path.join(run_dir, 'static')
@@ -50,11 +46,10 @@ def read_stream(run_dir, skip_header):
     # determine stream type
     stream_type = np.frombuffer(streams_in.read(4), dtype='i4')
 
+    # TODO: make sure the bit1 and bit 2-4 compliance is checked
+    # see https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md
     if stream_type[0] != 1:
         raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
-
-    if not skip_header:
-        stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
 
     # prepare all the data buffers
     damagecdf_mv = memoryview(bytearray(damagecdfrec.size))
@@ -263,7 +258,7 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
         # run gulcalc
 
         # get the stream, for each entry in the stream:
-        for damagecdf, Nbins, rec in read_stream(run_dir, kwargs.get('skip_header')):
+        for damagecdf, Nbins, rec in read_stream(run_dir):
             # uncomment below as a debug
             # it should print out the cdf
             # for line in print_cdftocsv(damagecdf, Nbins, rec):
