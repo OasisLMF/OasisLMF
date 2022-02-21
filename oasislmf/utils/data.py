@@ -641,18 +641,25 @@ def get_dataframe(
     return df
 
 
-def get_dtypes_and_required_cols(get_dtypes):
+def get_dtypes_and_required_cols(get_dtypes, all_dtypes=False):
     """
     Get OED column data types and required column names from JSON.
+
+    :param all_dtypes: If true return every dtype field, otherwise only categoricals
+    :type all_dtypes: boolean
 
     :param get_dtypes: method to get dict from JSON
     :type get_dtypes: function
     """
     dtypes = get_dtypes()
-    col_dtypes = {
-    #    k: v['py_dtype'].lower() for k, v in dtypes.items()
-        k: v['py_dtype'].lower() for k, v in dtypes.items() if v['py_dtype'] == 'category'
-    }
+
+    if all_dtypes:
+        col_dtypes = {k: v['py_dtype'].lower() for k, v in dtypes.items()}
+    else:
+        col_dtypes = {
+            k: v['py_dtype'].lower() for k, v in dtypes.items() if v['py_dtype'] == 'category'
+        }
+
     required_cols = [
         k for k, v in dtypes.items()
         if v['require_field'] == 'R'
@@ -914,11 +921,10 @@ def get_location_df(
         **{portfolio_num: '1'}
     }
 
-    all_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes)
-    str_dtypes   = {k.lower(): v for k, v in all_dtypes.items() if v in ['category', 'str']}
+    all_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes, all_dtypes=True)
+    str_dtypes, _  = get_dtypes_and_required_cols(get_loc_dtypes)
     int_dtypes   = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('int')}
     float_dtypes = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('float')}
-
 
     dtypes = {
         **{t: 'float64' for t in tiv_cols + term_cols_floats + list(float_dtypes.keys())},
@@ -926,7 +932,7 @@ def get_location_df(
         **{t: 'uint16' for t in [cond_num]},
         **{t: 'category' for t in [loc_num, portfolio_num, acc_num]},
         **{t: 'uint32' for t in ['loc_id']},
-        **all_dtypes
+        **str_dtypes
     }
     # Load the exposure and keys dataframes - set 64-bit float data types
     # for all real number columns - and in the keys frame rename some columns
