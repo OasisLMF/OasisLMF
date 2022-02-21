@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-"""Implementation of ktool items conversion tool including complex item data serialized with msgpack."""
-
-import sys
-import msgpack
+"""
+Implementation of ktool items conversion tool including complex item data serialized with msgpack.
+"""
 import struct
+import sys
 
+import msgpack
 import pandas as pd
 
 
-def items_to_bin(source, output):
+def items_to_bin(source, output) -> None:
     items_df = pd.read_csv(source)
     for row in items_df.itertuples():
         # item_id,coverage_id,model_data,group_id
@@ -25,7 +26,7 @@ def items_to_bin(source, output):
         output.write(packed_model_data)
 
 
-def main():
+def main() -> None:
 
     PY3K = sys.version_info >= (3, 0)
 

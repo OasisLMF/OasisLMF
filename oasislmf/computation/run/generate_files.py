@@ -4,14 +4,12 @@ __all__ = [
 ]
 
 import os
+
 from tqdm import tqdm
 
 from ..base import ComputationStep
-
 from ..generate.files import GenerateFiles
 from ..hooks.pre_analysis import ExposurePreAnalysis
-
-from ...utils.path import empty_dir
 from ...utils.defaults import store_exposure_fp
 
 
@@ -41,6 +39,9 @@ class GenerateOasisFiles(ComputationStep):
                     store_exposure_fp(self.kwargs[input_name], input_name)
                 )
         return {**self.kwargs, **updated_inputs}
+
+    def conversion_kwargs(self):
+        pass
 
     def run(self):
         # setup input dir

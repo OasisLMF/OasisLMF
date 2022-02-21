@@ -10,6 +10,7 @@ import os
 import sys
 import warnings
 from collections import OrderedDict
+from oasislmf.pytools.data_layer.conversions.items import convert_item_csv_to_hash
 
 import pandas as pd
 
@@ -431,7 +432,7 @@ def write_gul_input_files(
     target_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     chunksize=(2 * 10 ** 5),
-    hash_ids=False
+    hashed_item_id=False
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -455,9 +456,6 @@ def write_gul_input_files(
     :param chunksize: The chunk size to use when writing out the
                       input files
     :type chunksize: int
-
-    :param hash_ids: Hashes the group_id of data if set to True
-    :type hash_ids: bool (default True)
 
     :return: GUL input files dict
     :rtype: dict
@@ -486,7 +484,9 @@ def write_gul_input_files(
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
 
-    if hash_ids is True:
-        pass
+    if hashed_item_id is True:
+        input_file = gul_input_files["items"]
+        input_directory = "/".join(input_file.split("/")[:-1]) + "/"
+        convert_item_csv_to_hash(input_directory=input_directory)
 
     return gul_input_files
