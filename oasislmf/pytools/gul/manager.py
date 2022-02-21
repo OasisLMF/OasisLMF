@@ -3,6 +3,7 @@ This file is the entry point for the gul command for the package.
 
 """
 
+from ctypes import sizeof
 from importlib.metadata import files
 import time
 import sys
@@ -11,14 +12,17 @@ import logging
 from contextlib import ExitStack
 import numpy as np
 import numba as nb
+from math import sqrt  # this is faster than numpy.sqrt
 
 from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_damage_bins, get_items
 from oasislmf.pytools.getmodel.common import oasis_float
 from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, gulSampleFullRecord
 
 from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, Item_map_rec
-gul_header = np.int32(1 << 24).tobytes()
 
+# gul stream type
+# probably need to set this dynamically depending on the stream type
+gul_header = np.int32(1 | 2 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +180,6 @@ def gul_get_items(input_path, ignore_file_type=set()):
     return items
 
 
-# unused
 def generate_item_map(items):
 
     item_map = {}
@@ -250,6 +253,7 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
         # run gulcalc
 
         writer = LossWriter(stream_out, sample_size)
+        # print("initial: ", writer.cursor)
 
         # get the stream, for each entry in the stream:
         for damagecdf, Nbins, rec in read_stream(run_dir):
@@ -271,36 +275,41 @@ class LossWriter(object):
 
     def __init__(self, lossout, len_sample, buff_size=65536) -> None:
 
-        # maximum size of
-        self.number_size = gulSampleFullRecord.size
-        # self.number_size = 4  # setting it to 4 following fm/stream.py but need to understand why
-
+        # number of bytes to read at a given time.
+        # number_size = 8 works only if loss in gulSampleslevelRec is float32.
+        self.number_size = max(gulSampleslevelHeader.size, gulSampleslevelRec.size)
+        # print(self.number_size)
         self.len_sample = len_sample
         self.lossout = lossout
         self.buff_size = buff_size
         self.nb_number = self.buff_size // self.number_size
         self.mv = memoryview(bytearray(self.nb_number * self.number_size))
-
+        # ratio between size of loss dtype and int
+        self.loss_rel_size = 1
         self.cursor = 0
-
-        # self.sample_header = np.ndarray(self.number_size, buffer=self.mv, dtype=gulSampleslevelHeader)
-        # self.sample_rec = np.ndarray(self.number_size, buffer=self.mv, dtype=gulSampleslevelRec)
-        self.sample_rec = np.ndarray(self.nb_number, buffer=self.mv, dtype=gulSampleFullRecord)
+        self.cursor_bytes = 0
+        self.int32_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype='i4')
 
     def flush(self, force=False):
-
         # flush out when the memoryview is full
-        if self.cursor == self.nb_number - 1 or force:
-            self.lossout.write(self.sample_rec[:self.cursor])
-            print(self.sample_rec[:self.cursor])
-            self.cursor = 0
+        # if self.cursor == self.buff_size - 1 or force:
+        self.lossout.write(self.mv[:self.cursor_bytes])
+        # print(self.mv[:self.cursor])
 
-    def write_sample_rec(self, event_id, item_id, sidx, loss):
-
-        self.flush()
-
-        self.sample_rec[self.cursor] = (event_id, item_id, sidx, loss)
+    def write_sample_header(self, event_id, item_id):
+        self.int32_mv[self.cursor] = event_id
         self.cursor += 1
+        self.int32_mv[self.cursor] = item_id
+        self.cursor += 1
+
+        self.cursor_bytes += 2 * gulSampleslevelHeader.size
+
+    def write_sample_rec(self, sidx, loss):
+        self.int32_mv[self.cursor] = sidx
+        self.cursor += 1
+        self.int32_mv[self.cursor:self.cursor + self.loss_rel_size].view(oasis_float)[:] = loss
+        self.cursor += 1
+        self.cursor_bytes += gulSampleslevelRec.size
 
 
 # def itemoutputgul(event_id, item_id, sidx, loss, writer):
@@ -314,107 +323,23 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     coverage_id = item_map[item_key]['coverage_id']
     tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
 
-    # t0 = time.time()
-    # oum = output_mean_py(tiv, rec, damage_bins)
-    # t1 = time.time()
-    # print("time output_mean_py: ", t1 - t0)
-
-    # t0_nb = time.time()
-    # oum_nb = output_mean_np_nb(tiv, rec['prob_to'], rec['bin_mean'], damage_bins[-1]['bin_to'])
-    # t1_nb = time.time()
-    # print("time output_mean_np_nb: ", t1_nb - t0_nb, "speedup:", (t1 - t0) / (t1_nb - t0_nb))
-
-    # t0_nb2 = time.time()
+    # compute mean values
     gul_mean, std_dev, chance_of_loss, max_loss = output_mean(
         tiv, rec['prob_to'], rec['bin_mean'], Nbins, damage_bins[-1]['bin_to']
     )
 
-    # MEAN_IDX = -1
-    # STD_DEV_IDX = -2
-    # TIV_IDX = -3
-    # CHANCE_OF_LOSS_IDX = -4
-    # MAX_LOSS_IDX = -5
+    # write header
+    loss_writer.write_sample_header(damagecdf['event_id'], item_map[item_key]['item_id'])
 
-    loss_writer.write_sample_rec(
-        damagecdf['event_id'],
-        item_map[item_key]['item_id'],
-        MAX_LOSS_IDX,
-        max_loss
-    )
+    # write default samples
+    loss_writer.write_sample_rec(MAX_LOSS_IDX, max_loss)
+    loss_writer.write_sample_rec(CHANCE_OF_LOSS_IDX, chance_of_loss)
+    loss_writer.write_sample_rec(TIV_IDX, tiv)
+    loss_writer.write_sample_rec(STD_DEV_IDX, std_dev)
+    loss_writer.write_sample_rec(MEAN_IDX, gul_mean)
 
-    loss_writer.write_sample_rec(
-        damagecdf['event_id'],
-        item_map[item_key]['item_id'],
-        CHANCE_OF_LOSS_IDX,
-        chance_of_loss
-    )
-
-    loss_writer.write_sample_rec(
-        damagecdf['event_id'],
-        item_map[item_key]['item_id'],
-        TIV_IDX,
-        tiv
-    )
-
-    loss_writer.write_sample_rec(
-        damagecdf['event_id'],
-        item_map[item_key]['item_id'],
-        STD_DEV_IDX,
-        std_dev
-    )
-
-    loss_writer.write_sample_rec(
-        damagecdf['event_id'],
-        item_map[item_key]['item_id'],
-        MEAN_IDX,
-        gul_mean
-    )
-
-    # t1_nb2 = time.time()
-    # print("time output_mean: ", t1_nb2 - t0_nb2, "speedup:", (t1 - t0) / (t1_nb2 - t0_nb2))
-
-    # print(oum)
-    # print(oum_nb)
-    # print(coverage_id, tiv, oum_nb2)  # debug
-    # np.testing.assert_allclose(oum, oum_nb)  # raise error if results are different
-    # np.testing.assert_allclose(oum, oum_nb2)  # raise error if results are different
-
-
-# def output_mean_py(tiv, pp, damage_bins):
-
-#     if pp[0]['bin_mean'] == 0.:
-#         chance_of_loss = 1. - pp[0]['prob_to']
-#     else:
-#         chance_of_loss = 1.
-
-#     diffs = np.diff(np.concatenate((np.zeros(1), pp['prob_to']))) * pp['bin_mean']
-#     gul_mean = tiv * np.sum(diffs)
-#     ctr_var = tiv**2. * np.sum(diffs * pp['bin_mean'])
-
-#     std_dev = np.sqrt(max(ctr_var - gul_mean ** 2., 0.))
-
-#     max_loss = tiv * damage_bins[-1]['bin_to']
-
-#     return gul_mean, std_dev, chance_of_loss, max_loss
-
-
-# @nb.jit(cache=True, nopython=True, fastmath=True)
-# def output_mean_np_nb(tiv, prob_to, bin_mean, max_damage_bin_to):
-
-#     if bin_mean[0] == 0.:
-#         chance_of_loss = 1. - prob_to[0]
-#     else:
-#         chance_of_loss = 1.
-
-#     diffs = np.multiply(np.diff(np.concatenate((np.zeros(1), prob_to))), bin_mean)
-#     gul_mean = tiv * np.sum(diffs)
-#     ctr_var = tiv**2. * np.sum(diffs * bin_mean)
-
-#     std_dev = np.sqrt(max(ctr_var - gul_mean ** 2., 0.))
-
-#     max_loss = tiv * max_damage_bin_to
-
-#     return gul_mean, std_dev, chance_of_loss, max_loss
+    # terminate list of samples for this event-item
+    loss_writer.write_sample_rec(0, 0.)
 
 
 @nb.jit(cache=True, nopython=True, fastmath=True)
@@ -449,7 +374,7 @@ def output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
 
     gul_mean *= tiv
     ctr_var *= tiv**2.
-    std_dev = np.sqrt(max(ctr_var - gul_mean**2., 0.))
+    std_dev = sqrt(max(ctr_var - gul_mean**2., 0.))
     max_loss = max_damage_bin_to * tiv
 
     return gul_mean, std_dev, chance_of_loss, max_loss
