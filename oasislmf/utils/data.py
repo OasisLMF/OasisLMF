@@ -641,22 +641,27 @@ def get_dataframe(
     return df
 
 
-def get_dtypes_and_required_cols(get_dtypes):
+def get_dtypes_and_required_cols(get_dtypes, all_dtypes=False):
     """
     Get OED column data types and required column names from JSON.
+
+    :param all_dtypes: If true return every dtype field, otherwise only categoricals
+    :type all_dtypes: boolean
 
     :param get_dtypes: method to get dict from JSON
     :type get_dtypes: function
     """
     dtypes = get_dtypes()
-    col_dtypes = {
-        k: 'category'
-        for k, v in dtypes.items()
-        if v['py_dtype'] == 'str'
-    }
+
+    if all_dtypes:
+        col_dtypes = {k: v['py_dtype'].lower() for k, v in dtypes.items()}
+    else:
+        col_dtypes = {
+            k: v['py_dtype'].lower() for k, v in dtypes.items() if v['py_dtype'] == 'category'
+        }
+
     required_cols = [
         k for k, v in dtypes.items()
-        if v['py_dtype'] == 'str'
         if v['require_field'] == 'R'
     ]
 
@@ -708,7 +713,7 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
         else:
             return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
     else:
-        return (df[usecols].groupby(group_by).cumcount()) + 1
+        return (df[usecols].groupby(group_by, observed=True).cumcount()) + 1
 
 
 def get_json(src_fp):
@@ -916,10 +921,10 @@ def get_location_df(
         **{portfolio_num: '1'}
     }
 
-    str_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes)
-    int_dtypes = {k.lower(): v for k, v in get_loc_dtypes().items() if v['py_dtype'] == 'int'}
-    float_dtypes = {k.lower(): v for k, v in get_loc_dtypes().items() if v['py_dtype'] == 'float'}
-
+    all_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes, all_dtypes=True)
+    str_dtypes, _  = get_dtypes_and_required_cols(get_loc_dtypes)
+    int_dtypes   = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('int')}
+    float_dtypes = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('float')}
 
     dtypes = {
         **{t: 'float64' for t in tiv_cols + term_cols_floats + list(float_dtypes.keys())},
