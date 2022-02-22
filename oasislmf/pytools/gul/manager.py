@@ -5,6 +5,7 @@ This file is the entry point for the gul command for the package.
 
 from ctypes import sizeof
 from importlib.metadata import files
+from random import sample
 import time
 import sys
 import os
@@ -261,7 +262,7 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
             # it should print out the cdf
             # for line in print_cdftocsv(damagecdf, Nbins, rec):
             #     stream_out.write(line + "\n")
-            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages, item_map, writer)
+            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages, item_map, writer, sample_size)
 
         logger.info("gulpy is finished")
 
@@ -278,7 +279,7 @@ class LossWriter(object):
         # number of bytes to read at a given time.
         # number_size = 8 works only if loss in gulSampleslevelRec is float32.
         self.number_size = max(gulSampleslevelHeader.size, gulSampleslevelRec.size)
-        # print(self.number_size)
+
         self.len_sample = len_sample
         self.lossout = lossout
         self.buff_size = buff_size
@@ -312,12 +313,30 @@ class LossWriter(object):
         self.cursor_bytes += gulSampleslevelRec.size
 
 
-# def itemoutputgul(event_id, item_id, sidx, loss, writer):
+@nb.jit(cache=True, nopython=True, fastmath=True)
+def get_random_numbers(sample_size, seed=None):
 
-#     writer.write_sample_rec(event_id, item_id, sidx, loss)
+    rndm = np.random.uniform(size=sample_size)
+
+    return rndm
 
 
-def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer):
+@numba.njit
+def first_index_numba(val, arr):
+    """
+    Find the first element of `arr` larger than `val`, assuming `arr` is sorted. 
+
+    interesting answer on different methods and their performance
+    especially, using numba https://stackoverflow.com/a/49927020/3709114
+
+    """
+    for idx in range(len(arr)):
+        if arr[idx] > val:
+            return idx
+    return -1
+
+
+def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size):
 
     item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
     coverage_id = item_map[item_key]['coverage_id']
@@ -340,6 +359,134 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
 
     # terminate list of samples for this event-item
     loss_writer.write_sample_rec(0, 0.)
+
+    seed = 1234
+    rndm = get_random_numbers(sample_size, seed=seed)  # of length sample_size
+
+    for i in range(sample_size):
+
+        rndm[i] = 0.4
+
+        # find the bin
+        # TODO: arrived here rval needs to be compared against the prob_to array.
+
+        # determine b, g
+        b = 1
+        g = 2
+        # get_gul(b, g)
+
+        # get_gul_2(b, g)
+
+        # get_gul_3()
+
+
+def get_gul(b, g):
+    # first 1:1 C++ to Python
+    # the interpolation engine for each bin can be cached since the decision on whether to use
+    # point-like/linear/quadratic only depends on bin properties, not on rval.
+    # however, if samples are few and do not use all the bins it might not be advantageous
+
+    # point-like bin
+    if b['bin_from'] == b['bin_to']:
+        gul = b['bin_to'] * g['tiv']
+
+        return gul
+
+    # linear interpolation
+    x = np.float64((g['bin_mean'] - b['bin_from']) / (b['bin_to'] - b['bin_from']))
+    # if np.int(np.round(x * 100000)) == 50000:
+    if np.abs(x - 0.5) <= 5e-6:
+        # this condition requires 1 less operation
+        gul = g['tiv'] * (b['bin_from'] + (g['rval'] - g['prob_from']) *
+                          (b['bin_to'] - b['bin_from']) / (g['prob_to'] - g['prob_from']))
+
+        return gul
+
+    # quadratic interpolation
+    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
+    bin_width = b['bin_to'] - b['bin_from']
+    bin_height = g['prob_to'] - g['prob_from']
+    aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
+    bb = 2. * bin_height / bin_width * (2. - 3. * x)
+    cc = g['prob_from'] - g['rval']
+
+    gul = g['tiv'] * (b['bin_from'] + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
+
+    return gul
+
+
+def get_gul_2(b, g):
+    # second draft: re-using some quantities
+    # the interpolation engine for each bin can be cached since the decision on whether to use
+    # point-like/linear/quadratic only depends on bin properties, not on rval.
+    # however, if samples are few and do not use all the bins it might not be advantageous
+
+    # point-like bin
+    bin_width = b['bin_to'] - b['bin_from']
+    bin_height = g['prob_to'] - g['prob_from']
+    rval_bin_offset = g['rval'] - g['prob_from']
+
+    if bin_width == 0.:
+        gul = b['bin_to'] * g['tiv']
+
+        return gul
+
+    # linear interpolation
+    x = np.float64((g['bin_mean'] - b['bin_from']) / bin_width)
+    # if np.int(np.round(x * 100000)) == 50000:
+    if np.abs(x - 0.5) <= 5e-6:
+        # this condition requires 1 less operation
+        gul = g['tiv'] * (b['bin_from'] + rval_bin_offset *
+                          bin_width / bin_height)
+
+        return gul
+
+    # quadratic interpolation
+    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
+    aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
+    bb = 2. * bin_height / bin_width * (2. - 3. * x)
+    cc = - rval_bin_offset
+
+    gul = g['tiv'] * (b['bin_from'] + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
+
+    return gul
+
+
+@nb.jit(cache=True, nopython=True, fastmath=True)
+def get_gul_3(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
+    # third draft: do not use structured arrays
+    # the interpolation engine for each bin can be cached since the decision on whether to use
+    # point-like/linear/quadratic only depends on bin properties, not on rval.
+    # however, if samples are few and do not use all the bins it might not be advantageous
+
+    # point-like bin
+    bin_width = bin_to - bin_from
+    bin_height = prob_to - prob_from
+    rval_bin_offset = rval - prob_from
+
+    if bin_width == 0.:
+        gul = bin_to * tiv
+
+        return gul
+
+    # linear interpolation
+    x = np.float64((bin_mean - bin_from) / bin_width)
+    # if np.int(np.round(x * 100000)) == 50000:
+    if np.abs(x - 0.5) <= 5e-6:
+        # this condition requires 1 less operation
+        gul = tiv * (bin_from + rval_bin_offset * bin_width / bin_height)
+
+        return gul
+
+    # quadratic interpolation
+    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
+    aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
+    bb = 2. * bin_height / bin_width * (2. - 3. * x)
+    cc = - rval_bin_offset
+
+    gul = tiv * (bin_from + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
+
+    return gul
 
 
 @nb.jit(cache=True, nopython=True, fastmath=True)
