@@ -40,9 +40,6 @@ class GenerateOasisFiles(ComputationStep):
                 )
         return {**self.kwargs, **updated_inputs}
 
-    def conversion_kwargs(self):
-        pass
-
     def run(self):
         # setup input dir
         if not self.oasis_files_dir:
