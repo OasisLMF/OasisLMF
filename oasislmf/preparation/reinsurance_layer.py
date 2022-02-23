@@ -603,7 +603,7 @@ class ReinsuranceLayer(object):
         )
         ri_df['layer_id'] = 0
         ri_df.columns = ri_df.columns.str.lower()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'layer_id'] = ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC].groupby(fields).cumcount() + 1
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'layer_id'] = ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC].groupby(fields, observed=True).cumcount() + 1
         ri_info_no_fac = self.ri_info_df[self.ri_info_df['ReinsType'] != oed.REINS_TYPE_FAC].reset_index(drop=True)
         ri_info_no_fac.columns = ri_info_no_fac.columns.str.lower()
         ri_info_no_fac['layer_id'] = ri_info_no_fac.index + 1 + ri_df['layer_id'].max()

@@ -39,8 +39,10 @@ import io
 import glob
 import json
 
+import pandas as pd
 from collections import OrderedDict
 from itertools import chain
+from ods_tools import get_ods_fields
 
 from .fm import SUPPORTED_FM_LEVELS
 from .exceptions import OasisException
@@ -101,6 +103,19 @@ DEFAULT_RTREE_INDEX_PROPS = {
     'writethrough': False
 }
 
+MAPPING_FROM_ODS_SPEC = {
+    "Type & Description": "desc",
+    "Required Field": "require_field",
+    "Data Type": "data_type",
+    "Allow blanks?": "null_allowed",
+    "Default": "default_value",
+    "Valid value range": "valid_range",
+    "SecMod?": "secmod",
+    "BackEndTableName": "db_tablename",
+    "Back End DB Field Name": "db_fieldname",
+    "pd_dtype": "py_dtype",
+    "File Name": "filename"
+}
 
 # Store index from merged source files (for later slice & dice)
 SOURCE_IDX = OrderedDict({
@@ -215,23 +230,27 @@ def get_default_fm_aggregation_profile(path=False):
 
 
 def get_loc_dtypes():
-    fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
-    return get_default_json(src_fp=fp)
+    return pd.DataFrame(
+        get_ods_fields(pd)['Loc']).rename(mapper=MAPPING_FROM_ODS_SPEC
+    ).to_dict()
 
 
 def get_acc_dtypes():
-    fp = os.path.join(STATIC_DATA_FP, 'acc_dtypes.json')
-    return get_default_json(src_fp=fp)
+    return pd.DataFrame(
+        get_ods_fields(pd)['Acc']).rename(mapper=MAPPING_FROM_ODS_SPEC
+    ).to_dict()
 
 
 def get_scope_dtypes():
-    fp = os.path.join(STATIC_DATA_FP, 'scope_dtypes.json')
-    return get_default_json(src_fp=fp)
+    return pd.DataFrame(
+        get_ods_fields(pd)['ReinsScope']).rename(mapper=MAPPING_FROM_ODS_SPEC
+    ).to_dict()
 
 
 def get_info_dtypes():
-    fp = os.path.join(STATIC_DATA_FP, 'info_dtypes.json')
-    return get_default_json(src_fp=fp)
+    return pd.DataFrame(
+        get_ods_fields(pd)['ReinsInfo']).rename(mapper=MAPPING_FROM_ODS_SPEC
+    ).to_dict()
 
 
 def get_oed_default_values(terms):
