@@ -93,4 +93,3 @@ wait $pid1 $pid2
 
 
 check_complete
-exit_handler

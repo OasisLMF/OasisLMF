@@ -131,4 +131,3 @@ wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
 check_complete
-exit_handler

@@ -609,4 +609,3 @@ rm -R -f work/*
 rm -R -f fifo/*
 
 check_complete
-exit_handler

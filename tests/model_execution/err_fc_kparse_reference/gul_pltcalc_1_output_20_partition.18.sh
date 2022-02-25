@@ -113,4 +113,3 @@ wait $kpid1 $kpid2
 
 
 check_complete
-exit_handler

@@ -105,4 +105,3 @@ wait $kpid1 $kpid2 $kpid3
 
 
 check_complete
-exit_handler

@@ -99,4 +99,3 @@ wait $kpid1
 
 
 check_complete
-exit_handler
