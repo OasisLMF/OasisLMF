@@ -192,7 +192,7 @@ def generate_item_map(items):
     return item_map
 
 
-def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **kwargs):
+def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, file_out=None, **kwargs):
     """
     Runs the main process of the gul calculation.
 
@@ -251,19 +251,20 @@ def run(run_dir, ignore_file_type, sample_size, file_in=None, file_out=None, **k
 
         seed = 123456  # substitute with desired value
         # rands = generate_rands(N=100, method='uniform', d=1, rng=None, seed=seed)
-        # run gulcalc
 
         writer = LossWriter(stream_out, sample_size)
-        # print("initial: ", writer.cursor)
+        # rndm = np.loadtxt("rndm_S10.txt") # debug
 
         # get the stream, for each entry in the stream:
+        i = 0
         for damagecdf, Nbins, rec in read_stream(run_dir):
             # uncomment below as a debug
             # it should print out the cdf
             # for line in print_cdftocsv(damagecdf, Nbins, rec):
             #     stream_out.write(line + "\n")
-            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages, item_map, writer, sample_size)
-
+            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
+                       item_map, writer, sample_size, loss_threshold, rndm[i * sample_size:(i + 1) * sample_size])
+            i += 1
         logger.info("gulpy is finished")
 
         # flush all the remaining data
@@ -278,51 +279,75 @@ class LossWriter(object):
 
         # number of bytes to read at a given time.
         # number_size = 8 works only if loss in gulSampleslevelRec is float32.
-        self.number_size = max(gulSampleslevelHeader.size, gulSampleslevelRec.size)
+        self.number_size = max(gulSampleslevelHeader.size, gulSampleslevelRec.size)  # bytes
 
         self.len_sample = len_sample
         self.lossout = lossout
-        self.buff_size = buff_size
-        self.nb_number = self.buff_size // self.number_size
+        self.buff_size = buff_size  # bytes
+
+        # compute how many numbers of size `number_size` fit in the buffer
+        # for safety, take 1000 less than the compute number to allow flushing the buffer not too often
+        # if -1 instead of -1000 is taken, it requires checking whether to flush or not for every write to mv.
+        self.buff_safety = self.number_size * 1000
+        self.nb_number = (self.buff_size + self.buff_safety) // self.number_size
+        self.flush_number = self.nb_number - 4
+
+        # define the raw memory view, the int32 view of it, and their respective cursors
         self.mv = memoryview(bytearray(self.nb_number * self.number_size))
+        self.int32_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype='i4')
+        # cannot use because the header is int int
+        # self.loss_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype=gulSampleslevelRec.dtype)
+        # cannot use two views loss_mv and header_mv because it only works if oasis_float is float32.
+        # if oasis_float is set to float64, the cursor will not map correctly both mv.
+        self.cursor_bytes = 0
+        self.cursor = 0
+
         # ratio between size of loss dtype and int
         self.loss_rel_size = 1
-        self.cursor = 0
-        self.cursor_bytes = 0
-        self.int32_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype='i4')
 
     def flush(self, force=False):
-        # flush out when the memoryview is full
-        # if self.cursor == self.buff_size - 1 or force:
+        # print("FLUSHING ", self.cursor, " ", self.cursor_bytes)
         self.lossout.write(self.mv[:self.cursor_bytes])
-        # print(self.mv[:self.cursor])
+        self.cursor_bytes = 0
+        self.cursor = 0
+        # print("FLUSHED ", self.cursor, " ", self.cursor_bytes)
 
     def write_sample_header(self, event_id, item_id):
         self.int32_mv[self.cursor] = event_id
         self.cursor += 1
         self.int32_mv[self.cursor] = item_id
         self.cursor += 1
+        # print("cursor:", self.cursor)
+        # self.loss_mv[self.cursor].view(gulSampleslevelHeader)[:] = (event_id, item_id)
+        # self.cursor += 1
 
-        self.cursor_bytes += 2 * gulSampleslevelHeader.size
+        self.cursor_bytes += gulSampleslevelHeader.size
 
     def write_sample_rec(self, sidx, loss):
+
+        if self.cursor >= self.flush_number:
+            self.flush()
+
         self.int32_mv[self.cursor] = sidx
         self.cursor += 1
         self.int32_mv[self.cursor:self.cursor + self.loss_rel_size].view(oasis_float)[:] = loss
         self.cursor += 1
+        # problem is that to write the two numbers I need  to increase by 1 after writing sidx,
+        # but number of items of int32_mv is the number of gulSampleslevelRec items, so ....how do I solve this?
+
         self.cursor_bytes += gulSampleslevelRec.size
 
 
 @nb.jit(cache=True, nopython=True, fastmath=True)
 def get_random_numbers(sample_size, seed=None):
 
-    rndm = np.random.uniform(size=sample_size)
+    rndm = np.random.uniform(0., 1., size=sample_size)
 
     return rndm
 
 
-@numba.njit
-def first_index_numba(val, arr):
+@nb.jit(cache=True, nopython=True, fastmath=True)
+def first_index_numba(val, arr, len_arr):
     """
     Find the first element of `arr` larger than `val`, assuming `arr` is sorted. 
 
@@ -330,13 +355,13 @@ def first_index_numba(val, arr):
     especially, using numba https://stackoverflow.com/a/49927020/3709114
 
     """
-    for idx in range(len(arr)):
+    for idx in range(len_arr):
         if arr[idx] > val:
             return idx
     return -1
 
 
-def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size):
+def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm):
 
     item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
     coverage_id = item_map[item_key]['coverage_id']
@@ -357,27 +382,37 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     loss_writer.write_sample_rec(STD_DEV_IDX, std_dev)
     loss_writer.write_sample_rec(MEAN_IDX, gul_mean)
 
+    seed = 1234
+    # rndm = get_random_numbers(sample_size, seed=seed)  # of length sample_size
+
+    for sample_idx in range(sample_size):
+
+        # take the random sample
+        rval = rndm[sample_idx]
+        # find the bin in which rval falls into
+        # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+        # there's a 1:1 mapping between indices of rec and damage_bins
+        bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
+
+        # compute the loss
+        loss = get_gul_3(
+            damage_bins['bin_from'][bin_idx],
+            damage_bins['bin_to'][bin_idx],
+            rec['bin_mean'][bin_idx],
+            rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+            rec['prob_to'][bin_idx],
+            rval,
+            tiv
+        )
+
+        if loss >= loss_threshold:
+            # do something
+            loss_writer.write_sample_rec(sample_idx + 1, loss)
+
     # terminate list of samples for this event-item
     loss_writer.write_sample_rec(0, 0.)
 
-    seed = 1234
-    rndm = get_random_numbers(sample_size, seed=seed)  # of length sample_size
-
-    for i in range(sample_size):
-
-        rndm[i] = 0.4
-
-        # find the bin
-        # TODO: arrived here rval needs to be compared against the prob_to array.
-
-        # determine b, g
-        b = 1
-        g = 2
-        # get_gul(b, g)
-
-        # get_gul_2(b, g)
-
-        # get_gul_3()
+    return 0
 
 
 def get_gul(b, g):
@@ -452,22 +487,23 @@ def get_gul_2(b, g):
     return gul
 
 
-@nb.jit(cache=True, nopython=True, fastmath=True)
+@nb.jit(cache=True, nopython=True, fastmath=False)
 def get_gul_3(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     # third draft: do not use structured arrays
     # the interpolation engine for each bin can be cached since the decision on whether to use
     # point-like/linear/quadratic only depends on bin properties, not on rval.
     # however, if samples are few and do not use all the bins it might not be advantageous
 
-    # point-like bin
     bin_width = bin_to - bin_from
-    bin_height = prob_to - prob_from
-    rval_bin_offset = rval - prob_from
 
+    # point-like bin
     if bin_width == 0.:
-        gul = bin_to * tiv
+        gul = tiv * bin_to
 
         return gul
+
+    bin_height = prob_to - prob_from
+    rval_bin_offset = rval - prob_from
 
     # linear interpolation
     x = np.float64((bin_mean - bin_from) / bin_width)
