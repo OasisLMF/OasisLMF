@@ -14,6 +14,10 @@ ktools_monitor.sh $$ & pid0=$!
 
 exit_handler(){
    exit_code=$?
+
+   # disable handler
+   trap - QUIT HUP INT KILL TERM ERR EXIT
+
    kill -9 $pid0 2> /dev/null
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
@@ -109,4 +113,3 @@ wait $kpid1 $kpid2
 
 
 check_complete
-exit_handler
