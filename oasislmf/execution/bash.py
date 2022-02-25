@@ -1470,7 +1470,6 @@ def bash_wrapper(filename, bash_trace, stderr_guard):
     if stderr_guard:
         print_command(filename, '')
         print_command(filename, 'check_complete')
-        print_command(filename, 'exit_handler')
 
 
 def create_bash_analysis(
