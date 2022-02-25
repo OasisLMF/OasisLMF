@@ -3,7 +3,7 @@
 import sys
 import argparse
 
-from oasislmf.pytools.gul.manager import read_stream
+from oasislmf.pytools.gul.manager import read_getmodel_stream
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
@@ -47,7 +47,7 @@ def run(run_dir, skip_header):
     if not skip_header:
         stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
 
-    for damagecdf, Nbins, rec in read_stream(run_dir):
+    for damagecdf, Nbins, rec in read_getmodel_stream(run_dir):
         for line in print_cdftocsv(damagecdf, Nbins, rec):
             stream_out.write(line + "\n")
 

@@ -34,7 +34,7 @@ CHANCE_OF_LOSS_IDX = -4
 MAX_LOSS_IDX = -5
 
 
-def read_stream(run_dir):
+def read_getmodel_stream(run_dir):
     """Read the getmoudel output stream.
 
     Args:
@@ -257,7 +257,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, fi
 
         # get the stream, for each entry in the stream:
         i = 0
-        for damagecdf, Nbins, rec in read_stream(run_dir):
+        for damagecdf, Nbins, rec in read_getmodel_stream(run_dir):
             # uncomment below as a debug
             # it should print out the cdf
             # for line in print_cdftocsv(damagecdf, Nbins, rec):
