@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.23.7`_
+ ---------
+* [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures
+* [#994](https://github.com/OasisLMF/OasisLMF/pull/998) - Data usage in categorical data types
+.. _`1.23.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.6...1.23.7
+
 `1.23.6`_
  ---------
 * [#983](https://github.com/OasisLMF/OasisLMF/pull/984) - Unexpected output change in PiWind testing 
