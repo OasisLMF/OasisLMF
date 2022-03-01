@@ -34,7 +34,7 @@ CHANCE_OF_LOSS_IDX = -4
 MAX_LOSS_IDX = -5
 
 
-def read_getmodel_stream(run_dir):
+def read_getmodel_stream(run_dir, streams_in):
     """Read the getmoudel output stream.
 
     Args:
@@ -44,9 +44,6 @@ def read_getmodel_stream(run_dir):
         ValueError: If the stream type is not 1.
 
     """
-    # set up the streams
-    streams_in = sys.stdin.buffer
-
     # get damage bins from file
     static_path = os.path.join(run_dir, 'static')
     damage_bins = get_mean_damage_bins(static_path=static_path)
@@ -60,7 +57,7 @@ def read_getmodel_stream(run_dir):
     # determine stream type
     stream_type = np.frombuffer(streams_in.read(4), dtype='i4')
 
-    # TODO: make sure the bit1 and bit 2-4 compliance is checked
+    # FIXME: make sure the bit1 and bit 2-4 compliance is checked
     # see https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md
     if stream_type[0] != 1:
         raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
@@ -192,7 +189,8 @@ def generate_item_map(items):
     return item_map
 
 
-def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, file_out=None, **kwargs):
+def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, file_out=None,
+        random_numbers_file=None, **kwargs):
     """
     Runs the main process of the gul calculation.
 
@@ -223,9 +221,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, fi
 
     item_map = generate_item_map(items)
 
-    # TODO NOW: understand how to get tiv from the iterator provably needs the items dict
-    # check with Stephane if the architecture is ok or not
-
     coverages = get_coverages(input_path)
     Ncoverages = coverages
 
@@ -253,18 +248,28 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, fi
         # rands = generate_rands(N=100, method='uniform', d=1, rng=None, seed=seed)
 
         writer = LossWriter(stream_out, sample_size)
-        # rndm = np.loadtxt("rndm_S10.txt") # debug
+
+        if random_numbers_file:
+            rndm = np.loadtxt(random_numbers_file)
+            assert len(rndm) > sample_size, \
+                f"The number of random values in the file must be strictly larger than sample size, " \
+                f"but got {len(rndm)} random numbers with sample size={sample_size}."
+        else:
+            rndm = generate_random_numbers(10000)  # generate a big number of random numbers
+
+        len_rndm = rndm.shape[0]
+        rndm_gen = get_arr_chunks(rndm, len_rndm, sample_size)
 
         # get the stream, for each entry in the stream:
-        i = 0
-        for damagecdf, Nbins, rec in read_getmodel_stream(run_dir):
+        for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
             # uncomment below as a debug
             # it should print out the cdf
             # for line in print_cdftocsv(damagecdf, Nbins, rec):
             #     stream_out.write(line + "\n")
             processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
-                       item_map, writer, sample_size, loss_threshold, rndm[i * sample_size:(i + 1) * sample_size])
-            i += 1
+                       item_map, writer, sample_size, loss_threshold,
+                       next(rndm_gen))
+
         logger.info("gulpy is finished")
 
         # flush all the remaining data
@@ -273,7 +278,36 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, fi
     return 0
 
 
-class LossWriter(object):
+@nb.jit(nopython=True, fastmath=True)
+def get_arr_chunks(arr, len_arr, N):
+    """Get chunks of length `N` from an array `arr` of length `len_arr`.
+    The function yields indefinitely, cycling through the array end.
+    N must be strictly smaller than len_arr.
+
+    Args:
+        arr (_type_): _description_
+        len_arr (_type_): _description_
+        N (_type_): _description_
+
+    Yields:
+        _type_: _description_
+    """
+    start = -N
+    while True:
+        start += N
+        end = start + N
+        start_mod = start % len_arr
+        end_mod = end % len_arr
+
+        if start_mod == end_mod:
+            yield arr
+        elif end_mod < start_mod:
+            yield np.concatenate((arr[start_mod:], arr[:end_mod]))
+        else:
+            yield arr[start_mod:end_mod]
+
+
+class LossWriter():
 
     def __init__(self, lossout, len_sample, buff_size=65536) -> None:
 
@@ -302,7 +336,8 @@ class LossWriter(object):
         self.cursor_bytes = 0
         self.cursor = 0
 
-        # ratio between size of loss dtype and int
+        # size(oasis_float)/size(i4)
+        # TODO find a way to do that programmatically and test if this works with oasis_float=float64
         self.loss_rel_size = 1
 
     def flush(self, force=False):
@@ -317,10 +352,6 @@ class LossWriter(object):
         self.cursor += 1
         self.int32_mv[self.cursor] = item_id
         self.cursor += 1
-        # print("cursor:", self.cursor)
-        # self.loss_mv[self.cursor].view(gulSampleslevelHeader)[:] = (event_id, item_id)
-        # self.cursor += 1
-
         self.cursor_bytes += gulSampleslevelHeader.size
 
     def write_sample_rec(self, sidx, loss):
@@ -331,15 +362,12 @@ class LossWriter(object):
         self.int32_mv[self.cursor] = sidx
         self.cursor += 1
         self.int32_mv[self.cursor:self.cursor + self.loss_rel_size].view(oasis_float)[:] = loss
-        self.cursor += 1
-        # problem is that to write the two numbers I need  to increase by 1 after writing sidx,
-        # but number of items of int32_mv is the number of gulSampleslevelRec items, so ....how do I solve this?
-
+        self.cursor += self.loss_rel_size
         self.cursor_bytes += gulSampleslevelRec.size
 
 
 @nb.jit(cache=True, nopython=True, fastmath=True)
-def get_random_numbers(sample_size, seed=None):
+def generate_random_numbers(sample_size, seed=None):
 
     rndm = np.random.uniform(0., 1., size=sample_size)
 
@@ -362,7 +390,8 @@ def first_index_numba(val, arr, len_arr):
 
 
 def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm):
-
+    # TODO: write docstring
+    # TODO: port to numba
     item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
     coverage_id = item_map[item_key]['coverage_id']
     tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
@@ -376,6 +405,7 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     loss_writer.write_sample_header(damagecdf['event_id'], item_map[item_key]['item_id'])
 
     # write default samples
+    # TODO create a function that takes all of them and writes all of them
     loss_writer.write_sample_rec(MAX_LOSS_IDX, max_loss)
     loss_writer.write_sample_rec(CHANCE_OF_LOSS_IDX, chance_of_loss)
     loss_writer.write_sample_rec(TIV_IDX, tiv)
@@ -385,17 +415,16 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     seed = 1234
     # rndm = get_random_numbers(sample_size, seed=seed)  # of length sample_size
 
-    for sample_idx in range(sample_size):
-
+    for sample_idx, rval in enumerate(rndm):
         # take the random sample
-        rval = rndm[sample_idx]
+        # rval = rndm[sample_idx]
         # find the bin in which rval falls into
         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
         # there's a 1:1 mapping between indices of rec and damage_bins
         bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
 
         # compute the loss
-        loss = get_gul_3(
+        loss = get_gul(
             damage_bins['bin_from'][bin_idx],
             damage_bins['bin_to'][bin_idx],
             rec['bin_mean'][bin_idx],
@@ -415,81 +444,9 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     return 0
 
 
-def get_gul(b, g):
-    # first 1:1 C++ to Python
-    # the interpolation engine for each bin can be cached since the decision on whether to use
-    # point-like/linear/quadratic only depends on bin properties, not on rval.
-    # however, if samples are few and do not use all the bins it might not be advantageous
-
-    # point-like bin
-    if b['bin_from'] == b['bin_to']:
-        gul = b['bin_to'] * g['tiv']
-
-        return gul
-
-    # linear interpolation
-    x = np.float64((g['bin_mean'] - b['bin_from']) / (b['bin_to'] - b['bin_from']))
-    # if np.int(np.round(x * 100000)) == 50000:
-    if np.abs(x - 0.5) <= 5e-6:
-        # this condition requires 1 less operation
-        gul = g['tiv'] * (b['bin_from'] + (g['rval'] - g['prob_from']) *
-                          (b['bin_to'] - b['bin_from']) / (g['prob_to'] - g['prob_from']))
-
-        return gul
-
-    # quadratic interpolation
-    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
-    bin_width = b['bin_to'] - b['bin_from']
-    bin_height = g['prob_to'] - g['prob_from']
-    aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
-    bb = 2. * bin_height / bin_width * (2. - 3. * x)
-    cc = g['prob_from'] - g['rval']
-
-    gul = g['tiv'] * (b['bin_from'] + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
-
-    return gul
-
-
-def get_gul_2(b, g):
-    # second draft: re-using some quantities
-    # the interpolation engine for each bin can be cached since the decision on whether to use
-    # point-like/linear/quadratic only depends on bin properties, not on rval.
-    # however, if samples are few and do not use all the bins it might not be advantageous
-
-    # point-like bin
-    bin_width = b['bin_to'] - b['bin_from']
-    bin_height = g['prob_to'] - g['prob_from']
-    rval_bin_offset = g['rval'] - g['prob_from']
-
-    if bin_width == 0.:
-        gul = b['bin_to'] * g['tiv']
-
-        return gul
-
-    # linear interpolation
-    x = np.float64((g['bin_mean'] - b['bin_from']) / bin_width)
-    # if np.int(np.round(x * 100000)) == 50000:
-    if np.abs(x - 0.5) <= 5e-6:
-        # this condition requires 1 less operation
-        gul = g['tiv'] * (b['bin_from'] + rval_bin_offset *
-                          bin_width / bin_height)
-
-        return gul
-
-    # quadratic interpolation
-    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
-    aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
-    bb = 2. * bin_height / bin_width * (2. - 3. * x)
-    cc = - rval_bin_offset
-
-    gul = g['tiv'] * (b['bin_from'] + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
-
-    return gul
-
-
 @nb.jit(cache=True, nopython=True, fastmath=False)
-def get_gul_3(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
-    # third draft: do not use structured arrays
+def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
+    # TODO: write docstring
     # the interpolation engine for each bin can be cached since the decision on whether to use
     # point-like/linear/quadratic only depends on bin properties, not on rval.
     # however, if samples are few and do not use all the bins it might not be advantageous
