@@ -3,6 +3,7 @@
 import argparse
 import logging
 
+from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gul import manager, logger
 
 parser = argparse.ArgumentParser(
@@ -12,9 +13,10 @@ parser = argparse.ArgumentParser(
 
 
 # parser.add_argument('-a', '--allocation-rule', help='back-allocation rule', default=0, type=int, action='store', dest='alloc_rule')
+parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('-i', '--items-outfile', help='filename of items output',
                     type=str, action='store', dest='items_outfile')
-parser.add_argument('--random-numbers-file', help='filename of random numbers',
+parser.add_argument('-r', '--random-numbers-file', help='filename of random numbers',
                     type=str, action='store')
 parser.add_argument('--file-in', type=str, action='store')
 # parser.add_argument('-j', '--correlated-outfile', help='filename of correlated output', type=str, action='store', dest='corr_outfile')
@@ -40,7 +42,6 @@ parser.add_argument('-s', help='skip header (default: False).', default=False, a
 # "-s seed for random number generation (used for debugging)\n"
 # "-A automatically hashed seed driven random number generation (default)\n"
 # "-l legacy mechanism driven by random numbers generated dynamically per group - will be removed in future\n"
-# "-L Loss threshold (default 0)\n"
 
 
 def main():
