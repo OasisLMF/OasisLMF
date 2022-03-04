@@ -96,7 +96,6 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 key_columns= ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
 
-
 class DeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
 
@@ -344,9 +343,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def get_area(locations, gdf_area_peril):
             # this conversion could be done in a separate step allowing more posibilities for the geometry
-            gdf_loc = gpd.GeoDataFrame(locations)
-            gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row[f"longitude"], row[f"latitude"]), axis=1)
-            gdf_loc.set_geometry('loc_geometry', inplace=True)
+            null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
+            null_gdf_loc = locations[null_gdf]
+            if not null_gdf_loc.empty:
+                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf])
+            else:
+                gdf_loc = gpd.GeoDataFrame(locations)
+
+            gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row[f"longitude"], row[f"latitude"]),
+                                                    axis=1,
+                                                    result_type='reduce')
+            gdf_loc = gdf_loc.set_geometry('loc_geometry')
+
             gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
             if nearest_neighbor_min_distance > 0:
@@ -360,8 +368,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
                     common_col = gdf_loc_na.columns & nearest_neighbor_df.columns
                     gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
-
+            if not null_gdf_loc.empty:
+                gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
             self.set_id_columns(gdf_loc, id_columns)
+
+            # index column are created during the sjoin, we can drop them
+            gdf_loc.drop(columns=['index_right', 'index_left'], errors='ignore')
+
             return gdf_loc
 
         def fct(locations):
@@ -421,7 +434,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return geo_grid_lookup
 
-    def build_merge(self, file_path, id_columns=[]):
+    def build_merge(self, file_path, id_columns=[], **kwargs):
         """
         this method will merge the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
@@ -429,7 +442,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         this is an efficient way to map a combination of column that have a finite scope to an idea.
         """
 
-        df_to_merge = pd.read_csv(self.to_abs_filepath(file_path))
+        df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
         df_to_merge.rename(columns={column:column.lower() for column in df_to_merge.columns}, inplace=True)
 
         def merge(locations):
