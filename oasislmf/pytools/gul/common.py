@@ -35,3 +35,17 @@ gulSampleFullRecord = nb.from_dtype(np.dtype([('event_id', 'i4'),
                                               ('sidx', 'i4'),
                                               ('loss', oasis_float),
                                               ]))
+
+gulItemIDLoss = nb.from_dtype(np.dtype([('item_id', 'i4'),
+                                        ('loss', oasis_float),
+                                        ]))
+
+processrecData = nb.from_dtype(np.dtype([
+    ('gul_mean', oasis_float),
+    ('std_dev', oasis_float),
+    ('chance_of_loss', oasis_float),
+    ('max_loss', oasis_float),
+    ('group_id', 'i4'),
+    ('item_id', 'i4'),
+   	# std::vector<int> bin_map_ids; // MT array of integers
+]))

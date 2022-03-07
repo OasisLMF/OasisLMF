@@ -12,7 +12,8 @@ parser = argparse.ArgumentParser(
 )
 
 
-# parser.add_argument('-a', '--allocation-rule', help='back-allocation rule', default=0, type=int, action='store', dest='alloc_rule')
+parser.add_argument('-a', '--allocation-rule', help='back-allocation rule',
+                    default=0, type=int, action='store', dest='alloc_rule')
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('-i', '--items-outfile', help='filename of items output',
                     type=str, action='store', dest='items_outfile')

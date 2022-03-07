@@ -13,11 +13,12 @@ import logging
 from contextlib import ExitStack
 import numpy as np
 import numba as nb
-from math import sqrt  # this is faster than numpy.sqrt
+from math import sqrt  # faster than numpy.sqrt
 
 from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_damage_bins, get_items
 from oasislmf.pytools.getmodel.common import oasis_float
 from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, gulSampleFullRecord
+from oasislmf.pytools.gul.common import processrecData, gulItemIDLoss
 
 from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, Item_map_rec
 
@@ -32,6 +33,8 @@ STD_DEV_IDX = -2
 TIV_IDX = -3
 CHANCE_OF_LOSS_IDX = -4
 MAX_LOSS_IDX = -5
+
+NUM_IDX = 5
 
 
 def read_getmodel_stream(run_dir, streams_in):
@@ -189,7 +192,7 @@ def generate_item_map(items):
     return item_map
 
 
-def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, file_out=None,
+def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file_in=None, file_out=None,
         random_numbers_file=None, **kwargs):
     """
     Runs the main process of the gul calculation.
@@ -258,24 +261,231 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, file_in=None, fi
             rndm = generate_random_numbers(10000)  # generate a big number of random numbers
 
         len_rndm = rndm.shape[0]
-        rndm_gen = get_arr_chunks(rndm, len_rndm, sample_size)
+        # min condition is needed to avoid seg fault if sample_size=0
+        rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
+        # TODO: probably here I need a with Losswriter context
         # get the stream, for each entry in the stream:
-        for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
-            # uncomment below as a debug
-            # it should print out the cdf
-            # for line in print_cdftocsv(damagecdf, Nbins, rec):
-            #     stream_out.write(line + "\n")
-            processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
-                       item_map, writer, sample_size, loss_threshold,
-                       next(rndm_gen))
 
-        logger.info("gulpy is finished")
+        if alloc_rule == 0:
+            for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
+                # uncomment below as a debug
+                # it should print out the cdf
+                # for line in print_cdftocsv(damagecdf, Nbins, rec):
+                #     stream_out.write(line + "\n")
 
-        # flush all the remaining data
-        writer.flush(force=True)
+                processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
+                           item_map, writer, sample_size, loss_threshold,
+                           next(rndm_gen))
+
+            # flush all the remaining data
+            writer.flush(force=True)
+
+        else:
+            assert alloc_rule in [1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
+
+            last_event_id = -1
+            mode1_stats = {}
+            mode1UsedCoverageIDs = []
+            bin_map = {}
+            bin_lookup = []
+            for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
+                # uncomment below as a debug
+                # it should print out the cdf
+                # for line in print_cdftocsv(damagecdf, Nbins, rec):
+                #     stream_out.write(line + "\n")
+
+                # processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
+                #            item_map, writer, sample_size, loss_threshold,
+                #            next(rndm_gen))
+                event_id = damagecdf[0]['event_id']
+
+                # perhaps it'd be faster if read_getmodel_stream yields event by event
+                # so we can avoid these ifs inside here, and we always output and clearmode1_data
+                if event_id != last_event_id:
+                    # print(event_id)
+                    if last_event_id > 0:
+                        # this is not the very first event to be processed
+                        bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
+                        bin_lookup_arr = np.array(bin_lookup)
+
+                        bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
+                        bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
+
+                        outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
+                                        coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule)
+
+                        # clearmode1_data
+                        mode1_stats = {}
+                        mode1UsedCoverageIDs = []
+
+                    last_event_id = event_id
+
+                print("HELLO3")
+
+                mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup = processrec_mode1(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
+                                                                                          item_map, writer, sample_size, loss_threshold,
+                                                                                          next(rndm_gen), mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup)
+            # write out the the last event
+            bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
+            bin_lookup_arr = np.array(bin_lookup)
+
+            bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
+            bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
+
+            outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
+                            coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule)
+
+            # print(mode1_stats)
+            # print(mode1UsedCoverageIDs)
+
+            # flush all the remaining data
+            writer.flush(force=True)
 
     return 0
+
+
+def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, coverages, bin_lookup_ndarr,
+                    damage_bins, loss_threshold, loss_writer, alloc_rule):
+
+    for coverage_id in mode1UsedCoverageIDs:
+
+        gilv = np.ndarray((sample_size + NUM_IDX + 1, ), dtype=gulItemIDLoss)
+        # I think that I have to re-think this.
+        # gilv will have as many columns as len(mode1_stats[coverage_id])
+        hasData = False
+
+        if mode1_stats[coverage_id]:
+            tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
+            exposureValue = tiv / len(mode1_stats)
+            # hasData = True
+            gilv = np.zeros((sample_size + NUM_IDX + 1, len(mode1_stats[coverage_id])), dtype=gulItemIDLoss)
+
+            # probably this for loop can go inside the if, since if mode1_stats[coverage_id] is None, enumerate will raise error
+            for i, item in enumerate(mode1_stats[coverage_id]):
+                print(coverage_id, i, item['recData']['max_loss'])
+                gi = np.ndarray(1, dtype=gulItemIDLoss)
+
+                gi['item_id'] = item['recData']['item_id']
+                gi['loss'] = item['recData']['max_loss']
+                gilv[MAX_LOSS_IDX + NUM_IDX][i] = gi
+
+                gi['loss'] = item['recData']['chance_of_loss']
+                gilv[CHANCE_OF_LOSS_IDX + NUM_IDX][i] = gi
+
+                gi['loss'] = exposureValue
+                gilv[TIV_IDX + NUM_IDX][i] = gi
+
+                gi['loss'] = item['recData']['std_dev']
+                gilv[STD_DEV_IDX + NUM_IDX][i] = gi
+
+                gi['loss'] = item['recData']['gul_mean']
+                gilv[MEAN_IDX + NUM_IDX][i] = gi
+
+                # random samples
+                rndm = generate_random_numbers(sample_size)  # generate a big number of random numbers
+
+                prob_to = bin_lookup_ndarr[item['bin_ids']]['prob_to']
+                bin_mean = bin_lookup_ndarr[item['bin_ids']]['bin_mean']
+                Nbins_remapped = len(item['bin_ids'])
+
+                for sample_idx, rval in enumerate(rndm):
+                    # take the random sample
+                    # rval = rndm[sample_idx]
+                    # find the bin in which rval falls into
+                    # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+                    # there's a 1:1 mapping between indices of rec and damage_bins
+                    bin_idx = first_index_numba(rval, prob_to, Nbins_remapped)
+                    # print("bin_idx:", bin_idx, "bin_mean:", bin_mean[bin_idx], "prob_to:", prob_to[bin_idx])
+                    # compute the loss
+                    loss = get_gul(
+                        # I don't understand why this is bin_idx. Doesn't have it to be remapped?
+                        damage_bins['bin_from'][bin_idx],
+                        # I don't understand why this is bin_idx. Doesn't have it to be remapped?
+                        damage_bins['bin_to'][bin_idx],
+                        bin_mean[bin_idx],
+                        prob_to[max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+                        prob_to[bin_idx],
+                        rval,
+                        tiv
+                    )
+
+                    if loss >= loss_threshold:
+                        # do something
+                        gi['loss'] = loss
+                        gilv[sample_idx + 1 + NUM_IDX][i] = gi
+
+                        # loss_writer.write_sample_rec(sample_idx + 1, loss)
+                print("coverage_id:", coverage_id)
+                print(gilv)
+
+            # haData=True
+            writemode1output(gilv, alloc_rule, tiv)
+
+            # terminate list of samples for this event-item
+            loss_writer.write_sample_rec(0, 0.)
+
+
+@nb.jit(nopython=True, fastmath=True)
+def setmaxloss(gilv):
+    """Set max loss.
+    For each sample, find the maximum loss across all items.
+
+    """
+    nrows, ncols = gilv.shape
+
+    # the main loop starts from NUM_IDX + 1 because the
+    # NUM_IDX+1 element is zero.
+    for i in range(NUM_IDX + 1, nrows, 1):
+        gilv_max = 0.
+        max_loss_count = 0
+
+        # find maximum loss and count occurrences
+        for j in range(ncols):
+            if gilv[i, j] > gilv_max:
+                gilv_max = gilv[i, j]
+                max_loss_count = 1
+            elif gilv[i, j] == gilv_max:
+                max_loss_count += 1
+
+        # distribute maximum losses evenly among highest
+        # contributing subperils and set other losses to 0
+        gilv_max_normed = gilv_max / max_loss_count
+        for j in range(ncols):
+            if gilv[i, j] == gilv_max:
+                gilv[i, j] = gilv_max_normed
+            else:
+                gilv[i, j] = 0.
+
+    return gilv
+
+
+@nb.jit(nopython=True, fastmath=True)
+def split_tiv(gulitems, tiv):
+
+    # if the total loss exceeds the tiv
+    # then split tiv in the same proportions to the losses
+
+    if tiv > 0:
+
+        total_loss = np.sum(gulitems)
+
+        if total_loss > tiv:
+            # editing in-place the np array
+            gulitems['loss'] *= tiv / total_loss
+
+
+def writemode1output(gilv, alloc_rule, tiv):
+
+    if alloc_rule == 2:
+        setmaxloss(gilv)
+
+    # Check whether the sum of losses per sample exceed TIV
+    # If so, split TIV in proportion to losses
+    for i in range(len(gilv)):
+        split_tiv(gilv[i], tiv)
+
+    return
 
 
 @nb.jit(nopython=True, fastmath=True)
@@ -389,6 +599,87 @@ def first_index_numba(val, arr, len_arr):
     return -1
 
 
+# @nb.jit(cache=False, nopython=True, fastmath=True)
+def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to, bin_map, bin_lookup):
+    """Compute output mean gul.
+
+    Note that this implementation is approx 20x faster than pure numpy/scipy functions,
+    and 2x faster than numpy/scipy functions wrapped in numba.jit.
+
+    Args:
+        tiv (_type_): _description_
+        prob_to (_type_): _description_
+        bin_mean (_type_): _description_
+        bin_count (_type_): _description_
+        max_damage_bin_to (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
+    chance_of_loss = 1 - prob_to[0] * (1 - (bin_mean[0] > 0))
+
+    gul_mean = 0.
+    ctr_var = 0.
+    last_prob_to = 0.
+    bin_ids = []
+    for i in range(bin_count):
+        prob_from = last_prob_to
+        new_gul = (prob_to[i] - prob_from) * bin_mean[i]
+        gul_mean += new_gul
+        ctr_var += new_gul * bin_mean[i]
+        last_prob_to = prob_to[i]
+
+        bin_key = tuple((prob_to[i], bin_mean[i]))
+        if bin_key not in bin_map.keys():
+            bin_map[bin_key] = len(bin_map)
+            bin_lookup.append(list(bin_key))
+
+        bin_ids.append(bin_map[bin_key])
+
+    gul_mean *= tiv
+    ctr_var *= tiv**2.
+    std_dev = sqrt(max(ctr_var - gul_mean**2., 0.))
+    max_loss = max_damage_bin_to * tiv
+
+    return gul_mean, std_dev, chance_of_loss, max_loss, bin_map, bin_ids, bin_lookup
+
+
+def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm,
+                     mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup):
+    # TODO: write docstring
+    # TODO: port to numba
+    item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
+    coverage_id = int(item_map[item_key]['coverage_id'])
+    tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
+
+    # compute mean values
+    gul_mean, std_dev, chance_of_loss, max_loss, bin_map, bin_ids, bin_lookup = output_mean_mode1(
+        tiv, rec['prob_to'], rec['bin_mean'], Nbins, damage_bins[-1]['bin_to'],
+        bin_map, bin_lookup
+    )
+
+    # write header``
+    # loss_writer.write_sample_header(damagecdf['event_id'], item_map[item_key]['item_id'])
+
+    # # write default samples
+    # # TODO create a function that takes all of them and writes all of them
+    # loss_writer.write_sample_rec(MAX_LOSS_IDX, max_loss)
+    # loss_writer.write_sample_rec(CHANCE_OF_LOSS_IDX, chance_of_loss)
+    # loss_writer.write_sample_rec(TIV_IDX, tiv)
+    # loss_writer.write_sample_rec(STD_DEV_IDX, std_dev)
+    # loss_writer.write_sample_rec(MEAN_IDX, gul_mean)
+
+    recData = np.ndarray(1, dtype=processrecData)
+    recData[:] = (gul_mean, std_dev, chance_of_loss, max_loss,
+                  item_map[item_key]['group_id'], item_map[item_key]['item_id'])
+
+    mode1_stats.setdefault(coverage_id, []).append({'recData': recData, 'bin_ids': bin_ids})
+    mode1UsedCoverageIDs.append(coverage_id)
+
+    return mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup
+
+
 def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm):
     # TODO: write docstring
     # TODO: port to numba
@@ -415,28 +706,29 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     seed = 1234
     # rndm = get_random_numbers(sample_size, seed=seed)  # of length sample_size
 
-    for sample_idx, rval in enumerate(rndm):
-        # take the random sample
-        # rval = rndm[sample_idx]
-        # find the bin in which rval falls into
-        # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
-        # there's a 1:1 mapping between indices of rec and damage_bins
-        bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
+    if sample_size > 0:
+        for sample_idx, rval in enumerate(rndm):
+            # take the random sample
+            # rval = rndm[sample_idx]
+            # find the bin in which rval falls into
+            # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+            # there's a 1:1 mapping between indices of rec and damage_bins
+            bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
 
-        # compute the loss
-        loss = get_gul(
-            damage_bins['bin_from'][bin_idx],
-            damage_bins['bin_to'][bin_idx],
-            rec['bin_mean'][bin_idx],
-            rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
-            rec['prob_to'][bin_idx],
-            rval,
-            tiv
-        )
+            # compute the loss
+            loss = get_gul(
+                damage_bins['bin_from'][bin_idx],
+                damage_bins['bin_to'][bin_idx],
+                rec['bin_mean'][bin_idx],
+                rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+                rec['prob_to'][bin_idx],
+                rval,
+                tiv
+            )
 
-        if loss >= loss_threshold:
-            # do something
-            loss_writer.write_sample_rec(sample_idx + 1, loss)
+            if loss >= loss_threshold:
+                # do something
+                loss_writer.write_sample_rec(sample_idx + 1, loss)
 
     # terminate list of samples for this event-item
     loss_writer.write_sample_rec(0, 0.)
@@ -444,12 +736,14 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
     return 0
 
 
-@nb.jit(cache=True, nopython=True, fastmath=False)
+@nb.jit(cache=False, nopython=True, fastmath=False)
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     # TODO: write docstring
     # the interpolation engine for each bin can be cached since the decision on whether to use
     # point-like/linear/quadratic only depends on bin properties, not on rval.
     # however, if samples are few and do not use all the bins it might not be advantageous
+
+    # print("bin_from:", bin_from, "bin_to:", bin_to, "bin_mean:", bin_mean)
 
     bin_width = bin_to - bin_from
 
@@ -518,3 +812,11 @@ def output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
     max_loss = max_damage_bin_to * tiv
 
     return gul_mean, std_dev, chance_of_loss, max_loss
+
+
+# def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
+
+#     gul_mean, std_dev, chance_of_loss, max_loss = output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to)
+
+#     arr = np.ndarray(1, dtype=processrecData)
+#     arr[:] = (gul_mean, std_dev, chance_of_loss, max_loss)
