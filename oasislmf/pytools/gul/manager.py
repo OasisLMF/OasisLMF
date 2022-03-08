@@ -262,18 +262,15 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
 
         len_rndm = rndm.shape[0]
         # min condition is needed to avoid seg fault if sample_size=0
-        rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
+        # rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
         # TODO: probably here I need a with Losswriter context
         # get the stream, for each entry in the stream:
 
         if alloc_rule == 0:
-            for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
-                # uncomment below as a debug
-                # it should print out the cdf
-                # for line in print_cdftocsv(damagecdf, Nbins, rec):
-                #     stream_out.write(line + "\n")
+            rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
+            for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
                 processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
                            item_map, writer, sample_size, loss_threshold,
                            next(rndm_gen))
@@ -283,6 +280,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
 
         else:
             assert alloc_rule in [1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
+
+            rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
             last_event_id = -1
             mode1_stats = {}
@@ -313,7 +312,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
                         bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
                         outputmode1data(last_event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
-                                        coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule)
+                                        coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule, rndm_gen)
 
                         # clearmode1_data
                         mode1_stats = {}
@@ -323,7 +322,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
 
                 mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup = processrec_mode1(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
                                                                                           item_map, writer, sample_size, loss_threshold,
-                                                                                          next(rndm_gen), mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup)
+                                                                                          mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup)
             # write out the the last event
             bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
             bin_lookup_arr = np.array(bin_lookup)
@@ -332,10 +331,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
             bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
             outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
-                            coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule)
-
-            # print(mode1_stats)
-            # print(mode1UsedCoverageIDs)
+                            coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule, rndm_gen)
 
             # flush all the remaining data
             writer.flush(force=True)
@@ -344,7 +340,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
 
 
 def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, coverages, bin_lookup_ndarr,
-                    damage_bins, loss_threshold, loss_writer, alloc_rule):
+                    damage_bins, loss_threshold, loss_writer, alloc_rule, rndm_gen):
 
     for coverage_id in mode1UsedCoverageIDs:
 
@@ -355,8 +351,8 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
 
         if mode1_stats[coverage_id]:
             tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
-            exposureValue = tiv / len(mode1_stats)
-            # hasData = True
+            exposureValue = tiv / len(mode1_stats[coverage_id])
+
             gilv = np.zeros((sample_size + NUM_IDX, len(mode1_stats[coverage_id])), dtype=gulItemIDLoss)
 
             # probably this for loop can go inside the if, since if mode1_stats[coverage_id] is None, enumerate will raise error
@@ -380,13 +376,13 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
                 gilv[MEAN_IDX + NUM_IDX][i] = gi
 
                 # random samples
-                rndm = generate_random_numbers(sample_size)  # generate a big number of random numbers
+                # rndm = generate_random_numbers(sample_size)  # generate a big number of random numbers
 
                 prob_to = bin_lookup_ndarr[item['bin_ids']]['prob_to']
                 bin_mean = bin_lookup_ndarr[item['bin_ids']]['bin_mean']
                 Nbins_remapped = len(item['bin_ids'])
 
-                for sample_idx, rval in enumerate(rndm):
+                for sample_idx, rval in enumerate(next(rndm_gen)):
                     # take the random sample
                     # rval = rndm[sample_idx]
                     # find the bin in which rval falls into
@@ -407,15 +403,12 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
                         tiv
                     )
 
-                    if loss >= loss_threshold:
-                        # do something
-                        gi['loss'] = loss
-                        gilv[sample_idx + NUM_IDX][i] = gi
+                    # if loss >= loss_threshold:
+                    # write all losses, do not filter based on loss_threshold
+                    gi['loss'] = loss
+                    gilv[sample_idx + NUM_IDX][i] = gi
 
-                        # loss_writer.write_sample_rec(sample_idx + 1, loss)
-
-            # haData=True
-            writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id)
+            writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id, loss_threshold)
 
             # terminate list of samples for this event-item
             loss_writer.write_sample_rec(0, 0.)
@@ -468,7 +461,7 @@ def split_tiv(gulitems, tiv):
                 gulitems[j]['loss'] *= tiv / total_loss
 
 
-def writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id):
+def writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id, loss_threshold):
     if alloc_rule == 2:
         gilv = setmaxloss(gilv)
 
@@ -487,7 +480,8 @@ def writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id):
             loss_writer.write_sample_rec(i - NUM_IDX, gilv[i, j]['loss'])
 
         for i in range(NUM_IDX, nsamples, 1):
-            loss_writer.write_sample_rec(i - NUM_IDX + 1, gilv[i, j]['loss'])
+            if gilv[i, j]['loss'] > loss_threshold:
+                loss_writer.write_sample_rec(i - NUM_IDX + 1, gilv[i, j]['loss'])
 
     return
 
@@ -649,7 +643,7 @@ def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to, bin_
     return gul_mean, std_dev, chance_of_loss, max_loss, bin_map, bin_ids, bin_lookup
 
 
-def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm,
+def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold,
                      mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup):
     # TODO: write docstring
     # TODO: port to numba
@@ -662,17 +656,6 @@ def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, lo
         tiv, rec['prob_to'], rec['bin_mean'], Nbins, damage_bins[-1]['bin_to'],
         bin_map, bin_lookup
     )
-
-    # write header``
-    # loss_writer.write_sample_header(damagecdf['event_id'], item_map[item_key]['item_id'])
-
-    # # write default samples
-    # # TODO create a function that takes all of them and writes all of them
-    # loss_writer.write_sample_rec(MAX_LOSS_IDX, max_loss)
-    # loss_writer.write_sample_rec(CHANCE_OF_LOSS_IDX, chance_of_loss)
-    # loss_writer.write_sample_rec(TIV_IDX, tiv)
-    # loss_writer.write_sample_rec(STD_DEV_IDX, std_dev)
-    # loss_writer.write_sample_rec(MEAN_IDX, gul_mean)
 
     recData = np.ndarray(1, dtype=processrecData)
     recData[:] = (gul_mean, std_dev, chance_of_loss, max_loss,
@@ -731,7 +714,6 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
             )
 
             if loss >= loss_threshold:
-                # do something
                 loss_writer.write_sample_rec(sample_idx + 1, loss)
 
     # terminate list of samples for this event-item
@@ -816,11 +798,3 @@ def output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
     max_loss = max_damage_bin_to * tiv
 
     return gul_mean, std_dev, chance_of_loss, max_loss
-
-
-# def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
-
-#     gul_mean, std_dev, chance_of_loss, max_loss = output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to)
-
-#     arr = np.ndarray(1, dtype=processrecData)
-#     arr[:] = (gul_mean, std_dev, chance_of_loss, max_loss)
