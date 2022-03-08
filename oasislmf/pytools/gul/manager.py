@@ -312,7 +312,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
                         bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
                         bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
-                        outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
+                        outputmode1data(last_event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
                                         coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule)
 
                         # clearmode1_data
@@ -320,8 +320,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
                         mode1UsedCoverageIDs = []
 
                     last_event_id = event_id
-
-                print("HELLO3")
 
                 mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup = processrec_mode1(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
                                                                                           item_map, writer, sample_size, loss_threshold,
@@ -350,7 +348,7 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
 
     for coverage_id in mode1UsedCoverageIDs:
 
-        gilv = np.ndarray((sample_size + NUM_IDX + 1, ), dtype=gulItemIDLoss)
+        # gilv = np.ndarray((sample_size + NUM_IDX + 1, ), dtype=gulItemIDLoss)
         # I think that I have to re-think this.
         # gilv will have as many columns as len(mode1_stats[coverage_id])
         hasData = False
@@ -359,11 +357,10 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
             tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
             exposureValue = tiv / len(mode1_stats)
             # hasData = True
-            gilv = np.zeros((sample_size + NUM_IDX + 1, len(mode1_stats[coverage_id])), dtype=gulItemIDLoss)
+            gilv = np.zeros((sample_size + NUM_IDX, len(mode1_stats[coverage_id])), dtype=gulItemIDLoss)
 
             # probably this for loop can go inside the if, since if mode1_stats[coverage_id] is None, enumerate will raise error
             for i, item in enumerate(mode1_stats[coverage_id]):
-                print(coverage_id, i, item['recData']['max_loss'])
                 gi = np.ndarray(1, dtype=gulItemIDLoss)
 
                 gi['item_id'] = item['recData']['item_id']
@@ -413,14 +410,12 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
                     if loss >= loss_threshold:
                         # do something
                         gi['loss'] = loss
-                        gilv[sample_idx + 1 + NUM_IDX][i] = gi
+                        gilv[sample_idx + NUM_IDX][i] = gi
 
                         # loss_writer.write_sample_rec(sample_idx + 1, loss)
-                print("coverage_id:", coverage_id)
-                print(gilv)
 
             # haData=True
-            writemode1output(gilv, alloc_rule, tiv)
+            writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id)
 
             # terminate list of samples for this event-item
             loss_writer.write_sample_rec(0, 0.)
@@ -434,56 +429,65 @@ def setmaxloss(gilv):
     """
     nrows, ncols = gilv.shape
 
-    # the main loop starts from NUM_IDX + 1 because the
-    # NUM_IDX+1 element is zero.
-    for i in range(NUM_IDX + 1, nrows, 1):
+    # the main loop starts from STD_DEV
+    for i in range(NUM_IDX + STD_DEV_IDX, nrows, 1):
         gilv_max = 0.
         max_loss_count = 0
 
         # find maximum loss and count occurrences
         for j in range(ncols):
-            if gilv[i, j] > gilv_max:
-                gilv_max = gilv[i, j]
+            if gilv[i, j]['loss'] > gilv_max:
+                gilv_max = gilv[i, j]['loss']
                 max_loss_count = 1
-            elif gilv[i, j] == gilv_max:
+            elif gilv[i, j]['loss'] == gilv_max:
                 max_loss_count += 1
 
         # distribute maximum losses evenly among highest
         # contributing subperils and set other losses to 0
         gilv_max_normed = gilv_max / max_loss_count
         for j in range(ncols):
-            if gilv[i, j] == gilv_max:
-                gilv[i, j] = gilv_max_normed
+            if gilv[i, j]['loss'] == gilv_max:
+                gilv[i, j]['loss'] = gilv_max_normed
             else:
-                gilv[i, j] = 0.
+                gilv[i, j]['loss'] = 0.
 
     return gilv
 
 
 @nb.jit(nopython=True, fastmath=True)
 def split_tiv(gulitems, tiv):
-
     # if the total loss exceeds the tiv
     # then split tiv in the same proportions to the losses
-
     if tiv > 0:
+        total_loss = np.sum(gulitems['loss'])
 
-        total_loss = np.sum(gulitems)
-
+        nitems = gulitems.shape[0]
         if total_loss > tiv:
-            # editing in-place the np array
-            gulitems['loss'] *= tiv / total_loss
+            for j in range(nitems):
+                # editing in-place the np array
+                gulitems[j]['loss'] *= tiv / total_loss
 
 
-def writemode1output(gilv, alloc_rule, tiv):
-
+def writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id):
     if alloc_rule == 2:
-        setmaxloss(gilv)
+        gilv = setmaxloss(gilv)
+
+    # note that nsamples=sample_size + NUM_IDX
+    nsamples, nitems = gilv.shape
 
     # Check whether the sum of losses per sample exceed TIV
     # If so, split TIV in proportion to losses
-    for i in range(len(gilv)):
+    for i in range(nsamples):
         split_tiv(gilv[i], tiv)
+
+    # output the items
+    for j in range(nitems):
+        loss_writer.write_sample_header(event_id, gilv[0, j]['item_id'])
+        for i in range(NUM_IDX):
+            loss_writer.write_sample_rec(i - NUM_IDX, gilv[i, j]['loss'])
+
+        for i in range(NUM_IDX, nsamples, 1):
+            loss_writer.write_sample_rec(i - NUM_IDX + 1, gilv[i, j]['loss'])
 
     return
 
