@@ -226,12 +226,12 @@ class GenerateFiles(ComputationStep):
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
-        # Get the GUL input items and exposure dataframes
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
             exposure_profile=location_profile,
-            group_id_cols=group_id_cols
+            group_id_cols=group_id_cols,
+            hash_group_ids=self.hashed_group_id
         )
 
         # If not in det. loss gen. scenario, write exposure summary file

@@ -11,6 +11,7 @@ import sys
 import warnings
 from collections import OrderedDict
 from oasislmf.pytools.data_layer.conversions.items import convert_item_csv_to_hash
+from oasislmf.pytools.data_layer.conversions.items import generate_group_id_hash
 
 import pandas as pd
 
@@ -50,7 +51,8 @@ def get_gul_input_items(
     exposure_df,
     keys_df,
     exposure_profile=get_default_exposure_profile(),
-    group_id_cols=['loc_id']
+    group_id_cols=['loc_id'],
+    hash_group_ids=False
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -311,6 +313,11 @@ def get_gul_input_items(
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
     group_id_cols.sort()
+
+    col_key = group_id_cols[0]
+
+    gul_inputs_df["hash"] = gul_inputs_df[col_key].apply(generate_group_id_hash)
+
     if correlation_check == True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
     else:
@@ -321,11 +328,13 @@ def get_gul_input_items(
                 sort_opt=True
             )[0]
         else:
-            gul_inputs_df['group_id'] = factorize_array(
-                gul_inputs_df[group_id_cols[0]].values
-            )[0]
+            if hash_group_ids is True:
+                gul_inputs_df["group_id"] = gul_inputs_df["hash"]
+            else:
+                gul_inputs_df['group_id'] = factorize_array(
+                    gul_inputs_df[group_id_cols[0]].values
+                )[0]
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
-
 
 
     # Select only required columns
@@ -340,7 +349,6 @@ def get_gul_input_items(
     )
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
-
     return gul_inputs_df
 
 
