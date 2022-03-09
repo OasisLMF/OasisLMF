@@ -2,6 +2,7 @@
 
 import sys
 import argparse
+from contextlib import ExitStack
 
 from oasislmf.pytools.gul.manager import read_getmodel_stream
 
@@ -29,7 +30,7 @@ def print_cdftocsv(damagecdf, Nbins, rec):
         yield csv_line
 
 
-def run(run_dir, skip_header):
+def run(run_dir, skip_header, file_in=None):
     """Run cdftocsv command: convert the cdf output from getmodel into csv format.
     The binary data is read from an input stream, and the csv file is streamed to stdout.
 
@@ -42,12 +43,18 @@ def run(run_dir, skip_header):
         ValueError: If the stream type is not 1.
 
     """
-    stream_out = sys.stdout
+    with ExitStack() as stack:
+        if file_in is None:
+            streams_in = sys.stdin.buffer
+        else:
+            streams_in = stack.enter_context(open(file_in, 'rb'))
+
+        stream_out = sys.stdout
 
     if not skip_header:
         stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
 
-    for damagecdf, Nbins, rec in read_getmodel_stream(run_dir):
+    for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
         for line in print_cdftocsv(damagecdf, Nbins, rec):
             stream_out.write(line + "\n")
 
