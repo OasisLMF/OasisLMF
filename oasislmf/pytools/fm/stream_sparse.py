@@ -72,7 +72,7 @@ def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg
             cursor += 1
             if sidx:
                 loss = 0 if np.isnan(loss) else loss
-                if loss and sidx != -2:
+                if loss and (sidx != -2 and sidx >= -3):
                     add_new_loss(sidx, loss, loss_index, sidx_indptr, sidx_val, loss_val)
             else:
                 loss_index = reset_empty_items(loss_index, sidx_indptr, sidx_val, loss_val, computes)
