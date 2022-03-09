@@ -492,9 +492,9 @@ def write_gul_input_files(
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
 
-    if hashed_item_id is True:
-        input_file = gul_input_files["items"]
-        input_directory = "/".join(input_file.split("/")[:-1]) + "/"
-        convert_item_csv_to_hash(input_directory=input_directory)
+    # if hashed_item_id is True:
+    #     input_file = gul_input_files["items"]
+    #     input_directory = "/".join(input_file.split("/")[:-1]) + "/"
+    #     convert_item_csv_to_hash(input_directory=input_directory)
 
     return gul_input_files
