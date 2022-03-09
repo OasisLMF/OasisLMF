@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.23.8`_
+ ---------
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/988) - Unexpected output change in PiWind testing 
+* [#973](https://github.com/OasisLMF/OasisLMF/pull/973) - manage -4 and pass through -5 sidx
+.. _`1.23.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.7...1.23.8
+
 `1.23.7`_
  ---------
 * [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures
