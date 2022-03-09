@@ -126,15 +126,7 @@ def factorize_array(arr, sort_opt=False):
     :return: A 2-tuple consisting of the enumeration and the value groups
     :rtype: tuple
     """
-    import os
-    file_path = str(os.getcwd()) + "/input_array_for_factorise.txt"
-    with open(file_path, "w") as file:
-        file.write(str(arr))
     enum, groups = pd.factorize(arr, sort=sort_opt)
-    file_path = str(os.getcwd()) + "/output_array_for_factorise.txt"
-    with open(file_path, "w") as file:
-        file.write(str(groups))
-
     return enum + 1, groups
 
 
