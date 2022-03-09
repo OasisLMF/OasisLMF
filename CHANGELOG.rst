@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.24`_
+ ---------
+* [#977](https://github.com/OasisLMF/OasisLMF/pull/977) - Update ktools to v3.7.4
+* [#1006](https://github.com/OasisLMF/OasisLMF/pull/1006) - fmpy ignore sidx -4, -5
+.. _`1.15.24`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.23...1.15.24
+
 `1.15.23`_
  ---------
 * [#977](https://github.com/OasisLMF/OasisLMF/pull/977) - Update ktools to v3.7.4
