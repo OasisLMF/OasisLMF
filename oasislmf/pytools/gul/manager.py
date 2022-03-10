@@ -195,8 +195,8 @@ def generate_item_map(items):
     return item_map
 
 
-def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file_in=None, file_out=None,
-        random_numbers_file=None, **kwargs):
+def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, random_numbers_file, debug,
+        file_in=None, file_out=None, **kwargs):
     """
     Runs the main process of the gul calculation.
 
@@ -276,7 +276,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
             for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
                 processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
                            item_map, writer, sample_size, loss_threshold,
-                           next(rndm_gen))
+                           next(rndm_gen), debug)
 
             # flush all the remaining data
             writer.flush(force=True)
@@ -308,7 +308,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
                         bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
                         outputmode1data(last_event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
-                                        coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule, rndm_gen, mode1_stats_item_id)
+                                        coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer,
+                                        alloc_rule, rndm_gen, mode1_stats_item_id, debug)
 
                         # clearmode1_data
                         mode1_stats = {}
@@ -328,7 +329,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
             bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
             outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
-                            coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer, alloc_rule, rndm_gen, mode1_stats_item_id)
+                            coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer,
+                            alloc_rule, rndm_gen, mode1_stats_item_id, debug)
 
             # flush all the remaining data
             writer.flush(force=True)
@@ -337,7 +339,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, file
 
 
 def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, coverages, bin_lookup_ndarr,
-                    damage_bins, loss_threshold, loss_writer, alloc_rule, rndm_gen, mode1_stats_item_id):
+                    damage_bins, loss_threshold, loss_writer, alloc_rule, rndm_gen, mode1_stats_item_id, debug):
 
     for coverage_id in mode1UsedCoverageIDs:
         # gilv = np.ndarray((sample_size + NUM_IDX + 1, ), dtype=gulItemIDLoss)
@@ -384,31 +386,36 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
                 Nbins_remapped = len(item['bin_ids'])
 
                 if sample_size > 0:
-                    for sample_idx, rval in enumerate(next(rndm_gen)):
-                        # take the random sample
-                        # rval = rndm[sample_idx]
-                        # find the bin in which rval falls into
-                        # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
-                        # there's a 1:1 mapping between indices of rec and damage_bins
-                        bin_idx = first_index_numba(rval, prob_to, Nbins_remapped)
-                        # print("bin_idx:", bin_idx, "bin_mean:", bin_mean[bin_idx], "prob_to:", prob_to[bin_idx])
-                        # compute the loss
-                        loss = get_gul(
-                            # I don't understand why this is bin_idx. Doesn't have it to be remapped?
-                            damage_bins['bin_from'][bin_idx],
-                            # I don't understand why this is bin_idx. Doesn't have it to be remapped?
-                            damage_bins['bin_to'][bin_idx],
-                            bin_mean[bin_idx],
-                            prob_to[max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
-                            prob_to[bin_idx],
-                            rval,
-                            tiv
-                        )
+                    if debug:
+                        for sample_idx, rval in enumerate(next(rndm_gen)):
+                            gi['loss'] = rval
+                            gilv[sample_idx + NUM_IDX][i] = gi
+                    else:
+                        for sample_idx, rval in enumerate(next(rndm_gen)):
+                            # take the random sample
+                            # rval = rndm[sample_idx]
+                            # find the bin in which rval falls into
+                            # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+                            # there's a 1:1 mapping between indices of rec and damage_bins
+                            bin_idx = first_index_numba(rval, prob_to, Nbins_remapped)
+                            # print("bin_idx:", bin_idx, "bin_mean:", bin_mean[bin_idx], "prob_to:", prob_to[bin_idx])
+                            # compute the loss
+                            loss = get_gul(
+                                # I don't understand why this is bin_idx. Doesn't have it to be remapped?
+                                damage_bins['bin_from'][bin_idx],
+                                # I don't understand why this is bin_idx. Doesn't have it to be remapped?
+                                damage_bins['bin_to'][bin_idx],
+                                bin_mean[bin_idx],
+                                prob_to[max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+                                prob_to[bin_idx],
+                                rval,
+                                tiv
+                            )
 
-                        # if loss >= loss_threshold:
-                        # write all losses, do not filter based on loss_threshold
-                        gi['loss'] = loss
-                        gilv[sample_idx + NUM_IDX][i] = gi
+                            # if loss >= loss_threshold:
+                            # write all losses, do not filter based on loss_threshold
+                            gi['loss'] = loss
+                            gilv[sample_idx + NUM_IDX][i] = gi
 
             writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id, loss_threshold)
 
@@ -687,7 +694,7 @@ def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, lo
     return mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup, mode1_stats_item_id
 
 
-def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm):
+def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm, debug):
     # TODO: write docstring
     # TODO: port to numba
     item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
@@ -716,27 +723,31 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
         # rndm = get_random_numbers(sample_size, seed=seed)  # of length sample_size
 
         if sample_size > 0:
-            for sample_idx, rval in enumerate(rndm):
-                # take the random sample
-                # rval = rndm[sample_idx]
-                # find the bin in which rval falls into
-                # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
-                # there's a 1:1 mapping between indices of rec and damage_bins
-                bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
+            if debug:
+                for sample_idx, rval in enumerate(rndm):
+                    loss_writer.write_sample_rec(sample_idx + 1, rval)
+            else:
+                for sample_idx, rval in enumerate(rndm):
+                    # take the random sample
+                    # rval = rndm[sample_idx]
+                    # find the bin in which rval falls into
+                    # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+                    # there's a 1:1 mapping between indices of rec and damage_bins
+                    bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
 
-                # compute the loss
-                loss = get_gul(
-                    damage_bins['bin_from'][bin_idx],
-                    damage_bins['bin_to'][bin_idx],
-                    rec['bin_mean'][bin_idx],
-                    rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
-                    rec['prob_to'][bin_idx],
-                    rval,
-                    tiv
-                )
+                    # compute the loss
+                    loss = get_gul(
+                        damage_bins['bin_from'][bin_idx],
+                        damage_bins['bin_to'][bin_idx],
+                        rec['bin_mean'][bin_idx],
+                        rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+                        rec['prob_to'][bin_idx],
+                        rval,
+                        tiv
+                    )
 
-                if loss >= loss_threshold:
-                    loss_writer.write_sample_rec(sample_idx + 1, loss)
+                    if loss >= loss_threshold:
+                        loss_writer.write_sample_rec(sample_idx + 1, loss)
 
         # terminate list of samples for this event-item
         loss_writer.write_sample_rec(0, 0.)
