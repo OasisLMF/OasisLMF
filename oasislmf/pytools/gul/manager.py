@@ -38,6 +38,11 @@ MAX_LOSS_IDX = -5
 NUM_IDX = 5
 
 
+GROUP_ID_HASH_CODE = np.int64(1543270363)
+EVENT_ID_HASH_CODE = np.int64(1943272559)
+HASH_MOD_CODE = np.int64(2147483648)
+
+
 def read_getmodel_stream(run_dir, streams_in):
     """Read the getmoudel output stream.
 
@@ -48,6 +53,8 @@ def read_getmodel_stream(run_dir, streams_in):
         ValueError: If the stream type is not 1.
 
     """
+    # TODO: read in chunks of buffsize and keep yielding record by record
+
     # get damage bins from file
     static_path = os.path.join(run_dir, 'static')
     damage_bins = get_damage_bins(static_path=static_path)
@@ -86,7 +93,6 @@ def read_getmodel_stream(run_dir, streams_in):
         if len_read == 0:
             break
 
-        # print(damagecdf, Nbins, rec)
         yield damagecdf, Nbins, rec
 
     return 0
@@ -123,13 +129,8 @@ def get_coverages(input_path, ignore_file_type=set()):
     return coverages
 
 
-GROUP_ID_HASH_CODE = np.int64(1543270363)
-EVENT_ID_HASH_CODE = np.int64(1943272559)
-
-HASH_MOD_CODE = np.int64(2147483648)
-
-
-def generate_hash(group_id, event_id, rand_seed=0, correlated=False):
+@nb.njit(fastmath=True)
+def generate_hash(group_id, event_id, rand_seed=0):
     """
     Generate hash for group_id, event_id
 
@@ -137,18 +138,32 @@ def generate_hash(group_id, event_id, rand_seed=0, correlated=False):
         group_id ([type]): [description]
         event_id ([type]): [description]
         rand_seed (int, optional): [description]. Defaults to 0.
-        correlated (bool, optional): [description]. Defaults to False.
 
     Returns:
         [type]: [description]
     """
     hashed = rand_seed
-    hashed += np.mod(group_id * GROUP_ID_HASH_CODE, HASH_MOD_CODE)
+    hashed += group_id * GROUP_ID_HASH_CODE % HASH_MOD_CODE
+    hashed += event_id * EVENT_ID_HASH_CODE % HASH_MOD_CODE
 
-    if correlated:
-        return hashed
+    return hashed
 
-    hashed += np.mod(event_id, * EVENT_ID_HASH_CODE, HASH_MOD_CODE)
+
+@nb.njit(fastmath=True)
+def generate_correlated_hash(group_id, event_id, rand_seed=0):
+    """
+    Generate hash for group_id, event_id
+
+    Args:
+        group_id ([type]): [description]
+        event_id ([type]): [description]
+        rand_seed (int, optional): [description]. Defaults to 0.
+
+    Returns:
+        [type]: [description]
+    """
+    hashed = rand_seed
+    hashed += group_id * GROUP_ID_HASH_CODE % HASH_MOD_CODE
 
     return hashed
 
@@ -214,17 +229,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
     static_path = 'static/'
     # TODO: store static_path in a paraparameters file
     damage_bins = get_damage_bins(static_path)
-    # print("damage_bins:")
-    # print(damage_bins.dtype)
-    # print(damage_bins)
 
     input_path = 'input/'
     # TODO: store input_path in a paraparameters file
-    items = gul_get_items(input_path)
-    # areaperil_id_vuln_id_to_coverage_id = {}
-    # for item in items:
-    #     areaperil_id_vuln_id_to_coverage_id[tuple(item[['areaperil_id', 'vulnerability_id']])] = item['coverage_id']
 
+    items = gul_get_items(input_path)
     item_map = generate_item_map(items)
 
     coverages = get_coverages(input_path)
@@ -270,6 +279,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         # TODO: probably here I need a with Losswriter context
         # get the stream, for each entry in the stream:
 
+        assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
+
         if alloc_rule == 0:
             rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
@@ -282,8 +293,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             writer.flush(force=True)
 
         else:
-            assert alloc_rule in [1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
-
             rndm_gen = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
             last_event_id = -1
@@ -293,6 +302,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             bin_lookup = []
             mode1_stats_item_id = {}
             for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
+                # TODO issue re speeding up read_getmodel_stream:
+                # if read_getmodel_stream yields chunks, rather than each cdf record,
+                # i need to unroll it anyway to process each record.
+                # so perhaps read_getmodel_stream should yield each record like now,
+                # but inside it the reading from the stream should be done in large chunks
+                # rather then number by number like now -> this will speed up
+
                 event_id = damagecdf[0]['event_id']
 
                 # perhaps it'd be faster if read_getmodel_stream yields event by event
@@ -307,6 +323,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                         bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
                         bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
+                        # already here I can compute how many samples are needed by outputmode1data
+                        # ideally, I'll want to pass a numpy array to outputmode1data to keep it in numba
+                        # the rndm array should have shape (nitems, sample_size), where
+                        # nitems=np.sum([len(mode1_stats_item_id[coverage_id]) for coverage_id in mode1UsedCoverageIDs])
                         outputmode1data(last_event_id, mode1_stats, mode1UsedCoverageIDs, sample_size,
                                         coverages, bin_lookup_ndarr, damage_bins, loss_threshold, writer,
                                         alloc_rule, rndm_gen, mode1_stats_item_id, debug)
@@ -315,6 +335,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                         mode1_stats = {}
                         mode1UsedCoverageIDs = set()
                         mode1_stats_item_id = {}
+                        # probably I can add a nitems counter to avoid running the sum() above before outputmode1data
 
                     last_event_id = event_id
 
@@ -341,12 +362,17 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, coverages, bin_lookup_ndarr,
                     damage_bins, loss_threshold, loss_writer, alloc_rule, rndm_gen, mode1_stats_item_id, debug):
 
+    # how many rndm numbers are needed?
+    exp_samples = np.sum([len(mode1_stats_item_id[coverage_id]) for coverage_id in mode1UsedCoverageIDs]) * sample_size
+    used_samples = 0
+
     for coverage_id in mode1UsedCoverageIDs:
         # gilv = np.ndarray((sample_size + NUM_IDX + 1, ), dtype=gulItemIDLoss)
         # I think that I have to re-think this.
         # gilv will have as many columns as len(mode1_stats[coverage_id])
         hasData = False
 
+        # I think this if is not needed, since mode1UsedCoverageIDs will only contain the mode1_stats keys
         if mode1_stats[coverage_id]:
             tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
             exposureValue = tiv / len(mode1_stats[coverage_id])
@@ -357,12 +383,11 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
             # for i, item in enumerate(mode1_stats[coverage_id]):
             for i, j_stats in enumerate(np.argsort(mode1_stats_item_id[coverage_id])):
                 item = mode1_stats[coverage_id][j_stats]
-                # print(coverage_id, item['recData']['item_id'])
 
                 gi = np.ndarray(1, dtype=gulItemIDLoss)
 
                 gi['item_id'] = item['recData']['item_id']
-                # print(gi['item_id'])
+
                 gi['loss'] = item['recData']['max_loss']
                 gilv[MAX_LOSS_IDX + NUM_IDX][i] = gi
 
@@ -386,6 +411,7 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
                 Nbins_remapped = len(item['bin_ids'])
 
                 if sample_size > 0:
+                    used_samples += sample_size
                     if debug:
                         for sample_idx, rval in enumerate(next(rndm_gen)):
                             gi['loss'] = rval
@@ -398,7 +424,7 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
                             # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                             # there's a 1:1 mapping between indices of rec and damage_bins
                             bin_idx = first_index_numba(rval, prob_to, Nbins_remapped)
-                            # print("bin_idx:", bin_idx, "bin_mean:", bin_mean[bin_idx], "prob_to:", prob_to[bin_idx])
+
                             # compute the loss
                             loss = get_gul(
                                 # I don't understand why this is bin_idx. Doesn't have it to be remapped?
@@ -421,7 +447,9 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
 
             # # terminate list of samples for this event-item
             # loss_writer.write_sample_rec(0, 0.)
-
+            # logger.debug("mode1_stats[coverage_id]")
+    logger.debug(f"expected samples: {exp_samples}")
+    logger.debug(f"used samples: {used_samples}")
 
 @nb.jit(nopython=True, fastmath=True)
 def setmaxloss(gilv):
@@ -476,25 +504,19 @@ def writemode1output(gilv, alloc_rule, tiv, loss_writer, event_id, loss_threshol
 
     # note that nsamples=sample_size + NUM_IDX
     nsamples, nitems = gilv.shape
-    # print(nsamples)
+
     # Check whether the sum of losses per sample exceed TIV
     # If so, split TIV in proportion to losses
     for i in range(nsamples):
         split_tiv(gilv[i], tiv)
 
     # output the items
-    # TODO problem can be here
-    # print("nitems", nitems)
     for j in range(nitems):
-        # print("gilv0j", gilv[0, j]['item_id'], "gilvij", gilv[i, j]['item_id'], )
         loss_writer.write_sample_header(event_id, gilv[0, j]['item_id'])
         for i in range(NUM_IDX):
-            # print("gilv0j", gilv[0, j]['item_id'])
-
             loss_writer.write_sample_rec(i - NUM_IDX, gilv[i, j]['loss'])
 
         for i in range(NUM_IDX, nsamples, 1):
-            # print("here", i)
             if gilv[i, j]['loss'] > loss_threshold:
                 loss_writer.write_sample_rec(i - NUM_IDX + 1, gilv[i, j]['loss'])
 
@@ -670,10 +692,7 @@ def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, lo
     # tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
 
     # TODO need a for loop on all coverages, and need to change the item map to append_history_file
-    # print(type(item_map), type(item_key), item_key, item_map[item_key])
-
     for item in item_map[item_key]:
-        # print(item)
         coverage_id = int(item['coverage_id'])
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
 
@@ -688,7 +707,6 @@ def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, lo
 
         mode1_stats.setdefault(coverage_id, []).append({'recData': recData, 'bin_ids': bin_ids})
         mode1_stats_item_id.setdefault(coverage_id, []).append(item['item_id'])
-        # print(coverage_id, recData['item_id'])
         mode1UsedCoverageIDs.add(coverage_id)
 
     return mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup, mode1_stats_item_id
@@ -761,8 +779,6 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     # the interpolation engine for each bin can be cached since the decision on whether to use
     # point-like/linear/quadratic only depends on bin properties, not on rval.
     # however, if samples are few and do not use all the bins it might not be advantageous
-
-    # print("bin_from:", bin_from, "bin_to:", bin_to, "bin_mean:", bin_mean)
 
     bin_width = bin_to - bin_from
 
