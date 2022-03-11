@@ -20,12 +20,12 @@ parser.add_argument('-r', help='filename of random numbers', action='store', typ
 parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
                     action='store', type=float, dest='loss_threshold')
-parser.add_argument('-S', help='Sample size (default 0).', default=0, action='store', type=int, dest='sample_size')
+parser.add_argument('-S', help='Sample size (default: 0).', default=0, action='store', type=int, dest='sample_size')
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--file-in', action='store', type=str,)
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--run-dir', help='path to the run directory', default='.')
-parser.add_argument('--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
+parser.add_argument('--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.',
                     default=30, action='store', type=int)
 
 
