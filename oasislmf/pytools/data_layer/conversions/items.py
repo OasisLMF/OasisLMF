@@ -78,21 +78,24 @@ def convert_item_csv_to_hash(input_directory: str) -> None:
     df.to_csv(file_path, index=False)
 
 
-def generate_group_id_hash(group_id: int) -> int:
+def generate_group_id_hash(pre_hash_pointer: str) -> int:
     """
     Generates a hashed version of the group_id.
 
     Args:
-        group_id: (int) the group ID to be hashed
+        pre_hash_pointer: (int) the group ID to be hashed
 
     Returns: (int) the hashed group ID
     """
     id_map = IdMap()
-    np.random.seed(group_id)
+
+    # with("./")
+
+    # np.random.seed(int(group_id))
     hashed_id: int = id_map.get(
-        group_id, int(hashlib.sha1(str(np.random.random()).encode("utf-8")).hexdigest(), 16) % (10 ** 8)
+        pre_hash_pointer, int(hashlib.sha256(pre_hash_pointer.encode('utf-8')).hexdigest(), 16) % 10**8
     )
-    id_map[group_id] = hashed_id
+    id_map[pre_hash_pointer] = hashed_id
     return hashed_id
 
 

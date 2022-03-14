@@ -316,7 +316,12 @@ def get_gul_input_items(
 
     col_key = group_id_cols[0]
 
-    gul_inputs_df["hash"] = gul_inputs_df[col_key].apply(generate_group_id_hash)
+    if hash_group_ids is True:
+        gul_inputs_df["pre-hash-value"] = gul_inputs_df.apply(lambda _: '', axis=1)
+        for i in group_id_cols:
+            gul_inputs_df["pre-hash-value"] += gul_inputs_df[i].astype(str)
+        gul_inputs_df["group_id"] = gul_inputs_df["pre-hash-value"].apply(generate_group_id_hash)
+        gul_inputs_df["hash"] = gul_inputs_df["group_id"]
 
     if correlation_check == True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
