@@ -146,26 +146,27 @@ def generate_hash(group_id, event_id, rand_seed=0):
         [type]: [description]
     """
     hashed = rand_seed
-    hashed += group_id * GROUP_ID_HASH_CODE % HASH_MOD_CODE
-    hashed += event_id * EVENT_ID_HASH_CODE % HASH_MOD_CODE
+    hashed += (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE
+    hashed += (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
+    hashed %= HASH_MOD_CODE
 
     return hashed
 
 
 @nb.njit(fastmath=True)
-def generate_correlated_hash(group_id, event_id, rand_seed=0):
+def generate_correlated_hash(event_id, rand_seed=0):
     """
     Generate hash for group_id, event_id
 
     Args:
-        group_id ([type]): [description]
         event_id ([type]): [description]
         rand_seed (int, optional): [description]. Defaults to 0.
     Returns:
         [type]: [description]
     """
     hashed = rand_seed
-    hashed += group_id * GROUP_ID_HASH_CODE % HASH_MOD_CODE
+    hashed += (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
+    hashed %= HASH_MOD_CODE
 
     return hashed
 
