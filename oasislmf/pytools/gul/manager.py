@@ -5,7 +5,6 @@ This file is the entry point for the gul command for the package.
 
 from ctypes import sizeof
 from importlib.metadata import files
-from random import sample
 from readline import append_history_file
 import time
 import sys
@@ -13,6 +12,8 @@ import os
 import logging
 from contextlib import ExitStack
 import numpy as np
+from numpy.random import Generator, MT19937
+
 import numba as nb
 from scipy.stats import qmc
 
@@ -169,17 +170,20 @@ def generate_correlated_hash(group_id, event_id, rand_seed=0):
     return hashed
 
 
-def generate_rndm_uniform(seeds, n):
-
+def generate_rndm_MT19937(seeds, n):
     rndm = {}
     for seed in seeds:
-        rndm[seed] = np.random.default_rng(seed).uniform(0., 1., size=n)
+        rng = Generator(MT19937(seed=123))
+        rndm[seed] = rng.uniform(0., 1., size=n)
 
     return rndm
 
 
 def generate_rndm_Sobol(seeds, n):
 
+    # draw a power of 2 number of samples to keep 'Sobol' sequences
+    # balance properties (see Sobol docs for more details), then take
+    # only the `n` required numbers.
     n_closest_base2 = max(n, 2**ceil(log2(n)))
 
     rndm = {}
@@ -198,9 +202,8 @@ def generate_rndm_LHS(seeds, n):
 
     return rndm
 
+
 # TODO probably I can use getmodel get_items. double check
-
-
 def gul_get_items(input_path, ignore_file_type=set()):
     """
     Loads the items from the items file.
@@ -243,7 +246,7 @@ def generate_item_map(items):
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, random_numbers_file, debug,
-        file_in=None, file_out=None, **kwargs):
+        random_generator, file_in=None, file_out=None, **kwargs):
     """
     Runs the main process of the gul calculation.
 
@@ -269,13 +272,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
     item_map = generate_item_map(items)
 
     coverages = get_coverages(input_path)
-    Ncoverages = coverages
-
-    # define random generator
-    generate_rndm = generate_rndm_uniform
-
-    # debug calls to rndm_gen
-    Ncalls_rndm_gen = 0
 
     with ExitStack() as stack:
         if file_in is None:
@@ -292,14 +288,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
-        # get random numbers
-        # getRands rnd(opt.rndopt, opt.rand_vector_size, opt.rand_seed);
-        # getRands rnd0(opt.rndopt, opt.rand_vector_size, opt.rand_seed);
-        Nrands = sample_size * Ncoverages
-
-        seed = 123456  # substitute with desired value
-        # rands = generate_rands(N=100, method='uniform', d=1, rng=None, seed=seed)
-
         writer = LossWriter(stream_out, sample_size)
 
         if random_numbers_file:
@@ -308,9 +296,19 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                 f"The number of random values in the file must be strictly larger than sample size, " \
                 f"but got {len(rndm)} random numbers with sample size={sample_size}."
         else:
-            rndm = generate_random_numbers(10000)  # generate a big number of random numbers
+            # define random generator
+            if random_generator == 0:
+                generate_rndm = generate_rndm_MT19937
+                logger.info("Random generator: MT19937")
 
-        len_rndm = rndm.shape[0]
+            elif random_generator == 1:
+                generate_rndm = generate_rndm_LHS
+                logger.info("Random generator: Latin Hypercube")
+
+            elif random_generator == 2:
+                generate_rndm = generate_rndm_Sobol
+                logger.info("Random generator: Sobol sequences")
+
         # min condition is needed to avoid seg fault if sample_size=0
         # rndms = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
 
@@ -320,19 +318,15 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
 
         if alloc_rule == 0:
-            rndms = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
-
             for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
                 processrec(damagecdf[0], Nbins[0], rec, damage_bins, coverages,
                            item_map, writer, sample_size, loss_threshold,
-                           next(rndms), debug)
+                           debug, generate_rndm)
 
             # flush all the remaining data
             writer.flush(force=True)
 
         else:
-            rndms = get_arr_chunks(rndm, len_rndm, max(1, sample_size))
-
             last_event_id = -1
             mode1_stats = {}
             mode1UsedCoverageIDs = set()
@@ -365,25 +359,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                         bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
                         bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
-                        # already here I can compute how many samples are needed by outputmode1data
-                        # ideally, I'll want to pass a numpy array to outputmode1data to keep it in numba
-                        # the rndm array should have shape (nitems, sample_size), where
-                        # rng_class = UniformSampler
-
-                        # nitems = np.sum([len(mode1_stats_item_id[coverage_id]) for coverage_id in mode1UsedCoverageIDs])
-                        # for coverage_id in mode1UsedCoverageIDs:
-                        #     for i, j_stats in enumerate(np.argsort(mode1_stats_item_id[coverage_id])):
-                        #         item = mode1_stats[coverage_id][j_stats]
-
-                        #         # random number generator
-
-                        #         rng = rng_class(seed=seeds[coverage])
-
-                        #         samples = rng.draw_samples(cdf, Nsamples)
-
-                        logger.debug(rndms)
                         rndms = generate_rndm(seeds, sample_size)
-                        Ncalls_rndm_gen += 1
                         logger.debug(f"len_sets={len(seeds)}")
                         all_seeds.update(seeds)
 
@@ -411,7 +387,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
 
             rndms = generate_rndm(seeds, sample_size)
-            Ncalls_rndm_gen += 1
 
             all_seeds.update(seeds)
 
@@ -424,17 +399,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
             logger.debug(f"len_sets={len(seeds)}")
             logger.debug(f"all_seeds: {len(all_seeds)}")
-            logger.debug(Ncalls_rndm_gen)
 
     return 0
 
 
 def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, coverages, bin_lookup_ndarr,
                     damage_bins, loss_threshold, loss_writer, alloc_rule, rndms, mode1_stats_item_id, debug):
-
-    # how many rndm numbers are needed?
-    # exp_samples = np.sum([len(mode1_stats_item_id[coverage_id]) for coverage_id in mode1UsedCoverageIDs]) * sample_size
-    # used_samples = 0
 
     for coverage_id in mode1UsedCoverageIDs:
 
@@ -458,15 +428,11 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
             gilv[STD_DEV_IDX + NUM_IDX, i]['loss'] = item['recData']['std_dev']
             gilv[MEAN_IDX + NUM_IDX, i]['loss'] = item['recData']['gul_mean']
 
-            # random samples
-            # rndm = generate_random_numbers(sample_size)  # generate a big number of random numbers
-
             prob_to = bin_lookup_ndarr[item['bin_ids']]['prob_to']
             bin_mean = bin_lookup_ndarr[item['bin_ids']]['bin_mean']
             Nbins_remapped = len(item['bin_ids'])
 
             if sample_size > 0:
-                # used_samples += sample_size
                 if debug:
                     for sample_idx, rval in enumerate(rndms[item['seed']]):
                         gilv[sample_idx + NUM_IDX, i]['loss'] = rval
@@ -499,9 +465,6 @@ def outputmode1data(event_id, mode1_stats, mode1UsedCoverageIDs, sample_size, co
 
         # # terminate list of samples for this event-item
         # loss_writer.write_sample_rec(0, 0.)
-        # logger.debug("mode1_stats[coverage_id]")
-    # logger.debug(f"expected samples: {exp_samples}")
-    # logger.debug(f"used samples: {used_samples}")
 
 
 @nb.jit(nopython=True, fastmath=True)
@@ -772,7 +735,9 @@ def processrec_mode1(damagecdf, Nbins, rec, damage_bins, coverages, item_map, lo
     return mode1_stats, mode1UsedCoverageIDs, bin_map, bin_lookup, mode1_stats_item_id, seeds
 
 
-def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, rndm, debug):
+def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_writer, sample_size, loss_threshold, debug,
+               generate_rndm):
+    # TODO: avoid passing generate_rndm function by splitting the random samples in another function
     # TODO: write docstring
     # TODO: port to numba
     item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
@@ -797,32 +762,36 @@ def processrec(damagecdf, Nbins, rec, damage_bins, coverages, item_map, loss_wri
         loss_writer.write_sample_rec(STD_DEV_IDX, std_dev)
         loss_writer.write_sample_rec(MEAN_IDX, gul_mean)
 
-        if sample_size > 0:
-            if debug:
-                for sample_idx, rval in enumerate(rndm):
-                    loss_writer.write_sample_rec(sample_idx + 1, rval)
-            else:
-                for sample_idx, rval in enumerate(rndm):
-                    # take the random sample
-                    # rval = rndm[sample_idx]
-                    # find the bin in which rval falls into
-                    # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
-                    # there's a 1:1 mapping between indices of rec and damage_bins
-                    bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
+        # generate seed
+        seed = set({generate_hash(item['group_id'], damagecdf['event_id'])})
 
-                    # compute the loss
-                    loss = get_gul(
-                        damage_bins['bin_from'][bin_idx],
-                        damage_bins['bin_to'][bin_idx],
-                        rec['bin_mean'][bin_idx],
-                        rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
-                        rec['prob_to'][bin_idx],
-                        rval,
-                        tiv
-                    )
+        rndms = generate_rndm(seed, sample_size)
 
-                    if loss >= loss_threshold:
-                        loss_writer.write_sample_rec(sample_idx + 1, loss)
+        if debug:
+            for sample_idx, rval in enumerate(rndms):
+                loss_writer.write_sample_rec(sample_idx + 1, rval)
+        else:
+            for sample_idx, rval in enumerate(rndms):
+                # take the random sample
+                # rval = rndm[sample_idx]
+                # find the bin in which rval falls into
+                # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+                # there's a 1:1 mapping between indices of rec and damage_bins
+                bin_idx = first_index_numba(rval, rec['prob_to'], Nbins)
+
+                # compute the loss
+                loss = get_gul(
+                    damage_bins['bin_from'][bin_idx],
+                    damage_bins['bin_to'][bin_idx],
+                    rec['bin_mean'][bin_idx],
+                    rec['prob_to'][max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+                    rec['prob_to'][bin_idx],
+                    rval,
+                    tiv
+                )
+
+                if loss >= loss_threshold:
+                    loss_writer.write_sample_rec(sample_idx + 1, loss)
 
         # terminate list of samples for this event-item
         loss_writer.write_sample_rec(0, 0.)
