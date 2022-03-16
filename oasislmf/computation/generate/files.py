@@ -103,8 +103,8 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
         {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
-        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
-        {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',"default": False, "help": "Hashes the group_id in the items.bin"},
+        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const': False, 'nargs':'?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',  "default": False, "help": "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -126,6 +126,10 @@ class GenerateFiles(ComputationStep):
 
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
+
+        with open("./hash_status.txt", "w") as file:
+            file.write(str(self.hashed_group_id))
+
 
         if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
             raise OasisException(
@@ -225,6 +229,9 @@ class GenerateFiles(ComputationStep):
         else:
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
+
+        with open("./multiprocess_status.txt", "w") as file:
+            file.write(str(self.lookup_multiprocessing))
 
         gul_inputs_df = get_gul_input_items(
             location_df,

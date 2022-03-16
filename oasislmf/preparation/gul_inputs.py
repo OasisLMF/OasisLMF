@@ -323,6 +323,11 @@ def get_gul_input_items(
         gul_inputs_df["group_id"] = gul_inputs_df["pre-hash-value"].apply(generate_group_id_hash)
         gul_inputs_df["hash"] = gul_inputs_df["group_id"]
 
+        with open("./flat.txt", "w") as file:
+            file.write("hashing done")
+
+    gul_inputs_df.to_csv("./gul_inputs.csv", index=False)
+
     if correlation_check == True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
     else:
