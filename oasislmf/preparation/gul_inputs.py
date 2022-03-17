@@ -308,7 +308,6 @@ def get_gul_input_items(
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
-
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
