@@ -316,36 +316,34 @@ def get_gul_input_items(
 
     col_key = group_id_cols[0]
 
-    if hash_group_ids is True:
-        gul_inputs_df["pre-hash-value"] = gul_inputs_df.apply(lambda _: '', axis=1)
-        for i in group_id_cols:
-            gul_inputs_df["pre-hash-value"] += gul_inputs_df[i].astype(str)
-        gul_inputs_df["group_id"] = gul_inputs_df["pre-hash-value"].apply(generate_group_id_hash)
-        gul_inputs_df["hash"] = gul_inputs_df["group_id"]
-
-        with open("./flat.txt", "w") as file:
-            file.write("hashing done")
-
-    gul_inputs_df.to_csv("./gul_inputs.csv", index=False)
-
-    if correlation_check == True:
+    if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
-    else:
+
+    elif hash_group_ids is False:
+
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
                 gul_inputs_df.loc[:, group_id_cols].values,
                 col_idxs=range(len(group_id_cols)),
                 sort_opt=True
             )[0]
-        else:
-            if hash_group_ids is True:
-                gul_inputs_df["group_id"] = gul_inputs_df["hash"]
-            else:
-                gul_inputs_df['group_id'] = factorize_array(
-                    gul_inputs_df[group_id_cols[0]].values
-                )[0]
-    gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
+        else:
+            gul_inputs_df['group_id'] = factorize_array(
+                gul_inputs_df[group_id_cols[0]].values
+            )[0]
+
+    # this block gets fired if the hash_group_ids is True
+    else:
+        gul_inputs_df["pre-hash-value"] = gul_inputs_df.apply(lambda _: '', axis=1)
+
+        for i in group_id_cols:
+            gul_inputs_df["pre-hash-value"] += gul_inputs_df[i].astype(str)
+
+        gul_inputs_df["hash"] = gul_inputs_df["pre-hash-value"].apply(generate_group_id_hash)
+        gul_inputs_df["group_id"] = gul_inputs_df["hash"]
+
+    gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
     # Select only required columns
     # Order here matches test output expectations
