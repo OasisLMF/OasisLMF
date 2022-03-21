@@ -6,6 +6,8 @@ import numpy as np
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
+oasis_float_to_int_size = 1
+
 ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),
                                    ('bin_mean', oasis_float)
                                    ]))
