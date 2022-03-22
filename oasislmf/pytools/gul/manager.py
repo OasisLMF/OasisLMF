@@ -243,7 +243,7 @@ def get_coverages(input_path, ignore_file_type=set()):
     return coverages
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def generate_hash(group_id, event_id, rand_seed=0):
     """
     Generate hash for group_id, event_id
@@ -264,7 +264,7 @@ def generate_hash(group_id, event_id, rand_seed=0):
     return hashed
 
 
-@nb.njit(fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def generate_correlated_hash(event_id, rand_seed=0):
     """
     Generate hash for group_id, event_id
@@ -287,21 +287,6 @@ def generate_rndm_MT19937(seeds, n):
     for seed in seeds:
         rng = Generator(MT19937(seed=123))
         rndm[seed] = rng.uniform(0., 1., size=n)
-
-    return rndm
-
-
-def generate_rndm_Sobol(seeds, n):
-
-    # draw a power of 2 number of samples to keep 'Sobol' sequences
-    # balance properties (see Sobol docs for more details), then take
-    # only the `n` required numbers.
-    n_closest_base2 = max(n, 2**ceil(log2(n)))
-
-    rndm = {}
-    for seed in seeds:
-        rng = qmc.Sobol(d=1, scramble=True, seed=seed)
-        rndm[seed] = rng.random(n_closest_base2)[:n].ravel()
 
     return rndm
 
@@ -416,10 +401,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             elif random_generator == 1:
                 generate_rndm = generate_rndm_LHS
                 logger.info("Random generator: Latin Hypercube")
-
-            elif random_generator == 2:
-                generate_rndm = generate_rndm_Sobol
-                logger.info("Random generator: Sobol sequences")
 
         # min condition is needed to avoid seg fault if sample_size=0
         # rndms = get_arr_chunks(rndm, len_rndm, max(1, sample_size))

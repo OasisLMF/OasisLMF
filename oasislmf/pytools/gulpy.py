@@ -25,8 +25,8 @@ parser.add_argument('-V', '--version', action='version', version='{}'.format(oas
 parser.add_argument('--file-in', action='store', type=str,)
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--random-generator',
-                    help='random number generator\n(0: numpy default (PCG64), '
-                         '1: Latin Hypercube, 2: Sobol Sequences). Default: 1.', default=1, type=int)
+                    help='random number generator\n(0: numpy default (PCG64), 1: Latin Hypercube). Default: 1.',
+                    default=1, type=int)
 parser.add_argument('--run-dir', help='path to the run directory', default='.')
 parser.add_argument('--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.',
                     default=30, action='store', type=int)

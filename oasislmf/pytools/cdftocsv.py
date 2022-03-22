@@ -70,6 +70,7 @@ def run(run_dir, skip_header, file_in=None):
     if not skip_header:
         stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
 
+    # TODO: try using np.savetxt for better performance
     for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
         lines = print_cdftocsv(damagecdf, Nbins, rec)
         stream_out.writelines(lines)
