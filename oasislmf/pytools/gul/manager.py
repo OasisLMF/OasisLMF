@@ -2,10 +2,6 @@
 This file is the entry point for the gul command for the package.
 
 """
-
-from ctypes import sizeof
-from importlib.metadata import files
-from readline import append_history_file
 import time
 import sys
 import os
@@ -20,14 +16,14 @@ from numba.typed import Dict, List
 
 from scipy.stats import qmc
 
-from math import sqrt, ceil, log2  # faster than numpy.sqrt
+from math import sqrt  # faster than numpy.sqrt
 
 from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_damage_bins, get_items, Item
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, gulSampleFullRecord
 from oasislmf.pytools.gul.common import processrecData, gulItemIDLoss, oasis_float_to_int_size
 
-from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, Item_map_rec
+from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, Item_map_rec, damagecdfrec_stream
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -92,10 +88,10 @@ def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
 
     # maximum number of entries is buff_size divided by the minimum entry size
     # (corresponding to a 1-bin only cdf)
-    min_size_cdf_entry = damagecdfrec.size + ProbMean.size + 4
+    min_size_cdf_entry = damagecdfrec_stream.size + ProbMean.size + 4
 
     # each record from getmodel stream is expected to contain:
-    # 1 damagecdfrec obj, 1 int (Nbins), a number `Nbins` of ProbMean objects
+    # 1 damagecdfrec_stream obj, 1 int (Nbins), a number `Nbins` of ProbMean objects
 
     # use a memoryview of size twice the buff_size to ensure `read_into1` always reads the maximum amount
     # data possible (the largest between the pipe limit and the remaining memory to fill the memoryview)
@@ -125,7 +121,7 @@ def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
             Nbinss.append(Nbins[:i])
             recs.append(rec[:i])
 
-            yield np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
+            yield last_event_id, np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
 
             # start a new list for the new event, storing the first element
             damagecdfs, Nbinss, recs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec[i:i + 1]]
@@ -146,7 +142,7 @@ def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
             Nbinss.append(Nbins[:i])
             recs.append(rec[:i])
 
-            yield np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
+            yield last_event_id, np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
             break
 
         else:
@@ -192,10 +188,9 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
     i = 0
     cursor = 0
     while cursor < valid_len:
-        damagecdf[i]['event_id'], cursor = int32_mv[cursor], cursor + 1
+        event_id, cursor = int32_mv[cursor], cursor + 1
         damagecdf[i]['areaperil_id'], cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
         damagecdf[i]['vulnerability_id'], cursor = int32_mv[cursor], cursor + 1
-        event_id = damagecdf[i]['event_id']
         Nbins[i] = int32_mv[cursor]
         cursor += 1
 
@@ -471,14 +466,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
             cursor = 0
             cursor_bytes = 0
-            for damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
+            for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
                 # I don't understand why it doesn't work using mv of size mv_size
                 mv_size = compute_mv_size(damagecdfs, item_map, sample_size)
                 cursor, cursor_bytes = processrec(damagecdfs, Nbinss, recs, damage_bins, coverages,
                                                   item_map, sample_size, loss_threshold,
                                                   debug, generate_rndm, writer.int32_mv, cursor, cursor_bytes)
                 stream_out.write(writer.mv[:cursor_bytes])
-                # print("FLUSHING", mv_size)
                 cursor = 0
                 cursor_bytes = 0
 
@@ -486,14 +480,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             # type of mode1_bin_ids values
             mode1_stats_2_type = nb.types.UniTuple(nb.types.int64, 2)
 
-            for damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
+            for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
                 mode1_stats_2, mode1_item_id, rndms_idx = gen_new_dicts(mode1_stats_2_type)
                 cursor = 0
                 cursor_bytes = 0
-                event_id = damagecdfs[0]['event_id']
 
                 mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, seeds = processrec_mode1(
-                    damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id)
+                    event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id)
 
                 # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
                 # bin_lookup_arr = np.array(bin_lookup)
@@ -564,7 +557,7 @@ def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_lo
     return cursor, cursor_bytes
 
 
-def processrec(damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sample_size, loss_threshold, debug,
+def processrec(event_id, damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sample_size, loss_threshold, debug,
                generate_rndm, int32_mv, cursor, cursor_bytes):
     # TODO: avoid passing generate_rndm function by splitting the random samples in another function
     # TODO: write docstring
@@ -586,11 +579,9 @@ def processrec(damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sampl
 
             # write header
             cursor, cursor_bytes = write_sample_header(
-                damagecdfs[k]['event_id'], item['item_id'], int32_mv, cursor, cursor_bytes)
+                event_id, item['item_id'], int32_mv, cursor, cursor_bytes)
 
             # write default samples
-            # TODO create a function that takes all of them and writes all of them
-            # print(max_loss, chance_of_loss, tiv)
             cursor, cursor_bytes = write_negative_sidx(
                 MAX_LOSS_IDX, max_loss,
                 CHANCE_OF_LOSS_IDX, chance_of_loss,
@@ -602,7 +593,7 @@ def processrec(damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sampl
 
             # generate seed
             # problem here: with new hashing perhaps this goes out of numba
-            seed = generate_hash(item['group_id'], damagecdfs[k]['event_id'])
+            seed = generate_hash(item['group_id'], event_id)
 
             # problem here is that this goes out of numba
             rndms = generate_rndm([seed], sample_size)
@@ -647,51 +638,26 @@ def processrec(damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sampl
 
 
 @nb.njit(cache=True, fastmath=True)
-def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id):
+def processrec_mode1(event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id):
     # TODO: write docstring
-    # TODO: port to numba
 
     mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
     seeds = set()
     Nitems = damagecdfs.shape[0]
     for k in range(Nitems):
-        # print(k, cursor_bytes)
         item_key = tuple((damagecdfs[k]['areaperil_id'], damagecdfs[k]['vulnerability_id']))
 
-        # item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
-        # coverage_id = int(item_map[item_key]['coverage_id'])
-        # tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
-
-        # TODO need a for loop on all coverages, and need to change the item map to append_history_file
         for item in item_map[item_key]:
-            # item is (id, coverage_id, group_id)
             item_id, coverage_id, group_id = item
 
-            rng_seed = generate_hash(group_id, damagecdfs[k]['event_id'])
-
-            # append_to_dict_entry(mode1_stats, coverage_id, recData, processrecData)
-            # append_to_dict_entry(mode1_seeds, coverage_id, rng_seed, int_)
-            # append_to_dict_entry(mode1_bin_ids, coverage_id, bin_ids, bin_ids_type)
-            # mode1_stats.setdefault(coverage_id, []).append(
-            #     {'recData': recData, 'bin_ids': bin_ids, 'seed': rng_seed})
+            rng_seed = generate_hash(group_id, event_id)
 
             # append always, will filter out unqiue coverage_ids later
             mode1UsedCoverageIDs.append(coverage_id)
 
-            append_to_dict_entry(
-                mode1_stats_2,
-                coverage_id,
-                # note rng_seed needs to be int64, so eterogeneous tuple is needed
-                (k, rng_seed),
-                mode1_stats_2_type
-            )
+            append_to_dict_entry(mode1_stats_2, coverage_id, (k, rng_seed), mode1_stats_2_type)
 
-            append_to_dict_entry(
-                mode1_item_id,
-                coverage_id,
-                item_id,
-                nb.types.int32
-            )
+            append_to_dict_entry(mode1_item_id, coverage_id, item_id, nb.types.int32)
 
             seeds.add(rng_seed)
 

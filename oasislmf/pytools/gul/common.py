@@ -12,10 +12,15 @@ ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),
                                    ('bin_mean', oasis_float)
                                    ]))
 
-damagecdfrec = nb.from_dtype(np.dtype([('event_id', np.int32),
+damagecdfrec_stream = nb.from_dtype(np.dtype([('event_id', np.int32),
                                        ('areaperil_id', areaperil_int),
                                        ('vulnerability_id', np.int32)
                                        ]))
+
+damagecdfrec = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
+                                       ('vulnerability_id', np.int32)
+                                       ]))
+
 
 # unused
 Item_map_rec = nb.from_dtype(np.dtype([('item_id', np.int32),
