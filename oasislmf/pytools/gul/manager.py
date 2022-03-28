@@ -720,6 +720,8 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
                         loss[sample_idx + NUM_IDX, i] = rval
                 else:
+                    idx_loss_above_threshold = List.empty_list(nb.types.int64)
+                    N_loss_above_threshold = 0
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
@@ -739,11 +741,15 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                             tiv
                         )
 
-                        # store all losses (filter later based on loss_threshold)
-                        loss[sample_idx + NUM_IDX, i] = gul
+                        if gul >= loss_threshold:
+                            loss[sample_idx + NUM_IDX, i] = gul
+                            idx_loss_above_threshold.append(sample_idx)
+                            N_loss_above_threshold += 1
+
+                            # [true? store all losses (filter later based on loss_threshold)
 
         cursor, cursor_bytes = writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id,
-                                                loss_threshold, int32_mv, cursor, cursor_bytes)
+                                                idx_loss_above_threshold, int32_mv, cursor, cursor_bytes)
 
     return cursor, cursor_bytes
 
@@ -796,7 +802,7 @@ def split_tiv(gulitems, tiv):
 
 
 @nb.njit(cache=True, fastmath=True)
-def writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, loss_threshold, int32_mv, cursor, cursor_bytes):
+def writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, idx_loss_above_threshold, int32_mv, cursor, cursor_bytes):
     if alloc_rule == 2:
         loss = setmaxloss(loss)
 
@@ -824,17 +830,13 @@ def writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, loss_
             int32_mv, cursor, cursor_bytes
         )
 
-        for i in range(NUM_IDX, nsamples, 1):
+        for sample_idx in idx_loss_above_threshold:
             # optimize this by computing the j values for which loss is > treshold and loop only on them with no ifs
-            if loss[i, j] >= loss_threshold:
-                cursor, cursor_bytes = write_sample_rec(
-                    i - NUM_IDX + 1, loss[i, j], int32_mv, cursor, cursor_bytes)
+            cursor, cursor_bytes = write_sample_rec(
+                sample_idx + 1, loss[sample_idx + NUM_IDX, j], int32_mv, cursor, cursor_bytes)
 
         # terminate list of samples for this event-item
         cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
-
-        # # terminate list of samples for this event-item
-        # loss_writer.write_sample_rec(0, 0.)
 
     return cursor, cursor_bytes
 
