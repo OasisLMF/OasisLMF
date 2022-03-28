@@ -798,9 +798,9 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
         Nitems = len(mode1_stats_2[coverage_id])
         exposureValue = tiv / Nitems
 
-        # gulcal: gilv[item_id, loss] -> gulpy: ...[loss]
-        gilv_Nrows = sample_size + NUM_IDX
-        gilv = np.zeros((gilv_Nrows, Nitems), dtype=oasis_float)
+        # gulcalc: gilv[item_id, loss] -> gulpy: lossloss]
+        loss_Nrows = sample_size + NUM_IDX
+        loss = np.zeros((loss_Nrows, Nitems), dtype=oasis_float)
 
         # probably this for loop can go inside the if, since if mode1_stats[coverage_id] is None, enumerate will raise error
         # for i, item in enumerate(mode1_stats[coverage_id]):
@@ -828,20 +828,20 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
-            # print(type(gilv[:, i]['item_id']), type(item_id))
-            # item_id_piled = item_id * np.ones(gilv_Nrows, dtype='i4')
+            # print(type(loss[:, i]['item_id']), type(item_id))
+            # item_id_piled = item_id * np.ones(loss_Nrows, dtype='i4')
             # print(item_id_piled.shape)
-            # gilv[:, i]['item_id'] = item_id_piled  # <<-- can be simplified and not stored in gilv
-            gilv[MAX_LOSS_IDX + NUM_IDX, i] = max_loss
-            gilv[CHANCE_OF_LOSS_IDX + NUM_IDX, i] = chance_of_loss
-            gilv[TIV_IDX + NUM_IDX, i] = exposureValue
-            gilv[STD_DEV_IDX + NUM_IDX, i] = std_dev
-            gilv[MEAN_IDX + NUM_IDX, i] = gul_mean
+            # loss[:, i]['item_id'] = item_id_piled  # <<-- can be simplified and not stored in loss
+            loss[MAX_LOSS_IDX + NUM_IDX, i] = max_loss
+            loss[CHANCE_OF_LOSS_IDX + NUM_IDX, i] = chance_of_loss
+            loss[TIV_IDX + NUM_IDX, i] = exposureValue
+            loss[STD_DEV_IDX + NUM_IDX, i] = std_dev
+            loss[MEAN_IDX + NUM_IDX, i] = gul_mean
 
             if sample_size > 0:
                 if debug:
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
-                        gilv[sample_idx + NUM_IDX, i] = rval
+                        loss[sample_idx + NUM_IDX, i] = rval
                 else:
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
                         # take the random sample
@@ -851,8 +851,8 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                         # there's a 1:1 mapping between indices of rec and damage_bins
                         bin_idx = first_index_numba(rval, prob_to, Nbins)
 
-                        # compute the loss
-                        loss = get_gul(
+                        # compute the ground up loss
+                        gul = get_gul(
                             # I don't understand why this is bin_idx. Doesn't have it to be remapped?
                             damage_bins['bin_from'][bin_idx],
                             # I don't understand why this is bin_idx. Doesn't have it to be remapped?
@@ -865,12 +865,12 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                         )
 
                         # here store all losses (filter later based on loss_threshold)
-                        gilv[sample_idx + NUM_IDX, i] = loss
+                        loss[sample_idx + NUM_IDX, i] = gul
 
-        # for ji in range(gilv.shape[1]):
+        # for ji in range(loss.shape[1]):
         #     print(ji, mode1_stats_2[coverage_id][item_ids_arr_argsorted[ji]]
         #           [1], item_ids_arr[item_ids_arr_argsorted[ji]], item_ids_arr_sorted[ji])
-        cursor, cursor_bytes = writemode1output(gilv, item_ids_arr_sorted, alloc_rule, tiv, event_id,
+        cursor, cursor_bytes = writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id,
                                                 loss_threshold, int32_mv, cursor, cursor_bytes)
 
     return cursor, cursor_bytes
@@ -879,36 +879,36 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
 
 
 @nb.jit(nopython=True, fastmath=True)
-def setmaxloss(gilv):
+def setmaxloss(loss):
     """Set max loss.
     For each sample, find the maximum loss across all items.
 
     """
-    nrows, ncols = gilv.shape
+    nrows, ncols = loss.shape
 
     # the main loop starts from STD_DEV
     for i in range(NUM_IDX + STD_DEV_IDX, nrows, 1):
-        gilv_max = 0.
+        loss_max = 0.
         max_loss_count = 0
 
         # find maximum loss and count occurrences
         for j in range(ncols):
-            if gilv[i, j] > gilv_max:
-                gilv_max = gilv[i, j]
+            if loss[i, j] > loss_max:
+                loss_max = loss[i, j]
                 max_loss_count = 1
-            elif gilv[i, j] == gilv_max:
+            elif loss[i, j] == loss_max:
                 max_loss_count += 1
 
         # distribute maximum losses evenly among highest
         # contributing subperils and set other losses to 0
-        gilv_max_normed = gilv_max / max_loss_count
+        loss_max_normed = loss_max / max_loss_count
         for j in range(ncols):
-            if gilv[i, j] == gilv_max:
-                gilv[i, j] = gilv_max_normed
+            if loss[i, j] == loss_max:
+                loss[i, j] = loss_max_normed
             else:
-                gilv[i, j] = 0.
+                loss[i, j] = 0.
 
-    return gilv
+    return loss
 
 
 @nb.jit(nopython=True, fastmath=True)
@@ -926,17 +926,17 @@ def split_tiv(gulitems, tiv):
 
 
 @nb.njit(cache=True, fastmath=True)
-def writemode1output(gilv, item_ids_arr_sorted, alloc_rule, tiv, event_id, loss_threshold, int32_mv, cursor, cursor_bytes):
+def writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, loss_threshold, int32_mv, cursor, cursor_bytes):
     if alloc_rule == 2:
-        gilv = setmaxloss(gilv)
+        loss = setmaxloss(loss)
 
     # note that nsamples = sample_size + NUM_IDX
-    nsamples, nitems = gilv.shape
+    nsamples, nitems = loss.shape
 
     # Check whether the sum of losses per sample exceed TIV
     # If so, split TIV in proportion to losses
     for i in range(nsamples):
-        split_tiv(gilv[i], tiv)
+        split_tiv(loss[i], tiv)
 
     # output the items
     for j in range(nitems):
@@ -946,19 +946,19 @@ def writemode1output(gilv, item_ids_arr_sorted, alloc_rule, tiv, event_id, loss_
             event_id, item_ids_arr_sorted[j], int32_mv, cursor, cursor_bytes)
 
         cursor, cursor_bytes = write_negative_sidx(
-            MAX_LOSS_IDX, gilv[MAX_LOSS_IDX + NUM_IDX, j],
-            CHANCE_OF_LOSS_IDX, gilv[CHANCE_OF_LOSS_IDX + NUM_IDX, j],
-            TIV_IDX, gilv[TIV_IDX + NUM_IDX, j],
-            STD_DEV_IDX, gilv[STD_DEV_IDX + NUM_IDX, j],
-            MEAN_IDX, gilv[MEAN_IDX + NUM_IDX, j],
+            MAX_LOSS_IDX, loss[MAX_LOSS_IDX + NUM_IDX, j],
+            CHANCE_OF_LOSS_IDX, loss[CHANCE_OF_LOSS_IDX + NUM_IDX, j],
+            TIV_IDX, loss[TIV_IDX + NUM_IDX, j],
+            STD_DEV_IDX, loss[STD_DEV_IDX + NUM_IDX, j],
+            MEAN_IDX, loss[MEAN_IDX + NUM_IDX, j],
             int32_mv, cursor, cursor_bytes
         )
 
         for i in range(NUM_IDX, nsamples, 1):
             # optimize this by computing the j values for which loss is > treshold and loop only on them with no ifs
-            if gilv[i, j] >= loss_threshold:
+            if loss[i, j] >= loss_threshold:
                 cursor, cursor_bytes = write_sample_rec(
-                    i - NUM_IDX + 1, gilv[i, j], int32_mv, cursor, cursor_bytes)
+                    i - NUM_IDX + 1, loss[i, j], int32_mv, cursor, cursor_bytes)
 
         # terminate list of samples for this event-item
         cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
