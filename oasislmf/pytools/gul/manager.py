@@ -54,7 +54,6 @@ gulSampleslevelRec_size = gulSampleslevelRec.size
 gulSampleslevelHeader_size = gulSampleslevelHeader.size
 
 
-
 def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
     """Read the getmodel output stream.
 
@@ -291,22 +290,20 @@ def generate_correlated_hash(event_id, rand_seed=0):
     return hashed
 
 
-def generate_rndm_MT19937(seeds, n):
-    rndm = {}
-    for seed in seeds:
+def generate_rndm_MT19937(seeds, n, rndms_idx, rndms):
+
+    for i, seed in enumerate(seeds):
         rng = Generator(MT19937(seed=123))
-        rndm[seed] = rng.uniform(0., 1., size=n)
+        rndms_idx[seed] = i
+        rndms[i, :] = rng.uniform(0., 1., size=n)
 
-    return rndm
 
+def generate_rndm_LHS(seeds, n, rndms_idx, rndms):
 
-def generate_rndm_LHS(seeds, n):
-    rndm = {}
-    for seed in seeds:
+    for i, seed in enumerate(seeds):
         rng = qmc.LatinHypercube(d=1, seed=seed)
-        rndm[seed] = rng.random(n).ravel()
-
-    return rndm
+        rndms_idx[seed] = i
+        rndms[i, :] = rng.random(n).ravel()
 
 
 # TODO probably I can use getmodel get_items. double check
@@ -337,16 +334,36 @@ def gul_get_items(input_path, ignore_file_type=set()):
     return items
 
 
-def generate_item_map(items):
+@nb.njit()
+def append_to_dict_entry(d, key, value, value_type):
+    # append is done in-place
+    def_lst = List.empty_list(value_type)
+    d.setdefault(key, def_lst)
+    lst = d[key]
+    lst.append(value)
+    d[key] = lst
 
-    # in-place sort items in order to store them in item_map in the desired order
-    items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
 
-    item_map = {}
-    for item in items:
-        item_map.setdefault(tuple(item[['areaperil_id', 'vulnerability_id']]), []).append(
-            np.array((item['id'], item['coverage_id'], item['group_id']), dtype=Item_map_rec)
+@nb.njit(cache=True, fastmath=True)
+def generate_item_map(items, item_key_type, item_value_type):
+    """ generate item_map; requires items to be sorted"""
+    # # in-place sort items in order to store them in item_map in the desired order
+    # items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
+
+    # item_value_type = Item_map_rec
+    item_map = Dict.empty(item_key_type, List.empty_list(item_value_type))
+    Nitems = items.shape[0]
+
+    for j in range(Nitems):
+        append_to_dict_entry(
+            item_map,
+            tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
+            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
+            item_value_type
         )
+        # item_map.setdefault(tuple(item[['areaperil_id', 'vulnerability_id']]), []).append(
+        #     np.array([(item['id'], item['coverage_id'], item['group_id'])], dtype=Item_map_rec)
+        # )
 
     return item_map
 
@@ -375,7 +392,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
     # TODO: store input_path in a paraparameters file
 
     items = gul_get_items(input_path)
-    item_map = generate_item_map(items)
+
+    # in-place sort items in order to store them in item_map in the desired order
+    items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
+    item_map_key_type = nb.types.Tuple((nb.types.uint32, nb.types.int32))
+    item_map_value_type = nb.types.UniTuple(nb.types.int32, 3)
+    item_map = generate_item_map(items, item_map_key_type, item_map_value_type)
 
     coverages = get_coverages(input_path)
 
@@ -462,14 +484,17 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             @nb.njit(cache=True)
             def gen_new_dicts(mode1_stats_2_type):
                 mode1_stats_2 = Dict.empty(int_, List.empty_list(mode1_stats_2_type))
-                mode1_item_id = Dict.empty(int_, nb.types.int32)
+                rndms_idx = Dict.empty(nb.types.int64, int_)
 
-                return mode1_stats_2, mode1_item_id
+                mytype = nb.types.int32
+                mode1_item_id = Dict.empty(int_, List.empty_list(mytype))
+
+                return mode1_stats_2, mode1_item_id, rndms_idx
 
             for damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
-                mode1_stats_2, mode1_item_id = gen_new_dicts(mode1_stats_2_type)
-                mode1UsedCoverageIDs = List()
-                seeds = set()
+                mode1_stats_2, mode1_item_id, rndms_idx = gen_new_dicts(mode1_stats_2_type)
+                # mode1UsedCoverageIDs = List.empty()
+                # seeds = set()
 
                 cursor = 0
                 cursor_bytes = 0
@@ -490,7 +515,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                 # if event_id != last_event_id:
 
                 mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, seeds = processrec_mode1(
-                    damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id, mode1UsedCoverageIDs, seeds,)
+                    damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id)
 
                 # if last_event_id > 0:
                 #     # this is not the very first event to be processed
@@ -499,13 +524,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
                 # bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
                 # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
-
-                rndms = generate_rndm(seeds, sample_size)
+                rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
+                generate_rndm(seeds, sample_size, rndms_idx, rndms)
                 # logger.debug(f"len_sets={len(seeds)}")
                 # all_seeds.update(seeds)
 
+                # mode1UsedCoverageIDs = np.array(np.array(mode1UsedCoverageIDs))
                 cursor, cursor_bytes = outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, sample_size,
-                                                       Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms,
+                                                       Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
                                                        debug, writer.int32_mv, cursor, cursor_bytes)
 
                 # clearmode1_data
@@ -673,7 +699,7 @@ def processrec(damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sampl
             cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
 
             # if cursor_bytes > buff_size:
-            #TODO: issue with 12k Piwind is that buffsize of 65k is too small (see printout of cursor-bytes)
+            # TODO: issue with 12k Piwind is that buffsize of 65k is too small (see printout of cursor-bytes)
             # need to find a way to flush (eg yield if cursor_bytes > buff_size)
 
     # print(cursor_bytes)
@@ -681,24 +707,17 @@ def processrec(damagecdfs, Nbinss, recs, damage_bins, coverages, item_map, sampl
     return cursor, cursor_bytes
 
 
-@nb.njit()
-def append_to_dict_entry(d, key, value, value_type):
-    # append is done in-place
-    def_lst = List.empty_list(value_type)
-    d.setdefault(key, def_lst)
-    lst = d[key]
-    lst.append(value)
-    d[key] = lst
-
-
-def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id, mode1UsedCoverageIDs, seeds,):
+@nb.njit(cache=True, fastmath=True)
+def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id):
     # TODO: write docstring
     # TODO: port to numba
 
+    mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
+    seeds = set()
     Nitems = damagecdfs.shape[0]
     for k in range(Nitems):
         # print(k, cursor_bytes)
-        item_key = tuple(damagecdfs[k][['areaperil_id', 'vulnerability_id']])
+        item_key = tuple((damagecdfs[k]['areaperil_id'], damagecdfs[k]['vulnerability_id']))
 
         # item_key = tuple(damagecdf[['areaperil_id', 'vulnerability_id']])
         # coverage_id = int(item_map[item_key]['coverage_id'])
@@ -706,7 +725,8 @@ def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mo
 
         # TODO need a for loop on all coverages, and need to change the item map to append_history_file
         for item in item_map[item_key]:
-            coverage_id = int(item['coverage_id'])
+            # item is (id, coverage_id, group_id)
+            coverage_id = int(item[1])
             # tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
 
             # compute mean values # DO LATER
@@ -719,7 +739,7 @@ def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mo
             # recData = np.ndarray(1, dtype=processrecData)
             # recData[:] = (gul_mean, std_dev, chance_of_loss, max_loss, item['group_id'], item['item_id'])
 
-            rng_seed = generate_hash(item['group_id'], damagecdfs[k]['event_id'])
+            rng_seed = generate_hash(item[2], damagecdfs[k]['event_id'])
 
             # logger.debug(
             #     f"{damagecdfs[k]['event_id']}, {item['group_id']}, {coverage_id}, {item['item_id']}, {rng_seed}")
@@ -732,7 +752,7 @@ def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mo
 
             # mode1_stats_2.setdefault(coverage_id, []).append((k, item['item_id'], item['group_id']))
             # mode1_item_id.setdefault(coverage_id, []).append(item['item_id'])
-            #build DICT coverage_id -> [tuple] = [(item_id, group_id, k,  seed)]
+            # build DICT coverage_id -> [tuple] = [(item_id, group_id, k,  seed)]
             # append_to_dict_entry(mode1_stats_item_id, coverage_id, item['item_id'], nb.types.int32)
             # mode1_stats_item_id.setdefault(coverage_id, []).append(item['item_id'])
             # if coverage_id not in mode1_stats2.keys():
@@ -743,13 +763,15 @@ def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mo
             append_to_dict_entry(
                 mode1_stats_2,
                 coverage_id,
-                (k, item['item_id'], item['group_id'], rng_seed),
+                # note rng_seed needs to be int64, so eterogeneous tuple is needed
+                (k, item[0], item[2], rng_seed),
                 mode1_stats_2_type
             )
+
             append_to_dict_entry(
                 mode1_item_id,
                 coverage_id,
-                item['item_id'],
+                item[2],
                 nb.types.int32
             )
 
@@ -758,27 +780,44 @@ def processrec_mode1(damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mo
     return mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, seeds
 
 
-@nb.njit()
+@nb.njit(cache=True, fastmath=True)
 def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, sample_size,
-                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms,
+                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
                     debug, int32_mv, cursor, cursor_bytes):
 
-    # for coverage_id in mode1_stats_2.keys(): <-
-    for coverage_id in np.unique(mode1UsedCoverageIDs):
+    # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
+    N_cov_ids = len(mode1UsedCoverageIDs)
+    mode1UsedCoverageIDs_arr = np.empty(N_cov_ids, dtype=np.int32)
+    for j in range(N_cov_ids):
+        mode1UsedCoverageIDs_arr[j] = mode1UsedCoverageIDs[j]
 
-        # k, item_id, group_id = mode1_stats_2[coverage_id]
-        # item_key = tuple(damagecdfs[k][['areaperil_id', 'vulnerability_id']])
+    # for coverage_id in mode1_stats_2.keys(): <-
+    for coverage_id in np.unique(mode1UsedCoverageIDs_arr):
 
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
         Nitems = len(mode1_stats_2[coverage_id])
         exposureValue = tiv / Nitems
 
-        gilv = np.zeros((sample_size + NUM_IDX, Nitems), dtype=gulItemIDLoss)
+        gilv_Nrows = sample_size + NUM_IDX
+        gilv = np.zeros((gilv_Nrows, Nitems), dtype=gulItemIDLoss)
 
         # probably this for loop can go inside the if, since if mode1_stats[coverage_id] is None, enumerate will raise error
         # for i, item in enumerate(mode1_stats[coverage_id]):
-        for i, j_stats in enumerate(np.argsort(mode1_item_id[coverage_id])):
+        # TODO: check again if np.argsort() is needed. If not, we could save the conversion from List to np.array
+
+        # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
+        N_item_ids = len(mode1_item_id[coverage_id])
+        item_ids_arr = np.empty(N_item_ids, dtype=np.int32)
+        for j in range(N_item_ids):
+            item_ids_arr[j] = mode1_item_id[coverage_id][j]
+
+        item_ids_arr_argsorted = np.argsort(item_ids_arr)
+        item_ids_arr_sorted = item_ids_arr[item_ids_arr_argsorted]
+
+        for i, j_stats in enumerate(item_ids_arr_argsorted):
+
             k, item_id, group_id, seed = mode1_stats_2[coverage_id][j_stats]
+            # print(j_stats, item_id, item_ids_arr[j_stats], item_ids_arr_argsorted[i], kkk[i])
             prob_to = recs[k]['prob_to']
             bin_mean = recs[k]['bin_mean']
             Nbins = Nbinss[k]
@@ -788,7 +827,10 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
-            gilv[:, i]['item_id'] = item_id  # <<-- can be simplified and not stored in gilv
+            # print(type(gilv[:, i]['item_id']), type(item_id))
+            # item_id_piled = item_id * np.ones(gilv_Nrows, dtype='i4')
+            # print(item_id_piled.shape)
+            # gilv[:, i]['item_id'] = item_id_piled  # <<-- can be simplified and not stored in gilv
             gilv[MAX_LOSS_IDX + NUM_IDX, i]['loss'] = max_loss
             gilv[CHANCE_OF_LOSS_IDX + NUM_IDX, i]['loss'] = chance_of_loss
             gilv[TIV_IDX + NUM_IDX, i]['loss'] = exposureValue
@@ -797,10 +839,10 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
 
             if sample_size > 0:
                 if debug:
-                    for sample_idx, rval in enumerate(rndms[seed]):
+                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
                         gilv[sample_idx + NUM_IDX, i]['loss'] = rval
                 else:
-                    for sample_idx, rval in enumerate(rndms[seed]):
+                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
                         # take the random sample
                         # rval = rndm[sample_idx]
                         # find the bin in which rval falls into
@@ -824,7 +866,10 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                         # here store all losses (filter later based on loss_threshold)
                         gilv[sample_idx + NUM_IDX, i]['loss'] = loss
 
-        cursor, cursor_bytes = writemode1output(gilv, alloc_rule, tiv, event_id,
+        # for ji in range(gilv.shape[1]):
+        #     print(ji, mode1_stats_2[coverage_id][item_ids_arr_argsorted[ji]]
+        #           [1], item_ids_arr[item_ids_arr_argsorted[ji]], item_ids_arr_sorted[ji])
+        cursor, cursor_bytes = writemode1output(gilv, item_ids_arr_sorted, alloc_rule, tiv, event_id,
                                                 loss_threshold, int32_mv, cursor, cursor_bytes)
 
     return cursor, cursor_bytes
@@ -880,11 +925,11 @@ def split_tiv(gulitems, tiv):
 
 
 @nb.njit(cache=True, fastmath=True)
-def writemode1output(gilv, alloc_rule, tiv, event_id, loss_threshold, int32_mv, cursor, cursor_bytes):
+def writemode1output(gilv, item_ids_arr_sorted, alloc_rule, tiv, event_id, loss_threshold, int32_mv, cursor, cursor_bytes):
     if alloc_rule == 2:
         gilv = setmaxloss(gilv)
 
-    # note that nsamples=sample_size + NUM_IDX
+    # note that nsamples = sample_size + NUM_IDX
     nsamples, nitems = gilv.shape
 
     # Check whether the sum of losses per sample exceed TIV
@@ -897,7 +942,7 @@ def writemode1output(gilv, alloc_rule, tiv, event_id, loss_threshold, int32_mv, 
 
         # write header
         cursor, cursor_bytes = write_sample_header(
-            event_id, gilv[0, j]['item_id'], int32_mv, cursor, cursor_bytes)
+            event_id, item_ids_arr_sorted[j], int32_mv, cursor, cursor_bytes)
 
         cursor, cursor_bytes = write_negative_sidx(
             MAX_LOSS_IDX, gilv[MAX_LOSS_IDX + NUM_IDX, j]['loss'],
@@ -908,15 +953,11 @@ def writemode1output(gilv, alloc_rule, tiv, event_id, loss_threshold, int32_mv, 
             int32_mv, cursor, cursor_bytes
         )
 
-        # for i in range(NUM_IDX):
-        #     loss_writer.write_sample_rec(i - NUM_IDX, gilv[i, j]['loss'])
-
         for i in range(NUM_IDX, nsamples, 1):
             # optimize this by computing the j values for which loss is > treshold and loop only on them with no ifs
-            if gilv[i, j]['loss'] > loss_threshold:
+            if gilv[i, j]['loss'] >= loss_threshold:
                 cursor, cursor_bytes = write_sample_rec(
                     i - NUM_IDX + 1, gilv[i, j]['loss'], int32_mv, cursor, cursor_bytes)
-                # loss_writer.write_sample_rec(i - NUM_IDX + 1, gilv[i, j]['loss'])
 
         # terminate list of samples for this event-item
         cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
@@ -1083,7 +1124,6 @@ def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to, bin_
     max_loss = max_damage_bin_to * tiv
 
     return gul_mean, std_dev, chance_of_loss, max_loss, bin_map, bin_ids, bin_lookup
-
 
 
 @nb.jit(cache=False, nopython=True, fastmath=False)
