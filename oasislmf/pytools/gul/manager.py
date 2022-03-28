@@ -287,18 +287,18 @@ def generate_correlated_hash(event_id, rand_seed=0):
 
 def generate_rndm_MT19937(seeds, n, rndms_idx, rndms):
 
-    for i, seed in enumerate(seeds):
+    for seed_i, seed in enumerate(seeds):
         rng = Generator(MT19937(seed=123))
-        rndms_idx[seed] = i
-        rndms[i, :] = rng.uniform(0., 1., size=n)
+        rndms_idx[seed] = seed_i
+        rndms[seed_i, :] = rng.uniform(0., 1., size=n)
 
 
 def generate_rndm_LHS(seeds, n, rndms_idx, rndms):
 
-    for i, seed in enumerate(seeds):
+    for seed_i, seed in enumerate(seeds):
         rng = qmc.LatinHypercube(d=1, seed=seed)
-        rndms_idx[seed] = i
-        rndms[i, :] = rng.random(n).ravel()
+        rndms_idx[seed] = seed_i
+        rndms[seed_i, :] = rng.random(n).ravel()
 
 
 # TODO probably I can use getmodel get_items. double check
@@ -329,7 +329,7 @@ def gul_get_items(input_path, ignore_file_type=set()):
     return items
 
 
-@nb.njit()
+@nb.njit(cache=True, fastmath=True)
 def append_to_dict_entry(d, key, value, value_type):
     # append is done in-place
     def_lst = List.empty_list(value_type)
@@ -360,7 +360,18 @@ def generate_item_map(items, item_key_type, item_value_type):
     return item_map
 
 
-@nb.njit(cache=True)
+def compute_mv_size(damagecdfs, item_map, sample_size):
+    # compute number of items in this event
+    ntotitems = 0
+    for damagecdf in damagecdfs:
+        ntotitems += len(item_map[tuple(damagecdf[['areaperil_id', 'vulnerability_id']])])
+
+    mv_size = ntotitems * ((NUM_IDX + sample_size + 1) * gulSampleslevelRec_size + gulSampleslevelHeader_size)
+
+    return mv_size
+
+
+@nb.njit(cache=True, fastmath=True)
 def gen_new_dicts(mode1_stats_2_type):
     mode1_stats_2 = Dict.empty(int_, List.empty_list(mode1_stats_2_type))
     rndms_idx = Dict.empty(nb.types.int64, int_)
@@ -444,23 +455,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         # get the stream, for each entry in the stream:
 
         assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
-
-        # def compute_nitems(damagecdfs, item_map):
-        #     nitems = 0
-        #     for damagecdf in damagecdfs:
-        #         nitems += len(item_map[tuple(damagecdf[['areaperil_id', 'vulnerability_id']])])
-
-        #     return nitems
-
-        def compute_mv_size(damagecdfs, item_map, sample_size):
-            # compute number of items in this event
-            ntotitems = 0
-            for damagecdf in damagecdfs:
-                ntotitems += len(item_map[tuple(damagecdf[['areaperil_id', 'vulnerability_id']])])
-
-            mv_size = ntotitems * ((NUM_IDX + sample_size + 1) * gulSampleslevelRec_size + gulSampleslevelHeader_size)
-
-            return mv_size
 
         if alloc_rule == 0:
 
@@ -652,7 +646,8 @@ def processrec_mode1(event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_
 
             rng_seed = generate_hash(group_id, event_id)
 
-            # append always, will filter out unqiue coverage_ids later
+            # append always, will filter the unqiue coverage_ids later
+            # here list is preferable over set since order is important
             mode1UsedCoverageIDs.append(coverage_id)
 
             append_to_dict_entry(mode1_stats_2, coverage_id, (k, rng_seed), mode1_stats_2_type)
@@ -670,9 +665,9 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                     debug, int32_mv, cursor, cursor_bytes):
 
     # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
-    N_cov_ids = len(mode1UsedCoverageIDs)
-    mode1UsedCoverageIDs_arr = np.empty(N_cov_ids, dtype=np.int32)
-    for j in range(N_cov_ids):
+    Ncoverage_ids = len(mode1UsedCoverageIDs)
+    mode1UsedCoverageIDs_arr = np.empty(Ncoverage_ids, dtype=np.int32)
+    for j in range(Ncoverage_ids):
         mode1UsedCoverageIDs_arr[j] = mode1UsedCoverageIDs[j]
 
     for coverage_id in np.unique(mode1UsedCoverageIDs_arr):
@@ -687,18 +682,22 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
 
         # TODO: check again if np.argsort() is needed. If not, we could save the conversion from List to np.array
         # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
-        N_item_ids = len(mode1_item_id[coverage_id])
-        item_ids_arr = np.empty(N_item_ids, dtype=np.int32)
-        for j in range(N_item_ids):
+        Nitem_ids = len(mode1_item_id[coverage_id])
+        item_ids_arr = np.empty(Nitem_ids, dtype=np.int32)
+        for j in range(Nitem_ids):
             item_ids_arr[j] = mode1_item_id[coverage_id][j]
 
         item_ids_arr_argsorted = np.argsort(item_ids_arr)
         item_ids_arr_sorted = item_ids_arr[item_ids_arr_argsorted]
+
+        # dict containing, for each item, the list of all random sidx with loss
+        # larger than loss_threshold. caching this allows for smaller loop  when
+        # writing the output
         items_loss_above_threshold = Dict()
 
-        for i, j_stats in enumerate(item_ids_arr_argsorted):
+        for item_i, item_id_sorted in enumerate(item_ids_arr_argsorted):
 
-            k, seed = mode1_stats_2[coverage_id][j_stats]
+            k, seed = mode1_stats_2[coverage_id][item_id_sorted]
 
             prob_to = recs[k]['prob_to']
             bin_mean = recs[k]['bin_mean']
@@ -709,16 +708,16 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
-            loss[MAX_LOSS_IDX + NUM_IDX, i] = max_loss
-            loss[CHANCE_OF_LOSS_IDX + NUM_IDX, i] = chance_of_loss
-            loss[TIV_IDX + NUM_IDX, i] = exposureValue
-            loss[STD_DEV_IDX + NUM_IDX, i] = std_dev
-            loss[MEAN_IDX + NUM_IDX, i] = gul_mean
+            loss[MAX_LOSS_IDX + NUM_IDX, item_i] = max_loss
+            loss[CHANCE_OF_LOSS_IDX + NUM_IDX, item_i] = chance_of_loss
+            loss[TIV_IDX + NUM_IDX, item_i] = exposureValue
+            loss[STD_DEV_IDX + NUM_IDX, item_i] = std_dev
+            loss[MEAN_IDX + NUM_IDX, item_i] = gul_mean
 
             if sample_size > 0:
                 if debug:
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
-                        loss[sample_idx + NUM_IDX, i] = rval
+                        loss[sample_idx + NUM_IDX, item_i] = rval
                 else:
                     idx_loss_above_threshold = List.empty_list(nb.types.int64)
 
@@ -742,10 +741,10 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
                         )
 
                         if gul >= loss_threshold:
-                            loss[sample_idx + NUM_IDX, i] = gul
+                            loss[sample_idx + NUM_IDX, item_i] = gul
                             idx_loss_above_threshold.append(sample_idx)
 
-                    items_loss_above_threshold[i] = idx_loss_above_threshold
+                    items_loss_above_threshold[item_i] = idx_loss_above_threshold
 
         cursor, cursor_bytes = writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id,
                                                 items_loss_above_threshold, int32_mv, cursor, cursor_bytes)
@@ -755,19 +754,19 @@ def outputmode1data(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs
 
 @nb.jit(nopython=True, fastmath=True)
 def setmaxloss(loss):
-    """Set max loss.
+    """Set maximum loss.
     For each sample, find the maximum loss across all items.
 
     """
-    nrows, ncols = loss.shape
+    Nsamples, Nitems = loss.shape
 
     # the main loop starts from STD_DEV
-    for i in range(NUM_IDX + STD_DEV_IDX, nrows, 1):
+    for i in range(NUM_IDX + STD_DEV_IDX, Nsamples, 1):
         loss_max = 0.
         max_loss_count = 0
 
         # find maximum loss and count occurrences
-        for j in range(ncols):
+        for j in range(Nitems):
             if loss[i, j] > loss_max:
                 loss_max = loss[i, j]
                 max_loss_count = 1
@@ -777,7 +776,7 @@ def setmaxloss(loss):
         # distribute maximum losses evenly among highest
         # contributing subperils and set other losses to 0
         loss_max_normed = loss_max / max_loss_count
-        for j in range(ncols):
+        for j in range(Nitems):
             if loss[i, j] == loss_max:
                 loss[i, j] = loss_max_normed
             else:
@@ -802,39 +801,41 @@ def split_tiv(gulitems, tiv):
 
 @nb.njit(cache=True, fastmath=True)
 def writemode1output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, items_loss_above_threshold, int32_mv, cursor, cursor_bytes):
+
+    # note that Nsamples = sample_size + NUM_IDX
+    Nsamples, Nitems = loss.shape
+
     if alloc_rule == 2:
         loss = setmaxloss(loss)
 
-    # note that nsamples = sample_size + NUM_IDX
-    nsamples, nitems = loss.shape
+    # check whether the sum of losses-per-sample exceeds TIV
+    # if so, split TIV in proportion to losses
+    for sample_i in range(Nsamples):
+        split_tiv(loss[sample_i], tiv)
 
-    # Check whether the sum of losses per sample exceed TIV
-    # If so, split TIV in proportion to losses
-    for i in range(nsamples):
-        split_tiv(loss[i], tiv)
-
-    # output the items
-    for j in range(nitems):
+    # output the losses for all the items
+    for item_i in range(Nitems):
 
         # write header
         cursor, cursor_bytes = write_sample_header(
-            event_id, item_ids_arr_sorted[j], int32_mv, cursor, cursor_bytes)
+            event_id, item_ids_arr_sorted[item_i], int32_mv, cursor, cursor_bytes)
 
+        # write negative sidx
         cursor, cursor_bytes = write_negative_sidx(
-            MAX_LOSS_IDX, loss[MAX_LOSS_IDX + NUM_IDX, j],
-            CHANCE_OF_LOSS_IDX, loss[CHANCE_OF_LOSS_IDX + NUM_IDX, j],
-            TIV_IDX, loss[TIV_IDX + NUM_IDX, j],
-            STD_DEV_IDX, loss[STD_DEV_IDX + NUM_IDX, j],
-            MEAN_IDX, loss[MEAN_IDX + NUM_IDX, j],
+            MAX_LOSS_IDX, loss[MAX_LOSS_IDX + NUM_IDX, item_i],
+            CHANCE_OF_LOSS_IDX, loss[CHANCE_OF_LOSS_IDX + NUM_IDX, item_i],
+            TIV_IDX, loss[TIV_IDX + NUM_IDX, item_i],
+            STD_DEV_IDX, loss[STD_DEV_IDX + NUM_IDX, item_i],
+            MEAN_IDX, loss[MEAN_IDX + NUM_IDX, item_i],
             int32_mv, cursor, cursor_bytes
         )
 
-        for sample_idx in items_loss_above_threshold[j]:
-            # optimize this by computing the j values for which loss is > treshold and loop only on them with no ifs
+        # write the random samples (only those with losses above the threshold)
+        for sample_idx in items_loss_above_threshold[item_i]:
             cursor, cursor_bytes = write_sample_rec(
-                sample_idx + 1, loss[sample_idx + NUM_IDX, j], int32_mv, cursor, cursor_bytes)
+                sample_idx + 1, loss[sample_idx + NUM_IDX, item_i], int32_mv, cursor, cursor_bytes)
 
-        # terminate list of samples for this event-item
+        # write terminator for the samples for this item
         cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
 
     return cursor, cursor_bytes
