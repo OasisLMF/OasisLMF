@@ -18,12 +18,11 @@ from scipy.stats import qmc
 
 from math import sqrt  # faster than numpy.sqrt
 
-from oasislmf.pytools.getmodel.manager import get_mean_damage_bins, get_damage_bins, get_items, Item
+from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
-from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, gulSampleFullRecord
-from oasislmf.pytools.gul.common import processrecData, gulItemIDLoss, oasis_float_to_int_size
+from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, oasis_float_to_int_size
 
-from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, Item_map_rec, damagecdfrec_stream
+from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, damagecdfrec_stream
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -486,12 +485,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
                 cursor = 0
                 cursor_bytes = 0
-                # this is not the last cycle
-                # move the un-read data to the beginning of the memoryview
-                # writer.mv[:cursor_bytes - writer.buff_size] = writer.mv[writer.buff_size:cursor_bytes]
-
-                # update the length of the valid data
-                # cursor_bytes -= writer.buff_size
 
     return 0
 
