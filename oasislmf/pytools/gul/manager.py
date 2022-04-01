@@ -686,6 +686,18 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         # TODO: check again if np.argsort() is needed. If not, we could save the conversion from List to np.array
         # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
         Nitem_ids = len(mode1_item_id[coverage_id])
+
+        # estimate max number of bytes are needed to output this coverage
+        # conservatively assume all random samples are printed (loss>loss_threshold)
+        # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
+        est_cursor_bytes = Nitem_ids * (
+            (sample_size + 5 + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+        )
+
+        # return before processing this coverage if bytes written in mv exceed buff_size
+        if cursor_bytes + est_cursor_bytes > buff_size:
+            return cursor, cursor_bytes, coverage_idx
+
         item_ids_arr = np.empty(Nitem_ids, dtype=np.int32)
         for j in range(Nitem_ids):
             item_ids_arr[j] = mode1_item_id[coverage_id][j]
@@ -749,10 +761,9 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
 
         cursor, cursor_bytes = write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id,
                                             items_loss_above_threshold, int32_mv, cursor, cursor_bytes)
-        coverage_idx += 1
 
-        if cursor_bytes > buff_size:
-            return cursor, cursor_bytes, coverage_idx
+        # register that another coverage_id has been processed
+        coverage_idx += 1
 
     return cursor, cursor_bytes, coverage_idx
 
@@ -826,6 +837,7 @@ def write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, items_los
         # write header
         cursor, cursor_bytes = write_sample_header(
             event_id, item_ids_arr_sorted[item_j], int32_mv, cursor, cursor_bytes)
+        # print("header: ", cursor, cursor_bytes)
 
         # write negative sidx
         cursor, cursor_bytes = write_negative_sidx(
@@ -836,14 +848,17 @@ def write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, items_los
             MEAN_IDX, loss[SHIFTED_MEAN_IDX, item_j],
             int32_mv, cursor, cursor_bytes
         )
+        # print("neg sidx: ", cursor, cursor_bytes)
 
         # write the random samples (only those with losses above the threshold)
         for sample_idx in items_loss_above_threshold[item_j]:
             cursor, cursor_bytes = write_sample_rec(
                 sample_idx + 1, loss[sample_idx + NUM_IDX, item_j], int32_mv, cursor, cursor_bytes)
+        # print("sidx: ", cursor, cursor_bytes)
 
         # write terminator for the samples for this item
         cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
+        # print("termin: ", cursor, cursor_bytes)
 
     return cursor, cursor_bytes
 
@@ -897,8 +912,9 @@ class LossWriter():
         self.flush_number = self.nb_number - 4
 
         # define the raw memory view, the int32 view of it, and their respective cursors
-        self.mv = memoryview(bytearray(buff_size * 10))
-        self.int32_mv = np.ndarray(buff_size * 10 // self.number_size, buffer=self.mv, dtype='i4')
+        mv_size_bytes = buff_size + self.number_size * 10
+        self.mv = memoryview(bytearray(mv_size_bytes))
+        self.int32_mv = np.ndarray(mv_size_bytes // self.number_size, buffer=self.mv, dtype='i4')
         # cannot use because the header is int int
         # self.loss_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype=gulSampleslevelRec.dtype)
         # cannot use two views loss_mv and header_mv because it only works if oasis_float is float32.
