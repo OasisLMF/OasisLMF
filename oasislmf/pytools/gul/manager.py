@@ -273,6 +273,7 @@ def generate_hash(group_id, event_id, rand_seed=0):
     return hashed
 
 
+# TODO make version of function that takes lists of event_ids and loops inside
 @nb.njit(cache=True, fastmath=True)
 def generate_correlated_hash(event_id, rand_seed=0):
     """
@@ -436,7 +437,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
-        writer = LossWriter(stream_out, sample_size, buff_size=65536 * 100)
+        writer = LossWriter(stream_out, sample_size, buff_size=65536)
 
         if random_numbers_file:
             rndm = np.loadtxt(random_numbers_file)
@@ -463,7 +464,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
             mode1_stats_2, mode1_item_id, rndms_idx = gen_new_dicts(mode1_stats_2_type)
 
-            mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, seeds = reconstruct_coverages_properties(
+            mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds = reconstruct_coverages_properties(
                 event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id)
 
             # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
@@ -473,13 +474,24 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
             generate_rndm(seeds, sample_size, rndms_idx, rndms)
 
-            cursor, cursor_bytes = compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, sample_size,
-                                                        Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
-                                                        debug, writer.int32_mv, cursor, cursor_bytes)
+            coverage_idx = 0
+            while coverage_idx < Nunique_coverage_ids:
+                cursor, cursor_bytes, coverage_idx = compute_event_losses(
+                    event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
+                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
+                    debug, writer.int32_mv, writer.buff_size, cursor, cursor_bytes, coverage_idx
+                )
 
-            stream_out.write(writer.mv[:cursor_bytes])
-            cursor = 0
-            cursor_bytes = 0
+                stream_out.write(writer.mv[:cursor_bytes])
+
+                cursor = 0
+                cursor_bytes = 0
+                # this is not the last cycle
+                # move the un-read data to the beginning of the memoryview
+                # writer.mv[:cursor_bytes - writer.buff_size] = writer.mv[writer.buff_size:cursor_bytes]
+
+                # update the length of the valid data
+                # cursor_bytes -= writer.buff_size
 
     return 0
 
@@ -573,7 +585,6 @@ def processrec(event_id, damagecdfs, Nbinss, recs, damage_bins, coverages, item_
             )
 
             # generate seed
-            # problem here: with new hashing perhaps this goes out of numba
             seed = generate_hash(item['group_id'], event_id)
 
             # problem here is that this goes out of numba
@@ -623,6 +634,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
     # TODO: write docstring
 
     mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
+    Ncoverage_ids = 0
     seeds = set()
     Nitems = damagecdfs.shape[0]
     for item_j in range(Nitems):
@@ -636,6 +648,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
             # append always, will filter the unqiue coverage_ids later
             # here list is preferable over set since order is important
             mode1UsedCoverageIDs.append(coverage_id)
+            Ncoverage_ids += 1
 
             append_to_dict_entry(mode1_stats_2, coverage_id, (item_j, rng_seed), mode1_stats_2_type)
 
@@ -643,22 +656,25 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
 
             seeds.add(rng_seed)
 
-    return mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, seeds
+    # convert mode1UsedCoverageIDs to np.array to apply np.unique() to it
+    mode1UsedCoverageIDs_arr_tmp = np.empty(Ncoverage_ids, dtype=np.int32)
+    for j in range(Ncoverage_ids):
+        mode1UsedCoverageIDs_arr_tmp[j] = mode1UsedCoverageIDs[j]
+
+    mode1UsedCoverageIDs_arr = np.unique(mode1UsedCoverageIDs_arr_tmp)
+    Nunique_coverage_ids = mode1UsedCoverageIDs_arr.shape[0]
+
+    return mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds
 
 
 @nb.njit(cache=True, fastmath=True)
-def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs, sample_size,
+def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
                          Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
-                         debug, int32_mv, cursor, cursor_bytes):
+                         debug, int32_mv, buff_size, cursor, cursor_bytes, coverage_idx):
 
-    # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
-    Ncoverage_ids = len(mode1UsedCoverageIDs)
-    mode1UsedCoverageIDs_arr = np.empty(Ncoverage_ids, dtype=np.int32)
-    for j in range(Ncoverage_ids):
-        mode1UsedCoverageIDs_arr[j] = mode1UsedCoverageIDs[j]
+    # mode1UsedCoverageIDs_arr is already np.unique() applied
 
-    for coverage_id in np.unique(mode1UsedCoverageIDs_arr):
-
+    for coverage_id in mode1UsedCoverageIDs_arr[coverage_idx:]:
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
         Nitems = len(mode1_stats_2[coverage_id])
         exposureValue = tiv / Nitems
@@ -716,9 +732,7 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
 
                         # compute the ground up loss
                         gul = get_gul(
-                            # I don't understand why this is bin_idx. Doesn't have it to be remapped?
                             damage_bins['bin_from'][bin_idx],
-                            # I don't understand why this is bin_idx. Doesn't have it to be remapped?
                             damage_bins['bin_to'][bin_idx],
                             bin_mean[bin_idx],
                             prob_to[max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
@@ -735,11 +749,15 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
 
         cursor, cursor_bytes = write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id,
                                             items_loss_above_threshold, int32_mv, cursor, cursor_bytes)
+        coverage_idx += 1
 
-    return cursor, cursor_bytes
+        if cursor_bytes > buff_size:
+            return cursor, cursor_bytes, coverage_idx
+
+    return cursor, cursor_bytes, coverage_idx
 
 
-@nb.jit(nopython=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def setmaxloss(loss):
     """Set maximum loss.
     For each sample, find the maximum loss across all items.
@@ -772,7 +790,7 @@ def setmaxloss(loss):
     return loss
 
 
-@nb.jit(nopython=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def split_tiv(gulitems, tiv):
     # if the total loss exceeds the tiv
     # then split tiv in the same proportions to the losses
@@ -830,7 +848,7 @@ def write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, items_los
     return cursor, cursor_bytes
 
 
-@nb.jit(nopython=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def get_arr_chunks(arr, len_arr, N):
     """Get chunks of length `N` from an array `arr` of length `len_arr`.
     The function yields indefinitely, cycling through the array end.
@@ -918,7 +936,7 @@ class LossWriter():
         self.cursor_bytes += gulSampleslevelRec.size
 
 
-@nb.jit(cache=True, nopython=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def generate_random_numbers(sample_size, seed=None):
 
     rndm = np.random.uniform(0., 1., size=sample_size)
@@ -926,7 +944,7 @@ def generate_random_numbers(sample_size, seed=None):
     return rndm
 
 
-@nb.jit(cache=True, nopython=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def first_index_numba(val, arr, len_arr):
     """
     Find the first element of `arr` larger than `val`, assuming `arr` is sorted. 
@@ -988,7 +1006,7 @@ def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to, bin_
     return gul_mean, std_dev, chance_of_loss, max_loss, bin_map, bin_ids, bin_lookup
 
 
-@nb.jit(cache=False, nopython=True, fastmath=False)
+@nb.njit(cache=True, fastmath=False)
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     # TODO: write docstring
     # the interpolation engine for each bin can be cached since the decision on whether to use
@@ -1026,7 +1044,7 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     return gul
 
 
-@nb.jit(cache=True, nopython=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
     """Compute output mean gul.
 
