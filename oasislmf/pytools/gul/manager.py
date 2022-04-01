@@ -7,11 +7,12 @@ import sys
 import os
 import logging
 from contextlib import ExitStack
+from typing import OrderedDict
 import numpy as np
 from numpy.random import Generator, MT19937
 
 import numba as nb
-from numba.types import int_
+from numba.types import int_, Set
 from numba.typed import Dict, List
 
 from scipy.stats import qmc
@@ -290,21 +291,48 @@ def generate_correlated_hash(event_id, rand_seed=0):
 
     return hashed
 
+# todo: try this in numba
+# todo: try using np.random.uniform to see if it goes in numba
+
 
 def generate_rndm_MT19937(seeds, n, rndms_idx, rndms):
 
     for seed_i, seed in enumerate(seeds):
-        rng = Generator(MT19937(seed=123))
+        rng = Generator(MT19937(seed=seed))
         rndms_idx[seed] = seed_i
         rndms[seed_i, :] = rng.uniform(0., 1., size=n)
 
 
-def generate_rndm_LHS(seeds, n, rndms_idx, rndms):
+# def generate_rndm_LHS(seeds, n, rndms_idx, rndms):
 
-    for seed_i, seed in enumerate(seeds):
-        rng = qmc.LatinHypercube(d=1, seed=seed)
-        rndms_idx[seed] = seed_i
-        rndms[seed_i, :] = rng.random(n).ravel()
+#     for seed_i, seed in enumerate(seeds):
+#         rng = qmc.LatinHypercube(d=1, seed=seed)
+#         rndms_idx[seed] = seed_i
+#         rndms[seed_i, :] = rng.random(n).ravel()
+
+@nb.njit(cache=True)
+def generate_rndm_LHS(seeds, n):
+    rndm = {}
+    for seed in seeds:
+
+        # set the seed
+        np.random.seed(seed)
+
+        samples = np.zeros(n, dtype='float64')
+        perms = np.zeros(n, dtype='float64')
+
+        for i in range(n):
+            samples[i] = np.random.uniform(0., 1.)
+            perms[i] = i + 1
+
+        # in-place shuffle permutations
+        np.random.shuffle(perms)
+
+        samples = (perms - samples) / float(n)
+
+        rndm[seed] = samples
+
+    return rndm
 
 
 # TODO probably I can use getmodel get_items. double check
@@ -380,12 +408,12 @@ def compute_mv_size(damagecdfs, item_map, sample_size):
 @nb.njit(cache=True, fastmath=True)
 def gen_new_dicts(mode1_stats_2_type):
     mode1_stats_2 = Dict.empty(int_, List.empty_list(mode1_stats_2_type))
-    rndms_idx = Dict.empty(nb.types.int64, int_)
+    # rndms_idx = Dict.empty(nb.types.int64, int_)
 
     mytype = nb.types.int32
     mode1_item_id = Dict.empty(int_, List.empty_list(mytype))
 
-    return mode1_stats_2, mode1_item_id, rndms_idx
+    return mode1_stats_2, mode1_item_id
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, random_numbers_file, debug,
@@ -456,35 +484,85 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
         assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
 
+        timing_keys = [
+            "get_new_dicts",
+            "reconstruct_coverages_properties",
+            "rndms zeros",
+            "generate_rndm",
+            "compute_event_losses",
+            "  --> compute_event_losses (single)",
+            "  --> stream_stdout_write (single)",
+            "tot_time"
+        ]
+        timings = OrderedDict({
+            key: [] for key in timing_keys
+        })
+
         # TODO: probably here I need a with Losswriter context
         mode1_stats_2_type = nb.types.UniTuple(nb.types.int64, 2)
         cursor = 0
         cursor_bytes = 0
+        event_counts = 0
         for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
-            mode1_stats_2, mode1_item_id, rndms_idx = gen_new_dicts(mode1_stats_2_type)
+
+            # if event_counts > 1:
+            #     break
+
+            t0 = time.time()
+            mode1_stats_2, mode1_item_id = gen_new_dicts(mode1_stats_2_type)
+            t1 = time.time()
 
             mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds = reconstruct_coverages_properties(
                 event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id)
+            t2 = time.time()
 
             # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
             # bin_lookup_arr = np.array(bin_lookup)
             # bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
             # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
-            rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
-            generate_rndm(seeds, sample_size, rndms_idx, rndms)
+            # rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
+            t3 = time.time()
+
+            rndms = generate_rndm(seeds, sample_size)
+            t4 = time.time()
+
+            timings['get_new_dicts'].append(t1 - t0)
+            timings['reconstruct_coverages_properties'].append(t2 - t1)
+            timings['rndms zeros'].append(t3 - t2)
+            timings['generate_rndm'].append(t4 - t3)
 
             coverage_idx = 0
+            t5 = time.time()
             while coverage_idx < Nunique_coverage_ids:
+                t5a = time.time()
                 cursor, cursor_bytes, coverage_idx = compute_event_losses(
                     event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
-                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
+                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms,
                     debug, writer.int32_mv, writer.buff_size, cursor, cursor_bytes, coverage_idx
                 )
-
+                t5b = time.time()
                 stream_out.write(writer.mv[:cursor_bytes])
-
+                t5c = time.time()
+                timings['  --> compute_event_losses (single)'].append(t5b - t5a)
+                timings['  --> stream_stdout_write (single)'].append(t5c - t5b)
                 cursor = 0
                 cursor_bytes = 0
+
+            t6 = time.time()
+            timings['compute_event_losses'].append(t6 - t5)
+            timings['tot_time'].append(t6 - t0)
+
+            event_counts += 1
+
+        # tot_time = np.sum([timings[key] for key in ["get_new_dicts", "reconstruct_coverages_properties",
+        #                   "rndms zeros", "generate_rndm", "compute_event_losses"]])
+
+        for key in timing_keys:
+            logger.info(
+                f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
+
+        logger.info(f"{'mean tot_time':50} {np.mean(timings['tot_time']):7.3e}")
+        logger.info(f"{'tot tot_time':50} {np.sum(timings['tot_time']):7.3e}")
 
     return 0
 
@@ -549,7 +627,9 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
     mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
     Ncoverage_ids = 0
     seeds = set()
+
     Nitems = damagecdfs.shape[0]
+    # seed_i = 0
     for item_j in range(Nitems):
         item_key = tuple((damagecdfs[item_j]['areaperil_id'], damagecdfs[item_j]['vulnerability_id']))
 
@@ -567,6 +647,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
 
             append_to_dict_entry(mode1_item_id, coverage_id, item_id, nb.types.int32)
 
+            # using set instead of a typed list is 2x faster
             seeds.add(rng_seed)
 
     # convert mode1UsedCoverageIDs to np.array to apply np.unique() to it
@@ -577,12 +658,15 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
     mode1UsedCoverageIDs_arr = np.unique(mode1UsedCoverageIDs_arr_tmp)
     Nunique_coverage_ids = mode1UsedCoverageIDs_arr.shape[0]
 
-    return mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds
+    # transform the set in a typed list in order to pass it to another jit'd function
+    lst_seeds = List(seeds)
+
+    return mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, lst_seeds
 
 
 @nb.njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
-                         Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms_idx, rndms,
+                         Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms,
                          debug, int32_mv, buff_size, cursor, cursor_bytes, coverage_idx):
 
     # mode1UsedCoverageIDs_arr is already np.unique() applied
@@ -644,12 +728,12 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
 
             if sample_size > 0:
                 if debug:
-                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
+                    for sample_idx, rval in enumerate(rndms[seed]):
                         loss[sample_idx + NUM_IDX, item_j] = rval
                 else:
                     idx_loss_above_threshold = List.empty_list(nb.types.int64)
 
-                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed], :]):
+                    for sample_idx, rval in enumerate(rndms[seed]):
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
