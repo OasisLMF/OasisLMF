@@ -465,6 +465,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
+        # TODO: optimize LossWriter: cleanup, and check if selectors can be used.
         writer = LossWriter(stream_out, sample_size, buff_size=65536)
 
         if random_numbers_file:
@@ -730,7 +731,30 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
                 else:
                     idx_loss_above_threshold = List.empty_list(nb.types.int64)
 
+                    # TODO: use range() instead of enumerate, could be faster
                     for sample_idx, rval in enumerate(rndms[seed]):
+
+                        ####
+                        # TODO: NEED TO IMPLEMENT THIS
+        		# // MT if the random number is larger than the max prob
+        		# // MT stored in the cdf, then assume a value just below
+        		# // MT the max prob
+        		# if (rval >= pp_max->prob_to)
+        		# {
+        		# 	rval = pp_max->prob_to - 0.00000003; // set value to just under max value (which should be 1)
+        		# }
+        		# if (correlatedWriter_ && rval0 >= pp_max->prob_to)
+        		# {
+        		# 	rval0 = pp_max->prob_to - 0.00000003;
+        		# }
+                        ####
+
+                        # if rval >= prob_to[Nbins-1]:
+                        #     rval = prob_to[Nbins-1] - 0.00000003
+
+                        # # potrebbe essere:? to be checked
+                        # rval = rval - 0.00000003 * (rval>prob_to[Nbins-1])
+
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
