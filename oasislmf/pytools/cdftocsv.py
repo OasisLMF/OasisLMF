@@ -15,12 +15,13 @@ parser.add_argument('-s', help='skip header (default: False).', default=False, a
 parser.add_argument('--run-dir', help='path to the run directory (default: ".")', default='.')
 
 
-def print_cdftocsv(damagecdf, Nbins, rec):
+def print_cdftocsv(event_id, damagecdf, Nbins, rec):
     """Print the cdf produced by getmodel to csv file.
     Note that the input arrays are lists of cdf entries, namely
     the shape on axis=0 is the number of entries.
 
     Args:
+        event_id (int): event_id
         damagecdf (array-like, damagecdf): damage cdf record
         Nbins (array-like, int): number of damage bins
         rec (array-like, rec): cdf record
@@ -36,9 +37,7 @@ def print_cdftocsv(damagecdf, Nbins, rec):
     # build the csv lines
     csv_lines = []
     for i in range(Nentries):
-        csv_line_fixed = f"{damagecdf[i]['event_id']},"
-        csv_line_fixed += f"{damagecdf[i]['areaperil_id']},"
-        csv_line_fixed += f"{damagecdf[i]['vulnerability_id']},"
+        csv_line_fixed = f"{event_id},{damagecdf[i]['areaperil_id']},{damagecdf[i]['vulnerability_id']},"
         for j in range(Nbins[i]):
             # note that bin index starts from 1 in the csv
             csv_lines.append(csv_line_fixed + f"{j + 1},{rec[i, j]['prob_to']:8.6f},{rec[i, j]['bin_mean']:8.6f}\n")
@@ -71,8 +70,8 @@ def run(run_dir, skip_header, file_in=None):
         stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
 
     # TODO: try using np.savetxt for better performance
-    for damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
-        lines = print_cdftocsv(damagecdf, Nbins, rec)
+    for event_id, damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
+        lines = print_cdftocsv(event_id, damagecdf, Nbins, rec)
         stream_out.writelines(lines)
 
 
