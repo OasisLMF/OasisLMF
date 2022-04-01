@@ -291,30 +291,31 @@ def generate_correlated_hash(event_id, rand_seed=0):
 
     return hashed
 
-# todo: try this in numba
-# todo: try using np.random.uniform to see if it goes in numba
 
+@nb.njit(cache=True, fastmath=True)
+def generate_rndm_MT19937(seeds, n):
+    rndms = {}
 
-def generate_rndm_MT19937(seeds, n, rndms_idx, rndms):
-
-    for seed_i, seed in enumerate(seeds):
-        rng = Generator(MT19937(seed=seed))
-        rndms_idx[seed] = seed_i
-        rndms[seed_i, :] = rng.uniform(0., 1., size=n)
-
-
-# def generate_rndm_LHS(seeds, n, rndms_idx, rndms):
-
-#     for seed_i, seed in enumerate(seeds):
-#         rng = qmc.LatinHypercube(d=1, seed=seed)
-#         rndms_idx[seed] = seed_i
-#         rndms[seed_i, :] = rng.random(n).ravel()
-
-@nb.njit(cache=True)
-def generate_rndm_LHS(seeds, n):
-    rndm = {}
     for seed in seeds:
+        # set the seed
+        np.random.seed(seed)
 
+        samples = np.zeros(n, dtype='float64')
+
+        for i in range(n):
+            # by default in numba this should be Mersenne-Twister
+            samples[i] = np.random.uniform(0., 1.)
+
+        rndms[seed] = samples
+
+    return rndms
+
+
+@nb.njit(cache=True, fastmath=True)
+def generate_rndm_LHS(seeds, n):
+    rndms = {}
+
+    for seed in seeds:
         # set the seed
         np.random.seed(seed)
 
@@ -330,9 +331,9 @@ def generate_rndm_LHS(seeds, n):
 
         samples = (perms - samples) / float(n)
 
-        rndm[seed] = samples
+        rndms[seed] = samples
 
-    return rndm
+    return rndms
 
 
 # TODO probably I can use getmodel get_items. double check
@@ -505,9 +506,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         event_counts = 0
         for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
 
-            # if event_counts > 1:
-            #     break
-
             t0 = time.time()
             mode1_stats_2, mode1_item_id = gen_new_dicts(mode1_stats_2_type)
             t1 = time.time()
@@ -522,6 +520,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
             # rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
             t3 = time.time()
+            # rndms_value_type = nb.types.Array(nb.types.float64, 1, 'C')
 
             rndms = generate_rndm(seeds, sample_size)
             t4 = time.time()
@@ -554,10 +553,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
             event_counts += 1
 
-        # tot_time = np.sum([timings[key] for key in ["get_new_dicts", "reconstruct_coverages_properties",
-        #                   "rndms zeros", "generate_rndm", "compute_event_losses"]])
-
-        for key in timing_keys:
+            for key in timing_keys:
             logger.info(
                 f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
 
@@ -627,9 +623,9 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
     mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
     Ncoverage_ids = 0
     seeds = set()
-
+    # rndms = Dict.empty(key_type=nb.types.int64, value_type=rndms_value_type)
+    # dummy = np.zeros(1, dtype=nb.types.float64)
     Nitems = damagecdfs.shape[0]
-    # seed_i = 0
     for item_j in range(Nitems):
         item_key = tuple((damagecdfs[item_j]['areaperil_id'], damagecdfs[item_j]['vulnerability_id']))
 
@@ -647,6 +643,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
 
             append_to_dict_entry(mode1_item_id, coverage_id, item_id, nb.types.int32)
 
+            # rndms[rng_seed] = dummy
             # using set instead of a typed list is 2x faster
             seeds.add(rng_seed)
 
