@@ -475,7 +475,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                 f"The number of random values in the file must be strictly larger than sample size, " \
                 f"but got {len(rndm)} random numbers with sample size={sample_size}."
         else:
-            # define random generator
+            # define random generator function
             if random_generator == 0:
                 generate_rndm = generate_rndm_MT19937
                 logger.info("Random generator: MT19937")
@@ -501,6 +501,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         })
 
         # TODO: probably here I need a with Losswriter context
+        # TODO: rename mode1_stats_2_type and mode1_stats_2 to more sensible names
         mode1_stats_2_type = nb.types.UniTuple(nb.types.int64, 2)
         cursor = 0
         cursor_bytes = 0
@@ -555,8 +556,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             event_counts += 1
 
             for key in timing_keys:
-            logger.info(
-                f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
+                logger.info(
+                    f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
 
         logger.info(f"{'mean tot_time':50} {np.mean(timings['tot_time']):7.3e}")
         logger.info(f"{'tot tot_time':50} {np.sum(timings['tot_time']):7.3e}")
