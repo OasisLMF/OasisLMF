@@ -555,9 +555,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
             event_counts += 1
 
-            for key in timing_keys:
-                logger.info(
-                    f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
+        for key in timing_keys:
+            logger.info(
+                f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
 
         logger.info(f"{'mean tot_time':50} {np.mean(timings['tot_time']):7.3e}")
         logger.info(f"{'tot tot_time':50} {np.sum(timings['tot_time']):7.3e}")
@@ -675,7 +675,7 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         Nitems = len(mode1_stats_2[coverage_id])
         exposureValue = tiv / Nitems
 
-        # gulcalc: gilv[item_id, loss] -> gulpy:[loss]]
+        # nomenclature change in gulcalc `gilv[item_id, loss]` becomes loss in gulpy
         loss_Nrows = sample_size + NUM_IDX
         loss = np.zeros((loss_Nrows, Nitems), dtype=oasis_float)
 
@@ -735,38 +735,20 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
                     # TODO: use range() instead of enumerate, could be faster
                     for sample_idx, rval in enumerate(rndms[seed]):
 
-                        ####
-                        # TODO: NEED TO IMPLEMENT THIS
-        		# // MT if the random number is larger than the max prob
-        		# // MT stored in the cdf, then assume a value just below
-        		# // MT the max prob
-        		# if (rval >= pp_max->prob_to)
-        		# {
-        		# 	rval = pp_max->prob_to - 0.00000003; // set value to just under max value (which should be 1)
-        		# }
-        		# if (correlatedWriter_ && rval0 >= pp_max->prob_to)
-        		# {
-        		# 	rval0 = pp_max->prob_to - 0.00000003;
-        		# }
-                        ####
-
-                        # if rval >= prob_to[Nbins-1]:
-                        #     rval = prob_to[Nbins-1] - 0.00000003
-
-                        # # potrebbe essere:? to be checked
-                        # rval = rval - 0.00000003 * (rval>prob_to[Nbins-1])
+                        # cap `rval` to the maximum `prob_to` value (which should be 1.)
+                        rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
                         bin_idx = first_index_numba(rval, prob_to, Nbins)
 
-                        # compute the ground up loss
+                        # compute ground-up losses
                         gul = get_gul(
                             damage_bins['bin_from'][bin_idx],
                             damage_bins['bin_to'][bin_idx],
                             bin_mean[bin_idx],
-                            prob_to[max(bin_idx - 1, 0)],  # for bin_idx=0 take prob_to in bin_idx=0
+                            prob_to[bin_idx - 1] * (bin_idx > 0),
                             prob_to[bin_idx],
                             rval,
                             tiv
@@ -781,7 +763,7 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         cursor, cursor_bytes = write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id,
                                             items_loss_above_threshold, int32_mv, cursor, cursor_bytes)
 
-        # register that another coverage_id has been processed
+        # register that another `coverage_id` has been processed
         coverage_idx += 1
 
     return cursor, cursor_bytes, coverage_idx
