@@ -265,15 +265,12 @@ def generate_hash(group_id, event_id, rand_seed=0):
     Returns:
         [type]: [description]
     """
-    hashed = rand_seed
-    hashed += (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE
-    hashed += (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
-    hashed %= HASH_MOD_CODE
+    hashed = (rand_seed + (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE +
+                          (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
 
     return hashed
 
 
-# TODO make version of function that takes lists of event_ids and loops inside
 @nb.njit(cache=True, fastmath=True)
 def generate_correlated_hash(event_id, rand_seed=0):
     """
@@ -294,21 +291,22 @@ def generate_correlated_hash(event_id, rand_seed=0):
 
 @nb.njit(cache=True, fastmath=True)
 def generate_rndm_MT19937(seeds, n):
-    rndms = {}
 
-    for seed in seeds:
+    Nseeds = len(seeds)
+    rndms = np.zeros((Nseeds, n), dtype='float64')
+    rndms_idx = {}
+
+    for seed_i, seed in enumerate(seeds):
         # set the seed
         np.random.seed(seed)
 
-        samples = np.zeros(n, dtype='float64')
-
-        for i in range(n):
+        for j in range(n):
             # by default in numba this should be Mersenne-Twister
-            samples[i] = np.random.uniform(0., 1.)
+            rndms[seed_i, j] = np.random.uniform(0., 1.)
 
-        rndms[seed] = samples
+        rndms_idx[seed] = seed_i
 
-    return rndms
+    return rndms, rndms_idx
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -319,6 +317,7 @@ def generate_rndm_LHS(seeds, n):
         # set the seed
         np.random.seed(seed)
 
+        # can be moved out of the loop?
         samples = np.zeros(n, dtype='float64')
         perms = np.zeros(n, dtype='float64')
 
@@ -393,28 +392,6 @@ def generate_item_map(items, item_key_type, item_value_type):
         )
 
     return item_map
-
-
-def compute_mv_size(damagecdfs, item_map, sample_size):
-    # compute number of items in this event
-    ntotitems = 0
-    for damagecdf in damagecdfs:
-        ntotitems += len(item_map[tuple(damagecdf[['areaperil_id', 'vulnerability_id']])])
-
-    mv_size = ntotitems * ((NUM_IDX + sample_size + 1) * gulSampleslevelRec_size + gulSampleslevelHeader_size)
-
-    return mv_size
-
-
-@nb.njit(cache=True, fastmath=True)
-def gen_new_dicts(mode1_stats_2_type):
-    mode1_stats_2 = Dict.empty(int_, List.empty_list(mode1_stats_2_type))
-    # rndms_idx = Dict.empty(nb.types.int64, int_)
-
-    mytype = nb.types.int32
-    mode1_item_id = Dict.empty(int_, List.empty_list(mytype))
-
-    return mode1_stats_2, mode1_item_id
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, random_numbers_file, debug,
@@ -503,17 +480,20 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         # TODO: probably here I need a with Losswriter context
         # TODO: rename mode1_stats_2_type and mode1_stats_2 to more sensible names
         mode1_stats_2_type = nb.types.UniTuple(nb.types.int64, 2)
+        mode1_item_id_dtype = nb.types.int32
+
         cursor = 0
         cursor_bytes = 0
         event_counts = 0
         for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
-
+            # if event_counts > 2:
+            #     break
             t0 = time.time()
-            mode1_stats_2, mode1_item_id = gen_new_dicts(mode1_stats_2_type)
+            # mode1_stats_2, mode1_item_id = gen_numba_dicts(mode1_stats_2_type, mode1_item_id_dtype)
             t1 = time.time()
 
             mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds = reconstruct_coverages_properties(
-                event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id)
+                event_id, damagecdfs, item_map, mode1_stats_2_type, mode1_item_id_dtype)
             t2 = time.time()
 
             # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
@@ -524,7 +504,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
             t3 = time.time()
             # rndms_value_type = nb.types.Array(nb.types.float64, 1, 'C')
 
-            rndms = generate_rndm(seeds, sample_size)
+            rndms, rndms_idx = generate_rndm(seeds, sample_size)
             t4 = time.time()
 
             timings['get_new_dicts'].append(t1 - t0)
@@ -538,7 +518,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
                 t5a = time.time()
                 cursor, cursor_bytes, coverage_idx = compute_event_losses(
                     event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
-                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms,
+                    Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx,
                     debug, writer.int32_mv, writer.buff_size, cursor, cursor_bytes, coverage_idx
                 )
                 t5b = time.time()
@@ -619,8 +599,11 @@ def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_lo
 
 
 @nb.njit(cache=True, fastmath=True)
-def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats_2, mode1_stats_2_type, mode1_item_id):
+def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats_2_type, mode1_item_id_dtype):
     # TODO: write docstring
+
+    mode1_stats_2 = Dict.empty(int_, List.empty_list(mode1_stats_2_type))
+    mode1_item_id = Dict.empty(int_, List.empty_list(mode1_item_id_dtype))
 
     mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
     Ncoverage_ids = 0
@@ -642,8 +625,20 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
             Ncoverage_ids += 1
 
             append_to_dict_entry(mode1_stats_2, coverage_id, (item_j, rng_seed), mode1_stats_2_type)
+            # def_lst = List.empty_list(mode1_stats_2_type)
+            # mode1_stats_2.setdefault(coverage_id, def_lst)
+            # lst = mode1_stats_2[coverage_id]
+            # lst.append((item_j, rng_seed))
+            # mode1_stats_2[coverage_id] = lst
+            # t5 = time.time()
 
             append_to_dict_entry(mode1_item_id, coverage_id, item_id, nb.types.int32)
+            # def_lst = List.empty_list(nb.types.int32)
+            # mode1_item_id.setdefault(coverage_id, def_lst)
+            # lst = mode1_item_id[coverage_id]
+            # lst.append(item_id)
+            # mode1_item_id[coverage_id] = lst
+            # t6 = time.time()
 
             # rndms[rng_seed] = dummy
             # using set instead of a typed list is 2x faster
@@ -665,7 +660,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
 
 @nb.njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
-                         Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms,
+                         Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx,
                          debug, int32_mv, buff_size, cursor, cursor_bytes, coverage_idx):
 
     # mode1UsedCoverageIDs_arr is already np.unique() applied
@@ -679,21 +674,20 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         loss_Nrows = sample_size + NUM_IDX
         loss = np.zeros((loss_Nrows, Nitems), dtype=oasis_float)
 
-        # TODO: check again if np.argsort() is needed. If not, we could save the conversion from List to np.array
-        # convert mode1UsedCoverageIDs to np.array (needed to apply np.unique to it)
         Nitem_ids = len(mode1_item_id[coverage_id])
 
         # estimate max number of bytes are needed to output this coverage
         # conservatively assume all random samples are printed (loss>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
         est_cursor_bytes = Nitem_ids * (
-            (sample_size + 5 + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+            (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
         )
 
-        # return before processing this coverage if bytes written in mv exceed buff_size
+        # return before processing this coverage if bytes to be written in mv exceed `buff_size`
         if cursor_bytes + est_cursor_bytes > buff_size:
             return cursor, cursor_bytes, coverage_idx
 
+        # sort item_ids (need to convert to np.array beforehand)
         item_ids_arr = np.empty(Nitem_ids, dtype=np.int32)
         for j in range(Nitem_ids):
             item_ids_arr[j] = mode1_item_id[coverage_id][j]
@@ -701,7 +695,7 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         item_ids_arr_argsorted = np.argsort(item_ids_arr)
         item_ids_arr_sorted = item_ids_arr[item_ids_arr_argsorted]
 
-        # dict containing, for each item, the list of all random sidx with loss
+        # dict that contains, for each item, the list of all random sidx with loss
         # larger than loss_threshold. caching this allows for smaller loop  when
         # writing the output
         items_loss_above_threshold = Dict()
@@ -727,13 +721,13 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
 
             if sample_size > 0:
                 if debug:
-                    for sample_idx, rval in enumerate(rndms[seed]):
+                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed]]):
                         loss[sample_idx + NUM_IDX, item_j] = rval
                 else:
+                    # maybe define the list outside and clear it here
                     idx_loss_above_threshold = List.empty_list(nb.types.int64)
 
-                    # TODO: use range() instead of enumerate, could be faster
-                    for sample_idx, rval in enumerate(rndms[seed]):
+                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed]]):
 
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
                         rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
