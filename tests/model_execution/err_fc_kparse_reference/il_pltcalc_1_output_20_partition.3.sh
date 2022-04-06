@@ -90,12 +90,12 @@ mkfifo fifo/full_correlation/il_S1_pltcalc_P4
 
 
 # --- Do insured loss computes ---
-( pltcalc -s < fifo/il_S1_pltcalc_P4 > work/kat/il_S1_pltcalc_P4 ) 2>> log/stderror.err & pid1=$!
+( pltcalc -H < fifo/il_S1_pltcalc_P4 > work/kat/il_S1_pltcalc_P4 ) 2>> log/stderror.err & pid1=$!
 tee < fifo/il_S1_summary_P4 fifo/il_S1_pltcalc_P4 > /dev/null & pid2=$!
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 ) 2>> log/stderror.err  &
 
 # --- Do insured loss computes ---
-( pltcalc -s < fifo/full_correlation/il_S1_pltcalc_P4 > work/full_correlation/kat/il_S1_pltcalc_P4 ) 2>> log/stderror.err & pid3=$!
+( pltcalc -H < fifo/full_correlation/il_S1_pltcalc_P4 > work/full_correlation/kat/il_S1_pltcalc_P4 ) 2>> log/stderror.err & pid3=$!
 tee < fifo/full_correlation/il_S1_summary_P4 fifo/full_correlation/il_S1_pltcalc_P4 > /dev/null & pid4=$!
 ( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P4 < fifo/full_correlation/il_P4 ) 2>> log/stderror.err  &
 

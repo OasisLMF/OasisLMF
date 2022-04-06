@@ -36,12 +36,12 @@ mkfifo fifo/full_correlation/il_S1_pltcalc_P11
 
 
 # --- Do insured loss computes ---
-pltcalc -s < fifo/il_S1_pltcalc_P11 > work/kat/il_S1_pltcalc_P11 & pid1=$!
+pltcalc -H < fifo/il_S1_pltcalc_P11 > work/kat/il_S1_pltcalc_P11 & pid1=$!
 tee < fifo/il_S1_summary_P11 fifo/il_S1_pltcalc_P11 > /dev/null & pid2=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
 
 # --- Do insured loss computes ---
-pltcalc -s < fifo/full_correlation/il_S1_pltcalc_P11 > work/full_correlation/kat/il_S1_pltcalc_P11 & pid3=$!
+pltcalc -H < fifo/full_correlation/il_S1_pltcalc_P11 > work/full_correlation/kat/il_S1_pltcalc_P11 & pid3=$!
 tee < fifo/full_correlation/il_S1_summary_P11 fifo/full_correlation/il_S1_pltcalc_P11 > /dev/null & pid4=$!
 summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P11 < fifo/full_correlation/il_P11 &
 
