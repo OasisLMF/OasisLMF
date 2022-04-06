@@ -83,18 +83,18 @@ ORD_PLT_OUTPUT_SWITCHES = {
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
-        'flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
+        'csv_flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
         'parquet_flag': '-q', 'kat_flag': '-q'
     },
     "elt_moment": {
-        'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
+        'csv_flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
         'parquet_flag': '-m', 'kat_flag': '-m'
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
-        'flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
+        'csv_flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
         'parquet_flag': '-p', 'kat_flag': '-s'
     }
 }
