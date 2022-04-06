@@ -311,15 +311,18 @@ def generate_rndm_MT19937(seeds, n):
 
 @nb.njit(cache=True, fastmath=True)
 def generate_rndm_LHS(seeds, n):
-    rndms = {}
 
-    for seed in seeds:
+    Nseeds = len(seeds)
+    rndms = np.zeros((Nseeds, n), dtype='float64')
+    rndms_idx = {}
+
+    # define arrays here and re-use them later
+    samples = np.zeros(n, dtype='float64')
+    perms = np.zeros(n, dtype='float64')
+
+    for seed_i, seed in enumerate(seeds):
         # set the seed
         np.random.seed(seed)
-
-        # can be moved out of the loop?
-        samples = np.zeros(n, dtype='float64')
-        perms = np.zeros(n, dtype='float64')
 
         for i in range(n):
             samples[i] = np.random.uniform(0., 1.)
@@ -328,11 +331,13 @@ def generate_rndm_LHS(seeds, n):
         # in-place shuffle permutations
         np.random.shuffle(perms)
 
-        samples = (perms - samples) / float(n)
+        for i in range(n):
+            rndms[seed_i, :] = (perms[i] - samples[i]) / float(n)
 
-        rndms[seed] = samples
+        # rndms[seed_i, :] = samples
+        rndms_idx[seed] = seed_i
 
-    return rndms
+    return rndms, rndms_idx
 
 
 # TODO probably I can use getmodel get_items. double check
@@ -463,19 +468,20 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
 
         assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
 
-        timing_keys = [
-            "get_new_dicts",
-            "reconstruct_coverages_properties",
-            "rndms zeros",
-            "generate_rndm",
-            "compute_event_losses",
-            "  --> compute_event_losses (single)",
-            "  --> stream_stdout_write (single)",
-            "tot_time"
-        ]
-        timings = OrderedDict({
-            key: [] for key in timing_keys
-        })
+        # timing_keys = [
+        #     "get_new_dicts",
+        #     "reconstruct_coverages_properties",
+        #     "rndms zeros",
+        #     "generate_rndm",
+        #     "compute_event_losses",
+        #     "  --> compute_event_losses (single coverage)",
+        #     "  --> stream_stdout_write (single coverage)",
+        #     "  --> tot_time (single coverage)",
+        #     "tot_time"
+        # ]
+        # timings = OrderedDict({
+        #     key: [] for key in timing_keys
+        # })
 
         # TODO: probably here I need a with Losswriter context
         # TODO: rename mode1_stats_2_type and mode1_stats_2 to more sensible names
@@ -488,59 +494,64 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
             # if event_counts > 2:
             #     break
-            t0 = time.time()
+            # t0 = time.time()
             # mode1_stats_2, mode1_item_id = gen_numba_dicts(mode1_stats_2_type, mode1_item_id_dtype)
-            t1 = time.time()
+            # t1 = time.time()
 
             mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds = reconstruct_coverages_properties(
                 event_id, damagecdfs, item_map, mode1_stats_2_type, mode1_item_id_dtype)
-            t2 = time.time()
+            # t2 = time.time()
 
             # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
             # bin_lookup_arr = np.array(bin_lookup)
             # bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
             # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
             # rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
-            t3 = time.time()
+            # t3 = time.time()
             # rndms_value_type = nb.types.Array(nb.types.float64, 1, 'C')
 
             rndms, rndms_idx = generate_rndm(seeds, sample_size)
-            t4 = time.time()
+            # t4 = time.time()
 
-            timings['get_new_dicts'].append(t1 - t0)
-            timings['reconstruct_coverages_properties'].append(t2 - t1)
-            timings['rndms zeros'].append(t3 - t2)
-            timings['generate_rndm'].append(t4 - t3)
+            # timings['get_new_dicts'].append(t1 - t0)
+            # timings['reconstruct_coverages_properties'].append(t2 - t1)
+            # timings['rndms zeros'].append(t3 - t2)
+            # timings['generate_rndm'].append(t4 - t3)
 
             coverage_idx = 0
-            t5 = time.time()
+            # t5 = time.time()
             while coverage_idx < Nunique_coverage_ids:
-                t5a = time.time()
+                # t5a = time.time()
                 cursor, cursor_bytes, coverage_idx = compute_event_losses(
                     event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
                     Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx,
                     debug, writer.int32_mv, writer.buff_size, cursor, cursor_bytes, coverage_idx
                 )
-                t5b = time.time()
+                # t5b = time.time()
                 stream_out.write(writer.mv[:cursor_bytes])
-                t5c = time.time()
-                timings['  --> compute_event_losses (single)'].append(t5b - t5a)
-                timings['  --> stream_stdout_write (single)'].append(t5c - t5b)
+                # t5c = time.time()
+                # timings['  --> compute_event_losses (single coverage)'].append(t5b - t5a)
+                # timings['  --> stream_stdout_write (single coverage)'].append(t5c - t5b)
+                # timings['  --> tot_time (single coverage)'].append(t5c - t5a)
                 cursor = 0
                 cursor_bytes = 0
 
-            t6 = time.time()
-            timings['compute_event_losses'].append(t6 - t5)
-            timings['tot_time'].append(t6 - t0)
+            # t6 = time.time()
+            # timings['compute_event_losses'].append(t6 - t5)
+            # timings['tot_time'].append(t6 - t0)
 
             event_counts += 1
 
-        for key in timing_keys:
-            logger.info(
-                f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
+        # for key in timing_keys:
+        #     if key in ['  --> compute_event_losses (single coverage)', '  --> stream_stdout_write (single coverage)']:
+        #         logger.info(
+        #             f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['  --> tot_time (single coverage)'])*100:4.2f}%")
+        #     else:
+        #         logger.info(
+        #             f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
 
-        logger.info(f"{'mean tot_time':50} {np.mean(timings['tot_time']):7.3e}")
-        logger.info(f"{'tot tot_time':50} {np.sum(timings['tot_time']):7.3e}")
+        # logger.info(f"{'mean tot_time':50} {np.mean(timings['tot_time']):7.3e}")
+        # logger.info(f"{'tot tot_time':50} {np.sum(timings['tot_time']):7.3e}")
 
     return 0
 
@@ -608,11 +619,9 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
     mode1UsedCoverageIDs = List.empty_list(nb.types.int32)
     Ncoverage_ids = 0
     seeds = set()
-    # rndms = Dict.empty(key_type=nb.types.int64, value_type=rndms_value_type)
-    # dummy = np.zeros(1, dtype=nb.types.float64)
-    Nitems = damagecdfs.shape[0]
-    for item_j in range(Nitems):
-        item_key = tuple((damagecdfs[item_j]['areaperil_id'], damagecdfs[item_j]['vulnerability_id']))
+
+    for damagecdf_i, damagecdf in enumerate(damagecdfs):
+        item_key = tuple((damagecdf['areaperil_id'], damagecdf['vulnerability_id']))
 
         for item in item_map[item_key]:
             item_id, coverage_id, group_id = item
@@ -624,13 +633,12 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
             mode1UsedCoverageIDs.append(coverage_id)
             Ncoverage_ids += 1
 
-            append_to_dict_entry(mode1_stats_2, coverage_id, (item_j, rng_seed), mode1_stats_2_type)
+            append_to_dict_entry(mode1_stats_2, coverage_id, (damagecdf_i, rng_seed), mode1_stats_2_type)
             # def_lst = List.empty_list(mode1_stats_2_type)
             # mode1_stats_2.setdefault(coverage_id, def_lst)
             # lst = mode1_stats_2[coverage_id]
-            # lst.append((item_j, rng_seed))
+            # lst.append((damagecdf_i, rng_seed))
             # mode1_stats_2[coverage_id] = lst
-            # t5 = time.time()
 
             append_to_dict_entry(mode1_item_id, coverage_id, item_id, nb.types.int32)
             # def_lst = List.empty_list(nb.types.int32)
@@ -638,9 +646,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
             # lst = mode1_item_id[coverage_id]
             # lst.append(item_id)
             # mode1_item_id[coverage_id] = lst
-            # t6 = time.time()
 
-            # rndms[rng_seed] = dummy
             # using set instead of a typed list is 2x faster
             seeds.add(rng_seed)
 
