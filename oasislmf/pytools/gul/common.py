@@ -6,6 +6,23 @@ import numpy as np
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
+# negative sidx (definition)
+MEAN_IDX = -1
+STD_DEV_IDX = -2
+TIV_IDX = -3
+CHANCE_OF_LOSS_IDX = -4
+MAX_LOSS_IDX = -5
+
+NUM_IDX = 5
+
+# negative sidx + NUM_IDX
+SHIFTED_MEAN_IDX = 4
+SHIFTED_STD_DEV_IDX = 3
+SHIFTED_TIV_IDX = 2
+SHIFTED_CHANCE_OF_LOSS_IDX = 1
+SHIFTED_MAX_LOSS_IDX = 0
+
+
 oasis_float_to_int_size = 1
 
 ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),

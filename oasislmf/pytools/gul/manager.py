@@ -11,11 +11,10 @@ from typing import OrderedDict
 import numpy as np
 from numpy.random import Generator, MT19937
 
+from numba import njit
 import numba as nb
-from numba.types import int_, Set
+from numba.types import int_
 from numba.typed import Dict, List
-
-from scipy.stats import qmc
 
 from math import sqrt  # faster than numpy.sqrt
 
@@ -23,7 +22,14 @@ from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, oasis_float_to_int_size
 
+from oasislmf.pytools.gul.common import MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX
+from oasislmf.pytools.gul.common import SHIFTED_MEAN_IDX, SHIFTED_STD_DEV_IDX, SHIFTED_TIV_IDX, SHIFTED_CHANCE_OF_LOSS_IDX, SHIFTED_MAX_LOSS_IDX
 from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, damagecdfrec_stream
+from oasislmf.pytools.gul.random import get_random_generator
+from oasislmf.pytools.gul.io import read_getmodel_stream
+from oasislmf.pytools.gul.io import write_negative_sidx, write_sample_header, write_sample_rec, LossWriter
+from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
+from oasislmf.pytools.gul.utils import find_bin_idx, append_to_dict_value
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -31,20 +37,6 @@ gul_header = np.int32(1 | 2 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
 
-MEAN_IDX = -1
-STD_DEV_IDX = -2
-TIV_IDX = -3
-CHANCE_OF_LOSS_IDX = -4
-MAX_LOSS_IDX = -5
-
-NUM_IDX = 5
-
-# negative sidx + NUM_IDX
-SHIFTED_MEAN_IDX = 4
-SHIFTED_STD_DEV_IDX = 3
-SHIFTED_TIV_IDX = 2
-SHIFTED_CHANCE_OF_LOSS_IDX = 1
-SHIFTED_MAX_LOSS_IDX = 0
 
 GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
@@ -56,195 +48,28 @@ gulSampleslevelRec_size = gulSampleslevelRec.size
 gulSampleslevelHeader_size = gulSampleslevelHeader.size
 
 
-def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
-    """Read the getmodel output stream.
-
-    Args:
-        run_dir ([str]): Path to the run directory.
-        streams_in ([]): input streams
-
-    Raises:
-        ValueError: If the stream type is not 1.
-
-    Yields:
-        All the cdfs related to 1 event.
-
-        damagecdfs: array-like([damagecdf])
-        Nbinss: array-like([int]) 
-        recs: array-like([ProbMean])
-
-    """
-    # determine stream type
-    stream_type = np.frombuffer(streams_in.read(4), dtype='i4')
-
-    # TODO: make sure the bit1 and bit 2-4 compliance is checked
-    # see https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md
-    if stream_type[0] != 1:
-        raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
-
-    # get damage bins from fileFIXME
-    static_path = os.path.join(run_dir, 'static')
-    damage_bins = get_damage_bins(static_path=static_path)
-
-    # maximum number of damage bins (individual items can have up to `total_bins` bins)
-    if damage_bins.shape[0] == 0:
-        max_Nbins = 1000
-    else:
-        max_Nbins = damage_bins.shape[0]
-
-    # maximum number of entries is buff_size divided by the minimum entry size
-    # (corresponding to a 1-bin only cdf)
-    min_size_cdf_entry = damagecdfrec_stream.size + ProbMean.size + 4
-
-    # each record from getmodel stream is expected to contain:
-    # 1 damagecdfrec_stream obj, 1 int (Nbins), a number `Nbins` of ProbMean objects
-
-    # use a memoryview of size twice the buff_size to ensure `read_into1` always reads the maximum amount
-    # data possible (the largest between the pipe limit and the remaining memory to fill the memoryview)
-    mv = memoryview(bytearray(buff_size * 2))
-    int32_mv = np.ndarray(buff_size * 2 // 4, buffer=mv, dtype='i4')
-
-    cursor = 0
-    valid_buf = 0
-    last_event_id = -1
-    damagecdfs, Nbinss, recs = [], [], []
-    len_read = 1
-    size_cdf_entry = min_size_cdf_entry
-    while True:
-        if len_read > 0:
-            # read stream from valid_buf onwards
-            len_read = streams_in.readinto1(mv[valid_buf:])
-            # extend the valid_buf by the same amount of data that was read
-            valid_buf += len_read
-
-        # read the streamed data into formatted data
-        cursor, i, yield_event, event_id, damagecdf, Nbins, rec, last_event_id = stream_to_data(
-            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id)
-
-        if yield_event:
-            # event is fully read, append the last chunk of data to the list of this event
-            damagecdfs.append(damagecdf[:i])
-            Nbinss.append(Nbins[:i])
-            recs.append(rec[:i])
-
-            yield last_event_id, np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
-
-            # start a new list for the new event, storing the first element
-            damagecdfs, Nbinss, recs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec[i:i + 1]]
-            last_event_id = event_id
-
-        else:
-            # the current event is not finished, keep appending data about this event
-            damagecdfs.append(damagecdf[:i + 1])
-            Nbinss.append(Nbins[:i + 1])
-            recs.append(rec[:i + 1])
-
-        # convert cursor to bytes
-        cursor_buf = cursor * int32_mv.itemsize
-
-        if valid_buf == cursor_buf:
-            # this is the last cycle, all data has been read, append the last chunk of data
-            damagecdfs.append(damagecdf[:i])
-            Nbinss.append(Nbins[:i])
-            recs.append(rec[:i])
-
-            yield last_event_id, np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
-            break
-
-        else:
-            # this is not the last cycle
-            # move the un-read data to the beginning of the memoryview
-            mv[:valid_buf - cursor_buf] = mv[cursor_buf:valid_buf]
-
-            # update the length of the valid data
-            valid_buf -= cursor_buf
-
-
-@nb.njit(cache=True, fastmath=True)
-def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id):
-    """Read streamed data into formatted data.
-
-    Args:
-        int32_mv (ndarray): int32 view of the buffer
-        valid_buf (int): number of bytes with valid data
-        size_cdf_entry (int): size (in bytes) of a single record
-        max_Nbins (int): Maximum number of probability bins
-        last_event_id (int): event_id of the last event that was completed
-
-    Returns:
-        cursor (int): number of int numbers read from the int32_mv ndarray.
-        i (int): number of cdf data entries read.
-        yield_event (bool): if True, the current event (id=`event_id`) is completed.
-        event_id (int): id of the event being read.
-        damagecdf (array-like[damagecdf]):
-        Nbins (array-like[damagecdf]):
-        rec (array-like[damagecdf]):
-        last_event_id (int): event_id of the last event that was completed
-
-    # TODO: don't store event_id (it's wasted space). need to change this everywhere `damagecdfrec` is used
-
-    """
-    valid_len = valid_buf // size_cdf_entry
-    yield_event = False
-
-    Nbins = np.zeros(valid_len, dtype='i4')
-    damagecdf = np.zeros(valid_len, dtype=damagecdfrec)
-    rec = np.zeros((valid_len, max_Nbins), dtype=ProbMean)
-
-    i = 0
-    cursor = 0
-    while cursor < valid_len:
-        event_id, cursor = int32_mv[cursor], cursor + 1
-        damagecdf[i]['areaperil_id'], cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
-        damagecdf[i]['vulnerability_id'], cursor = int32_mv[cursor], cursor + 1
-        Nbins[i] = int32_mv[cursor]
-        cursor += 1
-
-        for j in range(Nbins[i]):
-            rec[i, j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int_size
-            rec[i, j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int_size
-
-        if event_id != last_event_id:
-            # a new event has started
-            if last_event_id > 0:
-                # this is not the beginning of first event
-                yield_event = True
-
-                return cursor, i, yield_event, event_id, damagecdf, Nbins, rec, last_event_id
-
-            last_event_id = event_id
-
-        i += 1
-
-    return cursor, i - 1, yield_event, event_id, damagecdf, Nbins, rec, last_event_id
-
-
 def get_coverages(input_path, ignore_file_type=set()):
-    """
-    Loads the coverages from the coverages file.
+    """Loads the coverages from the coverages file.
 
     Args:
-        input_path: (str) the path containing the coverage file
-        ignore_file_type: set(str) file extension to ignore when loading
+        input_path (str): the path containing the coverage file.
+        ignore_file_type (Set[str]): file extension to ignore when loading.
 
-    Returns: np.array[oasis_float]
-        coverages array
+    Returns: 
+        coverages (np.array[oasis_float]): the coverages read from file.
     """
     input_files = set(os.listdir(input_path))
-
     # TODO: store default filenames (e.g., coverages.bin) in a parameters file
 
     if "coverages.bin" in input_files and "bin" not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(input_path, 'coverages.csv')}")
-        coverages = np.fromfile(os.path.join(
-            input_path, "coverages.bin"), dtype=oasis_float)
+        coverages_fname = os.path.join(input_path, 'coverages.bin')
+        logger.debug(f"loading {coverages_fname}")
+        coverages = np.fromfile(coverages_fname, dtype=oasis_float)
 
     elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(input_path, 'coverages.csv')}")
-        coverages = np.genfromtxt(os.path.join(
-            input_path, "coverages.csv"), dtype=oasis_float, delimiter=",")
+        coverages_fname = os.path.join(input_path, 'coverages.csv')
+        logger.debug(f"loading {coverages_fname}")
+        coverages = np.genfromtxt(coverages_fname, dtype=oasis_float, delimiter=",")
 
     else:
         raise FileNotFoundError(f'coverages file not found at {input_path}')
@@ -252,135 +77,18 @@ def get_coverages(input_path, ignore_file_type=set()):
     return coverages
 
 
-@nb.njit(cache=True, fastmath=True)
-def generate_hash(group_id, event_id, rand_seed=0):
-    """
-    Generate hash for group_id, event_id
-
-    Args:
-        group_id ([type]): [description]
-        event_id ([type]): [description]
-        rand_seed (int, optional): [description]. Defaults to 0.
-
-    Returns:
-        [type]: [description]
-    """
-    hashed = (rand_seed + (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE +
-                          (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
-
-    return hashed
-
-
-@nb.njit(cache=True, fastmath=True)
-def generate_correlated_hash(event_id, rand_seed=0):
-    """
-    Generate hash for group_id, event_id
-
-    Args:
-        event_id ([type]): [description]
-        rand_seed (int, optional): [description]. Defaults to 0.
-    Returns:
-        [type]: [description]
-    """
-    hashed = rand_seed
-    hashed += (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
-    hashed %= HASH_MOD_CODE
-
-    return hashed
-
-
-@nb.njit(cache=True, fastmath=True)
-def random_MersenneTwister(seeds, n):
-    """Generate random numbers using the default Mersenne Twister algorithm.
-
-    Args:
-        seeds (List[int64]): List of seeds.
-        n (int): number of random samples to generate for each seed.
-
-    Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
-          containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
-          row in rndms that stores the corresponding random values.
-    """
-    Nseeds = len(seeds)
-    rndms = np.zeros((Nseeds, n), dtype='float64')
-    rndms_idx = {}
-
-    for seed_i, seed in enumerate(seeds):
-        # set the seed
-        np.random.seed(seed)
-
-        # draw the random numbers
-        for j in range(n):
-            # by default in numba this should be Mersenne-Twister
-            rndms[seed_i, j] = np.random.uniform(0., 1.)
-
-        rndms_idx[seed] = seed_i
-
-    return rndms, rndms_idx
-
-
-@nb.njit(cache=True, fastmath=True)
-def random_LatinHypercube(seeds, n):
-    """Generate random numbers using the Latin Hypercube algorithm.
-
-    Args:
-        seeds (List[int64]): List of seeds.
-        n (int): number of random samples to generate for each seed.
-
-    Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
-          containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
-          row in rndms that stores the corresponding random values.
-
-    Notes:
-        Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
-        Following scipy notation, here we assume `centered=False` all the times:
-        instead of taking `samples=0.5*np.ones(n)`, here we always
-        draw uniform random samples in order to initialise `samples`.
-    """
-    Nseeds = len(seeds)
-    rndms = np.zeros((Nseeds, n), dtype='float64')
-    rndms_idx = {}
-
-    # define arrays here and re-use them later
-    samples = np.zeros(n, dtype='float64')
-    perms = np.zeros(n, dtype='float64')
-
-    for seed_i, seed in enumerate(seeds):
-        # set the seed
-        np.random.seed(seed)
-
-        # draw the random numbers and re-generate permutations array
-        for i in range(n):
-            samples[i] = np.random.uniform(0., 1.)
-            perms[i] = i + 1
-
-        # in-place shuffle permutations
-        np.random.shuffle(perms)
-
-        for j in range(n):
-            rndms[seed_i, j] = (perms[j] - samples[j]) / float(n)
-
-        rndms_idx[seed] = seed_i
-
-    return rndms, rndms_idx
-
-
 # TODO probably I can use getmodel get_items. double check
 def gul_get_items(input_path, ignore_file_type=set()):
-    """
-    Loads the items from the items file.
+    """Loads the items from the items file.
 
     Args:
-        input_path: (str) the path pointing to the file
-        ignore_file_type: set(str) file extension to ignore when loading
+        input_path (str): the path pointing to the file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
 
-    Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
-             vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-             areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+    Returns:
+        items (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
+          vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+          areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and "bin" not in ignore_file_type:
@@ -397,39 +105,18 @@ def gul_get_items(input_path, ignore_file_type=set()):
     return items
 
 
-@nb.njit(cache=True, fastmath=True)
-def append_to_dict_entry(d, key, value, value_type):
-    """Append an entry to the list populating a dictionary value.
-    The dictionary `d` is modified in-place, thus it is not returned by the function.
-    If `d` is a dictionary and `d[key]` is a list, this function appends
-    `value` to the list. Example: if d = {0: [1, 2], 1: [3]}, then:
-
-       append_to_dict_entry(d, 0, 3, int)
-
-    will modify `d` to:
-
-       d = {0: [1, 2, 3], 1: [3]}
-
-    Designed to be used with numba.typed.Dict and numba.typed.List.
+@njit(cache=True, fastmath=True)
+def generate_item_map(items, item_key_type, item_value_type):
+    """Generate item_map; requires items to be sorted.
 
     Args:
-        d (numba.typed.Dict[*,numba.typedList[value_type]]): dictionary to be modified, 
-          by appending `value` to the list in d[key].
-        key (same as d.key_type): key of the element to modify.
-        value (value_type): value to be appended to the list in d[key].
-        value_type (built-in Python or numba type): value data type.
+        items (_type_): _description_
+        item_key_type (_type_): _description_
+        item_value_type (_type_): _description_
+
+    Returns:
+        _type_: _description_
     """
-    # append done in-place
-    def_lst = List.empty_list(value_type)
-    d.setdefault(key, def_lst)
-    lst = d[key]
-    lst.append(value)
-    d[key] = lst
-
-
-@nb.njit(cache=True, fastmath=True)
-def generate_item_map(items, item_key_type, item_value_type):
-    """ generate item_map; requires items to be sorted"""
     # # in-place sort items in order to store them in item_map in the desired order
     # items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
 
@@ -438,7 +125,7 @@ def generate_item_map(items, item_key_type, item_value_type):
     Nitems = items.shape[0]
 
     for j in range(Nitems):
-        append_to_dict_entry(
+        append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
             tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
@@ -446,6 +133,40 @@ def generate_item_map(items, item_key_type, item_value_type):
         )
 
     return item_map
+
+
+@njit(cache=True, fastmath=True)
+def generate_hash(group_id, event_id, base_seed=0):
+    """Generate hash for a given `group_id`, `event_id` pair.
+
+    Args:
+        group_id (int): group id.
+        event_id (int]): event id.
+        base_seed (int, optional): base random seed. Defaults to 0.
+
+    Returns:
+        hash (int64): hash
+    """
+    hash = (base_seed + (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE +
+            (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+
+    return hash
+
+
+@njit(cache=True, fastmath=True)
+def generate_correlated_hash(event_id, base_seed=0):
+    """Generate hash for an `event_id`.
+
+    Args:
+        event_id (int): event id.
+        base_seed (int, optional): base random seed. Defaults to 0.
+
+    Returns:
+        hash (int64): hash
+    """
+    hash = (base_seed + (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+
+    return hash
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
@@ -456,7 +177,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     Args:
         run_dir: (str) the directory of where the process is running
         ignore_file_type: set(str) file extension to ignore when loading
-
     """
     logger.info("starting gulpy")
 
@@ -474,14 +194,17 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     items = gul_get_items(input_path)
 
     # in-place sort items in order to store them in item_map in the desired order
+    # currently numba only supports simple call to np.sort() with no `order` keyword.
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     item_map_key_type = nb.types.Tuple((nb.types.uint32, nb.types.int32))
     item_map_value_type = nb.types.UniTuple(nb.types.int32, 3)
     item_map = generate_item_map(items, item_map_key_type, item_map_value_type)
 
+    # read coverages from file
     coverages = get_coverages(input_path)
 
     with ExitStack() as stack:
+        # set up streams
         if file_in is None:
             streams_in = sys.stdin.buffer
         else:
@@ -492,166 +215,50 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        # prepare output buffer
+        # prepare output buffer, write stream header
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
         # TODO: optimize LossWriter: cleanup, and check if selectors can be used.
         writer = LossWriter(stream_out, sample_size, buff_size=65536)
 
-        # define random generator function
-        if random_generator == 0:
-            generate_rndm = random_MersenneTwister
-            logger.info("Random generator: MT19937")
+        # set the random generator function
+        generate_rndm = get_random_generator(random_generator)
 
-        elif random_generator == 1:
-            generate_rndm = random_LatinHypercube
-            logger.info("Random generator: Latin Hypercube")
+        if alloc_rule not in [0, 1, 2]:
+            raise ValueError(f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}")
 
-        assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
-
-        # timing_keys = [
-        #     "get_new_dicts",
-        #     "reconstruct_coverages_properties",
-        #     "rndms zeros",
-        #     "generate_rndm",
-        #     "compute_event_losses",
-        #     "  --> compute_event_losses (single coverage)",
-        #     "  --> stream_stdout_write (single coverage)",
-        #     "  --> tot_time (single coverage)",
-        #     "tot_time"
-        # ]
-        # timings = OrderedDict({
-        #     key: [] for key in timing_keys
-        # })
-
-        # TODO: probably here I need a with Losswriter context
+        # TODO: probably here we need a with Losswriter context
         # TODO: rename mode1_stats_2_type and mode1_stats_2 to more sensible names
         mode1_stats_2_type = nb.types.UniTuple(nb.types.int64, 2)
         mode1_item_id_dtype = nb.types.int32
 
         cursor = 0
         cursor_bytes = 0
-        event_counts = 0
         for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
-            # if event_counts > 2:
-            #     break
-            # t0 = time.time()
-            # mode1_stats_2, mode1_item_id = gen_numba_dicts(mode1_stats_2_type, mode1_item_id_dtype)
-            # t1 = time.time()
 
             mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, seeds = reconstruct_coverages_properties(
                 event_id, damagecdfs, item_map, mode1_stats_2_type, mode1_item_id_dtype)
-            # t2 = time.time()
-
-            # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
-            # bin_lookup_arr = np.array(bin_lookup)
-            # bin_lookup_ndarr[:]['prob_to'] = bin_lookup_arr[:, 0]
-            # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup_arr[:, 1]
-            # rndms = np.zeros((len(seeds), sample_size), dtype=oasis_float)
-            # t3 = time.time()
-            # rndms_value_type = nb.types.Array(nb.types.float64, 1, 'C')
 
             rndms, rndms_idx = generate_rndm(seeds, sample_size)
-            # t4 = time.time()
-
-            # timings['get_new_dicts'].append(t1 - t0)
-            # timings['reconstruct_coverages_properties'].append(t2 - t1)
-            # timings['rndms zeros'].append(t3 - t2)
-            # timings['generate_rndm'].append(t4 - t3)
 
             coverage_idx = 0
-            # t5 = time.time()
             while coverage_idx < Nunique_coverage_ids:
-                # t5a = time.time()
                 cursor, cursor_bytes, coverage_idx = compute_event_losses(
                     event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
                     Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx,
                     debug, writer.int32_mv, writer.buff_size, cursor, cursor_bytes, coverage_idx
                 )
-                # t5b = time.time()
+
                 stream_out.write(writer.mv[:cursor_bytes])
-                # t5c = time.time()
-                # timings['  --> compute_event_losses (single coverage)'].append(t5b - t5a)
-                # timings['  --> stream_stdout_write (single coverage)'].append(t5c - t5b)
-                # timings['  --> tot_time (single coverage)'].append(t5c - t5a)
+
                 cursor = 0
                 cursor_bytes = 0
-
-            # t6 = time.time()
-            # timings['compute_event_losses'].append(t6 - t5)
-            # timings['tot_time'].append(t6 - t0)
-
-            event_counts += 1
-
-        # for key in timing_keys:
-        #     if key in ['  --> compute_event_losses (single coverage)', '  --> stream_stdout_write (single coverage)']:
-        #         logger.info(
-        #             f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['  --> tot_time (single coverage)'])*100:4.2f}%")
-        #     else:
-        #         logger.info(
-        #             f"{key:50} {np.mean(timings[key]):7.3e} +/- {np.std(timings[key]):7.3e}  {np.mean(timings[key])/np.mean(timings['tot_time'])*100:4.2f}%")
-
-        # logger.info(f"{'mean tot_time':50} {np.mean(timings['tot_time']):7.3e}")
-        # logger.info(f"{'tot tot_time':50} {np.sum(timings['tot_time']):7.3e}")
 
     return 0
 
 
-@nb.njit(cache=True, fastmath=True)
-def write_sample_header(event_id, item_id, int32_mv, cursor, cursor_bytes):
-    int32_mv[cursor], cursor = event_id, cursor + 1
-    int32_mv[cursor], cursor = item_id, cursor + 1
-    cursor_bytes += gulSampleslevelHeader_size
-
-    return cursor, cursor_bytes
-
-
-@nb.njit(cache=True, fastmath=True)
-def write_sample_rec(sidx, loss, int32_mv, cursor, cursor_bytes):
-
-    int32_mv[cursor], cursor = sidx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = loss
-    cursor += loss_rel_size
-    cursor_bytes += gulSampleslevelRec_size
-
-    return cursor, cursor_bytes
-
-
-@nb.njit(cache=True, fastmath=True)
-def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_loss,
-                        tiv_idx, tiv, std_dev_idx, std_dev, mean_idx, gul_mean,
-                        int32_mv, cursor, cursor_bytes):
-
-    int32_mv[cursor], cursor = max_loss_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = max_loss
-    cursor += loss_rel_size
-    cursor_bytes += gulSampleslevelRec_size
-
-    int32_mv[cursor], cursor = chance_of_loss_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = chance_of_loss
-    cursor += loss_rel_size
-    cursor_bytes += gulSampleslevelRec_size
-
-    int32_mv[cursor], cursor = tiv_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = tiv
-    cursor += loss_rel_size
-    cursor_bytes += gulSampleslevelRec_size
-
-    int32_mv[cursor], cursor = std_dev_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = std_dev
-    cursor += loss_rel_size
-    cursor_bytes += gulSampleslevelRec_size
-
-    int32_mv[cursor], cursor = mean_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = gul_mean
-    cursor += loss_rel_size
-    cursor_bytes += gulSampleslevelRec_size
-
-    return cursor, cursor_bytes
-
-
-@nb.njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats_2_type, mode1_item_id_dtype):
     # TODO: write docstring
 
@@ -675,14 +282,14 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
             mode1UsedCoverageIDs.append(coverage_id)
             Ncoverage_ids += 1
 
-            append_to_dict_entry(mode1_stats_2, coverage_id, (damagecdf_i, rng_seed), mode1_stats_2_type)
+            append_to_dict_value(mode1_stats_2, coverage_id, (damagecdf_i, rng_seed), mode1_stats_2_type)
             # def_lst = List.empty_list(mode1_stats_2_type)
             # mode1_stats_2.setdefault(coverage_id, def_lst)
             # lst = mode1_stats_2[coverage_id]
             # lst.append((damagecdf_i, rng_seed))
             # mode1_stats_2[coverage_id] = lst
 
-            append_to_dict_entry(mode1_item_id, coverage_id, item_id, nb.types.int32)
+            append_to_dict_value(mode1_item_id, coverage_id, item_id, nb.types.int32)
             # def_lst = List.empty_list(nb.types.int32)
             # mode1_item_id.setdefault(coverage_id, def_lst)
             # lst = mode1_item_id[coverage_id]
@@ -706,7 +313,7 @@ def reconstruct_coverages_properties(event_id, damagecdfs, item_map, mode1_stats
     return mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, Nunique_coverage_ids, lst_seeds
 
 
-@nb.njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCoverageIDs_arr, sample_size,
                          Nbinss, recs, coverages, damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx,
                          debug, int32_mv, buff_size, cursor, cursor_bytes, coverage_idx):
@@ -717,10 +324,6 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
         Nitems = len(mode1_stats_2[coverage_id])
         exposureValue = tiv / Nitems
-
-        # nomenclature change in gulcalc `gilv[item_id, loss]` becomes loss in gulpy
-        loss_Nrows = sample_size + NUM_IDX
-        loss = np.zeros((loss_Nrows, Nitems), dtype=oasis_float)
 
         Nitem_ids = len(mode1_item_id[coverage_id])
 
@@ -748,6 +351,10 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
         # writing the output
         items_loss_above_threshold = Dict()
 
+        # nomenclature change in gulcalc `gilv[item_id, loss]` becomes loss in gulpy
+        loss_Nrows = sample_size + NUM_IDX
+        loss = np.zeros((loss_Nrows, Nitems), dtype=oasis_float)
+
         for item_j, item_id_sorted in enumerate(item_ids_arr_argsorted):
 
             k, seed = mode1_stats_2[coverage_id][item_id_sorted]
@@ -757,10 +364,11 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
             Nbins = Nbinss[k]
 
             # compute mean values
-            gul_mean, std_dev, chance_of_loss, max_loss = output_mean(
+            gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
+            # print(tiv, exposureValue)
             loss[SHIFTED_MAX_LOSS_IDX, item_j] = max_loss
             loss[SHIFTED_CHANCE_OF_LOSS_IDX, item_j] = chance_of_loss
             loss[SHIFTED_TIV_IDX, item_j] = exposureValue
@@ -783,7 +391,7 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
-                        bin_idx = first_index_numba(rval, prob_to, Nbins)
+                        bin_idx = find_bin_idx(rval, prob_to, Nbins)
 
                         # compute ground-up losses
                         gul = get_gul(
@@ -811,54 +419,7 @@ def compute_event_losses(event_id, mode1_stats_2, mode1_item_id, mode1UsedCovera
     return cursor, cursor_bytes, coverage_idx
 
 
-@nb.njit(cache=True, fastmath=True)
-def setmaxloss(loss):
-    """Set maximum loss.
-    For each sample, find the maximum loss across all items.
-
-    """
-    Nsamples, Nitems = loss.shape
-
-    # the main loop starts from STD_DEV
-    for i in range(NUM_IDX + STD_DEV_IDX, Nsamples, 1):
-        loss_max = 0.
-        max_loss_count = 0
-
-        # find maximum loss and count occurrences
-        for j in range(Nitems):
-            if loss[i, j] > loss_max:
-                loss_max = loss[i, j]
-                max_loss_count = 1
-            elif loss[i, j] == loss_max:
-                max_loss_count += 1
-
-        # distribute maximum losses evenly among highest
-        # contributing subperils and set other losses to 0
-        loss_max_normed = loss_max / max_loss_count
-        for j in range(Nitems):
-            if loss[i, j] == loss_max:
-                loss[i, j] = loss_max_normed
-            else:
-                loss[i, j] = 0.
-
-    return loss
-
-
-@nb.njit(cache=True, fastmath=True)
-def split_tiv(gulitems, tiv):
-    # if the total loss exceeds the tiv
-    # then split tiv in the same proportions to the losses
-    if tiv > 0:
-        total_loss = np.sum(gulitems)
-
-        nitems = gulitems.shape[0]
-        if total_loss > tiv:
-            for j in range(nitems):
-                # editing in-place the np array
-                gulitems[j] *= tiv / total_loss
-
-
-@nb.njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, items_loss_above_threshold, int32_mv, cursor, cursor_bytes):
 
     # note that Nsamples = sample_size + NUM_IDX
@@ -904,238 +465,3 @@ def write_output(loss, item_ids_arr_sorted, alloc_rule, tiv, event_id, items_los
         # print("termin: ", cursor, cursor_bytes)
 
     return cursor, cursor_bytes
-
-
-@nb.njit(cache=True, fastmath=True)
-def get_arr_chunks(arr, len_arr, N):
-    """Get chunks of length `N` from an array `arr` of length `len_arr`.
-    The function yields indefinitely, cycling through the array end.
-    N must be strictly smaller than len_arr.
-
-    Args:
-        arr (_type_): _description_
-        len_arr (_type_): _description_
-        N (_type_): _description_
-
-    Yields:
-        _type_: _description_
-    """
-    start = -N
-    while True:
-        start += N
-        end = start + N
-        start_mod = start % len_arr
-        end_mod = end % len_arr
-
-        if start_mod == end_mod:
-            yield arr
-        elif end_mod < start_mod:
-            yield np.concatenate((arr[start_mod:], arr[:end_mod]))
-        else:
-            yield arr[start_mod:end_mod]
-
-
-class LossWriter():
-
-    def __init__(self, lossout, len_sample, buff_size=65536) -> None:
-
-        # number of bytes to read at a given time.
-        # number_size = 8 works only if loss in gulSampleslevelRec is float32.
-        self.number_size = max(gulSampleslevelHeader.size, gulSampleslevelRec.size)  # bytes
-
-        self.len_sample = len_sample
-        self.lossout = lossout
-        self.buff_size = buff_size  # bytes
-
-        # compute how many numbers of size `number_size` fit in the buffer
-        # for safety, take 1000 less than the compute number to allow flushing the buffer not too often
-        # if -1 instead of -1000 is taken, it requires checking whether to flush or not for every write to mv.
-        self.buff_safety = self.number_size * 1000
-        self.nb_number = (self.buff_size + self.buff_safety) // self.number_size
-        self.flush_number = self.nb_number - 4
-
-        # define the raw memory view, the int32 view of it, and their respective cursors
-        mv_size_bytes = buff_size + self.number_size * 10
-        self.mv = memoryview(bytearray(mv_size_bytes))
-        self.int32_mv = np.ndarray(mv_size_bytes // self.number_size, buffer=self.mv, dtype='i4')
-        # cannot use because the header is int int
-        # self.loss_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype=gulSampleslevelRec.dtype)
-        # cannot use two views loss_mv and header_mv because it only works if oasis_float is float32.
-        # if oasis_float is set to float64, the cursor will not map correctly both mv.
-        self.cursor_bytes = 0
-        self.cursor = 0
-
-        # size(oasis_float)/size(i4)
-        # TODO find a way to do that programmatically and test if this works with oasis_float=float64
-        self.loss_rel_size = 1
-
-    def flush(self):
-        # print("FLUSHING ", self.cursor, " ", self.cursor_bytes)
-        self.lossout.write(self.mv[:self.cursor_bytes])
-        self.cursor_bytes = 0
-        self.cursor = 0
-        # print("FLUSHED ", self.cursor, " ", self.cursor_bytes)
-
-    def write_sample_header(self, event_id, item_id):
-        self.int32_mv[self.cursor] = event_id
-        self.cursor += 1
-        self.int32_mv[self.cursor] = item_id
-        self.cursor += 1
-        self.cursor_bytes += gulSampleslevelHeader.size
-
-    def write_sample_rec(self, sidx, loss):
-
-        if self.cursor >= self.flush_number:
-            self.flush()
-
-        self.int32_mv[self.cursor] = sidx
-        self.cursor += 1
-        self.int32_mv[self.cursor:self.cursor + self.loss_rel_size].view(oasis_float)[:] = loss
-        self.cursor += self.loss_rel_size
-        self.cursor_bytes += gulSampleslevelRec.size
-
-
-@nb.njit(cache=True, fastmath=True)
-def generate_random_numbers(sample_size, seed=None):
-
-    rndm = np.random.uniform(0., 1., size=sample_size)
-
-    return rndm
-
-
-@nb.njit(cache=True, fastmath=True)
-def first_index_numba(val, arr, len_arr):
-    """
-    Find the first element of `arr` larger than `val`, assuming `arr` is sorted. 
-
-    interesting answer on different methods and their performance
-    especially, using numba https://stackoverflow.com/a/49927020/3709114
-
-    """
-    for idx in range(len_arr):
-        if arr[idx] > val:
-            return idx
-    return -1
-
-
-# @nb.njit(cache=False, fastmath=True)
-def output_mean_mode1(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to, bin_map, bin_lookup):
-    """Compute output mean gul.
-
-    Note that this implementation is approx 20x faster than pure numpy/scipy functions,
-    and 2x faster than numpy/scipy functions wrapped in numba.jit.
-
-    Args:
-        tiv (_type_): _description_
-        prob_to (_type_): _description_
-        bin_mean (_type_): _description_
-        bin_count (_type_): _description_
-        max_damage_bin_to (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
-    chance_of_loss = 1 - prob_to[0] * (1 - (bin_mean[0] > 0))
-
-    gul_mean = 0.
-    ctr_var = 0.
-    last_prob_to = 0.
-    bin_ids = List()
-    for i in range(bin_count):
-        prob_from = last_prob_to
-        new_gul = (prob_to[i] - prob_from) * bin_mean[i]
-        gul_mean += new_gul
-        ctr_var += new_gul * bin_mean[i]
-        last_prob_to = prob_to[i]
-
-        bin_key = tuple((prob_to[i], bin_mean[i]))
-        bin_lst = List([prob_to[i], bin_mean[i]])
-        if bin_key not in bin_map.keys():
-            bin_map[bin_key] = len(bin_map)
-            bin_lookup.append(bin_lst)
-
-        bin_ids.append(bin_map[bin_key])
-
-    gul_mean *= tiv
-    ctr_var *= tiv**2.
-    std_dev = sqrt(max(ctr_var - gul_mean**2., 0.))
-    max_loss = max_damage_bin_to * tiv
-
-    return gul_mean, std_dev, chance_of_loss, max_loss, bin_map, bin_ids, bin_lookup
-
-
-@nb.njit(cache=True, fastmath=False)
-def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
-    # TODO: write docstring
-    # the interpolation engine for each bin can be cached since the decision on whether to use
-    # point-like/linear/quadratic only depends on bin properties, not on rval.
-    # however, if samples are few and do not use all the bins it might not be advantageous
-
-    bin_width = bin_to - bin_from
-
-    # point-like bin
-    if bin_width == 0.:
-        gul = tiv * bin_to
-
-        return gul
-
-    bin_height = prob_to - prob_from
-    rval_bin_offset = rval - prob_from
-
-    # linear interpolation
-    x = np.float64((bin_mean - bin_from) / bin_width)
-    # if np.int(np.round(x * 100000)) == 50000:
-    if np.abs(x - 0.5) <= 5e-6:
-        # this condition requires 1 less operation
-        gul = tiv * (bin_from + rval_bin_offset * bin_width / bin_height)
-
-        return gul
-
-    # quadratic interpolation
-    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
-    aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
-    bb = 2. * bin_height / bin_width * (2. - 3. * x)
-    cc = - rval_bin_offset
-
-    gul = tiv * (bin_from + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
-
-    return gul
-
-
-@nb.njit(cache=True, fastmath=True)
-def output_mean(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
-    """Compute output mean gul.
-
-    Note that this implementation is approx 20x faster than pure numpy/scipy functions,
-    and 2x faster than numpy/scipy functions wrapped in numba.jit.
-
-    Args:
-        tiv (_type_): _description_
-        prob_to (_type_): _description_
-        bin_mean (_type_): _description_
-        bin_count (_type_): _description_
-        max_damage_bin_to (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
-    chance_of_loss = 1 - prob_to[0] * (1 - (bin_mean[0] > 0))
-
-    gul_mean = 0.
-    ctr_var = 0.
-    last_prob_to = 0.
-    for i in range(bin_count):
-        prob_from = last_prob_to
-        new_gul = (prob_to[i] - prob_from) * bin_mean[i]
-        gul_mean += new_gul
-        ctr_var += new_gul * bin_mean[i]
-        last_prob_to = prob_to[i]
-
-    gul_mean *= tiv
-    ctr_var *= tiv**2.
-    std_dev = sqrt(max(ctr_var - gul_mean**2., 0.))
-    max_loss = max_damage_bin_to * tiv
-
-    return gul_mean, std_dev, chance_of_loss, max_loss
