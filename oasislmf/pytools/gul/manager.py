@@ -311,6 +311,7 @@ def random_MersenneTwister(seeds, n):
         # set the seed
         np.random.seed(seed)
 
+        # draw the random numbers
         for j in range(n):
             # by default in numba this should be Mersenne-Twister
             rndms[seed_i, j] = np.random.uniform(0., 1.)
@@ -352,7 +353,7 @@ def random_LatinHypercube(seeds, n):
         # set the seed
         np.random.seed(seed)
 
-        # draw random samples and re-generate perms
+        # draw the random numbers and re-generate permutations array
         for i in range(n):
             samples[i] = np.random.uniform(0., 1.)
             perms[i] = i + 1
@@ -398,7 +399,27 @@ def gul_get_items(input_path, ignore_file_type=set()):
 
 @nb.njit(cache=True, fastmath=True)
 def append_to_dict_entry(d, key, value, value_type):
-    # append is done in-place
+    """Append an entry to the list populating a dictionary value.
+    The dictionary `d` is modified in-place, thus it is not returned by the function.
+    If `d` is a dictionary and `d[key]` is a list, this function appends
+    `value` to the list. Example: if d = {0: [1, 2], 1: [3]}, then:
+
+       append_to_dict_entry(d, 0, 3, int)
+
+    will modify `d` to:
+
+       d = {0: [1, 2, 3], 1: [3]}
+
+    Designed to be used with numba.typed.Dict and numba.typed.List.
+
+    Args:
+        d (numba.typed.Dict[*,numba.typedList[value_type]]): dictionary to be modified, 
+          by appending `value` to the list in d[key].
+        key (same as d.key_type): key of the element to modify.
+        value (value_type): value to be appended to the list in d[key].
+        value_type (built-in Python or numba type): value data type.
+    """
+    # append done in-place
     def_lst = List.empty_list(value_type)
     d.setdefault(key, def_lst)
     lst = d[key]
@@ -427,7 +448,7 @@ def generate_item_map(items, item_key_type, item_value_type):
     return item_map
 
 
-def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, random_numbers_file, debug,
+def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
         random_generator, file_in=None, file_out=None, **kwargs):
     """
     Runs the main process of the gul calculation.
@@ -478,21 +499,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         # TODO: optimize LossWriter: cleanup, and check if selectors can be used.
         writer = LossWriter(stream_out, sample_size, buff_size=65536)
 
-        if random_numbers_file:
-            rndm = np.loadtxt(random_numbers_file)
+        # define random generator function
+        if random_generator == 0:
+            generate_rndm = random_MersenneTwister
+            logger.info("Random generator: MT19937")
 
-            assert len(rndm) > sample_size, \
-                f"The number of random values in the file must be strictly larger than sample size, " \
-                f"but got {len(rndm)} random numbers with sample size={sample_size}."
-        else:
-            # define random generator function
-            if random_generator == 0:
-                generate_rndm = random_MersenneTwister
-                logger.info("Random generator: MT19937")
-
-            elif random_generator == 1:
-                generate_rndm = random_LatinHypercube
-                logger.info("Random generator: Latin Hypercube")
+        elif random_generator == 1:
+            generate_rndm = random_LatinHypercube
+            logger.info("Random generator: Latin Hypercube")
 
         assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
 

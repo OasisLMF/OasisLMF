@@ -16,7 +16,6 @@ parser.add_argument('-d', help='output random numbers instead of gul (default: F
                     default=False, action='store_true', dest='debug')
 parser.add_argument('-i', help='filename of items output', action='store', type=str, dest='items_outfile')
 # parser.add_argument('-j', '--correlated-outfile', help='filename of correlated output', type=str, action='store', dest='corr_outfile')
-parser.add_argument('-r', help='filename of random numbers', action='store', type=str, dest='random_numbers_file')
 parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
                     action='store', type=float, dest='loss_threshold')
