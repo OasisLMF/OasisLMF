@@ -61,33 +61,41 @@ ORD_PSEPT_OUTPUT_SWITCHES = {
 ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
 ORD_ALT_OUTPUT_SWITCHES = {
-    "alt_period": '-o'
+    "alt_period": {
+        'csv_flag': '-o', 'parquet_flag': '-p'
+    }
 }
 
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
-        'flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt'
+        'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
+        'parquet_flag': '-s', 'kat_flag': '-S'
     },
     "plt_quantile": {
-        'flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt'
+        'csv_flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt',
+        'parquet_flag': '-q', 'kat_flag': '-Q'
     },
     "plt_moment": {
-        'flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt'
+        'csv_flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt',
+        'parquet_flag': '-m', 'kat_flag': '-M'
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
-        'flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt'
+        'flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
+        'parquet_flag': '-q', 'kat_flag': '-q'
     },
     "elt_moment": {
-        'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt'
+        'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
+        'parquet_flag': '-m', 'kat_flag': '-m'
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
-        'flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt'
+        'flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
+        'parquet_flag': '-p', 'kat_flag': '-s'
     }
 }
 
@@ -364,17 +372,27 @@ def do_post_wait_processing(
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                cmd = 'aalcalc -K{}{}_S{}_summary_palt {}'.format(
-                    work_sub_dir,
-                    runtype,
-                    summary_set,
-                    ORD_ALT_OUTPUT_SWITCHES.get("alt_period", "")
+                cmd = 'aalcalc -K{}{}_S{}_summary_palt'.format(
+                    work_sub_dir, runtype, summary_set
+                )
+                palt_outfile_stem = '{}{}_S{}_palt'.format(
+                    output_dir, runtype, summary_set
                 )
 
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    cmd = '{} {}'.format(
+                        cmd,
+                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('parquet_flag', '')
+                    )
+                    cmd = '{} {}.parquet'.format(cmd, palt_outfile_stem)
+                else:
+                    cmd = '{} {}'.format(
+                        cmd,
+                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('csv_flag', '')
+                    )
+                    cmd = '{} > {}.csv'.format(cmd, palt_outfile_stem)
+
                 process_counter['lpid_monitor_count'] += 1
-                cmd = '{} > {}{}_S{}_palt.csv'.format(
-                    cmd, output_dir, runtype, summary_set
-                )
                 if stderr_guard:
                     cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 else:
@@ -411,15 +429,25 @@ def do_post_wait_processing(
                         if not psept_output:
                             psept_output = True
 
+                ept_output_flag = '-O'
+                psept_output_flag = '-o'
+                outfile_ext = 'csv'
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    ept_output_flag = '-P'
+                    psept_output_flag = '-p'
+                    outfile_ext = 'parquet'
+
                 if ept_output:
-                    cmd = '{} -O {}{}_S{}_ept.csv'.format(
-                        cmd, output_dir, runtype, summary_set,
-                        option)
+                    cmd = '{} {} {}{}_S{}_ept.{}'.format(
+                        cmd, ept_output_flag, output_dir, runtype, summary_set,
+                        outfile_ext
+                    )
 
                 if psept_output:
-                    cmd = '{} -o {}{}_S{}_psept.csv'.format(
-                        cmd, output_dir, runtype, summary_set,
-                        option)
+                    cmd = '{} {} {}{}_S{}_psept.{}'.format(
+                        cmd, psept_output_flag, output_dir, runtype,
+                        summary_set, outfile_ext
+                    )
 
                 if stderr_guard:
                     cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
@@ -620,14 +648,21 @@ def do_kats(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table, v in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
-                        anykas = True
+                        anykats = True
 
                         cmd = 'kat'
+                        outfile_flag = '>'
+                        outfile_ext = 'csv'
+                        if summary.get('ord_output', {}).get('parquet_format'):
+                            cmd = f'katparquet {v["kat_flag"]}'
+                            outfile_flag = '-o'
+                            outfile_ext = 'parquet'
+
                         for process_id in process_range(max_process_id, process_number):
                             cmd = f'{cmd} {work_dir}{runtype}_S{summary_set}_{ord_table}_P{process_id}'
 
                         process_counter['kpid_monitor_count'] += 1
-                        cmd = f'{cmd} > {output_dir}{runtype}_S{summary_set}_{v["table_name"]}.csv'
+                        cmd = f'{cmd} {outfile_flag} {output_dir}{runtype}_S{summary_set}_{v["table_name"]}.{outfile_ext}'
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
@@ -794,19 +829,25 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            cmd += ' -s'
+                            if ord_type == 'plt_ord':
+                                cmd += ' -H'
+                            else:
+                                cmd += ' -s'
                             skip_line = False
 
-                        cmd += f' {flag_proc["flag"]}'
+                        if summary.get('ord_output', {}).get('parquet_format'):
+                            cmd += f' {flag_proc["parquet_flag"]}'
+                        else:
+                            cmd += f' {flag_proc["csv_flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{ord_table}')
-                        if ord_type != 'selt_ord':
+                        if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
-                    if ord_type == 'selt_ord':
+                    if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                         cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
                     cmd = f'{flag_proc["ktools_exe"]}{cmd}'
@@ -838,7 +879,10 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                         cmd = summary_type
 
                     if process_id != 1:
-                        cmd += ' -s'
+                        if summary_type == 'pltcalc':
+                            cmd += ' -H'
+                        else:
+                            cmd += ' -s'
 
                     process_counter['pid_monitor_count'] += 1
 
