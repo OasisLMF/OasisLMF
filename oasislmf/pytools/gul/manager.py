@@ -290,8 +290,19 @@ def generate_correlated_hash(event_id, rand_seed=0):
 
 
 @nb.njit(cache=True, fastmath=True)
-def generate_rndm_MT19937(seeds, n):
+def random_MersenneTwister(seeds, n):
+    """Generate random numbers using the default Mersenne Twister algorithm.
 
+    Args:
+        seeds (List[int64]): List of seeds.
+        n (int): number of random samples to generate for each seed.
+
+    Returns:
+        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+          containing the random values generated for each seed.
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+          row in rndms that stores the corresponding random values.
+    """
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype='float64')
     rndms_idx = {}
@@ -310,8 +321,25 @@ def generate_rndm_MT19937(seeds, n):
 
 
 @nb.njit(cache=True, fastmath=True)
-def generate_rndm_LHS(seeds, n):
+def random_LatinHypercube(seeds, n):
+    """Generate random numbers using the Latin Hypercube algorithm.
 
+    Args:
+        seeds (List[int64]): List of seeds.
+        n (int): number of random samples to generate for each seed.
+
+    Returns:
+        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+          containing the random values generated for each seed.
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+          row in rndms that stores the corresponding random values.
+
+    Notes:
+        Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
+        Following scipy notation, here we assume `centered=False` all the times:
+        instead of taking `samples=0.5*np.ones(n)`, here we always
+        draw uniform random samples in order to initialise `samples`.
+    """
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype='float64')
     rndms_idx = {}
@@ -324,6 +352,7 @@ def generate_rndm_LHS(seeds, n):
         # set the seed
         np.random.seed(seed)
 
+        # draw random samples and re-generate perms
         for i in range(n):
             samples[i] = np.random.uniform(0., 1.)
             perms[i] = i + 1
@@ -331,10 +360,9 @@ def generate_rndm_LHS(seeds, n):
         # in-place shuffle permutations
         np.random.shuffle(perms)
 
-        for i in range(n):
-            rndms[seed_i, :] = (perms[i] - samples[i]) / float(n)
+        for j in range(n):
+            rndms[seed_i, j] = (perms[j] - samples[j]) / float(n)
 
-        # rndms[seed_i, :] = samples
         rndms_idx[seed] = seed_i
 
     return rndms, rndms_idx
@@ -459,11 +487,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, rand
         else:
             # define random generator function
             if random_generator == 0:
-                generate_rndm = generate_rndm_MT19937
+                generate_rndm = random_MersenneTwister
                 logger.info("Random generator: MT19937")
 
             elif random_generator == 1:
-                generate_rndm = generate_rndm_LHS
+                generate_rndm = random_LatinHypercube
                 logger.info("Random generator: Latin Hypercube")
 
         assert alloc_rule in [0, 1, 2], f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}"
