@@ -4,38 +4,35 @@ This file contains the utilities for all the I/O necessary in gulpy.
 """
 import os
 import numpy as np
-
 from numba import njit
 
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
-from oasislmf.pytools.gul.common import ProbMean, damagecdfrec, damagecdfrec_stream
-from oasislmf.pytools.gul.common import gulSampleslevelHeader, gulSampleslevelRec, oasis_float_to_int_size
+from oasislmf.pytools.gul.common import (
+    ProbMean, damagecdfrec, damagecdfrec_stream,
+    gulSampleslevelHeader, gulSampleslevelRec, oasis_float_to_int32_size,
+    gulSampleslevelRec_size, gulSampleslevelHeader_size
+)
 
-loss_rel_size = 1
-gulSampleslevelRec_size = gulSampleslevelRec.size
-gulSampleslevelHeader_size = gulSampleslevelHeader.size
 
-
-def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
-    """Read the getmodel output stream.
+def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
+    """Read the getmodel output stream yielding data event by event. 
 
     Args:
-        run_dir ([str]): Path to the run directory.
-        streams_in ([]): input streams
+        run_dir (str): path to the run directory.
+        stream_in (buffer-like): input stream, e.g. `sys.stdin.buffer`.
+        buff_size (int): size in bytes of the read buffer. Default is 65536.
 
     Raises:
         ValueError: If the stream type is not 1.
 
     Yields:
-        All the cdfs related to 1 event.
-
-        damagecdfs: array-like([damagecdf])
-        Nbinss: array-like([int]) 
-        recs: array-like([ProbMean])
+        int32,  numpy.array[damagecdf], numpy.array[int], numpy.array[ProbMean]:
+          event_id, array of damagecdf entries (areaperil_id, vulnerability_id) for this event,
+          number of bins in all cdfs of event_id, all the cdfs used in event_id.
     """
     # determine stream type
-    stream_type = np.frombuffer(streams_in.read(4), dtype='i4')
+    stream_type = np.frombuffer(stream_in.read(4), dtype='i4')
 
     # TODO: make sure the bit1 and bit 2-4 compliance is checked
     # see https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md
@@ -73,7 +70,7 @@ def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
     while True:
         if len_read > 0:
             # read stream from valid_buf onwards
-            len_read = streams_in.readinto1(mv[valid_buf:])
+            len_read = stream_in.readinto1(mv[valid_buf:])
             # extend the valid_buf by the same amount of data that was read
             valid_buf += len_read
 
@@ -122,7 +119,7 @@ def read_getmodel_stream(run_dir, streams_in, buff_size=65536):
 
 @njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id):
-    """Read streamed data into formatted data.
+    """Parse streamed data into data arrays.
 
     Args:
         int32_mv (ndarray): int32 view of the buffer
@@ -132,17 +129,11 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         last_event_id (int): event_id of the last event that was completed
 
     Returns:
-        cursor (int): number of int numbers read from the int32_mv ndarray.
-        i (int): number of cdf data entries read.
-        yield_event (bool): if True, the current event (id=`event_id`) is completed.
-        event_id (int): id of the event being read.
-        damagecdf (array-like[damagecdf]):
-        Nbins (array-like[damagecdf]):
-        rec (array-like[damagecdf]):
-        last_event_id (int): event_id of the last event that was completed
-
-    # TODO: don't store event_id (it's wasted space). need to change this everywhere `damagecdfrec` is used
-
+        int, int, bool, int, numpy.array[damagecdf], numpy.array[int32], numpy.array[ProbMean], int:
+          number of int numbers read from the int32_mv ndarray, number of cdf data entries read,
+          whether the current event (id=`event_id`) has been fully read, id of the event being read,
+          chunk of damagecdf entries, chunk of Nbins entries, chunk of cdf record entries,
+          event_id of the last event that was completed
     """
     valid_len = valid_buf // size_cdf_entry
     yield_event = False
@@ -161,15 +152,15 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         cursor += 1
 
         for j in range(Nbins[i]):
-            rec[i, j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int_size
-            rec[i, j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int_size
+            rec[i, j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
+            cursor += oasis_float_to_int32_size
+            rec[i, j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
+            cursor += oasis_float_to_int32_size
 
         if event_id != last_event_id:
             # a new event has started
             if last_event_id > 0:
-                # this is not the beginning of first event
+                # if this is not the beginning of the very first event, yield the event we just completed
                 yield_event = True
 
                 return cursor, i, yield_event, event_id, damagecdf, Nbins, rec, last_event_id
@@ -182,7 +173,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
 
 
 class LossWriter():
-
+    # TODO clean this up and remove unused features
     def __init__(self, lossout, len_sample, buff_size=65536) -> None:
 
         # number of bytes to read at a given time.
@@ -214,7 +205,7 @@ class LossWriter():
 
         # size(oasis_float)/size(i4)
         # TODO find a way to do that programmatically and test if this works with oasis_float=float64
-        self.loss_rel_size = 1
+        self.oasis_float_to_int32_size = 1
 
     def flush(self):
         # print("FLUSHING ", self.cursor, " ", self.cursor_bytes)
@@ -237,13 +228,24 @@ class LossWriter():
 
         self.int32_mv[self.cursor] = sidx
         self.cursor += 1
-        self.int32_mv[self.cursor:self.cursor + self.loss_rel_size].view(oasis_float)[:] = loss
-        self.cursor += self.loss_rel_size
+        self.int32_mv[self.cursor:self.cursor + self.oasis_float_to_int32_size].view(oasis_float)[:] = loss
+        self.cursor += self.oasis_float_to_int32_size
         self.cursor_bytes += gulSampleslevelRec.size
-
 
 @njit(cache=True, fastmath=True)
 def write_sample_header(event_id, item_id, int32_mv, cursor, cursor_bytes):
+    """Write to buffer the header for the samples of this (event, item).
+
+    Args:
+        event_id (int32): event id.
+        item_id (int32): item id.
+        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
+        cursor (int): index of int32_mv where to start writing.
+        cursor_bytes (int): number of bytes written in int32_mv.
+
+    Returns:
+        int, int: updated values of cursor and cursor_bytes
+    """
     int32_mv[cursor], cursor = event_id, cursor + 1
     int32_mv[cursor], cursor = item_id, cursor + 1
     cursor_bytes += gulSampleslevelHeader_size
@@ -253,10 +255,21 @@ def write_sample_header(event_id, item_id, int32_mv, cursor, cursor_bytes):
 
 @njit(cache=True, fastmath=True)
 def write_sample_rec(sidx, loss, int32_mv, cursor, cursor_bytes):
+    """Write to buffer a (sidx, loss) sample record.
 
+    Args:
+        sidx (int32): sidx number.
+        loss (oasis_float): loss.
+        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
+        cursor (int): index of int32_mv where to start writing.
+        cursor_bytes (int): number of bytes written in int32_mv.
+
+    Returns:
+        int, int: updated values of cursor and cursor_bytes
+    """
     int32_mv[cursor], cursor = sidx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = loss
-    cursor += loss_rel_size
+    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = loss
+    cursor += oasis_float_to_int32_size
     cursor_bytes += gulSampleslevelRec_size
 
     return cursor, cursor_bytes
@@ -266,30 +279,49 @@ def write_sample_rec(sidx, loss, int32_mv, cursor, cursor_bytes):
 def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_loss,
                         tiv_idx, tiv, std_dev_idx, std_dev, mean_idx, gul_mean,
                         int32_mv, cursor, cursor_bytes):
+    """Write to buffer the negative sidx samples.
 
+    Args:
+        max_loss_idx (int32): max_loss_idx sidx number.
+        max_loss (oasis_float): max_loss.
+        chance_of_loss_idx (int32): chance_of_loss_idx sidx number.
+        chance_of_loss_idx (oasis_float): chance_of_loss
+        tiv_idx (int32): tiv_idx sidx number.
+        tiv (oasis_float): tiv.
+        std_dev_idx (int32): std_dev_idx sidx number.
+        std_dev (oasis_float): std_dev.
+        mean_idx (int32): mean_idx sidx number.
+        gul_mean (oasis_float): gul_mean.
+        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
+        cursor (int): index of int32_mv where to start writing.
+        cursor_bytes (int): number of bytes written in int32_mv.
+
+    Returns:
+        int, int: updated values of cursor and cursor_bytes
+    """
     int32_mv[cursor], cursor = max_loss_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = max_loss
-    cursor += loss_rel_size
+    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = max_loss
+    cursor += oasis_float_to_int32_size
     cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = chance_of_loss_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = chance_of_loss
-    cursor += loss_rel_size
+    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = chance_of_loss
+    cursor += oasis_float_to_int32_size
     cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = tiv_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = tiv
-    cursor += loss_rel_size
+    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = tiv
+    cursor += oasis_float_to_int32_size
     cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = std_dev_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = std_dev
-    cursor += loss_rel_size
+    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = std_dev
+    cursor += oasis_float_to_int32_size
     cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = mean_idx, cursor + 1
-    int32_mv[cursor:cursor + loss_rel_size].view(oasis_float)[:] = gul_mean
-    cursor += loss_rel_size
+    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = gul_mean
+    cursor += oasis_float_to_int32_size
     cursor_bytes += gulSampleslevelRec_size
 
     return cursor, cursor_bytes

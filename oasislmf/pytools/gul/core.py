@@ -1,9 +1,9 @@
+"""
+This file contains the core mathematical functions used in gulpy.
 
-
+"""
 import numpy as np
-
 from numba import njit
-
 from math import sqrt  # faster than numpy.sqrt
 
 from oasislmf.pytools.gul.common import STD_DEV_IDX, NUM_IDX
@@ -11,11 +11,20 @@ from oasislmf.pytools.gul.common import STD_DEV_IDX, NUM_IDX
 
 @njit(cache=True, fastmath=False)
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
-    # TODO: write docstring
-    # the interpolation engine for each bin can be cached since the decision on whether to use
-    # point-like/linear/quadratic only depends on bin properties, not on rval.
-    # however, if samples are few and do not use all the bins it might not be advantageous
+    """Compute the ground-up loss.  using linear interpolation or quadratic interpolaiton.
 
+    Args:
+        bin_from (_type_): _description_
+        bin_to (_type_): _description_
+        bin_mean (_type_): _description_
+        prob_from (_type_): _description_
+        prob_to (_type_): _description_
+        rval (_type_): _description_
+        tiv (_type_): _description_
+
+    Returns:
+        float64 : the computed ground-up loss
+    """
     bin_width = bin_to - bin_from
 
     # point-like bin

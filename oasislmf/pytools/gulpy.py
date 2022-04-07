@@ -31,17 +31,6 @@ parser.add_argument('--logging-level',
                     help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.',
                     default=30, nargs=1, choices=(10, 20, 30, 40, 50), type=int)
 
-# TODO: continue here, implementing the --random-generator option
-
-# [WIP] [TO BE REMOVED]
-# args that were in gulcalc but are not currently implemented in gulpy.
-# Remove when happy with this.
-# "-b benchmark (in development)\n"
-# "-R [max random numbers] used to allocate array for random numbers default 1,000,000\n"
-# "-s seed for random number generation (used for debugging)\n"
-# "-A automatically hashed seed driven random number generation (default)\n"
-# "-l legacy mechanism driven by random numbers generated dynamically per group - will be removed in future\n"
-
 
 def main():
     # parse arguments to variables
