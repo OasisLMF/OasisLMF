@@ -11,19 +11,19 @@ from oasislmf.pytools.gul.common import STD_DEV_IDX, NUM_IDX
 
 @njit(cache=True, fastmath=False)
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
-    """Compute the ground-up loss.  using linear interpolation or quadratic interpolaiton.
+    """Compute the ground-up loss using linear or quadratic interpolaiton if necessary.
 
     Args:
-        bin_from (_type_): _description_
-        bin_to (_type_): _description_
-        bin_mean (_type_): _description_
-        prob_from (_type_): _description_
-        prob_to (_type_): _description_
-        rval (_type_): _description_
-        tiv (_type_): _description_
+        bin_from (oasis_float): bin minimum damage.
+        bin_to (oasis_float): bin maximum damage.
+        bin_mean (oasis_float): bin mean damage (`interpolation` column in damagebins file).
+        prob_from (oasis_float): bin minimum probability
+        prob_to (oasis_float): bin maximum probability
+        rval (float64): the random cdf value.
+        tiv (oasis_float): total insured value.
 
     Returns:
-        float64 : the computed ground-up loss
+        float64: the computed ground-up loss
     """
     bin_width = bin_to - bin_from
 
@@ -57,42 +57,55 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
 
 
 @njit(cache=True, fastmath=True)
-def setmaxloss(loss):
-    """Set maximum loss.
-    For each sample, find the maximum loss across all items.
+def setmaxloss(losses):
+    """Set maximum losses.
+    For each sample idx, find the maximum loss across all items and set to zero
+    all the losses smaller than the maximum loss. If the maximum loss occurs in `N` items,
+    then set the loss in all these items as the maximum loss divided by `N`.
 
+    Args:
+        losses (numpy.array[oasis_float]): losses for all item_ids and sample idx.
+
+    Returns:
+        numpy.array[oasis_float]: losses for all item_ids and sample idx.
     """
-    Nsamples, Nitems = loss.shape
+    Nsamples, Nitems = losses.shape
 
     # the main loop starts from STD_DEV
     for i in range(NUM_IDX + STD_DEV_IDX, Nsamples, 1):
         loss_max = 0.
         max_loss_count = 0
 
-        # find maximum loss and count occurrences
+        # find maximum losses and count occurrences
         for j in range(Nitems):
-            if loss[i, j] > loss_max:
-                loss_max = loss[i, j]
+            if losses[i, j] > loss_max:
+                loss_max = losses[i, j]
                 max_loss_count = 1
-            elif loss[i, j] == loss_max:
+            elif losses[i, j] == loss_max:
                 max_loss_count += 1
 
         # distribute maximum losses evenly among highest
         # contributing subperils and set other losses to 0
         loss_max_normed = loss_max / max_loss_count
         for j in range(Nitems):
-            if loss[i, j] == loss_max:
-                loss[i, j] = loss_max_normed
+            if losses[i, j] == loss_max:
+                losses[i, j] = loss_max_normed
             else:
-                loss[i, j] = 0.
+                losses[i, j] = 0.
 
-    return loss
+    return losses
 
 
 @njit(cache=True, fastmath=True)
 def split_tiv(gulitems, tiv):
-    # if the total loss exceeds the tiv
-    # then split tiv in the same proportions to the losses
+    """Split the total insured value (TIV). If the total loss of all the items
+    in `gulitems` exceeds the total insured value, re-scale the losses in the
+    same proportion to the losses.
+
+    Args:
+        gulitems (numpy.array[oasis_float]): array containing losses of all items.
+        tiv (oasis_float): total insured value,
+    """
     if tiv > 0:
         total_loss = np.sum(gulitems)
 
@@ -108,14 +121,15 @@ def compute_mean_loss(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
     """Compute the mean ground-up loss and some properties.
 
     Args:
-        tiv (_type_): _description_
-        prob_to (_type_): _description_
-        bin_mean (_type_): _description_
-        bin_count (_type_): _description_
-        max_damage_bin_to (_type_): _description_
-
+        tiv (oasis_float): total insured value.
+        prob_to (numpy.array[oasis_float]): bin maximum probability
+        bin_mean (numpy.array[oasis_float]): bin mean damage (`interpolation` column in damagebins file).
+        bin_count (int): number of bins.
+        max_damage_bin_to (oasis_float): maximum damage value (i.e., `bin_to` of the last damage bin).
+        
     Returns:
-        _type_: _description_
+        float64, float64, float64, float64: mean ground-up loss, standard deviation of the ground-up loss, 
+          chance of loss, maximum loss
     """
     # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
     chance_of_loss = 1 - prob_to[0] * (1 - (bin_mean[0] > 0))
