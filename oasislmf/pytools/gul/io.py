@@ -192,7 +192,7 @@ class LossWriter():
         self.flush_number = self.nb_number - 4
 
         # define the raw memory view, the int32 view of it, and their respective cursors
-        mv_size_bytes = buff_size * 10
+        mv_size_bytes = buff_size * 2
         # mv_size_bytes = buff_size + self.number_size * 10  # doesn't work, produces wrong output (zeroes)
         self.mv = memoryview(bytearray(mv_size_bytes))
         self.int32_mv = np.ndarray(mv_size_bytes // self.number_size, buffer=self.mv, dtype='i4')
