@@ -79,7 +79,7 @@ mkfifo fifo/il_S1_pltcalc_P18
 
 
 # --- Do insured loss computes ---
-( pltcalc -s < fifo/il_S1_pltcalc_P18 > work/kat/il_S1_pltcalc_P18 ) 2>> log/stderror.err & pid1=$!
+( pltcalc -H < fifo/il_S1_pltcalc_P18 > work/kat/il_S1_pltcalc_P18 ) 2>> log/stderror.err & pid1=$!
 tee < fifo/il_S1_summary_P18 fifo/il_S1_pltcalc_P18 > /dev/null & pid2=$!
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 ) 2>> log/stderror.err  &
 

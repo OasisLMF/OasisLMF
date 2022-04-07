@@ -26,7 +26,7 @@ mkfifo fifo/il_S1_pltcalc_P2
 
 
 # --- Do insured loss computes ---
-pltcalc -s < fifo/il_S1_pltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid1=$!
+pltcalc -H < fifo/il_S1_pltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid1=$!
 tee < fifo/il_S1_summary_P2 fifo/il_S1_pltcalc_P2 > /dev/null & pid2=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 
