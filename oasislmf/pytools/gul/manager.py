@@ -265,14 +265,14 @@ def reconstruct_coverages(event_id, damagecdfs, item_map):
 
     Args:
         event_id (int32): event id.
-        damagecdfs (numpy.array[damagecdf]):  array of damagecdf entries (areaperil_id, vulnerability_id) 
+        damagecdfs (numpy.array[damagecdf]):  array of damagecdf entries (areaperil_id, vulnerability_id)
           for this event.
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
 
     Returns:
         Dict[int,List[ITEMS_DATA_MAP_TYPE]], Dict[int,List[ITEM_ID_TYPE]], List[COVERAGE_ID_TYPE], int, List[int64]:
-          dictionary of items data (item index and random seed) for each item in each coverage_id, 
+          dictionary of items data (item index and random seed) for each item in each coverage_id,
           dictionary of item ids of each coverage_id, unique coverage ids, number of unique coverage_ids, seeds_list
     """
     items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
@@ -328,7 +328,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
           of tuples (one tuple for each item containing the item index in Nbinss and recs, and the random seed).
         item_ids_by_coverage_id (Dict[COVERAGE_ID_TYPE,ITEM_ID_TYPE]): dict storing the list of item ids for each coveage_id.
         coverage_ids (numpy.array[COVERAGE_ID_TYPE]): array of **uniques** coverage ids used in this event.
-        last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed 
+        last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
         sample_size (int): number of random samples to draw.
         Nbinss (numpy.array[int]):  number of bins in all cdfs of event_id.
@@ -337,7 +337,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
         damage_bins (List[Union[damagebindictionaryCsv, damagebindictionary]]): loaded data from the damage_bin_dict file.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         alloc_rule (int): back-allocation rule.
-        rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values 
+        rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed.
         rndms_idx (Dict[int]): dic storing the map between the `seed` value and the row in the `rndms` array
           containing the drawn random samples.
