@@ -43,7 +43,7 @@ mkfifo fifo/il_S1_pltcalc_P23
 # --- Do insured loss computes ---
 eltcalc -s < fifo/il_S1_eltcalc_P23 > work/kat/il_S1_eltcalc_P23 & pid1=$!
 summarycalctocsv -s < fifo/il_S1_summarycalc_P23 > work/kat/il_S1_summarycalc_P23 & pid2=$!
-pltcalc -s < fifo/il_S1_pltcalc_P23 > work/kat/il_S1_pltcalc_P23 & pid3=$!
+pltcalc -H < fifo/il_S1_pltcalc_P23 > work/kat/il_S1_pltcalc_P23 & pid3=$!
 tee < fifo/il_S1_summary_P23 fifo/il_S1_eltcalc_P23 fifo/il_S1_summarycalc_P23 fifo/il_S1_pltcalc_P23 work/il_S1_summaryaalcalc/P23.bin work/il_S1_summaryleccalc/P23.bin > /dev/null & pid4=$!
 tee < fifo/il_S1_summary_P23.idx work/il_S1_summaryaalcalc/P23.idx work/il_S1_summaryleccalc/P23.idx > /dev/null & pid5=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P23 < fifo/il_P23 &
@@ -51,7 +51,7 @@ summarycalc -m -f  -1 fifo/il_S1_summary_P23 < fifo/il_P23 &
 # --- Do ground up loss computes ---
 eltcalc -s < fifo/gul_S1_eltcalc_P23 > work/kat/gul_S1_eltcalc_P23 & pid6=$!
 summarycalctocsv -s < fifo/gul_S1_summarycalc_P23 > work/kat/gul_S1_summarycalc_P23 & pid7=$!
-pltcalc -s < fifo/gul_S1_pltcalc_P23 > work/kat/gul_S1_pltcalc_P23 & pid8=$!
+pltcalc -H < fifo/gul_S1_pltcalc_P23 > work/kat/gul_S1_pltcalc_P23 & pid8=$!
 tee < fifo/gul_S1_summary_P23 fifo/gul_S1_eltcalc_P23 fifo/gul_S1_summarycalc_P23 fifo/gul_S1_pltcalc_P23 work/gul_S1_summaryaalcalc/P23.bin work/gul_S1_summaryleccalc/P23.bin > /dev/null & pid9=$!
 tee < fifo/gul_S1_summary_P23.idx work/gul_S1_summaryaalcalc/P23.idx work/gul_S1_summaryleccalc/P23.idx > /dev/null & pid10=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P23 < fifo/gul_P23 &
