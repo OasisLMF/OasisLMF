@@ -13,7 +13,7 @@ Releases are published on a monthly cadence which tracks our team's development 
 
 > Note: From April 2022 and on the oasis release cycle is changing, the monthly published versions are switching to become 'pre-release' builds and the Long term support releases (currently 1.15.x and 1.23.x) will be the new 'standard oasis releases' for production use.
 
-What this means in practice is a shift in release labels to align with the intended use cases. Monthly builds are viewed as intermediate releases for testing the latest features, while the standard release (marked by an increase in the minor version number 1.27.0 -> 1.28.0)
+In practice, this is a shift in release labels which should better align with the intended use cases. Monthly builds are viewed as intermediate releases for testing new features, while the standard releases (marked by an increase in the minor version number 1.27.0 -> 1.28.0)
 are stable builds.
 
 #### Example of the updated Release tags
@@ -31,7 +31,7 @@ Release candidates are published on the first Thursday of each month, and tagged
 
 #### Release Cycle (Production Builds)
 The 'Standard release' which will replace the LTS tags will work in the same way. These are stable versions of oasis intended for production use which will be published on a 6 monthly cycle (approximately).
-Oasis will backport stability fixes and security updates from the Monthly builds which are released alongside the `intermediate monthly` builds.
+Oasis will backport stability fixes and security updates from the Monthly builds which are released alongside the `intermediate monthly` builds. Backport branches  will still keep the format `backports/<major>.<minor>.x`. 
 
 > Note: Backported fixes to the existing `LTS` release will continue to be tagged in the same way until the next main oasis release is published as `1.27.0`
 
