@@ -351,8 +351,6 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
-    # coverage_ids is already np.unique() applied
-
     for coverage_id in coverage_ids[last_processed_coverage_ids_idx:]:
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
         Nitems = len(items_data_by_coverage_id[coverage_id])
@@ -385,8 +383,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
         sample_idx_to_write = Dict()
 
         # nomenclature change in gulcalc `gilv[item_id, losses]` becomes losses in gulpy
-        loss_Nrows = sample_size + NUM_IDX
-        losses = np.zeros((loss_Nrows, Nitems), dtype=oasis_float)
+        losses = np.zeros((sample_size + NUM_IDX, Nitems), dtype=oasis_float)
 
         for item_j, item_id_sorted in enumerate(item_ids_argsorted):
 
@@ -401,23 +398,20 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
-            # print(tiv, exposureValue)
             losses[SHIFTED_MAX_LOSS_IDX, item_j] = max_loss
             losses[SHIFTED_CHANCE_OF_LOSS_IDX, item_j] = chance_of_loss
             losses[SHIFTED_TIV_IDX, item_j] = exposureValue
             losses[SHIFTED_STD_DEV_IDX, item_j] = std_dev
             losses[SHIFTED_MEAN_IDX, item_j] = gul_mean
 
+            idx_loss_above_threshold = List.empty_list(nb.types.int64)
+
             if sample_size > 0:
                 if debug:
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed]]):
                         losses[sample_idx + NUM_IDX, item_j] = rval
                 else:
-                    # maybe define the list outside and clear it here
-                    idx_loss_above_threshold = List.empty_list(nb.types.int64)
-
                     for sample_idx, rval in enumerate(rndms[rndms_idx[seed]]):
-
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
                         rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 
@@ -441,7 +435,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
                             losses[sample_idx + NUM_IDX, item_j] = gul
                             idx_loss_above_threshold.append(sample_idx)
 
-                    sample_idx_to_write[item_j] = idx_loss_above_threshold
+            sample_idx_to_write[item_j] = idx_loss_above_threshold
 
         cursor, cursor_bytes = write_losses(event_id, losses, item_ids_sorted, alloc_rule, tiv,
                                             sample_idx_to_write, int32_mv, cursor, cursor_bytes)
