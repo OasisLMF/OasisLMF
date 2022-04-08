@@ -1402,6 +1402,7 @@ def bash_params(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    gulpy=False,
 
     ## new options
     process_number=None,
@@ -1424,6 +1425,7 @@ def bash_params(
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
     bash_params['modelpy'] = modelpy
+    bash_params['gulpy'] = gulpy
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1593,6 +1595,7 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
+    gulpy,
     model_py_server,
     **kwargs
 ):
@@ -1799,6 +1802,7 @@ def create_bash_analysis(
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
+            'gulpy': gulpy,
             'modelpy_server': model_py_server,
         }
 
@@ -2120,6 +2124,7 @@ def genbash(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    gulpy=False,
     model_py_server=False
 ):
     """
@@ -2183,6 +2188,7 @@ def genbash(
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
         modelpy=modelpy,
+        gulpy=gulpy,
         model_py_server=model_py_server
     )
 
