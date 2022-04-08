@@ -1112,7 +1112,10 @@ def get_getmodel_itm_cmd(
 
     if not gulpy:
         # append this arg only if gulcalc is used
+        item_output = '- {}'.format(item_output)
         cmd = '{} -i {}'.format(cmd, item_output)
+    else:
+        cmd = '{} {}'.format(cmd, item_output)
 
     return cmd
 
@@ -1160,7 +1163,10 @@ def get_getmodel_cov_cmd(
     if item_output != '':
         if not gulpy:
             # append this arg only if gulcalc is used
+            item_output = '- {}'.format(item_output)
             cmd = '{} -i {}'.format(cmd, item_output)
+        else:
+            cmd = '{} {}'.format(cmd, item_output)
 
     return cmd
 
@@ -1402,6 +1408,7 @@ def bash_params(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    gulpy=False,
 
     ## new options
     process_number=None,
@@ -1424,6 +1431,7 @@ def bash_params(
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
     bash_params['modelpy'] = modelpy
+    bash_params['gulpy'] = gulpy
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1593,6 +1601,7 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
+    gulpy,
     model_py_server,
     **kwargs
 ):
@@ -1799,6 +1808,7 @@ def create_bash_analysis(
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
+            'gulpy': gulpy,
             'modelpy_server': model_py_server,
         }
 
@@ -1807,10 +1817,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = f'- | tee {gul_fifo_name}'
+                getmodel_args['item_output'] = f'| tee {gul_fifo_name}'
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
+                getmodel_args['item_output'] = ''
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
@@ -1821,7 +1831,7 @@ def create_bash_analysis(
                 getmodel_args['item_output'] = ''
             else:# direct stdout to il
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
+                getmodel_args['item_output'] = ''
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # gulcalc output file for fully correlated output
@@ -2120,6 +2130,7 @@ def genbash(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    gulpy=False,
     model_py_server=False
 ):
     """
@@ -2183,6 +2194,7 @@ def genbash(
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
         modelpy=modelpy,
+        gulpy=gulpy,
         model_py_server=model_py_server
     )
 
