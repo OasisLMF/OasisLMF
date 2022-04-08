@@ -34,12 +34,12 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P14
 
 
 # --- Do ground up loss computes ---
-pltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P14 > work/kat/gul_S1_pltcalc_P14 & pid1=$!
+pltcalc -H < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P14 > work/kat/gul_S1_pltcalc_P14 & pid1=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P14 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P14 > /dev/null & pid2=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P14 < /tmp/%FIFO_DIR%/fifo/gul_P14 &
 
 # --- Do ground up loss computes ---
-pltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P14 > work/full_correlation/kat/gul_S1_pltcalc_P14 & pid3=$!
+pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P14 > work/full_correlation/kat/gul_S1_pltcalc_P14 & pid3=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P14 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P14 > /dev/null & pid4=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P14 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P14 &
 

@@ -219,7 +219,13 @@
                                 "title": "ORD Return period file flag",
                                 "description": "If true, a file listing the return periods will be used for EPT and PSEPT files. If false, a default set will be used.",
                                 "default": false
-                            }
+                            },
+			    "parquet_format": {
+				"type": "boolean",
+				"title": "Parquet output flag",
+				"description": "Write output files in parquet format rather than csv format.",
+				"default": false
+			    }
                         }
                     }
                 },
