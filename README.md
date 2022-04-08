@@ -26,14 +26,14 @@ are stable builds.
    * August 4th - `1.26.1` (Backported fixes for production),
    * August 4th - `1.27.0rc1` (Intermediate Monthly),
 
-### Release Cycle (Intermediate Monthly)
-Release candidates are published on the first Thursday of each month, and tagged as `<version>rc<candidate-version>`,
+#### Release Cycle (Intermediate Monthly)
+Release candidates are published on the first Thursday of each month, and tagged as `<version>rc<candidate-version>` and can be installed using `pip install oasislmf --pre`
 
-### Release Cycle (Production Builds)
+#### Release Cycle (Production Builds)
 The 'Standard release' which will replace the LTS tags will work in the same way. These are stable versions of oasis intended for production use which will be published on a 6 monthly cycle (approximately).
 Oasis will backport stability fixes and security updates from the Monthly builds which are released alongside the `intermediate monthly` builds.
 
-> Note: Backported fixes to the existing `LTS` release will continue to be tagged in the same way until the next main oasis release is published `1.27.0`
+> Note: Backported fixes to the existing `LTS` release will continue to be tagged in the same way until the next main oasis release is published as `1.27.0`
 
 
 ## Features
