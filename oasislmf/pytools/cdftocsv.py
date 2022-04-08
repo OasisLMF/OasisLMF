@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 
 import sys
-import os
-from contextlib import ExitStack
 import argparse
-import numpy as np
+from contextlib import ExitStack
 
-from oasislmf.pytools.getmodel.manager import get_mean_damage_bins
-from oasislmf.pytools.gul.common import ProbMean, damagecdfrec
+from oasislmf.pytools.gul.manager import read_getmodel_stream
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
@@ -18,7 +15,37 @@ parser.add_argument('-s', help='skip header (default: False).', default=False, a
 parser.add_argument('--run-dir', help='path to the run directory (default: ".")', default='.')
 
 
-def run(run_dir, skip_header):
+def print_cdftocsv(event_id, damagecdf, Nbins, rec):
+    """Print the cdf produced by getmodel to csv file.
+    Note that the input arrays are lists of cdf entries, namely
+    the shape on axis=0 is the number of entries.
+
+    Args:
+        event_id (int): event_id
+        damagecdf (array-like, damagecdf): damage cdf record
+        Nbins (array-like, int): number of damage bins
+        rec (array-like, rec): cdf record
+
+    Returns:
+        list[str]: list of csv lines
+    """
+    # TODO: accelerate this with numba when it will support string formatting
+
+    # number of cdf entries in the input data
+    Nentries = damagecdf.shape[0]
+
+    # build the csv lines
+    csv_lines = []
+    for i in range(Nentries):
+        csv_line_fixed = f"{event_id},{damagecdf[i]['areaperil_id']},{damagecdf[i]['vulnerability_id']},"
+        for j in range(Nbins[i]):
+            # note that bin index starts from 1 in the csv
+            csv_lines.append(csv_line_fixed + f"{j + 1},{rec[i, j]['prob_to']:8.6f},{rec[i, j]['bin_mean']:8.6f}\n")
+
+    return csv_lines
+
+
+def run(run_dir, skip_header, file_in=None):
     """Run cdftocsv command: convert the cdf output from getmodel into csv format.
     The binary data is read from an input stream, and the csv file is streamed to stdout.
 
@@ -31,62 +58,21 @@ def run(run_dir, skip_header):
         ValueError: If the stream type is not 1.
 
     """
-    # set up the streams
-    streams_in = sys.stdin.buffer
-    stream_out = sys.stdout
+    with ExitStack() as stack:
+        if file_in is None:
+            streams_in = sys.stdin.buffer
+        else:
+            streams_in = stack.enter_context(open(file_in, 'rb'))
 
-    # get damage bins from file
-    static_path = os.path.join(run_dir, 'static')
-    damage_bins = get_mean_damage_bins(static_path=static_path)
-
-    # maximum number of damage bins (individual items can have up to `total_bins` bins)
-    if damage_bins.shape[0] == 0:
-        total_bins = 1000
-    else:
-        total_bins = damage_bins.shape[0]
-
-    # determine stream type
-    stream_type = np.frombuffer(streams_in.read(4), dtype='i4')
-
-    if stream_type[0] != 1:
-        raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
+        stream_out = sys.stdout
 
     if not skip_header:
         stream_out.write("event_id,areaperil_id,vulnerability_id,bin_index,prob_to,bin_mean\n")
 
-    # prepare all the data buffers
-    damagecdf_mv = memoryview(bytearray(damagecdfrec.size))
-    damagecdf = np.ndarray(1, buffer=damagecdf_mv, dtype=damagecdfrec.dtype)
-    Nbins_mv = memoryview(bytearray(4))
-    Nbins = np.ndarray(1, buffer=Nbins_mv, dtype='i4')
-    rec_mv = memoryview(bytearray(total_bins * ProbMean.size))
-    rec = np.ndarray(total_bins, buffer=rec_mv, dtype=ProbMean.dtype)
-
-    # start reading the stream
-    # each record from getmodel is expected to contain:
-    # 1 damagecdfrec obj, 1 int (Nbins), a number `Nbins` of ProbMean objects
-    while True:
-        len_read = streams_in.readinto(damagecdf_mv)
-        len_read = streams_in.readinto(Nbins_mv)
-        len_read = streams_in.readinto(rec_mv[:Nbins[0] * ProbMean.size])
-
-        # exit if the stream has ended
-        if len_read == 0:
-            break
-
-        # print out in csv format
-        csv_line_fixed = ",".join([f"{x}" for x in [damagecdf['event_id'][0],
-                                                    damagecdf['areaperil_id'][0],
-                                                    damagecdf['vulnerability_id'][0]]]) + ","
-
-        for i in range(Nbins[0]):
-            csv_line = csv_line_fixed
-            csv_line += f"{i+1},"     # bin index starts from 1
-            csv_line += ",".join([f"{x:8.6f}" for x in [rec[i]["prob_to"], rec[i]["bin_mean"]]])
-
-            stream_out.write(csv_line + "\n")
-
-    return
+    # TODO: try using np.savetxt for better performance
+    for event_id, damagecdf, Nbins, rec in read_getmodel_stream(run_dir, streams_in):
+        lines = print_cdftocsv(event_id, damagecdf, Nbins, rec)
+        stream_out.writelines(lines)
 
 
 def main():
