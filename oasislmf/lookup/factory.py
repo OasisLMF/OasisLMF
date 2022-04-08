@@ -402,6 +402,8 @@ class BasicKeyServer:
                 successes_count += success_df.shape[0]
                 if errors_file:
                     errors_df = result[~success]
+                    if 'message' not in errors_df.columns:
+                        errors_df['message'] = "" # If no error message column, fill with blank to prevent KeyError
                     errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row
                                                                     ).to_csv(errors_file, index=False, header=False)
                     error_count += errors_df.shape[0]
@@ -531,7 +533,7 @@ class BasicKeyServer:
 
         if location_df is not None:
             locations = location_df
-        else:    
+        else:
             locations = self.get_locations(location_fp)
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
