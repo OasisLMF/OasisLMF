@@ -9,7 +9,7 @@ The `oasislmf` Python package, loosely called the *model development kit (MDK)* 
 
 
 ## Releases and maintenance
-Releases are published on a monthly cadence which tracks our team's development cycle. The planned fixes, enhancements and features can be seen on the [project development board](https://github.com/orgs/OasisLMF/projects/35) before each release.
+Releases are published on a monthly cadence which tracks our team's development cycle. The planned fixes, enhancements and features can be seen on the [project development board](https://github.com/orgs/OasisLMF/projects/37) before each release.
 
 > Note: From April 2022 and on the oasis release cycle is changing, the monthly published versions are switching to become 'pre-release' builds and the Long term support releases (currently 1.15.x and 1.23.x) will be the new 'standard oasis releases' for production use.
 
