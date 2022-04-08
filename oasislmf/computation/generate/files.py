@@ -21,6 +21,7 @@ from ...preparation.dir_inputs import (
 from ...preparation.reinsurance_layer import write_files_for_reinsurance
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
+from oasislmf.pytools.data_layer.conversions.items import convert_item_file_ids_to_hash
 
 from ...utils.data import (
     get_model_settings,
@@ -102,7 +103,8 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
         {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
-        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const': False, 'nargs':'?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',  "default": False, "help": "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -121,7 +123,6 @@ class GenerateFiles(ComputationStep):
             return self.oasis_files_dir
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
-
 
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
@@ -158,7 +159,6 @@ class GenerateFiles(ComputationStep):
             ri_info_fp=self.oed_info_csv,
             ri_scope_fp=self.oed_scope_csv
         )
-
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
         location_profile = get_json(src_fp=self.profile_loc_json) if self.profile_loc_json else self.profile_loc
@@ -188,7 +188,6 @@ class GenerateFiles(ComputationStep):
             if self.keys_errors_csv:
                 _keys_errors_fp = os.path.join(target_dir, os.path.basename(self.keys_errors_csv))
 
-
         # Load keys file  **** WARNING - REFACTOR THIS ****
         dtypes = {
             'locid': 'str',
@@ -209,7 +208,6 @@ class GenerateFiles(ComputationStep):
         )
         # ************************************************
 
-
         # Columns from loc file to assign group_id
         model_group_fields = None
         if self.model_settings_json:
@@ -228,12 +226,12 @@ class GenerateFiles(ComputationStep):
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
-        # Get the GUL input items and exposure dataframes
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
             exposure_profile=location_profile,
-            group_id_cols=group_id_cols
+            group_id_cols=group_id_cols,
+            hash_group_ids=self.hashed_group_id
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -256,8 +254,10 @@ class GenerateFiles(ComputationStep):
             gul_inputs_df,
             target_dir,
             oasis_files_prefixes=files_prefixes['gul'],
-            chunksize=self.write_chunksize
+            chunksize=self.write_chunksize,
+            hashed_item_id=self.hashed_group_id
         )
+
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
 
@@ -287,6 +287,7 @@ class GenerateFiles(ComputationStep):
             oasis_files_prefixes=files_prefixes['il'],
             chunksize=self.write_chunksize
         )
+
         fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
         write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
 
@@ -302,7 +303,6 @@ class GenerateFiles(ComputationStep):
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
-
         xref_descriptions_df = merge_oed_to_mapping(
             fm_summary_mapping,
             location_df,
@@ -328,6 +328,7 @@ class GenerateFiles(ComputationStep):
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
         self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
+
         return oasis_files
 
 

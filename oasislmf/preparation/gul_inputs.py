@@ -5,25 +5,25 @@ __all__ = [
     'write_items_file',
     'write_complex_items_file'
 ]
-
 import copy
 import os
 import sys
 import warnings
-import logging
-
 from collections import OrderedDict
+from oasislmf.pytools.data_layer.conversions.items import convert_item_csv_to_hash
+from oasislmf.pytools.data_layer.conversions.items import generate_group_id_hash
 
-import numpy as np
 import pandas as pd
 
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_array,
     factorize_ndarray,
-    get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
+)
+from ..utils.defaults import (
+    SOURCE_IDX,
 )
 from ..utils.defaults import (
     get_default_exposure_profile,
@@ -34,9 +34,6 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.fm import SUPPORTED_FM_LEVELS
 from ..utils.log import oasis_log
-from ..utils.defaults import (
-    SOURCE_IDX,
-)
 from ..utils.path import as_path
 from ..utils.profiles import (
     get_fm_terms_oed_columns,
@@ -54,7 +51,8 @@ def get_gul_input_items(
     exposure_df,
     keys_df,
     exposure_profile=get_default_exposure_profile(),
-    group_id_cols=['loc_id']
+    group_id_cols=['loc_id'],
+    hash_group_ids=False
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -310,27 +308,41 @@ def get_gul_input_items(
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
-
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
     group_id_cols.sort()
-    if correlation_check == True:
+
+    col_key = group_id_cols[0]
+
+    if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
-    else:
+
+    elif hash_group_ids is False:
+
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
                 gul_inputs_df.loc[:, group_id_cols].values,
                 col_idxs=range(len(group_id_cols)),
                 sort_opt=True
             )[0]
+
         else:
             gul_inputs_df['group_id'] = factorize_array(
                 gul_inputs_df[group_id_cols[0]].values
             )[0]
+
+    # this block gets fired if the hash_group_ids is True
+    else:
+        gul_inputs_df["pre-hash-value"] = gul_inputs_df.apply(lambda _: '', axis=1)
+
+        for i in group_id_cols:
+            gul_inputs_df["pre-hash-value"] += gul_inputs_df[i].astype(str)
+
+        gul_inputs_df["hash"] = gul_inputs_df["pre-hash-value"].apply(generate_group_id_hash)
+        gul_inputs_df["group_id"] = gul_inputs_df["hash"]
+
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
-
-
 
     # Select only required columns
     # Order here matches test output expectations
@@ -344,7 +356,6 @@ def get_gul_input_items(
     )
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
-
     return gul_inputs_df
 
 
@@ -435,7 +446,8 @@ def write_gul_input_files(
     gul_inputs_df,
     target_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
-    chunksize=(2 * 10 ** 5)
+    chunksize=(2 * 10 ** 5),
+    hashed_item_id=False
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -486,5 +498,10 @@ def write_gul_input_files(
     # Write the files serially
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
+
+    # if hashed_item_id is True:
+    #     input_file = gul_input_files["items"]
+    #     input_directory = "/".join(input_file.split("/")[:-1]) + "/"
+    #     convert_item_csv_to_hash(input_directory=input_directory)
 
     return gul_input_files

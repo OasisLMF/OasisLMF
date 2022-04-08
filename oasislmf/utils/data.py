@@ -127,7 +127,6 @@ def factorize_array(arr, sort_opt=False):
     :rtype: tuple
     """
     enum, groups = pd.factorize(arr, sort=sort_opt)
-
     return enum + 1, groups
 
 

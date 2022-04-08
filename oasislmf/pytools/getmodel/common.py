@@ -53,3 +53,10 @@ Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                         ('damage_bin_id', np.int32),
                                         ('probability', oasis_float)
                                         ]))
+
+Item = nb.from_dtype(np.dtype([('id', np.int32),
+                               ('coverage_id', np.int32),
+                               ('areaperil_id', areaperil_int),
+                               ('vulnerability_id', np.int32),
+                               ('group_id', np.int32)
+                               ]))
