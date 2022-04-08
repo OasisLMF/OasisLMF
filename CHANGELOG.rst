@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#1001](https://github.com/OasisLMF/OasisLMF/pull/1002) - Keys Lookup allow parameter to be passed to read_csv in build_merge
+.. _`1.23.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.8...1.23.9
+
 `1.23.8`_
  ---------
 * [#983](https://github.com/OasisLMF/OasisLMF/pull/988) - Unexpected output change in PiWind testing 
