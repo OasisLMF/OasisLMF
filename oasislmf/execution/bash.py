@@ -235,6 +235,20 @@ def get_modelcmd(modelpy: bool, server=False) -> str:
         return cpp_cmd
 
 
+def get_gulcmd(gulpy):
+    """Get the ground-up loss calculation command.
+
+    Args:
+        gulpy (bool): if True, return the python command name, else the c++ one.
+
+    Returns:
+        str: the ground-up loss calculation command
+    """
+    cmd = 'gulpy' if gulpy else 'gulcalc'
+
+    return cmd
+
+
 def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
     if fmpy:
         cmd = 'fmpy'
@@ -1065,6 +1079,7 @@ def get_getmodel_itm_cmd(
         eve_shuffle_flag,
         modelpy=False,
         modelpy_server=False,
+        gulpy=False,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1082,13 +1097,26 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        cmd = '{} -r'.format(cmd)
+        if not gulpy:
+            # append this arg only if gulcalc is used
+            cmd = '{} -r'.format(cmd)
     if correlated_output != '':
-        cmd = '{} -j {}'.format(cmd, correlated_output)
-    cmd = '{} -a{} -i {}'.format(cmd, gul_alloc_rule, item_output)
+        if not gulpy:
+            # append this arg only if gulcalc is used
+            cmd = '{} -j {}'.format(cmd, correlated_output)
+
+    cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
+
+    if not gulpy:
+        # append this arg only if gulcalc is used
+        item_output = '-{}'.format(item_output)
+        cmd = '{} -i {}'.format(cmd, item_output)
+    else:
+        cmd = '{} {}'.format(cmd, item_output)
+
     return cmd
 
 
@@ -1103,6 +1131,7 @@ def get_getmodel_cov_cmd(
         eve_shuffle_flag,
         modelpy=False,
         modelpy_server=False,
+        gulpy=False,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1121,14 +1150,25 @@ def get_getmodel_cov_cmd(
     :return: (str) The generated getmodel command
     """
 
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
+    
 
     if use_random_number_file:
-        cmd = '{} -r'.format(cmd)
+        if not gulpy:
+            # append this arg only if gulcalc is used
+            cmd = '{} -r'.format(cmd)
     if coverage_output != '':
-        cmd = '{} -c {}'.format(cmd, coverage_output)
-    if item_output != '':
-        cmd = '{} -i {}'.format(cmd, item_output)
+        if not gulpy:
+            # append this arg only if gulcalc is used
+            cmd = '{} -c {}'.format(cmd, coverage_output)
+    if not gulpy:
+        # append this arg only if gulcalc is used
+        if item_output != '':
+            cmd = '{} -i {}'.format(cmd, item_output)
+    else:
+        cmd = '{} {}'.format(cmd, item_output)
+
+
     return cmd
 
 
@@ -1369,6 +1409,7 @@ def bash_params(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    gulpy=False,
 
     ## new options
     process_number=None,
@@ -1391,6 +1432,7 @@ def bash_params(
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
     bash_params['modelpy'] = modelpy
+    bash_params['gulpy'] = gulpy
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1560,6 +1602,7 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
+    gulpy,
     model_py_server,
     **kwargs
 ):
@@ -1766,6 +1809,7 @@ def create_bash_analysis(
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
+            'gulpy': gulpy,
             'modelpy_server': model_py_server,
         }
 
@@ -1774,10 +1818,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = f'- | tee {gul_fifo_name}'
+                getmodel_args['item_output'] = f' | tee {gul_fifo_name}'
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
+                getmodel_args['item_output'] = ''
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
@@ -2087,6 +2131,7 @@ def genbash(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    gulpy=False,
     model_py_server=False
 ):
     """
@@ -2150,6 +2195,7 @@ def genbash(
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
         modelpy=modelpy,
+        gulpy=gulpy,
         model_py_server=model_py_server
     )
 
