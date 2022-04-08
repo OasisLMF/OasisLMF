@@ -1112,7 +1112,10 @@ def get_getmodel_itm_cmd(
 
     if not gulpy:
         # append this arg only if gulcalc is used
+        item_output = '- {}'.format(item_output)
         cmd = '{} -i {}'.format(cmd, item_output)
+    else:
+        cmd = '{} {}'.format(cmd, item_output)
 
     return cmd
 
@@ -1160,7 +1163,10 @@ def get_getmodel_cov_cmd(
     if item_output != '':
         if not gulpy:
             # append this arg only if gulcalc is used
+            item_output = '- {}'.format(item_output)
             cmd = '{} -i {}'.format(cmd, item_output)
+        else:
+            cmd = '{} {}'.format(cmd, item_output)
 
     return cmd
 
@@ -1811,10 +1817,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = f'- | tee {gul_fifo_name}'
+                getmodel_args['item_output'] = f'| tee {gul_fifo_name}'
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
+                getmodel_args['item_output'] = ''
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
@@ -1825,7 +1831,7 @@ def create_bash_analysis(
                 getmodel_args['item_output'] = ''
             else:# direct stdout to il
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
+                getmodel_args['item_output'] = ''
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # gulcalc output file for fully correlated output
