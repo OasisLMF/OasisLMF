@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter  # for multi-line help text
 )
 
-parser.add_argument('-a', help='back-allocation rule', default=0, choices=(0, 1, 2), type=int, dest='alloc_rule')
+parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
 # parser.add_argument('-i', help='filename of items output', action='store', type=str, dest='items_outfile')
@@ -25,11 +25,11 @@ parser.add_argument('--file-in', action='store', type=str,)
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--random-generator',
                     help='random number generator\n0: numpy default (MT19937), 1: Latin Hypercube. Default: 1.',
-                    default=1, nargs=1, choices=(0, 1), type=int)
+                    default=1, type=int)
 parser.add_argument('--run-dir', help='path to the run directory', default='.')
 parser.add_argument('--logging-level',
                     help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.',
-                    default=30, nargs=1, choices=(10, 20, 30, 40, 50), type=int)
+                    default=30, type=int)
 
 
 def main():
