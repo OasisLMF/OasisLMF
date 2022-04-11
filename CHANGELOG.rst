@@ -1,6 +1,23 @@
 OasisLMF Changelog
 ==================
 
+`1.26.0rc1`_
+ ---------
+* [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures
+* [#999](https://github.com/OasisLMF/OasisLMF/pull/1000) - Port `gulcalc` to Python
+* [#1001](https://github.com/OasisLMF/OasisLMF/pull/1002) - Keys Lookup allow parameter to be passed to read_csv in build_merge
+* [#1004](https://github.com/OasisLMF/OasisLMF/pull/1004) - Minor Fix: arrange requirements in alphabetical order
+* [#1008](https://github.com/OasisLMF/OasisLMF/pull/1008) - Lookup fix if message column is missing
+* [#907](https://github.com/OasisLMF/OasisLMF/pull/1009) - generate outputs in chosen ORD technology choice (e.g. parquet)
+* [#1010](https://github.com/OasisLMF/OasisLMF/pull/1011) - Support optionally using `gulpy` in the `oasislmf model run` job
+* [#1012](https://github.com/OasisLMF/OasisLMF/pull/1012) - Update/readme release section
+* [#1013](https://github.com/OasisLMF/OasisLMF/pull/1013) - Feature/gulpy option in cli test
+* [#1015](https://github.com/OasisLMF/OasisLMF/pull/1015) - Bugfix: `--random-generator` and `--logging-level` should be parsed as `int` and not as `list` in `gulpy` CLI
+* [#989](https://github.com/OasisLMF/OasisLMF/pull/989) - adding numba to stitching function
+* [#986, #994](https://github.com/OasisLMF/OasisLMF/pull/990) - Feature/986 ods tools dyptes
+* [#991](https://github.com/OasisLMF/OasisLMF/pull/991) - Refactor group id seed
+.. _`1.26.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.25.1...1.26.0rc1
+
 `1.25.1`_
  ---------
 * [#987](https://github.com/OasisLMF/OasisLMF/pull/985) - Add a Python implementation of the `cdftocsv` tool
