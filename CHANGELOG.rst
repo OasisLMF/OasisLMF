@@ -1,6 +1,8 @@
 OasisLMF Changelog
 ==================
 
+.. _`1.26.1rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0rc1...1.26.1rc1
+
 `1.26.0rc1`_
  ---------
 * [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures
