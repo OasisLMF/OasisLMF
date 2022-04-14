@@ -1113,7 +1113,6 @@ def get_getmodel_itm_cmd(
 
     if not gulpy:
         # append this arg only if gulcalc is used
-        item_output = '-{}'.format(item_output)
         cmd = '{} -i {}'.format(cmd, item_output)
     else:
         cmd = '{} {}'.format(cmd, item_output)
@@ -1152,7 +1151,7 @@ def get_getmodel_cov_cmd(
     """
 
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
-    
+
 
     if use_random_number_file:
         if not gulpy:
@@ -1819,10 +1818,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = f' | tee {gul_fifo_name}'
+                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy), gul_fifo_name)
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = ''
+                getmodel_args['item_output'] = '-' * (not gulpy)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
