@@ -1,6 +1,8 @@
 OasisLMF Changelog
 ==================
 
+.. _`1.15.26`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.24...1.15.26
+
 `1.15.24`_
  ---------
 * [#977](https://github.com/OasisLMF/OasisLMF/pull/977) - Update ktools to v3.7.4
