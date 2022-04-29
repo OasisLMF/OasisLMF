@@ -388,10 +388,14 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
         for item_j, item_id_sorted in enumerate(item_ids_argsorted):
 
             k, seed = items_data_by_coverage_id[coverage_id][item_id_sorted]
-
-            prob_to = recs[k]['prob_to']
-            bin_mean = recs[k]['bin_mean']
-            Nbins = Nbinss[k]
+            bin_ids = items_bins_by_coverage_id[coverage_id][item_id_sorted]
+GO AHEAD FROM HERE: CREATE ITEM_BIN_IDS MAP 
+            # prob_to = recs[k]['prob_to']
+            # bin_mean = recs[k]['bin_mean']
+            # Nbins = Nbinss[k]
+            prob_to = bin_lookup_ndarr[bin_ids]['prob_to']
+            bin_mean = bin_lookup_ndarr[bin_ids]['bin_mean']
+            Nbins = len(bin_ids)
 
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
@@ -418,7 +422,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
-                        bin_idx = find_bin_idx(rval, prob_to, Nbins)
+                        bin_idx = find_bin_idx(rval, prob_to, Nbins_remapped)
 
                         # compute ground-up losses
                         gul = get_gul(

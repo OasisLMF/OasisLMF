@@ -28,6 +28,7 @@ SHIFTED_CHANCE_OF_LOSS_IDX = CHANCE_OF_LOSS_IDX + NUM_IDX
 SHIFTED_MAX_LOSS_IDX = MAX_LOSS_IDX + NUM_IDX
 
 
+BIN_MAP_KEY_TYPE = nb.types.Tuple((oasis_float, oasis_float))
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.types.uint32, nb.types.int32))
 ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
 

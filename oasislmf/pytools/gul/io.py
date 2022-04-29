@@ -3,16 +3,30 @@ This file contains the utilities for all the I/O necessary in gulpy.
 
 """
 import os
+from sqlite3.dbapi2 import _AnyParamWindowAggregateClass
 import numpy as np
 from numba import njit
+from numba.types import int_
+from numba.typed import Dict, List
 
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
     ProbMean, damagecdfrec, damagecdfrec_stream,
     gulSampleslevelHeader, gulSampleslevelRec, oasis_float_to_int32_size,
-    gulSampleslevelRec_size, gulSampleslevelHeader_size
+    gulSampleslevelRec_size, gulSampleslevelHeader_size,
+    BIN_MAP_KEY_TYPE, ITEM_MAP_KEY_TYPE
 )
+from oasislmf.pytools.gul.utils import append_to_dict_value
+
+
+@njit()
+def init_structures():
+    item_bin_ids = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(int_))
+    bin_map = Dict.empty(BIN_MAP_KEY_TYPE, int_)
+    bin_lookup = List.empty_list(List.empty_list(BIN_MAP_KEY_TYPE))
+
+    return item_bin_ids, bin_map, bin_lookup
 
 
 def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
@@ -67,6 +81,9 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
     damagecdfs, Nbinss, recs = [], [], []
     len_read = 1
     size_cdf_entry = min_size_cdf_entry
+
+    item_bin_ids, bin_map, bin_lookup = init_structures()
+
     while True:
         if len_read > 0:
             # read stream from valid_buf onwards
@@ -75,37 +92,40 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
             valid_buf += len_read
 
         # read the streamed data into formatted data
-        cursor, i, yield_event, event_id, damagecdf, Nbins, rec, last_event_id = stream_to_data(
-            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id)
+        cursor, i, yield_event, event_id, last_event_id, bin_map, bin_lookup, item_bin_ids = stream_to_data(
+            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, bin_map, bin_lookup, item_bin_ids)
 
         if yield_event:
             # event is fully read, append the last chunk of data to the list of this event
-            damagecdfs.append(damagecdf[:i])
-            Nbinss.append(Nbins[:i])
-            recs.append(rec[:i])
+            # damagecdfs.append(damagecdf[:i])
+            # Nbinss.append(Nbins[:i])
+            # recs.append(rec[:i])
 
-            yield last_event_id, np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
+            yield last_event_id, bin_map, bin_lookup, item_bin_ids
 
             # start a new list for the new event, storing the first element
-            damagecdfs, Nbinss, recs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec[i:i + 1]]
+            # damagecdfs, Nbinss, recs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec[i:i + 1]]
             last_event_id = event_id
 
-        else:
-            # the current event is not finished, keep appending data about this event
-            damagecdfs.append(damagecdf[:i + 1])
-            Nbinss.append(Nbins[:i + 1])
-            recs.append(rec[:i + 1])
+            item_bin_ids, bin_map, bin_lookup = init_structures()
+
+        # else:
+        #     # the current event is not finished, keep appending data about this event
+        #     damagecdfs.append(damagecdf[:i + 1])
+        #     Nbinss.append(Nbins[:i + 1])
+        #     recs.append(rec[:i + 1])
 
         # convert cursor to bytes
         cursor_buf = cursor * int32_mv.itemsize
 
         if valid_buf == cursor_buf:
-            # this is the last cycle, all data has been read, append the last chunk of data
-            damagecdfs.append(damagecdf[:i])
-            Nbinss.append(Nbins[:i])
-            recs.append(rec[:i])
+            # # this is the last cycle, all data has been read, append the last chunk of data
+            # damagecdfs.append(damagecdf[:i])
+            # Nbinss.append(Nbins[:i])
+            # recs.append(rec[:i])
 
-            yield last_event_id, np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
+            # np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
+            yield last_event_id, last_event_id, bin_map, bin_lookup, item_bin_ids
             break
 
         else:
@@ -118,7 +138,8 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
 
 
 @njit(cache=True, fastmath=True)
-def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id):
+def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id,
+                   bin_map, bin_lookup, item_bin_ids, read_event_id):
     """Parse streamed data into data arrays.
 
     Args:
@@ -139,37 +160,75 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
     yield_event = False
 
     Nbins = np.zeros(valid_len, dtype='i4')
-    damagecdf = np.zeros(valid_len, dtype=damagecdfrec)
-    rec = np.zeros((valid_len, max_Nbins), dtype=ProbMean)
+    # damagecdf = np.zeros(valid_len, dtype=damagecdfrec)
+    # rec = np.zeros((valid_len, max_Nbins), dtype=ProbMean)
 
     i = 0
     cursor = 0
     while cursor < valid_len:
         event_id, cursor = int32_mv[cursor], cursor + 1
-        damagecdf[i]['areaperil_id'], cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
-        damagecdf[i]['vulnerability_id'], cursor = int32_mv[cursor], cursor + 1
-        Nbins[i] = int32_mv[cursor]
-        cursor += 1
-
-        for j in range(Nbins[i]):
-            rec[i, j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int32_size
-            rec[i, j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int32_size
 
         if event_id != last_event_id:
             # a new event has started
             if last_event_id > 0:
                 # if this is not the beginning of the very first event, yield the event we just completed
                 yield_event = True
+                cursor -= 1  # go back by one to re-read event_id
 
-                return cursor, i, yield_event, event_id, damagecdf, Nbins, rec, last_event_id
+                return cursor, i, yield_event, event_id, last_event_id, bin_map, bin_lookup, item_bin_ids
 
+            # <-- this line is only executed once for last_event_id == 0 because if >0 it returns.
             last_event_id = event_id
+            # if so, change the if to be clearer eg if == 0: last_event_id = event_id else: yield... return.
 
-        i += 1
+        # damagecdf[i]['areaperil_id'], cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
+        # damagecdf[i]['vulnerability_id'], cursor = int32_mv[cursor], cursor + 1
 
-    return cursor, i - 1, yield_event, event_id, damagecdf, Nbins, rec, last_event_id
+        areaperil_id, cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
+        vulnerability_id, cursor = int32_mv[cursor], cursor + 1
+        # Nbins[i] = int32_mv[cursor] # TODO probably not needed anymore
+        Nbins = int32_mv[cursor]  # TODO probably not needed anymore
+        cursor += 1
+
+        # for j in range(Nbins[i]):
+        #     rec[i, j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
+        #     cursor += oasis_float_to_int32_size
+        #     rec[i, j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
+        #     cursor += oasis_float_to_int32_size
+
+        bin_ids = List()
+        for j in range(Nbins):
+            prob_to = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
+            cursor += oasis_float_to_int32_size
+            bin_mean = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
+            cursor += oasis_float_to_int32_size
+
+            bin_key = tuple((prob_to, bin_mean))
+
+            if bin_key not in bin_map:
+                bin_map[bin_key] = len(bin_map)
+                bin_lookup.append([prob_to, bin_mean])
+
+            bin_ids.append(bin_map[bin_key])
+
+        # let's not store Nbins for now. let's recompute it with len(bin_ids)
+        item_bin_ids[tuple(areaperil_id, vulnerability_id)] = bin_ids
+
+        # if event_id != last_event_id:
+        #     # a new event has started
+        #     if last_event_id > 0:
+        #         # if this is not the beginning of the very first event, yield the event we just completed
+        #         yield_event = True
+
+        #         return cursor, i, yield_event, event_id, last_event_id, bin_map, bin_lookup, item_bin_ids
+
+        #     # <-- this line is only executed once for last_event_id == 0 because if >0 it returns.
+        #     last_event_id = event_id
+        #     # if so, change the if to be clearer eg if == 0: last_event_id = event_id else: yield... return.
+
+        i += 1  # maybe not used anymore
+
+    return cursor, i - 1, yield_event, event_id, last_event_id, bin_map, bin_lookup, item_bin_ids
 
 
 class LossWriter():
