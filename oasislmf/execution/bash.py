@@ -646,7 +646,7 @@ def do_kats(
             if summary.get("summarycalc"):
                 anykats = True
 
-                cmd = 'kat' if sort_by event else 'kat -u'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_summarycalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
