@@ -7,6 +7,10 @@ import numba as nb
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
+# nested Lists inside jit-compiled function don't work with
+# numpy types, but only with numba types.
+oasis_float_nb = nb.from_dtype(oasis_float)
+
 ITEM_ID_TYPE = nb.types.int32
 ITEMS_DATA_MAP_TYPE = nb.types.UniTuple(nb.types.int64, 2)
 COVERAGE_ID_TYPE = nb.types.int32
@@ -28,7 +32,7 @@ SHIFTED_CHANCE_OF_LOSS_IDX = CHANCE_OF_LOSS_IDX + NUM_IDX
 SHIFTED_MAX_LOSS_IDX = MAX_LOSS_IDX + NUM_IDX
 
 
-BIN_MAP_KEY_TYPE = nb.types.Tuple((oasis_float, oasis_float))
+BIN_MAP_KEY_TYPE = nb.types.UniTuple(oasis_float_nb, 2)
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.types.uint32, nb.types.int32))
 ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
 

@@ -3,9 +3,10 @@ This file contains the utilities for all the I/O necessary in gulpy.
 
 """
 import os
-from sqlite3.dbapi2 import _AnyParamWindowAggregateClass
 import numpy as np
+import numba as nb
 from numba import njit
+
 from numba.types import int_
 from numba.typed import Dict, List
 
@@ -20,11 +21,11 @@ from oasislmf.pytools.gul.common import (
 from oasislmf.pytools.gul.utils import append_to_dict_value
 
 
-@njit()
+@njit(cache=True, fastmath=True)
 def init_structures():
-    item_bin_ids = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(int_))
-    bin_map = Dict.empty(BIN_MAP_KEY_TYPE, int_)
-    bin_lookup = List.empty_list(List.empty_list(oasis_float))
+    item_bin_ids = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(nb.types.int32))
+    bin_map = Dict.empty(BIN_MAP_KEY_TYPE, nb.types.int32)
+    bin_lookup = List.empty_list(BIN_MAP_KEY_TYPE)
 
     return item_bin_ids, bin_map, bin_lookup
 
@@ -103,6 +104,10 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
 
             # convert to np array to allow slicing `prob_to` and `bin_mean`
             bin_lookup = np.array(bin_lookup)
+            # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
+
+            # bin_lookup_ndarr[:]['prob_to'] = bin_lookup[:, 0]
+            # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup[:, 1]
 
             yield last_event_id, bin_lookup, item_bin_ids
 
@@ -131,6 +136,10 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
 
             # convert to np array to allow slicing `prob_to` and `bin_mean`
             bin_lookup = np.array(bin_lookup)
+            # bin_lookup_ndarr = np.empty((len(bin_lookup),), dtype=ProbMean)
+
+            # bin_lookup_ndarr[:]['prob_to'] = bin_lookup[:, 0]
+            # bin_lookup_ndarr[:]['bin_mean'] = bin_lookup[:, 1]
 
             yield last_event_id, bin_lookup, item_bin_ids
             break
@@ -146,7 +155,7 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
 
 @njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id,
-                   bin_map, bin_lookup, item_bin_ids, read_event_id):
+                   bin_map, bin_lookup, item_bin_ids):
     """Parse streamed data into data arrays.
 
     Args:
@@ -166,9 +175,10 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
     valid_len = valid_buf // size_cdf_entry
     yield_event = False
 
-    Nbins = np.zeros(valid_len, dtype='i4')
+    # Nbins = np.zeros(valid_len, dtype='i4')
     # damagecdf = np.zeros(valid_len, dtype=damagecdfrec)
     # rec = np.zeros((valid_len, max_Nbins), dtype=ProbMean)
+    # bin_map = Dict.empty(nb.types.UniTuple(nb.types.float32, 2), int_)
 
     i = 0
     cursor = 0
@@ -203,7 +213,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         #     rec[i, j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
         #     cursor += oasis_float_to_int32_size
 
-        bin_ids = List()
+        bin_ids = List.empty_list(nb.types.int32)
         for j in range(Nbins):
             prob_to = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
             cursor += oasis_float_to_int32_size
@@ -213,11 +223,13 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
             bin_key = tuple((prob_to, bin_mean))
 
             if bin_key not in bin_map:
-                bin_map[bin_key] = len(bin_map)
+                bin_map[bin_key] = np.int32(len(bin_map))
 
                 # better to store the bin as a List and not as tuple
                 # since this allows us to easily cast all the bins in a 2d numpy array later
-                bin_lookup.append(List([prob_to, bin_mean]))
+                # myl = List.empty_list()
+                # myl.append(List([prob_to, bin_mean]))
+                bin_lookup.append(bin_key)
 
             bin_ids.append(bin_map[bin_key])
 
@@ -302,6 +314,7 @@ class LossWriter():
         self.int32_mv[self.cursor:self.cursor + self.oasis_float_to_int32_size].view(oasis_float)[:] = loss
         self.cursor += self.oasis_float_to_int32_size
         self.cursor_bytes += gulSampleslevelRec.size
+
 
 @njit(cache=True, fastmath=True)
 def write_sample_header(event_id, item_id, int32_mv, cursor, cursor_bytes):

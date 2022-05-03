@@ -238,7 +238,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
         for event_id, bin_lookup, item_bin_ids in read_getmodel_stream(run_dir, streams_in):
 
-            items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
+            items_data_by_coverage_id, item_ids_by_coverage_id, item_bin_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
                 event_id, item_bin_ids, item_map)
 
             rndms, rndms_idx = generate_rndm(seeds, sample_size)
@@ -246,9 +246,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < Nunique_coverage_ids:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
-                    event_id, items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids,
-                    last_processed_coverage_ids_idx, sample_size, 0, bin_lookup, coverages,
-                    damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx, debug, writer.buff_size,
+                    event_id, items_data_by_coverage_id, item_ids_by_coverage_id, item_bin_ids_by_coverage_id, coverage_ids,
+                    last_processed_coverage_ids_idx, sample_size, 0, bin_lookup, coverages, damage_bins,
+                    loss_threshold, alloc_rule, rndms, rndms_idx, debug, writer.buff_size,
                     writer.int32_mv, cursor, cursor_bytes
                 )
 
@@ -279,7 +279,7 @@ def reconstruct_coverages(event_id, item_bin_ids, item_map):
     items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
     item_ids_by_coverage_id = Dict.empty(int_, List.empty_list(ITEM_ID_TYPE))
 
-    item_bin_ids_by_coverage_id_type = List.empty_list(List.empty_list())
+    item_bin_ids_by_coverage_id_type = List.empty_list(List.empty_list(ITEM_ID_TYPE))
     item_bin_ids_by_coverage_id = Dict.empty(int_, item_bin_ids_by_coverage_id_type)
 
     list_coverage_ids = List.empty_list(COVERAGE_ID_TYPE)
@@ -301,6 +301,7 @@ def reconstruct_coverages(event_id, item_bin_ids, item_map):
             list_coverage_ids.append(coverage_id)
             Ncoverage_ids += 1
 
+            # print(type(np.int32(item_bin_ids[item_key])[0]))
             # append_to_dict_value(items_data_by_coverage_id, coverage_id, (damagecdf_i, rng_seed), ITEMS_DATA_MAP_TYPE)
             append_to_dict_value(items_data_by_coverage_id, coverage_id, (0, rng_seed), ITEMS_DATA_MAP_TYPE)
             append_to_dict_value(item_ids_by_coverage_id, coverage_id, item_id, nb.types.int32)
@@ -360,9 +361,6 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
-    used_bins_prob_to = bin_lookup[:, 0]
-    used_bins_bin_mean = bin_lookup[:, 1]
-
     for coverage_id in coverage_ids[last_processed_coverage_ids_idx:]:
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
         Nitems = len(items_data_by_coverage_id[coverage_id])
@@ -405,9 +403,14 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
             # prob_to = recs[k]['prob_to']
             # bin_mean = recs[k]['bin_mean']
             # Nbins = Nbinss[k]
-            prob_to = used_bins_prob_to[bin_ids]
-            bin_mean = used_bins_bin_mean[bin_ids]
-            Nbins = len(prob_to)
+            # prob_to = bin_lookup_ndarr[bin_ids]['prob_to']
+            # bin_mean = bin_lookup_ndarr[bin_ids]['bin_mean']
+            Nbins = len(bin_ids)
+            prob_to = np.zeros(Nbins, dtype=oasis_float)
+            bin_mean = np.zeros(Nbins, dtype=oasis_float)
+            for j, bin_id in enumerate(bin_ids):
+                prob_to[j], bin_mean[j] = bin_lookup[bin_id]
+                # bin_mean[j] = bin_lookup[bin_id, 1]
 
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
