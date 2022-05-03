@@ -24,7 +24,7 @@ from oasislmf.pytools.gul.utils import append_to_dict_value
 def init_structures():
     item_bin_ids = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(int_))
     bin_map = Dict.empty(BIN_MAP_KEY_TYPE, int_)
-    bin_lookup = List.empty_list(List.empty_list(BIN_MAP_KEY_TYPE))
+    bin_lookup = List.empty_list(List.empty_list(oasis_float))
 
     return item_bin_ids, bin_map, bin_lookup
 
@@ -101,7 +101,10 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
             # Nbinss.append(Nbins[:i])
             # recs.append(rec[:i])
 
-            yield last_event_id, bin_map, bin_lookup, item_bin_ids
+            # convert to np array to allow slicing `prob_to` and `bin_mean`
+            bin_lookup = np.array(bin_lookup)
+
+            yield last_event_id, bin_lookup, item_bin_ids
 
             # start a new list for the new event, storing the first element
             # damagecdfs, Nbinss, recs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec[i:i + 1]]
@@ -125,7 +128,11 @@ def read_getmodel_stream(run_dir, stream_in, buff_size=65536):
             # recs.append(rec[:i])
 
             # np.concatenate(damagecdfs), np.concatenate(Nbinss), np.concatenate(recs)
-            yield last_event_id, last_event_id, bin_map, bin_lookup, item_bin_ids
+
+            # convert to np array to allow slicing `prob_to` and `bin_mean`
+            bin_lookup = np.array(bin_lookup)
+
+            yield last_event_id, bin_lookup, item_bin_ids
             break
 
         else:
@@ -207,13 +214,17 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
 
             if bin_key not in bin_map:
                 bin_map[bin_key] = len(bin_map)
-                bin_lookup.append([prob_to, bin_mean])
+
+                # better to store the bin as a List and not as tuple
+                # since this allows us to easily cast all the bins in a 2d numpy array later
+                bin_lookup.append(List([prob_to, bin_mean]))
 
             bin_ids.append(bin_map[bin_key])
 
         # let's not store Nbins for now. let's recompute it with len(bin_ids)
-        item_bin_ids[tuple(areaperil_id, vulnerability_id)] = bin_ids
+        item_bin_ids[tuple((areaperil_id, vulnerability_id))] = bin_ids
 
+        # to be deleted
         # if event_id != last_event_id:
         #     # a new event has started
         #     if last_event_id > 0:
@@ -225,6 +236,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         #     # <-- this line is only executed once for last_event_id == 0 because if >0 it returns.
         #     last_event_id = event_id
         #     # if so, change the if to be clearer eg if == 0: last_event_id = event_id else: yield... return.
+        # to be deleted end
 
         i += 1  # maybe not used anymore
 

@@ -235,10 +235,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         cursor = 0
         cursor_bytes = 0
-        for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
+        # for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
+        for event_id, bin_lookup, item_bin_ids in read_getmodel_stream(run_dir, streams_in):
 
             items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
-                event_id, damagecdfs, item_map)
+                event_id, item_bin_ids, item_map)
 
             rndms, rndms_idx = generate_rndm(seeds, sample_size)
 
@@ -246,7 +247,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             while last_processed_coverage_ids_idx < Nunique_coverage_ids:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids,
-                    last_processed_coverage_ids_idx, sample_size, Nbinss, recs, coverages,
+                    last_processed_coverage_ids_idx, sample_size, 0, bin_lookup, coverages,
                     damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx, debug, writer.buff_size,
                     writer.int32_mv, cursor, cursor_bytes
                 )
@@ -260,7 +261,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
 
 @njit(cache=True, fastmath=True)
-def reconstruct_coverages(event_id, damagecdfs, item_map):
+def reconstruct_coverages(event_id, item_bin_ids, item_map):
     """Reconstruct coverages, building a mapping of item ids to coverages.
 
     Args:
@@ -277,13 +278,18 @@ def reconstruct_coverages(event_id, damagecdfs, item_map):
     """
     items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
     item_ids_by_coverage_id = Dict.empty(int_, List.empty_list(ITEM_ID_TYPE))
+
+    item_bin_ids_by_coverage_id_type = List.empty_list(List.empty_list())
+    item_bin_ids_by_coverage_id = Dict.empty(int_, item_bin_ids_by_coverage_id_type)
+
     list_coverage_ids = List.empty_list(COVERAGE_ID_TYPE)
 
     Ncoverage_ids = 0
     seeds = set()
 
-    for damagecdf_i, damagecdf in enumerate(damagecdfs):
-        item_key = tuple((damagecdf['areaperil_id'], damagecdf['vulnerability_id']))
+    # for damagecdf_i, damagecdf in enumerate(damagecdfs):
+    for item_key in item_bin_ids:
+        # item_key = tuple((damagecdf['areaperil_id'], damagecdf['vulnerability_id']))
 
         for item in item_map[item_key]:
             item_id, coverage_id, group_id = item
@@ -295,8 +301,11 @@ def reconstruct_coverages(event_id, damagecdfs, item_map):
             list_coverage_ids.append(coverage_id)
             Ncoverage_ids += 1
 
-            append_to_dict_value(items_data_by_coverage_id, coverage_id, (damagecdf_i, rng_seed), ITEMS_DATA_MAP_TYPE)
+            # append_to_dict_value(items_data_by_coverage_id, coverage_id, (damagecdf_i, rng_seed), ITEMS_DATA_MAP_TYPE)
+            append_to_dict_value(items_data_by_coverage_id, coverage_id, (0, rng_seed), ITEMS_DATA_MAP_TYPE)
             append_to_dict_value(item_ids_by_coverage_id, coverage_id, item_id, nb.types.int32)
+            append_to_dict_value(item_bin_ids_by_coverage_id, coverage_id,
+                                 item_bin_ids[item_key], List.empty_list(ITEM_ID_TYPE))
 
             # using set instead of a typed list is 2x faster
             seeds.add(rng_seed)
@@ -312,12 +321,12 @@ def reconstruct_coverages(event_id, damagecdfs, item_map):
     # transform the set in a typed list in order to pass it to another jit'd function
     seeds_list = List(seeds)
 
-    return items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds_list
+    return items_data_by_coverage_id, item_ids_by_coverage_id, item_bin_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds_list
 
 
 @njit(cache=True, fastmath=True)
-def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids,
-                         last_processed_coverage_ids_idx, sample_size, Nbinss, recs, coverages, damage_bins,
+def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_coverage_id, item_bin_ids_by_coverage_id, coverage_ids,
+                         last_processed_coverage_ids_idx, sample_size, Nbinss, bin_lookup, coverages, damage_bins,
                          loss_threshold, alloc_rule, rndms, rndms_idx, debug, buff_size,
                          int32_mv, cursor, cursor_bytes):
     """Compute losses for an event.
@@ -351,6 +360,9 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
+    used_bins_prob_to = bin_lookup[:, 0]
+    used_bins_bin_mean = bin_lookup[:, 1]
+
     for coverage_id in coverage_ids[last_processed_coverage_ids_idx:]:
         tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
         Nitems = len(items_data_by_coverage_id[coverage_id])
@@ -388,14 +400,14 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
         for item_j, item_id_sorted in enumerate(item_ids_argsorted):
 
             k, seed = items_data_by_coverage_id[coverage_id][item_id_sorted]
-            bin_ids = items_bins_by_coverage_id[coverage_id][item_id_sorted]
-GO AHEAD FROM HERE: CREATE ITEM_BIN_IDS MAP 
+            bin_ids = item_bin_ids_by_coverage_id[coverage_id][item_id_sorted]
+
             # prob_to = recs[k]['prob_to']
             # bin_mean = recs[k]['bin_mean']
             # Nbins = Nbinss[k]
-            prob_to = bin_lookup_ndarr[bin_ids]['prob_to']
-            bin_mean = bin_lookup_ndarr[bin_ids]['bin_mean']
-            Nbins = len(bin_ids)
+            prob_to = used_bins_prob_to[bin_ids]
+            bin_mean = used_bins_bin_mean[bin_ids]
+            Nbins = len(prob_to)
 
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
@@ -422,7 +434,7 @@ GO AHEAD FROM HERE: CREATE ITEM_BIN_IDS MAP
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
-                        bin_idx = find_bin_idx(rval, prob_to, Nbins_remapped)
+                        bin_idx = find_bin_idx(rval, prob_to, Nbins)
 
                         # compute ground-up losses
                         gul = get_gul(
