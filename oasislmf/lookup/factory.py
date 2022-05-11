@@ -144,7 +144,8 @@ class KeyServerFactory(object):
             complex_lookup_config_fp = None
 
         if config.get('key_server_module_path'):
-            _KeyServer = get_custom_module(config.get('key_server_module_path'), 'key_server_module_path')
+            _KeyServer_module = get_custom_module(config.get('key_server_module_path'), 'key_server_module_path')
+            _KeyServer = getattr(_KeyServer_module, '{}KeysServer'.format(config['model']['model_id']))
         else:
             _KeyServer = BasicKeyServer
 
