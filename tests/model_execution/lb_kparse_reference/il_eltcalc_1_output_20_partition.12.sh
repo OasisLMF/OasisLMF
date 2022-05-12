@@ -37,6 +37,6 @@ wait $pid1 $pid2
 
 # --- Do insured loss kats ---
 
-kat -s work/kat/il_S1_eltcalc_P13 > output/il_S1_eltcalc.csv & kpid1=$!
+kat work/kat/il_S1_eltcalc_P13 > output/il_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 

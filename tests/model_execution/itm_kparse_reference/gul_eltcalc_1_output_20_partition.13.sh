@@ -36,6 +36,6 @@ wait $pid1 $pid2
 
 # --- Do ground up loss kats ---
 
-kat -s work/kat/gul_S1_eltcalc_P14 > output/gul_S1_eltcalc.csv & kpid1=$!
+kat work/kat/gul_S1_eltcalc_P14 > output/gul_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 

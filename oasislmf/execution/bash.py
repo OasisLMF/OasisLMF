@@ -599,7 +599,7 @@ def do_kats(
             if summary.get('eltcalc'):
                 anykats = True
 
-                cmd = 'kat -s' if sort_by_event else 'kat'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
 
                     cmd = '{} {}{}_S{}_eltcalc_P{}'.format(
@@ -616,7 +616,7 @@ def do_kats(
             if summary.get('pltcalc'):
                 anykats = True
 
-                cmd = 'kat'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_pltcalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
@@ -632,7 +632,7 @@ def do_kats(
             if summary.get("summarycalc"):
                 anykats = True
 
-                cmd = 'kat'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_summarycalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
@@ -650,7 +650,7 @@ def do_kats(
                     if summary.get('ord_output', {}).get(ord_table):
                         anykats = True
 
-                        cmd = 'kat'
+                        cmd = 'kat' if sort_by_event else 'kat -u'
                         outfile_flag = '>'
                         outfile_ext = 'csv'
                         if summary.get('ord_output', {}).get('parquet_format'):
