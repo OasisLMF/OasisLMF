@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
-# parser.add_argument('-i', help='filename of items output', action='store', type=str, dest='items_outfile')
+parser.add_argument('-i', help='filename of items stream output', action='store', type=str, dest='file_out')
 # parser.add_argument('-j', '--correlated-outfile', help='filename of correlated output', type=str, action='store', dest='corr_outfile')
 parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,

@@ -37,10 +37,6 @@ gul_header = np.int32(1 | 2 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
 
-GROUP_ID_HASH_CODE = np.int64(1543270363)
-EVENT_ID_HASH_CODE = np.int64(1943272559)
-HASH_MOD_CODE = np.int64(2147483648)
-
 
 def get_coverages(input_path, ignore_file_type=set()):
     """Load the coverages from the coverages file.
@@ -128,40 +124,6 @@ def generate_item_map(items):
     return item_map
 
 
-@njit(cache=True, fastmath=True)
-def generate_hash(group_id, event_id, base_seed=0):
-    """Generate hash for a given `group_id`, `event_id` pair.
-
-    Args:
-        group_id (int): group id.
-        event_id (int]): event id.
-        base_seed (int, optional): base random seed. Defaults to 0.
-
-    Returns:
-        int64: hash
-    """
-    hash = (base_seed + (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE +
-            (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
-
-    return hash
-
-
-@njit(cache=True, fastmath=True)
-def generate_correlated_hash(event_id, base_seed=0):
-    """Generate hash for an `event_id`.
-
-    Args:
-        event_id (int): event id.
-        base_seed (int, optional): base random seed. Defaults to 0.
-
-    Returns:
-        int64: hash
-    """
-    hash = (base_seed + (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
-
-    return hash
-
-
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
         random_generator, file_in=None, file_out=None, **kwargs):
     """Execute the main gulpy worklow.
@@ -215,7 +177,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         else:
             streams_in = stack.enter_context(open(file_in, 'rb'))
 
-        if file_out is None:
+        if file_out is None or file_out == '-':
             stream_out = sys.stdout.buffer
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
@@ -235,19 +197,24 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         cursor = 0
         cursor_bytes = 0
-        for event_id, damagecdfs, Nbinss, recs in read_getmodel_stream(run_dir, streams_in):
 
-            items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
-                event_id, damagecdfs, item_map)
+        for packed in read_getmodel_stream(run_dir, streams_in, item_map):
 
-            rndms, rndms_idx = generate_rndm(seeds, sample_size)
+            event_id, items_data_by_coverage_id, coverage_ids, Nunique_coverage_ids, recs, rec_idx_ptr, seeds = packed
+
+            # print(event_id, len(items_data_by_coverage_id), len(coverage_ids),
+            #       Nunique_coverage_ids, recs.shape, len(rec_idx_ptr), rec_idx_ptr[-1])
+            # # items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
+            # #     event_id, damagecdfs, item_map)
+
+            rndms = generate_rndm(seeds, sample_size)
 
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < Nunique_coverage_ids:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
-                    event_id, items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids,
-                    last_processed_coverage_ids_idx, sample_size, Nbinss, recs, coverages,
-                    damage_bins, loss_threshold, alloc_rule, rndms, rndms_idx, debug, writer.buff_size,
+                    event_id, items_data_by_coverage_id, coverage_ids,
+                    last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, coverages,
+                    damage_bins, loss_threshold, alloc_rule, rndms, debug, writer.buff_size,
                     writer.int32_mv, cursor, cursor_bytes
                 )
 
@@ -259,66 +226,66 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     return 0
 
 
+# @njit(cache=True, fastmath=True)
+# def reconstruct_coverages(event_id, damagecdfs, item_map):
+#     """Reconstruct coverages, building a mapping of item ids to coverages.
+
+#     Args:
+#         event_id (int32): event id.
+#         damagecdfs (numpy.array[damagecdf]):  array of damagecdf entries (areaperil_id, vulnerability_id)
+#           for this event.
+#         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
+#           the mapping between areaperil_id, vulnerability_id to item.
+
+#     Returns:
+#         Dict[int,List[ITEMS_DATA_MAP_TYPE]], Dict[int,List[ITEM_ID_TYPE]], List[COVERAGE_ID_TYPE], int, List[int64]:
+#           dictionary of items data (item index and random seed) for each item in each coverage_id,
+#           dictionary of item ids of each coverage_id, unique coverage ids, number of unique coverage_ids, seeds_list
+#     """
+#     items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
+#     item_ids_by_coverage_id = Dict.empty(int_, List.empty_list(ITEM_ID_TYPE))
+#     list_coverage_ids = List.empty_list(COVERAGE_ID_TYPE)
+
+#     Ncoverage_ids = 0
+#     seeds = set()
+
+#     for damagecdf_i, damagecdf in enumerate(damagecdfs):
+#         item_key = tuple((damagecdf['areaperil_id'], damagecdf['vulnerability_id']))
+
+#         for item in item_map[item_key]:
+#             item_id, coverage_id, group_id = item
+
+#             rng_seed = generate_hash(group_id, event_id)
+
+#             # append always, will filter the unqiue list_coverage_ids later
+#             # for `list_coverage_ids` list is preferable over set because order is important
+#             list_coverage_ids.append(coverage_id)
+#             Ncoverage_ids += 1
+
+#             append_to_dict_value(items_data_by_coverage_id, coverage_id, (damagecdf_i, rng_seed), ITEMS_DATA_MAP_TYPE)
+#             append_to_dict_value(item_ids_by_coverage_id, coverage_id, item_id, nb.types.int32)
+
+#             # using set instead of a typed list is 2x faster
+#             seeds.add(rng_seed)
+
+#     # convert list_coverage_ids to np.array to apply np.unique() to it
+#     coverage_ids_tmp = np.empty(Ncoverage_ids, dtype=np.int32)
+#     for j in range(Ncoverage_ids):
+#         coverage_ids_tmp[j] = list_coverage_ids[j]
+
+#     coverage_ids = np.unique(coverage_ids_tmp)
+#     Nunique_coverage_ids = coverage_ids.shape[0]
+
+#     # transform the set in a typed list in order to pass it to another jit'd function
+#     seeds_list = List(seeds)
+
+#     return items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds_list
+
+
 @njit(cache=True, fastmath=True)
-def reconstruct_coverages(event_id, damagecdfs, item_map):
-    """Reconstruct coverages, building a mapping of item ids to coverages.
-
-    Args:
-        event_id (int32): event id.
-        damagecdfs (numpy.array[damagecdf]):  array of damagecdf entries (areaperil_id, vulnerability_id)
-          for this event.
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
-
-    Returns:
-        Dict[int,List[ITEMS_DATA_MAP_TYPE]], Dict[int,List[ITEM_ID_TYPE]], List[COVERAGE_ID_TYPE], int, List[int64]:
-          dictionary of items data (item index and random seed) for each item in each coverage_id,
-          dictionary of item ids of each coverage_id, unique coverage ids, number of unique coverage_ids, seeds_list
-    """
-    items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
-    item_ids_by_coverage_id = Dict.empty(int_, List.empty_list(ITEM_ID_TYPE))
-    list_coverage_ids = List.empty_list(COVERAGE_ID_TYPE)
-
-    Ncoverage_ids = 0
-    seeds = set()
-
-    for damagecdf_i, damagecdf in enumerate(damagecdfs):
-        item_key = tuple((damagecdf['areaperil_id'], damagecdf['vulnerability_id']))
-
-        for item in item_map[item_key]:
-            item_id, coverage_id, group_id = item
-
-            rng_seed = generate_hash(group_id, event_id)
-
-            # append always, will filter the unqiue list_coverage_ids later
-            # for `list_coverage_ids` list is preferable over set because order is important
-            list_coverage_ids.append(coverage_id)
-            Ncoverage_ids += 1
-
-            append_to_dict_value(items_data_by_coverage_id, coverage_id, (damagecdf_i, rng_seed), ITEMS_DATA_MAP_TYPE)
-            append_to_dict_value(item_ids_by_coverage_id, coverage_id, item_id, nb.types.int32)
-
-            # using set instead of a typed list is 2x faster
-            seeds.add(rng_seed)
-
-    # convert list_coverage_ids to np.array to apply np.unique() to it
-    coverage_ids_tmp = np.empty(Ncoverage_ids, dtype=np.int32)
-    for j in range(Ncoverage_ids):
-        coverage_ids_tmp[j] = list_coverage_ids[j]
-
-    coverage_ids = np.unique(coverage_ids_tmp)
-    Nunique_coverage_ids = coverage_ids.shape[0]
-
-    # transform the set in a typed list in order to pass it to another jit'd function
-    seeds_list = List(seeds)
-
-    return items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds_list
-
-
-@njit(cache=True, fastmath=True)
-def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids,
-                         last_processed_coverage_ids_idx, sample_size, Nbinss, recs, coverages, damage_bins,
-                         loss_threshold, alloc_rule, rndms, rndms_idx, debug, buff_size,
+def compute_event_losses(event_id, items_data_by_coverage_id, coverage_ids,
+                         last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, coverages, damage_bins,
+                         loss_threshold, alloc_rule, rndms, debug, buff_size,
                          int32_mv, cursor, cursor_bytes):
     """Compute losses for an event.
 
@@ -356,7 +323,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
         Nitems = len(items_data_by_coverage_id[coverage_id])
         exposureValue = tiv / Nitems
 
-        Nitem_ids = len(item_ids_by_coverage_id[coverage_id])
+        Nitem_ids = len(items_data_by_coverage_id[coverage_id])  # TODO same as Nitems. remove if unnecessary
 
         # estimate max number of bytes are needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
@@ -372,7 +339,7 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
         # sort item_ids (need to convert to np.array beforehand)
         item_ids = np.empty(Nitem_ids, dtype=ITEM_ID_TYPE)
         for j in range(Nitem_ids):
-            item_ids[j] = item_ids_by_coverage_id[coverage_id][j]
+            item_ids[j] = items_data_by_coverage_id[coverage_id][j][0]
 
         item_ids_argsorted = np.argsort(item_ids)
         item_ids_sorted = item_ids[item_ids_argsorted]
@@ -387,14 +354,19 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
 
         for item_j, item_id_sorted in enumerate(item_ids_argsorted):
 
-            k, seed = items_data_by_coverage_id[coverage_id][item_id_sorted]
+            _, damagecdf_i, rng_index = items_data_by_coverage_id[coverage_id][item_id_sorted]
 
-            prob_to = recs[k]['prob_to']
-            bin_mean = recs[k]['bin_mean']
-            Nbins = Nbinss[k]
+            rec = recs[rec_idx_ptr[damagecdf_i]:rec_idx_ptr[damagecdf_i + 1]]
+            prob_to = rec['prob_to']
+            bin_mean = rec['bin_mean']
+            Nbins = len(prob_to)
 
+            # print(rec_start, rec_end, Nbins)
+            # print(prob_to)
+            # print(bin_mean)
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
+                # max-damage bin=damage_bins[Nbins-1] maybe is wrong...
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
@@ -408,10 +380,10 @@ def compute_event_losses(event_id, items_data_by_coverage_id, item_ids_by_covera
 
             if sample_size > 0:
                 if debug:
-                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed]]):
+                    for sample_idx, rval in enumerate(rndms[rng_index]):
                         losses[sample_idx + NUM_IDX, item_j] = rval
                 else:
-                    for sample_idx, rval in enumerate(rndms[rndms_idx[seed]]):
+                    for sample_idx, rval in enumerate(rndms[rng_index]):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
                         rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 

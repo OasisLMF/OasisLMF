@@ -8,7 +8,7 @@ import numba as nb
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
 ITEM_ID_TYPE = nb.types.int32
-ITEMS_DATA_MAP_TYPE = nb.types.UniTuple(nb.types.int64, 2)
+ITEMS_DATA_MAP_TYPE = nb.types.UniTuple(nb.types.int64, 3)
 COVERAGE_ID_TYPE = nb.types.int32
 
 # negative sidx (definition)
