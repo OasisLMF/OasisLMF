@@ -21,6 +21,7 @@ def run(analysis_settings,
         gul_legacy_stream=False,
         run_debug=False,
         custom_gulcalc_cmd=None,
+        custom_get_getmodel_cmd=None, 
         filename='run_ktools.sh',
         **kwargs
 ):
@@ -50,35 +51,36 @@ def run(analysis_settings,
 
     # TODO: should be integrated into bash.py
     if custom_gulcalc_cmd:
-        def custom_get_getmodel_cmd(
-            number_of_samples,
-            gul_threshold,
-            use_random_number_file,
-            coverage_output,
-            item_output,
-            process_id,
-            max_process_id,
-            gul_alloc_rule,
-            stderr_guard,
-            **kwargs
-        ):
-
-            cmd = "{} -e {} {} -a {} -p {}".format(
-                custom_gulcalc_cmd,
+        if not custom_get_getmodel_cmd:
+            def custom_get_getmodel_cmd(
+                number_of_samples,
+                gul_threshold,
+                use_random_number_file,
+                coverage_output,
+                item_output,
                 process_id,
                 max_process_id,
-                os.path.abspath("analysis_settings.json"),
-                "input")
-            if gul_legacy_stream and coverage_output != '':
-                cmd = '{} -c {}'.format(cmd, coverage_output)
-            if item_output != '':
-                cmd = '{} -i {}'.format(cmd, item_output)
-            if stderr_guard:
-                cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
+                gul_alloc_rule,
+                stderr_guard,
+                **kwargs
+            ):
 
-            return cmd
-    else:
-        custom_get_getmodel_cmd = None
+                cmd = "{} -e {} {} -a {} -p {}".format(
+                    custom_gulcalc_cmd,
+                    process_id,
+                    max_process_id,
+                    os.path.abspath("analysis_settings.json"),
+                    "input")
+                if gul_legacy_stream and coverage_output != '':
+                    cmd = '{} -c {}'.format(cmd, coverage_output)
+                if item_output != '':
+                    cmd = '{} -i {}'.format(cmd, item_output)
+                if stderr_guard:
+                    cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
+
+                return cmd
+        else:
+            custom_get_getmodel_cmd = None
 
     ###########################################################
 
