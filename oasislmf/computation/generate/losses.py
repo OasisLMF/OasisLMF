@@ -292,7 +292,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         if os.path.isfile(self.script_fp):
             os.remove(self.script_fp)
 
-        bash_params = model_runner_module.bash_params(
+        bash_params = bash.bash_params(
             analysis_settings,
             number_of_processes=self.ktools_num_processes,
             filename=self.script_fp,
@@ -365,7 +365,7 @@ class GenerateLossesOutput(GenerateLossesDir):
         if os.path.isfile(self.script_fp):
             os.remove(self.script_fp)
 
-        bash_params = model_runner_module.bash_params(
+        bash_params = bash.bash_params(
             analysis_settings,
             number_of_processes=self.ktools_num_processes,
             num_reinsurance_iterations=ri_layers,
