@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#1029](https://github.com/OasisLMF/OasisLMF/pull/1028) - Class not picked up when using key_server_module_path
+.. _`1.23.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.9...1.23.10
+
 * [#1001](https://github.com/OasisLMF/OasisLMF/pull/1002) - Keys Lookup allow parameter to be passed to read_csv in build_merge
 .. _`1.23.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.8...1.23.9
 
