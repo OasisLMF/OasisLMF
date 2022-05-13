@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.26.1rc2`_
+ ---------
+* [#1017](https://github.com/OasisLMF/OasisLMF/pull/1017) - Add fix for complex model wrapper calls
+* [#1018](https://github.com/OasisLMF/OasisLMF/pull/1026) - Convergence task 11. Set the default number of samples for an analysis from model settings
+* [#1029](https://github.com/OasisLMF/OasisLMF/pull/1028) - Class not picked up when using key_server_module_path
+* [#1005](https://github.com/OasisLMF/OasisLMF/pull/1030) - in run_ktools use -s flag on kat for ORD elt reports
+.. _`1.26.1rc2`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.1rc1...1.26.1rc2
+
 .. _`1.26.1rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0rc1...1.26.1rc1
 
 `1.26.0rc1`_
