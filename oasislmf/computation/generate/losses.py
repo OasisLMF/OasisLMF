@@ -143,23 +143,23 @@ class GenerateLossesBase(ComputationStep):
                     ri_layers = len(json.load(f))
         return ri_layers
 
-    def _print_error_logs(self, model_run_fp, e):
+    def _print_error_logs(self, run_log_fp, e):
         """
         Error handling Method: Call if a run error has accursed,
         * prints ktool log files to logger
         * Raises `OasisException`
         """
-        bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
+        bash_trace_fp = os.path.join(run_log_fp, 'bash.log')
         if os.path.isfile(bash_trace_fp):
             with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
                 self.logger.info('\nBASH_TRACE:\n' + "".join(f.readlines()))
 
-        stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
+        stderror_fp = os.path.join(run_log_fp, 'stderror.err')
         if os.path.isfile(stderror_fp):
             with io.open(stderror_fp, 'r', encoding='utf-8') as f:
                 self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
 
-        gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
+        gul_stderror_fp = os.path.join(run_log_fp, 'gul_stderror.err')
         if os.path.isfile(gul_stderror_fp):
             with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
                 self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
@@ -168,7 +168,7 @@ class GenerateLossesBase(ComputationStep):
 
         raise OasisException(
             'Ktools run Error: non-zero exit code or output detected on STDERR\n'
-            'Logs stored in: {}/log'.format(model_run_fp)
+            'Logs stored in: {}'.format(run_log_fp)
         )
 
 
@@ -187,7 +187,7 @@ class GenerateLossesDir(GenerateLossesBase):
         # Command line options
         {'name': 'oasis_files_dir',        'flag':'-o', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'analysis_settings_json', 'flag':'-a', 'is_path': True, 'pre_exist': True, 'required': True,  'help': 'Analysis settings JSON file path'},
-        {'name': 'model_settings_json',    'flag':'-M', 'is_path': True, 'pre_exist': True, 'required': False, 'help': 'Model settings JSON file path'},
+        {'name': 'model_settings_json',    'flag':'-M', 'is_path': True, 'pre_exist': False, 'required': False, 'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir',          'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'model_data_dir',         'flag':'-d', 'is_path': True, 'pre_exist': True,  'help': 'Model data directory path'},
         {'name': 'model_run_dir',          'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
@@ -316,7 +316,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             ri_alloc_rule=self.ktools_alloc_rule_ri,
             num_gul_per_lb=self.ktools_num_gul_per_lb,
             num_fm_per_lb=self.ktools_num_fm_per_lb,
-            run_debug=self.verbose,
+            bash_trace=self.verbose,
             stderr_guard=not self.ktools_disable_guard,
             gul_legacy_stream=self.ktools_legacy_stream,
             fifo_tmp_dir=not self.ktools_fifo_relative,
@@ -348,7 +348,8 @@ class GenerateLossesPartial(GenerateLossesDir):
 
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
-                self._print_error_logs(model_run_fp, e)
+                log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
+                self._print_error_logs(log_fp, e)
         return model_run_fp
 
 
@@ -384,7 +385,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             number_of_processes=self.ktools_num_processes,
             num_reinsurance_iterations=ri_layers,
             filename=self.script_fp,
-            run_debug=self.verbose,
+            bash_trace=self.verbose,
             stderr_guard=not self.ktools_disable_guard,
             fifo_tmp_dir=not self.ktools_fifo_relative,
             remove_working_file=self.remove_working_file
@@ -394,7 +395,8 @@ class GenerateLossesOutput(GenerateLossesDir):
                 self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
                 return model_runner_module.run_outputs(**bash_params)
             except CalledProcessError as e:
-                self._print_error_logs(model_run_fp, e)
+                log_fp = os.path.join(model_run_fp, 'log', 'out')
+                self._print_error_logs(log_fp, e)
         return model_run_fp
 
 
