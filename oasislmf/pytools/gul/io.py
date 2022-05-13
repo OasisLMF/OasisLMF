@@ -16,7 +16,7 @@ from oasislmf.pytools.gul.common import (
     ProbMean, damagecdfrec, damagecdfrec_stream,
     gulSampleslevelHeader, gulSampleslevelRec, oasis_float_to_int32_size,
     gulSampleslevelRec_size, gulSampleslevelHeader_size,
-    ITEMS_DATA_MAP_TYPE, COVERAGE_ID_TYPE
+    ITEMS_DATA_MAP_TYPE, COVERAGE_ID_TYPE, items_data_type, NP_BASE_ARRAY_SIZE
 )
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gul.random import generate_hash
@@ -26,18 +26,13 @@ ProbMean_size = ProbMean.size
 
 @njit(cache=True)
 def gen_structs():
-
-    items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
-    list_coverage_ids = List.empty_list(COVERAGE_ID_TYPE)
-
-    seeds = List.empty_list(nb.types.int64)
     group_id_rng_index = Dict.empty(nb.types.int32, nb.types.int64)
     rec_idx_ptr = List([0])
 
-    return items_data_by_coverage_id, list_coverage_ids, seeds, group_id_rng_index, rec_idx_ptr
+    return group_id_rng_index, rec_idx_ptr
 
 
-def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
+def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds, buff_size=65536):
     """Read the getmodel output stream yielding data event by event. 
 
     Args:
@@ -89,13 +84,16 @@ def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
     len_read = 1
     size_cdf_entry = min_size_cdf_entry
 
-    items_data_by_coverage_id, list_coverage_ids, seeds, group_id_rng_index, rec_idx_ptr = gen_structs()
+    group_id_rng_index, rec_idx_ptr = gen_structs()
     rng_index = 0
     damagecdf_i = 0
+    compute_i = 0
+    items_data_i = 0
     # rec_idx_ptr = [0]
     recs = []
     end_of_stream = False
 
+    items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
     while not end_of_stream:
         if len_read > 0:
             # read stream from valid_buf onwards
@@ -104,8 +102,8 @@ def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
             valid_buf += len_read
 
         # read the streamed data into formatted data
-        cursor, i, yield_event, event_id, rec, rec_idx_ptr, last_event_id, list_coverage_ids, items_data_by_coverage_id, seeds, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, list_coverage_ids, items_data_by_coverage_id, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr)
+        cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
+            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages, compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr)
 
         # convert cursor to bytes
         cursor_buf = cursor * int32_mv.itemsize
@@ -127,10 +125,8 @@ def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
             #     coverage_ids_tmp[j] = list_coverage_ids[j]
 
             # recs.append(rec[:rec_idx_ptr[-1]+1]) # <-- check if index is OK
-            coverage_ids = np.unique(list_coverage_ids)
-            Nunique_coverage_ids = len(coverage_ids)
 
-            yield last_event_id, items_data_by_coverage_id, coverage_ids, Nunique_coverage_ids, np.concatenate(recs), rec_idx_ptr, seeds
+            yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
             # print("> YIELDED EVENT")
             # if valid_buf == cursor_buf:
             #     # this was the last event
@@ -141,9 +137,12 @@ def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
             # damagecdfs, Nbinss, rec_idx_ptrs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec_idx_ptr[i:i + 1]]
             last_event_id = event_id
 
-            items_data_by_coverage_id, list_coverage_ids, seeds, group_id_rng_index, rec_idx_ptr = gen_structs()
+            group_id_rng_index, rec_idx_ptr = gen_structs()
             rng_index = 0
             damagecdf_i = 0
+            compute_i = 0
+            items_data_i = 0
+            coverages['cur_items'].fill(0)
             # rec_idx_ptr = [0]
             recs = []
             # print("> NEW  EVENT")
@@ -152,11 +151,9 @@ def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
             if valid_buf == cursor_buf and len_read == 0:
                 # the stream has ended, this is the last event
                 # print("********** BREAK")
-                coverage_ids = np.unique(list_coverage_ids)
-                Nunique_coverage_ids = len(coverage_ids)
                 end_of_stream = True
 
-                yield last_event_id, items_data_by_coverage_id, coverage_ids, Nunique_coverage_ids, np.concatenate(recs), rec_idx_ptr, seeds
+                yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
                 # print("> YIELDED LAST EVENT")
 
         # print("==> CONTINUE  EVENT")
@@ -242,7 +239,22 @@ def read_getmodel_stream(run_dir, stream_in, item_map, buff_size=65536):
 
 
 @njit(cache=True, fastmath=True)
-def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, list_coverage_ids, items_data_by_coverage_id, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
+def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
+    for i in range(items_data.shape[0] - 1):
+        if items_data[i]['item_id'] > item_id:
+            items_data[i+1:] = items_data[i:-1]
+            items_data[i]['item_id'] = item_id
+            items_data[i]['damagecdf_i'] = damagecdf_i
+            items_data[i]['rng_index'] = rng_index
+            return
+    items_data[-1]['item_id'] = item_id
+    items_data[-1]['damagecdf_i'] = damagecdf_i
+    items_data[-1]['rng_index'] = rng_index
+
+
+@njit(cache=True, fastmath=True)
+def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages,
+                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:
@@ -259,7 +271,6 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
           chunk of damagecdf entries, chunk of Nbins entries, chunk of cdf record entries,
           event_id of the last event that was completed
     """
-    valid_len = valid_buf // size_cdf_entry
     yield_event = False
     # print("valid_buf, size_cdf_entry, valid_len", valid_buf, size_cdf_entry, valid_len)
     # Nbins = np.zeros(valid_len, dtype='i4')
@@ -268,32 +279,38 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
     rec = np.zeros(valid_buf // ProbMean_size, dtype=ProbMean)
     # rec_idx_ptr = np.zeros(valid_len + 1, dtype='i4')
 
-    i = 0
     cursor = 0
-    cursor_buf = 0
     # damagecdf_i = 0
-    while cursor_buf + size_cdf_entry <= valid_buf:
+    while cursor * int32_mv.itemsize + size_cdf_entry <= valid_buf:
 
         event_id, cursor = int32_mv[cursor], cursor + 1
+
+        if event_id != last_event_id:
+            # a new event has started
+            if last_event_id > 0:
+                # if this is not the beginning of the very first event, yield the event we just completed
+                yield_event = True
+
+                # print(valid_buf, len(rec), rec_idx_ptr[-1])
+                return cursor-1, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
+
+            last_event_id = event_id
+
         # damagecdf[i]['areaperil_id'], cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
         # damagecdf[i]['vulnerability_id'], cursor = int32_mv[cursor], cursor + 1
         areaperil_id, cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
         vulnerability_id, cursor = int32_mv[cursor], cursor + 1
         Nbins_to_read, cursor = int32_mv[cursor], cursor + 1
 
-        cursor_buf += 4 * 4
-
         # read damage cdf bins
         start_rec = rec_idx_ptr[-1]
-        end_rec = rec_idx_ptr[-1] + Nbins_to_read
+        end_rec = start_rec + Nbins_to_read
         for j in range(start_rec, end_rec, 1):
             rec[j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
             cursor += oasis_float_to_int32_size
-            cursor_buf += 4
 
             rec[j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
             cursor += oasis_float_to_int32_size
-            cursor_buf += 4
 
             # printrec_idx_ptr(rec[j])
 
@@ -317,14 +334,13 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
 
         for item in item_map[item_key]:
             item_id, coverage_id, group_id = item
-
+            # print(areaperil_id, vulnerability_id, item_id, coverage_id, group_id)
             # check if this group_id was already processed
             # it assumes that hash only depends on event_id and group_id
             # and that only 1 event_id is processed at a time.
             if group_id not in group_id_rng_index:
                 group_id_rng_index[group_id] = rng_index
-                hash = generate_hash(group_id, last_event_id)
-                seeds.append(hash)
+                seeds[rng_index] = generate_hash(group_id, last_event_id)
                 this_rng_index = rng_index
                 rng_index += 1
             else:
@@ -332,29 +348,26 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
 
             # append always, will filter the unqiue list_coverage_ids later
             # for `list_coverage_ids` list is preferable over set because order is important
-            list_coverage_ids.append(coverage_id)
-            # Ncoverage_ids += 1
+            coverage = coverages[coverage_id]
+            if coverage['cur_items'] == 0:
+                compute[compute_i], compute_i = coverage_id, compute_i + 1
+                if items_data.shape[0] < items_data_i + coverage['max_items']:
+                    temp_items_data = np.empty(items_data.shape[0] * 2, dtype=items_data.dtype)
+                    temp_items_data[:items_data_i] = items_data[:items_data_i]
+                    items_data = temp_items_data
 
-            append_to_dict_value(items_data_by_coverage_id, coverage_id,
-                                 (item_id, damagecdf_i, this_rng_index), ITEMS_DATA_MAP_TYPE)
+                coverage['start_items'], items_data_i = items_data_i, items_data_i + coverage['max_items']
+
+
+            coverage['cur_items'] += 1
+            insert_item_data_val(items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']], item_id, damagecdf_i, this_rng_index)
+            # print(items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']], coverage['start_items'], coverage['cur_items'])
+
             # append_to_dict_value(item_ids_by_coverage_id, coverage_id, item_id, nb.types.int32)
 
         damagecdf_i += 1
 
-        if event_id != last_event_id:
-            # a new event has started
-            if last_event_id > 0:
-                # if this is not the beginning of the very first event, yield the event we just completed
-                yield_event = True
-
-                # print(valid_buf, len(rec), rec_idx_ptr[-1])
-                return cursor, i, yield_event, event_id, rec, rec_idx_ptr, last_event_id, list_coverage_ids, items_data_by_coverage_id, seeds, rng_index, group_id_rng_index, damagecdf_i
-
-            last_event_id = event_id
-
-        i += 1
-
-    return cursor, i - 1, yield_event, event_id, rec, rec_idx_ptr, last_event_id, list_coverage_ids, items_data_by_coverage_id, seeds, rng_index, group_id_rng_index, damagecdf_i
+    return cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
 
 
 class LossWriter():
@@ -419,7 +432,7 @@ class LossWriter():
 
 
 @njit(cache=True, fastmath=True)
-def write_sample_header(event_id, item_id, int32_mv, cursor, cursor_bytes):
+def write_sample_header(event_id, item_id, int32_mv, cursor):
     """Write to buffer the header for the samples of this (event, item).
 
     Args:
@@ -427,20 +440,18 @@ def write_sample_header(event_id, item_id, int32_mv, cursor, cursor_bytes):
         item_id (int32): item id.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        cursor_bytes (int): number of bytes written in int32_mv.
 
     Returns:
-        int, int: updated values of cursor and cursor_bytes
+        int: updated values of cursor
     """
     int32_mv[cursor], cursor = event_id, cursor + 1
     int32_mv[cursor], cursor = item_id, cursor + 1
-    cursor_bytes += gulSampleslevelHeader_size
 
-    return cursor, cursor_bytes
+    return cursor
 
 
 @njit(cache=True, fastmath=True)
-def write_sample_rec(sidx, loss, int32_mv, cursor, cursor_bytes):
+def write_sample_rec(sidx, loss, int32_mv, cursor):
     """Write to buffer a (sidx, loss) sample record.
 
     Args:
@@ -448,23 +459,21 @@ def write_sample_rec(sidx, loss, int32_mv, cursor, cursor_bytes):
         loss (oasis_float): loss.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        cursor_bytes (int): number of bytes written in int32_mv.
 
     Returns:
-        int, int: updated values of cursor and cursor_bytes
+        int: updated values of cursor
     """
     int32_mv[cursor], cursor = sidx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = loss
     cursor += oasis_float_to_int32_size
-    cursor_bytes += gulSampleslevelRec_size
 
-    return cursor, cursor_bytes
+    return cursor
 
 
 @njit(cache=True, fastmath=True)
 def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_loss,
                         tiv_idx, tiv, std_dev_idx, std_dev, mean_idx, gul_mean,
-                        int32_mv, cursor, cursor_bytes):
+                        int32_mv, cursor):
     """Write to buffer the negative sidx samples.
 
     Args:
@@ -480,34 +489,28 @@ def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_lo
         gul_mean (oasis_float): gul_mean.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        cursor_bytes (int): number of bytes written in int32_mv.
 
     Returns:
-        int, int: updated values of cursor and cursor_bytes
+        int: updated values of cursor
     """
     int32_mv[cursor], cursor = max_loss_idx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = max_loss
     cursor += oasis_float_to_int32_size
-    cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = chance_of_loss_idx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = chance_of_loss
     cursor += oasis_float_to_int32_size
-    cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = tiv_idx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = tiv
     cursor += oasis_float_to_int32_size
-    cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = std_dev_idx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = std_dev
     cursor += oasis_float_to_int32_size
-    cursor_bytes += gulSampleslevelRec_size
 
     int32_mv[cursor], cursor = mean_idx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = gul_mean
     cursor += oasis_float_to_int32_size
-    cursor_bytes += gulSampleslevelRec_size
 
-    return cursor, cursor_bytes
+    return cursor

@@ -123,7 +123,6 @@ def random_LatinHypercube(seeds, n):
     """
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype='float64')
-
     # define arrays here and re-use them later
     samples = np.zeros(n, dtype='float64')
     perms = np.zeros(n, dtype='float64')

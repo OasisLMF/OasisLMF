@@ -9,6 +9,18 @@ from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
 ITEM_ID_TYPE = nb.types.int32
 ITEMS_DATA_MAP_TYPE = nb.types.UniTuple(nb.types.int64, 3)
+items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
+                                          ('damagecdf_i', np.int32),
+                                          ('rng_index', np.int32)
+                                          ]))
+
+coverage_type = nb.from_dtype(np.dtype([('tiv', np.float),
+                                        ('max_items', np.int32),
+                                        ('start_items', np.int32),
+                                        ('cur_items', np.int32)
+                                        ]))
+
+NP_BASE_ARRAY_SIZE = 8
 COVERAGE_ID_TYPE = nb.types.int32
 
 # negative sidx (definition)
@@ -19,14 +31,6 @@ CHANCE_OF_LOSS_IDX = -4
 MAX_LOSS_IDX = -5
 
 NUM_IDX = 5
-
-# negative sidx + NUM_IDX
-SHIFTED_MEAN_IDX = MEAN_IDX + NUM_IDX
-SHIFTED_STD_DEV_IDX = STD_DEV_IDX + NUM_IDX
-SHIFTED_TIV_IDX = TIV_IDX + NUM_IDX
-SHIFTED_CHANCE_OF_LOSS_IDX = CHANCE_OF_LOSS_IDX + NUM_IDX
-SHIFTED_MAX_LOSS_IDX = MAX_LOSS_IDX + NUM_IDX
-
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.types.uint32, nb.types.int32))
 ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
@@ -57,3 +61,4 @@ gulSampleslevelRec = nb.from_dtype(np.dtype([('sidx', 'i4'),
                                              ('loss', oasis_float),
                                              ]))
 gulSampleslevelRec_size = gulSampleslevelRec.size
+

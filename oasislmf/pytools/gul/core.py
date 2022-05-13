@@ -106,14 +106,14 @@ def split_tiv(gulitems, tiv):
         gulitems (numpy.array[oasis_float]): array containing losses of all items.
         tiv (oasis_float): total insured value,
     """
-    if tiv > 0:
-        total_loss = np.sum(gulitems)
 
-        nitems = gulitems.shape[0]
-        if total_loss > tiv:
-            for j in range(nitems):
-                # editing in-place the np array
-                gulitems[j] *= tiv / total_loss
+    total_loss = np.sum(gulitems)
+
+    nitems = gulitems.shape[0]
+    if total_loss > tiv:
+        for j in range(nitems):
+            # editing in-place the np array
+            gulitems[j] *= tiv / total_loss
 
 
 @njit(cache=True, fastmath=True)

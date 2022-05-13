@@ -4,6 +4,7 @@ This file is the entry point for the gul command for the package.
 """
 import sys
 import os
+import time
 import logging
 from contextlib import ExitStack
 import numpy as np
@@ -17,10 +18,8 @@ from oasislmf.pytools.getmodel.common import oasis_float
 
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    SHIFTED_MEAN_IDX, SHIFTED_STD_DEV_IDX, SHIFTED_TIV_IDX,
-    SHIFTED_CHANCE_OF_LOSS_IDX, SHIFTED_MAX_LOSS_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_ID_TYPE, ITEMS_DATA_MAP_TYPE,
-    COVERAGE_ID_TYPE, gulSampleslevelRec_size, gulSampleslevelHeader_size
+    COVERAGE_ID_TYPE, gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, items_data_type, NP_BASE_ARRAY_SIZE
 )
 from oasislmf.pytools.gul.io import (
     LossWriter, write_negative_sidx, write_sample_header,
@@ -97,7 +96,7 @@ def gul_get_items(input_path, ignore_file_type=set()):
 
 
 @njit(cache=True, fastmath=True)
-def generate_item_map(items):
+def generate_item_map(items, coverages):
     """Generate item_map; requires items to be sorted.
 
     Args:
@@ -120,7 +119,7 @@ def generate_item_map(items):
             tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
-
+        coverages[items[j]['coverage_id']-1]['max_items'] += 1
     return item_map
 
 
@@ -159,16 +158,22 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     input_path = 'input/'
     # TODO: store input_path in a paraparameters file
 
+    # read coverages from file
+    coverages_tiv = get_coverages(input_path)
+    coverages = np.empty(coverages_tiv.shape[0]+1, coverage_type)
+    coverages[1:]['tiv'] = coverages_tiv
+    coverages['cur_items'].fill(0)
+    del coverages_tiv
+
     items = gul_get_items(input_path)
 
     # in-place sort items in order to store them in item_map in the desired order
     # currently numba only supports a simple call to np.sort() with no `order` keyword,
     # so we do the sort here.
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
-    item_map = generate_item_map(items)
+    item_map = generate_item_map(items, coverages)
 
-    # read coverages from file
-    coverages = get_coverages(input_path)
+    compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
 
     with ExitStack() as stack:
         # set up streams
@@ -197,31 +202,56 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         cursor = 0
         cursor_bytes = 0
+        t_read = []
+        t_random = []
+        t_compute = []
+        t_write = []
+        t0 = time.time()
 
-        for packed in read_getmodel_stream(run_dir, streams_in, item_map):
+        seeds = np.unique(items['group_id'])
+        # create buffer to compute each coverage loss, in the buffer
+        losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages['max_items'])), dtype=oasis_float)
+        for packed in read_getmodel_stream(run_dir, streams_in, item_map, coverages, compute, seeds):
+            #event_id, items_data_by_coverage_id, coverage_ids, Nunique_coverage_ids, recs, rec_idx_ptr, seeds = packed
+            event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = packed
 
-            event_id, items_data_by_coverage_id, coverage_ids, Nunique_coverage_ids, recs, rec_idx_ptr, seeds = packed
-
+            t1 = time.time()
+            t_read.append(t1-t0)
+            t0 = t1
+            # print(compute[:compute_i])
+            # print(items_data[:20])
+            # 0/0
             # print(event_id, len(items_data_by_coverage_id), len(coverage_ids),
             #       Nunique_coverage_ids, recs.shape, len(rec_idx_ptr), rec_idx_ptr[-1])
             # # items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
             # #     event_id, damagecdfs, item_map)
 
-            rndms = generate_rndm(seeds, sample_size)
-
+            rndms = generate_rndm(seeds[:rng_index], sample_size)
+            t1 = time.time()
+            t_random.append(t1-t0)
+            t0 = t1
             last_processed_coverage_ids_idx = 0
-            while last_processed_coverage_ids_idx < Nunique_coverage_ids:
+            while last_processed_coverage_ids_idx < compute_i:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
-                    event_id, items_data_by_coverage_id, coverage_ids,
-                    last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, coverages,
-                    damage_bins, loss_threshold, alloc_rule, rndms, debug, writer.buff_size,
-                    writer.int32_mv, cursor, cursor_bytes
+                    event_id, coverages, compute[:compute_i], items_data,
+                    last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms, debug, writer.buff_size,
+                    writer.int32_mv, cursor
                 )
-
+                t1 = time.time()
+                t_compute.append(t1 - t0)
+                t0 = t1
                 stream_out.write(writer.mv[:cursor_bytes])
+                t1 = time.time()
+                t_write.append(t1 - t0)
+                t0 = t1
 
                 cursor = 0
-                cursor_bytes = 0
+
+    print('t_read', t_read[0], sum(t_read[1:]))
+    print('t_random', t_random[0], sum(t_random[1:]))
+    print('t_compute', t_compute[0], sum(t_compute[1:]))
+    print('t_write', t_write[0], sum(t_write[1:]))
 
     return 0
 
@@ -283,10 +313,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
 
 @njit(cache=True, fastmath=True)
-def compute_event_losses(event_id, items_data_by_coverage_id, coverage_ids,
-                         last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, coverages, damage_bins,
-                         loss_threshold, alloc_rule, rndms, debug, buff_size,
-                         int32_mv, cursor, cursor_bytes):
+def compute_event_losses(event_id, coverages, coverage_ids, items_data,
+                         last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
+                         loss_threshold, losses, alloc_rule, rndms, debug, buff_size,
+                         int32_mv, cursor):
     """Compute losses for an event.
 
     Args:
@@ -318,43 +348,33 @@ def compute_event_losses(event_id, items_data_by_coverage_id, coverage_ids,
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
-    for coverage_id in coverage_ids[last_processed_coverage_ids_idx:]:
-        tiv = coverages[coverage_id - 1]  # coverages are indexed from 1
-        Nitems = len(items_data_by_coverage_id[coverage_id])
-        exposureValue = tiv / Nitems
-
-        Nitem_ids = len(items_data_by_coverage_id[coverage_id])  # TODO same as Nitems. remove if unnecessary
+    max_size_per_item =  (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+    for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
+        coverage = coverages[coverage_ids[coverage_i]]
+        tiv = coverage['tiv']  # coverages are indexed from 1
+        Nitem_ids = coverage['cur_items']
+        exposureValue = tiv / Nitem_ids
 
         # estimate max number of bytes are needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
-        est_cursor_bytes = Nitem_ids * (
-            (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
-        )
+        est_cursor_bytes = Nitem_ids * max_size_per_item
 
         # return before processing this coverage if bytes to be written in mv exceed `buff_size`
-        if cursor_bytes + est_cursor_bytes > buff_size:
-            return cursor, cursor_bytes, last_processed_coverage_ids_idx
+        if cursor * int32_mv.itemsize + est_cursor_bytes > buff_size:
+            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
 
-        # sort item_ids (need to convert to np.array beforehand)
-        item_ids = np.empty(Nitem_ids, dtype=ITEM_ID_TYPE)
-        for j in range(Nitem_ids):
-            item_ids[j] = items_data_by_coverage_id[coverage_id][j][0]
+        # # sort item_ids (need to convert to np.array beforehand)
+        # item_ids = np.empty(Nitem_ids, dtype=ITEM_ID_TYPE)
+        # for j in range(Nitem_ids):
+        #     item_ids[j] = items_data_by_coverage_id[coverage_id][j][0]
 
-        item_ids_argsorted = np.argsort(item_ids)
-        item_ids_sorted = item_ids[item_ids_argsorted]
+        items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
 
-        # dict that contains, for each item, the list of all random sidx with losses
-        # larger than loss_threshold. caching this allows for smaller loop  when
-        # writing the output
-        sample_idx_to_write = Dict()
-
-        # nomenclature change in gulcalc `gilv[item_id, losses]` becomes losses in gulpy
-        losses = np.zeros((sample_size + NUM_IDX, Nitems), dtype=oasis_float)
-
-        for item_j, item_id_sorted in enumerate(item_ids_argsorted):
-
-            _, damagecdf_i, rng_index = items_data_by_coverage_id[coverage_id][item_id_sorted]
+        for item_i in range(coverage['cur_items']):
+            item = items[item_i]
+            damagecdf_i = item['damagecdf_i']
+            rng_index = item['rng_index']
 
             rec = recs[rec_idx_ptr[damagecdf_i]:rec_idx_ptr[damagecdf_i + 1]]
             prob_to = rec['prob_to']
@@ -370,18 +390,16 @@ def compute_event_losses(event_id, items_data_by_coverage_id, coverage_ids,
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
-            losses[SHIFTED_MAX_LOSS_IDX, item_j] = max_loss
-            losses[SHIFTED_CHANCE_OF_LOSS_IDX, item_j] = chance_of_loss
-            losses[SHIFTED_TIV_IDX, item_j] = exposureValue
-            losses[SHIFTED_STD_DEV_IDX, item_j] = std_dev
-            losses[SHIFTED_MEAN_IDX, item_j] = gul_mean
-
-            idx_loss_above_threshold = List.empty_list(nb.types.int64)
+            losses[MAX_LOSS_IDX, item_i] = max_loss
+            losses[CHANCE_OF_LOSS_IDX, item_i] = chance_of_loss
+            losses[TIV_IDX, item_i] = exposureValue
+            losses[STD_DEV_IDX, item_i] = std_dev
+            losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
                 if debug:
                     for sample_idx, rval in enumerate(rndms[rng_index]):
-                        losses[sample_idx + NUM_IDX, item_j] = rval
+                        losses[sample_idx, item_i] = rval
                 else:
                     for sample_idx, rval in enumerate(rndms[rng_index]):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
@@ -402,25 +420,23 @@ def compute_event_losses(event_id, items_data_by_coverage_id, coverage_ids,
                             rval,
                             tiv
                         )
-
                         if gul >= loss_threshold:
-                            losses[sample_idx + NUM_IDX, item_j] = gul
-                            idx_loss_above_threshold.append(sample_idx)
+                            losses[sample_idx, item_i] = gul
+                        else:
+                            losses[sample_idx, item_i] = 0
 
-            sample_idx_to_write[item_j] = idx_loss_above_threshold
-
-        cursor, cursor_bytes = write_losses(event_id, losses, item_ids_sorted, alloc_rule, tiv,
-                                            sample_idx_to_write, int32_mv, cursor, cursor_bytes)
+        cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
+                                            int32_mv, cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    return cursor, cursor_bytes, last_processed_coverage_ids_idx
+    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
 
 
 @njit(cache=True, fastmath=True)
-def write_losses(event_id, losses, item_ids, alloc_rule, tiv, sample_idx_to_write,
-                 int32_mv, cursor, cursor_bytes):
+def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_rule, tiv,
+                 int32_mv, cursor):
     """Write the computed losses.
 
     Args:
@@ -432,47 +448,46 @@ def write_losses(event_id, losses, item_ids, alloc_rule, tiv, sample_idx_to_writ
         sample_idx_to_write (Dict[int,List[int64]]): indices of samples with losses above threshold
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        cursor_bytes (int): number of bytes written in int32_mv.
 
     Returns:
-        int, int: updated values of cursor and cursor_bytes
+        int: updated values of cursor
     """
     # note that Nsamples = sample_size + NUM_IDX
-    Nsamples, Nitems = losses.shape
 
     if alloc_rule == 2:
-        losses = setmaxloss(losses)
+        losses[1:] = setmaxloss(losses[1:])
 
     # split tiv has to be executed after setmaxloss, if alloc_rule==2.
-    if alloc_rule >= 1:
+    if alloc_rule >= 1 and tiv > 0:
         # check whether the sum of losses-per-sample exceeds TIV
         # if so, split TIV in proportion to the losses
-        for sample_i in range(Nsamples):
+        for sample_i in range(1, losses.shape[0]):
             split_tiv(losses[sample_i], tiv)
 
     # output the losses for all the items
-    for item_j in range(Nitems):
+    for item_j in range(item_ids.shape[0]):
 
         # write header
-        cursor, cursor_bytes = write_sample_header(
-            event_id, item_ids[item_j], int32_mv, cursor, cursor_bytes)
+        cursor = write_sample_header(
+            event_id, item_ids[item_j], int32_mv, cursor)
 
         # write negative sidx
-        cursor, cursor_bytes = write_negative_sidx(
-            MAX_LOSS_IDX, losses[SHIFTED_MAX_LOSS_IDX, item_j],
-            CHANCE_OF_LOSS_IDX, losses[SHIFTED_CHANCE_OF_LOSS_IDX, item_j],
-            TIV_IDX, losses[SHIFTED_TIV_IDX, item_j],
-            STD_DEV_IDX, losses[SHIFTED_STD_DEV_IDX, item_j],
-            MEAN_IDX, losses[SHIFTED_MEAN_IDX, item_j],
-            int32_mv, cursor, cursor_bytes
+        cursor = write_negative_sidx(
+            MAX_LOSS_IDX, losses[MAX_LOSS_IDX, item_j],
+            CHANCE_OF_LOSS_IDX, losses[CHANCE_OF_LOSS_IDX, item_j],
+            TIV_IDX, losses[TIV_IDX, item_j],
+            STD_DEV_IDX, losses[STD_DEV_IDX, item_j],
+            MEAN_IDX, losses[MEAN_IDX, item_j],
+            int32_mv, cursor
         )
 
         # write the random samples (only those with losses above the threshold)
-        for sample_idx in sample_idx_to_write[item_j]:
-            cursor, cursor_bytes = write_sample_rec(
-                sample_idx + 1, losses[sample_idx + NUM_IDX, item_j], int32_mv, cursor, cursor_bytes)
+        for sample_idx in range(1, sample_size+1):
+            if losses[sample_idx, item_j] >= loss_threshold:
+                cursor = write_sample_rec(
+                    sample_idx, losses[sample_idx, item_j], int32_mv, cursor)
 
         # write terminator for the samples for this item
-        cursor, cursor_bytes = write_sample_rec(0, 0., int32_mv, cursor, cursor_bytes)
+        cursor = write_sample_rec(0, 0., int32_mv, cursor)
 
-    return cursor, cursor_bytes
+    return cursor
