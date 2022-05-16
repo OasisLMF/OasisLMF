@@ -41,6 +41,7 @@ from ...utils.inputs import str2bool
 from ...utils.data import (
     fast_zip_dataframe_columns,
     get_analysis_settings,
+    get_model_settings,
     get_dataframe,
     get_utctimestamp,
     merge_dataframes,
@@ -186,6 +187,7 @@ class GenerateLossesDir(GenerateLossesBase):
         # Command line options
         {'name': 'oasis_files_dir',        'flag':'-o', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'analysis_settings_json', 'flag':'-a', 'is_path': True, 'pre_exist': True, 'required': True,  'help': 'Analysis settings JSON file path'},
+        {'name': 'model_settings_json',    'flag':'-M', 'is_path': True, 'pre_exist': True, 'required': False, 'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir',          'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'model_data_dir',         'flag':'-d', 'is_path': True, 'pre_exist': True,  'help': 'Model data directory path'},
         {'name': 'model_run_dir',          'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
@@ -246,6 +248,18 @@ class GenerateLossesDir(GenerateLossesBase):
             raise OasisException(
                 'No valid output settings in: {}'.format(self.analysis_settings_json))
 
+        # Load default samples if not set in analysis settings
+        if not analysis_settings.get('number_of_samples'):
+            if not self.model_settings_json:
+                raise OasisException("'number_of_samples' not set in analysis_settings and no model_settings.json file provided for a default value.")
+
+            default_model_samples = get_model_settings(self.model_settings_json, key='model_default_samples')
+            if default_model_samples == None:
+                raise OasisException( "'number_of_samples' not set in analysis_settings and no default value 'model_default_samples' found in model_settings file.")
+
+            self.logger.info(f"Loaded samples from model_settings file: 'model_default_samples = {default_model_samples}'")
+            analysis_settings['number_of_samples'] = default_model_samples
+
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
         self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
         return analysis_settings
@@ -292,7 +306,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         if os.path.isfile(self.script_fp):
             os.remove(self.script_fp)
 
-        bash_params = model_runner_module.bash_params(
+        bash_params = bash.bash_params(
             analysis_settings,
             number_of_processes=self.ktools_num_processes,
             filename=self.script_fp,
@@ -365,7 +379,7 @@ class GenerateLossesOutput(GenerateLossesDir):
         if os.path.isfile(self.script_fp):
             os.remove(self.script_fp)
 
-        bash_params = model_runner_module.bash_params(
+        bash_params = bash.bash_params(
             analysis_settings,
             number_of_processes=self.ktools_num_processes,
             num_reinsurance_iterations=ri_layers,

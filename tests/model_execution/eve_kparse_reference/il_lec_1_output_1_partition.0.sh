@@ -48,8 +48,8 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5
 
 # --- Do insured loss kats ---
 
-kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
-kat work/kat/il_S1_pltcalc_P1 > output/il_S1_pltcalc.csv & kpid2=$!
-kat work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid3=$!
+kat -u work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
+kat -u work/kat/il_S1_pltcalc_P1 > output/il_S1_pltcalc.csv & kpid2=$!
+kat -u work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid3=$!
 wait $kpid1 $kpid2 $kpid3
 

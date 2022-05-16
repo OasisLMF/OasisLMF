@@ -16,3 +16,4 @@ shutilwhich
 tabulate>=0.8.2
 tblib
 tqdm
+numpy<1.22,>=1.18
