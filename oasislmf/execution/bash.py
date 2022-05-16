@@ -1562,6 +1562,11 @@ def bash_wrapper(filename, bash_trace, stderr_guard, process_number=None):
     if stderr_guard and not process_number:
         print_command(filename, '')
         print_command(filename, 'check_complete')
+    elif stderr_guard:
+        print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
+        print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
+        print_command(filename, '    exit 1')
+        print_command(filename, 'fi')
 
 
 def create_bash_analysis(
