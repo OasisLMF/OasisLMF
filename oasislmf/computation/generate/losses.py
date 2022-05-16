@@ -199,7 +199,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
     ]
 
-    def run(self, test_skip=False):
+    def run(self):
         model_run_fp = self._get_output_dir()
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
@@ -212,23 +212,22 @@ class GenerateLossesDir(GenerateLossesBase):
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
 
-        if not test_skip:
-            prepare_run_directory(
-                model_run_fp,
-                self.oasis_files_dir,
-                self.model_data_dir,
-                self.analysis_settings_json,
-                user_data_dir=self.user_data_dir,
-                ri=ri
-            )
+        prepare_run_directory(
+            model_run_fp,
+            self.oasis_files_dir,
+            self.model_data_dir,
+            self.analysis_settings_json,
+            user_data_dir=self.user_data_dir,
+            ri=ri
+        )
 
-            generate_summaryxref_files(
-                model_run_fp,
-                analysis_settings,
-                gul_item_stream=gul_item_stream,
-                il=il,
-                ri=ri
-            )
+        generate_summaryxref_files(
+            model_run_fp,
+            analysis_settings,
+            gul_item_stream=gul_item_stream,
+            il=il,
+            ri=ri
+        )
 
         if not ri:
             fp = os.path.join(model_run_fp, 'input')
@@ -289,6 +288,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'model_custom_gulcalc',   'default': None,  'help': 'Custom gulcalc binary name to call in the model losses step'},
 
         # New vars for chunked loss generation
+        {'name': 'analysis_settings', 'default': None},
         {'name': 'script_fp', 'default': None},
         {'name': 'process_number', 'default': None, 'type':int, 'help': 'Partition number to run, if not set then run all in a single script'},
         {'name': 'max_process_id', 'default': -1,   'type':int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
@@ -297,8 +297,13 @@ class GenerateLossesPartial(GenerateLossesDir):
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        analysis_settings = GenerateLossesDir.run(self, test_skip=True)
-        ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
+
+        # distributed worker will pass in run settings as JSON, if not given load settings
+        # and re-load input dir.
+        if not self.analysis_settings:
+            self.analysis_settings = GenerateLossesDir.run(self)
+
+        ri_layers = self._get_num_ri_layers(self.analysis_settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
 
         if not self.script_fp:
@@ -309,7 +314,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             os.remove(self.script_fp)
 
         bash_params = bash.bash_params(
-            analysis_settings,
+            self.analysis_settings,
             number_of_processes=self.ktools_num_processes,
             filename=self.script_fp,
             num_reinsurance_iterations=ri_layers,
