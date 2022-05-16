@@ -199,7 +199,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
     ]
 
-    def run(self):
+    def run(self, test_skip=False):
         model_run_fp = self._get_output_dir()
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
@@ -212,21 +212,23 @@ class GenerateLossesDir(GenerateLossesBase):
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
 
-        prepare_run_directory(
-            model_run_fp,
-            self.oasis_files_dir,
-            self.model_data_dir,
-            self.analysis_settings_json,
-            user_data_dir=self.user_data_dir,
-            ri=ri
-        )
-        generate_summaryxref_files(
-            model_run_fp,
-            analysis_settings,
-            gul_item_stream=gul_item_stream,
-            il=il,
-            ri=ri
-        )
+        if not test_skip:
+            prepare_run_directory(
+                model_run_fp,
+                self.oasis_files_dir,
+                self.model_data_dir,
+                self.analysis_settings_json,
+                user_data_dir=self.user_data_dir,
+                ri=ri
+            )
+
+            generate_summaryxref_files(
+                model_run_fp,
+                analysis_settings,
+                gul_item_stream=gul_item_stream,
+                il=il,
+                ri=ri
+            )
 
         if not ri:
             fp = os.path.join(model_run_fp, 'input')
@@ -295,7 +297,7 @@ class GenerateLossesPartial(GenerateLossesDir):
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        analysis_settings = GenerateLossesDir.run(self)
+        analysis_settings = GenerateLossesDir.run(self, test_skip=True)
         ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
 
