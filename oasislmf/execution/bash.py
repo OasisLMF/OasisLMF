@@ -118,7 +118,7 @@ SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
 
 TRAP_FUNC = """
 touch $LOG_DIR/stderror.err
-ktools_monitor.sh $$ & pid0=$!
+ktools_monitor.sh $$ $LOG_DIR & pid0=$!
 
 exit_handler(){
    exit_code=$?
