@@ -5,11 +5,12 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-mkdir -p log
-rm -R -f log/*
+LOG_DIR=log
+mkdir -p $LOG_DIR
+rm -R -f $LOG_DIR/*
 
 
-touch log/stderror.err
+touch $LOG_DIR/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 
 exit_handler(){
@@ -28,11 +29,11 @@ exit_handler(){
        sess_pid=$(ps -p $$ -o sess --no-headers)
        script_pid=$$
        printf "Script PID:%d, GPID:%s, SPID:%d
-" $script_pid $group_pid $sess_pid >> log/killout.txt
+" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
-       ps -jf f -g $sess_pid > log/subprocess_list
+       ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
        PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$ | sort -n -r)
-       echo "$PIDS_KILL" >> log/killout.txt
+       echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
    else
@@ -66,9 +67,9 @@ check_complete(){
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
-rm -R -f fifo/*
-rm -R -f work/*
-mkdir work/kat/
+find fifo/ \( -name '*P15[^0-9]*' -o -name '*P15' \) -exec rm -R -f {} +
+find work/ \( -name '*P15[^0-9]*' -o -name '*P15' \) -exec rm -R -f {} +
+mkdir -p work/kat/
 
 
 mkfifo fifo/il_P15
@@ -79,11 +80,11 @@ mkfifo fifo/il_S1_summarycalc_P15
 
 
 # --- Do insured loss computes ---
-( summarycalctocsv -s < fifo/il_S1_summarycalc_P15 > work/kat/il_S1_summarycalc_P15 ) 2>> log/stderror.err & pid1=$!
+( summarycalctocsv -s < fifo/il_S1_summarycalc_P15 > work/kat/il_S1_summarycalc_P15 ) 2>> $LOG_DIR/stderror.err & pid1=$!
 tee < fifo/il_S1_summary_P15 fifo/il_S1_summarycalc_P15 > /dev/null & pid2=$!
-( summarycalc -m -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 ) 2>> log/stderror.err  &
+( summarycalc -m -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 ) 2>> $LOG_DIR/stderror.err  &
 
-( eve 15 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P15  ) 2>> log/stderror.err &
+( eve 15 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P15  ) 2>> $LOG_DIR/stderror.err &
 
 wait $pid1 $pid2
 

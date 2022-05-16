@@ -5,11 +5,12 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-mkdir -p log
-rm -R -f log/*
+LOG_DIR=log
+mkdir -p $LOG_DIR
+rm -R -f $LOG_DIR/*
 
 
-touch log/stderror.err
+touch $LOG_DIR/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 
 exit_handler(){
@@ -28,11 +29,11 @@ exit_handler(){
        sess_pid=$(ps -p $$ -o sess --no-headers)
        script_pid=$$
        printf "Script PID:%d, GPID:%s, SPID:%d
-" $script_pid $group_pid $sess_pid >> log/killout.txt
+" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
-       ps -jf f -g $sess_pid > log/subprocess_list
+       ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
        PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$ | sort -n -r)
-       echo "$PIDS_KILL" >> log/killout.txt
+       echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
    else
@@ -68,11 +69,11 @@ find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R 
 
 rm -R -f fifo/*
 rm -R -f work/*
-mkdir work/kat/
+mkdir -p work/kat/
 
-mkdir work/gul_S1_summaryaalcalc
-mkdir work/il_S1_summaryleccalc
-mkdir work/ri_S1_summaryleccalc
+mkdir -p work/gul_S1_summaryaalcalc
+mkdir -p work/il_S1_summaryleccalc
+mkdir -p work/ri_S1_summaryleccalc
 
 mkfifo fifo/gul_P1
 
@@ -101,7 +102,7 @@ mkfifo fifo/ri_S1_summary_P1.idx
 tee < fifo/ri_S1_summary_P1 work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-( summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do insured loss computes ---
 
@@ -110,21 +111,21 @@ tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & p
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid3=$!
 tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid4=$!
 
-( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do ground up loss computes ---
 
-( eltcalc < fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 ) 2>> log/stderror.err & pid5=$!
-( summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 ) 2>> log/stderror.err & pid6=$!
-( pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 ) 2>> log/stderror.err & pid7=$!
+( eltcalc < fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid5=$!
+( summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 ) 2>> $LOG_DIR/stderror.err & pid6=$!
+( pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid7=$!
 
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 fifo/gul_S1_summarycalc_P1 fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
 tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryaalcalc/P1.idx > /dev/null & pid9=$!
 
-( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | tee fifo/gul_P1 | fmcalc -a2 | tee fifo/il_P1 | fmcalc -a3 -n -p RI_1 > fifo/ri_P1 ) 2>> log/stderror.err &
+( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | tee fifo/gul_P1 | fmcalc -a2 | tee fifo/il_P1 | fmcalc -a3 -n -p RI_1 > fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9
 
@@ -143,9 +144,9 @@ kat work/kat/gul_S1_summarycalc_P1 > output/gul_S1_summarycalc.csv & kpid3=$!
 wait $kpid1 $kpid2 $kpid3
 
 
-( ordleccalc -r -Kri_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/ri_S1_ept.csv -o output/ri_S1_psept.csv ) 2>> log/stderror.err & lpid1=$!
-( ordleccalc  -Kil_S1_summaryleccalc -F -S -s -M -m -O output/il_S1_ept.csv ) 2>> log/stderror.err & lpid2=$!
-( aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv ) 2>> log/stderror.err & lpid3=$!
+( ordleccalc -r -Kri_S1_summaryleccalc -F -f -S -s -M -m -W -w -O output/ri_S1_ept.csv -o output/ri_S1_psept.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( ordleccalc  -Kil_S1_summaryleccalc -F -S -s -M -m -O output/il_S1_ept.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
+( aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid3=$!
 wait $lpid1 $lpid2 $lpid3
 
 rm -R -f work/*
