@@ -1560,9 +1560,11 @@ def bash_wrapper(filename, bash_trace, stderr_guard, process_number=None):
 
     # Script footer
     if stderr_guard and not process_number:
+        # run process dropped check (single script run)
         print_command(filename, '')
         print_command(filename, 'check_complete')
-    elif stderr_guard:
+    elif stderr_guard and process_number:
+        # check stderror.err before exit (fallback check in case of short run)
         print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
         print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
         print_command(filename, '    exit 1')
