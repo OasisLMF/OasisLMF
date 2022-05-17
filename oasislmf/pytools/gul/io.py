@@ -97,6 +97,7 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
     while not end_of_stream:
         if len_read > 0:
             # read stream from valid_buf onwards
+            # TODO use selELECT
             len_read = stream_in.readinto1(mv[valid_buf:])
             # extend the valid_buf by the same amount of data that was read
             valid_buf += len_read
@@ -240,6 +241,7 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
 @njit(cache=True, fastmath=True)
 def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
+    # assumes all item_ids are different
     for i in range(items_data.shape[0] - 1):
         if items_data[i]['item_id'] > item_id:
             items_data[i+1:] = items_data[i:-1]
@@ -350,8 +352,10 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
             # for `list_coverage_ids` list is preferable over set because order is important
             coverage = coverages[coverage_id]
             if coverage['cur_items'] == 0:
+                # no items were collected for this coverage: set up the structure
                 compute[compute_i], compute_i = coverage_id, compute_i + 1
-                if items_data.shape[0] < items_data_i + coverage['max_items']:
+                while items_data.shape[0] < items_data_i + coverage['max_items']:  # MT don't understand this
+                    # is this just a hand-wavy approach: double the size whenever you need more?
                     temp_items_data = np.empty(items_data.shape[0] * 2, dtype=items_data.dtype)
                     temp_items_data[:items_data_i] = items_data[:items_data_i]
                     items_data = temp_items_data

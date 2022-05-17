@@ -119,7 +119,7 @@ def generate_item_map(items, coverages):
             tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
-        coverages[items[j]['coverage_id']-1]['max_items'] += 1
+        coverages[items[j]['coverage_id']]['max_items'] += 1
     return item_map
 
 
@@ -161,7 +161,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     # read coverages from file
     coverages_tiv = get_coverages(input_path)
     coverages = np.empty(coverages_tiv.shape[0]+1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tiv
+    coverages[1:]['tiv'] = coverages_tiv   # MT2SS: 0 is empty to use same number of coverages (which start from 1)
     coverages['cur_items'].fill(0)
     del coverages_tiv
 
@@ -173,6 +173,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     item_map = generate_item_map(items, coverages)
 
+    # +1 is because coverages start from 1
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
 
     with ExitStack() as stack:
@@ -208,6 +209,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         t_write = []
         t0 = time.time()
 
+        # MT2SS: 1) these are not seeds, 2) before, we determined them on the fly, but here we rely on assumption of external data
+        # MT2SS: 3) I don't understand. seeds is never read but only written in read_getmodel_stream. Why do we set it to unique? Just for the length?
         seeds = np.unique(items['group_id'])
         # create buffer to compute each coverage loss, in the buffer
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages['max_items'])), dtype=oasis_float)
@@ -241,6 +244,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 t1 = time.time()
                 t_compute.append(t1 - t0)
                 t0 = t1
+                # TODO use select
                 stream_out.write(writer.mv[:cursor_bytes])
                 t1 = time.time()
                 t_write.append(t1 - t0)
@@ -398,10 +402,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
             if sample_size > 0:
                 if debug:
-                    for sample_idx, rval in enumerate(rndms[rng_index]):
+                    for sample_idx, rval in enumerate(rndms[rng_index], start=1):  # TO BE CHECKED
                         losses[sample_idx, item_i] = rval
                 else:
-                    for sample_idx, rval in enumerate(rndms[rng_index]):
+                    for sample_idx, rval in enumerate(rndms[rng_index], start=1):  # TO BE CHECKED
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
                         rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 
