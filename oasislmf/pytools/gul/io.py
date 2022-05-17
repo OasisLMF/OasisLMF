@@ -278,15 +278,20 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
     # Nbins = np.zeros(valid_len, dtype='i4')
     # damagecdf = np.zeros(valid_len, dtype=damagecdfrec)
     # conservative choice: size as if the entire buffer is filled with cdf bins
+    # `rec` is a temporary buffer to store the cdf being read
+    # TODO: rec could be re-used, so it'd be possible to pass it in input to this functio.
     rec = np.zeros(valid_buf // ProbMean_size, dtype=ProbMean)
     # rec_idx_ptr = np.zeros(valid_len + 1, dtype='i4')
-
+    
     cursor = 0
     # damagecdf_i = 0
+
+    # init a counter for the local `rec` tempoary
+    last_rec_idx_ptr = 0
     while cursor * int32_mv.itemsize + size_cdf_entry <= valid_buf:
 
         event_id, cursor = int32_mv[cursor], cursor + 1
-
+        
         if event_id != last_event_id:
             # a new event has started
             if last_event_id > 0:
@@ -303,9 +308,17 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         areaperil_id, cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
         vulnerability_id, cursor = int32_mv[cursor], cursor + 1
         Nbins_to_read, cursor = int32_mv[cursor], cursor + 1
+        
+        if cursor * int32_mv.itemsize + Nbins_to_read * ProbMean_size > valid_buf:
+            # if it is possible that the next record is not fully contained in the valid buf
+            # (Nbins_to_read * ProbMean_size is the largest possible record), return to get more
+            # data in the buffer and put cursor back at the beginning of this cdf
+            yield_event = False  # probably not needed, TODO check
+
+            return cursor-4, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
 
         # read damage cdf bins
-        start_rec = rec_idx_ptr[-1]
+        start_rec = last_rec_idx_ptr
         end_rec = start_rec + Nbins_to_read
         for j in range(start_rec, end_rec, 1):
             rec[j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
@@ -314,10 +327,8 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
             rec[j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
             cursor += oasis_float_to_int32_size
 
-            # printrec_idx_ptr(rec[j])
-
-            # print(areaperil_id, vulnerability_id)
-        rec_idx_ptr.append(end_rec)
+        rec_idx_ptr.append(rec_idx_ptr[-1] + Nbins_to_read)
+        last_rec_idx_ptr = end_rec
 
         # cursor_buf = cursor * 4
         # Nbins[i] = Nbins_to_read

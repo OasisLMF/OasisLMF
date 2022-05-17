@@ -246,6 +246,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 t0 = t1
                 # TODO use select
                 stream_out.write(writer.mv[:cursor_bytes])
+                #logger.info(event_id)
                 t1 = time.time()
                 t_write.append(t1 - t0)
                 t0 = t1
@@ -402,11 +403,13 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
             if sample_size > 0:
                 if debug:
-                    for sample_idx, rval in enumerate(rndms[rng_index], start=1):  # TO BE CHECKED
+                    for sample_idx in range(1, sample_size + 1):
+                        rval = rndms[rng_index][sample_idx-1]
                         losses[sample_idx, item_i] = rval
                 else:
-                    for sample_idx, rval in enumerate(rndms[rng_index], start=1):  # TO BE CHECKED
+                    for sample_idx in range(1, sample_size + 1):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
+                        rval = rndms[rng_index][sample_idx-1]
                         rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 
                         # find the bin in which the random value `rval` falls into
