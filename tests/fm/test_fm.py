@@ -13,7 +13,7 @@ class FmAcceptanceTests(TestCase):
 
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
-        self.update_expected = False
+        self.update_expected = True
         self.keep_output = True
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
