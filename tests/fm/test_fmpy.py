@@ -75,6 +75,7 @@ class FmAcceptanceTests(TestCase):
     # def test_insurance_step_2_subperils(self):
     #     self.run_test('insurance_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
+   # Bug under investigation
     def test_insurance_and_step_2_subperils(self):
         self.run_test('insurance_and_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
