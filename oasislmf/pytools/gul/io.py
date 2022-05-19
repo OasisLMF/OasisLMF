@@ -75,8 +75,8 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
     # use a memoryview of size twice the buff_size to ensure `read_into1` always reads the maximum amount
     # data possible (the largest between the pipe limit and the remaining memory to fill the memoryview)
-    mv = memoryview(bytearray(buff_size * 2))
-    int32_mv = np.ndarray(buff_size * 2 // 4, buffer=mv, dtype='i4')
+    mv = memoryview(bytearray(buff_size))
+    int32_mv = np.ndarray(buff_size // 4, buffer=mv, dtype='i4')
 
     cursor = 0
     valid_buf = 0
@@ -94,15 +94,21 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
     end_of_stream = False
 
     items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
-    while not end_of_stream:
+    while True:
         # if len_read > 0:
         # read stream from valid_buf onwards
         # TODO use selELECT
-        len_read = stream_in.readinto1(mv[valid_buf:])
-        # extend the valid_buf by the same amount of data that was read
-        valid_buf += len_read
+        if valid_buf < buff_size and len_read:
+            len_read = stream_in.readinto1(mv[valid_buf:])
+            # extend the valid_buf by the same amount of data that was read
+            valid_buf += len_read
+
         if len_read == 0:
             print(cursor_buf, valid_buf-len_read, valid_buf, event_id)
+
+        if valid_buf == 0:
+            yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
+            break
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
@@ -151,15 +157,6 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
             recs = []
             # print("> NEW  EVENT")
 
-        else:
-            if valid_buf == cursor_buf and len_read == 0:
-                # the stream has ended, this is the last event
-                # print("********** BREAK")
-                end_of_stream = True
-
-                yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
-                # print("> YIELDED LAST EVENT")
-
         # print("==> CONTINUE  EVENT")
 
         # if last_event_id > 1400:
@@ -179,6 +176,7 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
         # update the length of the valid data
         valid_buf -= cursor_buf
+
 
         # if valid_buf == cursor_buf:
         #     # this is the last cycle, all data has been read, append the last chunk of data
