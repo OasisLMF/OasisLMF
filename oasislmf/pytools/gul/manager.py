@@ -4,6 +4,7 @@ This file is the entry point for the gul command for the package.
 """
 import sys
 import os
+from select import select
 import time
 import logging
 from contextlib import ExitStack
@@ -187,6 +188,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             stream_out = sys.stdout.buffer
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
+        select_stream_list = [stream_out]
 
         # prepare output buffer, write stream header
         stream_out.write(gul_header)
@@ -245,6 +247,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 #t_compute.append(t1 - t0)
                 t0 = t1
                 # TODO use select
+                select([], select_stream_list, select_stream_list)
                 stream_out.write(writer.mv[:cursor_bytes])
                 logger.info(f"{event_id} {items_data.shape}")
                 t1 = time.time()
