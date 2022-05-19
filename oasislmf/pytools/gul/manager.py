@@ -219,7 +219,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = packed
 
             t1 = time.time()
-            t_read.append(t1-t0)
+            #t_read.append(t1-t0)
             t0 = t1
             # print(compute[:compute_i])
             # print(items_data[:20])
@@ -230,8 +230,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # #     event_id, damagecdfs, item_map)
 
             rndms = generate_rndm(seeds[:rng_index], sample_size)
-            t1 = time.time()
-            t_random.append(t1-t0)
+            #t1 = time.time()
+            #t_random.append(t1-t0)
             t0 = t1
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < compute_i:
@@ -242,21 +242,21 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     writer.int32_mv, cursor
                 )
                 t1 = time.time()
-                t_compute.append(t1 - t0)
+                #t_compute.append(t1 - t0)
                 t0 = t1
                 # TODO use select
                 stream_out.write(writer.mv[:cursor_bytes])
-                #logger.info(event_id)
+                logger.info(f"{event_id} {items_data.shape}")
                 t1 = time.time()
-                t_write.append(t1 - t0)
+                #t_write.append(t1 - t0)
                 t0 = t1
 
                 cursor = 0
 
-    print('t_read', t_read[0], sum(t_read[1:]))
-    print('t_random', t_random[0], sum(t_random[1:]))
-    print('t_compute', t_compute[0], sum(t_compute[1:]))
-    print('t_write', t_write[0], sum(t_write[1:]))
+    #print('t_read', t_read[0], sum(t_read[1:]))
+    #print('t_random', t_random[0], sum(t_random[1:]))
+    #print('t_compute', t_compute[0], sum(t_compute[1:]))
+    #print('t_write', t_write[0], sum(t_write[1:]))
 
     return 0
 

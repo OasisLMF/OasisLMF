@@ -95,21 +95,24 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
     items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
     while not end_of_stream:
-        if len_read > 0:
-            # read stream from valid_buf onwards
-            # TODO use selELECT
-            len_read = stream_in.readinto1(mv[valid_buf:])
-            # extend the valid_buf by the same amount of data that was read
-            valid_buf += len_read
+        # if len_read > 0:
+        # read stream from valid_buf onwards
+        # TODO use selELECT
+        len_read = stream_in.readinto1(mv[valid_buf:])
+        # extend the valid_buf by the same amount of data that was read
+        valid_buf += len_read
+        if len_read == 0:
+            print(cursor_buf, valid_buf-len_read, valid_buf, event_id)
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages, compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr)
+            int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages, compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read)
 
         # convert cursor to bytes
         cursor_buf = cursor * int32_mv.itemsize
 
         recs.append(rec[:rec_idx_ptr[-1]])  # <-- check if index is OK
+        print(cursor_buf, valid_buf, len_read, yield_event)
 
         if yield_event:
             # event is fully read, append the last chunk of data to the list of this event
@@ -133,7 +136,7 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
             #     # this was the last event
             #     print("********** BREAK")
             #     break
-
+            print(f"start reading event {last_event_id}")
             # start a new list for the new event, storing the first element
             # damagecdfs, Nbinss, rec_idx_ptrs = [damagecdf[i:i + 1]], [Nbins[i:i + 1]], [rec_idx_ptr[i:i + 1]]
             last_event_id = event_id
@@ -256,7 +259,7 @@ def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
 
 @njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages,
-                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
+                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read):
     """Parse streamed data into data arrays.
 
     Args:
@@ -313,9 +316,16 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
             # if it is possible that the next record is not fully contained in the valid buf
             # (Nbins_to_read * ProbMean_size is the largest possible record), return to get more
             # data in the buffer and put cursor back at the beginning of this cdf
-            yield_event = False  # probably not needed, TODO check
+            cursor -= 4
+            break
 
-            return cursor-4, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
+            #yield_event = False  # probably not needed, TODO check
+            #if len_read == 0:
+            #    print("areaperil_id=", areaperil_id, " vulnerability_id=", vulnerability_id, " Nbins=", Nbins_to_read, " which require ", Nbins_to_read * ProbMean_size, " bytes from cursor_buf=", cursor * int32_mv.itemsize, " so it will reach ", cursor * int32_mv.itemsize + Nbins_to_read * ProbMean_size, " bytes but valid_buf=", valid_buf)
+            #    raise IOError()
+
+            #else:
+            #    return cursor-4, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
 
         # read damage cdf bins
         start_rec = last_rec_idx_ptr
