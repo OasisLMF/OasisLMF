@@ -3,6 +3,7 @@ This file contains the utilities for all the I/O necessary in gulpy.
 
 """
 import os
+from select import select
 from tokenize import group
 import numpy as np
 import numba as nb
@@ -32,7 +33,7 @@ def gen_structs():
     return group_id_rng_index, rec_idx_ptr
 
 
-def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds, buff_size=65536):
+def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds, buff_size=65536*2):
     """Read the getmodel output stream yielding data event by event. 
 
     Args:
@@ -94,11 +95,13 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
     end_of_stream = False
 
     items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
+    select_stream_list = [stream_in]
     while True:
         # if len_read > 0:
         # read stream from valid_buf onwards
         # TODO use selELECT
         if valid_buf < buff_size and len_read:
+            select(select_stream_list, [], select_stream_list)
             len_read = stream_in.readinto1(mv[valid_buf:])
             # extend the valid_buf by the same amount of data that was read
             valid_buf += len_read
@@ -113,6 +116,9 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
             int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages, compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read)
+
+        if cursor == 0 and len_read == 0: # here valid buff is >0, but not enough data to have a full item => the stream stopped prematurly
+            raise Exception(f"cdf input stream ended prematurely, event_id: {event_id}, valid_buf: {valid_buf}, buff_size: {buff_size}")
 
         # convert cursor to bytes
         cursor_buf = cursor * int32_mv.itemsize
