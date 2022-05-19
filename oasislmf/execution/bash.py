@@ -1569,6 +1569,22 @@ def bash_wrapper(filename, bash_trace, stderr_guard, process_number=None):
         print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
         print_command(filename, '    exit 1')
         print_command(filename, 'fi')
+        # check for empty work bin files
+        print_command(filename, f'CHUNK_BINS=(`find work -name \'P{process_number}.bin\' | sort -r`)')
+        print_command(filename, 'echo " === Checking analysis output chunks === "')
+        print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
+        print_command(filename, '    wc -c $b')
+        print_command(filename, 'done')
+        print_command(filename, '')
+        print_command(filename, '# exit error if empty')
+        print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
+        print_command(filename, '    if [ ! -s $b ]; then')
+        print_command(filename, '        echo "Chunk output error: File \'$b\' is empty"')
+        print_command(filename, '        exit 1')
+        print_command(filename, '    fi')
+        print_command(filename, 'done')
+        print_command(filename, 'echo "Chunk output check [OK]"')
+
 
 
 def create_bash_analysis(
