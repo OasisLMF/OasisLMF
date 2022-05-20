@@ -1576,7 +1576,7 @@ def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_n
         print_command(filename, '    exit 1')
         print_command(filename, 'fi')
         # check for empty work bin files
-        print_command(filename, f'CHUNK_BINS=(`find {process_number}-work -name \'P{process_number}.bin\' | sort -r`)')
+        print_command(filename, f'CHUNK_BINS=(`find {process_number}.work -name \'P{process_number}.bin\' | sort -r`)')
         print_command(filename, 'echo " === Checking analysis output chunks === "')
         print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
         print_command(filename, '    wc -c $b')
