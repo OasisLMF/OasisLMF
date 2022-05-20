@@ -231,9 +231,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
                 select([], select_stream_list, select_stream_list)
                 stream_out.write(writer.mv[:cursor_bytes])
-                logger.info(f"{event_id} {items_data.shape}")
-
                 cursor = 0
+
+            logger.info(f"event {event_id} DONE")
 
     return 0
 
