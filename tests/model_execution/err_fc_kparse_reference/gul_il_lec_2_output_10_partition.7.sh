@@ -11,7 +11,7 @@ rm -R -f $LOG_DIR/*
 
 
 touch $LOG_DIR/stderror.err
-ktools_monitor.sh $$ $LOG_DIR & pid0=$!
+ktools_monitor.sh $$ & pid0=$!
 
 exit_handler(){
    exit_code=$?
