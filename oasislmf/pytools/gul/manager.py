@@ -5,13 +5,11 @@ This file is the entry point for the gul command for the package.
 import sys
 import os
 from select import select
-import time
 import logging
 from contextlib import ExitStack
 import numpy as np
 import numba as nb
 from numba import njit
-from numba.types import int_
 from numba.typed import Dict, List
 
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
@@ -19,8 +17,8 @@ from oasislmf.pytools.getmodel.common import oasis_float
 
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_ID_TYPE, ITEMS_DATA_MAP_TYPE,
-    COVERAGE_ID_TYPE, gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, items_data_type, NP_BASE_ARRAY_SIZE
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
+    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type
 )
 from oasislmf.pytools.gul.io import (
     LossWriter, write_negative_sidx, write_sample_header,
@@ -36,6 +34,9 @@ from oasislmf.pytools.gul.utils import find_bin_idx, append_to_dict_value
 gul_header = np.int32(1 | 2 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
+
+PIPE_CAPACITY = 65536  # bytes
+GETMODEL_STREAM_BUFF_SIZE = 2 * PIPE_CAPACITY
 
 
 def get_coverages(input_path, ignore_file_type=set()):
@@ -161,9 +162,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
     # read coverages from file
     coverages_tiv = get_coverages(input_path)
-    coverages = np.empty(coverages_tiv.shape[0]+1, coverage_type)
-    coverages[1:]['tiv'] = coverages_tiv   # MT2SS: 0 is empty to use same number of coverages (which start from 1)
-    coverages['cur_items'].fill(0)
+
+    # init the structure for computation
+    # coverages are numbered from 1, therefore we skip element 0 in `coverages`
+    coverages = np.empty(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages[1:]['tiv'] = coverages_tiv
     del coverages_tiv
 
     items = gul_get_items(input_path)
@@ -174,7 +177,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     item_map = generate_item_map(items, coverages)
 
-    # +1 is because coverages start from 1
+    # init array to store the coverages to be computed
+    # coverages are numebered from 1, therefore skip element 0.
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
 
     with ExitStack() as stack:
@@ -188,6 +192,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             stream_out = sys.stdout.buffer
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
+
         select_stream_list = [stream_out]
 
         # prepare output buffer, write stream header
@@ -205,119 +210,35 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         cursor = 0
         cursor_bytes = 0
-        t_read = []
-        t_random = []
-        t_compute = []
-        t_write = []
-        t0 = time.time()
 
-        # MT2SS: 1) these are not seeds, 2) before, we determined them on the fly, but here we rely on assumption of external data
-        # MT2SS: 3) I don't understand. seeds is never read but only written in read_getmodel_stream. Why do we set it to unique? Just for the length?
-        seeds = np.unique(items['group_id'])
-        # create buffer to compute each coverage loss, in the buffer
+        # create the array to store the seeds
+        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
+
+        # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages['max_items'])), dtype=oasis_float)
-        for packed in read_getmodel_stream(run_dir, streams_in, item_map, coverages, compute, seeds):
-            #event_id, items_data_by_coverage_id, coverage_ids, Nunique_coverage_ids, recs, rec_idx_ptr, seeds = packed
-            event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = packed
 
-            t1 = time.time()
-            #t_read.append(t1-t0)
-            t0 = t1
-            # print(compute[:compute_i])
-            # print(items_data[:20])
-            # 0/0
-            # print(event_id, len(items_data_by_coverage_id), len(coverage_ids),
-            #       Nunique_coverage_ids, recs.shape, len(rec_idx_ptr), rec_idx_ptr[-1])
-            # # items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds = reconstruct_coverages(
-            # #     event_id, damagecdfs, item_map)
+        for event_data in read_getmodel_stream(run_dir, streams_in, item_map, coverages, compute, seeds, buff_size=GETMODEL_STREAM_BUFF_SIZE):
+
+            event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
             rndms = generate_rndm(seeds[:rng_index], sample_size)
-            #t1 = time.time()
-            #t_random.append(t1-t0)
-            t0 = t1
+
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < compute_i:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms, debug, writer.buff_size,
-                    writer.int32_mv, cursor
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms, debug,
+                    writer.buff_size, writer.int32_mv, cursor
                 )
-                t1 = time.time()
-                #t_compute.append(t1 - t0)
-                t0 = t1
-                # TODO use select
+
                 select([], select_stream_list, select_stream_list)
                 stream_out.write(writer.mv[:cursor_bytes])
                 logger.info(f"{event_id} {items_data.shape}")
-                t1 = time.time()
-                #t_write.append(t1 - t0)
-                t0 = t1
 
                 cursor = 0
 
-    #print('t_read', t_read[0], sum(t_read[1:]))
-    #print('t_random', t_random[0], sum(t_random[1:]))
-    #print('t_compute', t_compute[0], sum(t_compute[1:]))
-    #print('t_write', t_write[0], sum(t_write[1:]))
-
     return 0
-
-
-# @njit(cache=True, fastmath=True)
-# def reconstruct_coverages(event_id, damagecdfs, item_map):
-#     """Reconstruct coverages, building a mapping of item ids to coverages.
-
-#     Args:
-#         event_id (int32): event id.
-#         damagecdfs (numpy.array[damagecdf]):  array of damagecdf entries (areaperil_id, vulnerability_id)
-#           for this event.
-#         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-#           the mapping between areaperil_id, vulnerability_id to item.
-
-#     Returns:
-#         Dict[int,List[ITEMS_DATA_MAP_TYPE]], Dict[int,List[ITEM_ID_TYPE]], List[COVERAGE_ID_TYPE], int, List[int64]:
-#           dictionary of items data (item index and random seed) for each item in each coverage_id,
-#           dictionary of item ids of each coverage_id, unique coverage ids, number of unique coverage_ids, seeds_list
-#     """
-#     items_data_by_coverage_id = Dict.empty(int_, List.empty_list(ITEMS_DATA_MAP_TYPE))
-#     item_ids_by_coverage_id = Dict.empty(int_, List.empty_list(ITEM_ID_TYPE))
-#     list_coverage_ids = List.empty_list(COVERAGE_ID_TYPE)
-
-#     Ncoverage_ids = 0
-#     seeds = set()
-
-#     for damagecdf_i, damagecdf in enumerate(damagecdfs):
-#         item_key = tuple((damagecdf['areaperil_id'], damagecdf['vulnerability_id']))
-
-#         for item in item_map[item_key]:
-#             item_id, coverage_id, group_id = item
-
-#             rng_seed = generate_hash(group_id, event_id)
-
-#             # append always, will filter the unqiue list_coverage_ids later
-#             # for `list_coverage_ids` list is preferable over set because order is important
-#             list_coverage_ids.append(coverage_id)
-#             Ncoverage_ids += 1
-
-#             append_to_dict_value(items_data_by_coverage_id, coverage_id, (damagecdf_i, rng_seed), ITEMS_DATA_MAP_TYPE)
-#             append_to_dict_value(item_ids_by_coverage_id, coverage_id, item_id, nb.types.int32)
-
-#             # using set instead of a typed list is 2x faster
-#             seeds.add(rng_seed)
-
-#     # convert list_coverage_ids to np.array to apply np.unique() to it
-#     coverage_ids_tmp = np.empty(Ncoverage_ids, dtype=np.int32)
-#     for j in range(Ncoverage_ids):
-#         coverage_ids_tmp[j] = list_coverage_ids[j]
-
-#     coverage_ids = np.unique(coverage_ids_tmp)
-#     Nunique_coverage_ids = coverage_ids.shape[0]
-
-#     # transform the set in a typed list in order to pass it to another jit'd function
-#     seeds_list = List(seeds)
-
-#     return items_data_by_coverage_id, item_ids_by_coverage_id, coverage_ids, Nunique_coverage_ids, seeds_list
 
 
 @njit(cache=True, fastmath=True)
@@ -329,10 +250,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
     Args:
         event_id (int32): event id.
-        items_data_by_coverage_id (Dict[COVERAGE_ID_TYPE,Tuple(int,int64)]): dict storing, for each coverage_id, a list
+        items_data_by_coverage_id (Dict[uple(int,int64)]): dict storing, for each coverage_id, a list
           of tuples (one tuple for each item containing the item index in Nbinss and recs, and the random seed).
-        item_ids_by_coverage_id (Dict[COVERAGE_ID_TYPE,ITEM_ID_TYPE]): dict storing the list of item ids for each coveage_id.
-        coverage_ids (numpy.array[COVERAGE_ID_TYPE]): array of **uniques** coverage ids used in this event.
+        item_ids_by_coverage_id (Dict[TEM_ID_TYPE]): dict storing the list of item ids for each coveage_id.
+        coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
         sample_size (int): number of random samples to draw.
@@ -356,7 +277,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
-    max_size_per_item =  (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+    max_size_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
         tiv = coverage['tiv']  # coverages are indexed from 1
@@ -407,12 +328,12 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             if sample_size > 0:
                 if debug:
                     for sample_idx in range(1, sample_size + 1):
-                        rval = rndms[rng_index][sample_idx-1]
+                        rval = rndms[rng_index][sample_idx - 1]
                         losses[sample_idx, item_i] = rval
                 else:
                     for sample_idx in range(1, sample_size + 1):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
-                        rval = rndms[rng_index][sample_idx-1]
+                        rval = rndms[rng_index][sample_idx - 1]
                         rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 
                         # find the bin in which the random value `rval` falls into
@@ -436,7 +357,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             losses[sample_idx, item_i] = 0
 
         cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
-                                            int32_mv, cursor)
+                              int32_mv, cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
@@ -492,7 +413,7 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
         )
 
         # write the random samples (only those with losses above the threshold)
-        for sample_idx in range(1, sample_size+1):
+        for sample_idx in range(1, sample_size + 1):
             if losses[sample_idx, item_j] >= loss_threshold:
                 cursor = write_sample_rec(
                     sample_idx, losses[sample_idx, item_j], int32_mv, cursor)
