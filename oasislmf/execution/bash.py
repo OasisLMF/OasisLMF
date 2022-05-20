@@ -1460,13 +1460,19 @@ def bash_params(
     else:
         bash_params['fifo_queue_dir'] = os.path.join(model_run_dir, 'fifo/')
 
+    ## set work dir
+    if process_number:
+        work_base_dir = f'{process_number}.work/'
+    else:
+        work_base_dir = 'work/'
+
     ## set dirs
     bash_params['stderr_guard'] = stderr_guard
     bash_params['gul_item_stream'] = not gul_legacy_stream
-    bash_params['work_dir'] = os.path.join(model_run_dir, 'work/')
-    bash_params['work_kat_dir'] = os.path.join(model_run_dir, 'work/kat/')
-    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, 'work/full_correlation/')
-    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, 'work/full_correlation/kat/')
+    bash_params['work_dir'] = os.path.join(model_run_dir, work_base_dir)
+    bash_params['work_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'kat/'))
+    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'full_correlation/'))
+    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'full_correlation/kat/'))
     bash_params['output_dir'] = os.path.join(model_run_dir, 'output/')
     bash_params['output_full_correlation_dir'] = os.path.join(model_run_dir, 'output/full_correlation/')
     bash_params['fifo_full_correlation_dir'] = os.path.join(bash_params['fifo_queue_dir'], 'full_correlation/')
@@ -1528,7 +1534,7 @@ def bash_params(
 
 
 @contextlib.contextmanager
-def bash_wrapper(filename, bash_trace, stderr_guard, process_number=None):
+def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_number=None):
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -1539,7 +1545,7 @@ def bash_wrapper(filename, bash_trace, stderr_guard, process_number=None):
 
     print_command(filename, '')
     if process_number:
-        print_command(filename, f'LOG_DIR=log/{process_number}')
+        print_command(filename, f'LOG_DIR=log/{log_sub_dir}')
     else:
         print_command(filename, 'LOG_DIR=log')
 
@@ -1569,6 +1575,21 @@ def bash_wrapper(filename, bash_trace, stderr_guard, process_number=None):
         print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
         print_command(filename, '    exit 1')
         print_command(filename, 'fi')
+        # check for empty work bin files
+        print_command(filename, f'CHUNK_BINS=(`find {process_number}.work -name \'P{process_number}.bin\' | sort -r`)')
+        print_command(filename, 'echo " === Checking analysis output chunks === "')
+        print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
+        print_command(filename, '    wc -c $b')
+        print_command(filename, 'done')
+        print_command(filename, '')
+        print_command(filename, '# exit error if empty')
+        print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
+        print_command(filename, '    if [ ! -s $b ]; then')
+        print_command(filename, '        echo "Chunk output error: File \'$b\' is empty"')
+        print_command(filename, '        exit 1')
+        print_command(filename, '    fi')
+        print_command(filename, 'done')
+        print_command(filename, 'echo "Chunk output check [OK]"')
 
 
 def create_bash_analysis(
@@ -1647,10 +1668,10 @@ def create_bash_analysis(
         if full_correlation:
             print_command( filename, 'mkdir -p {}'.format(fifo_full_correlation_dir))
 
-    if not process_number:
-        print_command(filename, 'rm -R -f {}*'.format(work_dir))
-    else:
-        print_command(filename, f"find {work_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+    #if not process_number:
+    print_command(filename, 'rm -R -f {}*'.format(work_dir))
+    #else:
+    #    print_command(filename, f"find {work_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
 
 
     print_command(filename, 'mkdir -p {}'.format(work_kat_dir))
