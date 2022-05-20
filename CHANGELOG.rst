@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#1039](https://github.com/OasisLMF/OasisLMF/pull/1039) - Fix/282 events not in occurrence file (Backport)
+.. _`1.23.11`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.10...1.23.11
+
 * [#1029](https://github.com/OasisLMF/OasisLMF/pull/1028) - Class not picked up when using key_server_module_path
 .. _`1.23.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.9...1.23.10
 
