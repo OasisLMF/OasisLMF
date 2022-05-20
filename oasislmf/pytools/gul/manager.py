@@ -35,9 +35,6 @@ gul_header = np.int32(1 | 2 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
 
-PIPE_CAPACITY = 65536  # bytes
-GETMODEL_STREAM_BUFF_SIZE = 2 * PIPE_CAPACITY
-
 
 def get_coverages(input_path, ignore_file_type=set()):
     """Load the coverages from the coverages file.
@@ -217,7 +214,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages['max_items'])), dtype=oasis_float)
 
-        for event_data in read_getmodel_stream(run_dir, streams_in, item_map, coverages, compute, seeds, buff_size=GETMODEL_STREAM_BUFF_SIZE):
+        for event_data in read_getmodel_stream(run_dir, streams_in, item_map, coverages, compute, seeds):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 

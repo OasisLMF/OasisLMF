@@ -7,6 +7,9 @@ import numba as nb
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
+PIPE_CAPACITY = 65536  # bytes
+GETMODEL_STREAM_BUFF_SIZE = 2 * PIPE_CAPACITY
+
 items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                           ('damagecdf_i', np.int32),
                                           ('rng_index', np.int32)
