@@ -5,21 +5,20 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-LOG_DIR=log
-mkdir -p $LOG_DIR
-rm -R -f $LOG_DIR/*
+mkdir -p log
+rm -R -f log/*
 
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir -p output/full_correlation/
+mkdir output/full_correlation/
 
-find /tmp/%FIFO_DIR%/fifo/ \( -name '*P9[^0-9]*' -o -name '*P9' \) -exec rm -R -f {} +
-mkdir -p /tmp/%FIFO_DIR%/fifo/full_correlation/
-find work/ \( -name '*P9[^0-9]*' -o -name '*P9' \) -exec rm -R -f {} +
-mkdir -p work/kat/
-mkdir -p work/full_correlation/
-mkdir -p work/full_correlation/kat/
+rm -R -f /tmp/%FIFO_DIR%/fifo/*
+mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+rm -R -f work/*
+mkdir work/kat/
+mkdir work/full_correlation/
+mkdir work/full_correlation/kat/
 
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P9

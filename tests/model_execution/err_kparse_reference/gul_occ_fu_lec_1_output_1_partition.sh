@@ -5,12 +5,11 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-LOG_DIR=log
-mkdir -p $LOG_DIR
-rm -R -f $LOG_DIR/*
+mkdir -p log
+rm -R -f log/*
 
 
-touch $LOG_DIR/stderror.err
+touch log/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 
 exit_handler(){
@@ -29,11 +28,11 @@ exit_handler(){
        sess_pid=$(ps -p $$ -o sess --no-headers)
        script_pid=$$
        printf "Script PID:%d, GPID:%s, SPID:%d
-" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
+" $script_pid $group_pid $sess_pid >> log/killout.txt
 
-       ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
+       ps -jf f -g $sess_pid > log/subprocess_list
        PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$ | sort -n -r)
-       echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
+       echo "$PIDS_KILL" >> log/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
    else
@@ -69,9 +68,9 @@ find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R 
 
 rm -R -f fifo/*
 rm -R -f work/*
-mkdir -p work/kat/
+mkdir work/kat/
 
-mkdir -p work/gul_S1_summaryleccalc
+mkdir work/gul_S1_summaryleccalc
 
 mkfifo fifo/gul_P1
 
@@ -87,9 +86,9 @@ mkfifo fifo/gul_S1_summary_P1.idx
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
 
-( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err &
+( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
 
 wait $pid1 $pid2
 
@@ -97,7 +96,7 @@ wait $pid1 $pid2
 # --- Do ground up loss kats ---
 
 
-( leccalc -r -Kgul_S1_summaryleccalc -f output/gul_S1_leccalc_full_uncertainty_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( leccalc -r -Kgul_S1_summaryleccalc -f output/gul_S1_leccalc_full_uncertainty_oep.csv ) 2>> log/stderror.err & lpid1=$!
 wait $lpid1
 
 rm -R -f work/*

@@ -5,12 +5,11 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-LOG_DIR=log
-mkdir -p $LOG_DIR
-rm -R -f $LOG_DIR/*
+mkdir -p log
+rm -R -f log/*
 
 
-touch $LOG_DIR/stderror.err
+touch log/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 
 exit_handler(){
@@ -29,11 +28,11 @@ exit_handler(){
        sess_pid=$(ps -p $$ -o sess --no-headers)
        script_pid=$$
        printf "Script PID:%d, GPID:%s, SPID:%d
-" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
+" $script_pid $group_pid $sess_pid >> log/killout.txt
 
-       ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
+       ps -jf f -g $sess_pid > log/subprocess_list
        PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$ | sort -n -r)
-       echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
+       echo "$PIDS_KILL" >> log/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
    else
@@ -66,17 +65,17 @@ check_complete(){
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir -p output/full_correlation/
+mkdir output/full_correlation/
 
-find fifo/ \( -name '*P8[^0-9]*' -o -name '*P8' \) -exec rm -R -f {} +
-mkdir -p fifo/full_correlation/
-find work/ \( -name '*P8[^0-9]*' -o -name '*P8' \) -exec rm -R -f {} +
-mkdir -p work/kat/
-mkdir -p work/full_correlation/
-mkdir -p work/full_correlation/kat/
+rm -R -f fifo/*
+mkdir fifo/full_correlation/
+rm -R -f work/*
+mkdir work/kat/
+mkdir work/full_correlation/
+mkdir work/full_correlation/kat/
 
-mkdir -p work/il_S1_summaryleccalc
-mkdir -p work/full_correlation/il_S1_summaryleccalc
+mkdir work/il_S1_summaryleccalc
+mkdir work/full_correlation/il_S1_summaryleccalc
 
 mkfifo fifo/full_correlation/gul_fc_P8
 
@@ -95,15 +94,15 @@ mkfifo fifo/full_correlation/il_S1_summary_P8.idx
 # --- Do insured loss computes ---
 tee < fifo/il_S1_summary_P8 work/il_S1_summaryleccalc/P8.bin > /dev/null & pid1=$!
 tee < fifo/il_S1_summary_P8.idx work/il_S1_summaryleccalc/P8.idx > /dev/null & pid2=$!
-( summarycalc -m -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 ) 2>> log/stderror.err  &
 
 # --- Do insured loss computes ---
 tee < fifo/full_correlation/il_S1_summary_P8 work/full_correlation/il_S1_summaryleccalc/P8.bin > /dev/null & pid3=$!
 tee < fifo/full_correlation/il_S1_summary_P8.idx work/full_correlation/il_S1_summaryleccalc/P8.idx > /dev/null & pid4=$!
-( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P8 < fifo/full_correlation/il_P8 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P8 < fifo/full_correlation/il_P8 ) 2>> log/stderror.err  &
 
-( fmcalc -a2 < fifo/full_correlation/gul_fc_P8 > fifo/full_correlation/il_P8 ) 2>> $LOG_DIR/stderror.err &
-( eve 8 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P8 -a1 -i - | fmcalc -a2 > fifo/il_P8  ) 2>> $LOG_DIR/stderror.err &
+( fmcalc -a2 < fifo/full_correlation/gul_fc_P8 > fifo/full_correlation/il_P8 ) 2>> log/stderror.err &
+( eve 8 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P8 -a1 -i - | fmcalc -a2 > fifo/il_P8  ) 2>> log/stderror.err &
 
 wait $pid1 $pid2 $pid3 $pid4
 
