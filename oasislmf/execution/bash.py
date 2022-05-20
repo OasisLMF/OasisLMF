@@ -783,7 +783,10 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            cmd += ' -s'
+                            if ord_type == 'plt_ord':
+                                cmd += ' -H'
+                            else:
+                                cmd += ' -s'
                             skip_line = False
 
                         cmd += f' {flag_proc["flag"]}'
@@ -827,7 +830,10 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                         cmd = summary_type
 
                     if process_id != 1:
-                        cmd += ' -s'
+                        if summary_type == 'pltcalc':
+                            cmd += ' -H'
+                        else:
+                            cmd += ' -s'
 
                     process_counter['pid_monitor_count'] += 1
 
