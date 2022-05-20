@@ -34,12 +34,12 @@ mkfifo fifo/full_correlation/gul_S1_pltcalc_P15
 
 
 # --- Do ground up loss computes ---
-pltcalc -s < fifo/gul_S1_pltcalc_P15 > work/kat/gul_S1_pltcalc_P15 & pid1=$!
+pltcalc -H < fifo/gul_S1_pltcalc_P15 > work/kat/gul_S1_pltcalc_P15 & pid1=$!
 tee < fifo/gul_S1_summary_P15 fifo/gul_S1_pltcalc_P15 > /dev/null & pid2=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P15 < fifo/gul_P15 &
 
 # --- Do ground up loss computes ---
-pltcalc -s < fifo/full_correlation/gul_S1_pltcalc_P15 > work/full_correlation/kat/gul_S1_pltcalc_P15 & pid3=$!
+pltcalc -H < fifo/full_correlation/gul_S1_pltcalc_P15 > work/full_correlation/kat/gul_S1_pltcalc_P15 & pid3=$!
 tee < fifo/full_correlation/gul_S1_summary_P15 fifo/full_correlation/gul_S1_pltcalc_P15 > /dev/null & pid4=$!
 summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P15 < fifo/full_correlation/gul_P15 &
 

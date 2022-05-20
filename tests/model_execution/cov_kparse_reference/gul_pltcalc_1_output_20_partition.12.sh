@@ -25,7 +25,7 @@ mkfifo fifo/gul_S1_pltcalc_P13
 
 
 # --- Do ground up loss computes ---
-pltcalc -s < fifo/gul_S1_pltcalc_P13 > work/kat/gul_S1_pltcalc_P13 & pid1=$!
+pltcalc -H < fifo/gul_S1_pltcalc_P13 > work/kat/gul_S1_pltcalc_P13 & pid1=$!
 tee < fifo/gul_S1_summary_P13 fifo/gul_S1_pltcalc_P13 > /dev/null & pid2=$!
 summarycalc -m -g  -1 fifo/gul_S1_summary_P13 < fifo/gul_P13 &
 

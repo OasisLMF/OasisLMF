@@ -96,7 +96,7 @@ mkfifo fifo/il_S1_pltcalc_P35
 # --- Do insured loss computes ---
 ( eltcalc -s < fifo/il_S1_eltcalc_P35 > work/kat/il_S1_eltcalc_P35 ) 2>> log/stderror.err & pid1=$!
 ( summarycalctocsv -s < fifo/il_S1_summarycalc_P35 > work/kat/il_S1_summarycalc_P35 ) 2>> log/stderror.err & pid2=$!
-( pltcalc -s < fifo/il_S1_pltcalc_P35 > work/kat/il_S1_pltcalc_P35 ) 2>> log/stderror.err & pid3=$!
+( pltcalc -H < fifo/il_S1_pltcalc_P35 > work/kat/il_S1_pltcalc_P35 ) 2>> log/stderror.err & pid3=$!
 tee < fifo/il_S1_summary_P35 fifo/il_S1_eltcalc_P35 fifo/il_S1_summarycalc_P35 fifo/il_S1_pltcalc_P35 work/il_S1_summaryaalcalc/P35.bin work/il_S1_summaryleccalc/P35.bin > /dev/null & pid4=$!
 tee < fifo/il_S1_summary_P35.idx work/il_S1_summaryleccalc/P35.idx > /dev/null & pid5=$!
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P35 < fifo/il_P35 ) 2>> log/stderror.err  &
@@ -104,7 +104,7 @@ tee < fifo/il_S1_summary_P35.idx work/il_S1_summaryleccalc/P35.idx > /dev/null &
 # --- Do ground up loss computes ---
 ( eltcalc -s < fifo/gul_S1_eltcalc_P35 > work/kat/gul_S1_eltcalc_P35 ) 2>> log/stderror.err & pid6=$!
 ( summarycalctocsv -s < fifo/gul_S1_summarycalc_P35 > work/kat/gul_S1_summarycalc_P35 ) 2>> log/stderror.err & pid7=$!
-( pltcalc -s < fifo/gul_S1_pltcalc_P35 > work/kat/gul_S1_pltcalc_P35 ) 2>> log/stderror.err & pid8=$!
+( pltcalc -H < fifo/gul_S1_pltcalc_P35 > work/kat/gul_S1_pltcalc_P35 ) 2>> log/stderror.err & pid8=$!
 tee < fifo/gul_S1_summary_P35 fifo/gul_S1_eltcalc_P35 fifo/gul_S1_summarycalc_P35 fifo/gul_S1_pltcalc_P35 work/gul_S1_summaryaalcalc/P35.bin work/gul_S1_summaryleccalc/P35.bin > /dev/null & pid9=$!
 tee < fifo/gul_S1_summary_P35.idx work/gul_S1_summaryleccalc/P35.idx > /dev/null & pid10=$!
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P35 < fifo/gul_P35 ) 2>> log/stderror.err  &

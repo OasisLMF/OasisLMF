@@ -56,10 +56,10 @@ mkfifo fifo/il_S2_pltcalc_P7
 # --- Do insured loss computes ---
 eltcalc -s < fifo/il_S1_eltcalc_P7 > work/kat/il_S1_eltcalc_P7 & pid1=$!
 summarycalctocsv -s < fifo/il_S1_summarycalc_P7 > work/kat/il_S1_summarycalc_P7 & pid2=$!
-pltcalc -s < fifo/il_S1_pltcalc_P7 > work/kat/il_S1_pltcalc_P7 & pid3=$!
+pltcalc -H < fifo/il_S1_pltcalc_P7 > work/kat/il_S1_pltcalc_P7 & pid3=$!
 eltcalc -s < fifo/il_S2_eltcalc_P7 > work/kat/il_S2_eltcalc_P7 & pid4=$!
 summarycalctocsv -s < fifo/il_S2_summarycalc_P7 > work/kat/il_S2_summarycalc_P7 & pid5=$!
-pltcalc -s < fifo/il_S2_pltcalc_P7 > work/kat/il_S2_pltcalc_P7 & pid6=$!
+pltcalc -H < fifo/il_S2_pltcalc_P7 > work/kat/il_S2_pltcalc_P7 & pid6=$!
 tee < fifo/il_S1_summary_P7 fifo/il_S1_eltcalc_P7 fifo/il_S1_summarycalc_P7 fifo/il_S1_pltcalc_P7 work/il_S1_summaryaalcalc/P7.bin work/il_S1_summaryleccalc/P7.bin > /dev/null & pid7=$!
 tee < fifo/il_S1_summary_P7.idx work/il_S1_summaryleccalc/P7.idx > /dev/null & pid8=$!
 tee < fifo/il_S2_summary_P7 fifo/il_S2_eltcalc_P7 fifo/il_S2_summarycalc_P7 fifo/il_S2_pltcalc_P7 work/il_S2_summaryaalcalc/P7.bin work/il_S2_summaryleccalc/P7.bin > /dev/null & pid9=$!
@@ -69,10 +69,10 @@ summarycalc -m -f  -1 fifo/il_S1_summary_P7 -2 fifo/il_S2_summary_P7 < fifo/il_P
 # --- Do ground up loss computes ---
 eltcalc -s < fifo/gul_S1_eltcalc_P7 > work/kat/gul_S1_eltcalc_P7 & pid11=$!
 summarycalctocsv -s < fifo/gul_S1_summarycalc_P7 > work/kat/gul_S1_summarycalc_P7 & pid12=$!
-pltcalc -s < fifo/gul_S1_pltcalc_P7 > work/kat/gul_S1_pltcalc_P7 & pid13=$!
+pltcalc -H < fifo/gul_S1_pltcalc_P7 > work/kat/gul_S1_pltcalc_P7 & pid13=$!
 eltcalc -s < fifo/gul_S2_eltcalc_P7 > work/kat/gul_S2_eltcalc_P7 & pid14=$!
 summarycalctocsv -s < fifo/gul_S2_summarycalc_P7 > work/kat/gul_S2_summarycalc_P7 & pid15=$!
-pltcalc -s < fifo/gul_S2_pltcalc_P7 > work/kat/gul_S2_pltcalc_P7 & pid16=$!
+pltcalc -H < fifo/gul_S2_pltcalc_P7 > work/kat/gul_S2_pltcalc_P7 & pid16=$!
 tee < fifo/gul_S1_summary_P7 fifo/gul_S1_eltcalc_P7 fifo/gul_S1_summarycalc_P7 fifo/gul_S1_pltcalc_P7 work/gul_S1_summaryaalcalc/P7.bin work/gul_S1_summaryleccalc/P7.bin > /dev/null & pid17=$!
 tee < fifo/gul_S1_summary_P7.idx work/gul_S1_summaryleccalc/P7.idx > /dev/null & pid18=$!
 tee < fifo/gul_S2_summary_P7 fifo/gul_S2_eltcalc_P7 fifo/gul_S2_summarycalc_P7 fifo/gul_S2_pltcalc_P7 work/gul_S2_summaryaalcalc/P7.bin work/gul_S2_summaryleccalc/P7.bin > /dev/null & pid19=$!

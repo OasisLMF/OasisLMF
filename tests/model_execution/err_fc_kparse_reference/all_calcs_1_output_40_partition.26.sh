@@ -122,7 +122,7 @@ mkfifo fifo/full_correlation/il_S1_pltcalc_P27
 # --- Do insured loss computes ---
 ( eltcalc -s < fifo/il_S1_eltcalc_P27 > work/kat/il_S1_eltcalc_P27 ) 2>> log/stderror.err & pid1=$!
 ( summarycalctocsv -s < fifo/il_S1_summarycalc_P27 > work/kat/il_S1_summarycalc_P27 ) 2>> log/stderror.err & pid2=$!
-( pltcalc -s < fifo/il_S1_pltcalc_P27 > work/kat/il_S1_pltcalc_P27 ) 2>> log/stderror.err & pid3=$!
+( pltcalc -H < fifo/il_S1_pltcalc_P27 > work/kat/il_S1_pltcalc_P27 ) 2>> log/stderror.err & pid3=$!
 tee < fifo/il_S1_summary_P27 fifo/il_S1_eltcalc_P27 fifo/il_S1_summarycalc_P27 fifo/il_S1_pltcalc_P27 work/il_S1_summaryaalcalc/P27.bin work/il_S1_summaryleccalc/P27.bin > /dev/null & pid4=$!
 tee < fifo/il_S1_summary_P27.idx work/il_S1_summaryleccalc/P27.idx > /dev/null & pid5=$!
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P27 < fifo/il_P27 ) 2>> log/stderror.err  &
@@ -130,7 +130,7 @@ tee < fifo/il_S1_summary_P27.idx work/il_S1_summaryleccalc/P27.idx > /dev/null &
 # --- Do ground up loss computes ---
 ( eltcalc -s < fifo/gul_S1_eltcalc_P27 > work/kat/gul_S1_eltcalc_P27 ) 2>> log/stderror.err & pid6=$!
 ( summarycalctocsv -s < fifo/gul_S1_summarycalc_P27 > work/kat/gul_S1_summarycalc_P27 ) 2>> log/stderror.err & pid7=$!
-( pltcalc -s < fifo/gul_S1_pltcalc_P27 > work/kat/gul_S1_pltcalc_P27 ) 2>> log/stderror.err & pid8=$!
+( pltcalc -H < fifo/gul_S1_pltcalc_P27 > work/kat/gul_S1_pltcalc_P27 ) 2>> log/stderror.err & pid8=$!
 tee < fifo/gul_S1_summary_P27 fifo/gul_S1_eltcalc_P27 fifo/gul_S1_summarycalc_P27 fifo/gul_S1_pltcalc_P27 work/gul_S1_summaryaalcalc/P27.bin work/gul_S1_summaryleccalc/P27.bin > /dev/null & pid9=$!
 tee < fifo/gul_S1_summary_P27.idx work/gul_S1_summaryleccalc/P27.idx > /dev/null & pid10=$!
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P27 < fifo/gul_P27 ) 2>> log/stderror.err  &
@@ -138,7 +138,7 @@ tee < fifo/gul_S1_summary_P27.idx work/gul_S1_summaryleccalc/P27.idx > /dev/null
 # --- Do insured loss computes ---
 ( eltcalc -s < fifo/full_correlation/il_S1_eltcalc_P27 > work/full_correlation/kat/il_S1_eltcalc_P27 ) 2>> log/stderror.err & pid11=$!
 ( summarycalctocsv -s < fifo/full_correlation/il_S1_summarycalc_P27 > work/full_correlation/kat/il_S1_summarycalc_P27 ) 2>> log/stderror.err & pid12=$!
-( pltcalc -s < fifo/full_correlation/il_S1_pltcalc_P27 > work/full_correlation/kat/il_S1_pltcalc_P27 ) 2>> log/stderror.err & pid13=$!
+( pltcalc -H < fifo/full_correlation/il_S1_pltcalc_P27 > work/full_correlation/kat/il_S1_pltcalc_P27 ) 2>> log/stderror.err & pid13=$!
 tee < fifo/full_correlation/il_S1_summary_P27 fifo/full_correlation/il_S1_eltcalc_P27 fifo/full_correlation/il_S1_summarycalc_P27 fifo/full_correlation/il_S1_pltcalc_P27 work/full_correlation/il_S1_summaryaalcalc/P27.bin work/full_correlation/il_S1_summaryleccalc/P27.bin > /dev/null & pid14=$!
 tee < fifo/full_correlation/il_S1_summary_P27.idx work/full_correlation/il_S1_summaryleccalc/P27.idx > /dev/null & pid15=$!
 ( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P27 < fifo/full_correlation/il_P27 ) 2>> log/stderror.err  &
@@ -146,7 +146,7 @@ tee < fifo/full_correlation/il_S1_summary_P27.idx work/full_correlation/il_S1_su
 # --- Do ground up loss computes ---
 ( eltcalc -s < fifo/full_correlation/gul_S1_eltcalc_P27 > work/full_correlation/kat/gul_S1_eltcalc_P27 ) 2>> log/stderror.err & pid16=$!
 ( summarycalctocsv -s < fifo/full_correlation/gul_S1_summarycalc_P27 > work/full_correlation/kat/gul_S1_summarycalc_P27 ) 2>> log/stderror.err & pid17=$!
-( pltcalc -s < fifo/full_correlation/gul_S1_pltcalc_P27 > work/full_correlation/kat/gul_S1_pltcalc_P27 ) 2>> log/stderror.err & pid18=$!
+( pltcalc -H < fifo/full_correlation/gul_S1_pltcalc_P27 > work/full_correlation/kat/gul_S1_pltcalc_P27 ) 2>> log/stderror.err & pid18=$!
 tee < fifo/full_correlation/gul_S1_summary_P27 fifo/full_correlation/gul_S1_eltcalc_P27 fifo/full_correlation/gul_S1_summarycalc_P27 fifo/full_correlation/gul_S1_pltcalc_P27 work/full_correlation/gul_S1_summaryaalcalc/P27.bin work/full_correlation/gul_S1_summaryleccalc/P27.bin > /dev/null & pid19=$!
 tee < fifo/full_correlation/gul_S1_summary_P27.idx work/full_correlation/gul_S1_summaryleccalc/P27.idx > /dev/null & pid20=$!
 ( summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P27 < fifo/full_correlation/gul_P27 ) 2>> log/stderror.err  &
