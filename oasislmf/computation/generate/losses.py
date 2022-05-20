@@ -34,9 +34,10 @@ from ...execution.bin import (
 )
 from ...execution.bash import get_fmcmd
 from ...preparation.summaries import generate_summaryxref_files
+from ...pytools.fm.financial_structure import create_financial_structure
 from ...utils.exceptions import OasisException
-from ...utils.path import setcwd
 from ...utils.inputs import str2bool
+from ...utils.path import setcwd
 
 from ...utils.data import (
     fast_zip_dataframe_columns,
@@ -197,6 +198,10 @@ class GenerateLossesDir(GenerateLossesBase):
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
 
+        # test moving fmpy file creation to this function
+        {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'ktools_alloc_rule_il',   'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
+        {'name': 'ktools_alloc_rule_ri',   'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
     ]
 
     def run(self):
@@ -207,7 +212,13 @@ class GenerateLossesDir(GenerateLossesBase):
             'fm_programme.csv',
             'fm_xref.csv'])
 
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir))
+        #ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir))
+        ri_dirs = [fn
+            for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
+            if re.match(r"RI_\d+$", fn)
+        ]
+        ri = any(ri_dirs)
+
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
@@ -262,6 +273,19 @@ class GenerateLossesDir(GenerateLossesBase):
             analysis_settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+
+        # Test call to create fmpy files in GenerateLossesDir
+        if il and self.fmpy:
+            il_target_dir = os.path.join(self.model_run_dir, 'input')
+            self.logger.info(f'Creating FMPY structures (IL): {il_target_dir}')
+            create_financial_structure(self.ktools_alloc_rule_il, il_target_dir)
+
+        if ri and self.fmpy:
+            for ri_sub_dir in ri_dirs:
+                ri_target_dir = os.path.join(self.model_run_dir, ri_sub_dir)
+                self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
+                create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
+
         self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
         return analysis_settings
 

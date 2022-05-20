@@ -1694,11 +1694,11 @@ def create_bash_analysis(
     if fmpy:
         if il_output or ri_output:
             print_command(
-                filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
+                filename, f'#{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
             )
         if ri_output:
             for i in range(1, num_reinsurance_iterations + 1):
-                print_command(filename, f'{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
+                print_command(filename, f'#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
