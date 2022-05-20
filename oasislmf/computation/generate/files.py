@@ -21,7 +21,6 @@ from ...preparation.dir_inputs import (
 from ...preparation.reinsurance_layer import write_files_for_reinsurance
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
-from oasislmf.pytools.data_layer.conversions.items import convert_item_file_ids_to_hash
 
 from ...utils.data import (
     get_model_settings,
