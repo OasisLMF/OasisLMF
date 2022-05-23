@@ -23,7 +23,7 @@ def find_bin_idx(value, array, n):
           Returns -1 if this condition never occurs.
     """
     for idx in range(n):
-        if array[idx] > value:
+        if array[idx] >= value:
             return idx
 
     return -1
