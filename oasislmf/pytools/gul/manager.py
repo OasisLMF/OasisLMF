@@ -26,7 +26,7 @@ from oasislmf.pytools.gul.io import (
 )
 from oasislmf.pytools.gul.random import get_random_generator
 from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
-from oasislmf.pytools.gul.utils import find_bin_idx, append_to_dict_value
+from oasislmf.pytools.gul.utils import find_bin_idx, append_to_dict_value, binary2
 
 
 # gul stream type
@@ -336,7 +336,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         # find the bin in which the random value `rval` falls into
                         # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                         # there's a 1:1 mapping between indices of rec and damage_bins
-                        bin_idx = find_bin_idx(rval, prob_to, Nbins)
+                        # bin_idx = find_bin_idx(rval, prob_to, Nbins)
+                        bin_idx = binary2(rval, prob_to, Nbins)
 
                         # compute ground-up losses
                         gul = get_gul(
