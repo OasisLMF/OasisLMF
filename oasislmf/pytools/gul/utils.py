@@ -12,8 +12,8 @@ def find_bin_idx(value, array, n):
     Assuming `array` is a sorted array (increasing order), find the first bin
     where where `array` gets larger than `value`. 
 
-    Args:
-        value (float,int): the value to be searched
+        Args:
+            value (float,int): the value to be searched
         array (float, int): the array where `value` is to be searched.
         n (int): number of elements of `array` where `value` is to be searched, starting
           from the beginning of `array`.
@@ -39,8 +39,8 @@ def binary2(value, array, n):
             lo = mid + 1
         else:
             hi = mid
-    if array[lo] <= value:
-        return lo
+    if array[hi] >= value:
+        return hi
     else:
         return -1
 
