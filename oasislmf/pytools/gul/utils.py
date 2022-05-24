@@ -30,6 +30,22 @@ def find_bin_idx(value, array, n):
 
 
 @njit(cache=True, fastmath=True)
+def binary2(value, array, n):
+    lo = 0
+    hi = n
+    while lo < hi:
+        mid = (lo + hi) >> 1  # divide by two
+        if array[mid] < value:
+            lo = mid + 1
+        else:
+            hi = mid
+    if array[lo] <= value:
+        return lo
+    else:
+        return -1
+
+
+@njit(cache=True, fastmath=True)
 def append_to_dict_value(d, key, value, value_type):
     """Append a value to the list populating a dictionary value.
     If the key is not present in the dictionary, populate the entry with a list with
