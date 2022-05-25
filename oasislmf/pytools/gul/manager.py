@@ -339,7 +339,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             # find the bin in which the random value `rval` falls into
                             # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
                             # there's a 1:1 mapping between indices of rec and damage_bins
-                            # bin_idx = find_bin_idx(rval, prob_to, Nbins)
                             bin_idx = binary_search(rval, prob_to, Nbins)
 
                         # compute ground-up losses

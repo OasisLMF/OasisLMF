@@ -9,7 +9,7 @@ from math import sqrt  # faster than numpy.sqrt
 from oasislmf.pytools.gul.common import STD_DEV_IDX, NUM_IDX
 
 
-@njit(cache=True, fastmath=False)
+@njit(cache=True, fastmath=False, error_model="numpy")
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     """Compute the ground-up loss using linear or quadratic interpolaiton if necessary.
 
