@@ -21,6 +21,13 @@ from oasislmf.pytools.gul.random import generate_hash
 
 @njit(cache=True)
 def gen_structs():
+    """Generate some data structures needed for the whole computation.
+
+    Returns:
+        Dict(int,int), List: index of group ids, list storing the index where a specific
+          cdf record starts in the `rec` numpy array.
+
+    """
     group_id_rng_index = Dict.empty(nb.types.int32, nb.types.int64)
     rec_idx_ptr = List([0])
 
@@ -33,14 +40,21 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
     Args:
         run_dir (str): path to the run directory.
         stream_in (buffer-like): input stream, e.g. `sys.stdin.buffer`.
+        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
+          the mapping between areaperil_id, vulnerability_id to item.
+        coverages (numpy.ndarray[coverage_type]): array with coverage data.
+        compute (numpy.array[int]): list of coverages to be computed.
+        seeds (numpy.array[int]): the random seeds for each coverage_id.
         buff_size (int): size in bytes of the read buffer (see note). Default is GETMODEL_STREAM_BUFF_SIZE.
 
     Raises:
         ValueError: If the stream type is not 1.
 
+    TODO: last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
     Yields:
-        int32,  numpy.array[damagecdf], numpy.array[int], numpy.array[ProbMean]:
-          event_id, array of damagecdf entries (areaperil_id, vulnerability_id) for this event,
+        int32, numpy.array[int], numpy.array[damagecdf], numpy.array[int], numpy.array[ProbMean]:
+          event_id, index of the last coverage_id stored in compute, TODO: continue with items_data,
+          array of damagecdf entries (areaperil_id, vulnerability_id) for this event,
           number of bins in all cdfs of event_id, all the cdfs used in event_id.
 
     Note:
@@ -53,7 +67,6 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
     # determine stream type
     stream_type = np.frombuffer(stream_in.read(4), dtype='i4')
 
-    # TODO: make sure the bit1 and bit 2-4 compliance is checked
     # see https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md
     if stream_type[0] != 1:
         raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
@@ -111,7 +124,10 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            int32_mv, valid_buf, min_size_cdf_entry, max_Nbins, last_event_id, item_map, coverages, compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read)
+            int32_mv, valid_buf, min_size_cdf_entry, max_Nbins, last_event_id, item_map, coverages,
+            compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
+            damagecdf_i, rec_idx_ptr, len_read
+        )
 
         if cursor == 0 and len_read == 0:
             # here valid buff > 0, but not enough data to have a full item => the stream stopped prematurely
@@ -157,10 +173,10 @@ def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
     `item_id` in the right position, or append at the end.
 
     Args:
-        items_data (_type_): _description_
-        item_id (_type_): _description_
-        damagecdf_i (_type_): _description_
-        rng_index (_type_): _description_
+        items_data (_type_): _description_ TODO
+        item_id (_type_): _description_ TODO
+        damagecdf_i (_type_): _description_ TODO
+        rng_index (_type_): _description_ TODO
     """
     for i in range(items_data.shape[0] - 1):
         if items_data[i]['item_id'] > item_id:
@@ -177,6 +193,7 @@ def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
     items_data[-1]['rng_index'] = rng_index
 
 
+# TODO CHECK ARGUMENTS AND DOCSTRINGS
 @njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read):
@@ -290,6 +307,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
     return cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
 
 
+# TODO: DELETE THIS CLASS SINCE UNUSED ?
 class LossWriter():
     # TODO clean this up and remove unused features
     def __init__(self, lossout, len_sample, buff_size=65536) -> None:

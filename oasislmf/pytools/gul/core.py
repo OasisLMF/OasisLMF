@@ -128,7 +128,7 @@ def compute_mean_loss(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
         max_damage_bin_to (oasis_float): maximum damage value (i.e., `bin_to` of the last damage bin).
 
     Returns:
-        float64, float64, float64, float64: mean ground-up loss, standard deviation of the ground-up loss, 
+        float64, float64, float64, float64: mean ground-up loss, standard deviation of the ground-up loss,
           chance of loss, maximum loss
     """
     # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
