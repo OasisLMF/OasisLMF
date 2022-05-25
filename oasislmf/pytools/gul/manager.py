@@ -331,13 +331,16 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     for sample_idx in range(1, sample_size + 1):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
                         rval = rndms[rng_index][sample_idx - 1]
-                        rval = min(rval, prob_to[Nbins - 1] - 0.00000003)
 
-                        # find the bin in which the random value `rval` falls into
-                        # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
-                        # there's a 1:1 mapping between indices of rec and damage_bins
-                        # bin_idx = find_bin_idx(rval, prob_to, Nbins)
-                        bin_idx = binary2(rval, prob_to, Nbins)
+                        if rval >= prob_to[Nbins - 1]:
+                            rval = prob_to[Nbins - 1] - 0.00000003
+                            bin_idx = Nbins - 1
+                        else:
+                            # find the bin in which the random value `rval` falls into
+                            # note that rec['bin_mean'] == damage_bins['interpolation'], therefore
+                            # there's a 1:1 mapping between indices of rec and damage_bins
+                            # bin_idx = find_bin_idx(rval, prob_to, Nbins)
+                            bin_idx = binary_search(rval, prob_to, Nbins)
 
                         # compute ground-up losses
                         gul = get_gul(
@@ -349,6 +352,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             rval,
                             tiv
                         )
+
                         if gul >= loss_threshold:
                             losses[sample_idx, item_i] = gul
                         else:

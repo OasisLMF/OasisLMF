@@ -30,7 +30,7 @@ def find_bin_idx(value, array, n):
 
 
 @njit(cache=True, fastmath=True)
-def binary2(value, array, n):
+def binary_search(value, array, n):
     lo = 0
     hi = n
     while lo < hi:
@@ -39,10 +39,10 @@ def binary2(value, array, n):
             lo = mid + 1
         else:
             hi = mid
-    if array[hi] >= value:
-        return hi
-    else:
-        return -1
+    # if lo == n:
+    #     return -1
+    # else:
+    return lo
 
 
 @njit(cache=True, fastmath=True)
