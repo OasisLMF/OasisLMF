@@ -13,7 +13,7 @@ from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
     ProbMean, damagecdfrec_stream, gulSampleslevelHeader, gulSampleslevelRec,
-    oasis_float_to_int32_size, items_data_type, ProbMean_size,
+    oasis_float_to_int32_size, areaperil_int_to_int32_size, items_data_type, ProbMean_size,
     NP_BASE_ARRAY_SIZE, GETMODEL_STREAM_BUFF_SIZE
 )
 from oasislmf.pytools.gul.random import generate_hash
@@ -222,14 +222,15 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
 
             last_event_id = event_id
 
-        areaperil_id, cursor = int32_mv[cursor:cursor + 1].view(areaperil_int)[0], cursor + 1
+        areaperil_id, cursor = int32_mv[cursor:cursor +
+                                        areaperil_int_to_int32_size].view(areaperil_int)[0], cursor + areaperil_int_to_int32_size
         vulnerability_id, cursor = int32_mv[cursor], cursor + 1
         Nbins_to_read, cursor = int32_mv[cursor], cursor + 1
 
         if cursor * int32_mv.itemsize + Nbins_to_read * ProbMean_size > valid_buf:
             # if the next cdf record is not fully contained in the valid buf, then
             # get more data in the buffer and put cursor back at the beginning of this cdf
-            cursor -= 4
+            cursor -= areaperil_int_to_int32_size + 3
             break
 
         # read damage cdf bins

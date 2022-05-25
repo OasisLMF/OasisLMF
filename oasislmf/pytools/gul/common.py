@@ -32,11 +32,12 @@ MAX_LOSS_IDX = -5
 
 NUM_IDX = 5
 
-ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.types.uint32, nb.types.int32))
+ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
 ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
 
 # compute the relative size of oasis_float vs int32
 oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize
+areaperil_int_to_int32_size = areaperil_int.itemsize // np.int32().itemsize
 
 ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),
                                    ('bin_mean', oasis_float)
