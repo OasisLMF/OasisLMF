@@ -21,7 +21,7 @@ def run(analysis_settings,
         gul_legacy_stream=False,
         run_debug=False,
         custom_gulcalc_cmd=None,
-        custom_get_getmodel_cmd=None, 
+        custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
         **kwargs
 ):
@@ -103,7 +103,11 @@ def run(analysis_settings,
 
 @oasis_log()
 def run_analysis(**params):
-    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
+    with bash_wrapper(params['filename'], 
+                      params['bash_trace'], 
+                      params['stderr_guard'], 
+                      log_sub_dir=params.get("process_number", None),
+                      process_number=params.get("process_number", None)):
         create_bash_analysis(**params)
 
     bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
@@ -113,7 +117,7 @@ def run_analysis(**params):
 
 @oasis_log()
 def run_outputs(**params):
-    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
+    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'], log_sub_dir='out'):
         create_bash_outputs(**params)
     bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
     logging.info(bash_trace)
