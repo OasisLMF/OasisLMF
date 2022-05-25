@@ -26,7 +26,7 @@ from oasislmf.pytools.gul.io import (
 )
 from oasislmf.pytools.gul.random import get_random_generator
 from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
-from oasislmf.pytools.gul.utils import find_bin_idx, append_to_dict_value, binary_search
+from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 
 # gul stream type
