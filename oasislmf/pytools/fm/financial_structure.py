@@ -439,7 +439,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 if programme['from_agg_id'] > 0: # level of node is programme['level_id'] - 1
                     child_programme = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
                 else: # negative agg_id level is item level
-                    child_programme = (np_oasis_int(1), np_oasis_int(-programme['from_agg_id']))
+                    child_programme = (start_level, np_oasis_int(-programme['from_agg_id']))
 
                 if parent not in parent_to_children:
                     children_len += 2
@@ -524,7 +524,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
             # profiles
             if node_programme in programme_node_to_layers:
-
                 profiles = programme_node_to_layers[node_programme]
                 node['profile_len'] = len(profiles)
                 node['profiles'] = profile_i

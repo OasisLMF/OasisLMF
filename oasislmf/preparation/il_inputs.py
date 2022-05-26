@@ -905,9 +905,9 @@ def __process_standard_level_df(column_base_il_df,
     level_df_with_term = column_base_il_df[column_base_il_df['has_terms']]
     il_df_no_term = column_base_il_df[~column_base_il_df['has_terms']]
 
-    prev_level_df_with_next_term = prev_level_df[prev_level_df['coverage_id'].isin(level_df_with_term['coverage_id'])]
-    prev_level_df_no_next_term = prev_level_df[prev_level_df['coverage_id'].isin(il_df_no_term['coverage_id'])]
-
+    prev_level_df_with_next_term = prev_level_df[prev_level_df['gul_input_id'].isin(level_df_with_term['gul_input_id'])]
+    prev_level_df_no_next_term = prev_level_df[prev_level_df['gul_input_id'].isin(il_df_no_term['gul_input_id'])]
+    
     # identify useful column name
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
@@ -939,16 +939,16 @@ def __process_standard_level_df(column_base_il_df,
     #create new prev df for element that need to restart from items
     root_df = level_df_with_term[(level_df_with_term['prev_agg_id'].isin(need_root_start_df) & level_df_with_term['layer_id'] == 1)]
     root_df['to_agg_id'] = root_df['agg_id']
-    root_df['agg_id'] = -root_df['coverage_id']
+    root_df['agg_id'] = -root_df['gul_input_id']
     root_df.drop_duplicates(subset='agg_id', inplace=True)
     root_df['level_id'] = cur_level - 1
 
     # rows with no parent points to 0
-    prev_level_df_no_parent = prev_level_df_with_next_term[prev_level_df_with_next_term['coverage_id'].isin(root_df['coverage_id'])]
+    prev_level_df_no_parent = prev_level_df_with_next_term[prev_level_df_with_next_term['gul_input_id'].isin(root_df['gul_input_id'])]
     prev_level_df_no_parent['to_agg_id'] = 0
 
     # select good to_agg_id for rows with parents
-    prev_level_df_with_parent = prev_level_df_with_next_term[~prev_level_df_with_next_term['coverage_id'].isin(root_df['coverage_id'])].sort_values(by='coverage_id')
+    prev_level_df_with_parent = prev_level_df_with_next_term[~prev_level_df_with_next_term['gul_input_id'].isin(root_df['gul_input_id'])].sort_values(by='gul_input_id')
     prev_level_df_with_parent['to_agg_id'] = factorize_ndarray(prev_level_df_with_parent.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
     # row with no term are simply copied from previous level, they will take no time or space in subsequent fm computation
