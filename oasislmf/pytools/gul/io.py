@@ -33,11 +33,10 @@ def gen_structs():
     return group_id_rng_index, rec_idx_ptr
 
 
-def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds, buff_size=GETMODEL_STREAM_BUFF_SIZE):
+def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_size=GETMODEL_STREAM_BUFF_SIZE):
     """Read the getmodel output stream yielding data event by event.
 
     Args:
-        run_dir (str): path to the run directory.
         stream_in (buffer-like): input stream, e.g. `sys.stdin.buffer`.
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
