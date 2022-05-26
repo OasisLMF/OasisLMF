@@ -12,9 +12,8 @@ from numba.typed import Dict, List
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
-    ProbMean, damagecdfrec_stream, gulSampleslevelHeader, gulSampleslevelRec,
-    oasis_float_to_int32_size, areaperil_int_to_int32_size, items_data_type, ProbMean_size,
-    NP_BASE_ARRAY_SIZE, GETMODEL_STREAM_BUFF_SIZE
+    ProbMean, damagecdfrec_stream, oasis_float_to_int32_size, areaperil_int_to_int32_size,
+    items_data_type, ProbMean_size, NP_BASE_ARRAY_SIZE, GETMODEL_STREAM_BUFF_SIZE
 )
 from oasislmf.pytools.gul.random import generate_hash
 
@@ -166,17 +165,17 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
 @njit(cache=True, fastmath=True)
 def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
-    """Insert item in the sorted items_data array.
+    """Insert item in the sorted `items_data` array.
 
     Assuming all item_ids are different and stored in increasing order in
     `items_data`, loop through all the item_ids and insert the current
     `item_id` in the right position, or append at the end.
 
     Args:
-        items_data (_type_): _description_ TODO
-        item_id (_type_): _description_ TODO
-        damagecdf_i (_type_): _description_ TODO
-        rng_index (_type_): _description_ TODO
+        items_data (numpy.ndarray[items_data_type]): item-related data.
+        item_id (int): item id.
+        damagecdf_i (int): index of the cdf
+        rng_index (int): index of the random seed
     """
     for i in range(items_data.shape[0] - 1):
         if items_data[i]['item_id'] > item_id:
@@ -305,68 +304,6 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         damagecdf_i += 1
 
     return cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
-
-
-# TODO: DELETE THIS CLASS SINCE UNUSED ?
-class LossWriter():
-    # TODO clean this up and remove unused features
-    def __init__(self, lossout, len_sample, buff_size=65536) -> None:
-
-        # number of bytes to read at a given time.
-        # number_size = 8 works only if loss in gulSampleslevelRec is float32.
-        self.number_size = max(gulSampleslevelHeader.size, gulSampleslevelRec.size)  # bytes
-
-        self.len_sample = len_sample
-        self.lossout = lossout
-        self.buff_size = buff_size  # bytes
-
-        # compute how many numbers of size `number_size` fit in the buffer
-        # for safety, take 1000 less than the compute number to allow flushing the buffer not too often
-        # if -1 instead of -1000 is taken, it requires checking whether to flush or not for every write to mv.
-        self.buff_safety = self.number_size * 1000
-        self.nb_number = (self.buff_size + self.buff_safety) // self.number_size
-        self.flush_number = self.nb_number - 4
-
-        # define the raw memory view, the int32 view of it, and their respective cursors
-        mv_size_bytes = buff_size * 2
-        # mv_size_bytes = buff_size + self.number_size * 10  # doesn't work, produces wrong output (zeroes)
-        self.mv = memoryview(bytearray(mv_size_bytes))
-        self.int32_mv = np.ndarray(mv_size_bytes // self.number_size, buffer=self.mv, dtype='i4')
-        # cannot use because the header is int int
-        # self.loss_mv = np.ndarray(self.nb_number, buffer=self.mv, dtype=gulSampleslevelRec.dtype)
-        # cannot use two views loss_mv and header_mv because it only works if oasis_float is float32.
-        # if oasis_float is set to float64, the cursor will not map correctly both mv.
-        self.cursor_bytes = 0
-        self.cursor = 0
-
-        # size(oasis_float)/size(i4)
-        # TODO find a way to do that programmatically and test if this works with oasis_float=float64
-        self.oasis_float_to_int32_size = 1
-
-    def flush(self):
-        # print("FLUSHING ", self.cursor, " ", self.cursor_bytes)
-        self.lossout.write(self.mv[:self.cursor_bytes])
-        self.cursor_bytes = 0
-        self.cursor = 0
-        # print("FLUSHED ", self.cursor, " ", self.cursor_bytes)
-
-    def write_sample_header(self, event_id, item_id):
-        self.int32_mv[self.cursor] = event_id
-        self.cursor += 1
-        self.int32_mv[self.cursor] = item_id
-        self.cursor += 1
-        self.cursor_bytes += gulSampleslevelHeader.size
-
-    def write_sample_rec(self, sidx, loss):
-
-        if self.cursor >= self.flush_number:
-            self.flush()
-
-        self.int32_mv[self.cursor] = sidx
-        self.cursor += 1
-        self.int32_mv[self.cursor:self.cursor + self.oasis_float_to_int32_size].view(oasis_float)[:] = loss
-        self.cursor += self.oasis_float_to_int32_size
-        self.cursor_bytes += gulSampleslevelRec.size
 
 
 @njit(cache=True, fastmath=True)

@@ -17,11 +17,11 @@ from oasislmf.pytools.getmodel.common import oasis_float
 
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, GULPY_STREAM_BUFF_SIZE_WRITE,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type
 )
 from oasislmf.pytools.gul.io import (
-    LossWriter, write_negative_sidx, write_sample_header,
+    write_negative_sidx, write_sample_header,
     write_sample_rec, read_getmodel_stream
 )
 from oasislmf.pytools.gul.random import get_random_generator
@@ -196,8 +196,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
-        # TODO: check if selectors can be used.
-        writer = LossWriter(stream_out, sample_size, buff_size=65536)
+        # number of bytes to read at a given time.
+        number_size = max(gulSampleslevelHeader_size, gulSampleslevelRec_size)
+
+        # define the raw memory view, the int32 view of it, and their respective cursors
+        mv_size_bytes = GULPY_STREAM_BUFF_SIZE_WRITE * 2
+        mv_write = memoryview(bytearray(mv_size_bytes))
+        int32_mv_write = np.ndarray(mv_size_bytes // number_size, buffer=mv_write, dtype='i4')
 
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
@@ -226,11 +231,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms, debug,
-                    writer.buff_size, writer.int32_mv, cursor
+                    GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
                 )
 
                 select([], select_stream_list, select_stream_list)
-                stream_out.write(writer.mv[:cursor_bytes])
+                stream_out.write(mv_write[:cursor_bytes])
                 cursor = 0
 
             logger.info(f"event {event_id} DONE")
