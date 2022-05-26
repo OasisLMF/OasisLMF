@@ -115,7 +115,7 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
             int32_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
-            damagecdf_i, rec_idx_ptr, len_read
+            damagecdf_i, rec_idx_ptr
         )
 
         if cursor == 0 and len_read == 0:
@@ -185,7 +185,7 @@ def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
 # TODO CHECK ARGUMENTS AND DOCSTRINGS
 @njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages,
-                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read):
+                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:
