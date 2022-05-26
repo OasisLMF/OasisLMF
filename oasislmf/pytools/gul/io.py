@@ -150,35 +150,6 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_si
 
 
 @njit(cache=True, fastmath=True)
-def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
-    """Insert item in the sorted `items_data` array.
-
-    Assuming all item_ids are different and stored in increasing order in
-    `items_data`, loop through all the item_ids and insert the current
-    `item_id` in the right position, or append at the end.
-
-    Args:
-        items_data (numpy.ndarray[items_data_type]): item-related data.
-        item_id (int): item id.
-        damagecdf_i (int): index of the cdf
-        rng_index (int): index of the random seed
-    """
-    for i in range(items_data.shape[0] - 1):
-        if items_data[i]['item_id'] > item_id:
-            items_data[i + 1:] = items_data[i:-1]
-            items_data[i]['item_id'] = item_id
-            items_data[i]['damagecdf_i'] = damagecdf_i
-            items_data[i]['rng_index'] = rng_index
-
-            return
-
-    # item_id is larger than the largest `item_id` already stored
-    items_data[-1]['item_id'] = item_id
-    items_data[-1]['damagecdf_i'] = damagecdf_i
-    items_data[-1]['rng_index'] = rng_index
-
-
-@njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
@@ -290,14 +261,13 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
 
                 coverage['start_items'], items_data_i = items_data_i, items_data_i + coverage['max_items']
 
-            coverage['cur_items'] += 1
+            # append the data of this item
+            item_i = coverage['start_items'] + coverage['cur_items']
+            items_data[item_i]['item_id'] = item_id
+            items_data[item_i]['damagecdf_i'] = damagecdf_i
+            items_data[item_i]['rng_index'] = this_rng_index
 
-            insert_item_data_val(
-                items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']],
-                item_id,
-                damagecdf_i,
-                this_rng_index
-            )
+            coverage['cur_items'] += 1
 
         damagecdf_i += 1
 
