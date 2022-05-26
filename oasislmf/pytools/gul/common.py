@@ -7,6 +7,10 @@ import numba as nb
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 
+# gul stream type
+# probably need to set this dynamically depending on the stream type
+gul_header = np.int32(1 | 2 << 24).tobytes()
+
 PIPE_CAPACITY = 65536  # bytes
 GETMODEL_STREAM_BUFF_SIZE = 2 * PIPE_CAPACITY
 GULPY_STREAM_BUFF_SIZE_WRITE = PIPE_CAPACITY

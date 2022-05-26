@@ -2,14 +2,12 @@
 This file contains the utilities for all the I/O necessary in gulpy.
 
 """
-import os
 from select import select
 import numpy as np
-import numba as nb
 from numba import njit
 from numba.typed import Dict, List
+from numba.types import int32 as nb_int32, int64 as nb_int64
 
-from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
     ProbMean, damagecdfrec_stream, oasis_float_to_int32_size, areaperil_int_to_int32_size,
@@ -23,11 +21,11 @@ def gen_structs():
     """Generate some data structures needed for the whole computation.
 
     Returns:
-        Dict(int,int), List: index of group ids, list storing the index where a specific
-          cdf record starts in the `rec` numpy array.
+        Dict(int,int), List: map of group ids to random seeds,
+          list storing the index where a specific cdf record starts in the `rec` numpy array.
 
     """
-    group_id_rng_index = Dict.empty(nb.types.int32, nb.types.int64)
+    group_id_rng_index = Dict.empty(nb_int32, nb_int64)
     rec_idx_ptr = List([0])
 
     return group_id_rng_index, rec_idx_ptr
@@ -48,12 +46,11 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_si
     Raises:
         ValueError: If the stream type is not 1.
 
-    TODO: last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
     Yields:
-        int32, numpy.array[int], numpy.array[damagecdf], numpy.array[int], numpy.array[ProbMean]:
-          event_id, index of the last coverage_id stored in compute, TODO: continue with items_data,
-          array of damagecdf entries (areaperil_id, vulnerability_id) for this event,
-          number of bins in all cdfs of event_id, all the cdfs used in event_id.
+        int, int, numpy.array[items_data_type], numpy.array[oasis_float], numpy.array[int], int:
+          event_id, index of the last coverage_id stored in compute, item-related data,
+          cdf records, array with the indices of `rec` where each cdf record starts,
+          number of unique random seeds computed so far.
 
     Note:
         It is advisable to set buff_size as 2x the maximum pipe limit (65536 bytes)
@@ -181,7 +178,6 @@ def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
     items_data[-1]['rng_index'] = rng_index
 
 
-# TODO CHECK ARGUMENTS AND DOCSTRINGS
 @njit(cache=True, fastmath=True)
 def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
@@ -192,13 +188,27 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
         valid_buf (int): number of bytes with valid data
         size_cdf_entry (int): size (in bytes) of a single record
         last_event_id (int): event_id of the last event that was completed
+        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
+          the mapping between areaperil_id, vulnerability_id to item.
+        coverages (numpy.ndarray[coverage_type]): array with coverage data.
+        compute_i (int): index of the last coverage id stored in `compute`.
+        compute (numpy.array[int]): list of coverage ids to be computed.
+        items_data_i (int): index of the last items_data_i stored in `items_data`.
+        items_data (numpy.array[items_data_type]): item-related data.
+        seeds (numpy.array[int]): the random seeds for each coverage_id.
+        rng_index (int): number of unique random seeds computed so far.
+        group_id_rng_index (Dict([int,int])): map of group ids to random seeds.
+        damagecdf_i (int): index of the last cdf record that has been read from stream and stored in `rec`.
+        rec_idx_ptr (numpy.array[int]): array with the indices of `rec` where each cdf record starts.
 
     Returns:
-        int, int, bool, int, numpy.array[damagecdf], numpy.array[int32], numpy.array[ProbMean], int:
-          number of int numbers read from the int32_mv ndarray, number of cdf data entries read,
-          whether the current event (id=`event_id`) has been fully read, id of the event being read,
-          chunk of damagecdf entries, chunk of Nbins entries, chunk of cdf record entries,
-          event_id of the last event that was completed
+        int, bool, int, numpy.array[ProbMean], numpy.array[int], int, int, int, numpy.array[items_data_type],
+        int, Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]), int:
+          number of int numbers read from the int32_mv ndarray, whether the current event (id=`event_id`)
+          has been fully read, cdf record, array with the indices of `rec` where each cdf record starts, last or current
+          event id, index of the last coverage id stored in `compute`, index of the last items_data_i stored in `items_data`,
+          item-related data, number of unique random seeds computed so far, map of group ids to random seeds,
+          index of the last cdf record that has been read from stream and stored in `rec`W
     """
     yield_event = False
 

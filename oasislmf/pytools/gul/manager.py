@@ -8,7 +8,6 @@ from select import select
 import logging
 from contextlib import ExitStack
 import numpy as np
-import numba as nb
 from numba import njit
 from numba.typed import Dict, List
 
@@ -18,7 +17,7 @@ from oasislmf.pytools.getmodel.common import oasis_float
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, GULPY_STREAM_BUFF_SIZE_WRITE,
-    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type
+    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
 )
 from oasislmf.pytools.gul.io import (
     write_negative_sidx, write_sample_header,
@@ -28,10 +27,6 @@ from oasislmf.pytools.gul.random import get_random_generator
 from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
-
-# gul stream type
-# probably need to set this dynamically depending on the stream type
-gul_header = np.int32(1 | 2 << 24).tobytes()
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +60,8 @@ def get_coverages(input_path, ignore_file_type=set()):
     return coverages
 
 
-# TODO probably getmodel get_items can be used as well. double check
 def gul_get_items(input_path, ignore_file_type=set()):
     """Load the items from the items file.
-    # TODO check return datatype
 
     Args:
         input_path (str): the path pointing to the file
@@ -219,7 +212,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages['max_items'])), dtype=oasis_float)
 
-        for event_data in read_getmodel_stream(run_dir, streams_in, item_map, coverages, compute, seeds):
+        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
@@ -252,30 +245,26 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
     Args:
         event_id (int32): event id.
-        items_data_by_coverage_id (Dict[uple(int,int64)]): dict storing, for each coverage_id, a list
-          of tuples (one tuple for each item containing the item index in Nbinss and recs, and the random seed).
-        item_ids_by_coverage_id (Dict[TEM_ID_TYPE]): dict storing the list of item ids for each coveage_id.
+        coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
         coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
+        items_data (numpy.array[items_data_type]): items-related data.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
         sample_size (int): number of random samples to draw.
-        Nbinss (numpy.array[int]):  number of bins in all cdfs of event_id.
         recs (numpy.array[ProbMean]): all the cdfs used in event_id.
-        coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
+        rec_idx_ptr (numpy.array[int]): array with the indices of `rec` where each cdf record starts.
         damage_bins (List[Union[damagebindictionaryCsv, damagebindictionary]]): loaded data from the damage_bin_dict file.
         loss_threshold (float): threshold above which losses are printed to the output stream.
+        losses (numpy.array[oasis_float]): array (to be re-used) to store losses for all item_ids.
         alloc_rule (int): back-allocation rule.
         rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed.
-        rndms_idx (Dict[int]): dic storing the map between the `seed` value and the row in the `rndms` array
-          containing the drawn random samples.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
         buff_size (int): size in bytes of the output buffer.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        cursor_bytes (int): number of bytes written in int32_mv.
-
+        
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
@@ -295,11 +284,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         if cursor * int32_mv.itemsize + est_cursor_bytes > buff_size:
             return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
 
-        # # sort item_ids (need to convert to np.array beforehand)
-        # item_ids = np.empty(Nitem_ids, dtype=ITEM_ID_TYPE)
-        # for j in range(Nitem_ids):
-        #     item_ids[j] = items_data_by_coverage_id[coverage_id][j][0]
-
         items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
 
         for item_i in range(coverage['cur_items']):
@@ -312,12 +296,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             bin_mean = rec['bin_mean']
             Nbins = len(prob_to)
 
-            # print(rec_start, rec_end, Nbins)
-            # print(prob_to)
-            # print(bin_mean)
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                # max-damage bin=damage_bins[Nbins-1] maybe is wrong...
                 tiv, prob_to, bin_mean, Nbins, damage_bins[Nbins - 1]['bin_to'],
             )
 
@@ -378,11 +358,12 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
 
     Args:
         event_id (int32): event id.
+        sample_size (int): number of random samples to draw.
+        loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): losses for all item_ids
         item_ids (numpy.array[ITEM_ID_TYPE]): ids of items whose losses are in `losses`.
         alloc_rule (int): back-allocation rule.
         tiv (oasis_float): total insured value.
-        sample_idx_to_write (Dict[int,List[int64]]): indices of samples with losses above threshold
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
 
