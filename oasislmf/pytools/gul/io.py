@@ -70,16 +70,6 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
     if stream_type[0] != 1:
         raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
 
-    # get damage bins from fileFIXME
-    static_path = os.path.join(run_dir, 'static')
-    damage_bins = get_damage_bins(static_path=static_path)
-
-    # maximum number of damage bins (individual items can have up to `total_bins` bins)
-    if damage_bins.shape[0] == 0:
-        max_Nbins = 1000
-    else:
-        max_Nbins = damage_bins.shape[0]
-
     # maximum number of entries is buff_size divided by the minimum entry size
     # (corresponding to a 1-bin only cdf)
     min_size_cdf_entry = damagecdfrec_stream.size + 4 + ProbMean.size
@@ -123,7 +113,7 @@ def read_getmodel_stream(run_dir, stream_in, item_map, coverages, compute, seeds
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            int32_mv, valid_buf, min_size_cdf_entry, max_Nbins, last_event_id, item_map, coverages,
+            int32_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
             damagecdf_i, rec_idx_ptr, len_read
         )
@@ -194,7 +184,7 @@ def insert_item_data_val(items_data, item_id, damagecdf_i, rng_index):
 
 # TODO CHECK ARGUMENTS AND DOCSTRINGS
 @njit(cache=True, fastmath=True)
-def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id, item_map, coverages,
+def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr, len_read):
     """Parse streamed data into data arrays.
 
@@ -202,7 +192,6 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, max_Nbins, last_event_id
         int32_mv (ndarray): int32 view of the buffer
         valid_buf (int): number of bytes with valid data
         size_cdf_entry (int): size (in bytes) of a single record
-        max_Nbins (int): Maximum number of probability bins
         last_event_id (int): event_id of the last event that was completed
 
     Returns:
