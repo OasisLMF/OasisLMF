@@ -9,7 +9,7 @@ from math import sqrt  # faster than numpy.sqrt
 from oasislmf.pytools.gul.common import STD_DEV_IDX, NUM_IDX
 
 
-@njit(cache=True, fastmath=False)
+@njit(cache=True, fastmath=False, error_model="numpy")
 def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     """Compute the ground-up loss using linear or quadratic interpolaiton if necessary.
 
@@ -106,14 +106,14 @@ def split_tiv(gulitems, tiv):
         gulitems (numpy.array[oasis_float]): array containing losses of all items.
         tiv (oasis_float): total insured value,
     """
-    if tiv > 0:
-        total_loss = np.sum(gulitems)
+    total_loss = np.sum(gulitems)
 
-        nitems = gulitems.shape[0]
-        if total_loss > tiv:
-            for j in range(nitems):
-                # editing in-place the np array
-                gulitems[j] *= tiv / total_loss
+    if total_loss > tiv:
+        f = tiv / total_loss
+
+        for j in range(gulitems.shape[0]):
+            # editing in-place the np array
+            gulitems[j] *= f
 
 
 @njit(cache=True, fastmath=True)
@@ -126,9 +126,9 @@ def compute_mean_loss(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
         bin_mean (numpy.array[oasis_float]): bin mean damage (`interpolation` column in damagebins file).
         bin_count (int): number of bins.
         max_damage_bin_to (oasis_float): maximum damage value (i.e., `bin_to` of the last damage bin).
-        
+
     Returns:
-        float64, float64, float64, float64: mean ground-up loss, standard deviation of the ground-up loss, 
+        float64, float64, float64, float64: mean ground-up loss, standard deviation of the ground-up loss,
           chance of loss, maximum loss
     """
     # chance_of_loss = 1. - prob_to[0] if bin_mean[0] == 0. else 1.
