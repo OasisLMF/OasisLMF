@@ -372,7 +372,6 @@
     "required": [
         "model_supplier_id",
         "model_name_id",
-        "number_of_samples",
         "model_settings",
         "gul_output",
         "gul_summaries"

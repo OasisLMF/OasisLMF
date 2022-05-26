@@ -1,13 +1,14 @@
-import copy
 import contextlib
+import copy
 import io
+import logging
+import multiprocessing
 import os
 import pandas as pd
 import random
 import re
-import multiprocessing
+import shutil
 import string
-import logging
 from functools import partial
 logger = logging.getLogger()
 
@@ -116,8 +117,8 @@ SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
 
 
 TRAP_FUNC = """
-touch log/stderror.err
-ktools_monitor.sh $$ & pid0=$!
+touch $LOG_DIR/stderror.err
+ktools_monitor.sh $$ $LOG_DIR & pid0=$!
 
 exit_handler(){
    exit_code=$?
@@ -134,11 +135,11 @@ exit_handler(){
        group_pid=$(ps -p $$ -o pgid --no-headers)
        sess_pid=$(ps -p $$ -o sess --no-headers)
        script_pid=$$
-       printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> log/killout.txt
+       printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
-       ps -jf f -g $sess_pid > log/subprocess_list
+       ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
        PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\.log$  | egrep -v *\\\.sh$ | sort -n -r)
-       echo "$PIDS_KILL" >> log/killout.txt
+       echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
        exit $exit_code
    else
@@ -185,9 +186,9 @@ bash_logging_supported(){
     echo 0
 }
 if [ $(bash_logging_supported) == 1 ]; then
-    exec   > >(tee -ia log/bash.log)
-    exec  2> >(tee -ia log/bash.log >& 2)
-    exec 19> log/bash.log
+    exec   > >(tee -ia $LOG_DIR/bash.log)
+    exec  2> >(tee -ia $LOG_DIR/bash.log >& 2)
+    exec 19> $LOG_DIR/bash.log
     export BASH_XTRACEFD="19"
     set -x
 else
@@ -378,7 +379,7 @@ def do_post_wait_processing(
                     cmd, output_dir, runtype, summary_set
                 )
                 if stderr_guard:
-                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -408,7 +409,7 @@ def do_post_wait_processing(
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
-                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -464,7 +465,7 @@ def do_post_wait_processing(
                     )
 
                 if stderr_guard:
-                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -493,7 +494,7 @@ def do_post_wait_processing(
                         )
 
                 if stderr_guard:
-                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
@@ -574,19 +575,19 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
             if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                 print_command(
                     filename,
-                    'mkdir {}{}_S{}_summaryleccalc'.format(work_dir, runtype, summary_set)
+                    'mkdir -p {}{}_S{}_summaryleccalc'.format(work_dir, runtype, summary_set)
                 )
 
             if summary.get('aalcalc'):
                 print_command(
                     filename,
-                    'mkdir {}{}_S{}_summaryaalcalc'.format(work_dir, runtype, summary_set)
+                    'mkdir -p {}{}_S{}_summaryaalcalc'.format(work_dir, runtype, summary_set)
                 )
 
             if summary.get('ord_output', {}).get('alt_period'):
                 print_command(
                     filename,
-                    'mkdir {}{}_S{}_summary_palt'.format(work_dir, runtype, summary_set)
+                    'mkdir -p {}{}_S{}_summary_palt'.format(work_dir, runtype, summary_set)
                 )
 
 
@@ -613,7 +614,7 @@ def do_kats(
             if summary.get('eltcalc'):
                 anykats = True
 
-                cmd = 'kat -s' if sort_by_event else 'kat'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
 
                     cmd = '{} {}{}_S{}_eltcalc_P{}'.format(
@@ -630,7 +631,7 @@ def do_kats(
             if summary.get('pltcalc'):
                 anykats = True
 
-                cmd = 'kat'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_pltcalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
@@ -646,7 +647,7 @@ def do_kats(
             if summary.get("summarycalc"):
                 anykats = True
 
-                cmd = 'kat'
+                cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_summarycalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
@@ -664,7 +665,7 @@ def do_kats(
                     if summary.get('ord_output', {}).get(ord_table):
                         anykats = True
 
-                        cmd = 'kat'
+                        cmd = 'kat' if sort_by_event else 'kat -u'
                         outfile_flag = '>'
                         outfile_ext = 'csv'
                         if summary.get('ord_output', {}).get('parquet_format'):
@@ -732,7 +733,7 @@ def do_summarycalcs(
     cmd = '{0} < {1}{2}{3}_P{4}'.format(
         cmd, fifo_dir, runtype, input_filename_component, process_id
     )
-    cmd = '( {0} ) 2>> log/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
+    cmd = '( {0} ) 2>> $LOG_DIR/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
 
 
@@ -866,7 +867,7 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
                     process_counter['pid_monitor_count'] += 1
                     cmd = f'{flag_proc["ktools_exe"]}{cmd}'
                     if stderr_guard:
-                        cmd = f'( {cmd} ) 2>> log/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+                        cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
                         cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
 
@@ -905,7 +906,7 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                     cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
 
                     if stderr_guard:
-                        cmd = f'( {cmd} ) 2>> log/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+                        cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
                         cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
 
@@ -1112,7 +1113,6 @@ def get_getmodel_itm_cmd(
 
     if not gulpy:
         # append this arg only if gulcalc is used
-        item_output = '-{}'.format(item_output)
         cmd = '{} -i {}'.format(cmd, item_output)
     else:
         cmd = '{} {}'.format(cmd, item_output)
@@ -1151,7 +1151,7 @@ def get_getmodel_cov_cmd(
     """
 
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
-    
+
 
     if use_random_number_file:
         if not gulpy:
@@ -1221,7 +1221,7 @@ def get_main_cmd_ri_stream(
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
-    main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
     return main_cmd
 
@@ -1262,7 +1262,7 @@ def get_main_cmd_il_stream(
     else:
         main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
 
-    main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
     return main_cmd
 
@@ -1291,7 +1291,7 @@ def get_main_cmd_gul_stream(
 
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
-    main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
     return main_cmd
 
@@ -1337,7 +1337,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
             if stderr_guard:
-                cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
+                cmd = '({}) 2>> $LOG_DIR/gul_stderror.err'.format(cmd)
 
             return cmd
     else:
@@ -1379,7 +1379,7 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
         lb_out = ' '.join(lb_out_l)
 
         lb_main_cmd = f"load_balancer -i {lb_in} -o {lb_out}"
-        lb_main_cmd = f'( {lb_main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{lb_main_cmd} &'
+        lb_main_cmd = f'( {lb_main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{lb_main_cmd} &'
         yield lb_main_cmd
 
 
@@ -1460,13 +1460,19 @@ def bash_params(
     else:
         bash_params['fifo_queue_dir'] = os.path.join(model_run_dir, 'fifo/')
 
+    ## set work dir
+    if process_number:
+        work_base_dir = f'{process_number}.work/'
+    else:
+        work_base_dir = 'work/'
+
     ## set dirs
     bash_params['stderr_guard'] = stderr_guard
     bash_params['gul_item_stream'] = not gul_legacy_stream
-    bash_params['work_dir'] = os.path.join(model_run_dir, 'work/')
-    bash_params['work_kat_dir'] = os.path.join(model_run_dir, 'work/kat/')
-    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, 'work/full_correlation/')
-    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, 'work/full_correlation/kat/')
+    bash_params['work_dir'] = os.path.join(model_run_dir, work_base_dir)
+    bash_params['work_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'kat/'))
+    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'full_correlation/'))
+    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'full_correlation/kat/'))
     bash_params['output_dir'] = os.path.join(model_run_dir, 'output/')
     bash_params['output_full_correlation_dir'] = os.path.join(model_run_dir, 'output/full_correlation/')
     bash_params['fifo_full_correlation_dir'] = os.path.join(bash_params['fifo_queue_dir'], 'full_correlation/')
@@ -1528,7 +1534,7 @@ def bash_params(
 
 
 @contextlib.contextmanager
-def bash_wrapper(filename, bash_trace, stderr_guard):
+def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_number=None):
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -1538,9 +1544,15 @@ def bash_wrapper(filename, bash_trace, stderr_guard):
     print_command(filename, 'shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."')
 
     print_command(filename, '')
-    print_command(filename, 'mkdir -p log')
-    print_command(filename, 'rm -R -f log/*')
+    if process_number:
+        print_command(filename, f'LOG_DIR=log/{log_sub_dir}')
+    else:
+        print_command(filename, 'LOG_DIR=log')
+
+    print_command(filename, 'mkdir -p $LOG_DIR')
+    print_command(filename, 'rm -R -f $LOG_DIR/*')
     print_command(filename, '')
+
 
     # Trap func and logging
     if bash_trace:
@@ -1553,9 +1565,31 @@ def bash_wrapper(filename, bash_trace, stderr_guard):
     yield
 
     # Script footer
-    if stderr_guard:
+    if stderr_guard and not process_number:
+        # run process dropped check (single script run)
         print_command(filename, '')
         print_command(filename, 'check_complete')
+    elif stderr_guard and process_number:
+        # check stderror.err before exit (fallback check in case of short run)
+        print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
+        print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
+        print_command(filename, '    exit 1')
+        print_command(filename, 'fi')
+        # check for empty work bin files
+        print_command(filename, f'CHUNK_BINS=(`find {process_number}.work -name \'P{process_number}.bin\' | sort -r`)')
+        print_command(filename, 'echo " === Checking analysis output chunks === "')
+        print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
+        print_command(filename, '    wc -c $b')
+        print_command(filename, 'done')
+        print_command(filename, '')
+        print_command(filename, '# exit error if empty')
+        print_command(filename, 'for b in "${CHUNK_BINS[@]}"; do')
+        print_command(filename, '    if [ ! -s $b ]; then')
+        print_command(filename, '        echo "Chunk output error: File \'$b\' is empty"')
+        print_command(filename, '        exit 1')
+        print_command(filename, '    fi')
+        print_command(filename, 'done')
+        print_command(filename, 'echo "Chunk output check [OK]"')
 
 
 def create_bash_analysis(
@@ -1620,20 +1654,31 @@ def create_bash_analysis(
     print_command(filename, '')
     print_command(filename, "find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +")
     if full_correlation:
-        print_command(filename, 'mkdir {}'.format(output_full_correlation_dir))
+        print_command(filename, 'mkdir -p {}'.format(output_full_correlation_dir))
 
     print_command(filename, '')
     if not fifo_tmp_dir:
-        print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
-        if full_correlation:
-            print_command( filename, 'mkdir {}'.format(fifo_full_correlation_dir))
 
+        if not process_number:
+            print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
+        else:
+            print_command(filename, f"find {fifo_queue_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+
+
+        if full_correlation:
+            print_command( filename, 'mkdir -p {}'.format(fifo_full_correlation_dir))
+
+    #if not process_number:
     print_command(filename, 'rm -R -f {}*'.format(work_dir))
-    print_command(filename, 'mkdir {}'.format(work_kat_dir))
+    #else:
+    #    print_command(filename, f"find {work_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+
+
+    print_command(filename, 'mkdir -p {}'.format(work_kat_dir))
     if full_correlation:
-        print_command(filename, 'mkdir {}'.format(work_full_correlation_dir))
+        print_command(filename, 'mkdir -p {}'.format(work_full_correlation_dir))
         print_command(
-            filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
+            filename, 'mkdir -p {}'.format(work_full_correlation_kat_dir)
         )
 
     if model_py_server:
@@ -1649,24 +1694,25 @@ def create_bash_analysis(
     if fmpy:
         if il_output or ri_output:
             print_command(
-                filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
+                filename, f'#{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
             )
         if ri_output:
             for i in range(1, num_reinsurance_iterations + 1):
-                print_command(filename, f'{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
+                print_command(filename, f'#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
 
         ## workaround to match bash tests
-        if fifo_queue_dir.endswith('fifo/'):
-            print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
-        else:
-            print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+        if not process_number:
+            if fifo_queue_dir.endswith('fifo/'):
+                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
+            else:
+                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
 
         print_command(filename, 'mkdir -p {}'.format(fifo_queue_dir))
         if full_correlation:
-            print_command(filename, 'mkdir {}'.format(fifo_full_correlation_dir))
+            print_command(filename, 'mkdir -p {}'.format(fifo_full_correlation_dir))
 
     # Create workfolders
     if gul_output:
@@ -1818,10 +1864,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = f' | tee {gul_fifo_name}'
+                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy), gul_fifo_name)
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = ''
+                getmodel_args['item_output'] = '-' * (not gulpy)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
@@ -2090,7 +2136,6 @@ def create_bash_outputs(
 
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
-
 
     if remove_working_files:
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))

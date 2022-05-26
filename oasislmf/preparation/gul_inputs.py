@@ -10,8 +10,6 @@ import os
 import sys
 import warnings
 from collections import OrderedDict
-from oasislmf.pytools.data_layer.conversions.items import convert_item_csv_to_hash
-from oasislmf.pytools.data_layer.conversions.items import generate_group_id_hash
 
 import pandas as pd
 
@@ -334,13 +332,7 @@ def get_gul_input_items(
 
     # this block gets fired if the hash_group_ids is True
     else:
-        gul_inputs_df["pre-hash-value"] = gul_inputs_df.apply(lambda _: '', axis=1)
-
-        for i in group_id_cols:
-            gul_inputs_df["pre-hash-value"] += gul_inputs_df[i].astype(str)
-
-        gul_inputs_df["hash"] = gul_inputs_df["pre-hash-value"].apply(generate_group_id_hash)
-        gul_inputs_df["group_id"] = gul_inputs_df["hash"]
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols]).to_numpy() >> 33)
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 

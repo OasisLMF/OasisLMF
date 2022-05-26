@@ -21,7 +21,6 @@ from ...preparation.dir_inputs import (
 from ...preparation.reinsurance_layer import write_files_for_reinsurance
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
-from oasislmf.pytools.data_layer.conversions.items import convert_item_file_ids_to_hash
 
 from ...utils.data import (
     get_model_settings,
@@ -166,10 +165,11 @@ class GenerateFiles(ComputationStep):
         oed_hierarchy = get_oed_hierarchy(location_profile, accounts_profile)
         loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
 
-        fm_aggregation_profile = (
-            {int(k): v for k, v in get_json(src_fp=self.profile_fm_agg_json).items()} if self.profile_fm_agg_json  else
-            self.profile_fm_agg
-        )
+        fm_aggregation_profile = get_json(src_fp=self.profile_fm_agg_json) if self.profile_fm_agg_json  else self.profile_fm_agg
+
+        # force fm_agg level keys to type int:
+        if any(isinstance(lvl, str) for lvl in fm_aggregation_profile.keys()):
+            fm_aggregation_profile = {int(k): v for k, v in fm_aggregation_profile.items()}
 
         # Load Location file at a single point in the Generate files cmd
         location_df = get_location_df(self.oed_location_csv, location_profile)

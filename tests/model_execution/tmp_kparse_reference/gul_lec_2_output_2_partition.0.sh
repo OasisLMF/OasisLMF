@@ -5,22 +5,22 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-mkdir -p log
-rm -R -f log/*
+LOG_DIR=log
+mkdir -p $LOG_DIR
+rm -R -f $LOG_DIR/*
 
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
 rm -R -f work/*
-mkdir work/kat/
+mkdir -p work/kat/
 
-rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
-mkdir work/gul_S1_summaryleccalc
-mkdir work/gul_S1_summaryaalcalc
-mkdir work/gul_S2_summaryleccalc
-mkdir work/gul_S2_summaryaalcalc
+mkdir -p work/gul_S1_summaryleccalc
+mkdir -p work/gul_S1_summaryaalcalc
+mkdir -p work/gul_S2_summaryleccalc
+mkdir -p work/gul_S2_summaryaalcalc
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
 
@@ -61,10 +61,10 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 # --- Do ground up loss kats ---
 
-kat -s work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid1=$!
+kat work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid1=$!
 kat work/kat/gul_S1_pltcalc_P1 > output/gul_S1_pltcalc.csv & kpid2=$!
 kat work/kat/gul_S1_summarycalc_P1 > output/gul_S1_summarycalc.csv & kpid3=$!
-kat -s work/kat/gul_S2_eltcalc_P1 > output/gul_S2_eltcalc.csv & kpid4=$!
+kat work/kat/gul_S2_eltcalc_P1 > output/gul_S2_eltcalc.csv & kpid4=$!
 kat work/kat/gul_S2_pltcalc_P1 > output/gul_S2_pltcalc.csv & kpid5=$!
 kat work/kat/gul_S2_summarycalc_P1 > output/gul_S2_summarycalc.csv & kpid6=$!
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6

@@ -5,25 +5,26 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-mkdir -p log
-rm -R -f log/*
+LOG_DIR=log
+mkdir -p $LOG_DIR
+rm -R -f $LOG_DIR/*
 
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir output/full_correlation/
+mkdir -p output/full_correlation/
 
-rm -R -f /tmp/%FIFO_DIR%/fifo/*
-mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+find /tmp/%FIFO_DIR%/fifo/ \( -name '*P2[^0-9]*' -o -name '*P2' \) -exec rm -R -f {} +
+mkdir -p /tmp/%FIFO_DIR%/fifo/full_correlation/
 rm -R -f work/*
-mkdir work/kat/
-mkdir work/full_correlation/
-mkdir work/full_correlation/kat/
+mkdir -p work/kat/
+mkdir -p work/full_correlation/
+mkdir -p work/full_correlation/kat/
 
-mkdir work/il_S1_summaryleccalc
-mkdir work/il_S1_summaryaalcalc
-mkdir work/full_correlation/il_S1_summaryleccalc
-mkdir work/full_correlation/il_S1_summaryaalcalc
+mkdir -p work/il_S1_summaryleccalc
+mkdir -p work/il_S1_summaryaalcalc
+mkdir -p work/full_correlation/il_S1_summaryleccalc
+mkdir -p work/full_correlation/il_S1_summaryaalcalc
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P2
 
@@ -69,13 +70,13 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 # --- Do insured loss kats ---
 
-kat -s work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid1=$!
+kat work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid1=$!
 kat work/kat/il_S1_pltcalc_P2 > output/il_S1_pltcalc.csv & kpid2=$!
 kat work/kat/il_S1_summarycalc_P2 > output/il_S1_summarycalc.csv & kpid3=$!
 
 # --- Do insured loss kats for fully correlated output ---
 
-kat -s work/full_correlation/kat/il_S1_eltcalc_P2 > output/full_correlation/il_S1_eltcalc.csv & kpid4=$!
+kat work/full_correlation/kat/il_S1_eltcalc_P2 > output/full_correlation/il_S1_eltcalc.csv & kpid4=$!
 kat work/full_correlation/kat/il_S1_pltcalc_P2 > output/full_correlation/il_S1_pltcalc.csv & kpid5=$!
 kat work/full_correlation/kat/il_S1_summarycalc_P2 > output/full_correlation/il_S1_summarycalc.csv & kpid6=$!
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
