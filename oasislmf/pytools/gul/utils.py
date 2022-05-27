@@ -7,13 +7,13 @@ from numba.typed import List
 
 
 @njit(cache=True, fastmath=True)
-def find_bin_idx(value, array, n):
+def binary_search(value, array, n):
     """
-    Assuming `array` is a sorted array (increasing order), find the first bin
-    where where `array` gets larger than `value`. 
+    Assuming `array` is a sorted array (increasing order), find the bin
+    where where `array` gets larger than `value`.
 
-    Args:
-        value (float,int): the value to be searched
+        Args:
+            value (float,int): the value to be searched
         array (float, int): the array where `value` is to be searched.
         n (int): number of elements of `array` where `value` is to be searched, starting
           from the beginning of `array`.
@@ -21,12 +21,19 @@ def find_bin_idx(value, array, n):
     Returns:
         int: the first index of `array` where `array` is larger than `value`.
           Returns -1 if this condition never occurs.
-    """
-    for idx in range(n):
-        if array[idx] > value:
-            return idx
 
-    return -1
+    """
+    lo = 0
+    hi = n
+    while lo < hi:
+        mid = (lo + hi) >> 1  # divide by two
+
+        if array[mid] < value:
+            lo = mid + 1
+        else:
+            hi = mid
+
+    return lo
 
 
 @njit(cache=True, fastmath=True)
