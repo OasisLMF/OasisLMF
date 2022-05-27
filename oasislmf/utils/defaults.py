@@ -304,7 +304,7 @@ def assign_defaults_to_il_inputs(df):
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
 
-GROUP_ID_COLS = ['loc_id']
+GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
 
 CORRELATION_GROUP_ID = ['CorrelationGroup']
 
