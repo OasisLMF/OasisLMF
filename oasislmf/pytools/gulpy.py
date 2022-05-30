@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
-# parser.add_argument('-i', help='filename of items output', action='store', type=str, dest='items_outfile')
+parser.add_argument('-i', help='filename of items stream output', action='store', type=str, dest='file_out')
 # parser.add_argument('-j', '--correlated-outfile', help='filename of correlated output', type=str, action='store', dest='corr_outfile')
 parser.add_argument('-s', help='skip header (default: False).', default=False, action='store_true', dest='skip_header')
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
@@ -22,6 +22,7 @@ parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
 parser.add_argument('-S', help='Sample size (default: 0).', default=0, action='store', type=int, dest='sample_size')
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--file-in', action='store', type=str,)
+parser.add_argument('--file-out', action='store', type=str,)
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--random-generator',
                     help='random number generator\n0: numpy default (MT19937), 1: Latin Hypercube. Default: 1.',

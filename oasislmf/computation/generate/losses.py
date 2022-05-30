@@ -393,15 +393,18 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
 
         # New vars for chunked loss generation
+        {'name': 'analysis_settings', 'default': None},
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
     ]
 
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        analysis_settings = GenerateLossesDir.run(self)
+        if not self.analysis_settings:
+            self.analysis_settings = GenerateLossesDir.run(self)
+
         model_runner_module, _ = self._get_model_runner()
-        ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
+        ri_layers = self._get_num_ri_layers(self.analysis_settings, model_run_fp)
 
         if not self.script_fp:
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_outputs.sh')
@@ -410,7 +413,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             os.remove(self.script_fp)
 
         bash_params = bash.bash_params(
-            analysis_settings,
+            self.analysis_settings,
             number_of_processes=self.ktools_num_processes,
             num_reinsurance_iterations=ri_layers,
             filename=self.script_fp,
