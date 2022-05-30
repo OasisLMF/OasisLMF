@@ -9,11 +9,11 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32, int64 as nb_int64
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
-from oasislmf.pytools.gul.common import (
+from .common import (
     ProbMean, damagecdfrec_stream, oasis_float_to_int32_size, areaperil_int_to_int32_size,
     items_data_type, ProbMean_size, NP_BASE_ARRAY_SIZE, GETMODEL_STREAM_BUFF_SIZE
 )
-from oasislmf.pytools.gul.random import generate_hash
+from .random import generate_hash
 
 
 @njit(cache=True)

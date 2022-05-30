@@ -14,18 +14,18 @@ from numba.typed import Dict, List
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
 from oasislmf.pytools.getmodel.common import oasis_float
 
-from oasislmf.pytools.gul.common import (
+from .common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, GULPY_STREAM_BUFF_SIZE_WRITE,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
 )
-from oasislmf.pytools.gul.io import (
+from .io import (
     write_negative_sidx, write_sample_header,
     write_sample_rec, read_getmodel_stream
 )
-from oasislmf.pytools.gul.random import get_random_generator
-from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
-from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
+from .random import get_random_generator
+from .core import split_tiv, get_gul, setmaxloss, compute_mean_loss
+from .utils import append_to_dict_value, binary_search
 
 
 logger = logging.getLogger(__name__)
