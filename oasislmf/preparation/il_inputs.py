@@ -953,8 +953,9 @@ def __process_standard_level_df(column_base_il_df,
 
     # row with no term are simply copied from previous level, they will take no time or space in subsequent fm computation
     cur_max_agg_id = level_df_with_term['agg_id'].max()
-    prev_level_df_no_next_term['to_agg_id'] = np.arange(cur_max_agg_id + 1,
-                                                        cur_max_agg_id + 1 + prev_level_df_no_next_term.shape[0])
+    prev_agg = prev_level_df_no_next_term[['agg_id',]].drop_duplicates()
+    prev_agg['to_agg_id'] = np.arange(cur_max_agg_id + 1, cur_max_agg_id + 1 + prev_agg.shape[0])
+    prev_level_df_no_next_term = pd.merge(prev_level_df_no_next_term, prev_agg)
     # we can now copy previous no term previous level to be use in this level
     il_df_no_term = prev_level_df_no_next_term[present_cols+['orig_level_id', 'to_agg_id']]
     il_df_no_term.rename(columns={'to_agg_id': 'agg_id'}, inplace=True)

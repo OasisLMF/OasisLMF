@@ -163,6 +163,24 @@ def get_all_children(node_to_dependencies, node, items_only):
 
     return children
 
+@njit(cache=True)
+def get_all_parent(node_to_dependencies, node, max_level):
+    res = set()
+    temp = List()
+    temp.extend(node)
+    # children = []
+    # temp = [node]
+
+    while temp:
+        cur_node = temp.pop()
+        if cur_node[0] <= max_level:
+            res.add(cur_node)
+        if cur_node in node_to_dependencies:
+            temp.extend(node_to_dependencies[cur_node])
+    return List(res)
+
+
+
 
 @njit(cache=True)
 def is_multi_peril(fm_programme):
@@ -557,8 +575,10 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                         if fm_profile[profile_index]['calcrule_id'] in need_extras:
                             node['is_reallocating'] = allocation_rule == 2 and fm_profile[profile_index]['calcrule_id'] != 27
 
-                            all_children = get_all_children(parent_to_children, node_programme, False)
-                            for child_programme in all_children: # include current node
+                            items_child = get_all_children(parent_to_children, node_programme, True)
+                            all_parent = get_all_parent(child_to_parents, items_child, node_programme[0])
+
+                            for child_programme in all_parent: # include current node
                                 child = nodes_array[node_level_start[child_programme[0]] + child_programme[1]]
                                 if child['extra'] == null_index:
                                     child['extra'], extra_i = extra_i, extra_i + node['layer_len']

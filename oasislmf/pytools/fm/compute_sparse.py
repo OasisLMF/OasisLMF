@@ -240,12 +240,13 @@ def back_alloc_extra_a2(base_children_len, temp_children_queue, nodes_array, p,
     else:
         # back allocation rules:
         # if deductible grows, deductible and loss are allocated based on loss
-        # else it means it is reallocated to loss, loss and deductible are allocated based on underlimit
+        # else it means it is reallocated to loss,
+        #   if underlimit is still >0 then extra loss and deductible are allocated based on underlimit
+        #   else                           extra loss and deductible are allocated based on deductible
         # if overlimit grows, more loss is over limit so it is reallocated based on loss
         # else it is reallocated based on overlimit
         # if underlimit grows, more loss has been deducted so we reallocate based on loss
         # else it is reallocated based on underlimit
-        # print('temp_node_extras', temp_node_extras[p, 3, UNDERLIMIT], extra[:, UNDERLIMIT])
 
         for i in range(node_val_len):
             diff = extra[i, DEDUCTIBLE] - temp_node_extras[p, node_sidx[i], DEDUCTIBLE]
@@ -542,7 +543,7 @@ def compute_event(compute_info,
             base_children_len = 0
 
             # print('level', level, compute_node['agg_id'], loss_indptr[storage_node['loss']], loss_val[loss_indptr[storage_node['loss']]],
-            #       node_profiles_array[compute_node['profiles']])
+            #       node_profiles_array[compute_node['profiles']], compute_node['extra'] != null_index)
 
             # we apply the policy term on each layer
             for p in range(compute_node['profile_len']):
