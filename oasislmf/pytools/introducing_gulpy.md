@@ -37,12 +37,13 @@ optional arguments:
 
 The following `gulcalc` arguments were ported to `gulpy` with the same meaning and requirements:
 ```bash
- -a, -d, -h, -i, -L, -S
+ -a, -d, -h, -L, -S
 ```
 The following `gulcalc` arguments were ported to `gulpy` but were renamed:
 ```bash
 # in gulcalc             # in gulpy
 -v                       -V, --version
+-i                       -o, --file-out
 ```
 The following `gulcalc` arguments were **not** ported to `gulpy`:
 ```bash
@@ -77,9 +78,9 @@ gulcalc -a2 -S30 -i -         gulpy -a2 -S30
 Alternatively, the binary output can be redirected to file with:
 ```bash
 # with gulcalc                          # with gulpy                          # with gulpy [alternative]
-gulcalc -a0 -S10 -i gul_out.bin         gulpy -a0 -S10 -i gul_out.bin         gulpy -a0 -S10 --file-out gul_out.bin
-gulcalc -a1 -S20 -i gul_out.bin         gulpy -a1 -S20 -i gul_out.bin         gulpy -a1 -S20 --file-out gul_out.bin
-gulcalc -a2 -S30 -i gul_out.bin         gulpy -a2 -S30 -i gul_out.bin         gulpy -a2 -S30 --file-out gul_out.bin
+gulcalc -a0 -S10 -i gul_out.bin         gulpy -a0 -S10 -o gul_out.bin         gulpy -a0 -S10 --file-out gul_out.bin
+gulcalc -a1 -S20 -i gul_out.bin         gulpy -a1 -S20 -o gul_out.bin         gulpy -a1 -S20 --file-out gul_out.bin
+gulcalc -a2 -S30 -i gul_out.bin         gulpy -a2 -S30 -o gul_out.bin         gulpy -a2 -S30 --file-out gul_out.bin
 ```
 
 ### Choosing the random number generator
