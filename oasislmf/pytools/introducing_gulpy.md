@@ -17,12 +17,13 @@ optional arguments:
   -h, --help            show this help message and exit
   -a ALLOC_RULE         back-allocation rule
   -d                    output random numbers instead of gul (default: False).
-  -i FILE_OUT, --file-out FILE_OUT
-                        filename of items stream output
+  -i FILE_IN, --file-in FILE_IN
+                        filename of input stream.
+  -o FILE_OUT, --file-out FILE_OUT
+                        filename of output stream.
   -L LOSS_THRESHOLD     Loss treshold (default: 1e-6)
   -S SAMPLE_SIZE        Sample size (default: 0).
   -V, --version         show program version number and exit
-  --file-in FILE_IN
   --ignore-file-type [IGNORE_FILE_TYPE [IGNORE_FILE_TYPE ...]]
                         the type of file to be loaded
   --random-generator RANDOM_GENERATOR
@@ -31,6 +32,7 @@ optional arguments:
   --run-dir RUN_DIR     path to the run directory
   --logging-level LOGGING_LEVEL
                         logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.
+
 ```
 
 The following `gulcalc` arguments were ported to `gulpy` with the same meaning and requirements:
