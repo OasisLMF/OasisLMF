@@ -14,10 +14,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
-parser.add_argument('-i', '--file-in', help='filename of input stream.',
-                    action='store', type=str, dest='file_in')
-parser.add_argument('-o', '--file-out', help='filename of output stream.',
-                    action='store', type=str, dest='file_out')
+parser.add_argument('-i', '--file-in', help='filename of input stream.', action='store', type=str, dest='file_in')
+parser.add_argument('-o', '--file-out', help='filename of output stream.', action='store', type=str, dest='file_out')
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
                     action='store', type=float, dest='loss_threshold')
 parser.add_argument('-S', help='Sample size (default: 0).', default=0, action='store', type=int, dest='sample_size')
