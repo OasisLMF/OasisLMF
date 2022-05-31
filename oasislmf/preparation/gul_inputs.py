@@ -40,6 +40,8 @@ from ..utils.profiles import (
     get_oed_hierarchy,
 )
 
+from oasislmf.pytools.data_layer.oasis_files.model_settings import ModelSettings
+
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -311,7 +313,11 @@ def get_gul_input_items(
     # directly, otherwise create an index of the group id fields
     group_id_cols.sort()
 
-    col_key = group_id_cols[0]
+    # getting the correlation value
+    model_settings = ModelSettings()
+    gul_inputs_df["correlation_value"] = gul_inputs_df["peril_id"].map(
+        lambda x: model_settings.get_correlation_value(peril_id=x)
+    )
 
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .keys import GenerateKeys, GenerateKeysDeterministic
 from ..base import ComputationStep
+from typing import List, Dict, Union
 
 #from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ...preparation.oed import load_oed_dfs
@@ -72,6 +73,7 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
+from oasislmf.pytools.data_layer.oasis_files.model_settings import ModelSettings
 
 
 class GenerateFiles(ComputationStep):
@@ -104,6 +106,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing',     'type': str2bool, 'const': False, 'nargs':'?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
         {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',  "default": False, "help": "Hashes the group_id in the items.bin"},
+        {"name": "peril_correlation_group", 'nargs': '?'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -123,6 +126,12 @@ class GenerateFiles(ComputationStep):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
 
+    def _prepare_correlations(self) -> None:
+        if self.peril_correlation_group is None:
+            self.peril_correlation_group = self.group_id_cols
+
+        ModelSettings.define_path(file_path=self.model_settings_json)
+
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
@@ -135,6 +144,7 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
+        self._prepare_correlations()
 
         il = True if self.oed_accounts_csv else False
         ri = all([self.oed_info_csv, self.oed_scope_csv]) and il
@@ -428,7 +438,6 @@ class GenerateDummyModelFiles(ComputationStep):
             self.model_files += [
                 RandomFile(self.num_randoms, self.random_seed, self.static_dir)
             ]
-
 
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Dummy Model Files')
