@@ -155,7 +155,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-    coverages = np.empty(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
     coverages[1:]['tiv'] = coverages_tiv
     del coverages_tiv
 
