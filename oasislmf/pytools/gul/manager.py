@@ -155,7 +155,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages = np.empty(coverages_tiv.shape[0] + 1, coverage_type)
     coverages[1:]['tiv'] = coverages_tiv
     del coverages_tiv
 
@@ -210,7 +210,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
         # create buffer to be reused to store all losses for one coverage
-        losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages['max_items'])), dtype=oasis_float)
+        losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
 
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds):
 
