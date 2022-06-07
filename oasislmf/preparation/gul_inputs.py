@@ -40,14 +40,46 @@ from ..utils.profiles import (
     get_oed_hierarchy,
 )
 
+from oasislmf.utils.data import get_model_settings
+from typing import Optional, Tuple
+
+
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
+def map_data(data: dict) -> Tuple[dict, dict]:
+    """
+    Maps the data from the model settings JSON file setting the self._correlation_map and self._conversion_table.
+    Returns: None
+    """
+    correlation_map = dict()
+    conversion_table = dict()
+    id_counter: int = 1
+
+    for supported_peril in data.get("lookup_settings", {"supported_perils": []}).get("supported_perils", []):
+        peril_correlation_group: Optional[int] = supported_peril.get("peril_correlation_group")
+
+        if peril_correlation_group is None:
+            supported_peril["peril_correlation_group"] = id_counter
+            peril_correlation_group: int = id_counter
+            id_counter += 1
+
+        correlation_map[peril_correlation_group] = supported_peril
+        conversion_table[supported_peril["id"]] = supported_peril["peril_correlation_group"]
+
+    for correlation_setting in data.get("correlation_ settings", []):
+        correlation_map[correlation_setting["peril_correlation_group"]]["correlation_value"] = correlation_setting[
+            "correlation_value"]
+
+    return correlation_map, conversion_table
 
 
 @oasis_log
 def get_gul_input_items(
     exposure_df,
     keys_df,
+    model_settings_path,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id'],
     hash_group_ids=False
@@ -348,6 +380,23 @@ def get_gul_input_items(
     )
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
+
+    # TODO => add the "peril_correlation_group" column
+    model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
+    correlation_map, conversion_map = map_data(data=model_settings_raw_data)
+
+    correlation_map_df = pd.DataFrame(correlation_map).T
+
+    with open(f"{os.getcwd()}/gul_inputs_before.txt", "w") as file:
+        file.write(str(gul_inputs_df.head()))
+
+    gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
+    gul_inputs_df.drop("desc", inplace=True, axis=1)
+    gul_inputs_df.drop("peril_correlation_group", inplace=True, axis=1)
+
+    with open(f"{os.getcwd()}/gul_inputs_after.txt", "w") as file:
+        file.write(str(gul_inputs_df.head()))
+
     return gul_inputs_df
 
 

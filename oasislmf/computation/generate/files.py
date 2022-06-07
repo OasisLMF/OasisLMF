@@ -104,6 +104,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing',     'type': str2bool, 'const': False, 'nargs':'?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
         {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',  "default": False, "help": "Hashes the group_id in the items.bin"},
+        {"name": "peril_correlation_group", 'nargs': '?'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -123,6 +124,10 @@ class GenerateFiles(ComputationStep):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
 
+    def _prepare_correlations(self) -> None:
+        if self.peril_correlation_group is None:
+            self.peril_correlation_group = self.group_id_cols
+
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
@@ -135,6 +140,8 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
+
+        self._prepare_correlations()
 
         il = True if self.oed_accounts_csv else False
         ri = all([self.oed_info_csv, self.oed_scope_csv]) and il
@@ -226,9 +233,11 @@ class GenerateFiles(ComputationStep):
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
+        # TODO => add the path to the model settings to the function below
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
+            model_settings_path=self.model_settings_json,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
             hash_group_ids=self.hashed_group_id
