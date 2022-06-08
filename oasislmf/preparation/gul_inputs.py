@@ -387,15 +387,10 @@ def get_gul_input_items(
 
     correlation_map_df = pd.DataFrame(correlation_map).T
 
-    with open(f"{os.getcwd()}/gul_inputs_before.txt", "w") as file:
-        file.write(str(gul_inputs_df.head()))
-
     gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
     gul_inputs_df.drop("desc", inplace=True, axis=1)
     gul_inputs_df.drop("peril_correlation_group", inplace=True, axis=1)
-
-    with open(f"{os.getcwd()}/gul_inputs_after.txt", "w") as file:
-        file.write(str(gul_inputs_df.head()))
+    gul_inputs_df = gul_inputs_df.sort_values("item_id")
 
     return gul_inputs_df
 
