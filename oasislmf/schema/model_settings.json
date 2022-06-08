@@ -964,12 +964,39 @@
                         "title":"OED peril description",
                         "description":"Short string describing the peril",
                         "minLength":1
+                     },
+                     "peril_correlation_group": {
+                        "type": "integer",
+                        "title": "peril correlated group ID",
+                        "description": "the peril correlated group ID",
+                        "minLength": 1
                      }
                   },
                   "required":[
                      "id",
                      "desc"
                   ]
+               }
+            }
+         }
+      },
+      "correlation_settings": {
+         "type": "array",
+         "title": "Correlation Settings",
+         "description": "The Correlation Settings",
+         "items": {
+            "type": "object",
+            "properties": {
+               "peril_correlation_group": {
+                  "type": "integer",
+                  "title": "Peril Correlation Group",
+                  "description": "The Peril Correlation Group",
+                  "minLength": 1
+               },
+               "correlation_value": {
+                  "type": "string",
+                  "title": "Correlation Value",
+                  "description": "The Correlation Value"
                }
             }
          }

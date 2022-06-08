@@ -51,6 +51,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 def map_data(data: dict) -> Tuple[dict, dict]:
     """
     Maps the data from the model settings JSON file setting the self._correlation_map and self._conversion_table.
+
     Returns: None
     """
     correlation_map = dict()
@@ -389,7 +390,7 @@ def get_gul_input_items(
 
     gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
     gul_inputs_df.drop("desc", inplace=True, axis=1)
-    gul_inputs_df.drop("peril_correlation_group", inplace=True, axis=1)
+    # gul_inputs_df.drop("peril_correlation_group", inplace=True, axis=1)
     gul_inputs_df = gul_inputs_df.sort_values("item_id")
 
     return gul_inputs_df
