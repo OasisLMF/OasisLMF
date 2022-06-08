@@ -69,7 +69,7 @@ def map_data(data: dict) -> Tuple[dict, dict]:
         correlation_map[peril_correlation_group] = supported_peril
         conversion_table[supported_peril["id"]] = supported_peril["peril_correlation_group"]
 
-    for correlation_setting in data.get("correlation_ settings", []):
+    for correlation_setting in data.get("correlation_settings", []):
         correlation_map[correlation_setting["peril_correlation_group"]]["correlation_value"] = correlation_setting[
             "correlation_value"]
 
@@ -390,8 +390,8 @@ def get_gul_input_items(
 
     gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
     gul_inputs_df.drop("desc", inplace=True, axis=1)
-    # gul_inputs_df.drop("peril_correlation_group", inplace=True, axis=1)
     gul_inputs_df = gul_inputs_df.sort_values("item_id")
+    gul_inputs_df["correlation_value"] = gul_inputs_df["correlation_value"].astype(float)
 
     return gul_inputs_df
 
