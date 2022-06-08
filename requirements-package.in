@@ -9,6 +9,7 @@ numba>=0.50.1
 numexpr
 ods-tools>=2.1.2
 pandas>=1.0.3,!=1.1.0,!=1.1.1
+python-magic
 pytz
 requests>=2.20.0
 requests-toolbelt

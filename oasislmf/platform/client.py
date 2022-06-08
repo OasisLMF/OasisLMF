@@ -16,6 +16,7 @@ import tarfile
 import time
 
 import pandas as pd
+import magic
 
 from tqdm import tqdm
 from requests_toolbelt import MultipartEncoder
@@ -120,8 +121,10 @@ class FileEndpoint(object):
             self.url_resource
         )
 
-    def upload(self, ID, file_path, content_type='text/csv'):
+    def upload(self, ID, file_path, content_type=None):
         try:
+            if not content_type:
+                content_type = magic.from_file(file_path, mime=True)
             r = self.session.upload(self._build_url(ID), file_path, content_type)
             return r
         except HTTPError as e:
