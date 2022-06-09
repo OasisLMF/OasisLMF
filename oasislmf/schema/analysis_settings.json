@@ -166,6 +166,18 @@
                                 "description": "Period Average Loss Table (ORD Output flag)",
                                 "default": false
                             },
+			    "alct_convergence": {
+				"type": "boolean",
+				"title": "ALCT",
+				"description": "Average Loss Convergence Table (ORD Output flag), requires alt_period set to true",
+				"default": false
+			    },
+			    "alct_confidence": {
+				"type": "float",
+				"title": "Confidence level for ALCT",
+				"description": "Set confidence level for ALCT",
+				"default": 0.95
+			    },
                             "ept_full_uncertainty_aep": {
                                 "type": "boolean",
                                 "title": "EPT - Full Uncertainty AEP",
