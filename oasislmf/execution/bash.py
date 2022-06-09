@@ -409,7 +409,7 @@ def do_post_wait_processing(
                         alct_outfile_stem,
                         alct_file_extension
                     )
-                    if(summary.get('ord_output', {}).get('alct_confidence'):
+                    if summary.get('ord_output', {}).get('alct_confidence'):
                         cmd = '{} {} {}'.format(
                         cmd,
                         ORD_ALT_OUTPUT_SWITCHES.get('alct_confidence_level', ''),
