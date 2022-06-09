@@ -61,33 +61,41 @@ ORD_PSEPT_OUTPUT_SWITCHES = {
 ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
 ORD_ALT_OUTPUT_SWITCHES = {
-    "alt_period": '-o'
+    "alt_period": {
+        'csv_flag': '-o', 'parquet_flag': '-p'
+    }
 }
 
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
-        'flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt'
+        'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
+        'parquet_flag': '-s', 'kat_flag': '-S'
     },
     "plt_quantile": {
-        'flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt'
+        'csv_flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt',
+        'parquet_flag': '-q', 'kat_flag': '-Q'
     },
     "plt_moment": {
-        'flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt'
+        'csv_flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt',
+        'parquet_flag': '-m', 'kat_flag': '-M'
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
-        'flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt'
+        'csv_flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
+        'parquet_flag': '-q', 'kat_flag': '-q'
     },
     "elt_moment": {
-        'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt'
+        'csv_flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
+        'parquet_flag': '-m', 'kat_flag': '-m'
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
-        'flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt'
+        'csv_flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
+        'parquet_flag': '-p', 'kat_flag': '-s'
     }
 }
 
@@ -205,19 +213,26 @@ def process_range(max_process_id, process_number=None):
         return range(1, max_process_id + 1)
 
 
-def get_modelcmd(modelpy: bool) -> str:
+def get_modelcmd(modelpy: bool, server=False) -> str:
     """
     Gets the construct model command line argument for the bash script.
 
     Args:
         modelpy: (bool) if the getmodel Python setting is True or not
+        server: (bool) if set then enable 'TCP' ipc server/client mode
 
     Returns: C++ getmodel if modelpy is False, Python getmodel if the modelpy if False
     """
+    py_cmd = 'modelpy'
+    cpp_cmd = 'getmodel'
+
+    if server is True:
+        py_cmd = '{} --data-server'.format(py_cmd)
+
     if modelpy is True:
-        return 'modelpy'
+        return py_cmd
     else:
-        return 'getmodel'
+        return cpp_cmd
 
 
 def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
@@ -357,17 +372,27 @@ def do_post_wait_processing(
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                cmd = 'aalcalc -K{}{}_S{}_summary_palt {}'.format(
-                    work_sub_dir,
-                    runtype,
-                    summary_set,
-                    ORD_ALT_OUTPUT_SWITCHES.get("alt_period", "")
+                cmd = 'aalcalc -K{}{}_S{}_summary_palt'.format(
+                    work_sub_dir, runtype, summary_set
+                )
+                palt_outfile_stem = '{}{}_S{}_palt'.format(
+                    output_dir, runtype, summary_set
                 )
 
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    cmd = '{} {}'.format(
+                        cmd,
+                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('parquet_flag', '')
+                    )
+                    cmd = '{} {}.parquet'.format(cmd, palt_outfile_stem)
+                else:
+                    cmd = '{} {}'.format(
+                        cmd,
+                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('csv_flag', '')
+                    )
+                    cmd = '{} > {}.csv'.format(cmd, palt_outfile_stem)
+
                 process_counter['lpid_monitor_count'] += 1
-                cmd = '{} > {}{}_S{}_palt.csv'.format(
-                    cmd, output_dir, runtype, summary_set
-                )
                 if stderr_guard:
                     cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 else:
@@ -404,15 +429,25 @@ def do_post_wait_processing(
                         if not psept_output:
                             psept_output = True
 
+                ept_output_flag = '-O'
+                psept_output_flag = '-o'
+                outfile_ext = 'csv'
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    ept_output_flag = '-P'
+                    psept_output_flag = '-p'
+                    outfile_ext = 'parquet'
+
                 if ept_output:
-                    cmd = '{} -O {}{}_S{}_ept.csv'.format(
-                        cmd, output_dir, runtype, summary_set,
-                        option)
+                    cmd = '{} {} {}{}_S{}_ept.{}'.format(
+                        cmd, ept_output_flag, output_dir, runtype, summary_set,
+                        outfile_ext
+                    )
 
                 if psept_output:
-                    cmd = '{} -o {}{}_S{}_psept.csv'.format(
-                        cmd, output_dir, runtype, summary_set,
-                        option)
+                    cmd = '{} {} {}{}_S{}_psept.{}'.format(
+                        cmd, psept_output_flag, output_dir, runtype,
+                        summary_set, outfile_ext
+                    )
 
                 if stderr_guard:
                     cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
@@ -493,7 +528,7 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
             if 'id' in summary:
                 summary_set = summary['id']
                 do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_summary')
-                if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+                if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                     idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_summary')
                     idx_fifo += '.idx'
                     print_command(filename, f'mkfifo {idx_fifo}')
@@ -613,14 +648,21 @@ def do_kats(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table, v in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
-                        anykas = True
+                        anykats = True
 
                         cmd = 'kat'
+                        outfile_flag = '>'
+                        outfile_ext = 'csv'
+                        if summary.get('ord_output', {}).get('parquet_format'):
+                            cmd = f'katparquet {v["kat_flag"]}'
+                            outfile_flag = '-o'
+                            outfile_ext = 'parquet'
+
                         for process_id in process_range(max_process_id, process_number):
                             cmd = f'{cmd} {work_dir}{runtype}_S{summary_set}_{ord_table}_P{process_id}'
 
                         process_counter['kpid_monitor_count'] += 1
-                        cmd = f'{cmd} > {output_dir}{runtype}_S{summary_set}_{v["table_name"]}.csv'
+                        cmd = f'{cmd} {outfile_flag} {output_dir}{runtype}_S{summary_set}_{v["table_name"]}.{outfile_ext}'
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
@@ -695,7 +737,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
 
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")}'
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd_idx = cmd + '.idx'
 
             for summary_type in SUMMARY_TYPES:
@@ -709,10 +751,14 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                         break
 
             if summary.get('aalcalc'):
-                cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+                aalcalc_out = f'{work_dir}{runtype}_S{summary_set}_summaryaalcalc/P{process_id}'
+                cmd = f'{cmd} {aalcalc_out}.bin'
+                cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
 
             if summary.get('ord_output', {}).get('alt_period'):
-                cmd = '{} {}{}_S{}_summary_palt/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+                aalcalc_ord_out = f'{work_dir}{runtype}_S{summary_set}_summary_palt/P{process_id}'
+                cmd = f'{cmd} {aalcalc_ord_out}.bin'
+                cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
 
 
             # leccalc and ordleccalc share the same summarycalc binary data
@@ -724,7 +770,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 process_counter['pid_monitor_count'] += 1
                 cmd_idx = '{} > /dev/null & pid{}=$!'.format(cmd_idx, process_counter['pid_monitor_count'])
                 print_command(filename, cmd_idx)
@@ -789,16 +835,19 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
                                 cmd += ' -s'
                             skip_line = False
 
-                        cmd += f' {flag_proc["flag"]}'
+                        if summary.get('ord_output', {}).get('parquet_format'):
+                            cmd += f' {flag_proc["parquet_flag"]}'
+                        else:
+                            cmd += f' {flag_proc["csv_flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{ord_table}')
-                        if ord_type != 'selt_ord':
+                        if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
-                    if ord_type == 'selt_ord':
+                    if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                         cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
                     cmd = f'{flag_proc["ktools_exe"]}{cmd}'
@@ -858,6 +907,8 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
+
+    # TODO => insert server here
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
@@ -1013,6 +1064,7 @@ def get_getmodel_itm_cmd(
         correlated_output,
         eve_shuffle_flag,
         modelpy=False,
+        modelpy_server=False,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1030,7 +1082,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1050,7 +1102,8 @@ def get_getmodel_cov_cmd(
         max_process_id,
         eve_shuffle_flag,
         modelpy=False,
-        **kwargs):
+        modelpy_server=False,
+        **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
     :param number_of_samples: The number of samples to run
@@ -1065,10 +1118,10 @@ def get_getmodel_cov_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type  eve_shuffle_flag: str
-    :return: The generated getmodel command
+    :return: (str) The generated getmodel command
     """
 
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1321,8 +1374,11 @@ def bash_params(
     process_number=None,
     remove_working_files=True,
     model_run_dir='',
+    model_py_server=False,
     **kwargs
 ):
+
+
 
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
@@ -1343,6 +1399,12 @@ def bash_params(
     bash_params['model_run_dir'] = model_run_dir
     bash_params['gul_threshold'] = analysis_settings.get('gul_threshold', 0)
     bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
+    bash_params["static_path"] = os.path.join(model_run_dir, "static/")
+
+    bash_params["model_py_server"] = model_py_server
+    if model_py_server:
+        bash_params['modelpy'] = True
+
 
     # set complex model gulcalc command
     if not _get_getmodel_cmd and custom_gulcalc_cmd:
@@ -1498,6 +1560,7 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
+    model_py_server,
     **kwargs
 ):
 
@@ -1529,6 +1592,15 @@ def create_bash_analysis(
         print_command(
             filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
         )
+
+    if model_py_server:
+        print_command(filename, '# --- run data server ---')
+        print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']} {max_process_id} &")
+        # print_command(command_file=filename, cmd="while ! nc -vz localhost 8080 < /dev/null > /dev/null 2>&1; do")
+        # print_command(command_file=filename, cmd="  printf '.'")
+        # print_command(command_file=filename, cmd="  sleep 2")
+        # print_command(command_file=filename, cmd="done")
+
     print_command(filename, '')
 
     if fmpy:
@@ -1694,6 +1766,7 @@ def create_bash_analysis(
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
+            'modelpy_server': model_py_server,
         }
 
         # GUL coverage & item stream (Older)
@@ -1842,6 +1915,7 @@ def create_bash_analysis(
     print_command(filename, '')
 
     do_pwaits(filename, process_counter)
+
 
     if ri_output:
         print_command(filename, '')
@@ -2013,6 +2087,7 @@ def genbash(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    model_py_server=False
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -2075,6 +2150,7 @@ def genbash(
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
         modelpy=modelpy,
+        model_py_server=model_py_server
     )
 
     # remove the file if it already exists
