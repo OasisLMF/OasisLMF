@@ -70,7 +70,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P33 > work/kat/il_S1_eltcalc_P33
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P33 > work/kat/il_S1_summarycalc_P33 & pid2=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P33 > work/kat/il_S1_pltcalc_P33 & pid3=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P33 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P33 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P33 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P33 work/il_S1_summaryaalcalc/P33.bin work/il_S1_summaryleccalc/P33.bin > /dev/null & pid4=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P33.idx work/il_S1_summaryleccalc/P33.idx > /dev/null & pid5=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P33.idx work/il_S1_summaryaalcalc/P33.idx work/il_S1_summaryleccalc/P33.idx > /dev/null & pid5=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P33 < /tmp/%FIFO_DIR%/fifo/il_P33 &
 
 # --- Do ground up loss computes ---
@@ -78,7 +78,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P33 > work/kat/gul_S1_eltcalc_P
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P33 > work/kat/gul_S1_summarycalc_P33 & pid7=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P33 > work/kat/gul_S1_pltcalc_P33 & pid8=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P33 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P33 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P33 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P33 work/gul_S1_summaryaalcalc/P33.bin work/gul_S1_summaryleccalc/P33.bin > /dev/null & pid9=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P33.idx work/gul_S1_summaryleccalc/P33.idx > /dev/null & pid10=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P33.idx work/gul_S1_summaryaalcalc/P33.idx work/gul_S1_summaryleccalc/P33.idx > /dev/null & pid10=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P33 < /tmp/%FIFO_DIR%/fifo/gul_P33 &
 
 # --- Do insured loss computes ---
@@ -86,7 +86,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P33 > work/full
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P33 > work/full_correlation/kat/il_S1_summarycalc_P33 & pid12=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P33 > work/full_correlation/kat/il_S1_pltcalc_P33 & pid13=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P33 work/full_correlation/il_S1_summaryaalcalc/P33.bin work/full_correlation/il_S1_summaryleccalc/P33.bin > /dev/null & pid14=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P33.idx work/full_correlation/il_S1_summaryleccalc/P33.idx > /dev/null & pid15=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P33.idx work/full_correlation/il_S1_summaryaalcalc/P33.idx work/full_correlation/il_S1_summaryleccalc/P33.idx > /dev/null & pid15=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P33 < /tmp/%FIFO_DIR%/fifo/full_correlation/il_P33 &
 
 # --- Do ground up loss computes ---
@@ -94,7 +94,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P33 > work/ful
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P33 > work/full_correlation/kat/gul_S1_summarycalc_P33 & pid17=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P33 > work/full_correlation/kat/gul_S1_pltcalc_P33 & pid18=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P33 work/full_correlation/gul_S1_summaryaalcalc/P33.bin work/full_correlation/gul_S1_summaryleccalc/P33.bin > /dev/null & pid19=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P33.idx work/full_correlation/gul_S1_summaryleccalc/P33.idx > /dev/null & pid20=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P33.idx work/full_correlation/gul_S1_summaryaalcalc/P33.idx work/full_correlation/gul_S1_summaryleccalc/P33.idx > /dev/null & pid20=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P33 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P33 &
 
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P33 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P33  | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P33  &

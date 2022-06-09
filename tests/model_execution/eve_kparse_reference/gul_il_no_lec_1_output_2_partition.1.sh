@@ -22,6 +22,7 @@ mkdir work/il_S1_summaryaalcalc
 mkfifo fifo/gul_P2
 
 mkfifo fifo/gul_S1_summary_P2
+mkfifo fifo/gul_S1_summary_P2.idx
 mkfifo fifo/gul_S1_eltcalc_P2
 mkfifo fifo/gul_S1_summarycalc_P2
 mkfifo fifo/gul_S1_pltcalc_P2
@@ -29,6 +30,7 @@ mkfifo fifo/gul_S1_pltcalc_P2
 mkfifo fifo/il_P2
 
 mkfifo fifo/il_S1_summary_P2
+mkfifo fifo/il_S1_summary_P2.idx
 mkfifo fifo/il_S1_eltcalc_P2
 mkfifo fifo/il_S1_summarycalc_P2
 mkfifo fifo/il_S1_pltcalc_P2
@@ -40,18 +42,20 @@ eltcalc -s < fifo/il_S1_eltcalc_P2 > work/kat/il_S1_eltcalc_P2 & pid1=$!
 summarycalctocsv -s < fifo/il_S1_summarycalc_P2 > work/kat/il_S1_summarycalc_P2 & pid2=$!
 pltcalc -H < fifo/il_S1_pltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid3=$!
 tee < fifo/il_S1_summary_P2 fifo/il_S1_eltcalc_P2 fifo/il_S1_summarycalc_P2 fifo/il_S1_pltcalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid4=$!
+tee < fifo/il_S1_summary_P2.idx work/il_S1_summaryaalcalc/P2.idx > /dev/null & pid5=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 
 # --- Do ground up loss computes ---
-eltcalc -s < fifo/gul_S1_eltcalc_P2 > work/kat/gul_S1_eltcalc_P2 & pid5=$!
-summarycalctocsv -s < fifo/gul_S1_summarycalc_P2 > work/kat/gul_S1_summarycalc_P2 & pid6=$!
-pltcalc -H < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid7=$!
-tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 fifo/gul_S1_pltcalc_P2 work/gul_S1_summaryaalcalc/P2.bin > /dev/null & pid8=$!
+eltcalc -s < fifo/gul_S1_eltcalc_P2 > work/kat/gul_S1_eltcalc_P2 & pid6=$!
+summarycalctocsv -s < fifo/gul_S1_summarycalc_P2 > work/kat/gul_S1_summarycalc_P2 & pid7=$!
+pltcalc -H < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid8=$!
+tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 fifo/gul_S1_pltcalc_P2 work/gul_S1_summaryaalcalc/P2.bin > /dev/null & pid9=$!
+tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryaalcalc/P2.idx > /dev/null & pid10=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
 eve -R 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P2 | fmcalc -a2 > fifo/il_P2  &
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 
 # --- Do insured loss kats ---

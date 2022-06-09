@@ -28,25 +28,29 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P12
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P12
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P12.idx
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_P12
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P12
+mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P12.idx
 
 
 
 # --- Do insured loss computes ---
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P12 work/il_S1_summaryaalcalc/P12.bin > /dev/null & pid1=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P12.idx work/il_S1_summaryaalcalc/P12.idx > /dev/null & pid2=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P12 < /tmp/%FIFO_DIR%/fifo/il_P12 &
 
 # --- Do insured loss computes ---
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P12 work/full_correlation/il_S1_summaryaalcalc/P12.bin > /dev/null & pid2=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P12 work/full_correlation/il_S1_summaryaalcalc/P12.bin > /dev/null & pid3=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P12.idx work/full_correlation/il_S1_summaryaalcalc/P12.idx > /dev/null & pid4=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P12 < /tmp/%FIFO_DIR%/fifo/full_correlation/il_P12 &
 
 fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P12 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P12 &
 eve 12 20 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P12 -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P12  &
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3 $pid4
 
 
 # --- Do insured loss kats ---

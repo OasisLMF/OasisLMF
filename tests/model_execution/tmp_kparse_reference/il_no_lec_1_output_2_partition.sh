@@ -23,11 +23,13 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2
@@ -45,7 +47,9 @@ pltcalc -H < /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2 > work/kat/il_S1_pltcalc_P2 &
 
 
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid7=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid8=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1.idx work/il_S1_summaryaalcalc/P1.idx > /dev/null & pid8=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid9=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2.idx work/il_S1_summaryaalcalc/P2.idx > /dev/null & pid10=$!
 
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 &
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 < /tmp/%FIFO_DIR%/fifo/il_P2 &
@@ -53,7 +57,7 @@ summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 < /tmp/%FIFO_DIR%/fi
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  &
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 
 # --- Do insured loss kats ---
