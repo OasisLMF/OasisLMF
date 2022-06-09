@@ -14,9 +14,9 @@ import os
 import sys
 import tarfile
 import time
+import pathlib
 
 import pandas as pd
-import magic
 
 from tqdm import tqdm
 from requests_toolbelt import MultipartEncoder
@@ -121,10 +121,23 @@ class FileEndpoint(object):
             self.url_resource
         )
 
+    def _set_content_type(self, file_path):
+        content_type_map = {
+            'parquet': 'application/octet-stream',
+            'pq': 'application/octet-stream',
+            'csv': 'text/csv',
+            'gz': 'application/gzip',
+            'zip': 'application/zip',
+            'bz2': 'application/x-bzip2',
+        }
+        file_ext = pathlib.Path(file_path).suffix[1:].lower()
+        return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
+
+
     def upload(self, ID, file_path, content_type=None):
         try:
             if not content_type:
-                content_type = magic.from_file(file_path, mime=True)
+                content_type = self._set_content_type(file_path)
             r = self.session.upload(self._build_url(ID), file_path, content_type)
             return r
         except HTTPError as e:
