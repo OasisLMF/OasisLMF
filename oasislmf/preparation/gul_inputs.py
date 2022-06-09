@@ -386,7 +386,11 @@ def get_gul_input_items(
     model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
     correlation_map, conversion_map = map_data(data=model_settings_raw_data)
 
+    import os
+
     correlation_map_df = pd.DataFrame(correlation_map).T
+
+    correlation_map_df.to_csv(f"{os.getcwd()}/output.csv", index=False)
 
     gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
     gul_inputs_df.drop("desc", inplace=True, axis=1)
