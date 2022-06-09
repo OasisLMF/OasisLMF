@@ -26,24 +26,28 @@ mkdir work/full_correlation/gul_S1_summaryaalcalc
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3.idx
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P3
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P3
+mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P3.idx
 
 
 
 # --- Do ground up loss computes ---
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3 work/gul_S1_summaryaalcalc/P3.bin > /dev/null & pid1=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3.idx work/gul_S1_summaryaalcalc/P3.idx > /dev/null & pid2=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3 < /tmp/%FIFO_DIR%/fifo/gul_P3 &
 
 # --- Do ground up loss computes ---
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P3 work/full_correlation/gul_S1_summaryaalcalc/P3.bin > /dev/null & pid2=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P3 work/full_correlation/gul_S1_summaryaalcalc/P3.bin > /dev/null & pid3=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P3.idx work/full_correlation/gul_S1_summaryaalcalc/P3.idx > /dev/null & pid4=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P3 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P3 &
 
 eve 3 20 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P3 -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P3  &
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3 $pid4
 
 
 # --- Do ground up loss kats ---

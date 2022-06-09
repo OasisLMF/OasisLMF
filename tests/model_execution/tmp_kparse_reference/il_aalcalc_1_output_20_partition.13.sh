@@ -21,16 +21,18 @@ mkdir work/il_S1_summaryaalcalc
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P14
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P14
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P14.idx
 
 
 
 # --- Do insured loss computes ---
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P14 work/il_S1_summaryaalcalc/P14.bin > /dev/null & pid1=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P14.idx work/il_S1_summaryaalcalc/P14.idx > /dev/null & pid2=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P14 < /tmp/%FIFO_DIR%/fifo/il_P14 &
 
 eve 14 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P14  &
 
-wait $pid1
+wait $pid1 $pid2
 
 
 # --- Do insured loss kats ---

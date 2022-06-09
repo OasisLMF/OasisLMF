@@ -30,10 +30,12 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P2
@@ -41,10 +43,12 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_P2
 
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P2.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P2.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P2
@@ -59,24 +63,28 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P2 > work/kat/il_S2_eltcalc_P2 &
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P2 > work/kat/il_S2_summarycalc_P2 & pid5=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P2 > work/kat/il_S2_pltcalc_P2 & pid6=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid7=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2 /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P2 work/il_S2_summaryaalcalc/P2.bin > /dev/null & pid8=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2.idx work/il_S1_summaryaalcalc/P2.idx > /dev/null & pid8=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2 /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P2 work/il_S2_summaryaalcalc/P2.bin > /dev/null & pid9=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2.idx work/il_S2_summaryaalcalc/P2.idx > /dev/null & pid10=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2 -2 /tmp/%FIFO_DIR%/fifo/il_S2_summary_P2 < /tmp/%FIFO_DIR%/fifo/il_P2 &
 
 # --- Do insured loss computes ---
-eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P2 > work/full_correlation/kat/il_S1_eltcalc_P2 & pid9=$!
-summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P2 > work/full_correlation/kat/il_S1_summarycalc_P2 & pid10=$!
-pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P2 > work/full_correlation/kat/il_S1_pltcalc_P2 & pid11=$!
-eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P2 > work/full_correlation/kat/il_S2_eltcalc_P2 & pid12=$!
-summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P2 > work/full_correlation/kat/il_S2_summarycalc_P2 & pid13=$!
-pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P2 > work/full_correlation/kat/il_S2_pltcalc_P2 & pid14=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P2 work/full_correlation/il_S1_summaryaalcalc/P2.bin > /dev/null & pid15=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P2 work/full_correlation/il_S2_summaryaalcalc/P2.bin > /dev/null & pid16=$!
+eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P2 > work/full_correlation/kat/il_S1_eltcalc_P2 & pid11=$!
+summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P2 > work/full_correlation/kat/il_S1_summarycalc_P2 & pid12=$!
+pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P2 > work/full_correlation/kat/il_S1_pltcalc_P2 & pid13=$!
+eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P2 > work/full_correlation/kat/il_S2_eltcalc_P2 & pid14=$!
+summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P2 > work/full_correlation/kat/il_S2_summarycalc_P2 & pid15=$!
+pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P2 > work/full_correlation/kat/il_S2_pltcalc_P2 & pid16=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P2 work/full_correlation/il_S1_summaryaalcalc/P2.bin > /dev/null & pid17=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P2.idx work/full_correlation/il_S1_summaryaalcalc/P2.idx > /dev/null & pid18=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P2 work/full_correlation/il_S2_summaryaalcalc/P2.bin > /dev/null & pid19=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P2.idx work/full_correlation/il_S2_summaryaalcalc/P2.idx > /dev/null & pid20=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P2 -2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P2 < /tmp/%FIFO_DIR%/fifo/full_correlation/il_P2 &
 
 fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P2 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P2 &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P2 -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  &
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20
 
 
 # --- Do insured loss kats ---

@@ -101,9 +101,9 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P8 > work/kat/il_S2_eltcalc_P8 &
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P8 > work/kat/il_S2_summarycalc_P8 & pid5=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P8 > work/kat/il_S2_pltcalc_P8 & pid6=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P8 work/il_S1_summaryaalcalc/P8.bin work/il_S1_summaryleccalc/P8.bin > /dev/null & pid7=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8.idx work/il_S1_summaryleccalc/P8.idx > /dev/null & pid8=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8.idx work/il_S1_summaryaalcalc/P8.idx work/il_S1_summaryleccalc/P8.idx > /dev/null & pid8=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P8 /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P8 work/il_S2_summaryaalcalc/P8.bin work/il_S2_summaryleccalc/P8.bin > /dev/null & pid9=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P8.idx work/il_S2_summaryleccalc/P8.idx > /dev/null & pid10=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P8.idx work/il_S2_summaryaalcalc/P8.idx work/il_S2_summaryleccalc/P8.idx > /dev/null & pid10=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8 -2 /tmp/%FIFO_DIR%/fifo/il_S2_summary_P8 < /tmp/%FIFO_DIR%/fifo/il_P8 &
 
 # --- Do ground up loss computes ---
@@ -114,9 +114,9 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S2_eltcalc_P8 > work/kat/gul_S2_eltcalc_P8
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/gul_S2_summarycalc_P8 > work/kat/gul_S2_summarycalc_P8 & pid15=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/gul_S2_pltcalc_P8 > work/kat/gul_S2_pltcalc_P8 & pid16=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P8 work/gul_S1_summaryaalcalc/P8.bin work/gul_S1_summaryleccalc/P8.bin > /dev/null & pid17=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8.idx work/gul_S1_summaryleccalc/P8.idx > /dev/null & pid18=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8.idx work/gul_S1_summaryaalcalc/P8.idx work/gul_S1_summaryleccalc/P8.idx > /dev/null & pid18=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P8 /tmp/%FIFO_DIR%/fifo/gul_S2_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/gul_S2_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/gul_S2_pltcalc_P8 work/gul_S2_summaryaalcalc/P8.bin work/gul_S2_summaryleccalc/P8.bin > /dev/null & pid19=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P8.idx work/gul_S2_summaryleccalc/P8.idx > /dev/null & pid20=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P8.idx work/gul_S2_summaryaalcalc/P8.idx work/gul_S2_summaryleccalc/P8.idx > /dev/null & pid20=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8 -2 /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P8 < /tmp/%FIFO_DIR%/fifo/gul_P8 &
 
 # --- Do insured loss computes ---
@@ -127,9 +127,9 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P8 > work/full_
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P8 > work/full_correlation/kat/il_S2_summarycalc_P8 & pid25=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P8 > work/full_correlation/kat/il_S2_pltcalc_P8 & pid26=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P8 work/full_correlation/il_S1_summaryaalcalc/P8.bin work/full_correlation/il_S1_summaryleccalc/P8.bin > /dev/null & pid27=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P8.idx work/full_correlation/il_S1_summaryleccalc/P8.idx > /dev/null & pid28=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P8.idx work/full_correlation/il_S1_summaryaalcalc/P8.idx work/full_correlation/il_S1_summaryleccalc/P8.idx > /dev/null & pid28=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_pltcalc_P8 work/full_correlation/il_S2_summaryaalcalc/P8.bin work/full_correlation/il_S2_summaryleccalc/P8.bin > /dev/null & pid29=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P8.idx work/full_correlation/il_S2_summaryleccalc/P8.idx > /dev/null & pid30=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P8.idx work/full_correlation/il_S2_summaryaalcalc/P8.idx work/full_correlation/il_S2_summaryleccalc/P8.idx > /dev/null & pid30=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P8 -2 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S2_summary_P8 < /tmp/%FIFO_DIR%/fifo/full_correlation/il_P8 &
 
 # --- Do ground up loss computes ---
@@ -140,9 +140,9 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_eltcalc_P8 > work/full
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_summarycalc_P8 > work/full_correlation/kat/gul_S2_summarycalc_P8 & pid35=$!
 pltcalc -H < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_pltcalc_P8 > work/full_correlation/kat/gul_S2_pltcalc_P8 & pid36=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P8 work/full_correlation/gul_S1_summaryaalcalc/P8.bin work/full_correlation/gul_S1_summaryleccalc/P8.bin > /dev/null & pid37=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P8.idx work/full_correlation/gul_S1_summaryleccalc/P8.idx > /dev/null & pid38=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P8.idx work/full_correlation/gul_S1_summaryaalcalc/P8.idx work/full_correlation/gul_S1_summaryleccalc/P8.idx > /dev/null & pid38=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_summary_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_eltcalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_summarycalc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_pltcalc_P8 work/full_correlation/gul_S2_summaryaalcalc/P8.bin work/full_correlation/gul_S2_summaryleccalc/P8.bin > /dev/null & pid39=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_summary_P8.idx work/full_correlation/gul_S2_summaryleccalc/P8.idx > /dev/null & pid40=$!
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_summary_P8.idx work/full_correlation/gul_S2_summaryaalcalc/P8.idx work/full_correlation/gul_S2_summaryleccalc/P8.idx > /dev/null & pid40=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P8 -2 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S2_summary_P8 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P8 &
 
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P8 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P8  | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P8  &

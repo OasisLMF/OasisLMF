@@ -61,9 +61,9 @@ eltcalc -s < fifo/il_S2_eltcalc_P10 > work/kat/il_S2_eltcalc_P10 & pid4=$!
 summarycalctocsv -s < fifo/il_S2_summarycalc_P10 > work/kat/il_S2_summarycalc_P10 & pid5=$!
 pltcalc -H < fifo/il_S2_pltcalc_P10 > work/kat/il_S2_pltcalc_P10 & pid6=$!
 tee < fifo/il_S1_summary_P10 fifo/il_S1_eltcalc_P10 fifo/il_S1_summarycalc_P10 fifo/il_S1_pltcalc_P10 work/il_S1_summaryaalcalc/P10.bin work/il_S1_summaryleccalc/P10.bin > /dev/null & pid7=$!
-tee < fifo/il_S1_summary_P10.idx work/il_S1_summaryleccalc/P10.idx > /dev/null & pid8=$!
+tee < fifo/il_S1_summary_P10.idx work/il_S1_summaryaalcalc/P10.idx work/il_S1_summaryleccalc/P10.idx > /dev/null & pid8=$!
 tee < fifo/il_S2_summary_P10 fifo/il_S2_eltcalc_P10 fifo/il_S2_summarycalc_P10 fifo/il_S2_pltcalc_P10 work/il_S2_summaryaalcalc/P10.bin work/il_S2_summaryleccalc/P10.bin > /dev/null & pid9=$!
-tee < fifo/il_S2_summary_P10.idx work/il_S2_summaryleccalc/P10.idx > /dev/null & pid10=$!
+tee < fifo/il_S2_summary_P10.idx work/il_S2_summaryaalcalc/P10.idx work/il_S2_summaryleccalc/P10.idx > /dev/null & pid10=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P10 -2 fifo/il_S2_summary_P10 < fifo/il_P10 &
 
 # --- Do ground up loss computes ---
@@ -74,9 +74,9 @@ eltcalc -s < fifo/gul_S2_eltcalc_P10 > work/kat/gul_S2_eltcalc_P10 & pid14=$!
 summarycalctocsv -s < fifo/gul_S2_summarycalc_P10 > work/kat/gul_S2_summarycalc_P10 & pid15=$!
 pltcalc -H < fifo/gul_S2_pltcalc_P10 > work/kat/gul_S2_pltcalc_P10 & pid16=$!
 tee < fifo/gul_S1_summary_P10 fifo/gul_S1_eltcalc_P10 fifo/gul_S1_summarycalc_P10 fifo/gul_S1_pltcalc_P10 work/gul_S1_summaryaalcalc/P10.bin work/gul_S1_summaryleccalc/P10.bin > /dev/null & pid17=$!
-tee < fifo/gul_S1_summary_P10.idx work/gul_S1_summaryleccalc/P10.idx > /dev/null & pid18=$!
+tee < fifo/gul_S1_summary_P10.idx work/gul_S1_summaryaalcalc/P10.idx work/gul_S1_summaryleccalc/P10.idx > /dev/null & pid18=$!
 tee < fifo/gul_S2_summary_P10 fifo/gul_S2_eltcalc_P10 fifo/gul_S2_summarycalc_P10 fifo/gul_S2_pltcalc_P10 work/gul_S2_summaryaalcalc/P10.bin work/gul_S2_summaryleccalc/P10.bin > /dev/null & pid19=$!
-tee < fifo/gul_S2_summary_P10.idx work/gul_S2_summaryleccalc/P10.idx > /dev/null & pid20=$!
+tee < fifo/gul_S2_summary_P10.idx work/gul_S2_summaryaalcalc/P10.idx work/gul_S2_summaryleccalc/P10.idx > /dev/null & pid20=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P10 -2 fifo/gul_S2_summary_P10 < fifo/gul_P10 &
 
 eve -R 10 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P10 | fmcalc -a2 > fifo/il_P10  &
