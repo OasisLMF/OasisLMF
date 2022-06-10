@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.23.12`_
+ ---------
+* [#907](https://github.com/OasisLMF/OasisLMF/pull/1009) - generate outputs in chosen ORD technology choice (e.g. parquet)
+* [#1052](https://github.com/OasisLMF/OasisLMF/pull/1052) - Parquet output files backport
+.. _`1.23.12`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.11...1.23.12
+
 * [#1039](https://github.com/OasisLMF/OasisLMF/pull/1039) - Fix/282 events not in occurrence file (Backport)
 .. _`1.23.11`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.10...1.23.11
 
