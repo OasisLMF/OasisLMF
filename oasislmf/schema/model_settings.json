@@ -335,7 +335,7 @@
                      "plt_quantile",
                      "plt_moment",
                      "alt_period",
-		     "alt_convergence",
+		     "alct_convergence",
                      "ept",
                      "ept_full_uncertainty_aep",
                      "ept_full_uncertainty_oep",
