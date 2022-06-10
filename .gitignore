@@ -122,3 +122,4 @@ tests/model_execution/tmp_fc_kparse_output/
 data/
 
 .DS_Store/
+.DS_Store
