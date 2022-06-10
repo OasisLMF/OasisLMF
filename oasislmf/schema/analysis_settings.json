@@ -173,7 +173,9 @@
 				"default": false
 			    },
 			    "alct_confidence": {
-				"type": "float",
+				"type": "number",
+				"minimum": 0.0,
+				"maximum": 1.0,
 				"title": "Confidence level for ALCT",
 				"description": "Set confidence level for ALCT",
 				"default": 0.95
