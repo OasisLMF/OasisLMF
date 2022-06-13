@@ -401,6 +401,81 @@
         "FMTermGroupID": 4,
         "ProfileType": "Acc"
     },
+    "PolDed5PD": {
+        "ProfileElementName": "PolDed5PD",
+        "DeductibleType": "B",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolDedCode5PD": {
+        "ProfileElementName": "PolDedCode5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolDedType5PD": {
+        "ProfileElementName": "PolDedType5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolMinDed5PD": {
+        "ProfileElementName": "PolMinDed5PD",
+        "DeductibleType": "MI",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed5PD": {
+        "ProfileElementName": "PolMaxDed5PD",
+        "DeductibleType": "MA",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolLimit5PD": {
+        "ProfileElementName": "PolLimit5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolLimitCode5PD": {
+        "ProfileElementName": "PolLimitCode5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolLimitType5PD": {
+        "ProfileElementName": "PolLimitType5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
     "PolDed6All": {
         "ProfileElementName": "PolDed6All",
         "DeductibleType": "B",

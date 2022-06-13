@@ -96,11 +96,6 @@
                 "src": "FM",
                 "field": "accnumber",
                 "name": "Account num."
-            },
-            "CoverageTypeId": {
-                "src": "FM",
-                "field": "coverage_type_id",
-                "name": "Coverage type Id"
             }
         }
     },
