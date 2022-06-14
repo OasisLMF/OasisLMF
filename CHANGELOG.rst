@@ -1,6 +1,49 @@
 OasisLMF Changelog
 ==================
 
+`1.26.0`_
+ ---------
+* [#1018](https://github.com/OasisLMF/OasisLMF/pull/1026) - Convergence task 11. Set the default number of samples for an analysis from model settings
+* [#1029](https://github.com/OasisLMF/OasisLMF/pull/1028) - Class not picked up when using key_server_module_path
+* [#1005](https://github.com/OasisLMF/OasisLMF/pull/1030) - in run_ktools use -s flag on kat for ORD elt reports
+* [#1031](https://github.com/OasisLMF/OasisLMF/pull/1031) - Feature/group id cleanup
+* [#1041](https://github.com/OasisLMF/OasisLMF/pull/1033) - Improve memory usage of gulpy
+* [#1034](https://github.com/OasisLMF/OasisLMF/pull/1034) - Distributed Platform Fixes
+* [#1036](https://github.com/OasisLMF/OasisLMF/pull/1036) - group id cols updated
+* [#1037](https://github.com/OasisLMF/OasisLMF/pull/1037) - use valid buff as look breaker
+* [#1038](https://github.com/OasisLMF/OasisLMF/pull/1038) - Fix/parallel chunk script error run errors
+* [#1042](https://github.com/OasisLMF/OasisLMF/pull/1042) -  Fixed RI outputs issue in platform-2
+* [#1014](https://github.com/OasisLMF/OasisLMF/pull/1043) - gulpy: raise error if `-r` or  `-c` are passed
+* [#1046](https://github.com/OasisLMF/OasisLMF/pull/1045) - Memory error while running gulpy on PiWind
+* [#1050](https://github.com/OasisLMF/OasisLMF/pull/1050) - Infer the correct mime-type when uploading files to the oasis-platform
+* [#1051](https://github.com/OasisLMF/OasisLMF/pull/1053) - Enable output of Average Loss Convergence Table through MDK
+* [#1055](https://github.com/OasisLMF/OasisLMF/pull/1055) - Set gulpy and modelpy default run options to True
+* [#989](https://github.com/OasisLMF/OasisLMF/pull/989) - adding numba to stitching function
+* [#986, #994](https://github.com/OasisLMF/OasisLMF/pull/990) - Feature/986 ods tools dyptes
+* [#991](https://github.com/OasisLMF/OasisLMF/pull/991) - Refactor group id seed
+* [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures
+* [#999](https://github.com/OasisLMF/OasisLMF/pull/1000) - Port `gulcalc` to Python
+* [#1001](https://github.com/OasisLMF/OasisLMF/pull/1002) - Keys Lookup allow parameter to be passed to read_csv in build_merge
+* [#1004](https://github.com/OasisLMF/OasisLMF/pull/1004) - Minor Fix: arrange requirements in alphabetical order
+* [#1008](https://github.com/OasisLMF/OasisLMF/pull/1008) - Lookup fix if message column is missing
+* [#907](https://github.com/OasisLMF/OasisLMF/pull/1009) - generate outputs in chosen ORD technology choice (e.g. parquet)
+* [#1010](https://github.com/OasisLMF/OasisLMF/pull/1011) - Support optionally using `gulpy` in the `oasislmf model run` job
+* [#1012](https://github.com/OasisLMF/OasisLMF/pull/1012) - Update/readme release section
+* [#1013](https://github.com/OasisLMF/OasisLMF/pull/1013) - Feature/gulpy option in cli test
+* [#1015](https://github.com/OasisLMF/OasisLMF/pull/1015) - Bugfix: `--random-generator` and `--logging-level` should be parsed as `int` and not as `list` in `gulpy` CLI
+* [#1017](https://github.com/OasisLMF/OasisLMF/pull/1017) - Add fix for complex model wrapper calls
+.. _`1.26.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.25.1...1.26.0
+
+`1.26.1rc2`_
+ ---------
+* [#1017](https://github.com/OasisLMF/OasisLMF/pull/1017) - Add fix for complex model wrapper calls
+* [#1018](https://github.com/OasisLMF/OasisLMF/pull/1026) - Convergence task 11. Set the default number of samples for an analysis from model settings
+* [#1029](https://github.com/OasisLMF/OasisLMF/pull/1028) - Class not picked up when using key_server_module_path
+* [#1005](https://github.com/OasisLMF/OasisLMF/pull/1030) - in run_ktools use -s flag on kat for ORD elt reports
+.. _`1.26.1rc2`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.1rc1...1.26.1rc2
+
+.. _`1.26.1rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0rc1...1.26.1rc1
+
 `1.26.0rc1`_
  ---------
 * [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures

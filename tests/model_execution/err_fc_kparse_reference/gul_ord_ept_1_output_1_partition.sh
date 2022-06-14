@@ -5,12 +5,13 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 set -euET -o pipefail
 shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
 
-mkdir -p log
-rm -R -f log/*
+LOG_DIR=log
+mkdir -p $LOG_DIR
+rm -R -f $LOG_DIR/*
 
 
-touch log/stderror.err
-ktools_monitor.sh $$ & pid0=$!
+touch $LOG_DIR/stderror.err
+ktools_monitor.sh $$ $LOG_DIR & pid0=$!
 
 exit_handler(){
    exit_code=$?
@@ -28,11 +29,11 @@ exit_handler(){
        sess_pid=$(ps -p $$ -o sess --no-headers)
        script_pid=$$
        printf "Script PID:%d, GPID:%s, SPID:%d
-" $script_pid $group_pid $sess_pid >> log/killout.txt
+" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
-       ps -jf f -g $sess_pid > log/subprocess_list
+       ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
        PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$ | sort -n -r)
-       echo "$PIDS_KILL" >> log/killout.txt
+       echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
        exit $exit_code
    else
@@ -65,17 +66,17 @@ check_complete(){
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir output/full_correlation/
+mkdir -p output/full_correlation/
 
 rm -R -f fifo/*
-mkdir fifo/full_correlation/
+mkdir -p fifo/full_correlation/
 rm -R -f work/*
-mkdir work/kat/
-mkdir work/full_correlation/
-mkdir work/full_correlation/kat/
+mkdir -p work/kat/
+mkdir -p work/full_correlation/
+mkdir -p work/full_correlation/kat/
 
-mkdir work/gul_S1_summaryleccalc
-mkdir work/full_correlation/gul_S1_summaryleccalc
+mkdir -p work/gul_S1_summaryleccalc
+mkdir -p work/full_correlation/gul_S1_summaryleccalc
 
 mkfifo fifo/gul_P1
 
@@ -96,7 +97,7 @@ mkfifo fifo/full_correlation/gul_S1_summary_P1.idx
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do ground up loss computes ---
 
@@ -105,9 +106,9 @@ tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null &
 tee < fifo/full_correlation/gul_S1_summary_P1 work/full_correlation/gul_S1_summaryleccalc/P1.bin > /dev/null & pid3=$!
 tee < fifo/full_correlation/gul_S1_summary_P1.idx work/full_correlation/gul_S1_summaryleccalc/P1.idx > /dev/null & pid4=$!
 
-( summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
+( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err &
 
 wait $pid1 $pid2 $pid3 $pid4
 
@@ -118,8 +119,8 @@ wait $pid1 $pid2 $pid3 $pid4
 # --- Do ground up loss kats for fully correlated output ---
 
 
-( ordleccalc -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -O output/gul_S1_ept.csv ) 2>> log/stderror.err & lpid1=$!
-( ordleccalc -r -Kfull_correlation/gul_S1_summaryleccalc -F -f -S -s -M -m -O output/full_correlation/gul_S1_ept.csv ) 2>> log/stderror.err & lpid2=$!
+( ordleccalc -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -O output/gul_S1_ept.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( ordleccalc -r -Kfull_correlation/gul_S1_summaryleccalc -F -f -S -s -M -m -O output/full_correlation/gul_S1_ept.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
 wait $lpid1 $lpid2
 
 rm -R -f work/*

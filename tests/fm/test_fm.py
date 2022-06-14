@@ -19,7 +19,7 @@ class FmAcceptanceTests(TestCase):
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             run_dir=tmp_run_dir
-            if self.keep_output: 
+            if self.keep_output:
                 utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
                 run_dir = os.path.join(
                     self.test_cases_fp, 'runs', 'test-fm-p{}-{}-{}'.format(subperils, test_case,utcnow)
@@ -59,7 +59,7 @@ class FmAcceptanceTests(TestCase):
     def test_issues(self):
         self.run_test('issues')
 
-    # multiperil tests 
+    # multiperil tests
     def test_insurance_2_subperils(self):
         self.run_test('insurance', subperils=2, expected_dir="expected_subperils")
 
@@ -76,6 +76,6 @@ class FmAcceptanceTests(TestCase):
 
     def test_reinsurance2_2_subperils(self):
         self.run_test('reinsurance2', subperils=2, expected_dir="expected_subperils")
-  
+        
     def test_issues_2_subperils(self):
         self.run_test('issues', subperils=2, expected_dir="expected_subperils")

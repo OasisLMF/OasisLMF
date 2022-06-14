@@ -10,6 +10,45 @@ from numba import njit
 logger = logging.getLogger(__name__)
 
 
+GROUP_ID_HASH_CODE = np.int64(1543270363)
+EVENT_ID_HASH_CODE = np.int64(1943272559)
+HASH_MOD_CODE = np.int64(2147483648)
+
+
+@njit(cache=True, fastmath=True)
+def generate_hash(group_id, event_id, base_seed=0):
+    """Generate hash for a given `group_id`, `event_id` pair.
+
+    Args:
+        group_id (int): group id.
+        event_id (int]): event id.
+        base_seed (int, optional): base random seed. Defaults to 0.
+
+    Returns:
+        int64: hash
+    """
+    hash = (base_seed + (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE +
+            (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+
+    return hash
+
+
+@njit(cache=True, fastmath=True)
+def generate_correlated_hash(event_id, base_seed=0):
+    """Generate hash for an `event_id`.
+
+    Args:
+        event_id (int): event id.
+        base_seed (int, optional): base random seed. Defaults to 0.
+
+    Returns:
+        int64: hash
+    """
+    hash = (base_seed + (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+
+    return hash
+
+
 def get_random_generator(random_generator):
     """Get the random generator function.
 
@@ -49,7 +88,6 @@ def random_MersenneTwister(seeds, n):
     """
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype='float64')
-    rndms_idx = {}
 
     for seed_i, seed in enumerate(seeds):
         # set the seed
@@ -60,9 +98,7 @@ def random_MersenneTwister(seeds, n):
             # by default in numba this should be Mersenne-Twister
             rndms[seed_i, j] = np.random.uniform(0., 1.)
 
-        rndms_idx[seed] = seed_i
-
-    return rndms, rndms_idx
+    return rndms
 
 
 @njit(cache=True, fastmath=True)
@@ -87,8 +123,6 @@ def random_LatinHypercube(seeds, n):
     """
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype='float64')
-    rndms_idx = {}
-
     # define arrays here and re-use them later
     samples = np.zeros(n, dtype='float64')
     perms = np.zeros(n, dtype='float64')
@@ -108,6 +142,4 @@ def random_LatinHypercube(seeds, n):
         for j in range(n):
             rndms[seed_i, j] = (perms[j] - samples[j]) / float(n)
 
-        rndms_idx[seed] = seed_i
-
-    return rndms, rndms_idx
+    return rndms
