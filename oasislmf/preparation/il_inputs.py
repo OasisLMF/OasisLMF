@@ -976,11 +976,10 @@ def __process_standard_level_df(column_base_il_df,
     level_df = pd.concat([level_df_with_term, il_df_no_term])
     level_df['level_id'] = cur_level
     level_df.drop(columns=['agg_tiv'], errors='ignore', inplace=True)
-
+    level_tiv_df = tiv_df.merge(level_df[['coverage_id', 'agg_id']])
     __drop_duplicated_row(prev_level_df_with_parent, level_df, level_terms, agg_key, sub_agg_key)
 
     # compute the aggregated tiv
-    level_tiv_df = tiv_df.merge(level_df[['coverage_id', 'agg_id']])
     agg_tiv_df = compute_agg_tiv(level_tiv_df, 'is_bi_coverage' in agg_key, bi_tiv_col, loc_num)
     level_df = merge_dataframes(level_df, agg_tiv_df, on='agg_id', how='left')
 
@@ -1056,11 +1055,10 @@ def __process_condition_level_df(column_base_il_df,
                 how='inner',
                 drop_duplicates=False
             )
-
+            level_tiv_df = tiv_df.merge(level_df[['coverage_id', 'agg_id']])
             __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key)
 
             # compute the aggregated tiv
-            level_tiv_df = tiv_df.merge(level_df[['coverage_id', 'agg_id']])
             agg_tiv_df = compute_agg_tiv(level_tiv_df, 'is_bi_coverage' in agg_key, bi_tiv_col, loc_num)
             level_df = merge_dataframes(level_df, agg_tiv_df, on='agg_id', how='left')
 
