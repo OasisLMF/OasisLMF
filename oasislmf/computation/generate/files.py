@@ -124,10 +124,6 @@ class GenerateFiles(ComputationStep):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
 
-    def _prepare_correlations(self) -> None:
-        if self.peril_correlation_group is None:
-            self.peril_correlation_group = self.group_id_cols
-
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
@@ -140,8 +136,6 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
-
-        self._prepare_correlations()
 
         il = True if self.oed_accounts_csv else False
         ri = all([self.oed_info_csv, self.oed_scope_csv]) and il
@@ -240,7 +234,8 @@ class GenerateFiles(ComputationStep):
             model_settings_path=self.model_settings_json,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
-            hash_group_ids=self.hashed_group_id
+            hash_group_ids=self.hashed_group_id,
+            output_dir=self._get_output_dir()
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -250,7 +245,7 @@ class GenerateFiles(ComputationStep):
                 location_df,
                 keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile
+                exposure_profile=location_profile,
             )
 
         # If exposure summary set, write valid columns for summary levels to file

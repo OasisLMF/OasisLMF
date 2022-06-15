@@ -48,32 +48,26 @@ pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-def map_data(data: dict) -> Tuple[dict, dict]:
+def map_data(data: dict) -> pd.DataFrame:
     """
-    Maps the data from the model settings JSON file setting the self._correlation_map and self._conversion_table.
+    Maps data from the model settings to to have Peril ID, peril_correlation_group, and correlation_value.
 
-    Returns: None
+    Args:
+        data: (dict) the data loaded from the model settings
+
+    Returns: (pd.DataFrame) the mapped data
     """
-    correlation_map = dict()
-    conversion_table = dict()
-    id_counter: int = 1
+    supported_perils = data.get("lookup_settings", {"supported_perils": []}).get("supported_perils", [])
+    correlation_settings = data.get("correlation_settings", [])
 
-    for supported_peril in data.get("lookup_settings", {"supported_perils": []}).get("supported_perils", []):
-        peril_correlation_group: Optional[int] = supported_peril.get("peril_correlation_group")
+    for supported_peril in supported_perils:
+        supported_peril["peril_correlation_group"] = supported_peril.get("peril_correlation_group", 0)
 
-        if peril_correlation_group is None:
-            supported_peril["peril_correlation_group"] = id_counter
-            peril_correlation_group: int = id_counter
-            id_counter += 1
+    supported_perils_df = pd.DataFrame(supported_perils)
+    correlation_settings_df = pd.DataFrame(correlation_settings)
 
-        correlation_map[peril_correlation_group] = supported_peril
-        conversion_table[supported_peril["id"]] = supported_peril["peril_correlation_group"]
-
-    for correlation_setting in data.get("correlation_settings", []):
-        correlation_map[correlation_setting["peril_correlation_group"]]["correlation_value"] = correlation_setting[
-            "correlation_value"]
-
-    return correlation_map, conversion_table
+    mapped_data = pd.merge(supported_perils_df, correlation_settings_df, on="peril_correlation_group")
+    return mapped_data
 
 
 @oasis_log
@@ -83,7 +77,8 @@ def get_gul_input_items(
     model_settings_path,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id'],
-    hash_group_ids=False
+    hash_group_ids=False,
+    output_dir=""
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -384,18 +379,26 @@ def get_gul_input_items(
 
     # TODO => add the "peril_correlation_group" column
     model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
-    correlation_map, conversion_map = map_data(data=model_settings_raw_data)
+    correlation_map_df = map_data(data=model_settings_raw_data)
 
     import os
-
-    correlation_map_df = pd.DataFrame(correlation_map).T
-
+    # [item_id, correlation_group, correlation_value]
+    # from the correlation_map => id, desc, peril_correlation_group, correlation_value
+    # index,loc_idcorrelation_map_df,portnumber,accnumber,locnumber,loc_idx,peril_id,coverage_type_id,tiv,areaperil_id,vulnerability_id,deductible,deductible_min,deductible_max,limit,ded_code,ded_type,lim_code,lim_type,is_bi_coverage,group_id,coverage_id,item_id,id,peril_correlation_group,correlation_value
     correlation_map_df.to_csv(f"{os.getcwd()}/output.csv", index=False)
 
     gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
+
     gul_inputs_df.drop("desc", inplace=True, axis=1)
     gul_inputs_df = gul_inputs_df.sort_values("item_id")
     gul_inputs_df["correlation_value"] = gul_inputs_df["correlation_value"].astype(float)
+    gul_inputs_df = gul_inputs_df.reindex(columns=list(gul_inputs_df))
+
+    correlation_df = gul_inputs_df[["item_id", "peril_correlation_group", "correlation_value"]]
+    correlation_df.to_csv(f"{os.getcwd()}/output.csv", index=False)
+
+    with open(f"{os.getcwd()}/output.txt", "w") as file:
+        file.write(str(gul_inputs_df["correlation_value"]))
 
     return gul_inputs_df
 
