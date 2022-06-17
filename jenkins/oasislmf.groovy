@@ -136,7 +136,7 @@ node {
             // Test current branch using a model_worker image and checking expected output
             job_params = [
                  [$class: 'StringParameterValue',  name: 'MDK_BRANCH', value: MDK_BRANCH],
-                 [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set parquet'],
+                 [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set'],
                  [$class: 'BooleanParameterValue', name: 'BUILD_WORKER', value: true]
             ]
 
