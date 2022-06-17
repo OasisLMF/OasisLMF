@@ -75,9 +75,9 @@ class APISession(Session):
     def unrecoverable_error(self, error, msg=None):
         err_r = error.response
         err_msg = 'api error: {}, url: {}, msg: {}'.format(err_r.status_code, err_r.url, err_r.text)
-        self.logger.error(err_msg)
         if msg:
             self.logger.error(msg)
+        raise OasisException(err_msg)
 
     # Connection Error Handlers
     def __recoverable(self, error, url, request, counter=1):
