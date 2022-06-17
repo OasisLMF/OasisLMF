@@ -72,6 +72,7 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
+from oasislmf.preparation.correlations import get_correlation_input_items
 
 
 class GenerateFiles(ComputationStep):
@@ -227,15 +228,17 @@ class GenerateFiles(ComputationStep):
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
-        # TODO => add the path to the model settings to the function below
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
-            model_settings_path=self.model_settings_json,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
             hash_group_ids=self.hashed_group_id,
-            output_dir=self._get_output_dir()
+        )
+
+        correlation_input_items = get_correlation_input_items(
+            model_settings_path=self.model_settings_json,
+            gul_inputs_df=gul_inputs_df
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -254,9 +257,13 @@ class GenerateFiles(ComputationStep):
 
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
+
+        # TODO => add the correlation inputs to be written
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
+            correlations_df=correlation_input_items,
+            output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
             hashed_item_id=self.hashed_group_id

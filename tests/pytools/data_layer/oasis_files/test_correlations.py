@@ -61,6 +61,7 @@ class TestCorrelations(TestCase):
         self.test.to_bin(file_path=self.cache_bin_path)
 
         test_one = CorrelationsData.from_bin(file_path=self.cache_bin_path)
+        test_one.data.to_csv(self.check_file_path, index=False)
         test_one.to_csv(file_path=self.check_file_path)
 
         test_two = CorrelationsData.from_csv(file_path=self.check_file_path)

@@ -39,46 +39,19 @@ from ..utils.profiles import (
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy,
 )
-
-from oasislmf.utils.data import get_model_settings
-from typing import Optional, Tuple
-
+from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
-
-def map_data(data: dict) -> pd.DataFrame:
-    """
-    Maps data from the model settings to to have Peril ID, peril_correlation_group, and correlation_value.
-
-    Args:
-        data: (dict) the data loaded from the model settings
-
-    Returns: (pd.DataFrame) the mapped data
-    """
-    supported_perils = data.get("lookup_settings", {"supported_perils": []}).get("supported_perils", [])
-    correlation_settings = data.get("correlation_settings", [])
-
-    for supported_peril in supported_perils:
-        supported_peril["peril_correlation_group"] = supported_peril.get("peril_correlation_group", 0)
-
-    supported_perils_df = pd.DataFrame(supported_perils)
-    correlation_settings_df = pd.DataFrame(correlation_settings)
-
-    mapped_data = pd.merge(supported_perils_df, correlation_settings_df, on="peril_correlation_group")
-    return mapped_data
 
 
 @oasis_log
 def get_gul_input_items(
     exposure_df,
     keys_df,
-    model_settings_path,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id'],
     hash_group_ids=False,
-    output_dir=""
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -377,28 +350,8 @@ def get_gul_input_items(
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
 
-    # TODO => add the "peril_correlation_group" column
-    model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
-    correlation_map_df = map_data(data=model_settings_raw_data)
-
-    import os
-    # [item_id, correlation_group, correlation_value]
-    # from the correlation_map => id, desc, peril_correlation_group, correlation_value
-    # index,loc_idcorrelation_map_df,portnumber,accnumber,locnumber,loc_idx,peril_id,coverage_type_id,tiv,areaperil_id,vulnerability_id,deductible,deductible_min,deductible_max,limit,ded_code,ded_type,lim_code,lim_type,is_bi_coverage,group_id,coverage_id,item_id,id,peril_correlation_group,correlation_value
-    correlation_map_df.to_csv(f"{os.getcwd()}/output.csv", index=False)
-
-    gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
-
-    gul_inputs_df.drop("desc", inplace=True, axis=1)
     gul_inputs_df = gul_inputs_df.sort_values("item_id")
-    gul_inputs_df["correlation_value"] = gul_inputs_df["correlation_value"].astype(float)
     gul_inputs_df = gul_inputs_df.reindex(columns=list(gul_inputs_df))
-
-    correlation_df = gul_inputs_df[["item_id", "peril_correlation_group", "correlation_value"]]
-    correlation_df.to_csv(f"{os.getcwd()}/output.csv", index=False)
-
-    with open(f"{os.getcwd()}/output.txt", "w") as file:
-        file.write(str(gul_inputs_df["correlation_value"]))
 
     return gul_inputs_df
 
@@ -489,6 +442,8 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
+    correlations_df,
+    output_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     chunksize=(2 * 10 ** 5),
     hashed_item_id=False
@@ -521,6 +476,9 @@ def write_gul_input_files(
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
+
+    # write the correlations to a binary file
+    CorrelationsData(data=correlations_df).to_bin(file_path=f"{output_dir}/correlations.bin")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size

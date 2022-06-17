@@ -49,6 +49,8 @@ class CorrelationsData:
         Returns: (CorrelationsData) the loaded data from the binary file
         """
         data = pd.DataFrame(np.fromfile(file_path, dtype=Correlation))
+        data["item_id"] = list(range(1, len(data) + 1))
+        data = data[["item_id", "peril_correlation_group", "correlation_value"]]
         return CorrelationsData(data=data)
 
     def to_csv(self, file_path: str) -> None:
@@ -71,5 +73,5 @@ class CorrelationsData:
 
         Returns: None
         """
-        data = np.array(list(self.data.itertuples(index=False)), dtype=Correlation)
+        data = np.array(list(self.data.drop("item_id", axis=1).itertuples(index=False)), dtype=Correlation)
         data.tofile(file_path)

@@ -62,7 +62,6 @@ Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ]))
 
 Correlation = nb.from_dtype(np.dtype([
-    ("item_id", np.int32),
     ("peril_correlation_group", np.int32),
     ("correlation_value", oasis_float)
 ]))
