@@ -11,7 +11,6 @@ import io
 import json
 import logging
 import os
-import sys
 import tarfile
 import time
 import pathlib
@@ -24,7 +23,7 @@ from requests.exceptions import (
     HTTPError,
 )
 from .session import APISession
-
+from ..utils.exceptions import OasisException
 
 class ApiEndpoint(object):
     """
@@ -143,7 +142,6 @@ class FileEndpoint(object):
         except HTTPError as e:
             err_msg = 'File upload Failed: file: {},  url: {}:'.format(file_path, self._build_url(ID))
             self.session.unrecoverable_error(e, err_msg)
-            sys.exit(1)
 
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
@@ -429,7 +427,6 @@ class APIClient(object):
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
-            sys.exit(1)
 
     def upload_settings(self, analyses_id, settings):
         """
@@ -472,7 +469,6 @@ class APIClient(object):
             return analyses
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'create_analysis: failed')
-            sys.exit(1)
 
     def run_generate(self, analysis_id, poll_interval=5):
         """
@@ -501,6 +497,7 @@ class APIClient(object):
                 elif analysis['status'] in ['INPUTS_GENERATION_ERROR']:
                     self.logger.info('Input Generation: Failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
+                    self.logger.error("\nServer logs:")
                     self.logger.error(error_trace)
                     return False
 
@@ -548,11 +545,9 @@ class APIClient(object):
 
                 else:
                     err_msg = "Input Generation: Unknown State'{}'".format(analysis['status'])
-                    self.logger.error(err_msg)
-                    sys.exit(1)
+                    OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
-            sys.exit(1)
 
     def run_analysis(self, analysis_id, analysis_settings_fp=None, poll_interval=5):
         """
@@ -582,6 +577,7 @@ class APIClient(object):
                 elif analysis['status'] in ['RUN_ERROR']:
                     self.logger.error('Analysis Run: Failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.run_traceback_file.get(analysis_id).text
+                    self.logger.error("\nServer logs:")
                     self.logger.error(error_trace)
                     return False
 
@@ -631,7 +627,6 @@ class APIClient(object):
                     sys.exit(1)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
-            sys.exit(1)
 
     def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
         if not filename:
@@ -647,7 +642,6 @@ class APIClient(object):
         except HTTPError as e:
             err_msg = 'Analysis Download output: Failed (id={})'.format(analysis_id)
             self.api.unrecoverable_error(e, err_msg)
-            sys.exit(1)
 
     def cancel_generate(self, analysis_id):
         """
