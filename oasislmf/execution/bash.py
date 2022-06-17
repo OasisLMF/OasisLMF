@@ -63,7 +63,8 @@ ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
 ORD_ALT_OUTPUT_SWITCHES = {
     "alt_period": {
-        'csv_flag': '-o', 'parquet_flag': '-p'
+        'csv_flag': '-o', 'parquet_flag': '-p', 'alct_flag': '-c',
+        'alct_confidence_level': '-l'
     }
 }
 
@@ -393,6 +394,27 @@ def do_post_wait_processing(
                 palt_outfile_stem = '{}{}_S{}_palt'.format(
                     output_dir, runtype, summary_set
                 )
+                alct_outfile_stem = '{}{}_S{}_alct'.format(
+                    output_dir, runtype, summary_set
+                )
+
+                alct_file_extension = ".csv"
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    alct_file_extension = ".parquet"
+
+                if summary.get('ord_output', {}).get('alct_convergence'):
+                    cmd = '{} {} {}{}'.format(
+                        cmd,
+                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('alct_flag', ''),
+                        alct_outfile_stem,
+                        alct_file_extension
+                    )
+                    if summary.get('ord_output', {}).get('alct_confidence'):
+                        cmd = '{} {} {}'.format(
+                        cmd,
+                        ORD_ALT_OUTPUT_SWITCHES.get('alct_confidence_level', ''),
+                        summary.get('ord_output', {}).get('alct_confidence')
+                    )
 
                 if summary.get('ord_output', {}).get('parquet_format'):
                     cmd = '{} {}'.format(
