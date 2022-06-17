@@ -105,7 +105,6 @@ class GenerateFiles(ComputationStep):
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing',     'type': str2bool, 'const': False, 'nargs':'?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
         {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',  "default": False, "help": "Hashes the group_id in the items.bin"},
-        {"name": "peril_correlation_group", 'nargs': '?'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},

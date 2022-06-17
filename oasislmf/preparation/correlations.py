@@ -1,9 +1,10 @@
 import pandas as pd
+from typing import Optional
 
 from oasislmf.utils.data import get_model_settings
 
 
-def map_data(data: dict) -> pd.DataFrame:
+def map_data(data: dict) -> Optional[pd.DataFrame]:
     """
     Maps data from the model settings to to have Peril ID, peril_correlation_group, and correlation_value.
 
@@ -23,8 +24,9 @@ def map_data(data: dict) -> pd.DataFrame:
 
     # merge allows duplicates of the "peril_correlation_group" in the supported perils
     # merge does not allow duplicates of the "peril_correlation_group" in the correlation settings
-    mapped_data = pd.merge(supported_perils_df, correlation_settings_df, on="peril_correlation_group")
-    return mapped_data
+    if len(supported_perils_df) > 0 and len(correlation_settings_df) > 0:
+        mapped_data = pd.merge(supported_perils_df, correlation_settings_df, on="peril_correlation_group")
+        return mapped_data
 
 
 def get_correlation_input_items(model_settings_path: str, gul_inputs_df: pd.DataFrame) -> pd.DataFrame:
@@ -40,9 +42,11 @@ def get_correlation_input_items(model_settings_path: str, gul_inputs_df: pd.Data
     model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
     correlation_map_df = map_data(data=model_settings_raw_data)
 
-    gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
-    gul_inputs_df["correlation_value"] = gul_inputs_df["correlation_value"].astype(float)
-    gul_inputs_df = gul_inputs_df.reindex(columns=list(gul_inputs_df))
+    if correlation_map_df is not None:
+        gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
+        gul_inputs_df["correlation_value"] = gul_inputs_df["correlation_value"].astype(float)
+        gul_inputs_df = gul_inputs_df.reindex(columns=list(gul_inputs_df))
 
-    correlation_df = gul_inputs_df[["item_id", "peril_correlation_group", "correlation_value"]]
-    return correlation_df.sort_values('item_id')
+        correlation_df = gul_inputs_df[["item_id", "peril_correlation_group", "correlation_value"]]
+        return correlation_df.sort_values('item_id')
+    return pd.DataFrame(columns=["item_id", "peril_correlation_group", "correlation_value"])
