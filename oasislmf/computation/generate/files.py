@@ -235,10 +235,13 @@ class GenerateFiles(ComputationStep):
             hash_group_ids=self.hashed_group_id,
         )
 
-        correlation_input_items = get_correlation_input_items(
-            model_settings_path=self.model_settings_json,
-            gul_inputs_df=gul_inputs_df
-        )
+        if self.model_settings_json is not None:
+            correlation_input_items = get_correlation_input_items(
+                model_settings_path=self.model_settings_json,
+                gul_inputs_df=gul_inputs_df
+            )
+        else:
+            correlation_input_items = None
 
         # If not in det. loss gen. scenario, write exposure summary file
         if summarise_exposure:
@@ -257,7 +260,6 @@ class GenerateFiles(ComputationStep):
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
 
-        # TODO => add the correlation inputs to be written
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,

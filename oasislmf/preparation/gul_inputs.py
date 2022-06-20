@@ -478,7 +478,8 @@ def write_gul_input_files(
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
     # write the correlations to a binary file
-    CorrelationsData(data=correlations_df).to_bin(file_path=f"{output_dir}/correlations.bin")
+    if correlations_df is not None:
+        CorrelationsData(data=correlations_df).to_bin(file_path=f"{output_dir}/correlations.bin")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
