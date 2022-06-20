@@ -1,3 +1,6 @@
+"""
+This file tests the mapping of the correlation data between supported perils and correlation settings
+"""
 import os
 from unittest import main, TestCase
 

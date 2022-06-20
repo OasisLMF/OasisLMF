@@ -100,9 +100,6 @@ def __interface_factory(computation_cls):
 
 for computation_cls in OasisManager.computation_classes:
     # set run() computation_cls functions as attributes
-    import os
-    with open(f"{os.getcwd()}/output_class.txt", "w") as file:
-        file.write(str(computation_cls))
     setattr(OasisManager, OasisManager.computation_name_to_method(computation_cls.__name__),
             __interface_factory(computation_cls))
 
