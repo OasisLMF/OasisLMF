@@ -1,3 +1,6 @@
+"""
+This file tests the loading, saving, and conversions for correlations data to and from CSV and binary files.
+"""
 import os
 from unittest import TestCase, main
 

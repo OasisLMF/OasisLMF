@@ -1,6 +1,6 @@
 """
 This file defines the functions that maps the supported perils with the correlation settings. This data is usually
-obtained from the model_settings. 
+obtained from the model_settings.
 """
 import pandas as pd
 from typing import Optional
