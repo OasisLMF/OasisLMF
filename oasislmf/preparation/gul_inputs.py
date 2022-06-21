@@ -51,7 +51,7 @@ def get_gul_input_items(
     keys_df,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id'],
-    hash_group_ids=False,
+    hash_group_ids=False
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
