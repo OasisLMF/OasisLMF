@@ -50,7 +50,7 @@ def get_gul_input_items(
     exposure_df,
     keys_df,
     exposure_profile=get_default_exposure_profile(),
-    group_id_cols=["PortNumber", "AccNumber", "LocNumber"],
+    group_id_cols=['loc_id'],
     hash_group_ids=False,
 ):
     """
