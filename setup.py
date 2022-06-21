@@ -359,7 +359,9 @@ setup(
             'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
-            "convertbintoparquet=oasislmf.pytools.data_layer.conversions.footprint:main"
+            "convertbintoparquet=oasislmf.pytools.data_layer.conversions.footprint:main",
+            "correlationbintocsv=oasislmf.pytools.data_layer.conversions.correlations:convert_bin_to_csv_main",
+            "correlationcsvtobin=oasislmf.pytools.data_layer.conversions.correlations:convert_csv_to_bin_main"
         ]
     },
     license='BSD 3-Clause',
