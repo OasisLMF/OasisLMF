@@ -1532,6 +1532,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         item_level.rename(columns={'gul_input_id': 'from_agg_id',
                                    'agg_id': 'to_agg_id',
                                    }, inplace=True)
+        item_level.drop_duplicates(keep='first', inplace=True)
         fm_programme_df = il_inputs_df[['agg_id', 'level_id', 'to_agg_id']]
         fm_programme_df['level_id'] += 1
         fm_programme_df.rename(columns={'agg_id': 'from_agg_id'}, inplace=True)
