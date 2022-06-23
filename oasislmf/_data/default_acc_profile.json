@@ -101,6 +101,381 @@
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "PolDed1Building": {
+        "ProfileElementName": "PolDed1Building",
+        "DeductibleType": "B",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolDedCode1Building": {
+        "ProfileElementName": "PolDedCode1Building",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolDedType1Building": {
+        "ProfileElementName": "PolDedType1Building",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolMinDed1Building": {
+        "ProfileElementName": "PolMinDed1Building",
+        "DeductibleType": "MI",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed1Building": {
+        "ProfileElementName": "PolMaxDed1Building",
+        "DeductibleType": "MA",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolLimit1Building": {
+        "ProfileElementName": "PolLimit1Building",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolLimitCode1Building": {
+        "ProfileElementName": "PolLimitCode1Building",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolLimitType1Building": {
+        "ProfileElementName": "PolLimitType1Building",
+        "CoverageTypeID": 1,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolDed2Other": {
+        "ProfileElementName": "PolDed2Other",
+        "DeductibleType": "B",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolDedCode2Other": {
+        "ProfileElementName": "PolDedCode2Other",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolDedType2Other": {
+        "ProfileElementName": "PolDedType2Other",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolMinDed2Other": {
+        "ProfileElementName": "PolMinDed2Other",
+        "DeductibleType": "MI",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed2Other": {
+        "ProfileElementName": "PolMaxDed2Other",
+        "DeductibleType": "MA",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolLimit2Other": {
+        "ProfileElementName": "PolLimit2Other",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolLimitCode2Other": {
+        "ProfileElementName": "PolLimitCode2Other",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolLimitType2Other": {
+        "ProfileElementName": "PolLimitType2Other",
+        "CoverageTypeID": 2,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 2,
+        "ProfileType": "Acc"
+    },
+    "PolDed3Contents": {
+        "ProfileElementName": "PolDed3Contents",
+        "DeductibleType": "B",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolDedCode3Contents": {
+        "ProfileElementName": "PolDedCode3Contents",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolDedType3Contents": {
+        "ProfileElementName": "PolDedType3Contents",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolMinDed3Contents": {
+        "ProfileElementName": "PolMinDed3Contents",
+        "DeductibleType": "MI",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed3Contents": {
+        "ProfileElementName": "PolMaxDed3Contents",
+        "DeductibleType": "MA",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolLimit3Contents": {
+        "ProfileElementName": "PolLimit3Contents",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolLimitCode3Contents": {
+        "ProfileElementName": "PolLimitCode3Contents",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolLimitType3Contents": {
+        "ProfileElementName": "PolLimitType3Contents",
+        "CoverageTypeID": 3,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 3,
+        "ProfileType": "Acc"
+    },
+    "PolDed4BI": {
+        "ProfileElementName": "PolDed4BI",
+        "DeductibleType": "B",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolDedCode4BI": {
+        "ProfileElementName": "PolDedCode4BI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolDedType4BI": {
+        "ProfileElementName": "PolDedType4BI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolMinDed4BI": {
+        "ProfileElementName": "PolMinDed4BI",
+        "DeductibleType": "MI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed4BI": {
+        "ProfileElementName": "PolMaxDed4BI",
+        "DeductibleType": "MA",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolLimit4BI": {
+        "ProfileElementName": "PolLimit4BI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolLimitCode4BI": {
+        "ProfileElementName": "PolLimitCode4BI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolLimitType4BI": {
+        "ProfileElementName": "PolLimitType4BI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 4,
+        "ProfileType": "Acc"
+    },
+    "PolDed5PD": {
+        "ProfileElementName": "PolDed5PD",
+        "DeductibleType": "B",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolDedCode5PD": {
+        "ProfileElementName": "PolDedCode5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolDedType5PD": {
+        "ProfileElementName": "PolDedType5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolMinDed5PD": {
+        "ProfileElementName": "PolMinDed5PD",
+        "DeductibleType": "MI",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed5PD": {
+        "ProfileElementName": "PolMaxDed5PD",
+        "DeductibleType": "MA",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolLimit5PD": {
+        "ProfileElementName": "PolLimit5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolLimitCode5PD": {
+        "ProfileElementName": "PolLimitCode5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
+    "PolLimitType5PD": {
+        "ProfileElementName": "PolLimitType5PD",
+        "FMLevelName": "PolCoverage",
+        "FMLevel": 7,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 5,
+        "CoverageTypeID": [1,2,3],
+        "ProfileType": "Acc"
+    },
     "PolDed6All": {
         "ProfileElementName": "PolDed6All",
         "DeductibleType": "B",

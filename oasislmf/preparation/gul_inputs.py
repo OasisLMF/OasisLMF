@@ -75,6 +75,7 @@ def get_gul_input_items(
     # FM levels: site coverage (# 1), site pd (# 2), site all (# 3). It also
     # describes the OED hierarchy terms present in the exposure file, namely
     # portfolio num., acc. num., loc. num., and cond. num.
+
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile=exposure_profile)
 
     if not profile:
@@ -184,7 +185,6 @@ def get_gul_input_items(
     query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
-
 
     gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
@@ -301,7 +301,7 @@ def get_gul_input_items(
 
     gul_inputs_df.drop_duplicates(subset='item_id', inplace=True)
     dtypes = {
-        **{t: 'uint32' for t in ['item_id', 'coverage_id']},
+        **{t: 'int32' for t in ['item_id', 'coverage_id']},
         **{t: 'uint8' for t in terms_ints}
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)

@@ -105,7 +105,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
 
     with tempfile.TemporaryDirectory() as tempdir:
         (max_sidx_val, max_sidx_count, len_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-         extras_indptr, extras_val, children, computes) = init_variable_sparse(compute_info, max_sidx_val, tempdir, low_memory)
+         extras_indptr, extras_val, children, computes, item_parent_i) = init_variable_sparse(compute_info, max_sidx_val, tempdir, low_memory)
 
         if allocation_rule == 0:
             pass_through_out = np.zeros_like(pass_through)
@@ -125,7 +125,11 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
                                            children,
                                            computes,
                                            compute_i,
+                                           item_parent_i,
                                            fm_profile,
                                            stepped)
-                compute_i = event_writer.write(event_id, compute_i)
+                if allocation_rule == 0:
+                    compute_i = event_writer.write(event_id, compute_i)
+                else:
+                    event_writer.write(event_id, 0)
                 reset_variable_sparse(children, compute_i, computes)

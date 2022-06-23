@@ -131,7 +131,7 @@ def get_fm_terms_oed_columns(
     })
 
     cols = [
-        _fm_terms[level_id][tgid].get(term)
+        _fm_terms[level_id].get(tgid, {}).get(term)
         for level_id in level_ids
         for tgid in term_group_ids
         for term in terms

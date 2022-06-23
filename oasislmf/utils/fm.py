@@ -75,7 +75,7 @@ FM_LEVELS = OrderedDict({
 
 SUPPORTED_FM_LEVELS = OrderedDict({
     level: level_dict for level, level_dict in FM_LEVELS.items()
-    if level in ['site coverage', 'site pd', 'site all', 'cond all', 'policy all', 'policy layer']
+    if level in ['site coverage', 'site pd', 'site all', 'cond all', 'policy coverage', 'policy all', 'policy layer']
 })
 
 FMT_DED = 'deductible'
