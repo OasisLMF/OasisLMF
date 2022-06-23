@@ -360,8 +360,8 @@ setup(
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
             "convertbintoparquet=oasislmf.pytools.data_layer.conversions.footprint:main",
-            "correlationbintocsv=oasislmf.pytools.data_layer.conversions.correlations:convert_bin_to_csv_main",
-            "correlationcsvtobin=oasislmf.pytools.data_layer.conversions.correlations:convert_csv_to_bin_main"
+            "cortocsv=oasislmf.pytools.data_layer.conversions.correlations:convert_bin_to_csv_main",
+            "cortobin=oasislmf.pytools.data_layer.conversions.correlations:convert_csv_to_bin_main"
         ]
     },
     license='BSD 3-Clause',
