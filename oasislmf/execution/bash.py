@@ -2029,6 +2029,120 @@ def create_bash_analysis(
     do_pwaits(filename, process_counter)
 
 
+#    if ri_output:
+#        print_command(filename, '')
+#        print_command(filename, '# --- Do reinsurance loss kats ---')
+#        print_command(filename, '')
+#        do_kats(
+#            RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
+#            filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+#            process_number=process_number
+#        )
+#        if full_correlation:
+#            print_command(filename, '')
+#            print_command(
+#                filename,
+#                '# --- Do reinsurance loss kats for fully correlated output ---'
+#            )
+#            print_command(filename, '')
+#            do_kats(
+#                RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
+#                filename, process_counter, work_full_correlation_kat_dir,
+#                output_full_correlation_dir, kat_sort_by_event,
+#                process_number=process_number
+#            )
+#
+#    if il_output:
+#        print_command(filename, '')
+#        print_command(filename, '# --- Do insured loss kats ---')
+#        print_command(filename, '')
+#        do_kats(
+#            RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
+#            process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+#            process_number=process_number
+#        )
+#        if full_correlation:
+#            print_command(filename, '')
+#            print_command(
+#                filename,
+#                '# --- Do insured loss kats for fully correlated output ---'
+#            )
+#            print_command(filename, '')
+#            do_kats(
+#                RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
+#                filename, process_counter, work_full_correlation_kat_dir,
+#                output_full_correlation_dir, kat_sort_by_event,
+#                process_number=process_number
+#            )
+#
+#    if gul_output:
+#        print_command(filename, '')
+#        print_command(filename, '# --- Do ground up loss kats ---')
+#        print_command(filename, '')
+#        do_kats(
+#            RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
+#            process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+#            process_number=process_number
+#        )
+#        if full_correlation:
+#            print_command(filename, '')
+#            print_command(
+#                filename,
+#                '# --- Do ground up loss kats for fully correlated output ---'
+#            )
+#            print_command(filename, '')
+#            do_kats(
+#                RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
+#                filename, process_counter, work_full_correlation_kat_dir,
+#                output_full_correlation_dir, kat_sort_by_event,
+#                process_number=process_number
+#            )
+#
+#    do_kwaits(filename, process_counter)
+
+
+def create_bash_outputs(
+    process_counter,
+    fifo_tmp_dir,
+    filename,
+    remove_working_files,
+    fifo_queue_dir,
+    stderr_guard,
+    work_dir,
+    work_full_correlation_dir,
+    output_dir,
+    output_full_correlation_dir,
+    full_correlation,
+    gul_output,
+    il_output,
+    ri_output,
+    analysis_settings,
+
+    # ------------------------------------------------------------------------ #
+    num_gul_per_lb,
+    num_fm_per_lb,
+    max_process_id,
+    work_kat_dir,
+    kat_sort_by_event,
+    process_number,
+    # ------------------------------------------------------------------------ #
+    **kwargs
+):
+
+
+    # ------------------------------------------------------------------------ #
+
+    # infer number of calc block and FIFO to create, (no load balancer for old stream option)
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output) and gul_item_stream:
+        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
+        num_lb = (max_process_id - 1) // block_process_size + 1
+        num_gul_output = num_lb * num_gul_per_lb
+        num_fm_output = num_lb * num_fm_per_lb
+    else:
+        num_lb = 0
+        num_gul_output = num_fm_output = max_process_id
+
+
     if ri_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss kats ---')
@@ -2099,27 +2213,7 @@ def create_bash_analysis(
             )
 
     do_kwaits(filename, process_counter)
-
-
-def create_bash_outputs(
-    process_counter,
-    fifo_tmp_dir,
-    filename,
-    remove_working_files,
-    fifo_queue_dir,
-    stderr_guard,
-    work_dir,
-    work_full_correlation_dir,
-    output_dir,
-    output_full_correlation_dir,
-    full_correlation,
-    gul_output,
-    il_output,
-    ri_output,
-    analysis_settings,
-    **kwargs
-):
-
+    # ------------------------------------------------------------------------ #
 
     print_command(filename, '')
     if ri_output:
