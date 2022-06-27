@@ -2050,6 +2050,7 @@ def create_bash_outputs(
     work_kat_dir,
     kat_sort_by_event,
     process_number,
+    gul_item_stream,
     **kwargs
 ):
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
