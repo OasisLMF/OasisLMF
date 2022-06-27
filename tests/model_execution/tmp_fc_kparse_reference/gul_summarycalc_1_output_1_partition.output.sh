@@ -10,5 +10,9 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
-rm -R -f work/*
-rm -R -f /tmp/%FIFO_DIR%/
+# --- Do ground up loss kats ---
+
+kat work/kat/gul_S1_summarycalc_P1 > output/gul_S1_summarycalc.csv & kpid1=$!
+
+# --- Do ground up loss kats for fully correlated output ---
+

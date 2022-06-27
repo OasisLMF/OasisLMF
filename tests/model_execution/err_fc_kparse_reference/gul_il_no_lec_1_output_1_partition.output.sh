@@ -64,13 +64,11 @@ check_complete(){
     fi
 }
 
-( aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-( aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-( aalcalc -Kfull_correlation/il_S1_summaryaalcalc > output/full_correlation/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid3=$!
-( aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid4=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4
+# --- Do insured loss kats ---
 
-rm -R -f work/*
-rm -R -f fifo/*
+kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
+kat work/kat/il_S1_pltcalc_P1 > output/il_S1_pltcalc.csv & kpid2=$!
+kat work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid3=$!
 
-check_complete
+# --- Do insured loss kats for fully correlated output ---
+

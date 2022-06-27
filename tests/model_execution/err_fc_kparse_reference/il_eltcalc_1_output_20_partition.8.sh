@@ -106,14 +106,4 @@ tee < fifo/full_correlation/il_S1_summary_P9 fifo/full_correlation/il_S1_eltcalc
 wait $pid1 $pid2 $pid3 $pid4
 
 
-# --- Do insured loss kats ---
-
-kat work/kat/il_S1_eltcalc_P9 > output/il_S1_eltcalc.csv & kpid1=$!
-
-# --- Do insured loss kats for fully correlated output ---
-
-kat work/full_correlation/kat/il_S1_eltcalc_P9 > output/full_correlation/il_S1_eltcalc.csv & kpid2=$!
-wait $kpid1 $kpid2
-
-
 check_complete

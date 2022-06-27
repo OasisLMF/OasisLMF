@@ -84,23 +84,3 @@ eve 7 10 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | tee fifo/gul_P7 | fmcalc -a2
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20
 
-
-# --- Do insured loss kats ---
-
-kat work/kat/il_S1_eltcalc_P7 > output/il_S1_eltcalc.csv & kpid1=$!
-kat work/kat/il_S1_pltcalc_P7 > output/il_S1_pltcalc.csv & kpid2=$!
-kat work/kat/il_S1_summarycalc_P7 > output/il_S1_summarycalc.csv & kpid3=$!
-kat work/kat/il_S2_eltcalc_P7 > output/il_S2_eltcalc.csv & kpid4=$!
-kat work/kat/il_S2_pltcalc_P7 > output/il_S2_pltcalc.csv & kpid5=$!
-kat work/kat/il_S2_summarycalc_P7 > output/il_S2_summarycalc.csv & kpid6=$!
-
-# --- Do ground up loss kats ---
-
-kat work/kat/gul_S1_eltcalc_P7 > output/gul_S1_eltcalc.csv & kpid7=$!
-kat work/kat/gul_S1_pltcalc_P7 > output/gul_S1_pltcalc.csv & kpid8=$!
-kat work/kat/gul_S1_summarycalc_P7 > output/gul_S1_summarycalc.csv & kpid9=$!
-kat work/kat/gul_S2_eltcalc_P7 > output/gul_S2_eltcalc.csv & kpid10=$!
-kat work/kat/gul_S2_pltcalc_P7 > output/gul_S2_pltcalc.csv & kpid11=$!
-kat work/kat/gul_S2_summarycalc_P7 > output/gul_S2_summarycalc.csv & kpid12=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
-

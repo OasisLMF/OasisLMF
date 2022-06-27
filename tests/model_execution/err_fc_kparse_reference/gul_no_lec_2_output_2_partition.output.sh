@@ -64,13 +64,14 @@ check_complete(){
     fi
 }
 
-( aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-( aalcalc -Kgul_S2_summaryaalcalc > output/gul_S2_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-( aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid3=$!
-( aalcalc -Kfull_correlation/gul_S2_summaryaalcalc > output/full_correlation/gul_S2_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid4=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4
+# --- Do ground up loss kats ---
 
-rm -R -f work/*
-rm -R -f fifo/*
+kat work/kat/gul_S1_eltcalc_P1 work/kat/gul_S1_eltcalc_P2 > output/gul_S1_eltcalc.csv & kpid1=$!
+kat work/kat/gul_S1_pltcalc_P1 work/kat/gul_S1_pltcalc_P2 > output/gul_S1_pltcalc.csv & kpid2=$!
+kat work/kat/gul_S1_summarycalc_P1 work/kat/gul_S1_summarycalc_P2 > output/gul_S1_summarycalc.csv & kpid3=$!
+kat work/kat/gul_S2_eltcalc_P1 work/kat/gul_S2_eltcalc_P2 > output/gul_S2_eltcalc.csv & kpid4=$!
+kat work/kat/gul_S2_pltcalc_P1 work/kat/gul_S2_pltcalc_P2 > output/gul_S2_pltcalc.csv & kpid5=$!
+kat work/kat/gul_S2_summarycalc_P1 work/kat/gul_S2_summarycalc_P2 > output/gul_S2_summarycalc.csv & kpid6=$!
 
-check_complete
+# --- Do ground up loss kats for fully correlated output ---
+

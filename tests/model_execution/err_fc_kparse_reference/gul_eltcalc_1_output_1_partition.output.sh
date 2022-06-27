@@ -64,7 +64,9 @@ check_complete(){
     fi
 }
 
-rm -R -f work/*
-rm -R -f fifo/*
+# --- Do ground up loss kats ---
 
-check_complete
+kat work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid1=$!
+
+# --- Do ground up loss kats for fully correlated output ---
+

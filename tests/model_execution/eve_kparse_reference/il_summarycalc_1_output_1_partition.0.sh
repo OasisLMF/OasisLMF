@@ -38,9 +38,3 @@ eve -R 1 1 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | fmcalc -a2 > fifo/il_P
 
 wait $pid1 $pid2
 
-
-# --- Do insured loss kats ---
-
-kat -u work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid1=$!
-wait $kpid1
-

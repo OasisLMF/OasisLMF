@@ -115,18 +115,4 @@ tee < fifo/gul_S1_summary_P7.idx work/gul_S1_summaryaalcalc/P7.idx work/gul_S1_s
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
 
-# --- Do insured loss kats ---
-
-kat work/kat/il_S1_eltcalc_P7 > output/il_S1_eltcalc.csv & kpid1=$!
-kat work/kat/il_S1_pltcalc_P7 > output/il_S1_pltcalc.csv & kpid2=$!
-kat work/kat/il_S1_summarycalc_P7 > output/il_S1_summarycalc.csv & kpid3=$!
-
-# --- Do ground up loss kats ---
-
-kat work/kat/gul_S1_eltcalc_P7 > output/gul_S1_eltcalc.csv & kpid4=$!
-kat work/kat/gul_S1_pltcalc_P7 > output/gul_S1_pltcalc.csv & kpid5=$!
-kat work/kat/gul_S1_summarycalc_P7 > output/gul_S1_summarycalc.csv & kpid6=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
-
-
 check_complete

@@ -64,15 +64,11 @@ check_complete(){
     fi
 }
 
-( aalcalc -Kri_S1_summaryaalcalc > output/ri_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-( aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
-( aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid3=$!
-( aalcalc -Kfull_correlation/ri_S1_summaryaalcalc > output/full_correlation/ri_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid4=$!
-( aalcalc -Kfull_correlation/il_S1_summaryaalcalc > output/full_correlation/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid5=$!
-( aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid6=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4 $lpid5 $lpid6
+# --- Do reinsurance loss kats ---
 
-rm -R -f work/*
-rm -R -f fifo/*
+kat work/kat/ri_S1_eltcalc_P1 > output/ri_S1_eltcalc.csv & kpid1=$!
+kat work/kat/ri_S1_pltcalc_P1 > output/ri_S1_pltcalc.csv & kpid2=$!
+kat work/kat/ri_S1_summarycalc_P1 > output/ri_S1_summarycalc.csv & kpid3=$!
 
-check_complete
+# --- Do reinsurance loss kats for fully correlated output ---
+

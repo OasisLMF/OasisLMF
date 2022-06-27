@@ -10,9 +10,8 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
-leccalc -r -Kil_S1_summaryleccalc -m output/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid1=$!
-leccalc -r -Kfull_correlation/il_S1_summaryleccalc -m output/full_correlation/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid2=$!
-wait $lpid1 $lpid2
+# --- Do insured loss kats ---
 
-rm -R -f work/*
-rm -R -f fifo/*
+
+# --- Do insured loss kats for fully correlated output ---
+

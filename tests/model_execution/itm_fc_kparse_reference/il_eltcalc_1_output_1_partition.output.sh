@@ -10,5 +10,9 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
-rm -R -f work/*
-rm -R -f fifo/*
+# --- Do insured loss kats ---
+
+kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
+
+# --- Do insured loss kats for fully correlated output ---
+

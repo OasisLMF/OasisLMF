@@ -35,6 +35,3 @@ eve 8 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a2 > fifo/il_P8  &
 
 wait $pid1 $pid2
 
-
-# --- Do insured loss kats ---
-

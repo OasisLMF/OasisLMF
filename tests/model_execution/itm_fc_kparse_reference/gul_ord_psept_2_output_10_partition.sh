@@ -281,12 +281,3 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do ground up loss kats for fully correlated output ---
 
-
-ordleccalc  -Kgul_S1_summaryleccalc -W -w -o output/gul_S1_psept.csv & lpid1=$!
-ordleccalc -r -Kgul_S2_summaryleccalc -W -w -o output/gul_S2_psept.csv & lpid2=$!
-ordleccalc  -Kfull_correlation/gul_S1_summaryleccalc -W -w -o output/full_correlation/gul_S1_psept.csv & lpid3=$!
-ordleccalc -r -Kfull_correlation/gul_S2_summaryleccalc -W -w -o output/full_correlation/gul_S2_psept.csv & lpid4=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4
-
-rm -R -f work/*
-rm -R -f fifo/*

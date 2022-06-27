@@ -10,9 +10,8 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
-aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid1=$!
-aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv & lpid2=$!
-wait $lpid1 $lpid2
+# --- Do ground up loss kats ---
 
-rm -R -f work/*
-rm -R -f fifo/*
+
+# --- Do ground up loss kats for fully correlated output ---
+

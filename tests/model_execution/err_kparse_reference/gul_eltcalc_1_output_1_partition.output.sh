@@ -64,6 +64,12 @@ check_complete(){
     fi
 }
 
+# --- Do ground up loss kats ---
+
+kat work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid1=$!
+wait $kpid1
+
+
 rm -R -f work/*
 rm -R -f fifo/*
 

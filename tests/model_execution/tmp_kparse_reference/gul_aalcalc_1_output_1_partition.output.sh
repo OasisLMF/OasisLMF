@@ -10,6 +10,9 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+# --- Do ground up loss kats ---
+
+
 aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid1=$!
 wait $lpid1
 
