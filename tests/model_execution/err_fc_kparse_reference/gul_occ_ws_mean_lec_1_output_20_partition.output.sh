@@ -69,3 +69,12 @@ check_complete(){
 
 # --- Do ground up loss kats for fully correlated output ---
 
+
+( leccalc -r -Kgul_S1_summaryleccalc -m output/gul_S1_leccalc_wheatsheaf_mean_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( leccalc -r -Kfull_correlation/gul_S1_summaryleccalc -m output/full_correlation/gul_S1_leccalc_wheatsheaf_mean_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f fifo/*
+
+check_complete

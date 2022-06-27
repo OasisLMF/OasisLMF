@@ -65,3 +65,10 @@ wait $pid1 $pid2 $pid3 $pid4
 
 # --- Do ground up loss kats for fully correlated output ---
 
+
+ordleccalc -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -O output/gul_S1_ept.csv & lpid1=$!
+ordleccalc -r -Kfull_correlation/gul_S1_summaryleccalc -F -f -S -s -M -m -O output/full_correlation/gul_S1_ept.csv & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f /tmp/%FIFO_DIR%/

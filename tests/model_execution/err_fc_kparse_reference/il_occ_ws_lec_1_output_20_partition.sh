@@ -444,3 +444,12 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do insured loss kats for fully correlated output ---
 
+
+( leccalc -r -Kil_S1_summaryleccalc -w output/il_S1_leccalc_wheatsheaf_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
+( leccalc -r -Kfull_correlation/il_S1_summaryleccalc -w output/full_correlation/il_S1_leccalc_wheatsheaf_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f fifo/*
+
+check_complete

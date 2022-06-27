@@ -15,3 +15,10 @@ rm -R -f $LOG_DIR/*
 
 # --- Do ground up loss kats for fully correlated output ---
 
+
+aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid1=$!
+aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f /tmp/%FIFO_DIR%/

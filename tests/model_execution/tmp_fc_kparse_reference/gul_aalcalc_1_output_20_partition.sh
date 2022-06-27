@@ -350,3 +350,10 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do ground up loss kats for fully correlated output ---
 
+
+aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid1=$!
+aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f /tmp/%FIFO_DIR%/

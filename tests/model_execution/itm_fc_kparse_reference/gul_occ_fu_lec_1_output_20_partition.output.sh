@@ -15,3 +15,10 @@ rm -R -f $LOG_DIR/*
 
 # --- Do ground up loss kats for fully correlated output ---
 
+
+leccalc -r -Kgul_S1_summaryleccalc -f output/gul_S1_leccalc_full_uncertainty_oep.csv & lpid1=$!
+leccalc -r -Kfull_correlation/gul_S1_summaryleccalc -f output/full_correlation/gul_S1_leccalc_full_uncertainty_oep.csv & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f fifo/*
