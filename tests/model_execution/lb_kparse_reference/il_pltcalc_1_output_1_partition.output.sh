@@ -10,5 +10,11 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+# --- Do insured loss kats ---
+
+kat work/kat/il_S1_pltcalc_P1 work/kat/il_S1_pltcalc_P2 > output/il_S1_pltcalc.csv & kpid1=$!
+wait $kpid1
+
+
 rm -R -f work/*
 rm -R -f fifo/*

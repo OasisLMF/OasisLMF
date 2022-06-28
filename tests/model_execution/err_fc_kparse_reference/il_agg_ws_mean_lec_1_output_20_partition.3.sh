@@ -108,10 +108,4 @@ tee < fifo/full_correlation/il_S1_summary_P4.idx work/full_correlation/il_S1_sum
 wait $pid1 $pid2 $pid3 $pid4
 
 
-# --- Do insured loss kats ---
-
-
-# --- Do insured loss kats for fully correlated output ---
-
-
 check_complete

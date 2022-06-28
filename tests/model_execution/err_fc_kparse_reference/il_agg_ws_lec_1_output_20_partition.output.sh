@@ -64,6 +64,12 @@ check_complete(){
     fi
 }
 
+# --- Do insured loss kats ---
+
+
+# --- Do insured loss kats for fully correlated output ---
+
+
 ( leccalc -r -Kil_S1_summaryleccalc -W output/il_S1_leccalc_wheatsheaf_aep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 ( leccalc -r -Kfull_correlation/il_S1_summaryleccalc -W output/full_correlation/il_S1_leccalc_wheatsheaf_aep.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
 wait $lpid1 $lpid2

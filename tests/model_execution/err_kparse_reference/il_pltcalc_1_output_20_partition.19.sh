@@ -89,10 +89,4 @@ tee < fifo/il_S1_summary_P20 fifo/il_S1_pltcalc_P20 > /dev/null & pid2=$!
 wait $pid1 $pid2
 
 
-# --- Do insured loss kats ---
-
-kat work/kat/il_S1_pltcalc_P20 > output/il_S1_pltcalc.csv & kpid1=$!
-wait $kpid1
-
-
 check_complete

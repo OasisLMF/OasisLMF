@@ -64,6 +64,9 @@ check_complete(){
     fi
 }
 
+# --- Do insured loss kats ---
+
+
 ( leccalc -r -Kil_S1_summaryleccalc -s output/il_S1_leccalc_sample_mean_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 wait $lpid1
 

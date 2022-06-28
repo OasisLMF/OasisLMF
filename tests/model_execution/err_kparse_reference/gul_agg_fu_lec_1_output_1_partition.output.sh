@@ -64,6 +64,9 @@ check_complete(){
     fi
 }
 
+# --- Do ground up loss kats ---
+
+
 ( leccalc -r -Kgul_S1_summaryleccalc -F output/gul_S1_leccalc_full_uncertainty_aep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 wait $lpid1
 

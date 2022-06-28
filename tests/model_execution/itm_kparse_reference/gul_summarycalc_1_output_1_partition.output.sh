@@ -10,5 +10,11 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+# --- Do ground up loss kats ---
+
+kat work/kat/gul_S1_summarycalc_P1 > output/gul_S1_summarycalc.csv & kpid1=$!
+wait $kpid1
+
+
 rm -R -f work/*
 rm -R -f fifo/*
