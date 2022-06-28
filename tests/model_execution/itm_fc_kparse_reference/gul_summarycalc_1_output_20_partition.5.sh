@@ -48,13 +48,3 @@ eve 6 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P6 -a1
 
 wait $pid1 $pid2 $pid3 $pid4
 
-
-# --- Do ground up loss kats ---
-
-kat work/kat/gul_S1_summarycalc_P6 > output/gul_S1_summarycalc.csv & kpid1=$!
-
-# --- Do ground up loss kats for fully correlated output ---
-
-kat work/full_correlation/kat/gul_S1_summarycalc_P6 > output/full_correlation/gul_S1_summarycalc.csv & kpid2=$!
-wait $kpid1 $kpid2
-

@@ -61,9 +61,3 @@ eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correla
 
 wait $pid1 $pid2 $pid3 $pid4
 
-
-# --- Do insured loss kats ---
-
-
-# --- Do insured loss kats for fully correlated output ---
-

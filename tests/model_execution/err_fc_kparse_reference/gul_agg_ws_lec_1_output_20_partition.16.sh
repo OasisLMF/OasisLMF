@@ -105,10 +105,4 @@ tee < fifo/full_correlation/gul_S1_summary_P17.idx work/full_correlation/gul_S1_
 wait $pid1 $pid2 $pid3 $pid4
 
 
-# --- Do ground up loss kats ---
-
-
-# --- Do ground up loss kats for fully correlated output ---
-
-
 check_complete

@@ -90,7 +90,4 @@ tee < fifo/il_S1_summary_P2.idx work/il_S1_summaryaalcalc/P2.idx > /dev/null & p
 wait $pid1 $pid2
 
 
-# --- Do insured loss kats ---
-
-
 check_complete

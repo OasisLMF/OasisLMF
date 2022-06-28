@@ -64,6 +64,16 @@ check_complete(){
     fi
 }
 
+# --- Do insured loss kats ---
+
+kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
+
+# --- Do insured loss kats for fully correlated output ---
+
+kat work/full_correlation/kat/il_S1_eltcalc_P1 > output/full_correlation/il_S1_eltcalc.csv & kpid2=$!
+wait $kpid1 $kpid2
+
+
 rm -R -f work/*
 rm -R -f fifo/*
 

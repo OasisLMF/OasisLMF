@@ -64,6 +64,12 @@ check_complete(){
     fi
 }
 
+# --- Do ground up loss kats ---
+
+
+# --- Do ground up loss kats for fully correlated output ---
+
+
 ( aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 ( aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
 wait $lpid1 $lpid2

@@ -64,6 +64,12 @@ check_complete(){
     fi
 }
 
+# --- Do insured loss kats ---
+
+kat work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid1=$!
+wait $kpid1
+
+
 rm -R -f work/*
 rm -R -f fifo/*
 

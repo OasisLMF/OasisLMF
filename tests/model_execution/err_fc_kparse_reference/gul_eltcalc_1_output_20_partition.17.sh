@@ -103,14 +103,4 @@ tee < fifo/full_correlation/gul_S1_summary_P18 fifo/full_correlation/gul_S1_eltc
 wait $pid1 $pid2 $pid3 $pid4
 
 
-# --- Do ground up loss kats ---
-
-kat work/kat/gul_S1_eltcalc_P18 > output/gul_S1_eltcalc.csv & kpid1=$!
-
-# --- Do ground up loss kats for fully correlated output ---
-
-kat work/full_correlation/kat/gul_S1_eltcalc_P18 > output/full_correlation/gul_S1_eltcalc.csv & kpid2=$!
-wait $kpid1 $kpid2
-
-
 check_complete

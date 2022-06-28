@@ -64,6 +64,12 @@ check_complete(){
     fi
 }
 
+# --- Do insured loss kats ---
+
+
+# --- Do insured loss kats for fully correlated output ---
+
+
 ( aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 ( aalcalc -Kfull_correlation/il_S1_summaryaalcalc > output/full_correlation/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid2=$!
 wait $lpid1 $lpid2
