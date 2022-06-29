@@ -85,10 +85,13 @@ class ExposurePreAnalysis(ComputationStep):
             raise OasisException(f"class {self.exposure_pre_analysis_class_name} "
                                  f"is not defined in module {self.exposure_pre_analysis_module}") from e.__cause__
 
+        modified_files = {k:v for (k,v) in kwargs.items() if k.startswith('oed')}
+        original_files = {k:v for (k,v) in kwargs.items() if k.startswith('raw')}
+
         self.logger.info('\nPre-analysis modified files: {}'.format(
-            json.dumps({k:v for (k,v) in kwargs.items() if k.startswith('oed')}, indent=4))
-        )
+            json.dumps(modified_files, indent=4)))
         self.logger.info('\nPre-analysis original files: {}'.format(
-            json.dumps({k:v for (k,v) in kwargs.items() if k.startswith('raw')}, indent=4))
-        )
-        return _class(**kwargs).run()
+            json.dumps(original_files, indent=4)))
+
+        _class_return = _class(**kwargs).run()
+        return _class_return, modified_files, original_files
