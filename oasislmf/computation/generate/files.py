@@ -264,7 +264,7 @@ class GenerateFiles(ComputationStep):
             gul_inputs_df,
             target_dir,
             correlations_df=correlation_input_items,
-            output_dir=self._get_output_dir(),
+            output_dir=self._get_input_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
             hashed_item_id=self.hashed_group_id
