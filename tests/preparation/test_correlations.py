@@ -39,7 +39,6 @@ class TestMapData(TestCase):
 EXPECTED_MAPPED_DATA = [
     {'id': 'WSS', 'desc': 'Single Peril: Storm Surge', 'peril_correlation_group': 1, 'correlation_value': '0.7'},
     {'id': 'WTC', 'desc': 'Single Peril: Tropical Cyclone', 'peril_correlation_group': 2, 'correlation_value': '0.5'},
-    {'id': 'WTF', 'desc': 'Single Peril: Tropical Flood', 'peril_correlation_group': 2, 'correlation_value': '0.5'}
 ]
 
 
