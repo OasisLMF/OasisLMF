@@ -58,9 +58,3 @@ eve 1 20 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correl
 
 wait $pid1 $pid2 $pid3 $pid4
 
-
-# --- Do ground up loss kats ---
-
-
-# --- Do ground up loss kats for fully correlated output ---
-

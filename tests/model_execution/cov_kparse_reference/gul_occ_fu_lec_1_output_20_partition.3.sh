@@ -35,6 +35,3 @@ eve 4 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P4  &
 
 wait $pid1 $pid2
 
-
-# --- Do ground up loss kats ---
-

@@ -93,10 +93,4 @@ tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 wait $pid1 $pid2
 
 
-# --- Do ground up loss kats ---
-
-kat work/kat/gul_S1_summarycalc_P1 > output/gul_S1_summarycalc.csv & kpid1=$!
-wait $kpid1
-
-
 check_complete

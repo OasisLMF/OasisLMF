@@ -64,6 +64,9 @@ check_complete(){
     fi
 }
 
+# --- Do insured loss kats ---
+
+
 ( aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
 wait $lpid1
 

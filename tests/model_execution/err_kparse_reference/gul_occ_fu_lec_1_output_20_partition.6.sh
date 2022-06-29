@@ -90,7 +90,4 @@ tee < fifo/gul_S1_summary_P7.idx work/gul_S1_summaryleccalc/P7.idx > /dev/null &
 wait $pid1 $pid2
 
 
-# --- Do ground up loss kats ---
-
-
 check_complete

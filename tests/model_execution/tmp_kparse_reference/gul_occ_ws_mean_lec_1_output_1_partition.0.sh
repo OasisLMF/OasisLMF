@@ -39,6 +39,3 @@ eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_
 
 wait $pid1 $pid2
 
-
-# --- Do ground up loss kats ---
-

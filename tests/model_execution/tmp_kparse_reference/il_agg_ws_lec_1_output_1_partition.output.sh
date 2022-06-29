@@ -10,6 +10,9 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+# --- Do insured loss kats ---
+
+
 leccalc -r -Kil_S1_summaryleccalc -W output/il_S1_leccalc_wheatsheaf_aep.csv & lpid1=$!
 wait $lpid1
 

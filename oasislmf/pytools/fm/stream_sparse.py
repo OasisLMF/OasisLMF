@@ -208,10 +208,16 @@ def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
         node_sidx_start = sidx_indptr[sidx_indexes[node['node_id']]]
         node_sidx_end = sidx_indptr[sidx_indexes[node['node_id']] + 1]
         node_val_len = node_sidx_end - node_sidx_start
-        pass_through_loss = pass_through[computes[compute_i]]
+        if computes[compute_i] < pass_through.shape[0]:
+            pass_through_loss = pass_through[computes[compute_i]]
+        else:
+            pass_through_loss = 0
         for layer in range(i_layer, node['layer_len']):
             output_id = output_array[node['output_ids'] + layer]
-            node_loss_start = loss_indptr[node['ba'] + layer]
+            node_loss_start = loss_indptr[node['loss'] + layer]
+            # print('output_id', output_id)
+            # print('    ', sidx_val[node_sidx_start: node_sidx_end])
+            # print('    ', loss_val[node_loss_start: node_loss_start + node_val_len])
             if output_id and node_val_len:  # if output is not in xref output_id is 0
                 if i_index == -1:
                     if nb_values - cursor < 5: # header + -5, -3, -1 sample

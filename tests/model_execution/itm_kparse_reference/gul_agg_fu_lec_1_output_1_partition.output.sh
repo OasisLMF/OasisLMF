@@ -10,6 +10,9 @@ mkdir -p $LOG_DIR
 rm -R -f $LOG_DIR/*
 
 
+# --- Do ground up loss kats ---
+
+
 leccalc -r -Kgul_S1_summaryleccalc -F output/gul_S1_leccalc_full_uncertainty_aep.csv & lpid1=$!
 wait $lpid1
 

@@ -51,6 +51,7 @@ class FmAcceptanceTests(TestCase):
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
+      # results ok, programme and policytc differ
 
     def test_reinsurance2(self):
         self.run_test('reinsurance2')
@@ -75,6 +76,6 @@ class FmAcceptanceTests(TestCase):
 
     def test_reinsurance2_2_subperils(self):
         self.run_test('reinsurance2', subperils=2, expected_dir="expected_subperils")
-
+        
     def test_issues_2_subperils(self):
         self.run_test('issues', subperils=2, expected_dir="expected_subperils")
