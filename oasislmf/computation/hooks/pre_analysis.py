@@ -94,4 +94,8 @@ class ExposurePreAnalysis(ComputationStep):
             json.dumps(original_files, indent=4)))
 
         _class_return = _class(**kwargs).run()
-        return _class_return, modified_files, original_files
+        return {
+            "class": _class_return, 
+            "modified": modified_files, 
+            "original": original_files,
+        }    
