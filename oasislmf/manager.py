@@ -99,7 +99,7 @@ def __interface_factory(computation_cls):
 
 
 for computation_cls in OasisManager.computation_classes:
-    # set run() computation_cls functions as attributes 
+    # set run() computation_cls functions as attributes
     setattr(OasisManager, OasisManager.computation_name_to_method(computation_cls.__name__),
             __interface_factory(computation_cls))
 

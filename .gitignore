@@ -117,6 +117,8 @@ tests/model_execution/err_fc_kparse_output/
 tests/model_execution/itm_fc_kparse_output/
 tests/model_execution/tmp_fc_kparse_output/
 
+!tests/pytools/data_layer/oasis_files/meta_data/correlations.bin
+
 # pycharm
 .idea/
 data/

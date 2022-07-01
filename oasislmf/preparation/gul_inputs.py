@@ -39,6 +39,7 @@ from ..utils.profiles import (
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy,
 )
+from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -348,6 +349,10 @@ def get_gul_input_items(
     )
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
+
+    gul_inputs_df = gul_inputs_df.sort_values("item_id")
+    gul_inputs_df = gul_inputs_df.reindex(columns=list(gul_inputs_df))
+
     return gul_inputs_df
 
 
@@ -437,6 +442,8 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
+    correlations_df,
+    output_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     chunksize=(2 * 10 ** 5),
     hashed_item_id=False
@@ -469,6 +476,12 @@ def write_gul_input_files(
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
+
+    # write the correlations to a binary file
+    if correlations_df is not None:
+        correlation_data_handle = CorrelationsData(data=correlations_df)
+        correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
+        correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size

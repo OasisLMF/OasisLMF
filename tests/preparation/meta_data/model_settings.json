@@ -1,0 +1,32 @@
+{
+    "model_settings":{
+        "event_set":{
+            "name": "Event Set",
+            "desc": "Piwind Event Set selection",
+            "default": "p",
+            "options":[
+                {"id":"p", "desc": "Probabilistic"}
+            ]
+         },
+        "event_occurrence_id":{
+            "name": "Occurrence Set",
+            "desc": "PiWind Occurrence selection",
+            "default": "lt",
+            "options":[
+                {"id":"lt", "desc": "Long Term"}
+            ]
+        }
+     },
+    "lookup_settings":{
+        "supported_perils":[
+           {"id": "WSS", "desc": "Single Peril: Storm Surge", "peril_correlation_group":  1},
+           {"id": "WTC", "desc": "Single Peril: Tropical Cyclone", "peril_correlation_group":  2},
+           {"id": "WW1", "desc": "Group Peril: Windstorm with storm surge"},
+           {"id": "WW2", "desc": "Group Peril: Windstorm w/o storm surge"}
+        ]
+    },
+    "correlation_settings": [
+      {"peril_correlation_group":  1, "correlation_value":  "0.7"},
+      {"peril_correlation_group":  2, "correlation_value":  "0.5"}
+    ]
+}

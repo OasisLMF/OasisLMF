@@ -72,6 +72,7 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
+from oasislmf.preparation.correlations import get_correlation_input_items
 
 
 class GenerateFiles(ComputationStep):
@@ -231,8 +232,16 @@ class GenerateFiles(ComputationStep):
             keys_df,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
-            hash_group_ids=self.hashed_group_id
+            hash_group_ids=self.hashed_group_id,
         )
+
+        if self.model_settings_json is not None:
+            correlation_input_items = get_correlation_input_items(
+                model_settings_path=self.model_settings_json,
+                gul_inputs_df=gul_inputs_df
+            )
+        else:
+            correlation_input_items = None
 
         # If not in det. loss gen. scenario, write exposure summary file
         if summarise_exposure:
@@ -241,7 +250,7 @@ class GenerateFiles(ComputationStep):
                 location_df,
                 keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile
+                exposure_profile=location_profile,
             )
 
         # If exposure summary set, write valid columns for summary levels to file
@@ -250,9 +259,12 @@ class GenerateFiles(ComputationStep):
 
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
+
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
+            correlations_df=correlation_input_items,
+            output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
             hashed_item_id=self.hashed_group_id

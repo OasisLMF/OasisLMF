@@ -49,6 +49,7 @@ class MyImport(MetaPathFinder):
             "model_execution": "execution",
             "model_preparation": "preparation",
             "api": "platform",
+            "platform": "platform_api"
         }
 
     def find_module(self, fullname, path=None):
