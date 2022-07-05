@@ -2049,11 +2049,16 @@ def create_bash_outputs(
     max_process_id,
     work_kat_dir,
     kat_sort_by_event,
-    process_number,
     gul_item_stream,
     work_full_correlation_kat_dir,
     **kwargs
 ):
+
+    #import ipdb; ipdb.set_trace()
+    if max_process_id is not None:
+        num_gul_per_lb = 0
+        num_fm_per_lb = 0
+
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
     if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output) and gul_item_stream:
         block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
@@ -2072,7 +2077,6 @@ def create_bash_outputs(
         do_kats(
             RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
             filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-            process_number=process_number
         )
         if full_correlation:
             print_command(filename, '')
@@ -2085,7 +2089,6 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event,
-                process_number=process_number
             )
 
     if il_output:
@@ -2095,7 +2098,6 @@ def create_bash_outputs(
         do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-            process_number=process_number
         )
         if full_correlation:
             print_command(filename, '')
@@ -2108,7 +2110,6 @@ def create_bash_outputs(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event,
-                process_number=process_number
             )
 
     if gul_output:
@@ -2118,7 +2119,6 @@ def create_bash_outputs(
         do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-            process_number=process_number
         )
         if full_correlation:
             print_command(filename, '')
@@ -2131,7 +2131,6 @@ def create_bash_outputs(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event,
-                process_number=process_number
             )
 
     do_kwaits(filename, process_counter)
