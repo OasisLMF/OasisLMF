@@ -12,7 +12,7 @@ rm -R -f $LOG_DIR/*
 
 # --- Do insured loss kats ---
 
-kat work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid1=$!
+kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 
 
