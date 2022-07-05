@@ -2054,7 +2054,6 @@ def create_bash_outputs(
     **kwargs
 ):
 
-    #import ipdb; ipdb.set_trace()
     if max_process_id is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
