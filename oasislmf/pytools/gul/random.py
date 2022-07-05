@@ -3,8 +3,10 @@ This file contains the utilities for generating random numbers in gulpy.
 
 """
 
+from math import sqrt
 import logging
 import numpy as np
+from scipy.stats import norm
 from numba import njit
 
 logger = logging.getLogger(__name__)
@@ -70,6 +72,79 @@ def get_random_generator(random_generator):
 
     else:
         raise ValueError(f"No random generator exists for random_generator={random_generator}.")
+
+
+EVENT_ID_HASH_CODE = np.int64(1943_272_559)
+PERIL_CORRELATION_GROUP_HASH = np.int64(1836311903)
+HASH_MOD_CODE = np.int64(2147483648)
+
+
+@njit(cache=True, fastmath=True)
+def generate_correlated_hash_vector(peril_correlation_group, event_id, base_seed=0):
+    """Generate hash for an `event_id`.
+
+    Args:
+        event_id (int): event id.
+        base_seed (int, optional): base random seed. Defaults to 0.
+
+    Returns:
+        int64: hash
+    """
+    for i in range(1, peril_correlation_group.shape[0]):  # why start from 1??
+        peril_correlation_group[i] = (base_seed +
+                                      (i * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
+                                      (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+
+    return peril_correlation_group
+
+
+def compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N):
+    return norm.ppf(np.linspace(arr_min, arr_max, arr_N))
+
+
+def compute_norm_cdf_lookup(arr_min, arr_max, arr_N):
+    return norm.cdf(np.linspace(arr_min, arr_max, arr_N))
+
+
+norm_inv_cdf = compute_norm_inv_cdf_lookup(1e-16, 1 - 1e-16, 1000000)
+norm_cdf = compute_norm_cdf_lookup(-20., 20., 1000000)
+# pre-compute lookup tables for the Gaussian cdf and inverse cdf
+
+# Note:
+#  - the size of these arrays can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
+#  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
+arr_min = 1e-16
+arr_max = 1 - 1e-16
+arr_N = 1000000
+norm_inv_cdf = norm.ppf(np.linspace(arr_min, arr_max, arr_N))
+
+arr_min_cdf = -20.
+arr_max_cdf = 20.
+arr_N_cdf = 1000000
+norm_cdf = norm.cdf(np.linspace(arr_min_cdf, arr_max_cdf, arr_N_cdf))
+
+
+@njit(cache=True, fastmath=True)
+def get_norm_cdf_cell_nb(x, arr_min, arr_max, arr_N):
+    return (x - arr_min) * (arr_N - 1) // (arr_max - arr_min)
+
+
+@njit(cache=True, fastmath=True)
+def get_corr_rval_v2(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, Nsamples, z_unif):
+
+    sqrt_rho = sqrt(rho)
+    sqrt_1_minus_rho = sqrt(1. - rho)
+
+    for i in range(Nsamples):
+
+        x_norm = norm_inv_cdf[get_norm_cdf_cell_nb(x_unif[i], arr_min, arr_max, arr_N)]
+        y_norm = norm_inv_cdf[get_norm_cdf_cell_nb(y_unif[i], arr_min, arr_max, arr_N)]
+        z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
+
+        z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, arr_min_cdf, arr_max_cdf, arr_N_cdf)]
+
+
+#     return z_unif
 
 
 @njit(cache=True, fastmath=True)
