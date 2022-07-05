@@ -396,6 +396,7 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'analysis_settings', 'default': None},
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
+        {'name': 'max_process_id', 'default': -1,   'type':int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
     ]
 
     def run(self):
@@ -420,7 +421,8 @@ class GenerateLossesOutput(GenerateLossesDir):
             bash_trace=self.verbose,
             stderr_guard=not self.ktools_disable_guard,
             fifo_tmp_dir=not self.ktools_fifo_relative,
-            remove_working_file=self.remove_working_file
+            remove_working_file=self.remove_working_file,
+            max_process_id=self.max_process_id,
         )
         with setcwd(model_run_fp):
             try:
