@@ -52,6 +52,7 @@ def _get_ri_inputs(
         ri_info_df,
         ri_scope_df):
 
+    import ipdb; ipdb.set_trace()
     ri_inputs = []
     for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
         # Filter the reinsNumbers by inuring_priority
