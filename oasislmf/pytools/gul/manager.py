@@ -2,6 +2,7 @@
 This file is the entry point for the gul command for the package.
 
 """
+from random import sample
 import sys
 import os
 from select import select
@@ -23,7 +24,12 @@ from oasislmf.pytools.gul.io import (
     write_negative_sidx, write_sample_header,
     write_sample_rec, read_getmodel_stream
 )
-from oasislmf.pytools.gul.random import get_random_generator
+
+from oasislmf.pytools.gul.random import (
+    get_random_generator, compute_norm_cdf_lookup,
+    compute_norm_inv_cdf_lookup, get_corr_rval
+)
+
 from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
@@ -116,7 +122,7 @@ def generate_item_map(items, coverages):
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
-        random_generator, file_in=None, file_out=None, **kwargs):
+        random_generator, file_in=None, file_out=None, correlated=False, **kwargs):
     """Execute the main gulpy worklow.
 
     Args:
@@ -209,14 +215,44 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create the array to store the seeds
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
+        # pre-compute lookup tables for the Gaussian cdf and inverse cdf
+        # this is used for the generation of correlated random numbers
+
+        # Note:
+        #  - the size `arr_N` and `arr_N_cdf` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
+        #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
+        arr_min = 1e-16
+        arr_max = 1 - 1e-16
+        arr_N = 1000000
+
+        arr_min_cdf = -20.
+        arr_max_cdf = 20.
+        arr_N_cdf = 1000000
+
+        norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
+        norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N_cdf)
+
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
+        z_unif = np.zeros(sample_size)
 
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
-            rndms = generate_rndm(seeds[:rng_index], sample_size)
+            if not correlated:
+                rndms = generate_rndm(seeds[:rng_index], sample_size)
+            else:
+                rndms_x = generate_rndm(seeds[:rng_index], sample_size)
+                rndms_y = generate_rndm(seeds[:rng_index], sample_size)
+                logger.info(rndms_x.shape)
+                rho = 0.5  # get this from the map
+                # TODO: rndms_z needs to be 2d of shape Nseeds x samplesize
+                for i_seed in range(rndms_x.shape[0]):
+                    rndms_z = get_corr_rval(
+                        rndms_x[i_seed, :], rndms_y[i_seed, :], rho, arr_min, arr_max, arr_N, norm_inv_cdf,
+                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                    )
 
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < compute_i:

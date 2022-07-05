@@ -12,6 +12,8 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
+parser.add_argument('-c', '--correlated', help='(wip) if passed, it activates the correlated rng',
+                    action='store_true', dest='correlated', default=False)
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
 parser.add_argument('-i', '--file-in', help='filename of input stream.', action='store', type=str, dest='file_in')

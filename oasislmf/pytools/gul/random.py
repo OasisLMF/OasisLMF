@@ -106,31 +106,13 @@ def compute_norm_cdf_lookup(arr_min, arr_max, arr_N):
     return norm.cdf(np.linspace(arr_min, arr_max, arr_N))
 
 
-norm_inv_cdf = compute_norm_inv_cdf_lookup(1e-16, 1 - 1e-16, 1000000)
-norm_cdf = compute_norm_cdf_lookup(-20., 20., 1000000)
-# pre-compute lookup tables for the Gaussian cdf and inverse cdf
-
-# Note:
-#  - the size of these arrays can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-#  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
-arr_min = 1e-16
-arr_max = 1 - 1e-16
-arr_N = 1000000
-norm_inv_cdf = norm.ppf(np.linspace(arr_min, arr_max, arr_N))
-
-arr_min_cdf = -20.
-arr_max_cdf = 20.
-arr_N_cdf = 1000000
-norm_cdf = norm.cdf(np.linspace(arr_min_cdf, arr_max_cdf, arr_N_cdf))
-
-
 @njit(cache=True, fastmath=True)
 def get_norm_cdf_cell_nb(x, arr_min, arr_max, arr_N):
-    return (x - arr_min) * (arr_N - 1) // (arr_max - arr_min)
+    return int((x - arr_min) * (arr_N - 1) // (arr_max - arr_min))
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval_v2(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, Nsamples, z_unif):
+def get_corr_rval(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, Nsamples, z_unif):
 
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
@@ -143,8 +125,7 @@ def get_corr_rval_v2(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf,
 
         z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, arr_min_cdf, arr_max_cdf, arr_N_cdf)]
 
-
-#     return z_unif
+    return z_unif
 
 
 @njit(cache=True, fastmath=True)
