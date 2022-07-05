@@ -244,6 +244,8 @@ class PlatformRun(PlatformBase):
                     raise OasisException(
                         'No models found in API: {}'.format(self.server_url)
                     )
+            else:
+                model_id = self.model_id
 
             # Select or create a portfilo
             if self.portfolio_id:
