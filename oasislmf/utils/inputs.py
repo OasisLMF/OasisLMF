@@ -13,6 +13,26 @@ from json.decoder import JSONDecodeError
 from argparse import ArgumentTypeError
 
 
+
+
+def update_config(config_data, config_map=get_config_profile()):
+        config = config_data.copy()
+        obsolete_keys = set(config) & set(config_map)
+        logger = logging.getLogger()
+        
+        if obsolete_keys:
+            logger.warning('Deprecated key(s) in MDK config:')
+            for key in obsolete_keys:
+                logger.warning(f'   {key} : {config_map[key]}')
+
+                # update key
+                if not config_map[key]['deleted']:
+                    config[config_map[key]['updated_to']] = config[key]
+                del config[key]
+           
+        return config
+
+
 class InputValues(object):
     """
     Helper class for accessing the input values from either
@@ -30,16 +50,19 @@ class InputValues(object):
 
         if self.config_fp is not None:
             try:
-                self.config = self.load_config_file()
+                import ipdb; ipdb.set_trace()
+                self.config = update_config(self.load_config_file())
                 self.config_dir = os.path.dirname(self.config_fp)
                 self.list_unknown_keys()
             except JSONDecodeError as e:
                 raise OasisException(f"Configuration file {self.config_fp} is not a valid json file", e)
 
-        self.obsolete_keys = set(self.config) & set(self.config_mapping)
-        self.list_obsolete_keys()
-        if update_keys:
-            self.update_config_keys()
+        
+
+        #self.obsolete_keys = set(self.config) & set(self.config_mapping)
+        #self.list_obsolete_keys()
+        #if update_keys:
+        #    self.update_config_keys()
 
     def list_unknown_keys(self):
         """
@@ -57,26 +80,26 @@ class InputValues(object):
                     self.config[k]
                 ))
 
-    def list_obsolete_keys(self, fix_warning=True):
-        if self.obsolete_keys:
-            self.logger.warning('Deprecated key(s) in MDK config:')
-            for k in self.obsolete_keys:
-                self.logger.warning('   {} : {}'.format(
-                    k,
-                    self.config_mapping[k],
-                ))
-            self.logger.warning('')
-            if fix_warning:
-                self.logger.warning('  To fix run: oasislmf config update'.format(self.config_fp))
+    #def list_obsolete_keys(self, fix_warning=True):
+    #    if self.obsolete_keys:
+    #        self.logger.warning('Deprecated key(s) in MDK config:')
+    #        for k in self.obsolete_keys:
+    #            self.logger.warning('   {} : {}'.format(
+    #                k,
+    #                self.config_mapping[k],
+    #            ))
+    #        self.logger.warning('')
+    #        if fix_warning:
+    #            self.logger.warning('  To fix run: oasislmf config update'.format(self.config_fp))
 
-    def update_config_keys(self):
-        """
-        If command line flags change between package versions, update them internally
-        """
-        for key in self.obsolete_keys:
-            if not self.config_mapping[key]['deleted']:
-                self.config[self.config_mapping[key]['updated_to']] = self.config[key]
-            del self.config[key]
+    #def update_config_keys(self):
+    #    """
+    #    If command line flags change between package versions, update them internally
+    #    """
+    #    for key in self.obsolete_keys:
+    #        if not self.config_mapping[key]['deleted']:
+    #            self.config[self.config_mapping[key]['updated_to']] = self.config[key]
+    #        del self.config[key]
 
     def load_config_file(self):
         try:

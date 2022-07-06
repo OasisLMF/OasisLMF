@@ -10,7 +10,9 @@ import inspect
 from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
+from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
+from ..utils.inputs import update_config
 
 
 class ComputationStep:
@@ -88,16 +90,18 @@ class ComputationStep:
 
         return params
 
-    @classmethod 
+    @classmethod
     def get_arguments(cls, **kwargs):
         """
-        Return a list of default arguments values for the functions parameters 
-        If given arg values in 'kwargs' these will override the defaults 
+        Return a list of default arguments values for the functions parameters
+        If given arg values in 'kwargs' these will override the defaults
         """
         func_args = {el['name']: el.get('default', None) for el in cls.get_params()}
-        for param in kwargs: 
+        func_params = update_config(kwargs)
+
+        for param in func_params:
             if param in func_args:
-                func_args[param] = kwargs[param]
+                func_args[param] = func_params[param]
         return func_args
 
 
