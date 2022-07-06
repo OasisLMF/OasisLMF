@@ -80,7 +80,7 @@ HASH_MOD_CODE = np.int64(2147483648)
 
 
 @njit(cache=True, fastmath=True)
-def generate_correlated_hash_vector(peril_correlation_group, event_id, base_seed=0):
+def generate_correlated_hash_vector(peril_correlation_groups, event_id, base_seed=0):
     """Generate hash for an `event_id`.
 
     Args:
@@ -90,12 +90,17 @@ def generate_correlated_hash_vector(peril_correlation_group, event_id, base_seed
     Returns:
         int64: hash
     """
-    for i in range(1, peril_correlation_group.shape[0]):  # why start from 1??
-        peril_correlation_group[i] = (base_seed +
-                                      (i * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
-                                      (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+    Nperil_correlation_groups = peril_correlation_groups.shape[0]
+    correlated_hashes = np.zeros(Nperil_correlation_groups, dtype='int64')
 
-    return peril_correlation_group
+    for i in range(Nperil_correlation_groups):  # why start from 1??
+        correlated_hashes[i] = (
+            base_seed +
+            (peril_correlation_groups[i] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
+            (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
+        ) % HASH_MOD_CODE
+
+    return correlated_hashes
 
 
 def compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N):
@@ -116,9 +121,9 @@ def get_corr_rval(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, ar
 
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
+    z_unif = np.zeros(x_unif.shape[0], dtype='float64')
 
     for i in range(Nsamples):
-
         x_norm = norm_inv_cdf[get_norm_cdf_cell_nb(x_unif[i], arr_min, arr_max, arr_N)]
         y_norm = norm_inv_cdf[get_norm_cdf_cell_nb(y_unif[i], arr_min, arr_max, arr_N)]
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm

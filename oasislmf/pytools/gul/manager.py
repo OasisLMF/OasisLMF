@@ -22,12 +22,12 @@ from oasislmf.pytools.gul.common import (
 )
 from oasislmf.pytools.gul.io import (
     write_negative_sidx, write_sample_header,
-    write_sample_rec, read_getmodel_stream
+    write_sample_rec, read_getmodel_stream,
 )
 
 from oasislmf.pytools.gul.random import (
     get_random_generator, compute_norm_cdf_lookup,
-    compute_norm_inv_cdf_lookup, get_corr_rval
+    compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
 )
 
 from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
@@ -240,26 +240,21 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
-            if not correlated:
-                rndms = generate_rndm(seeds[:rng_index], sample_size)
-            else:
-                rndms_x = generate_rndm(seeds[:rng_index], sample_size)
-                rndms_y = generate_rndm(seeds[:rng_index], sample_size)
-                logger.info(rndms_x.shape)
-                rho = 0.5  # get this from the map
-                # TODO: rndms_z needs to be 2d of shape Nseeds x samplesize
-                for i_seed in range(rndms_x.shape[0]):
-                    rndms_z = get_corr_rval(
-                        rndms_x[i_seed, :], rndms_y[i_seed, :], rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
-                    )
+            # generate the correlated samples for the whole event, for all peril correlation groups
+            peril_correlation_group_ids = [1, 2, 3]  # TODO get it from input data
+            # Nperil_correlation_groups = len(peril_correlation_group_ids)
+            corr_seeds = generate_correlated_hash_vector(peril_correlation_group_ids, event_id)
+            eps_ij = generate_rndm(corr_seeds, sample_size)
+            # Nseeds = len(seeds[:rng_index])
+
+            rndms_base = generate_rndm(seeds[:rng_index], sample_size)
 
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < compute_i:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms, debug,
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms_base, eps_ij, correlated, debug,
                     GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
                 )
 
@@ -275,7 +270,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
-                         loss_threshold, losses, alloc_rule, rndms, debug, buff_size,
+                         loss_threshold, losses, alloc_rule, rndms_base, eps_ij, correlated, debug, buff_size,
                          int32_mv, cursor):
     """Compute losses for an event.
 
@@ -326,7 +321,9 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             item = items[item_i]
             damagecdf_i = item['damagecdf_i']
             rng_index = item['rng_index']
-
+            peril_correlation_group = item['peril_correlation_group']
+            # probably we need a peril_correlation_group_index and an array that maps index to peril_correlation_group values.
+            # for now, let's assume peril_correlation_group start from 0.
             rec = recs[rec_idx_ptr[damagecdf_i]:rec_idx_ptr[damagecdf_i + 1]]
             prob_to = rec['prob_to']
             bin_mean = rec['bin_mean']
@@ -344,14 +341,26 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
+                if correlated:
+                    # TODO: pass these variables in
+                    rndms = get_corr_rval(
+                        eps_ij[peril_correlation_group], rndms_base[rng_index],
+                        rho, arr_min, arr_max, arr_N, norm_inv_cdf,
+                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size
+                    )
+                else:
+                    rndms = rndms_base[rng_index]
+
+                # this can be optimized by caching rndms with a dict
+
                 if debug:
                     for sample_idx in range(1, sample_size + 1):
-                        rval = rndms[rng_index][sample_idx - 1]
+                        rval = rndms[sample_idx - 1]
                         losses[sample_idx, item_i] = rval
                 else:
                     for sample_idx in range(1, sample_size + 1):
                         # cap `rval` to the maximum `prob_to` value (which should be 1.)
-                        rval = rndms[rng_index][sample_idx - 1]
+                        rval = rndms[sample_idx - 1]
 
                         if rval >= prob_to[Nbins - 1]:
                             rval = prob_to[Nbins - 1] - 0.00000003
