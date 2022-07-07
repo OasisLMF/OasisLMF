@@ -1,5 +1,8 @@
 __all__ = [
     'InputValues',
+    'update_config',
+    'has_oasis_env',
+    'get_oasis_env',
 ]
 
 import io
@@ -11,6 +14,35 @@ from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 from json.decoder import JSONDecodeError
 from argparse import ArgumentTypeError
+
+
+def update_config(config_data, config_map=get_config_profile()):
+        config = config_data.copy()
+        obsolete_keys = set(config) & set(config_map)
+        logger = logging.getLogger()
+
+        if obsolete_keys:
+            logger.warning('Deprecated key(s) in MDK config:')
+            for key in obsolete_keys:
+
+                # update key
+                if not config_map[key]['deleted']:
+                    logger.warning(f" '{key}' loaded as '{config_map[key]['updated_to']}'")
+                    config[config_map[key]['updated_to']] = config[key]
+                else:
+                    logger.warning(f" '{key}' deleted")
+                del config[key]
+        return config
+
+def has_oasis_env(name):
+    return f'OASIS_{name.upper()}' in os.environ
+
+def get_oasis_env(name, dtype=None, default=None):
+    env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
+    if dtype and env_var:
+        return dtype(env_var)
+    else:
+        return env_var
 
 
 class InputValues(object):
@@ -30,16 +62,11 @@ class InputValues(object):
 
         if self.config_fp is not None:
             try:
-                self.config = self.load_config_file()
+                self.config = update_config(self.load_config_file())
                 self.config_dir = os.path.dirname(self.config_fp)
                 self.list_unknown_keys()
             except JSONDecodeError as e:
                 raise OasisException(f"Configuration file {self.config_fp} is not a valid json file", e)
-
-        self.obsolete_keys = set(self.config) & set(self.config_mapping)
-        self.list_obsolete_keys()
-        if update_keys:
-            self.update_config_keys()
 
     def list_unknown_keys(self):
         """
@@ -56,27 +83,6 @@ class InputValues(object):
                     k,
                     self.config[k]
                 ))
-
-    def list_obsolete_keys(self, fix_warning=True):
-        if self.obsolete_keys:
-            self.logger.warning('Deprecated key(s) in MDK config:')
-            for k in self.obsolete_keys:
-                self.logger.warning('   {} : {}'.format(
-                    k,
-                    self.config_mapping[k],
-                ))
-            self.logger.warning('')
-            if fix_warning:
-                self.logger.warning('  To fix run: oasislmf config update'.format(self.config_fp))
-
-    def update_config_keys(self):
-        """
-        If command line flags change between package versions, update them internally
-        """
-        for key in self.obsolete_keys:
-            if not self.config_mapping[key]['deleted']:
-                self.config[self.config_mapping[key]['updated_to']] = self.config[key]
-            del self.config[key]
 
     def load_config_file(self):
         try:
@@ -104,16 +110,6 @@ class InputValues(object):
                 return self.confirm_action(question_str)
         except KeyboardInterrupt:
             self.logger.error('\nexiting.')
-
-    def get_env(self, name, dtype=None, default=None):
-        env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
-        if dtype and env_var:
-            return dtype(env_var)
-        else:
-            return env_var
-
-    def has_env(self, name):
-        return f'OASIS_{name.upper()}' in os.environ
 
     def get(self, name, default=None, required=False, is_path=False, dtype=None):
         """
@@ -153,9 +149,9 @@ class InputValues(object):
         value = getattr(self.args, name, None)
 
         # Load order 1: ENV override (intended for worker images)
-        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and self.has_env(name):
+        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and has_oasis_env(name):
             source = 'env_override'
-            value = self.get_env(name, dtype)
+            value = get_oasis_env(name, dtype)
 
         # Load order 2: Get from config JSON
         if value is None:
@@ -165,7 +161,7 @@ class InputValues(object):
         # Load order 3: Get from environment variable
         if value is None:
             source = 'env'
-            value = self.get_env(name, dtype)
+            value = get_oasis_env(name, dtype)
 
         if value is None and required:
             raise OasisException(
