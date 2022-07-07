@@ -10,7 +10,9 @@ import inspect
 from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
+from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
+from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
 
 
 class ComputationStep:
@@ -88,16 +90,23 @@ class ComputationStep:
 
         return params
 
-    @classmethod 
+    @classmethod
     def get_arguments(cls, **kwargs):
         """
-        Return a list of default arguments values for the functions parameters 
-        If given arg values in 'kwargs' these will override the defaults 
+        Return a list of default arguments values for the functions parameters
+        If given arg values in 'kwargs' these will override the defaults
         """
         func_args = {el['name']: el.get('default', None) for el in cls.get_params()}
-        for param in kwargs: 
-            if param in func_args:
-                func_args[param] = kwargs[param]
+        type_map = {el['name']: el.get('type', None) for el in cls.get_params()}
+
+        func_kwargs = update_config(kwargs)
+        env_override = str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False))
+
+        for param in func_args:
+            if env_override and has_oasis_env(param):
+                func_args[param] = get_oasis_env(param, type_map[param])
+            elif param in func_kwargs:
+                func_args[param] = func_kwargs[param]
         return func_args
 
 
