@@ -1,6 +1,8 @@
 __all__ = [
     'InputValues',
     'update_config',
+    'has_oasis_env',
+    'get_oasis_env',
 ]
 
 import io
@@ -31,6 +33,16 @@ def update_config(config_data, config_map=get_config_profile()):
                     logger.warning(f" '{key}' deleted")
                 del config[key]
         return config
+
+def has_oasis_env(name):
+    return f'OASIS_{name.upper()}' in os.environ
+
+def get_oasis_env(name, dtype=None, default=None):
+    env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
+    if dtype and env_var:
+        return dtype(env_var)
+    else:
+        return env_var
 
 
 class InputValues(object):
@@ -99,16 +111,6 @@ class InputValues(object):
         except KeyboardInterrupt:
             self.logger.error('\nexiting.')
 
-    def get_env(self, name, dtype=None, default=None):
-        env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
-        if dtype and env_var:
-            return dtype(env_var)
-        else:
-            return env_var
-
-    def has_env(self, name):
-        return f'OASIS_{name.upper()}' in os.environ
-
     def get(self, name, default=None, required=False, is_path=False, dtype=None):
         """
         Gets the name parameter until found from:
@@ -147,9 +149,9 @@ class InputValues(object):
         value = getattr(self.args, name, None)
 
         # Load order 1: ENV override (intended for worker images)
-        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and self.has_env(name):
+        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and has_oasis_env(name):
             source = 'env_override'
-            value = self.get_env(name, dtype)
+            value = get_oasis_env(name, dtype)
 
         # Load order 2: Get from config JSON
         if value is None:
@@ -159,7 +161,7 @@ class InputValues(object):
         # Load order 3: Get from environment variable
         if value is None:
             source = 'env'
-            value = self.get_env(name, dtype)
+            value = get_oasis_env(name, dtype)
 
         if value is None and required:
             raise OasisException(
