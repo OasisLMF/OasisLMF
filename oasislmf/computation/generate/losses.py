@@ -483,6 +483,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server',        'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
+        {'name': 'peril_filter',           'default': [], 'nargs':'+', 'help': 'Peril specific run'},
     ]
 
     def run(self):
@@ -519,6 +520,7 @@ class GenerateLosses(GenerateLossesDir):
                         event_shuffle=self.ktools_event_shuffle,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
+                        peril_filter = self.peril_filter
                     )
                 except TypeError:
                     warnings.simplefilter("always")
