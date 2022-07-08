@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
 
 
-# https://docs.python.org/3/library/importlib.html#importlib.machinery.PathFinder
-
 class MyLoader(Loader):
 
     def __init__(self, sub_module):
@@ -53,6 +51,7 @@ class MyImport(MetaPathFinder):
             `from oasislmf.model_execution.bash import genbash`
                 is the same as calling the new name
             `from oasislmf.execution.bash import genbash`
+            https://docs.python.org/3/library/importlib.html#importlib.machinery.PathFinder
     """
 
     def __init__(self):

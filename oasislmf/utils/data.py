@@ -1129,12 +1129,8 @@ def fill_na_with_categoricals(df, fill_value):
             # Force to be a string - using categorical for string columns
             value = str(value)
             fill_value[col_name] = value
-
             if value not in col.cat.categories:
                 df[col_name] = col.cat.add_categories([value])
-                # 'inplace=True' is Deprecated since version 1.3.0
-                # https://pandas.pydata.org/docs/reference/api/pandas.Series.cat.add_categories.html
-                #col.cat.add_categories([value], inplace=True)
 
     # Note that the following lines do not work properly with Pandas 1.1.0/1.1.1, due to a bug
     # related to fillna and categorical dtypes. This bug should be fixed in >1.1.2.
