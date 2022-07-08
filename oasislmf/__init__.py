@@ -46,8 +46,6 @@ class MyImport(MetaPathFinder):
         self.depricated_modules = {
             "model_execution": "execution",
             "model_preparation": "preparation",
-            #"preparation.old_module" :"preparation.new_module",
-            #"preparation.reinsurance_layer" :"preparation.reinsurance",
             "api": "platform",
             "platform": "platform_api"
         }
