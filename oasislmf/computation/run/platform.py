@@ -18,7 +18,7 @@ from mimetypes import guess_extension
 
 from requests.exceptions import HTTPError, ConnectionError
 
-from ...platform.client import APIClient
+from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException
 from ...utils.defaults import API_EXAMPLE_AUTH
 
