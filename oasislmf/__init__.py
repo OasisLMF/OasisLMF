@@ -85,7 +85,6 @@ class MyImport(MetaPathFinder):
                 )
                 warnings.simplefilter("always")
                 warnings.warn(deprecated)
-                import ipdb; ipdb.set_trace()
                 return MyLoader(self.depricated_modules[names[1]])
 
 sys.meta_path.append(MyImport())
