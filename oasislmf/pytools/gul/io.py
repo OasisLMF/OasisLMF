@@ -6,7 +6,7 @@ from select import select
 import numpy as np
 from numba import njit
 from numba.typed import Dict, List
-from numba.types import int32 as nb_int32, int64 as nb_int64
+from numba.types import int32 as nb_int32, int64 as nb_int64, int8 as nb_int8
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
@@ -31,7 +31,16 @@ def gen_structs():
     return group_id_rng_index, rec_idx_ptr
 
 
-def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_size=GETMODEL_STREAM_BUFF_SIZE):
+@njit(cache=True)
+def gen_valid_area_peril(valid_area_peril_id):
+    valid_area_peril_dict = Dict()
+    for i in range(valid_area_peril_id.shape[0]):
+        valid_area_peril_dict[valid_area_peril_id[i]] = nb_int8(0)
+
+    return valid_area_peril_dict
+
+
+def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_area_peril_id=None, buff_size=GETMODEL_STREAM_BUFF_SIZE, ):
     """Read the getmodel output stream yielding data event by event.
 
     Args:
@@ -82,6 +91,11 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_si
     last_event_id = -1
     len_read = 1
 
+    if valid_area_peril_id is not None:
+        valid_area_peril_dict = gen_valid_area_peril(valid_area_peril_id)
+    else:
+        valid_area_peril_dict=None
+
     # init data structures
     group_id_rng_index, rec_idx_ptr = gen_structs()
     rng_index = 0
@@ -109,7 +123,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_si
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            int32_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages,
+            int32_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
             damagecdf_i, rec_idx_ptr
         )
@@ -150,7 +164,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_si
 
 
 @njit(cache=True, fastmath=True)
-def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages,
+def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
@@ -217,6 +231,12 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
             # get more data in the buffer and put cursor back at the beginning of this cdf
             cursor -= areaperil_int_to_int32_size + 3
             break
+
+        # peril filter
+        if valid_area_peril_dict is not None:
+            if areaperil_id not in valid_area_peril_dict:
+                cursor += 2 * oasis_float_to_int32_size * Nbins_to_read
+                continue
 
         # read damage cdf bins
         start_rec = last_rec_idx_ptr
