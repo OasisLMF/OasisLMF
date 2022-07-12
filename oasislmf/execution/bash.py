@@ -237,7 +237,7 @@ def get_modelcmd(modelpy: bool, server=False) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy):
+def get_gulcmd(gulpy, gulpy_random_generator=1):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -246,7 +246,10 @@ def get_gulcmd(gulpy):
     Returns:
         str: the ground-up loss calculation command
     """
-    cmd = 'gulpy' if gulpy else 'gulcalc'
+    if gulpy:
+        cmd = f'gulpy --random-generator={gulpy_random_generator}'
+    else:
+        cmd = 'gulcalc'
 
     return cmd
 
@@ -1103,6 +1106,7 @@ def get_getmodel_itm_cmd(
         modelpy=False,
         modelpy_server=False,
         gulpy=False,
+        gulpy_random_generator=1,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1120,7 +1124,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy:
@@ -1154,6 +1158,7 @@ def get_getmodel_cov_cmd(
         modelpy=False,
         modelpy_server=False,
         gulpy=False,
+        gulpy_random_generator=1,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1172,7 +1177,7 @@ def get_getmodel_cov_cmd(
     :return: (str) The generated getmodel command
     """
 
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
 
 
     if use_random_number_file:
@@ -1432,6 +1437,7 @@ def bash_params(
     event_shuffle=None,
     modelpy=False,
     gulpy=False,
+    gulpy_random_generator=1,
 
     ## new options
     process_number=None,
@@ -1455,6 +1461,7 @@ def bash_params(
     bash_params['custom_args'] = custom_args
     bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
+    bash_params['gulpy_random_generator'] = gulpy_random_generator
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1659,6 +1666,7 @@ def create_bash_analysis(
     analysis_settings,
     modelpy,
     gulpy,
+    gulpy_random_generator,  # TODO: not sure whether this is needed in this function
     model_py_server,
     **kwargs
 ):
@@ -2215,6 +2223,7 @@ def genbash(
     event_shuffle=None,
     modelpy=False,
     gulpy=False,
+    gulpy_random_generator=1,
     model_py_server=False
 ):
     """
@@ -2279,6 +2288,7 @@ def genbash(
         event_shuffle=event_shuffle,
         modelpy=modelpy,
         gulpy=gulpy,
+        gulpy_random_generator=gulpy_random_generator,
         model_py_server=model_py_server
     )
 
