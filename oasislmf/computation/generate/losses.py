@@ -151,7 +151,8 @@ class GenerateLossesBase(ComputationStep):
         option
         """
         user_peril_filter = analysis_settings.get('peril_filter', None)
-        return user_peril_filter if user_peril_filter else self.peril_filter
+        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else self.peril_filter))
+        return peril_filter
 
     def _print_error_logs(self, run_log_fp, e):
         """
