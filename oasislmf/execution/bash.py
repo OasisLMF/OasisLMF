@@ -237,7 +237,7 @@ def get_modelcmd(modelpy: bool, server=False) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator=1):
+def get_gulcmd(gulpy, gulpy_random_generator):
     """Get the ground-up loss calculation command.
 
     Args:
