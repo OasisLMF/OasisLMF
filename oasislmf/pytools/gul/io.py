@@ -245,6 +245,8 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
                 seeds[rng_index] = generate_hash(group_id, last_event_id)
                 this_rng_index = rng_index
                 rng_index += 1
+
+                # TODO Q for Stephane: should we create a hash for one group_id, for all peril correlation groups by default?
             else:
                 this_rng_index = group_id_rng_index[group_id]
 

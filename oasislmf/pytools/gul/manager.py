@@ -159,6 +159,15 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     # read coverages from file
     coverages_tiv = get_coverages(input_path)
 
+    # TODO finish here
+    # get model settings
+    # from oasislmf.preparation.correlations import get_model_settings
+    # get_model_settings("model_settings.json")
+
+    # from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
+    # file_path = os.path.join(input_path, 'correlations.bin')
+    # data = CorrelationsData.from_bin(file_path=file_path)
+
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
     coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
@@ -295,7 +304,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         buff_size (int): size in bytes of the output buffer.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        
+
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
