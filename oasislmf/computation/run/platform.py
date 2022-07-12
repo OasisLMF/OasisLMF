@@ -18,7 +18,7 @@ from mimetypes import guess_extension
 
 from requests.exceptions import HTTPError, ConnectionError
 
-from ...platform.client import APIClient
+from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException
 from ...utils.defaults import API_EXAMPLE_AUTH
 
@@ -244,6 +244,8 @@ class PlatformRun(PlatformBase):
                     raise OasisException(
                         'No models found in API: {}'.format(self.server_url)
                     )
+            else:
+                model_id = self.model_id
 
             # Select or create a portfilo
             if self.portfolio_id:

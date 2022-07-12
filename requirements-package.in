@@ -5,7 +5,7 @@ chardet
 fastparquet>=0.3.1
 jsonschema
 msgpack
-numba>=0.50.1
+numba>=0.55.1
 numexpr
 ods-tools>=2.1.2
 pandas>=1.0.3,!=1.1.0,!=1.1.1
