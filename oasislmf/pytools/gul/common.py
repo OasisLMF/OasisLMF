@@ -68,3 +68,10 @@ gulSampleslevelRec = nb.from_dtype(np.dtype([('sidx', 'i4'),
                                              ('loss', oasis_float),
                                              ]))
 gulSampleslevelRec_size = gulSampleslevelRec.size
+
+
+Keys = {'LocID': np.int32,
+        'PerilID': 'category',
+        'CoverageTypeID': np.int32,
+        'AreaPerilID': areaperil_int,
+        'VulnerabilityID': np.int32}

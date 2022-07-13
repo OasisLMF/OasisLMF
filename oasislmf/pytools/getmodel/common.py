@@ -61,6 +61,12 @@ Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ('group_id', np.int32)
                                ]))
 
+Keys = {'LocID': np.int32,
+        'PerilID': 'category',
+        'CoverageTypeID': np.int32,
+        'AreaPerilID': areaperil_int,
+        'VulnerabilityID': np.int32}
+
 Correlation = nb.from_dtype(np.dtype([
     ("peril_correlation_group", np.int32),
     ("correlation_value", oasis_float)
