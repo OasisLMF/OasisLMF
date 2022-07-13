@@ -20,7 +20,9 @@ jobs:
       - name: Install ktools
         run: |
           export KTOOLS_VER=$(grep -Eo '[0-9]\.[0-9]\.[0-9]+' setup.py)
-          export PATH=$PATH:$HOME/.local/bin
+          export KTOOLS_BIN_DIR=$HOME/.local/bin
+          mkdir -p $KTOOLS_BIN_DIR
+          export PATH=$PATH:$KTOOLS_BIN_DIR
           wget https://github.com/OasisLMF/ktools/releases/download/v$KTOOLS_VER/Linux_x86_64.tar.gz
           tar -xvzf  Linux_x86_64.tar.gz -C $HOME/.local/bin
       - name: Install dependencies
