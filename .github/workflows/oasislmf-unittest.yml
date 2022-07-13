@@ -25,12 +25,12 @@ jobs:
           export PATH=$PATH:$KTOOLS_BIN_DIR
           wget https://github.com/OasisLMF/ktools/releases/download/v$KTOOLS_VER/Linux_x86_64.tar.gz
           tar -xvzf  Linux_x86_64.tar.gz -C $HOME/.local/bin
+      - name: Install Package
+        run: pip install --no-dependencies -e .
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest tox
-      - name: Install Package
-        run: pip install -e .
       #- name: Lint with flake8
       #  run: |
       #    # stop the build if there are Python syntax errors or undefined names
