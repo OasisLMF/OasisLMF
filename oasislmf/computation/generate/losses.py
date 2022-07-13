@@ -144,6 +144,16 @@ class GenerateLossesBase(ComputationStep):
                     ri_layers = len(json.load(f))
         return ri_layers
 
+
+    def _get_peril_filter(self, analysis_settings):
+        """
+        Check the 'analysis_settings' for user set peril filter, if empty return the MDK peril filter
+        option
+        """
+        user_peril_filter = analysis_settings.get('peril_filter', None)
+        peril_filter = list(map(str.upper, user_peril_filter if user_peril_filter else self.peril_filter))
+        return peril_filter
+
     def _print_error_logs(self, run_log_fp, e):
         """
         Error handling Method: Call if a run error has accursed,
@@ -308,6 +318,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None,  'help': 'Custom gulcalc binary name to call in the model losses step'},
+        {'name': 'peril_filter',           'default': [], 'nargs':'+', 'help': 'Peril specific run'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -350,14 +361,15 @@ class GenerateLossesPartial(GenerateLossesDir):
             gul_legacy_stream=self.ktools_legacy_stream,
             fifo_tmp_dir=not self.ktools_fifo_relative,
             custom_gulcalc_cmd=self.model_custom_gulcalc,
-            gulpy=self.gulpy,
+            gulpy=(self.gulpy and not self.model_custom_gulcalc),
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            modelpy=self.modelpy
+            modelpy=self.modelpy,
+            peril_filter = self._get_peril_filter(analysis_settings)
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -483,6 +495,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server',        'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
+        {'name': 'peril_filter',           'default': [], 'nargs':'+', 'help': 'Peril specific run'},
     ]
 
     def run(self):
@@ -512,13 +525,14 @@ class GenerateLosses(GenerateLossesDir):
                         gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
-                        gulpy=self.gulpy,
+                        gulpy=(self.gulpy and not self.model_custom_gulcalc),
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
+                        peril_filter = self._get_peril_filter(analysis_settings)
                     )
                 except TypeError:
                     warnings.simplefilter("always")
