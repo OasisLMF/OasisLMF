@@ -6,13 +6,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
-      #matrix:
-      #  python-version: ["3.7", "3.8", "3.9", "3.10"]
       matrix:
         cfg:
-        #- { python-version: '3.7', pkg-versions: ""}
-        #- { python-version: '3.8', pkg-versions: ""}
-        #- { python-version: '3.9', pkg-versions: ""}
+        - { python-version: '3.7', pkg-versions: ""}
+        - { python-version: '3.8', pkg-versions: ""}
+        - { python-version: '3.9', pkg-versions: ""}
         - { python-version: '3.10', pkg-versions: ""}
         - { python-version: '3.10', pkg-versions: 'numba==0.55.1' }
     steps:
