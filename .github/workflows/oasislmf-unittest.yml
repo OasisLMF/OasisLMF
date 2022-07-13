@@ -9,12 +9,12 @@ jobs:
       #matrix:
       #  python-version: ["3.7", "3.8", "3.9", "3.10"]
       matrix:
-        cfg: 
+        cfg:
         #- { python-version: '3.7', pinned-pkg: no}
         #- { python-version: '3.8', pinned-pkg: no}
         #- { python-version: '3.9', pinned-pkg: no}
-        - { python-version: '3.10', pinned-pkg: no}
-        - { python-version: '3.10', pinned-pkg: yes, pkg-version: 'numba==0.55.2' }
+        - { python-version: '3.10', pinned-pkg: 'no'}
+        - { python-version: '3.10', pinned-pkg: 'yes', pkg-version: 'numba==0.55.2' }
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.cfg.python-version }}
@@ -35,15 +35,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest pip-tools tox
-          
+
       - name: Pip Compile
         run: |
           rm -f requirements.txt
-          if ["${{ matrix.cfg.pinned-pkg }}" == "yes"]; then     
-            pip-compile requirements.in -o requirements.txt  
+          if ["${{ matrix.cfg.pinned-pkg }}" == "yes"]; then
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in  ${{ matrix.cfg.numba-version }} -o requirements.txt
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in  ${{ matrix.cfg.numba-version }} -o requirements.txt  
-          fi     
+            pip-compile requirements.in -o requirements.txt
+          fi
           pip install -r requirements.txt
       - name: Run tox
         run: tox -e py
