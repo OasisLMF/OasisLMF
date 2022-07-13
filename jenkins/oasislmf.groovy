@@ -274,8 +274,10 @@ node {
         }
 
         //Store reports
-        dir(source_workspace) {
-            archiveArtifacts artifacts: 'reports/**/*.*'
+        if (params.UNITTEST || params.PUBLISH) {
+            dir(source_workspace) {
+                archiveArtifacts artifacts: 'reports/**/*.*'
+            }
         }
 
         // Run merge back if publish
