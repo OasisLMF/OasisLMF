@@ -118,7 +118,8 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
 
         if valid_buf == 0:
             # the stream has ended and all the data has been read
-            yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
+            if last_event_id != -1:
+                yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
             break
 
         # read the streamed data into formatted data
