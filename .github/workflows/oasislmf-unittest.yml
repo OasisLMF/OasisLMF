@@ -8,15 +8,14 @@ jobs:
     strategy:
       matrix:
         cfg:
-        - { python-version: '3.6', pkg-version: ""}
         - { python-version: '3.7', pkg-version: ""}
         - { python-version: '3.8', pkg-version: ""}
         - { python-version: '3.9', pkg-version: ""}
         - { python-version: '3.10', pkg-version: ""}
         - { python-version: '3.10', pkg-version: 'numba==0.55.1' }
-        # currently only supports a single fixed package ver, could be expanded using
+        # currently only supports a single fixed package ver, could be expanded using 
         # pip-compile --upgrade-package 'pkg1==<ver>' --upgrade-package 'pkg2==<ver>'
-
+        
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.cfg.python-version }}
