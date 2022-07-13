@@ -14,7 +14,7 @@ parser.add_argument('-c', '--csv-path', help='path to csv file', type=str, requi
 parser.add_argument('-s', '--sort', help='sort by string, int and categorical columns before check', action='store_true')
 parser.add_argument('--check-exact', help='Whether to compare number exactly.', action='store_true')
 parser.add_argument('--cols-case-sensitive', help='Lower cased column names before compare', action='store_true')
-parser.add_argument('--raise-error', help='Lower cased column names before compare', action='store_true')
+parser.add_argument('--raise-error', help='Raise AssertionError exception if DataFrames differ, default is to print the exception message', action='store_true')
 parser.add_argument('--rtol', help='relative tolerance. Only used when check_exact is False', default=1e-05, action='store', type=float)
 parser.add_argument('--atol', help='Absolute tolerance. Only used when check_exact is False', default=1e-08, action='store', type=float)
 
