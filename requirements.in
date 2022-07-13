@@ -16,5 +16,4 @@ pytest
 pytest-cov
 pytest-ignore-flaky
 responses
-Sphinx
 tox
