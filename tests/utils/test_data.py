@@ -16,6 +16,7 @@ import pytz
 from hypothesis import (
     given,
     settings,
+    example,
 )
 from hypothesis.strategies import (
     datetimes,
@@ -206,7 +207,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -236,7 +237,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -271,7 +272,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -307,7 +308,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -364,7 +365,7 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -404,7 +405,7 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -512,7 +513,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -548,8 +549,7 @@ class TestGetDataframe(TestCase):
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
-
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -577,10 +577,9 @@ class TestGetDataframe(TestCase):
 
             non_na_cols = ['int_col', 'str_col']
             expected = df.dropna(subset=non_na_cols, axis=0)
-
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -612,7 +611,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -643,7 +642,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -675,7 +674,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -709,7 +708,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -744,7 +743,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -788,7 +787,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -833,7 +832,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -942,7 +941,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -977,7 +976,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1017,7 +1016,7 @@ class TestGetDataframe(TestCase):
                 lowercase_cols=False
             )
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1090,7 +1089,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1121,7 +1120,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1152,7 +1151,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1186,7 +1185,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1230,7 +1229,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False, required_cols=required, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 

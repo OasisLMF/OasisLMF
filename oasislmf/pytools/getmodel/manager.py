@@ -7,6 +7,8 @@ TODO: use selector and select for output
 import atexit
 import logging
 import os
+
+import pandas as pd
 import sys
 from contextlib import ExitStack
 
@@ -16,7 +18,7 @@ import pyarrow.parquet as pq
 from numba.typed import Dict
 
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from .common import areaperil_int, oasis_float, Index_type
+from .common import areaperil_int, oasis_float, Index_type, Keys
 from .footprint import Footprint
 
 logger = logging.getLogger(__name__)
@@ -99,12 +101,13 @@ else:
 
 
 @nb.jit(cache=True)
-def load_items(items):
+def load_items(items, valid_area_peril_id):
     """
     Processes the Items loaded from the file extracting meta data around the vulnerability data.
 
     Args:
         items: (List[Item]) Data loaded from the vulnerability file
+        valid_area_peril_id: array of area_peril_id to be included (if none, all are included)
 
     Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
              vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
@@ -116,6 +119,10 @@ def load_items(items):
     vuln_idx = 0
     for i in range(items.shape[0]):
         item = items[i]
+
+        # filter areaperil_id
+        if valid_area_peril_id is not None and item['areaperil_id'] not in valid_area_peril_id:
+            continue
 
         # insert the vulnerability index if not in there
         if item['vulnerability_id'] not in vuln_dict:
@@ -153,7 +160,7 @@ def load_items(items):
     return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns
 
 
-def get_items(input_path, ignore_file_type=set()):
+def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
     """
     Loads the items from the items file.
 
@@ -175,7 +182,7 @@ def get_items(input_path, ignore_file_type=set()):
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
-    return load_items(items)
+    return load_items(items, valid_area_peril_id)
 
 
 @nb.njit(cache=True)
@@ -523,7 +530,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
-def run(run_dir, file_in, file_out, ignore_file_type, data_server):
+def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
     """
     Runs the main process of the getmodel process.
 
@@ -562,8 +569,16 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
+        # load keys.csv to determine included AreaPerilID from peril_filter
+        if peril_filter:
+            keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
+            valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
+            logger.debug(f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+        else:
+            valid_area_peril_id = None
+
         logger.debug('init items')
-        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, ignore_file_type)
+        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, ignore_file_type, valid_area_peril_id)
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
