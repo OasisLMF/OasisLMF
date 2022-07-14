@@ -1,0 +1,50 @@
+name: Python package
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cfg:
+        - { python-version: '3.7', pkg-version: ""}
+        - { python-version: '3.8', pkg-version: ""}
+        - { python-version: '3.9', pkg-version: ""}
+        - { python-version: '3.10', pkg-version: ""}
+        - { python-version: '3.10', pkg-version: 'numba==0.55.1' }
+        # currently only supports a single fixed package ver, could be expanded using 
+        # pip-compile --upgrade-package 'pkg1==<ver>' --upgrade-package 'pkg2==<ver>'
+        
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.cfg.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.cfg.python-version }}
+      - name: Install ktools
+        run: |
+          export KTOOLS_VER=$(grep -Eo '[0-9]\.[0-9]\.[0-9]+' setup.py)
+          export KTOOLS_BIN_DIR=$HOME/.local/bin
+          mkdir -p $KTOOLS_BIN_DIR
+          export PATH=$PATH:$KTOOLS_BIN_DIR
+          wget https://github.com/OasisLMF/ktools/releases/download/v$KTOOLS_VER/Linux_x86_64.tar.gz
+          tar -xvzf  Linux_x86_64.tar.gz -C $HOME/.local/bin
+      - name: Install Package
+        run: pip install --no-dependencies -e .
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest pip-tools tox
+
+      - name: Pip Compile
+        run: |
+          rm -f requirements.txt
+          if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
+            pip-compile requirements.in -o requirements.txt
+          else
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
+          fi
+          pip install -r requirements.txt
+      - name: Run tox
+        run: tox -e py
