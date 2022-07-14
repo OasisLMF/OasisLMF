@@ -1183,7 +1183,6 @@ def get_getmodel_cov_cmd(
     :type  eve_shuffle_flag: str
     :return: (str) The generated getmodel command
     """
-
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
@@ -1672,7 +1671,7 @@ def create_bash_analysis(
     analysis_settings,
     modelpy,
     gulpy,
-    gulpy_random_generator,  # TODO: not sure whether this is needed in this function
+    gulpy_random_generator,
     model_py_server,
     peril_filter,
     **kwargs
