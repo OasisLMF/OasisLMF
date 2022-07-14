@@ -1886,6 +1886,7 @@ def create_bash_analysis(
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
             'gulpy': gulpy,
+            'gulpy_random_generator': gulpy_random_generator,
             'modelpy_server': model_py_server,
         }
 
