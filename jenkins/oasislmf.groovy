@@ -31,6 +31,7 @@ node {
         [$class: 'StringParameterDefinition',  description: "Jenkins credential for GPG",        name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
         [$class: 'StringParameterDefinition',  description: "Jenkins credential for passphrase", name: 'GPG_PASSPHRASE', defaultValue: 'gpg-passphrase'],
         [$class: 'StringParameterDefinition',  description: "Jenkins credentials Twine",         name: 'TWINE_ACCOUNT', defaultValue: 'sams_twine_account'],
+        [$class: 'BooleanParameterDefinition', description: "build and test package",            name: 'UNITTEST', defaultValue: Boolean.valueOf(false)],
         [$class: 'BooleanParameterDefinition', description: "Test worker build",                 name: 'TEST_WORKER', defaultValue: Boolean.valueOf(true)],
         [$class: 'BooleanParameterDefinition', description: "Create release if checked",         name: 'PUBLISH', defaultValue: Boolean.valueOf(false)],
         [$class: 'BooleanParameterDefinition', description: "Mark as pre-released software",     name: 'PRE_RELEASE', defaultValue: Boolean.valueOf(false)],
@@ -85,53 +86,8 @@ node {
         sh "exit 1"
     }
 
+
     try {
-        parallel(
-            clone_build: {
-                stage('Clone: ' + build_workspace) {
-                    dir(build_workspace) {
-                       git url: build_repo, credentialsId: git_creds, branch: build_branch
-                    }
-                }
-            },
-            clone_source: {
-                stage('Clone: ' + source_name) {
-                    sshagent (credentials: [git_creds]) {
-                        dir(source_workspace) {
-                            sh "git clone --recursive ${source_git_url} ."
-                            if (source_branch.matches("PR-[0-9]+")){
-                                // Checkout PR and merge into target branch, test on the result
-                                sh "git fetch origin pull/$CHANGE_ID/head:$BRANCH_NAME"
-                                sh "git checkout $CHANGE_TARGET"
-                                sh "git merge $BRANCH_NAME"
-                            } else {
-                                // Checkout branch
-                                sh "git checkout ${source_branch}"
-                            }
-                        }
-                    }
-                }
-            }
-        )
-
-        stage('Set version: ' + source_func) {
-            dir(source_workspace) {
-                // UPDATE ktools and package versions
-                if (vers_pypi?.trim() && vers_ktools?.trim()) {
-                    sh "${PIPELINE} set_vers_oasislmf ${vers_pypi} ${vers_ktools}"
-                } else {
-                    println("Keep current version numbers")
-                }
-
-                // Load versions as set in files
-                if (! vers_pypi?.trim() && params.PUBLISH){
-                    vers_file = readFile("oasislmf/__init__.py")
-                    vers_pypi = vers_file.trim().split("'")[-1]
-                    println("Loaded package version from file: $vers_pypi")
-                }
-            }
-        }
-
         if (params.TEST_WORKER) {
             // Test current branch using a model_worker image and checking expected output
             job_params = [
@@ -154,18 +110,66 @@ node {
             }
         }
 
-        stage('Build: ' + source_func) {
-            dir(source_workspace) {
-                sh ' ./scripts/runtests.sh'
+
+        if (params.UNITTEST || params.PUBLISH) {
+            parallel(
+                clone_build: {
+                    stage('Clone: ' + build_workspace) {
+                        dir(build_workspace) {
+                           git url: build_repo, credentialsId: git_creds, branch: build_branch
+                        }
+                    }
+                },
+                clone_source: {
+                    stage('Clone: ' + source_name) {
+                        sshagent (credentials: [git_creds]) {
+                            dir(source_workspace) {
+                                sh "git clone --recursive ${source_git_url} ."
+                                if (source_branch.matches("PR-[0-9]+")){
+                                    // Checkout PR and merge into target branch, test on the result
+                                    sh "git fetch origin pull/$CHANGE_ID/head:$BRANCH_NAME"
+                                    sh "git checkout $CHANGE_TARGET"
+                                    sh "git merge $BRANCH_NAME"
+                                } else {
+                                    // Checkout branch
+                                    sh "git checkout ${source_branch}"
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+
+            stage('Set version: ' + source_func) {
+                dir(source_workspace) {
+                    // UPDATE ktools and package versions
+                    if (vers_pypi?.trim() && vers_ktools?.trim()) {
+                        sh "${PIPELINE} set_vers_oasislmf ${vers_pypi} ${vers_ktools}"
+                    } else {
+                        println("Keep current version numbers")
+                    }
+
+                    // Load versions as set in files
+                    if (! vers_pypi?.trim() && params.PUBLISH){
+                        vers_file = readFile("oasislmf/__init__.py")
+                        vers_pypi = vers_file.trim().split("'")[-1]
+                        println("Loaded package version from file: $vers_pypi")
+                    }
+                }
+            }
+
+            stage('Build: ' + source_func) {
+                dir(source_workspace) {
+                    sh ' ./scripts/runtests.sh'
+                }
             }
         }
 
-
-        // Access to stored GPG key
-        // https://jenkins.io/doc/pipeline/steps/credentials-binding/
-        //
-        // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
-        // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
+            // Access to stored GPG key
+            // https://jenkins.io/doc/pipeline/steps/credentials-binding/
+            //
+            // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
+            // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
 
         if (params.PUBLISH){
             // Build chanagelog image
@@ -270,8 +274,10 @@ node {
         }
 
         //Store reports
-        dir(source_workspace) {
-            archiveArtifacts artifacts: 'reports/**/*.*'
+        if (params.UNITTEST || params.PUBLISH) {
+            dir(source_workspace) {
+                archiveArtifacts artifacts: 'reports/**/*.*'
+            }
         }
 
         // Run merge back if publish
