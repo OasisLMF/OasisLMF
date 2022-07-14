@@ -58,7 +58,7 @@ def arrays_are_identical(expected, result):
 
 class TestFactorizeArrays(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
         str_len=integers(min_value=2, max_value=100),
@@ -76,7 +76,7 @@ class TestFactorizeArrays(TestCase):
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
 
-    @settings(max_examples=1)
+    @settings(max_examples=1, deadline=None)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
         str_len=integers(min_value=2, max_value=100),
@@ -149,7 +149,7 @@ class TestFactorizeArrays(TestCase):
 
 class TestFastZipArrays(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         array_len=integers(min_value=10, max_value=100),
         num_arrays=integers(2, 100)
@@ -181,7 +181,7 @@ class TestGetDataframe(TestCase):
         with self.assertRaises(OasisException):
             get_dataframe(src_fp=None, src_buf=None, src_data=None)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -210,7 +210,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -240,7 +240,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -275,7 +275,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -311,7 +311,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(empty_data_err_msg=text(min_size=1, max_size=10, alphabet=string.ascii_lowercase))
     def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(self, empty_data_err_msg):
         fp = NamedTemporaryFile('w', delete=False)
@@ -329,7 +329,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -368,7 +368,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -408,7 +408,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -444,7 +444,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -480,7 +480,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -516,7 +516,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -553,7 +553,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -584,7 +584,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -616,7 +616,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -647,7 +647,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -679,7 +679,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -713,7 +713,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -748,7 +748,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -792,7 +792,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -837,7 +837,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -877,7 +877,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -917,7 +917,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -946,7 +946,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -981,7 +981,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1021,7 +1021,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1058,7 +1058,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1094,7 +1094,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1125,7 +1125,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1156,7 +1156,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1190,7 +1190,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1234,7 +1234,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1284,7 +1284,7 @@ class TestGetDataframe(TestCase):
 
 class TestGetJson(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=fixed_dictionaries({
             'str': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
@@ -1319,7 +1319,7 @@ class TestGetJson(TestCase):
 
 class TestGetTimestamp(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         dt=datetimes(min_value=datetime.now()),
         fmt=just('%Y%m%d%H%M%S')
