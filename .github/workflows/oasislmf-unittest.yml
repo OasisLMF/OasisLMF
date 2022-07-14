@@ -43,7 +43,7 @@ jobs:
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
             pip-compile requirements.in -o requirements.txt
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in  ${{ matrix.cfg.numba-version }} -o requirements.txt
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
           fi
           pip install -r requirements.txt
       - name: Run tox
