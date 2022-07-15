@@ -80,7 +80,7 @@ HASH_MOD_CODE = np.int64(2147483648)
 
 
 @njit(cache=True, fastmath=True)
-def generate_correlated_hash_vector(peril_correlation_groups, event_id, base_seed=0):
+def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, base_seed=0):
     """Generate hash for an `event_id`.
 
     Args:
@@ -90,13 +90,14 @@ def generate_correlated_hash_vector(peril_correlation_groups, event_id, base_see
     Returns:
         int64: hash
     """
-    Nperil_correlation_groups = peril_correlation_groups.shape[0]
-    correlated_hashes = np.zeros(Nperil_correlation_groups, dtype='int64')
+    Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
+    correlated_hashes = np.empty(Nperil_correlation_groups + 1, dtype='int64')
+    correlated_hashes[0] = 0
 
-    for i in range(Nperil_correlation_groups):  # why start from 1??
+    for i in range(1, Nperil_correlation_groups + 1):
         correlated_hashes[i] = (
             base_seed +
-            (peril_correlation_groups[i] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
+            (unique_peril_correlation_groups[i - 1] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
             (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
         ) % HASH_MOD_CODE
 
@@ -117,11 +118,11 @@ def get_norm_cdf_cell_nb(x, arr_min, arr_max, arr_N):
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, Nsamples, z_unif):
+def get_corr_rval(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf,
+                  arr_max_cdf, arr_N_cdf, norm_cdf, Nsamples, z_unif):
 
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
-    z_unif = np.zeros(x_unif.shape[0], dtype='float64')
 
     for i in range(Nsamples):
         x_norm = norm_inv_cdf[get_norm_cdf_cell_nb(x_unif[i], arr_min, arr_max, arr_N)]
@@ -130,11 +131,9 @@ def get_corr_rval(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, ar
 
         z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, arr_min_cdf, arr_max_cdf, arr_N_cdf)]
 
-    return z_unif
-
 
 @njit(cache=True, fastmath=True)
-def random_MersenneTwister(seeds, n):
+def random_MersenneTwister(seeds, n, skip_seeds=0):
     """Generate random numbers using the default Mersenne Twister algorithm.
 
     Args:
@@ -150,9 +149,9 @@ def random_MersenneTwister(seeds, n):
     Nseeds = len(seeds)
     rndms = np.zeros((Nseeds, n), dtype='float64')
 
-    for seed_i, seed in enumerate(seeds):
+    for seed_i in range(skip_seeds, Nseeds, 1):
         # set the seed
-        np.random.seed(seed)
+        np.random.seed(seeds[seed_i])
 
         # draw the random numbers
         for j in range(n):
@@ -163,7 +162,7 @@ def random_MersenneTwister(seeds, n):
 
 
 @njit(cache=True, fastmath=True)
-def random_LatinHypercube(seeds, n):
+def random_LatinHypercube(seeds, n, skip_seeds=0):
     """Generate random numbers using the Latin Hypercube algorithm.
 
     Args:
@@ -188,9 +187,9 @@ def random_LatinHypercube(seeds, n):
     samples = np.zeros(n, dtype='float64')
     perms = np.zeros(n, dtype='float64')
 
-    for seed_i, seed in enumerate(seeds):
+    for seed_i in range(skip_seeds, Nseeds, 1):
         # set the seed
-        np.random.seed(seed)
+        np.random.seed(seeds[seed_i])
 
         # draw the random numbers and re-generate permutations array
         for i in range(n):

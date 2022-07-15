@@ -12,8 +12,10 @@ import numpy as np
 from numba import njit
 from numba.typed import Dict, List
 
+from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
+
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
-from oasislmf.pytools.getmodel.common import oasis_float
+from oasislmf.pytools.getmodel.common import oasis_float, Correlation
 
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
@@ -159,15 +161,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     # read coverages from file
     coverages_tiv = get_coverages(input_path)
 
-    # TODO finish here
-    # get model settings
-    # from oasislmf.preparation.correlations import get_model_settings
-    # get_model_settings("model_settings.json")
-
-    # from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
-    # file_path = os.path.join(input_path, 'correlations.bin')
-    # data = CorrelationsData.from_bin(file_path=file_path)
-
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
     coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
@@ -224,46 +217,71 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create the array to store the seeds
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
-        # pre-compute lookup tables for the Gaussian cdf and inverse cdf
-        # this is used for the generation of correlated random numbers
+        logger.info(f"Correlated random number generation: switched {'ON' if correlated else 'OFF'}")
+        if correlated:
+            file_path = os.path.join(input_path, 'correlations.bin')
+            data = CorrelationsData.from_bin(file_path=file_path).data
+            Nperil_correlation_groups = len(data)
 
-        # Note:
-        #  - the size `arr_N` and `arr_N_cdf` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-        #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
-        arr_min = 1e-16
-        arr_max = 1 - 1e-16
-        arr_N = 1000000
+            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
+            corr_data_by_item_id[0] = (0, 0.)
+            corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(data['peril_correlation_group'])
+            corr_data_by_item_id[1:]['correlation_value'] = np.array(data['correlation_value'])
 
-        arr_min_cdf = -20.
-        arr_max_cdf = 20.
-        arr_N_cdf = 1000000
+            logger.info(
+                f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
+            )
 
-        norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
-        norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N_cdf)
+            unique_peril_correlation_groups = np.unique(corr_data_by_item_id[1:]['peril_correlation_group'])
+
+            # pre-compute lookup tables for the Gaussian cdf and inverse cdf
+            # Notes:
+            #  - the size `arr_N` and `arr_N_cdf` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
+            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
+            arr_min, arr_max, arr_N = 1e-16, 1 - 1e-16, 1000000
+            arr_min_cdf, arr_max_cdf, arr_N_cdf = -20., 20., 1000000
+            norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
+            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N_cdf)
+
+            # buffer to be re-used to store all the correlated random values
+            z_unif = np.zeros(sample_size, dtype='float64')
+
+        else:
+            # create dummy data structures with proper dtypes to allow correct numba compilation
+            corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
+            arr_min, arr_max, arr_N = 0, 0, 0
+            arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
+            norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
+            z_unif = np.zeros(1, dtype='float64')
 
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
-        z_unif = np.zeros(sample_size)
 
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
-            # generate the correlated samples for the whole event, for all peril correlation groups
-            peril_correlation_group_ids = [1, 2, 3]  # TODO get it from input data
-            # Nperil_correlation_groups = len(peril_correlation_group_ids)
-            corr_seeds = generate_correlated_hash_vector(peril_correlation_group_ids, event_id)
-            eps_ij = generate_rndm(corr_seeds, sample_size)
-            # Nseeds = len(seeds[:rng_index])
-
+            # generation of "base" random values is done as before
             rndms_base = generate_rndm(seeds[:rng_index], sample_size)
+
+            # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
+            # generate the correlated samples for the whole event, for all peril correlation groups
+            if correlated:
+                corr_seeds = generate_correlated_hash_vector(unique_peril_correlation_groups, event_id)
+                eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
+
+            else:
+                # create dummy data structures with proper dtypes to allow correct numba compilation
+                corr_seeds = np.zeros(1, dtype='int64')
+                eps_ij = np.zeros((1, 1), dtype='float64')
 
             last_processed_coverage_ids_idx = 0
             while last_processed_coverage_ids_idx < compute_i:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms_base, eps_ij, correlated, debug,
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, correlated, rndms_base, eps_ij, corr_data_by_item_id,
+                    arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
                     GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
                 )
 
@@ -279,8 +297,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
-                         loss_threshold, losses, alloc_rule, rndms_base, eps_ij, correlated, debug, buff_size,
-                         int32_mv, cursor):
+                         loss_threshold, losses, alloc_rule, correlated, rndms_base, eps_ij, corr_data_by_item_id,
+                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                         z_unif, debug, buff_size, int32_mv, cursor):
     """Compute losses for an event.
 
     Args:
@@ -309,6 +328,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
     max_size_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
         tiv = coverage['tiv']  # coverages are indexed from 1
@@ -330,9 +350,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             item = items[item_i]
             damagecdf_i = item['damagecdf_i']
             rng_index = item['rng_index']
-            peril_correlation_group = item['peril_correlation_group']
-            # probably we need a peril_correlation_group_index and an array that maps index to peril_correlation_group values.
-            # for now, let's assume peril_correlation_group start from 0.
             rec = recs[rec_idx_ptr[damagecdf_i]:rec_idx_ptr[damagecdf_i + 1]]
             prob_to = rec['prob_to']
             bin_mean = rec['bin_mean']
@@ -351,12 +368,17 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
             if sample_size > 0:
                 if correlated:
-                    # TODO: pass these variables in
-                    rndms = get_corr_rval(
+                    item_corr_data = corr_data_by_item_id[item['item_id']]
+                    peril_correlation_group = item_corr_data['peril_correlation_group']
+                    rho = item_corr_data['correlation_value']
+
+                    get_corr_rval(
                         eps_ij[peril_correlation_group], rndms_base[rng_index],
                         rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size
+                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
                     )
+                    rndms = z_unif
+
                 else:
                     rndms = rndms_base[rng_index]
 
