@@ -94,7 +94,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
     if valid_area_peril_id is not None:
         valid_area_peril_dict = gen_valid_area_peril(valid_area_peril_id)
     else:
-        valid_area_peril_dict=None
+        valid_area_peril_dict = None
 
     # init data structures
     group_id_rng_index, rec_idx_ptr = gen_structs()
@@ -267,7 +267,6 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
                 this_rng_index = rng_index
                 rng_index += 1
 
-                # TODO Q for Stephane: should we create a hash for one group_id, for all peril correlation groups by default?
             else:
                 this_rng_index = group_id_rng_index[group_id]
 

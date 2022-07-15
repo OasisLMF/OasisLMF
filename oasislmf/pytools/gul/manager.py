@@ -2,7 +2,6 @@
 This file is the entry point for the gul command for the package.
 
 """
-from random import sample
 import sys
 import os
 from select import select
@@ -155,7 +154,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-
     damage_bins = get_damage_bins(static_path)
 
     # read coverages from file
@@ -169,7 +167,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
     else:
         valid_area_peril_id = None
-
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
@@ -391,8 +388,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
                 else:
                     rndms = rndms_base[rng_index]
-
-                # this can be optimized by caching rndms with a dict
 
                 if debug:
                     for sample_idx in range(1, sample_size + 1):
