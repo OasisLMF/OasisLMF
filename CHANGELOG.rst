@@ -1,6 +1,40 @@
 OasisLMF Changelog
 ==================
 
+`1.26.2`_
+ ---------
+* [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
+* [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
+* [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
+* [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
+* [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
+* [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1075](https://github.com/OasisLMF/OasisLMF/pull/1075) - setting model_custom_gulcalc disables gulpy
+* [#1076](https://github.com/OasisLMF/OasisLMF/pull/1076) - Set ktools to 3.9.2
+* [#1048](https://github.com/OasisLMF/OasisLMF/pull/1055) - set modelpy and gulpy as default runtime options
+.. _`1.26.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0...1.26.2
+
+`1.26.1`_
+ ---------
+* [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
+* [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
+* [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
+* [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
+* [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
+* [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1048](https://github.com/OasisLMF/OasisLMF/pull/1055) - set modelpy and gulpy as default runtime options
+.. _`1.26.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0...1.26.1
+
 `1.26.0`_
  ---------
 * [#1018](https://github.com/OasisLMF/OasisLMF/pull/1026) - Convergence task 11. Set the default number of samples for an analysis from model settings

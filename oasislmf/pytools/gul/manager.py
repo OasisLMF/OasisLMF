@@ -8,6 +8,7 @@ import os
 from select import select
 import logging
 from contextlib import ExitStack
+import pandas as pd
 import numpy as np
 from numba import njit
 from numba.typed import Dict, List
@@ -15,7 +16,8 @@ from numba.typed import Dict, List
 from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
 
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
-from oasislmf.pytools.getmodel.common import oasis_float, Correlation
+
+from oasislmf.pytools.getmodel.common import oasis_float, Keys, Correlation
 
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
@@ -124,7 +126,7 @@ def generate_item_map(items, coverages):
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
-        random_generator, file_in=None, file_out=None, correlated=False, **kwargs):
+        random_generator, peril_filter=[], file_in=None, file_out=None, correlated=False, **kwargs):
     """Execute the main gulpy worklow.
 
     Args:
@@ -147,19 +149,27 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
+    # TODO: store static_path in a paraparameters file
     static_path = os.path.join(run_dir, 'static')
+    # TODO: store input_path in a paraparameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    static_path = 'static/'
-    # TODO: store static_path in a paraparameters file
-    damage_bins = get_damage_bins(static_path)
 
-    input_path = 'input/'
-    # TODO: store input_path in a paraparameters file
+    damage_bins = get_damage_bins(static_path)
 
     # read coverages from file
     coverages_tiv = get_coverages(input_path)
+
+    # load keys.csv to determine included AreaPerilID from peril_filter
+    if peril_filter:
+        keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
+        valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
+        logger.debug(
+            f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+    else:
+        valid_area_peril_id = None
+
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
@@ -257,7 +267,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
 
-        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds):
+        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 

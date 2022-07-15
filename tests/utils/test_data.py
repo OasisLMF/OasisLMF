@@ -16,6 +16,7 @@ import pytz
 from hypothesis import (
     given,
     settings,
+    example,
 )
 from hypothesis.strategies import (
     datetimes,
@@ -58,7 +59,7 @@ def arrays_are_identical(expected, result):
 
 class TestFactorizeArrays(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
         str_len=integers(min_value=2, max_value=100),
@@ -76,7 +77,7 @@ class TestFactorizeArrays(TestCase):
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
 
-    @settings(max_examples=1)
+    @settings(max_examples=1, deadline=None)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
         str_len=integers(min_value=2, max_value=100),
@@ -149,7 +150,7 @@ class TestFactorizeArrays(TestCase):
 
 class TestFastZipArrays(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         array_len=integers(min_value=10, max_value=100),
         num_arrays=integers(2, 100)
@@ -181,7 +182,7 @@ class TestGetDataframe(TestCase):
         with self.assertRaises(OasisException):
             get_dataframe(src_fp=None, src_buf=None, src_data=None)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -206,11 +207,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -236,11 +237,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -271,11 +272,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -307,11 +308,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(empty_data_err_msg=text(min_size=1, max_size=10, alphabet=string.ascii_lowercase))
     def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(self, empty_data_err_msg):
         fp = NamedTemporaryFile('w', delete=False)
@@ -329,7 +330,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -364,11 +365,11 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -404,11 +405,11 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -444,7 +445,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -480,7 +481,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -512,11 +513,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -548,12 +549,11 @@ class TestGetDataframe(TestCase):
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
-
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -577,14 +577,13 @@ class TestGetDataframe(TestCase):
 
             non_na_cols = ['int_col', 'str_col']
             expected = df.dropna(subset=non_na_cols, axis=0)
-
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -612,11 +611,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -643,11 +642,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -675,11 +674,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -709,11 +708,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -744,11 +743,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -788,11 +787,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -833,11 +832,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -877,7 +876,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -917,7 +916,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -942,11 +941,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -977,11 +976,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1017,11 +1016,11 @@ class TestGetDataframe(TestCase):
                 lowercase_cols=False
             )
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1058,7 +1057,7 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1090,11 +1089,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1121,11 +1120,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1152,11 +1151,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1186,11 +1185,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1230,11 +1229,11 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False, required_cols=required, col_defaults=defaults)
 
-            self.assertTrue(dataframes_are_identical(result, expected))
+            assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1284,7 +1283,7 @@ class TestGetDataframe(TestCase):
 
 class TestGetJson(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=fixed_dictionaries({
             'str': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
@@ -1319,7 +1318,7 @@ class TestGetJson(TestCase):
 
 class TestGetTimestamp(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         dt=datetimes(min_value=datetime.now()),
         fmt=just('%Y%m%d%H%M%S')

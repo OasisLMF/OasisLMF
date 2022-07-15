@@ -307,6 +307,19 @@
             "title": "User set event ids",
             "description": "List of event ids as integers '[1, 5, 123 .. etc]'"
         },
+        "peril_filter": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type":"string",
+                "title":"OED peril",
+                "description":"OED three letter peril code",
+                "minLength":3,
+                "maxLength":3
+            },
+            "title": "Run filter by peril id",
+            "description": "List of OED peril ids '['WSS', 'WTC' .. ]'"
+        },
         "quantiles": {
             "type": "array",
             "minItems": 1,

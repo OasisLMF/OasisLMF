@@ -12,12 +12,12 @@ rm -R -f $LOG_DIR/*
 
 # --- Do insured loss kats ---
 
-kat -u work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid1=$!
-kat -u work/kat/il_S1_pltcalc_P1 work/kat/il_S1_pltcalc_P2 > output/il_S1_pltcalc.csv & kpid2=$!
-kat -u work/kat/il_S1_summarycalc_P1 work/kat/il_S1_summarycalc_P2 > output/il_S1_summarycalc.csv & kpid3=$!
-kat -u work/kat/il_S2_eltcalc_P1 work/kat/il_S2_eltcalc_P2 > output/il_S2_eltcalc.csv & kpid4=$!
-kat -u work/kat/il_S2_pltcalc_P1 work/kat/il_S2_pltcalc_P2 > output/il_S2_pltcalc.csv & kpid5=$!
-kat -u work/kat/il_S2_summarycalc_P1 work/kat/il_S2_summarycalc_P2 > output/il_S2_summarycalc.csv & kpid6=$!
+kat -u work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
+kat -u work/kat/il_S1_pltcalc_P1 > output/il_S1_pltcalc.csv & kpid2=$!
+kat -u work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid3=$!
+kat -u work/kat/il_S2_eltcalc_P1 > output/il_S2_eltcalc.csv & kpid4=$!
+kat -u work/kat/il_S2_pltcalc_P1 > output/il_S2_pltcalc.csv & kpid5=$!
+kat -u work/kat/il_S2_summarycalc_P1 > output/il_S2_summarycalc.csv & kpid6=$!
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 

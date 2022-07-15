@@ -23,6 +23,7 @@ parser.add_argument('-o', '--file-out', help='filename of output stream.', actio
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
                     action='store', type=float, dest='loss_threshold')
 parser.add_argument('-S', help='Sample size (default: 0).', default=0, action='store', type=int, dest='sample_size')
+parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty take all perils', nargs='+')
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--random-generator',
