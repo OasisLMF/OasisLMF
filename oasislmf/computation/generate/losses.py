@@ -117,7 +117,9 @@ class GenerateLossesBase(ComputationStep):
             'ktools_alloc_rule_gul': KTOOLS_ALLOC_GUL_MAX,
             'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
             'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX,
-            'ktools_event_shuffle': EVE_STD_SHUFFLE}
+            'ktools_event_shuffle': EVE_STD_SHUFFLE,
+            'gulpy_random_generator': 1}
+
         for rule in rule_ranges:
             rule_val = getattr(self, rule)
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
@@ -314,6 +316,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
         {'name': 'modelpy',                'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'gulpy',                  'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use gulcalc python version instead of c++ version'},
+        {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
+            'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
@@ -362,6 +366,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             fifo_tmp_dir=not self.ktools_fifo_relative,
             custom_gulcalc_cmd=self.model_custom_gulcalc,
             gulpy=(self.gulpy and not self.model_custom_gulcalc),
+            gulpy_random_generator=self.gulpy_random_generator,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
@@ -490,6 +495,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
         {'name': 'modelpy',                'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'gulpy',                  'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use gulcalc python version instead of c++ version'},
+        {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
+            'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
@@ -526,6 +533,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         gulpy=(self.gulpy and not self.model_custom_gulcalc),
+                        gulpy_random_generator=self.gulpy_random_generator,
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,

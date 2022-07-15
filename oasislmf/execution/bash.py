@@ -241,7 +241,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy):
+def get_gulcmd(gulpy, gulpy_random_generator):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -250,7 +250,10 @@ def get_gulcmd(gulpy):
     Returns:
         str: the ground-up loss calculation command
     """
-    cmd = 'gulpy' if gulpy else 'gulcalc'
+    if gulpy:
+        cmd = f'gulpy --random-generator={gulpy_random_generator}'
+    else:
+        cmd = 'gulcalc'
 
     return cmd
 
@@ -1108,6 +1111,7 @@ def get_getmodel_itm_cmd(
         modelpy_server=False,
         peril_filter=[],
         gulpy=False,
+        gulpy_random_generator=1,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1125,7 +1129,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy:
@@ -1160,6 +1164,7 @@ def get_getmodel_cov_cmd(
         modelpy_server=False,
         peril_filter=[],
         gulpy=False,
+        gulpy_random_generator=1,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1177,9 +1182,7 @@ def get_getmodel_cov_cmd(
     :type  eve_shuffle_flag: str
     :return: (str) The generated getmodel command
     """
-
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy)} -S{number_of_samples} -L{gul_threshold}'
-
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy:
@@ -1438,6 +1441,7 @@ def bash_params(
     event_shuffle=None,
     modelpy=False,
     gulpy=False,
+    gulpy_random_generator=1,
 
     ## new options
     process_number=None,
@@ -1462,6 +1466,7 @@ def bash_params(
     bash_params['custom_args'] = custom_args
     bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
+    bash_params['gulpy_random_generator'] = gulpy_random_generator
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1665,6 +1670,7 @@ def create_bash_analysis(
     analysis_settings,
     modelpy,
     gulpy,
+    gulpy_random_generator,
     model_py_server,
     peril_filter,
     **kwargs
@@ -1885,6 +1891,7 @@ def create_bash_analysis(
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
             'gulpy': gulpy,
+            'gulpy_random_generator': gulpy_random_generator,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
         }
@@ -2221,8 +2228,9 @@ def genbash(
     event_shuffle=None,
     modelpy=False,
     gulpy=False,
+    gulpy_random_generator=1,
     model_py_server=False,
-    peril_filter=[]
+    peril_filter=[],
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -2286,6 +2294,7 @@ def genbash(
         event_shuffle=event_shuffle,
         modelpy=modelpy,
         gulpy=gulpy,
+        gulpy_random_generator=gulpy_random_generator,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
     )
