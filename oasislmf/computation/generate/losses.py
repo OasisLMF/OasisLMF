@@ -117,7 +117,9 @@ class GenerateLossesBase(ComputationStep):
             'ktools_alloc_rule_gul': KTOOLS_ALLOC_GUL_MAX,
             'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
             'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX,
-            'ktools_event_shuffle': EVE_STD_SHUFFLE}
+            'ktools_event_shuffle': EVE_STD_SHUFFLE,
+            'gulpy_random_generator': 1}
+
         for rule in rule_ranges:
             rule_val = getattr(self, rule)
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
