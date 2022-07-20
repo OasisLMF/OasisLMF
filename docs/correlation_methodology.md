@@ -96,8 +96,8 @@ Note that disaggregation may be performed using the exposure_pre_analysis option
 
 This functionality builds on the existing functionality and enables model developers to;
 
-• Specify **peril correlation groups** for the perils covered in their model to either fully correlate damage from different perils, or make damage from different perils independent, at each location, per event.
-• For each peril correlation group, specify a default **global correlation factor** to correlate damage across locations per event.
+* Specify **peril correlation groups** for the perils covered in their model to either fully correlate damage from different perils, or make damage from different perils independent, at each location, per event.
+* For each peril correlation group, specify a default **global correlation factor** to correlate damage across locations per event.
 
 It enables users to vary the global correlation factors for each peril correlation group in the model as a runtime option.
 
@@ -114,7 +114,7 @@ If specified, the peril correlation group_id should be an integer starting from 
 
 In model settings, the covered perils for a model are currently specified within the ‘lookup_settings’ attribute, which could be extended to include the peril correlation group as follows;
 
-#### Example 1 - Tropical Cyclone with storm surge
+#### Example 1 - Tropical cyclone with storm surge
 
 ##### Model_settings.json
 
