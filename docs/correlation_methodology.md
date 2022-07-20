@@ -1,15 +1,15 @@
 Correlation methodology
 =======================
 
-# Overview 
+## Overview 
 This document explains the approach to modelling correlation within the Oasis model execution framework. This follows consultation with a steering group formed of model developers within reinsurance companies and brokers, and third-party commercial model providers.
 
 ## Introduction
 In large catastrophes, there is a tendency for losses across multiple locations to be correlated, meaning relatively high losses across locations or low losses across locations tend to occur together. The correlation is stronger the closer together the exposures are located. 
 
 Two main reasons why this would be the case for buildings situated close together are;
-• They experience similar a hazard intensity in an event; flood depth, windspeed etc.
-• They have similar vulnerability characteristics (such being built by the same developer) and similar modes of failure/types of damage given the hazard intensity.
+* They experience similar a hazard intensity in an event; flood depth, windspeed etc.
+* They have similar vulnerability characteristics (such being built by the same developer) and similar modes of failure/types of damage given the hazard intensity.
 
 Correlation increases the range of potential claims at a portfolio level and particularly for large, rare events, a model can significantly underestimate uncertainty and extreme losses if this correlation is not captured. It is therefore desirable to allow modellers and users the ability to express views on the degree of spatial correlation in Oasis so that the effect on portfolio risk can be modelled.
 
@@ -20,12 +20,13 @@ The effective damage distribution is a probabilistic summation of all possible l
 
 The approach to sampling correlated losses described here involves generating correlated random numbers that are used to sample a damage factor from each building’s effective damage distribution, i.e., from the secondary uncertainty distribution around a mean value, per peril.  The correlation factor represents a mixture of the two sources of correlation described above (which may therefore be harder to specify than if the two sources of correlation were modelled separately). 
 
+#### Random sampling of two effective damage distributions with similar (left) and different (right) random numbers
 ![alt text](sampling-charts.jpg "Random sampling of two effective damage distributions with similar (left) and different (right) random numbers.")
 
 How correlated the resulting damage samples will be depends on the following factors;
 
-• How high the correlation factor is (how close together the uniform random numbers tend to be)
-• How similar the effective damage distributions are. This is driven both by the hazard correlation (e.g., similar probability of hazard/chance of loss) and by vulnerability correlation (similar shaped conditional damage distributions).
+* How high the correlation factor is (how close together the uniform random numbers tend to be)
+* How similar the effective damage distributions are. This is driven both by the hazard correlation (e.g., similar probability of hazard/chance of loss) and by vulnerability correlation (similar shaped conditional damage distributions).
 
 ## Scope
 Only correlation within the context of a single event is considered, there is no attempt to correlate losses between events over time or take physical conditions into account prior to the event.
@@ -46,13 +47,13 @@ The group_id is generated using a hashing function based on information from the
 
 An item group by default represents a single physical risk with one or more coverages and perils at a location, unless;
 
-• specified differently in model settings json (e.g., group by areaperil, group by postcode, etc.) 
-• overridden by the user through the CorrelationGroup field in the OED location file
-• the risk is disaggregated and multiple subrisks are assigned the same group_id
+* specified differently in model settings json (e.g., group by areaperil, group by postcode, etc.) 
+* overridden by the user through the CorrelationGroup field in the OED location file
+* the risk is disaggregated and multiple subrisks are assigned the same group_id (using the exposure pre-analysis options)
 
 All items that share the same group_id are fully correlated, meaning that the same random number is used to sample loss from the respective effective damage cdfs. This includes multiple coverages and perils of a single physical risk, and multiple coverages and perils of multiple subrisks (in the case of disaggregated risks for example, or generally whenever the group_id is set to represent multiple physical risks).
 
-### Example item groups for two physical risks
+#### Example item groups for two physical risks
 
 | Item_id | Peril code   |  Coverage   | Location     | Group_id     |
 |:--------|--------------|-------------| -------------|-------------:|
@@ -68,11 +69,11 @@ All items that share the same group_id are fully correlated, meaning that the sa
 Note that the group_id values are arbitrary because they are generated from a hashing function.
 
 In this example;
-• Item_ids 1-4 are fully correlated
-• Item_ids 5-8 are fully correlated
-• Group_id 567 items are fully independent from group_id 123 items.
+* Item_ids 1-4 are fully correlated
+* Item_ids 5-8 are fully correlated
+* Group_id 567 items are fully independent from group_id 123 items.
 
-### Example item group for a disaggregated risk with two sub-risks
+#### Example item group for a disaggregated risk with two sub-risks
 
 | Item_id | Peril code   |  Coverage   | Location     | Group_id     | Subrisk |
 |:--------|--------------|-------------| -------------|--------------|--------:|
@@ -96,7 +97,7 @@ Note that disaggregation may be performed using the exposure_pre_analysis option
 This functionality builds on the existing functionality and enables model developers to;
 
 • Specify **peril correlation groups** for the perils covered in their model to either fully correlate damage from different perils, or make damage from different perils independent, at each location, per event.
-• For each peril correlation group, specify a default global correlation factor to correlate damage across locations per event.
+• For each peril correlation group, specify a default **global correlation factor** to correlate damage across locations per event.
 
 It enables users to vary the global correlation factors for each peril correlation group in the model as a runtime option.
 
@@ -106,8 +107,8 @@ A peril is represented by an OED single peril code and a group of perils is one 
 
 Peril correlation group and factors are specified in model settings and used to; 
 
-1) seed a set of random numbers for each peril correlation group which are independent of each other
-2) set a correlation factor among item groups within each peril group. 
+* seed a set of random numbers for each peril correlation group which are independent of each other
+* set a correlation factor among item groups within each peril group. 
 
 If specified, the peril correlation group_id should be an integer starting from 1 and it will be used as part of the hashing function to generate the item group_ids. A group_id will therefore be distinct for each item group and a peril correlation group.
 
@@ -176,7 +177,7 @@ This means that;
 1)  river flood, flash flood and storm surge losses for a particular physical risk are fully correlated (because they belong to the same peril correlation group). 
 2)  the correlation across all locations (item groups) is 0.5
 
-##### Example 2 item group data
+#### Example 2 item group data
 
 | Item_id | Peril code   |  Coverage   | Location     | Group_id     |
 |:--------|--------------|-------------| -------------|-------------:|
@@ -198,7 +199,7 @@ This means that;
 * Item_ids 7,8,9,10,11,12 are fully correlated
 * Group_id 65 items are 50% correlated with group_id 12 items
 
-### Correlation options for the user **Not implemented**
+### Correlation options for the user (**not implemented**)
 
 The user can override correlation factors for each peril correlation group by mirroring the correlation settings in the model settings and changing the factors either directly in the analysis settings json in the MDK or through UI options.
 
@@ -226,13 +227,9 @@ For each event, sample j and group_id ik (ik = i locations times k peril groups)
 
 The dependent variable Z_ijk  ~ N(0,1) for peril correlation group k, sample j and group_id ik is
 
-```
-Z_ijk=Y_jk √(ρ_k )+X_ijk √(〖1-ρ〗_k )
-```
+![alt text](eqn1.jpg "One factor Gaussian copula")
+
 Where ρ_k is the input correlation factor for peril correlation group k.
 
 The normal inverse function is used to transform independent uniform random numbers generated from the chosen RNG function (Mersenne Twister / Latin Hypercube) into the normally distributed random variables, X_ijk and Y_jk. The cumulative normal distribution function is used to transform the dependent normally distributed Z_ijk values to the uniform distribution, which are the correlated uniform random numbers to use for damage interpolation of the cdf.
 
-
-
- within the [PiWind](https://github.com/OasisLMF/OasisPiWind/blob/master/OpenExposureData/Docs/OpenExposureData_Spec.xlsx) 
