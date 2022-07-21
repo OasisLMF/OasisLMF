@@ -374,7 +374,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
-            peril_filter = self._get_peril_filter(analysis_settings)
+            peril_filter = self._get_peril_filter(self.analysis_settings)
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
