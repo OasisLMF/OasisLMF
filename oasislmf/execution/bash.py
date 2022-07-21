@@ -1630,7 +1630,6 @@ def create_bash_analysis(
     max_process_id,
     num_reinsurance_iterations,
     fifo_tmp_dir,
-    gul_legacy_stream,
     bash_trace,
     filename,
     _get_getmodel_cmd,
@@ -1673,6 +1672,7 @@ def create_bash_analysis(
     gulpy_random_generator,
     model_py_server,
     peril_filter,
+    gul_legacy_stream=False,
     **kwargs
 ):
 
