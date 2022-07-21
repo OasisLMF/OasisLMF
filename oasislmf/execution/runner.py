@@ -23,6 +23,7 @@ def run(analysis_settings,
         custom_gulcalc_cmd=None,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
+        gul_legacy_stream=False,
         **kwargs
 ):
 
@@ -55,6 +56,7 @@ def run(analysis_settings,
             def custom_get_getmodel_cmd(
                 number_of_samples,
                 gul_threshold,
+                gul_legacy_stream,
                 use_random_number_file,
                 coverage_output,
                 item_output,
