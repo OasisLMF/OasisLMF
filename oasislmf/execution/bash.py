@@ -1355,6 +1355,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             max_process_id,
             gul_alloc_rule,
             stderr_guard,
+            gul_legacy_stream=False,
             **kwargs
         ):
             cmd = "{} -e {} {} -a {} -p {}".format(
