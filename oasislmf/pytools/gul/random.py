@@ -81,14 +81,15 @@ HASH_MOD_CODE = np.int64(2147483648)
 
 @njit(cache=True, fastmath=True)
 def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, base_seed=0):
-    """Generate hash for an `event_id`.
+    """Generate hashes for all peril correlation groups for a given `event_id`.
 
     Args:
+        unique_peril_correlation_groups (List[int]): list of the unique peril correlation groups.
         event_id (int): event id.
         base_seed (int, optional): base random seed. Defaults to 0.
 
     Returns:
-        int64: hash
+        List[int64]: hashes
     """
     Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
     correlated_hashes = np.empty(Nperil_correlation_groups + 1, dtype='int64')
@@ -139,6 +140,10 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
     Args:
         seeds (List[int64]): List of seeds.
         n (int): number of random samples to generate for each seed.
+        skip_seeds (int): number of seeds to skip starting from the beginning
+          of the `seeds` array. For skipped seeds no random numbers are generated
+          and the output rndms will contain zeros at their corresponding row.
+          Default is 0, i.e. no seeds are skipped.
 
     Returns:
         rndms (array[float]): 2-d array of shape (number of seeds, n) 
@@ -174,6 +179,10 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
           containing the random values generated for each seed.
         rndms_idx (Dict[int64, int]): mapping between `seed` and the 
           row in rndms that stores the corresponding random values.
+        skip_seeds (int): number of seeds to skip starting from the beginning
+          of the `seeds` array. For skipped seeds no random numbers are generated
+          and the output rndms will contain zeros at their corresponding row.
+          Default is 0, i.e. no seeds are skipped.
 
     Notes:
         Implementation follows scipy.stats.qmc.LatinHypercube v1.8.0.
