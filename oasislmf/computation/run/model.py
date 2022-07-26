@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import os
+import subprocess
 from tqdm import tqdm
 
 from ..base import ComputationStep
@@ -37,6 +38,31 @@ class RunModel(ComputationStep):
         ExposurePreAnalysis,
     ]
 
+    _analysis_settings = {}
+    _runtypes = ['gul', 'il', 'ri']
+
+
+    def __check_for_parquet_output(self):
+        """
+        Private method to check whether ktools components were linked to third
+        party parquet libraries during compilation if user requests parquet
+        output.
+        """
+        for runtype in self._runtypes:
+            for summary in self._analysis_settings.get(f'{runtype}_summaries'):
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    katparquet_output = subprocess.run(
+                        ['katparquet', '-v'],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
+                    )
+                    if not 'Parquet output enabled' in katparquet_output.stderr.decode():
+                        raise OasisException(
+                            'Parquet output format requested but not supported by ktools components. '
+                            'Please set "parquet_format" to false in analysis settings file.'
+                        )
+                    return   # Only need to find a single request
+
 
     def pre_analysis_kwargs(self):
         updated_inputs = {}
@@ -64,11 +90,12 @@ class RunModel(ComputationStep):
         self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
 
         # Validate JSON files (Fail at entry point not after input generation)
-        get_analysis_settings(self.analysis_settings_json)
+        self._analysis_settings = get_analysis_settings(self.analysis_settings_json)
+        self.__check_for_parquet_output()
         if self.model_settings_json:
             get_model_settings(self.model_settings_json)
 
-        # Check input expsoure
+        # Check input exposure
         required_ri_paths = [self.oed_info_csv, self.oed_scope_csv]
         il = True if self.oed_accounts_csv else False
         ri = all(required_ri_paths) and il
