@@ -49,7 +49,7 @@ class RunModel(ComputationStep):
         output.
         """
         for runtype in self._runtypes:
-            for summary in self._analysis_settings.get(f'{runtype}_summaries'):
+            for summary in self._analysis_settings.get(f'{runtype}_summaries', {}):
                 if summary.get('ord_output', {}).get('parquet_format'):
                     katparquet_output = subprocess.run(
                         ['katparquet', '-v'],
