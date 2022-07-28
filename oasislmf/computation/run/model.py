@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import os
+import subprocess
 from tqdm import tqdm
 
 from ..base import ComputationStep
@@ -68,7 +69,7 @@ class RunModel(ComputationStep):
         if self.model_settings_json:
             get_model_settings(self.model_settings_json)
 
-        # Check input expsoure
+        # Check input exposure
         required_ri_paths = [self.oed_info_csv, self.oed_scope_csv]
         il = True if self.oed_accounts_csv else False
         ri = all(required_ri_paths) and il
