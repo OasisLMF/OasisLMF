@@ -255,7 +255,7 @@ class GenerateFiles(ComputationStep):
 
         # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
-            write_summary_levels(location_df, self.oed_location_csv, target_dir)
+            write_summary_levels(location_df, self.oed_accounts_csv, target_dir)
 
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
