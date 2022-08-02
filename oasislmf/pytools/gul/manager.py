@@ -125,7 +125,7 @@ def generate_item_map(items, coverages):
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
-        random_generator, peril_filter=[], file_in=None, file_out=None, correlated=False, **kwargs):
+        random_generator, peril_filter=[], file_in=None, file_out=None, ignore_correlation=False, **kwargs):
     """Execute the main gulpy worklow.
 
     Args:
@@ -139,6 +139,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         random_generator (int): random generator function id.
         file_in (str, optional): filename of input stream. Defaults to None.
         file_out (str, optional): filename of output stream. Defaults to None.
+        ignore_correlation (bool): if True, do not compute correlated random samples.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, or 2.
@@ -224,11 +225,21 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create the array to store the seeds
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
-        logger.info(f"Correlated random number generation: switched {'ON' if correlated else 'OFF'}")
-        if correlated:
-            file_path = os.path.join(input_path, 'correlations.bin')
-            data = CorrelationsData.from_bin(file_path=file_path).data
-            Nperil_correlation_groups = len(data)
+        file_path = os.path.join(input_path, 'correlations.bin')
+        data = CorrelationsData.from_bin(file_path=file_path).data
+        Nperil_correlation_groups = len(data)
+        logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
+
+        if Nperil_correlation_groups == 0:
+            ignore_correlation = True
+            logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected.")
+
+        else:
+            if ignore_correlation:
+                logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
+
+        if not ignore_correlation:
+            logger.info(f"Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
             corr_data_by_item_id[0] = (0, 0.)
@@ -273,7 +284,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
-            if correlated:
+            if not ignore_correlation:
                 corr_seeds = generate_correlated_hash_vector(unique_peril_correlation_groups, event_id)
                 eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
 
@@ -287,7 +298,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, correlated, rndms_base, eps_ij, corr_data_by_item_id,
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, ignore_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                     arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
                     GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
                 )
@@ -304,7 +315,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
-                         loss_threshold, losses, alloc_rule, correlated, rndms_base, eps_ij, corr_data_by_item_id,
+                         loss_threshold, losses, alloc_rule, ignore_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                          z_unif, debug, buff_size, int32_mv, cursor):
     """Compute losses for an event.
@@ -323,6 +334,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for all item_ids.
         alloc_rule (int): back-allocation rule.
+        ignore_correlation (bool): if True, do not compute correlated random samples.
         rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed.
         debug (bool): if True, for each random sample, print to the output stream the random value
@@ -374,7 +386,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
-                if correlated:
+                if not ignore_correlation:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
                     peril_correlation_group = item_corr_data['peril_correlation_group']
                     rho = item_corr_data['correlation_value']

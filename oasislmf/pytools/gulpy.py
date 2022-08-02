@@ -12,10 +12,9 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
-parser.add_argument('-c', '--correlated',
-                    help='[EXPERIMENTAL] if passed, uses peril correlation groups to produce '
-                         'correlated samples for items within the same peril correlation group',
-                    action='store_true', dest='correlated', default=False)
+parser.add_argument('--ignore-correlation',
+                    help='if passed, peril correlation groups (if defined) are ignored for the generation of correlated samples',
+                    action='store_true', dest='ignore_correlation', default=False)
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
 parser.add_argument('-i', '--file-in', help='filename of input stream.', action='store', type=str, dest='file_in')
