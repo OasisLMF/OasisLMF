@@ -35,22 +35,6 @@ def generate_hash(group_id, event_id, base_seed=0):
     return hash
 
 
-@njit(cache=True, fastmath=True)
-def generate_correlated_hash(event_id, base_seed=0):
-    """Generate hash for an `event_id`.
-
-    Args:
-        event_id (int): event id.
-        base_seed (int, optional): base random seed. Defaults to 0.
-
-    Returns:
-        int64: hash
-    """
-    hash = (base_seed + (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
-
-    return hash
-
-
 def get_random_generator(random_generator):
     """Get the random generator function.
 
