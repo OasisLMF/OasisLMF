@@ -51,7 +51,7 @@ def get_gul_input_items(
     keys_df,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id'],
-    hash_group_ids=False
+    hashed_group_id=True
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -317,7 +317,7 @@ def get_gul_input_items(
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
 
-    elif hash_group_ids is False:
+    elif hashed_group_id is False:
 
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
@@ -331,7 +331,7 @@ def get_gul_input_items(
                 gul_inputs_df[group_id_cols[0]].values
             )[0]
 
-    # this block gets fired if the hash_group_ids is True
+    # this block gets fired if the hashed_group_id is True
     else:
         gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols]).to_numpy() >> 33)
 
@@ -446,7 +446,6 @@ def write_gul_input_files(
     output_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     chunksize=(2 * 10 ** 5),
-    hashed_item_id=False
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -503,10 +502,5 @@ def write_gul_input_files(
     # Write the files serially
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
-
-    # if hashed_item_id is True:
-    #     input_file = gul_input_files["items"]
-    #     input_directory = "/".join(input_file.split("/")[:-1]) + "/"
-    #     convert_item_csv_to_hash(input_directory=input_directory)
 
     return gul_input_files
