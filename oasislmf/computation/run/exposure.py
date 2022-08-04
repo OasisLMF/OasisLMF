@@ -54,9 +54,10 @@ class RunExposure(ComputationStep):
         {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',     'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'stream_type',          'flag':'-t', 'default': 2,  'type':int,  'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
+        {"name": "hashed_group_id", "type": str2bool, "const": False, 'nargs': '?',  "default": False, "help": "Hashes the group_id in the items.bin"},
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
-        {'name': 'print_summary', 'default': True},
+        {'name': 'print_summary', 'default': True}
     ]
 
     def _check_alloc_rules(self):
@@ -120,6 +121,7 @@ class RunExposure(ComputationStep):
             oed_info_csv=ri_info_fp,
             oed_scope_csv=ri_scope_fp,
             keys_data_csv=keys_fp,
+            hashed_group_id=self.hashed_group_id,
         ).run()
 
         # 3. Run Deterministic Losses
