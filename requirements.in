@@ -4,7 +4,7 @@
 configparser>=3.5.0
 coverage
 discover
-flake8
+flake8<=5.0.1
 freezegun
 future
 hypothesis
