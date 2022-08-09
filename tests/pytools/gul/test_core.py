@@ -4,7 +4,7 @@ This file tests gul/core.py functionality
 from unittest import main, TestCase
 import numpy as np
 
-from oasislmf.pytools.gul.core import split_tiv_classic
+from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative
 
 
 class TestGulpyCore(TestCase):
@@ -31,7 +31,7 @@ class TestGulpyCore(TestCase):
         split_tiv_classic(gulitems, tiv)
         np.testing.assert_array_almost_equal(gulitems_orig * tiv / np.sum(gulitems_orig), gulitems, decimal=1e-14)
 
-    def test_split_tiv_fractional(self) -> None:
+    def test_split_tiv_multiplicative(self) -> None:
         # WIP
         pass
 

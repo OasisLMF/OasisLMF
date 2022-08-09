@@ -97,14 +97,14 @@ def setmaxloss(losses):
 
 
 @njit(cache=True, fastmath=True)
-def split_tiv(gulitems, tiv):
+def split_tiv_classic(gulitems, tiv):
     """Split the total insured value (TIV). If the total loss of all the items
     in `gulitems` exceeds the total insured value, re-scale the losses in the
     same proportion to the losses.
 
     Args:
         gulitems (numpy.array[oasis_float]): array containing losses of all items.
-        tiv (oasis_float): total insured value,
+        tiv (oasis_float): total insured value.
     """
     total_loss = np.sum(gulitems)
 
@@ -114,6 +114,32 @@ def split_tiv(gulitems, tiv):
         for j in range(gulitems.shape[0]):
             # editing in-place the np array
             gulitems[j] *= f
+
+
+@njit(cache=True, fastmath=True)
+def split_tiv_multiplicative(gulitems, tiv):
+    """Split the total insured value (TIV). If the total loss of all the items
+    in `gulitems` exceeds the total insured value, re-scale the losses in the
+    same proportion to the losses.
+
+    Args:
+        gulitems (numpy.array[oasis_float]): array containing losses of all items.
+        tiv (oasis_float): total insured value.
+    TODO: update docstring
+    """
+    total_loss = 1.
+    for i in range(len(gulitems.shape[0])):
+        total_loss *= 1. - gulitems[i] / tiv
+
+    total_loss = 1. - total_loss
+    total_loss *= tiv
+
+    # if total_loss > tiv:
+    f = tiv / total_loss
+
+    for j in range(gulitems.shape[0]):
+        # editing in-place the np array
+        gulitems[j] *= f
 
 
 @njit(cache=True, fastmath=True)

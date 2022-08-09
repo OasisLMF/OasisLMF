@@ -25,7 +25,7 @@ from oasislmf.pytools.gul.io import (
     write_sample_rec, read_getmodel_stream
 )
 from oasislmf.pytools.gul.random import get_random_generator
-from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
+from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 
@@ -385,11 +385,19 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
         losses[1:] = setmaxloss(losses[1:])
 
     # split tiv has to be executed after setmaxloss, if alloc_rule==2.
-    if alloc_rule >= 1 and tiv > 0:
-        # check whether the sum of losses-per-sample exceeds TIV
-        # if so, split TIV in proportion to the losses
-        for sample_i in range(1, losses.shape[0]):
-            split_tiv(losses[sample_i], tiv)
+    if tiv > 0:
+        if alloc_rule in [1, 2]:
+            # check whether the sum of losses-per-sample exceeds TIV
+            # if so, split TIV in proportion to the losses
+            for sample_i in range(1, losses.shape[0]):
+                split_tiv_classic(losses[sample_i], tiv)
+
+        else:
+            # alloc_rule == 3
+            # check whether the sum of losses-per-sample exceeds TIV
+            # if so, split TIV in proportion to the losses
+            for sample_i in range(1, losses.shape[0]):
+                split_tiv_multiplicative(losses[sample_i], tiv)
 
     # output the losses for all the items
     for item_j in range(item_ids.shape[0]):
