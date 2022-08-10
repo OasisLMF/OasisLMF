@@ -103,7 +103,7 @@ class APISession(Session):
             if http_err_code in [502, 503, 504]:
                 error = "HTTP {}".format(http_err_code)
                 return True
-            elif http_err_code in [401]:
+            elif http_err_code in [401, 403]:
                 if self.tkn_refresh is not None:
                     self.logger.debug(f"requesting refresh token")
                     self._refresh_token()
