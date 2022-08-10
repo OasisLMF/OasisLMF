@@ -392,8 +392,7 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
             for sample_i in range(1, losses.shape[0]):
                 split_tiv_classic(losses[sample_i], tiv)
 
-        else:
-            # alloc_rule == 3
+        elif alloc_rule == 3:
             # check whether the sum of losses-per-sample exceeds TIV
             # if so, split TIV in proportion to the losses
             for sample_i in range(1, losses.shape[0]):
