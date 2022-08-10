@@ -146,7 +146,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-
     damage_bins = get_damage_bins(static_path)
 
     # read coverages from file
@@ -160,7 +159,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
     else:
         valid_area_peril_id = None
-
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
@@ -273,7 +271,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         buff_size (int): size in bytes of the output buffer.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        
+
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
@@ -382,7 +380,6 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
     if alloc_rule == 2:
         losses[1:] = setmaxloss(losses[1:])
 
-    # split tiv has to be executed after setmaxloss, if alloc_rule==2.
     if tiv > 0:
         # check whether the sum of losses-per-sample exceeds TIV
         # if so, split TIV in proportion to the losses
