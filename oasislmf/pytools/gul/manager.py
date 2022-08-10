@@ -379,23 +379,22 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
     Returns:
         int: updated values of cursor
     """
-    # note that Nsamples = sample_size + NUM_IDX
-
     if alloc_rule == 2:
         losses[1:] = setmaxloss(losses[1:])
 
     # split tiv has to be executed after setmaxloss, if alloc_rule==2.
     if tiv > 0:
+        # check whether the sum of losses-per-sample exceeds TIV
+        # if so, split TIV in proportion to the losses
+
         if alloc_rule in [1, 2]:
-            # check whether the sum of losses-per-sample exceeds TIV
-            # if so, split TIV in proportion to the losses
-            for sample_i in range(1, losses.shape[0]):
+            # loop over all positive sidx samples
+            for sample_i in range(1, losses.shape[0] - 5):
                 split_tiv_classic(losses[sample_i], tiv)
 
         elif alloc_rule == 3:
-            # check whether the sum of losses-per-sample exceeds TIV
-            # if so, split TIV in proportion to the losses
-            for sample_i in range(1, losses.shape[0]):
+            # loop over all positive sidx samples
+            for sample_i in range(1, losses.shape[0] - 5):
                 split_tiv_multiplicative(losses[sample_i], tiv)
 
     # output the losses for all the items

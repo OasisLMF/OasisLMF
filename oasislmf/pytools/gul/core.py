@@ -127,17 +127,13 @@ def split_tiv_multiplicative(gulitems, tiv):
         gulitems (numpy.array[oasis_float]): array containing losses of all items.
         tiv (oasis_float): total insured value.
     """
-    # gulitems are in tiv units, so it's faster to use a `scale` factor rather than
-    # computing ratios for all gulitems
     Ngulitems = gulitems.shape[0]
-    scale = tiv**Ngulitems
     total_loss = 1.
     for i in range(Ngulitems):
-        total_loss *= tiv - gulitems[i]
+        total_loss *= 1. - gulitems[i] / tiv
 
-    total_loss = scale - total_loss
-    total_loss *= tiv / scale
-
+    total_loss = 1. - total_loss
+    total_loss *= tiv
     if total_loss > 0.:
         # back-allocate proportionally in any case (i.e., not only if total_loss > tiv)
         f = tiv / total_loss
