@@ -128,15 +128,17 @@ def split_tiv_multiplicative(gulitems, tiv):
         tiv (oasis_float): total insured value.
     """
     Ngulitems = gulitems.shape[0]
-    total_loss = 1.
+    undamaged_value = 1.
+    sum_loss = 0.
     for i in range(Ngulitems):
-        total_loss *= 1. - gulitems[i] / tiv
+        undamaged_value *= 1. - gulitems[i] / tiv
+        sum_loss += gulitems[i]
 
-    total_loss = 1. - total_loss
-    total_loss *= tiv
-    if total_loss > 0.:
+    multiplicative_loss = tiv * (1. - undamaged_value)
+
+    if sum_loss > 0.:
         # back-allocate proportionally in any case (i.e., not only if total_loss > tiv)
-        f = tiv / total_loss
+        f = multiplicative_loss / sum_loss
 
         for j in range(Ngulitems):
             # editing in-place the np array

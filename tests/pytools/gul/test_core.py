@@ -46,8 +46,8 @@ class TestGulpyCore(TestCase):
         assert np.sum(gulitems_orig) < tiv
         gulitems = gulitems_orig.copy()
         split_tiv_multiplicative(gulitems, tiv)
-        total_loss = tiv * (1. - np.prod(1 - gulitems_orig / tiv))
-        expected_gulitems = gulitems_orig * (tiv / total_loss)
+        multiplicative_loss = tiv * (1. - np.prod(1. - gulitems_orig / tiv))
+        expected_gulitems = gulitems_orig * (multiplicative_loss / np.sum(gulitems_orig))
         np.testing.assert_array_almost_equal(expected_gulitems, gulitems, decimal=1e-14)
 
 

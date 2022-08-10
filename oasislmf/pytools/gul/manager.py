@@ -389,12 +389,12 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
 
         if alloc_rule in [1, 2]:
             # loop over all positive sidx samples
-            for sample_i in range(1, losses.shape[0] - 5):
+            for sample_i in range(1, losses.shape[0]):
                 split_tiv_classic(losses[sample_i], tiv)
 
         elif alloc_rule == 3:
             # loop over all positive sidx samples
-            for sample_i in range(1, losses.shape[0] - 5):
+            for sample_i in range(1, losses.shape[0]):
                 split_tiv_multiplicative(losses[sample_i], tiv)
 
     # output the losses for all the items
