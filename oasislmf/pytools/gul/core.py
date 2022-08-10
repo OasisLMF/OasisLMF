@@ -118,28 +118,33 @@ def split_tiv_classic(gulitems, tiv):
 
 @njit(cache=True, fastmath=True)
 def split_tiv_multiplicative(gulitems, tiv):
-    """Split the total insured value (TIV). If the total loss of all the items
-    in `gulitems` exceeds the total insured value, re-scale the losses in the
-    same proportion to the losses.
+    """Split the total insured value (TIV) using a multiplicative formula for the
+    total loss as tiv * (1 - (1-A)*(1-B)*(1-C)...), where A, B, C are damage ratios
+    computed as the ratio between a sub-peril loss and the tiv. Sub-peril losses
+    in gulitems are always back-allocated proportionally to the losses.
 
     Args:
         gulitems (numpy.array[oasis_float]): array containing losses of all items.
         tiv (oasis_float): total insured value.
-    TODO: update docstring
     """
+    # gulitems are in tiv units, so it's faster to use a `scale` factor rather than
+    # computing ratios for all gulitems
+    Ngulitems = gulitems.shape[0]
+    scale = tiv**Ngulitems
     total_loss = 1.
-    for i in range(len(gulitems.shape[0])):
-        total_loss *= 1. - gulitems[i] / tiv
+    for i in range(Ngulitems):
+        total_loss *= tiv - gulitems[i]
 
-    total_loss = 1. - total_loss
-    total_loss *= tiv
+    total_loss = scale - total_loss
+    total_loss *= tiv / scale
 
-    # if total_loss > tiv:
-    f = tiv / total_loss
+    if total_loss > 0.:
+        # back-allocate proportionally in any case (i.e., not only if total_loss > tiv)
+        f = tiv / total_loss
 
-    for j in range(gulitems.shape[0]):
-        # editing in-place the np array
-        gulitems[j] *= f
+        for j in range(Ngulitems):
+            # editing in-place the np array
+            gulitems[j] *= f
 
 
 @njit(cache=True, fastmath=True)

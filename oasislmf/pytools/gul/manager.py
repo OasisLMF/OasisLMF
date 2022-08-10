@@ -209,8 +209,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
-        if alloc_rule not in [0, 1, 2]:
-            raise ValueError(f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}")
+        if alloc_rule not in [0, 1, 2, 3]:
+            raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
 
         cursor = 0
         cursor_bytes = 0
