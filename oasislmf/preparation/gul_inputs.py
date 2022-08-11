@@ -279,7 +279,7 @@ def get_gul_input_items(
 
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
-    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index()
+    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index(drop=True, inplace=True)
     # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
@@ -333,10 +333,7 @@ def get_gul_input_items(
 
     # this block gets fired if the hash_group_ids is True
     else:
-        para_chain = gul_inputs_df.drop_duplicates(subset=group_id_cols).reset_index(drop=True)
-        para_chain["group_id"] = pd.util.hash_pandas_object(para_chain[group_id_cols])
-        para_chain = para_chain[group_id_cols + ["group_id"]]
-        gul_inputs_df = pd.merge(gul_inputs_df, para_chain, how='left', left_on=group_id_cols, right_on=group_id_cols)
+        gul_inputs_df["group_id"] = pd.util.hash_pandas_object(gul_inputs_df[group_id_cols])
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
