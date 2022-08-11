@@ -389,15 +389,20 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             if sample_size > 0:
                 if not ignore_correlation:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
-                    peril_correlation_group = item_corr_data['peril_correlation_group']
                     rho = item_corr_data['correlation_value']
 
-                    get_corr_rval(
-                        eps_ij[peril_correlation_group], rndms_base[rng_index],
-                        rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
-                    )
-                    rndms = z_unif
+                    if rho > 0:
+                        peril_correlation_group = item_corr_data['peril_correlation_group']
+
+                        get_corr_rval(
+                            eps_ij[peril_correlation_group], rndms_base[rng_index],
+                            rho, arr_min, arr_max, arr_N, norm_inv_cdf,
+                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                        )
+                        rndms = z_unif
+
+                    else:
+                        rndms = rndms_base[rng_index]
 
                 else:
                     rndms = rndms_base[rng_index]
