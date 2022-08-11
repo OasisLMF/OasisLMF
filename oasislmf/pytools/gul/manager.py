@@ -33,7 +33,8 @@ from oasislmf.pytools.gul.random import (
     compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
 )
 
-from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
+from oasislmf.pytools.gul.random import get_random_generator
+from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 
@@ -216,8 +217,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
-        if alloc_rule not in [0, 1, 2]:
-            raise ValueError(f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}")
+        if alloc_rule not in [0, 1, 2, 3]:
+            raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
 
         cursor = 0
         cursor_bytes = 0
@@ -463,17 +464,22 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
     Returns:
         int: updated values of cursor
     """
-    # note that Nsamples = sample_size + NUM_IDX
-
     if alloc_rule == 2:
         losses[1:] = setmaxloss(losses[1:])
 
-    # split tiv has to be executed after setmaxloss, if alloc_rule==2.
-    if alloc_rule >= 1 and tiv > 0:
+    if tiv > 0:
         # check whether the sum of losses-per-sample exceeds TIV
         # if so, split TIV in proportion to the losses
-        for sample_i in range(1, losses.shape[0]):
-            split_tiv(losses[sample_i], tiv)
+
+        if alloc_rule in [1, 2]:
+            # loop over all positive sidx samples
+            for sample_i in range(1, losses.shape[0]):
+                split_tiv_classic(losses[sample_i], tiv)
+
+        elif alloc_rule == 3:
+            # loop over all positive sidx samples
+            for sample_i in range(1, losses.shape[0]):
+                split_tiv_multiplicative(losses[sample_i], tiv)
 
     # output the losses for all the items
     for item_j in range(item_ids.shape[0]):
