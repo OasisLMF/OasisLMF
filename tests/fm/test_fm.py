@@ -15,6 +15,7 @@ class FmAcceptanceTests(TestCase):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
         self.update_expected = False
         self.keep_output = True
+        self.hashed_group_id = False
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
@@ -35,6 +36,7 @@ class FmAcceptanceTests(TestCase):
                 num_subperils=subperils,
                 test_tolerance=0.001,
                 expected_output_dir=expected_dir,
+                hashed_group_id=self.hashed_group_id,
             )
 
         self.assertTrue(result)

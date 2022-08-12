@@ -39,6 +39,7 @@ from oasislmf.utils.data import (
     get_timestamp,
     get_utctimestamp,
     get_location_df,
+    PANDAS_DEFAULT_NULL_VALUES,
 )
 
 from oasislmf.utils.defaults import (
@@ -541,10 +542,12 @@ class TestGetDataframe(TestCase):
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES  else x)
             fp.close()
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
+
             for col, default in defaults.items():
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
