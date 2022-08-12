@@ -333,7 +333,7 @@ def get_gul_input_items(
 
     # this block gets fired if the hash_group_ids is True
     else:
-        gul_inputs_df["group_id"] = pd.util.hash_pandas_object(gul_inputs_df[group_id_cols])
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols], index=False).to_numpy() >> 33)
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
