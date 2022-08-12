@@ -39,6 +39,7 @@ from oasislmf.utils.data import (
     get_timestamp,
     get_utctimestamp,
     get_location_df,
+    PANDAS_DEFAULT_NULL_VALUES,
 )
 
 from oasislmf.utils.defaults import (
@@ -536,15 +537,70 @@ class TestGetDataframe(TestCase):
             'FloatCol': floats(min_value=1.0, allow_infinity=False)
         })
     )
+    @example(
+        data=[{'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'a',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan},
+        {'STR_COL': 'null',
+         'int_col': 1,
+         'FloatCol': 0.0,
+         'boolCol': True,
+         'null_col': np.nan}],
+       defaults={'STR_COL': 'A', 'int_col': 0, 'FloatCol': 1.0}
+   )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES  else x)
             fp.close()
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
+
             for col, default in defaults.items():
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
