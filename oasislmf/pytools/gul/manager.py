@@ -33,7 +33,8 @@ from oasislmf.pytools.gul.random import (
     compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
 )
 
-from oasislmf.pytools.gul.core import split_tiv, get_gul, setmaxloss, compute_mean_loss
+from oasislmf.pytools.gul.random import get_random_generator
+from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 
@@ -216,8 +217,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
-        if alloc_rule not in [0, 1, 2]:
-            raise ValueError(f"Expect alloc_rule to be 0 or 1 or 2, got {alloc_rule}")
+        if alloc_rule not in [0, 1, 2, 3]:
+            raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
 
         cursor = 0
         cursor_bytes = 0
@@ -225,20 +226,23 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create the array to store the seeds
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
-        file_path = os.path.join(input_path, 'correlations.bin')
-        data = CorrelationsData.from_bin(file_path=file_path).data
-        Nperil_correlation_groups = len(data)
-        logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
-
-        if Nperil_correlation_groups == 0:
-            ignore_correlation = True
-            logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected.")
+        do_correlation = False
+        if ignore_correlation:
+            logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
-            if ignore_correlation:
-                logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
+            file_path = os.path.join(input_path, 'correlations.bin')
+            data = CorrelationsData.from_bin(file_path=file_path).data
+            Nperil_correlation_groups = len(data)
+            logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
-        if not ignore_correlation:
+            if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
+                do_correlation = True
+            else:
+                logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                            "the correlation value is zero for all peril correlation groups.")
+
+        if do_correlation:
             logger.info(f"Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
@@ -284,7 +288,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
-            if not ignore_correlation:
+            if do_correlation:
                 corr_seeds = generate_correlated_hash_vector(unique_peril_correlation_groups, event_id)
                 eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
 
@@ -298,7 +302,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
-                    damage_bins, loss_threshold, losses_buffer, alloc_rule, ignore_correlation, rndms_base, eps_ij, corr_data_by_item_id,
+                    damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                     arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
                     GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
                 )
@@ -315,7 +319,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
-                         loss_threshold, losses, alloc_rule, ignore_correlation, rndms_base, eps_ij, corr_data_by_item_id,
+                         loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                          z_unif, debug, buff_size, int32_mv, cursor):
     """Compute losses for an event.
@@ -334,7 +338,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for all item_ids.
         alloc_rule (int): back-allocation rule.
-        ignore_correlation (bool): if True, do not compute correlated random samples.
+        do_correlation (bool): if True, compute correlated random samples.
         rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed.
         debug (bool): if True, for each random sample, print to the output stream the random value
@@ -386,17 +390,22 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
-                if not ignore_correlation:
+                if do_correlation:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
-                    peril_correlation_group = item_corr_data['peril_correlation_group']
                     rho = item_corr_data['correlation_value']
 
-                    get_corr_rval(
-                        eps_ij[peril_correlation_group], rndms_base[rng_index],
-                        rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                        arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
-                    )
-                    rndms = z_unif
+                    if rho > 0:
+                        peril_correlation_group = item_corr_data['peril_correlation_group']
+
+                        get_corr_rval(
+                            eps_ij[peril_correlation_group], rndms_base[rng_index],
+                            rho, arr_min, arr_max, arr_N, norm_inv_cdf,
+                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                        )
+                        rndms = z_unif
+
+                    else:
+                        rndms = rndms_base[rng_index]
 
                 else:
                     rndms = rndms_base[rng_index]
@@ -463,17 +472,22 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
     Returns:
         int: updated values of cursor
     """
-    # note that Nsamples = sample_size + NUM_IDX
-
     if alloc_rule == 2:
         losses[1:] = setmaxloss(losses[1:])
 
-    # split tiv has to be executed after setmaxloss, if alloc_rule==2.
-    if alloc_rule >= 1 and tiv > 0:
+    if tiv > 0:
         # check whether the sum of losses-per-sample exceeds TIV
         # if so, split TIV in proportion to the losses
-        for sample_i in range(1, losses.shape[0]):
-            split_tiv(losses[sample_i], tiv)
+
+        if alloc_rule in [1, 2]:
+            # loop over all positive sidx samples
+            for sample_i in range(1, losses.shape[0]):
+                split_tiv_classic(losses[sample_i], tiv)
+
+        elif alloc_rule == 3:
+            # loop over all positive sidx samples
+            for sample_i in range(1, losses.shape[0]):
+                split_tiv_multiplicative(losses[sample_i], tiv)
 
     # output the losses for all the items
     for item_j in range(item_ids.shape[0]):
