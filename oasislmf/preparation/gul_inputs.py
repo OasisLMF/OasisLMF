@@ -279,7 +279,7 @@ def get_gul_input_items(
 
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
-    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index(drop=True, inplace=True)
+    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index(drop=True)
     # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
