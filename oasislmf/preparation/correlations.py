@@ -43,8 +43,11 @@ def get_correlation_input_items(model_settings_path: str, gul_inputs_df: pd.Data
 
     Returns: (pd.DataFrame) the mapped data of correlations
     """
-    model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
-    correlation_map_df = map_data(data=model_settings_raw_data)
+    if model_settings_path == None:
+        correlation_map_df = None
+    else:
+        model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
+        correlation_map_df = map_data(data=model_settings_raw_data)
 
     if correlation_map_df is not None:
         gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
