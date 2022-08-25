@@ -347,6 +347,12 @@
                     "description": "Identifier for the event set file that is used for output calculations.",
                     "default": 1
                 },
+		"event_dict_set": {
+		    "type": "string",
+		    "title": "Event dict set file ID.",
+		    "description": "Identifier for the event dict set file that is used for output calculations.",
+		    "default": 1
+		},
                 "event_occurrence_id": {
                     "type": "string",
                     "title": "Event occurrence file ID.",
