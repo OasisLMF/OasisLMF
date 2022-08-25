@@ -328,6 +328,10 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
             # copy selected event set from static
             _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
 
+        # Prepare event_dict.bin
+        if os.path.exists(os.path.join(run_dir, 'static', 'event_dict.bin')) or model_settings.get('event_dict_set'):
+            _prepare_input_bin(run_dir, 'event_dict', model_settings, setting_key='event_dict_set', ri=ri)
+
         # Prepare quantile.bin
         if analysis_settings.get('quantiles'):
             # 1. Create quantile file from user input
