@@ -68,7 +68,7 @@ to perform the conversion. A date may be specified in ISO 8601 format (YYYY-MM-D
 currency_conversion_json: 
 ```json
 {
-  "currency_conversion_type": "DictBasedCurrencyRates",
+  "currency_conversion_type": "FxCurrencyRates",
   "datetime": "2018-10-10"
 }
 ```

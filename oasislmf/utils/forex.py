@@ -17,7 +17,10 @@ try:
         def get_rate(self, base_cur, dest_cur, date_obj=None):
             if date_obj is None:
                 date_obj = self.date_obj
-            return super().get_rate(base_cur, dest_cur, date_obj)
+            try:
+                return super().get_rate(base_cur, dest_cur, date_obj)
+            except RatesNotAvailableError as e:
+                raise OasisException("Issue retrieving rate, most probably the forex api is down") from e
 
 except ImportError:
     FxCurrencyRates = None
@@ -69,19 +72,19 @@ def manage_multiple_currency(oed_path, oed_df, reporting_currency, currency_rate
     currency_col = get_currency_col(oed_df)
     currencies = oed_df[currency_col].unique()
 
-    if not reporting_currency or currency_rate is None:
+    if not reporting_currency:
         if len(currencies) > 1:
-            raise OasisException(f"file {oed_path} contains multiple currencies,"
-                                 f"reporting_currency and currency_conversion_json are necessary to perform computation")
+            logger.warning(f"file {oed_path} contains multiple currencies, but no reporting_currency has been specified")
+
+    elif currency_rate is None:
+        if len(currencies) > 1 or currencies[0] != reporting_currency:
+            raise OasisException(f"currency_conversion_json is necessary to perform conversion of {oed_path} to {reporting_currency}")
 
     else:
         logs = []
         for cur in currencies:
             if cur != reporting_currency:
-                try:
-                    logs.append(f"{cur} => {reporting_currency}: rate of exchange {currency_rate.get_rate(cur, reporting_currency)}")
-                except RatesNotAvailableError as e:
-                    raise OasisException("Issue retrieving rate, most probably the forex api is down") from e
+                logs.append(f"{cur} => {reporting_currency}: rate of exchange {currency_rate.get_rate(cur, reporting_currency)}")
         if logs:
             logger.info(f"currency conversion for file {oed_path}:\n\t" + "\n\t".join(logs))
             convert_currency(oed_df, reporting_currency, currency_rate, ods_fields)
