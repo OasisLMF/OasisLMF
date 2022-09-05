@@ -230,6 +230,7 @@ class GenerateFiles(ComputationStep):
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
+            output_dir=self._get_output_dir(),
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
             hashed_group_id=self.hashed_group_id,

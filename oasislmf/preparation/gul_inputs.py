@@ -49,6 +49,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 def get_gul_input_items(
     exposure_df,
     keys_df,
+    output_dir,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=["PortNumber", "AccNumber", "LocNumber"],
     hashed_group_id=True
@@ -61,6 +62,9 @@ def get_gul_input_items(
 
     :param keys_df: Keys dataframe
     :type keys_df: pandas.DataFrame
+
+    :param output_dir: the output directory where input files are stored
+    :type output_dir: str
 
     :param exposure_profile: Exposure profile
     :type exposure_profile: dict
@@ -159,6 +163,20 @@ def get_gul_input_items(
         if col not in list(exposure_df.columns) + valid_oasis_group_cols:
             warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
             group_id_cols.remove(col)
+
+    # here we check to see if the correlation file is here, if it is then we need to add the "peril_correlation_group" to the valid_oasis_group_cols
+    peril_correlation_group = 'peril_correlation_group'
+    correlations_files = [
+        f"{output_dir}/correlations.csv",
+        f"{output_dir}/correlations.bin",
+    ]
+    for file_path in correlations_files:
+        if os.path.exists(path=file_path):
+            if peril_correlation_group not in group_id_cols:
+                group_id_cols.append(peril_correlation_group)
+            break
+
+
 
     # Should list of column names used to group_id be empty, revert to
     # default
