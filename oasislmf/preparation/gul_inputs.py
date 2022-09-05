@@ -153,6 +153,7 @@ def get_gul_input_items(
         'peril_id',
         'coverage_id',
         'coverage_type_id',
+        'peril_correlation_group'
     ]
     for col in group_id_cols:
         if col not in list(exposure_df.columns) + valid_oasis_group_cols:
