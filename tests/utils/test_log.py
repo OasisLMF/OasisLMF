@@ -116,7 +116,7 @@ class ReadLogConfig(TestCase):
                 'LOG_BACKUP_COUNT': 10,
             })
 
-            logger = logging.getLogger()
+            logger = logging.getLogger('oasislmf')
 
             self.assertEqual(level, logger.level)
 
@@ -137,7 +137,7 @@ class SetRotatingLogger(TestCase):
         with patch('logging.root', logging.RootLogger(logging.NOTSET)):
             set_rotating_logger(log_file_path=log_file_path, log_level=level, max_file_size=100, max_backups=10)
 
-            logger = logging.getLogger()
+            logger = logging.getLogger('oasislmf')
 
             self.assertEqual(level, logger.level)
 
