@@ -31,7 +31,7 @@ class ApiEndpoint(object):
     End points.
     """
     def __init__(self, session, url_endpoint, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.session = session
         self.url_endpoint = url_endpoint
 
@@ -61,7 +61,7 @@ class JsonEndpoint(object):
     Used for JSON data End points.
     """
     def __init__(self, session, url_endpoint, url_resource, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.session = session
         self.url_endpoint = url_endpoint
         self.url_resource = url_resource
@@ -107,7 +107,7 @@ class FileEndpoint(object):
     File Resources Endpoint for Upload / Downloading
     """
     def __init__(self, session, url_endpoint, url_resource, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         self.session = session
         self.url_endpoint = url_endpoint
@@ -357,7 +357,7 @@ class API_analyses(ApiEndpoint):
 
 class APIClient(object):
     def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))

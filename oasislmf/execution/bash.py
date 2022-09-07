@@ -9,7 +9,7 @@ import multiprocessing
 import string
 import logging
 from functools import partial
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 from collections import Counter
 

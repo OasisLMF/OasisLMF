@@ -13,6 +13,35 @@ from json.decoder import JSONDecodeError
 from argparse import ArgumentTypeError
 
 
+def update_config(config_data, config_map=get_config_profile()):
+        config = config_data.copy()
+        obsolete_keys = set(config) & set(config_map)
+        logger = logging.getLogger(__name__)
+
+        if obsolete_keys:
+            logger.warning('Deprecated key(s) in MDK config:')
+            for key in obsolete_keys:
+
+                # update key
+                if not config_map[key]['deleted']:
+                    logger.warning(f" '{key}' loaded as '{config_map[key]['updated_to']}'")
+                    config[config_map[key]['updated_to']] = config[key]
+                else:
+                    logger.warning(f" '{key}' deleted")
+                del config[key]
+        return config
+
+def has_oasis_env(name):
+    return f'OASIS_{name.upper()}' in os.environ
+
+def get_oasis_env(name, dtype=None, default=None):
+    env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
+    if dtype and env_var:
+        return dtype(env_var)
+    else:
+        return env_var
+
+
 class InputValues(object):
     """
     Helper class for accessing the input values from either
@@ -22,7 +51,7 @@ class InputValues(object):
 
     """
     def __init__(self, args, update_keys=True):
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.args = args
         self.config = {}
         self.config_fp = self.get('config', is_path=True)

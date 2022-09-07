@@ -10,7 +10,9 @@ import logging
 from logging import NullHandler
 
 logger = logging.getLogger(__name__)
-logger.addHandler(NullHandler())
+handler = NullHandler()
+handler.name='oasislmf'
+logger.addHandler(handler)
 
 
 class MyLoader(Loader):
