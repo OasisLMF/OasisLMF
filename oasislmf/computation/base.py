@@ -36,7 +36,7 @@ class ComputationStep:
          - check path existence (pre_exist)
          - create necessary directories (is_dir, is_path)
         """
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.kwargs = kwargs
         self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4))
 

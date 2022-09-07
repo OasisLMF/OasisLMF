@@ -72,15 +72,20 @@ class OasisBaseCommand(BaseCommand):
                 log_level = logging.INFO
                 log_format = '%(message)s'
 
-            logging.basicConfig(stream=sys.stdout, level=log_level, format=log_format)
-            self._logger = logging.getLogger()
+            logger = logging.getLogger('oasislmf')
+            ch = logging.StreamHandler(stream=sys.stdout)
+            ch.setFormatter(logging.Formatter(log_format))
+            logger.addHandler(ch)
+            logger.setLevel(log_level)
+            self._logger = logger
+
 
     @property
     def logger(self):
         if self._logger:
             return self._logger
 
-        return logging.getLogger()
+        return logging.getLogger('oasislmf')
 
 
 class OasisComputationCommand(OasisBaseCommand):
