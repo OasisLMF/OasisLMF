@@ -19,7 +19,7 @@ from argparse import ArgumentTypeError
 def update_config(config_data, config_map=get_config_profile()):
         config = config_data.copy()
         obsolete_keys = set(config) & set(config_map)
-        logger = logging.getLogger()
+        logger = logging.getLogger(__name__)
 
         if obsolete_keys:
             logger.warning('Deprecated key(s) in MDK config:')
@@ -54,7 +54,7 @@ class InputValues(object):
 
     """
     def __init__(self, args, update_keys=True):
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.args = args
         self.config = {}
         self.config_fp = self.get('config', is_path=True)

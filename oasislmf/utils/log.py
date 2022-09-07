@@ -37,14 +37,19 @@ def set_rotating_logger(
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    logger = logging.getLogger('oasislmf')
+    for handler in list(logger.handlers):
+        if handler.name == 'oasislmf':
+            logger.removeHandler(handler)
+            break
     handler = RotatingFileHandler(
         _log_fp,
         maxBytes=max_file_size,
         backupCount=max_backups
     )
-
-    logging.getLogger().setLevel(log_level)
-    logging.getLogger().addHandler(handler)
+    handler.name='oasislmf'
+    logging.getLogger('oasislmf').setLevel(log_level)
+    logging.getLogger('oasislmf').addHandler(handler)
     formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s")
 
@@ -64,11 +69,17 @@ def read_log_config(config_parser):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    logger = logging.getLogger('oasislmf')
+    for handler in list(logger.handlers):
+        if handler.name == 'oasislmf':
+            logger.removeHandler(handler)
+            break
     handler = RotatingFileHandler(
         log_file, maxBytes=log_max_size_in_bytes,
         backupCount=log_backup_count)
-    logging.getLogger().setLevel(log_level)
-    logging.getLogger().addHandler(handler)
+    handler.name = 'oasislmf'
+    logging.getLogger('oasislmf').setLevel(log_level)
+    logging.getLogger('oasislmf').addHandler(handler)
     formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
@@ -78,7 +89,7 @@ def oasis_log(*args, **kwargs):
     """
     Decorator that logs the entry, exit and execution time.
     """
-    logger = logging.getLogger()
+    logger = logging.getLogger('oasislmf')
 
     def actual_oasis_log(func):
         @wraps(func)
