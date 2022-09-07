@@ -9,10 +9,11 @@ import json
 import os
 from pathlib import Path
 
+from ods_tools import get_ods_fields, read_csv, read_parquet
+
 from .keys import GenerateKeys, GenerateKeysDeterministic
 from ..base import ComputationStep
 
-#from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ...preparation.oed import load_oed_dfs
 from ...preparation.dir_inputs import (
     create_target_directory,
@@ -36,6 +37,7 @@ from ...utils.defaults import (
     GROUP_ID_COLS,
     OASIS_FILES_PREFIXES,
     WRITE_CHUNKSIZE,
+    store_exposure_fp,
 )
 from ...preparation.gul_inputs import (
     get_gul_input_items,
@@ -72,6 +74,8 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
+
+from ...utils.forex import create_currency_rates, manage_multiple_currency
 from oasislmf.preparation.correlations import get_correlation_input_items
 
 
@@ -97,6 +101,8 @@ class GenerateFiles(ComputationStep):
         {'name': 'profile_loc_json',           'flag':'-e', 'is_path': True, 'pre_exist': True,  'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json',           'flag':'-b', 'is_path': True, 'pre_exist': True,  'help': 'Source (OED) accounts profile JSON path'},
         {'name': 'profile_fm_agg_json',        'flag':'-g', 'is_path': True, 'pre_exist': True,  'help': 'FM (OED) aggregation profile path'},
+        {'name': 'currency_conversion_json',                'is_path': True, 'pre_exist': True,  'help': 'settings to perform currency conversion of oed files'},
+        {'name': 'reporting_currency',                                                           'help': 'currency to use in the results reported'},
         {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
         {'name': 'oed_accounts_csv',           'flag':'-y', 'is_path': True, 'pre_exist': True,  'help': 'Source accounts CSV file path'},
         {'name': 'oed_info_csv',               'flag':'-i', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance info. CSV file path'},
@@ -123,6 +129,22 @@ class GenerateFiles(ComputationStep):
             return self.oasis_files_dir
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
+
+    @staticmethod
+    def update_multi_currency_oed_file(oed_fp, file_type, reporting_currency, currency_rate):
+        #  load and save location after currency change (only for loc as it is read in the key server)
+        if oed_fp.endswith(".parquet"):
+            location_df = read_parquet(oed_fp)
+        else:
+            location_df = read_csv(oed_fp, file_type=file_type)
+
+        currency_change = manage_multiple_currency(oed_fp, location_df, reporting_currency,
+                                                   currency_rate, get_ods_fields())
+        if currency_change:
+            if oed_fp.endswith(".parquet"):
+                location_df.to_parquet(oed_fp)
+            else:
+                location_df.to_csv(oed_fp, index=False)
 
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
@@ -172,8 +194,20 @@ class GenerateFiles(ComputationStep):
         if any(isinstance(lvl, str) for lvl in fm_aggregation_profile.keys()):
             fm_aggregation_profile = {int(k): v for k, v in fm_aggregation_profile.items()}
 
+        if self.currency_conversion_json:
+            currency_conversion = get_json(self.currency_conversion_json)
+            currency_conversion["root_dir"] = os.path.dirname(self.currency_conversion_json)
+            currency_rate = create_currency_rates(currency_conversion)
+        else:
+            currency_rate = None
+
+        #  load and save location after currency change
+        oed_location_csv = os.path.join(target_dir, store_exposure_fp(self.oed_location_csv, 'loc'))
+        self.update_multi_currency_oed_file(oed_location_csv, 'Loc', self.reporting_currency, currency_rate)
+        self.kwargs['oed_location_csv'] = oed_location_csv
+
         # Load Location file at a single point in the Generate files cmd
-        location_df = get_location_df(self.oed_location_csv, location_profile)
+        location_df = get_location_df(oed_location_csv, location_profile)
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
@@ -280,7 +314,12 @@ class GenerateFiles(ComputationStep):
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(gul_input_files, indent=4)))
             return gul_input_files
 
-        account_df = get_account_df(self.oed_accounts_csv, accounts_profile)
+        #  load and save account after currency change
+        oed_accounts_csv = os.path.join(target_dir, store_exposure_fp(self.oed_accounts_csv, 'acc'))
+        self.update_multi_currency_oed_file(oed_accounts_csv, 'Acc', self.reporting_currency, currency_rate)
+        self.kwargs['oed_accounts_csv'] = oed_accounts_csv
+
+        account_df = get_account_df(oed_accounts_csv, accounts_profile)
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
@@ -322,7 +361,14 @@ class GenerateFiles(ComputationStep):
             defaults={loc_grp: 1}
         ).sort_values(by='agg_id')
 
-        ri_info_df, ri_scope_df, _ = load_oed_dfs(self.oed_info_csv, self.oed_scope_csv)
+        #  load and save account after currency change
+        if os.path.exists(self.oed_info_csv):
+            oed_info_csv = os.path.join(target_dir, store_exposure_fp(self.oed_info_csv, 'info'))
+            self.update_multi_currency_oed_file(oed_info_csv, 'ReinsInfo', self.reporting_currency, currency_rate)
+            self.kwargs['oed_info_csv'] = oed_info_csv
+
+        ri_info_df, ri_scope_df, _ = load_oed_dfs(oed_info_csv, self.oed_scope_csv)
+
         ri_layers = write_files_for_reinsurance(
             gul_inputs_df,
             xref_descriptions_df,
