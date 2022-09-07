@@ -10,6 +10,7 @@ import os
 import sys
 import warnings
 from collections import OrderedDict
+from typing import List
 
 import pandas as pd
 
@@ -44,12 +45,61 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsDat
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+VALID_OASIS_GROUP_COLS = [
+        'item_id',
+        'peril_id',
+        'coverage_id',
+        'coverage_type_id',
+        'peril_correlation_group'
+    ]
+
+
+def process_group_id_cols(group_id_cols: List[str], exposure_df_columns: List[str], correlations: bool) -> List[str]:
+    """
+    cleans out columns that are not valid oasis group columns.
+
+    Valid group id columns can be either
+    1. exist in the location file
+    2. be listed as a useful internal col
+
+    Args:
+        group_id_cols: (List[str]) the ID columns that are going to be filtered
+        exposure_df_columns: (List[str]) the columns in the exposure dataframe
+        correlations: (bool) if set to True means that we are hashing with correlations in mind therefore the
+                             "peril_correlation_group" column is added
+
+    Returns: (List[str]) the filtered columns
+    """
+    for col in VALID_OASIS_GROUP_COLS:
+        if col not in list(exposure_df_columns) + VALID_OASIS_GROUP_COLS:
+            warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
+            group_id_cols.remove(col)
+
+    peril_correlation_group = 'peril_correlation_group'
+    if peril_correlation_group not in group_id_cols and correlations is True:
+        group_id_cols.append(peril_correlation_group)
+    return group_id_cols
+
+
+def hash_with_correlations(gul_inputs_df: pd.DataFrame, hashing_columns: List[str]) -> pd.DataFrame:
+    """
+    Creates a hash for the group ID field for the input data frame.
+
+    Args:
+        gul_inputs_df: (pd.DataFrame) the gul inputs that are doing the have the group_id field rewritten with a hash
+        hashing_columns: (List[str]) the list of columns used in the hashing algorithm
+
+    Returns: (pd.DataFrame) the gul_inputs_df with the new hashed group_id
+    """
+    gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[hashing_columns],
+                                                            index=False).to_numpy() >> 33)
+    return gul_inputs_df
+
 
 @oasis_log
 def get_gul_input_items(
     exposure_df,
     keys_df,
-    output_dir,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=["PortNumber", "AccNumber", "LocNumber"],
     hashed_group_id=True
@@ -148,35 +198,12 @@ def get_gul_input_items(
     # Remove any duplicate column names used to assign group_id
     group_id_cols = list(set(group_id_cols))
 
-    # Ignore any column names used to assign group_id that are missing or not supported
-    # Valid group id columns can be either
-    # 1. exist in the location file
-    # 2. be listed as a useful internal col
-    valid_oasis_group_cols = [
-        'item_id',
-        'peril_id',
-        'coverage_id',
-        'coverage_type_id',
-        'peril_correlation_group'
-    ]
-    for col in group_id_cols:
-        if col not in list(exposure_df.columns) + valid_oasis_group_cols:
-            warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
-            group_id_cols.remove(col)
-
-    # here we check to see if the correlation file is here, if it is then we need to add the "peril_correlation_group" to the valid_oasis_group_cols
-    peril_correlation_group = 'peril_correlation_group'
-    correlations_files = [
-        f"{output_dir}/correlations.csv",
-        f"{output_dir}/correlations.bin",
-    ]
-    for file_path in correlations_files:
-        if os.path.exists(path=file_path):
-            if peril_correlation_group not in group_id_cols:
-                group_id_cols.append(peril_correlation_group)
-            break
-
-
+    # it is assumed that correlations are False for now, correlations for group ID hashing are assessed later on in
+    # the process to re-hash the group ID with the correlation "peril_correlation_group" column name. This is because
+    # the correlations is achieved later in the process leading to a chicken and egg problem
+    group_id_cols = process_group_id_cols(group_id_cols=group_id_cols,
+                                          exposure_df_columns=list(exposure_df.columns),
+                                          correlations=False)
 
     # Should list of column names used to group_id be empty, revert to
     # default
@@ -186,7 +213,7 @@ def get_gul_input_items(
     # Only add group col if not internal oasis col
     missing_group_id_cols = []
     for col in group_id_cols:
-        if col in valid_oasis_group_cols:
+        if col in VALID_OASIS_GROUP_COLS:
             pass
         elif col not in exposure_df_gul_inputs_cols:
             missing_group_id_cols.append(col)

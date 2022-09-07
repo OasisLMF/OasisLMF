@@ -8,6 +8,8 @@ import io
 import json
 import os
 from pathlib import Path
+from typing import List
+import pandas as pd
 
 from .keys import GenerateKeys, GenerateKeysDeterministic
 from ..base import ComputationStep
@@ -72,7 +74,10 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
-from oasislmf.preparation.correlations import get_correlation_input_items
+from oasislmf.preparation.correlations import get_correlation_input_items, map_data
+from oasislmf.preparation.gul_inputs import process_group_id_cols, hash_with_correlations
+# from oasislmf.preparation.correlations import map_data
+from oasislmf.utils.data import establish_correlations
 
 
 class GenerateFiles(ComputationStep):
@@ -230,15 +235,23 @@ class GenerateFiles(ComputationStep):
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
-            output_dir=self._get_output_dir(),
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
-            hashed_group_id=self.hashed_group_id,
+            hashed_group_id=self.hashed_group_id
         )
         correlation_input_items = get_correlation_input_items(
             model_settings_path=self.model_settings_json,
             gul_inputs_df=gul_inputs_df
         )
+
+        correlations: bool = establish_correlations(model_settings_path=self.model_settings_json)
+        group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
+                                                         exposure_df_columns=list(location_df),
+                                                         correlations=correlations)
+
+        if self.hashed_group_id is True and correlations is True:
+            gul_inputs_df = pd.merge(gul_inputs_df, correlation_input_items, on="item_id")
+            gul_inputs_df = hash_with_correlations(gul_inputs_df=gul_inputs_df, hashing_columns=group_id_cols)
 
         # If not in det. loss gen. scenario, write exposure summary file
         if summarise_exposure:
@@ -265,7 +278,6 @@ class GenerateFiles(ComputationStep):
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
         )
-
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
 
