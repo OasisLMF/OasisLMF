@@ -215,6 +215,27 @@ class GenerateLossesDir(GenerateLossesBase):
 
     ]
 
+    def __check_for_parquet_output(self, analysis_settings, runtypes):
+        """
+        Private method to check whether ktools components were linked to third
+        party parquet libraries during compilation if user requests parquet
+        output.
+        """
+        for runtype in runtypes:
+            for summary in analysis_settings.get(f'{runtype}_summaries', {}):
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    katparquet_output = subprocess.run(
+                        ['katparquet', '-v'],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
+                    )
+                    if not 'Parquet output enabled' in katparquet_output.stderr.decode():
+                        raise OasisException(
+                            'Parquet output format requested but not supported by ktools components. '
+                            'Please set "parquet_format" to false in analysis settings file.'
+                        )
+                    return   # Only need to find a single request
+
     def run(self):
         model_run_fp = self._get_output_dir()
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
@@ -232,6 +253,9 @@ class GenerateLossesDir(GenerateLossesBase):
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
+
+        runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
+        self.__check_for_parquet_output(analysis_settings, runtypes)
 
         prepare_run_directory(
             model_run_fp,

@@ -31,7 +31,7 @@ class ApiEndpoint(object):
     End points.
     """
     def __init__(self, session, url_endpoint, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.session = session
         self.url_endpoint = url_endpoint
 
@@ -61,7 +61,7 @@ class JsonEndpoint(object):
     Used for JSON data End points.
     """
     def __init__(self, session, url_endpoint, url_resource, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.session = session
         self.url_endpoint = url_endpoint
         self.url_resource = url_resource
@@ -107,7 +107,7 @@ class FileEndpoint(object):
     File Resources Endpoint for Upload / Downloading
     """
     def __init__(self, session, url_endpoint, url_resource, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         self.session = session
         self.url_endpoint = url_endpoint
@@ -374,7 +374,7 @@ class API_analyses(ApiEndpoint):
 
 class APIClient(object):
     def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
@@ -474,7 +474,7 @@ class APIClient(object):
         """
         Generates the inputs for the analysis based on the portfolio.
         The analysis must have one of the following statuses, `NEW`, `INPUTS_GENERATION_ERROR`,
-        `INPUTS_GENERATION_CANCELED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
+        `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
 
@@ -490,7 +490,7 @@ class APIClient(object):
                     self.logger.info('Inputs Generation: Complete (id={})'.format(analysis_id))
                     return True
 
-                elif analysis['status'] in ['INPUTS_GENERATION_CANCELED']:
+                elif analysis['status'] in ['INPUTS_GENERATION_CANCELLED']:
                     self.logger.info('Input Generation: Cancelled (id={})'.format(analysis_id))
                     return False
 
@@ -530,7 +530,7 @@ class APIClient(object):
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
-                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'READY' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
@@ -610,7 +610,7 @@ class APIClient(object):
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
-                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)

@@ -10,7 +10,7 @@ import re
 import shutil
 import string
 from functools import partial
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 from collections import Counter
 
