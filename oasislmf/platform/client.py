@@ -474,7 +474,7 @@ class APIClient(object):
         """
         Generates the inputs for the analysis based on the portfolio.
         The analysis must have one of the following statuses, `NEW`, `INPUTS_GENERATION_ERROR`,
-        `INPUTS_GENERATION_CANCELED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
+        `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
 
@@ -490,7 +490,7 @@ class APIClient(object):
                     self.logger.info('Inputs Generation: Complete (id={})'.format(analysis_id))
                     return True
 
-                elif analysis['status'] in ['INPUTS_GENERATION_CANCELED']:
+                elif analysis['status'] in ['INPUTS_GENERATION_CANCELLED']:
                     self.logger.info('Input Generation: Cancelled (id={})'.format(analysis_id))
                     return False
 
@@ -530,7 +530,7 @@ class APIClient(object):
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
-                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'READY' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
@@ -610,7 +610,7 @@ class APIClient(object):
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
-                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
