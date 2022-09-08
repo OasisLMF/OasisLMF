@@ -395,7 +395,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            modelpy=self.modelpy
+            modelpy=self.modelpy,
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:

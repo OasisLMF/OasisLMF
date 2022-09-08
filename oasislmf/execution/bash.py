@@ -1346,6 +1346,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             max_process_id,
             gul_alloc_rule,
             stderr_guard,
+            gul_legacy_stream=False,
             **kwargs
         ):
             cmd = "{} -e {} {} -a {} -p {}".format(
@@ -1619,7 +1620,6 @@ def create_bash_analysis(
     max_process_id,
     num_reinsurance_iterations,
     fifo_tmp_dir,
-    gul_legacy_stream,
     bash_trace,
     filename,
     _get_getmodel_cmd,
@@ -1660,6 +1660,7 @@ def create_bash_analysis(
     modelpy,
     gulpy,
     model_py_server,
+    gul_legacy_stream=False,
     **kwargs
 ):
 
