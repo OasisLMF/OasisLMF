@@ -256,7 +256,7 @@ class GenerateLossesDir(GenerateLossesBase):
         il_missing = True if analysis_settings.get('il_output', False) and not il else False
         ri_missing = True if analysis_settings.get('ri_output', False) and not ri else False
         if il_missing or ri_missing:
-            missing_input_files = "{} are enabled analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(["IL"*il_missing, "RI"*ri_missing])
+            missing_input_files = "{} are enabled in the analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(["IL"*il_missing, "RI"*ri_missing])
             if self.check_missing_inputs:
                 raise OasisException(missing_input_files)
             else:
