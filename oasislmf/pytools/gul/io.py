@@ -123,7 +123,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
             break
 
         # read the streamed data into formatted data
-        cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i, rec_valid_len = stream_to_data(
+        cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
             int32_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
             damagecdf_i, rec_idx_ptr
@@ -136,7 +136,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
             )
 
         # persist the cdf records read from the stream
-        recs.append(rec[:rec_valid_len])
+        recs.append(rec)
 
         if yield_event:
             # event is fully read
@@ -294,7 +294,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
 
         damagecdf_i += 1
 
-    return cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i, rec_valid_len
+    return cursor, yield_event, event_id, rec[:rec_valid_len], rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
 
 
 @njit(cache=True, fastmath=True)
