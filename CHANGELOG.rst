@@ -1,6 +1,22 @@
 OasisLMF Changelog
 ==================
 
+`1.26.3`_
+ ---------
+* [#1090](https://github.com/OasisLMF/OasisLMF/pull/1090) - Request token refresh on HTTP error 403 - Forbidden
+* [#1035](https://github.com/OasisLMF/OasisLMF/pull/1092) - No check of parquet output before running model
+* [#1093](https://github.com/OasisLMF/OasisLMF/pull/1093) - Fix call to write_summary_levels - missing IL options
+* [#1097](https://github.com/OasisLMF/OasisLMF/pull/1097) - Fix/pip compile
+* [#1107](https://github.com/OasisLMF/OasisLMF/pull/1107) - Fix/678 logger
+* [#1108](https://github.com/OasisLMF/OasisLMF/pull/1111) - API client doesn't detect cancelled analysis
+* [#1066](https://github.com/OasisLMF/OasisLMF/pull/1079) - Gulpy failing in distributed runs 
+* [#1110](https://github.com/OasisLMF/OasisLMF/pull/1110) - extent api commands with run-inputs/run-losses options
+* [#1113](https://github.com/OasisLMF/OasisLMF/pull/1113) - Bugfix: out of bounds cdf
+* [#1016](https://github.com/OasisLMF/OasisLMF/pull/1082) - Update package testing
+* [#1105](https://github.com/OasisLMF/OasisLMF/pull/1112) - Add a 'strict' mode to fail runs if IL/RI is requested but files are missing 
+* [#1085](https://github.com/OasisLMF/OasisLMF/pull/1085) - Disable all deadlines in utils/test_data.py
+.. _`1.26.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.2...1.26.3
+
 `1.26.2`_
  ---------
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
