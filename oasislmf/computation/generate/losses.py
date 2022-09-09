@@ -191,6 +191,7 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'model_run_dir',          'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir',      'flag':'-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
         {'name': 'ktools_legacy_stream',   'type': str2bool, 'const':True, 'nargs':'?', 'default': KTOOLS_GUL_LEGACY_STREAM, 'help': 'Run Ground up losses using the older stream type (Compatibility option)'},
+        {'name': 'check_missing_inputs',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -220,16 +221,32 @@ class GenerateLossesDir(GenerateLossesBase):
 
     def run(self):
         model_run_fp = self._get_output_dir()
+        analysis_settings = get_analysis_settings(self.analysis_settings_json)
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
             'fm_profile.csv',
             'fm_programme.csv',
             'fm_xref.csv'])
 
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir))
+        ri_dirs = [fn
+            for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
+            if re.match(r"RI_\d+$", fn)
+        ]
+        ri = any(ri_dirs)
+
+        # Check for missing input files and either warn user or raise exception
+        il_missing = analysis_settings.get('il_output', False) and not il
+        ri_missing = analysis_settings.get('ri_output', False) and not ri
+        if il_missing or ri_missing:
+            missing_input_files = "{} are enabled in the analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(["IL"*il_missing, "RI"*ri_missing])
+            if self.check_missing_inputs:
+                raise OasisException(missing_input_files)
+            else:
+                warnings.warn(missing_input_files)
+
+
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
-        analysis_settings = get_analysis_settings(self.analysis_settings_json)
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
         self.__check_for_parquet_output(analysis_settings, runtypes)
