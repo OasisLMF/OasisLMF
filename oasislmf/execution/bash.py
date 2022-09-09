@@ -10,7 +10,7 @@ import re
 import shutil
 import string
 from functools import partial
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 from collections import Counter
 
@@ -1355,6 +1355,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             max_process_id,
             gul_alloc_rule,
             stderr_guard,
+            gul_legacy_stream=False,
             **kwargs
         ):
             cmd = "{} -e {} {} -a {} -p {}".format(
@@ -1630,7 +1631,6 @@ def create_bash_analysis(
     max_process_id,
     num_reinsurance_iterations,
     fifo_tmp_dir,
-    gul_legacy_stream,
     bash_trace,
     filename,
     _get_getmodel_cmd,
@@ -1673,6 +1673,7 @@ def create_bash_analysis(
     gulpy_random_generator,
     model_py_server,
     peril_filter,
+    gul_legacy_stream=False,
     **kwargs
 ):
 

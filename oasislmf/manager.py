@@ -29,6 +29,8 @@ from .computation.run.exposure import RunExposure, RunFmTest
 from .computation.run.platform import (
     PlatformList,
     PlatformRun,
+    PlatformRunInputs,
+    PlatformRunLosses,
     PlatformDelete,
     PlatformGet
 )
@@ -56,6 +58,8 @@ class OasisManager(object):
         RunFmTest,
         PlatformList,
         PlatformRun,
+        PlatformRunInputs,
+        PlatformRunLosses,
         PlatformDelete,
         PlatformGet,
         HelperTabComplete,

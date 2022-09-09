@@ -16,6 +16,20 @@ class RunApiCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRun'
 
+class RunInputApiCmd(OasisComputationCommand):
+    """
+    Run a model via the Oasis Platoform API end to end 
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformRunInputs'
+
+class RunLossApiCmd(OasisComputationCommand):
+    """
+    Run a model via the Oasis Platoform API end to end 
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PlatformRunLosses'
+
 
 class DeleteApiCmd(OasisComputationCommand):
     """
@@ -37,6 +51,8 @@ class ApiCmd(OasisBaseCommand):
     sub_commands = {
         'list': ListApiCmd,
         'run': RunApiCmd,
+        'generate-oasis-files': RunInputApiCmd,
+        'generate-losses': RunLossApiCmd,
         'delete': DeleteApiCmd,
         'get': GetApiCmd,
     }

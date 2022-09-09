@@ -47,7 +47,7 @@ def create_analysis_settings_json(directory):
     """
     if not os.path.exists(directory):
         error_message = "Directory does not exist: {}".format(directory)
-        logging.getLogger().error(error_message)
+        logging.getLogger(__name__).error(error_message)
         raise OasisException(error_message)
 
     general_settings_file = os.path.join(directory, GENERAL_SETTINGS_FILE)
@@ -58,7 +58,7 @@ def create_analysis_settings_json(directory):
     for file in [general_settings_file, model_settings_file, gul_summaries_file, il_summaries_file]:
         if not os.path.exists(file):
             error_message = "File does not exist: {}".format(directory)
-            logging.getLogger().error(error_message)
+            logging.getLogger(__name__).error(error_message)
             raise OasisException(error_message)
 
     general_settings = dict()
@@ -81,6 +81,6 @@ def create_analysis_settings_json(directory):
     analysis_settings['gul_summaries'] = gul_summaries
     analysis_settings['il_summaries'] = il_summaries
     output_json = json.dumps(analysis_settings)
-    logging.getLogger().info("Analysis settings json: {}".format(output_json))
+    logging.getLogger(__name__).info("Analysis settings json: {}".format(output_json))
 
     return output_json

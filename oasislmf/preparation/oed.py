@@ -191,7 +191,8 @@ def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
             oed_ri_info_file, oed_ri_scope_file))
 
     if do_reinsurance:
-        ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
+        optional_currency_cols = list({'originalcurrency', 'rateofexchange'} & set(ri_info_df.columns))
+        ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS + optional_currency_cols].copy()
         ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
         # Ensure Percent feilds are float
@@ -299,7 +300,8 @@ RI_INFO_REQUIRED_COLS = [
     'PlacedPercent',
     'InuringPriority',
     'ReinsType',
-    'RiskLevel'
+    'RiskLevel',
+    'ReinsCurrency'
 ]
 
 RI_INFO_DEFAULTS = {
@@ -340,7 +342,8 @@ RI_INFO_DTYPES = {
     'ReinsType': "str",
     'RiskLevel': "str",
     'PlacedPercent': "float",
-    'TreatyShare': "float"
+    'TreatyShare': "float",
+    'ReinsCurrency': 'str'
 }
 
 RI_SCOPE_DTYPES = {
@@ -437,7 +440,8 @@ OED_REINS_INFO_FIELDS = [
     'ReinsType',
     'RiskLevel',
     'PlacedPercent',
-    'TreatyShare'
+    'TreatyShare',
+    'ReinsCurrency',
 ]
 
 OED_REINS_SCOPE_FIELDS = [
