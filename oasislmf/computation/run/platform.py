@@ -132,6 +132,23 @@ class PlatformBase(ComputationStep):
         self.logger.info(tabulate(data, headers=items, tablefmt='psql'))
         return data
 
+    def select_id(self, msg, valid_ids):
+        while True:
+            try:
+                value = int(input(f'Select {msg} ID: '))
+            except ValueError:
+                self.logger.info('Invalid Response: {}'.format(value))
+                continue
+            except KeyboardInterrupt:
+                exit(1)
+
+            if (value < 0) or (str(value) not in valid_ids):
+                self.logger.info('Not a valid id from: {}'.format(valid_ids))
+                continue
+            else:
+                break
+        return value
+
     def run(self):
         """ Add the logic for platform API interaction here
         """
@@ -182,15 +199,14 @@ class PlatformList(PlatformBase):
                     self.logger.info(msg + e.response.text)
 
 
-class PlatformRun(PlatformBase):
-    """ End to End - run model via the Oasis Platoform API
+class PlatformRunInputs(PlatformBase):
+    """ run generate inputs via the Oasis Platoform API
     """
     step_params = PlatformBase.step_params + [
         {'name': 'model_id',     'type': int, 'help': 'API `id` of a model to run an analysis with'},
         {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
         {'name': 'analysis_id',  'type': int, 'help': 'API `id` of an analysis to run'},
 
-        {'name': 'output_dir',             'flag': '-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
         {'name': 'oed_location_csv',       'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_accounts_csv',       'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
@@ -198,25 +214,8 @@ class PlatformRun(PlatformBase):
         {'name': 'oed_scope_csv',          'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
     ]
 
-    def select_id(self, msg, valid_ids):
-        while True:
-            try:
-                value = int(input(f'Select {msg} ID: '))
-            except ValueError:
-                self.logger.info('Invalid Response: {}'.format(value))
-                continue
-            except KeyboardInterrupt:
-                exit(1)
-
-            if (value < 0) or (str(value) not in valid_ids):
-                self.logger.info('Not a valid id from: {}'.format(valid_ids))
-                continue
-            else:
-                break
-        return value
-
     def run(self):
-        # if given an analysis id, select that with new settings file (If given)
+        # select or create portfolio / analysis
         if self.analysis_id:
             try:
                 status = self.server.analyses.status(self.analysis_id)
@@ -224,7 +223,6 @@ class PlatformRun(PlatformBase):
                     self.server.cancel_analysis(self.analysis_id)
                 elif status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
                     self.server.cancel_generate(self.analysis_id)
-                analysis_id = self.analysis_id
             except HTTPError as e:
                 self.logger.error('Error running analysis ({}) - {}'.format(
                     self.analysis_id, e))
@@ -271,12 +269,35 @@ class PlatformRun(PlatformBase):
                 model_id=model_id,
                 analysis_settings_fp=self.analysis_settings_json,
             )
-            analysis_id = analysis['id']
+            self.analysis_id = analysis['id']
 
         # Execure run
-        self.server.run_generate(analysis_id)
-        self.server.run_analysis(analysis_id, self.analysis_settings_json)
-        self.server.download_output(analysis_id, self.output_dir)
+        self.server.run_generate(self.analysis_id)
+        return self.analysis_id
+
+
+class PlatformRunLosses(PlatformBase):
+    """ run generate losses via the Oasis Platoform API
+    """
+    step_params = PlatformBase.step_params + [
+        {'name': 'analysis_id',            'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
+        {'name': 'output_dir',             'flag': '-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
+        {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
+    ]
+
+    def run(self):
+        self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
+        self.server.download_output(self.analysis_id, self.output_dir)
+
+
+class PlatformRun(PlatformBase):
+    """ End to End - run model via the Oasis Platoform API
+    """
+    chained_commands = [PlatformRunInputs, PlatformRunLosses]
+
+    def run(self):
+        self.kwargs['analysis_id'] = PlatformRunInputs(**self.kwargs).run()
+        PlatformRunLosses(**self.kwargs).run()
 
 
 class PlatformDelete(PlatformBase):
