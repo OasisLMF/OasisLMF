@@ -209,6 +209,7 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'ktools_alloc_rule_il',   'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri',   'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'check_missing_inputs',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -238,6 +239,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
     def run(self):
         model_run_fp = self._get_output_dir()
+        analysis_settings = get_analysis_settings(self.analysis_settings_json)
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
             'fm_profile.csv',
@@ -250,9 +252,19 @@ class GenerateLossesDir(GenerateLossesBase):
         ]
         ri = any(ri_dirs)
 
+        # Check for missing input files and either warn user or raise exception
+        il_missing = analysis_settings.get('il_output', False) and not il
+        ri_missing = analysis_settings.get('ri_output', False) and not ri
+        if il_missing or ri_missing:
+            missing_input_files = "{} are enabled in the analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(["IL"*il_missing, "RI"*ri_missing])
+            if self.check_missing_inputs:
+                raise OasisException(missing_input_files)
+            else:
+                warnings.warn(missing_input_files)
+
+
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
-        analysis_settings = get_analysis_settings(self.analysis_settings_json)
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
         self.__check_for_parquet_output(analysis_settings, runtypes)
