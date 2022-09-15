@@ -410,17 +410,16 @@ def get_model_settings(model_settings_fp, key=None, validate=True):
     return model_settings if not key else model_settings.get(key)
 
 
-def establish_correlations(model_settings_path: str) -> bool:
+def establish_correlations(model_settings: dict) -> bool:
     """
     Checks the model settings to see if correlations are present.
 
     Args:
-        model_settings_path: (str) path to the model setting JSON file
+        model_settings: (dict) the model settings that are going to be checked
 
     Returns: (bool) True if correlations, False if not
     """
-    model_settings_raw_data: dict = get_model_settings(model_settings_fp=model_settings_path)
-    correlations: Optional[List[dict]] = model_settings_raw_data.get("correlation_settings")
+    correlations: Optional[List[dict]] = model_settings.get("correlation_settings")
 
     if correlations is None:
         return False

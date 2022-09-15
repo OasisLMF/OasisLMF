@@ -9,9 +9,8 @@ import json
 import os
 from pathlib import Path
 from typing import List
-import pandas as pd
 
-from .keys import GenerateKeys, GenerateKeysDeterministic
+from .keys import GenerateKeys
 from ..base import ComputationStep
 
 #from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -74,10 +73,10 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
-from oasislmf.preparation.correlations import get_correlation_input_items, map_data
-from oasislmf.preparation.gul_inputs import process_group_id_cols, hash_with_correlations
-# from oasislmf.preparation.correlations import map_data
+from oasislmf.preparation.correlations import map_data
+from oasislmf.preparation.gul_inputs import process_group_id_cols
 from oasislmf.utils.data import establish_correlations
+from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 
 
 class GenerateFiles(ComputationStep):
@@ -216,11 +215,14 @@ class GenerateFiles(ComputationStep):
 
         # Columns from loc file to assign group_id
         model_group_fields = None
+        correlations: bool = False
+        model_settings = None
+
         if self.model_settings_json:
+            model_settings = get_model_settings(self.model_settings_json)
+            correlations = establish_correlations(model_settings=model_settings)
             try:
-                model_group_fields = get_model_settings(
-                    self.model_settings_json, key='data_settings'
-                ).get('group_fields')
+                model_group_fields = model_settings["data_settings"].get("group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
 
@@ -232,26 +234,18 @@ class GenerateFiles(ComputationStep):
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
+        group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
+                                                         exposure_df_columns=list(location_df),
+                                                         has_correlation_groups=correlations)
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
+            peril_correlation_group_df=map_data(data=model_settings),
+            correlations=correlations,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
             hashed_group_id=self.hashed_group_id
         )
-        correlation_input_items = get_correlation_input_items(
-            model_settings_path=self.model_settings_json,
-            gul_inputs_df=gul_inputs_df
-        )
-
-        correlations: bool = establish_correlations(model_settings_path=self.model_settings_json)
-        group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
-                                                         exposure_df_columns=list(location_df),
-                                                         correlations=correlations)
-
-        if self.hashed_group_id is True and correlations is True:
-            gul_inputs_df = pd.merge(gul_inputs_df, correlation_input_items, on="item_id")
-            gul_inputs_df = hash_with_correlations(gul_inputs_df=gul_inputs_df, hashing_columns=group_id_cols)
 
         # If not in det. loss gen. scenario, write exposure summary file
         if summarise_exposure:
@@ -273,7 +267,7 @@ class GenerateFiles(ComputationStep):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=correlation_input_items,
+            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS] if correlations is True else None,
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,

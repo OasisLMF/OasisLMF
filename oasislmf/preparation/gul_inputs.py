@@ -54,7 +54,7 @@ VALID_OASIS_GROUP_COLS = [
     ]
 
 
-def process_group_id_cols(group_id_cols: List[str], exposure_df_columns: List[str], correlations: bool) -> List[str]:
+def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
     """
     cleans out columns that are not valid oasis group columns.
 
@@ -65,7 +65,7 @@ def process_group_id_cols(group_id_cols: List[str], exposure_df_columns: List[st
     Args:
         group_id_cols: (List[str]) the ID columns that are going to be filtered
         exposure_df_columns: (List[str]) the columns in the exposure dataframe
-        correlations: (bool) if set to True means that we are hashing with correlations in mind therefore the
+        has_correlation_groups: (bool) if set to True means that we are hashing with correlations in mind therefore the
                              "peril_correlation_group" column is added
 
     Returns: (List[str]) the filtered columns
@@ -76,12 +76,12 @@ def process_group_id_cols(group_id_cols: List[str], exposure_df_columns: List[st
             group_id_cols.remove(col)
 
     peril_correlation_group = 'peril_correlation_group'
-    if peril_correlation_group not in group_id_cols and correlations is True:
+    if peril_correlation_group not in group_id_cols and has_correlation_groups is True:
         group_id_cols.append(peril_correlation_group)
     return group_id_cols
 
 
-def hash_with_correlations(gul_inputs_df: pd.DataFrame, hashing_columns: List[str]) -> pd.DataFrame:
+def hash_group_id(gul_inputs_df: pd.DataFrame, hashing_columns: List[str]) -> pd.DataFrame:
     """
     Creates a hash for the group ID field for the input data frame.
 
@@ -100,6 +100,8 @@ def hash_with_correlations(gul_inputs_df: pd.DataFrame, hashing_columns: List[st
 def get_gul_input_items(
     exposure_df,
     keys_df,
+    correlations,
+    peril_correlation_group_df,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=["PortNumber", "AccNumber", "LocNumber"],
     hashed_group_id=True
@@ -201,9 +203,9 @@ def get_gul_input_items(
     # it is assumed that correlations are False for now, correlations for group ID hashing are assessed later on in
     # the process to re-hash the group ID with the correlation "peril_correlation_group" column name. This is because
     # the correlations is achieved later in the process leading to a chicken and egg problem
-    group_id_cols = process_group_id_cols(group_id_cols=group_id_cols,
-                                          exposure_df_columns=list(exposure_df.columns),
-                                          correlations=False)
+    # group_id_cols = process_group_id_cols(group_id_cols=group_id_cols,
+    #                                       exposure_df_columns=list(exposure_df.columns),
+    #                                       has_correlation_groups=False)
 
     # Should list of column names used to group_id be empty, revert to
     # default
@@ -358,8 +360,6 @@ def get_gul_input_items(
     # directly, otherwise create an index of the group id fields
     group_id_cols.sort()
 
-    col_key = group_id_cols[0]
-
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
 
@@ -378,8 +378,14 @@ def get_gul_input_items(
             )[0]
 
     # this block gets fired if the hashed_group_id is True
+    elif correlations is False:
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+                                                                index=False).to_numpy() >> 33)
     else:
-        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols], index=False).to_numpy() >> 33)
+        # do merge with peril correlation df
+        gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+                                                                index=False).to_numpy() >> 33)
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
@@ -391,7 +397,8 @@ def get_gul_input_items(
         ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
-        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status']
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status'] +
+        ["peril_correlation_group", "correlation_value"] if correlations is True else []
     )
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
