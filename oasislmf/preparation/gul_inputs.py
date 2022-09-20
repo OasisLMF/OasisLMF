@@ -397,9 +397,11 @@ def get_gul_input_items(
         ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
-        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status'] +
-        ["peril_correlation_group", "correlation_value"] if correlations is True else []
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status']
     )
+    if correlations is True:
+        usecols += ["peril_correlation_group", "correlation_value"]
+
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
 
