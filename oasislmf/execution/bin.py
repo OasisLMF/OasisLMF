@@ -240,20 +240,20 @@ def _load_default_quantile_bin(run_dir):
         pd.read_csv(default_quantile_fp)["quantile"].tolist()
     )
 
-def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
-    bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
+def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False, extension='bin'):
+    bin_fp = os.path.join(run_dir, 'input', '{}.{}'.format(bin_name, extension))
     if not os.path.exists(bin_fp):
         setting_val = model_settings.get(setting_key)
 
         if not setting_val:
-            model_data_bin_fp = os.path.join(run_dir, 'static', '{}.bin'.format(bin_name))
+            model_data_bin_fp = os.path.join(run_dir, 'static', '{}.{}'.format(bin_name, extension))
         else:
             # 'verbatim' -  Try setting value as given
-            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, str(setting_val)))
+            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, str(setting_val), extension))
             if not os.path.isfile(model_data_bin_fp):
                 # 'compatibility' - Fallback name formatting to keep existing conversion
                 setting_val = str(setting_val).replace(' ', '_').lower()
-                model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, setting_val))
+                model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, setting_val, extension))
 
         if not os.path.exists(model_data_bin_fp):
             raise OasisException('Could not find {} data file: {}'.format(bin_name, model_data_bin_fp))
@@ -328,9 +328,9 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
             # copy selected event set from static
             _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
 
-        # Prepare event_dict.bin
-        if os.path.exists(os.path.join(run_dir, 'static', 'event_dict.bin')) or model_settings.get('event_dict_set'):
-            _prepare_input_bin(run_dir, 'event_dict', model_settings, setting_key='event_dict_set', ri=ri)
+        # Prepare event_rates.csv
+        if os.path.exists(os.path.join(run_dir, 'static', 'event_rates.csv')) or model_settings.get('event_rates_set'):
+            _prepare_input_bin(run_dir, 'event_rates', model_settings, setting_key='event_rates_set', ri=ri, extension='csv')
 
         # Prepare quantile.bin
         if analysis_settings.get('quantiles'):
