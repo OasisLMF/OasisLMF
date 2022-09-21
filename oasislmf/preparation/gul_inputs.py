@@ -531,11 +531,13 @@ def write_gul_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
+    if correlations_df is None:
+        correlations_df = pd.DataFrame(columns=['item_id', 'peril_correlation_group', 'correlation_value'])
+
     # write the correlations to a binary file
-    if correlations_df is not None:
-        correlation_data_handle = CorrelationsData(data=correlations_df)
-        correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
-        correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
+    correlation_data_handle = CorrelationsData(data=correlations_df)
+    correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
+    correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
