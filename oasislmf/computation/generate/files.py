@@ -218,13 +218,14 @@ class GenerateFiles(ComputationStep):
         correlations: bool = False
         model_settings = None
 
-        if self.model_settings_json:
+        if self.model_settings_json is not None:
             model_settings = get_model_settings(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_group_fields = model_settings["data_settings"].get("group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
+
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
         if model_group_fields and not self.kwargs.get('group_id_cols'):
@@ -263,6 +264,7 @@ class GenerateFiles(ComputationStep):
 
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
+
 
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
