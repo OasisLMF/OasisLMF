@@ -322,7 +322,7 @@ def analysis_settings_compatibility(analysis_settings_data):
     }
     obsolete_keys = set(compatibility_profile) & set(analysis_settings_data)
     if obsolete_keys:
-        logger = logging.getLogger()
+        logger = logging.getLogger(__name__)
         logger.warning('WARNING: Deprecated key(s) in analysis_settings JSON')
         for key in obsolete_keys:
             # warn user

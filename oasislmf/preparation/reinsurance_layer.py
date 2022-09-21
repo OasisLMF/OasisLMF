@@ -189,7 +189,7 @@ class ReinsuranceLayer(object):
         gulsummaryxref_df=pd.DataFrame(), logger=None
     ):
 
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.name = name
 
         self.coverages_df = coverages_df

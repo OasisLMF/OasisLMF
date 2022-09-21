@@ -421,8 +421,8 @@ def get_account_df(accounts_fp, accounts_profile):
     defaults[portfolio_num] = 1
     oed_acc_dtypes, _ = get_dtypes_and_required_cols(get_acc_dtypes)
     dtypes = {
-        **{t: 'str' for t in [acc_num, portfolio_num, policy_num, cond_num, cond_tag]},
-        **{t: 'float64' for t in term_cols_floats},
+        **{t: 'str' for t in [acc_num, portfolio_num, policy_num, cond_num, cond_tag, 'acccurrency', 'originalcurrency']},
+        **{t: 'float64' for t in term_cols_floats + ['rateofexchange']},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint32' for t in ['layer_id']},
         **oed_acc_dtypes
@@ -472,7 +472,8 @@ def get_account_df(accounts_fp, accounts_profile):
     # the source columns for the financial terms present in the accounts file
     # (the file should contain all financial terms relating to the cond. all
     # (# 6), policy all (# 9) and policy layer (# 10) FM levels)
-    usecols = [acc_num, portfolio_num, policy_num, cond_tag, cond_num, cond_class, 'layer_id', SOURCE_IDX['acc'], 'condpriority'] + term_cols
+    usecols = [acc_num, portfolio_num, policy_num, cond_tag, cond_num, cond_class, 'acccurrency', 'originalcurrency',
+               'rateofexchange', 'layer_id', SOURCE_IDX['acc'], 'condpriority'] + term_cols
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
     if step_policies_present:
