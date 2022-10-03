@@ -54,6 +54,7 @@ class RunExposure(ComputationStep):
         {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',     'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'stream_type',          'flag':'-t', 'default': 2,  'type':int,  'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
+        {"name": "hashed_group_id",      "default": True, "type": str2bool, "const": False, 'nargs': '?',  "help": "Hashes the group_id in the items.bin"},
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
@@ -120,6 +121,7 @@ class RunExposure(ComputationStep):
             oed_info_csv=ri_info_fp,
             oed_scope_csv=ri_scope_fp,
             keys_data_csv=keys_fp,
+            hashed_group_id=self.hashed_group_id,
         ).run()
 
         # 3. Run Deterministic Losses
@@ -312,6 +314,7 @@ class RunFmTest(ComputationStep):
         {'name': 'fmpy_low_memory',     'default': False,   'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',    'default': True,    'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected',     'default': False},
+        {'name': 'hashed_group_id',     'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
     ]
 
@@ -408,7 +411,8 @@ class RunFmTest(ComputationStep):
             num_subperils=self.num_subperils,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
-            fmpy_sort_output=self.fmpy_sort_output
+            fmpy_sort_output=self.fmpy_sort_output,
+            hashed_group_id=self.hashed_group_id,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)

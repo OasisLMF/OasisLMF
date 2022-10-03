@@ -16,6 +16,8 @@ class CorrelationsData:
     Attributes:
         data (Optional[pd.DataFrame): correlation data that is either loaded or saved
     """
+    COLUMNS = ["item_id", "peril_correlation_group", "correlation_value"]
+
     def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
         """
         The constructor for the CorrelationsData class.

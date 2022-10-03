@@ -10,6 +10,7 @@ import os
 import sys
 import warnings
 from collections import OrderedDict
+from typing import List
 
 import pandas as pd
 
@@ -44,14 +45,66 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsDat
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+VALID_OASIS_GROUP_COLS = [
+        'item_id',
+        'peril_id',
+        'coverage_id',
+        'coverage_type_id',
+        'peril_correlation_group'
+    ]
+
+
+def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
+    """
+    cleans out columns that are not valid oasis group columns.
+
+    Valid group id columns can be either
+    1. exist in the location file
+    2. be listed as a useful internal col
+
+    Args:
+        group_id_cols: (List[str]) the ID columns that are going to be filtered
+        exposure_df_columns: (List[str]) the columns in the exposure dataframe
+        has_correlation_groups: (bool) if set to True means that we are hashing with correlations in mind therefore the
+                             "peril_correlation_group" column is added
+
+    Returns: (List[str]) the filtered columns
+    """
+    for col in group_id_cols:
+        if col not in list(exposure_df_columns) + VALID_OASIS_GROUP_COLS:
+            warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
+            group_id_cols.remove(col)
+
+    peril_correlation_group = 'peril_correlation_group'
+    if peril_correlation_group not in group_id_cols and has_correlation_groups is True:
+        group_id_cols.append(peril_correlation_group)
+    return group_id_cols
+
+
+def hash_group_id(gul_inputs_df: pd.DataFrame, hashing_columns: List[str]) -> pd.DataFrame:
+    """
+    Creates a hash for the group ID field for the input data frame.
+
+    Args:
+        gul_inputs_df: (pd.DataFrame) the gul inputs that are doing the have the group_id field rewritten with a hash
+        hashing_columns: (List[str]) the list of columns used in the hashing algorithm
+
+    Returns: (pd.DataFrame) the gul_inputs_df with the new hashed group_id
+    """
+    gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[hashing_columns],
+                                                            index=False).to_numpy() >> 33)
+    return gul_inputs_df
+
 
 @oasis_log
 def get_gul_input_items(
     exposure_df,
     keys_df,
+    correlations=False,
+    peril_correlation_group_df=None,
     exposure_profile=get_default_exposure_profile(),
-    group_id_cols=['loc_id'],
-    hash_group_ids=False
+    group_id_cols=["PortNumber", "AccNumber", "LocNumber"],
+    hashed_group_id=True
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -61,6 +114,9 @@ def get_gul_input_items(
 
     :param keys_df: Keys dataframe
     :type keys_df: pandas.DataFrame
+
+    :param output_dir: the output directory where input files are stored
+    :type output_dir: str
 
     :param exposure_profile: Exposure profile
     :type exposure_profile: dict
@@ -144,20 +200,12 @@ def get_gul_input_items(
     # Remove any duplicate column names used to assign group_id
     group_id_cols = list(set(group_id_cols))
 
-    # Ignore any column names used to assign group_id that are missing or not supported
-    # Valid group id columns can be either
-    # 1. exist in the location file
-    # 2. be listed as a useful internal col
-    valid_oasis_group_cols = [
-        'item_id',
-        'peril_id',
-        'coverage_id',
-        'coverage_type_id',
-    ]
-    for col in group_id_cols:
-        if col not in list(exposure_df.columns) + valid_oasis_group_cols:
-            warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
-            group_id_cols.remove(col)
+    # it is assumed that correlations are False for now, correlations for group ID hashing are assessed later on in
+    # the process to re-hash the group ID with the correlation "peril_correlation_group" column name. This is because
+    # the correlations is achieved later in the process leading to a chicken and egg problem
+    # group_id_cols = process_group_id_cols(group_id_cols=group_id_cols,
+    #                                       exposure_df_columns=list(exposure_df.columns),
+    #                                       has_correlation_groups=False)
 
     # Should list of column names used to group_id be empty, revert to
     # default
@@ -167,7 +215,7 @@ def get_gul_input_items(
     # Only add group col if not internal oasis col
     missing_group_id_cols = []
     for col in group_id_cols:
-        if col in valid_oasis_group_cols:
+        if col in VALID_OASIS_GROUP_COLS:
             pass
         elif col not in exposure_df_gul_inputs_cols:
             missing_group_id_cols.append(col)
@@ -279,7 +327,7 @@ def get_gul_input_items(
 
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
-    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index()
+    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index(drop=True)
     # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
@@ -312,12 +360,10 @@ def get_gul_input_items(
     # directly, otherwise create an index of the group id fields
     group_id_cols.sort()
 
-    col_key = group_id_cols[0]
-
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
 
-    elif hash_group_ids is False:
+    elif hashed_group_id is False:
 
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
@@ -331,9 +377,15 @@ def get_gul_input_items(
                 gul_inputs_df[group_id_cols[0]].values
             )[0]
 
-    # this block gets fired if the hash_group_ids is True
+    # this block gets fired if the hashed_group_id is True
+    elif correlations is False:
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+                                                                index=False).to_numpy() >> 33)
     else:
-        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols]).to_numpy() >> 33)
+        # do merge with peril correlation df
+        gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+                                                                index=False).to_numpy() >> 33)
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
@@ -347,6 +399,9 @@ def get_gul_input_items(
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
         ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status']
     )
+    if correlations is True:
+        usecols += ["peril_correlation_group", "correlation_value"]
+
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
 
@@ -446,7 +501,6 @@ def write_gul_input_files(
     output_dir,
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     chunksize=(2 * 10 ** 5),
-    hashed_item_id=False
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -477,11 +531,13 @@ def write_gul_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
+    if correlations_df is None:
+        correlations_df = pd.DataFrame(columns=['item_id', 'peril_correlation_group', 'correlation_value'])
+
     # write the correlations to a binary file
-    if correlations_df is not None:
-        correlation_data_handle = CorrelationsData(data=correlations_df)
-        correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
-        correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
+    correlation_data_handle = CorrelationsData(data=correlations_df)
+    correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
+    correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
@@ -503,10 +559,5 @@ def write_gul_input_files(
     # Write the files serially
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
-
-    # if hashed_item_id is True:
-    #     input_file = gul_input_files["items"]
-    #     input_directory = "/".join(input_file.split("/")[:-1]) + "/"
-    #     convert_item_csv_to_hash(input_directory=input_directory)
 
     return gul_input_files

@@ -27,10 +27,10 @@ class TestMapData(TestCase):
 
     def test_get_correlation_input_items(self):
         gul_path = META_PATH + "gul_inputs_df.csv"
-        settings_path = META_PATH + "model_settings.json"
 
         gul_inputs_df = pd.read_csv(gul_path)
-        correlation_df = get_correlation_input_items(model_settings_path=settings_path, gul_inputs_df=gul_inputs_df)
+        correlation_df = get_correlation_input_items(correlation_map_df=map_data(data=self.model_settings),
+                                                     gul_inputs_df=gul_inputs_df)
         correlation_df_check = pd.read_csv(f"{META_PATH}correlation_df.csv")
 
         correlation_df_check.equals(correlation_df)
