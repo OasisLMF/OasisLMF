@@ -70,7 +70,7 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
 
     Returns: (List[str]) the filtered columns
     """
-    for col in VALID_OASIS_GROUP_COLS:
+    for col in group_id_cols:
         if col not in list(exposure_df_columns) + VALID_OASIS_GROUP_COLS:
             warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
             group_id_cols.remove(col)
