@@ -19,7 +19,7 @@ from ..utils.exceptions import OasisException
 class APISession(Session):
     def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, request_interval=0.02, logger=None, **kwargs):
         super(APISession, self).__init__(**kwargs)
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         # Extended class vars
         self.tkn_access = None

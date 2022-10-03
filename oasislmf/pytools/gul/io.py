@@ -136,7 +136,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
             )
 
         # persist the cdf records read from the stream
-        recs.append(rec[:rec_idx_ptr[-1]])
+        recs.append(rec)
 
         if yield_event:
             # event is fully read
@@ -207,6 +207,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
 
     # init a counter for the local `rec` array
     last_rec_idx_ptr = 0
+    rec_valid_len = 0
 
     while cursor * int32_mv.itemsize + size_cdf_entry <= valid_buf:
 
@@ -251,6 +252,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
 
         rec_idx_ptr.append(rec_idx_ptr[-1] + Nbins_to_read)
         last_rec_idx_ptr = end_rec
+        rec_valid_len += Nbins_to_read
 
         # register the items to their coverage
         item_key = tuple((areaperil_id, vulnerability_id))
@@ -293,7 +295,7 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
 
         damagecdf_i += 1
 
-    return cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
+    return cursor, yield_event, event_id, rec[:rec_valid_len], rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
 
 
 @njit(cache=True, fastmath=True)
