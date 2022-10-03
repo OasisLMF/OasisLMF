@@ -100,8 +100,8 @@ def hash_group_id(gul_inputs_df: pd.DataFrame, hashing_columns: List[str]) -> pd
 def get_gul_input_items(
     exposure_df,
     keys_df,
-    correlations,
-    peril_correlation_group_df,
+    correlations=False,
+    peril_correlation_group_df=None,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=["PortNumber", "AccNumber", "LocNumber"],
     hashed_group_id=True
