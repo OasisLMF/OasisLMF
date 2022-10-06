@@ -58,10 +58,11 @@ class MyImport(MetaPathFinder):
             import_path = import_path[1]
             for deprecated in self.depricated_modules:
                 if deprecated == import_path or import_path.startswith(deprecated+'.'):
-                    warnings.simplefilter("always")
-                    warnings.warn(
-                        f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.depricated_modules[deprecated]}' instead."
-                    )
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("always")
+                        warnings.warn(
+                            f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.depricated_modules[deprecated]}' instead."
+                        )
                     import_path = import_path.replace(deprecated, self.depricated_modules[deprecated])
 
             return spec_from_loader(fullname, MyLoader(import_path))

@@ -5,6 +5,7 @@ in the future we may want to improve on the management of files used to generate
 tutorial for pandas and parquet https://towardsdatascience.com/a-gentle-introduction-to-apache-arrow-with-apache-spark-and-pandas-bb19ffe0ddae
 
 """
+import warnings
 
 import numba as nb
 import numpy as np
@@ -12,7 +13,17 @@ import pandas as pd
 
 try: # needed for rtree
     from shapely.geometry import Point
-    import geopandas as gpd
+    # Hide numerous warnings similar to:
+    # > ...lib64/python3.8/site-packages/geopandas/_compat.py:112: UserWarning: The Shapely GEOS
+    # > version (3.8.0-CAPI-1.13.1 ) is incompatible with the GEOS version PyGEOS was compiled with
+    # > (3.10.3-CAPI-1.16.1). Conversions between both will be slow.
+    # We're not in a position to fix these without compiling shapely and pygeos from source.
+    # We're also not aware of any performance issues caused by this.
+    # Upgrading to Shapely 2 will likely address this issue.
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=UserWarning, module="geopandas._compat",
+                                message="The Shapely GEOS version")
+        import geopandas as gpd
     try: # needed only for min distance
         from sklearn.neighbors import BallTree
     except ImportError:
