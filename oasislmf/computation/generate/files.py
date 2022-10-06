@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+from typing import List
 
 from ods_tools import get_ods_fields, read_csv, read_parquet
 
@@ -74,9 +75,11 @@ from ..data.dummy_model.generate import (
     GULSummaryXrefFile,
     FMSummaryXrefFile
 )
-
+from oasislmf.preparation.correlations import map_data
+from oasislmf.preparation.gul_inputs import process_group_id_cols
+from oasislmf.utils.data import establish_correlations
+from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 from ...utils.forex import create_currency_rates, manage_multiple_currency
-from oasislmf.preparation.correlations import get_correlation_input_items
 
 
 class GenerateFiles(ComputationStep):
@@ -110,7 +113,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing',     'type': str2bool, 'const': False, 'nargs':'?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
-        {"name": "hashed_group_id",            "type": str2bool, "const": False, 'nargs':'?',  "default": False, "help": "Hashes the group_id in the items.bin"},
+        {"name": "hashed_group_id",            'type': str2bool, 'const': False, 'nargs': '?', 'default': True, 'help': "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -245,13 +248,17 @@ class GenerateFiles(ComputationStep):
 
         # Columns from loc file to assign group_id
         model_group_fields = None
-        if self.model_settings_json:
+        correlations: bool = False
+        model_settings = None
+
+        if self.model_settings_json is not None:
+            model_settings = get_model_settings(self.model_settings_json)
+            correlations = establish_correlations(model_settings=model_settings)
             try:
-                model_group_fields = get_model_settings(
-                    self.model_settings_json, key='data_settings'
-                ).get('group_fields')
+                model_group_fields = model_settings["data_settings"].get("group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
+
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
         if model_group_fields and not self.kwargs.get('group_id_cols'):
@@ -261,21 +268,18 @@ class GenerateFiles(ComputationStep):
             group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
+        group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
+                                                         exposure_df_columns=list(location_df),
+                                                         has_correlation_groups=correlations)
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
+            peril_correlation_group_df=map_data(data=model_settings),
+            correlations=correlations,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols,
-            hash_group_ids=self.hashed_group_id,
+            hashed_group_id=self.hashed_group_id
         )
-
-        if self.model_settings_json is not None:
-            correlation_input_items = get_correlation_input_items(
-                model_settings_path=self.model_settings_json,
-                gul_inputs_df=gul_inputs_df
-            )
-        else:
-            correlation_input_items = None
 
         # If not in det. loss gen. scenario, write exposure summary file
         if summarise_exposure:
@@ -294,16 +298,15 @@ class GenerateFiles(ComputationStep):
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
 
+
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=correlation_input_items,
+            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS] if correlations is True else None,
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
-            hashed_item_id=self.hashed_group_id
         )
-
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
 

@@ -44,6 +44,7 @@ except ImportError:
 
 from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -407,6 +408,26 @@ def get_model_settings(model_settings_fp, key=None, validate=True):
         raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
 
     return model_settings if not key else model_settings.get(key)
+
+
+def establish_correlations(model_settings: dict) -> bool:
+    """
+    Checks the model settings to see if correlations are present.
+
+    Args:
+        model_settings: (dict) the model settings that are going to be checked
+
+    Returns: (bool) True if correlations, False if not
+    """
+    correlations: Optional[List[dict]] = model_settings.get("correlation_settings")
+
+    if correlations is None:
+        return False
+    if not isinstance(correlations, list):
+        return False
+    if len(correlations) == 0:
+        return False
+    return True
 
 
 def detect_encoding(filepath):
