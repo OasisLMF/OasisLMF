@@ -563,9 +563,22 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     cond_class = oed_hierarchy['condclass']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
-    policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=cond_tag)
-    cond_df = accounts_df[[portfolio_num, acc_num, cond_tag]].drop_duplicates()
-    all_cond_policy =  pd.merge(policy_df, cond_df, on=[portfolio_num, acc_num])
+    if cond_class in accounts_df.columns:
+        accounts_df['polcondclass'] = (accounts_df.groupby([portfolio_num, acc_num, policy_num, 'layer_id'], sort=False)
+                                                  [cond_class]
+                                                  .transform(max))
+    else:
+        accounts_df[['polcondclass', cond_class]] = 0
+
+    if 'condpriority' not in accounts_df.columns:
+        accounts_df['condpriority'] = 0
+    accounts_df['condpriority'].fillna(0)
+
+    policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=[cond_tag, 'condpriority'])
+    cond_df = accounts_df[[portfolio_num, acc_num, cond_tag, 'condpriority']].drop_duplicates()
+    all_cond_policy = (pd.merge(policy_df, cond_df, on=[portfolio_num, acc_num])
+                       .drop(columns=cond_class)
+                       .rename(columns={'polcondclass':cond_class}))
 
     missing_cond_policy_df = pd.merge(accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id', cond_tag]],
                            all_cond_policy, how='right', indicator=True)
@@ -701,6 +714,8 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
 
         cur_parent_cond = parent_group['tag'][0]
         min_level = child_group['level'] + 1
+        max_loop = column_base_il_df['condpriority'].max() + 1
+        breaker = 0
         while cur_parent_cond:
             cur_parent_group = cond_to_group[cur_parent_cond]
             cur_parent_group['level'] = max(min_level, cur_parent_group['level'])
@@ -710,9 +725,10 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
                     cur_parent_group['needed_loc'][loc] = True
             cur_parent_cond = cur_parent_group.get('parent')
 
-    if 'condpriority' not in column_base_il_df.columns:
-        column_base_il_df['condpriority'] = 0
-    column_base_il_df['condpriority'].fillna(0)
+            if breaker > max_loop:
+                raise RecursionError(f'Issue with condtag {cur_parent_cond} stuck looping through hierarchy')
+            else:
+                breaker += 1
 
     # determine the number of layers for each main_key
     main_key_layers = {}
@@ -739,7 +755,7 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
                 cur_condpriority = cur_group['tag'][1]
                 if rec['condpriority'] == cur_condpriority:
                     if cur_cond != cond_key:
-                        raise OasisException(f'condition of the same priority and policy {cond_key} {cur_cond}')
+                        raise OasisException(f'{loc_key} condition of the same priority and policy {cond_key} {cur_cond}')
                 elif rec['condpriority'] > cur_condpriority:
                     child_cond = cur_cond
                 else:
