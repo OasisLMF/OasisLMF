@@ -8,7 +8,6 @@ import atexit
 import logging
 import os
 from select import select
-from xmlrpc.client import FastMarshaller
 
 import pandas as pd
 import sys
@@ -21,9 +20,7 @@ from numba.typed import Dict
 from oasislmf.pytools.common import PIPE_CAPACITY
 
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.gul.common import (
-    ProbMean, damagecdfrec_stream, oasis_float_to_int32_size,
-)
+from oasislmf.pytools.gul.common import oasis_float_to_int32_size
 from oasislmf.pytools.gul.io import gen_structs
 from oasislmf.pytools.gul.random import generate_hash, get_random_generator
 from oasislmf.pytools.gul.utils import binary_search
