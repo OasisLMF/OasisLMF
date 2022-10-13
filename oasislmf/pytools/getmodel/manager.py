@@ -8,6 +8,7 @@ import atexit
 import logging
 import os
 from select import select
+from xmlrpc.client import FastMarshaller
 
 import pandas as pd
 import sys
@@ -699,19 +700,19 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
             # event_footprint = (FootprintLayerClient if data_server else footprint_obj).get_event(event_id)
 
             if event_footprint is not None:
-
                 if full_monte_carlo:
 
                     # re-usable array to store haz_prob_rec
-                    haz_prob_tmp = np.zeros(num_intensity_bins, dtype=oasis_float)
-                    haz_prob_rec = np.empty(num_intensity_bins + 2, dtype=oasis_float)
+                    # haz_prob_tmp = np.zeros(num_intensity_bins, dtype=oasis_float)
+                    # haz_prob_rec = np.empty(num_intensity_bins + 2, dtype=oasis_float)
+                    # haz_prob_rec = np.empty(len(event_footprint), dtype=oasis_float)
 
-                    print(haz_prob_tmp.shape, haz_prob_rec.shape)
+                    # print(haz_prob_tmp.shape, haz_prob_rec.shape)
 
-                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr, haz_prob_rec = read_footprint(
-                        event_id, event_footprint, haz_prob_tmp, haz_prob_rec)
+                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr = read_footprint(
+                        event_id, event_footprint)
 
-                    print(haz_prob_tmp.shape, haz_prob_rec.shape)
+                    # print(haz_prob_tmp.shape, haz_prob_rec.shape)
 
                     Nareaperil_ids = len(areaperil_ids)
 
@@ -723,7 +724,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
                     while last_processed_areaperil_ids_idx < Nareaperil_ids:
 
                         cursor, cursor_bytes, last_processed_areaperil_ids_idx = sample_haz_intensity(
-                            event_id, areaperil_ids, haz_prob_rec, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
+                            event_id, areaperil_ids, event_footprint, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
                             sample_size, last_processed_areaperil_ids_idx, Nareaperil_ids, rndms,
                             PIPE_CAPACITY, int32_mv_write, cursor, max_number_size, debug)
 
@@ -737,7 +738,8 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
                         cursor = 0
 
                 else:
-
+                    # compute effective damageability probability distribution
+                    # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
                     for cursor_bytes in doCdf(event_id,
                                               num_intensity_bins, event_footprint,
                                               areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
@@ -749,8 +751,11 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
                         else:
                             break
 
+# TODO: set cache=True before merging
+# @nb.njit(cache=False, fastmath=True)
 
-def sample_haz_intensity(event_id, areaperil_ids, haz_prob_rec, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
+
+def sample_haz_intensity(event_id, areaperil_ids, event_footprint, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
                          sample_size, last_processed_areaperil_ids_idx, Nareaperil_ids, rndms, buff_size, int32_mv, cursor, max_number_size, debug):
 
     # estimate max number of bytes needed to output the data for one areaperil_id
@@ -761,7 +766,7 @@ def sample_haz_intensity(event_id, areaperil_ids, haz_prob_rec, areaperil_ids_rn
         areaperil_id = areaperil_ids[areaperil_id_idx]
         rng_index = areaperil_ids_rng_index_lst[areaperil_id_idx]
 
-        haz_prob = haz_prob_rec[haz_prob_rec_idx_ptr[areaperil_id_idx]:haz_prob_rec_idx_ptr[areaperil_id_idx + 1]]
+        haz_prob = event_footprint[haz_prob_rec_idx_ptr[areaperil_id_idx]:haz_prob_rec_idx_ptr[areaperil_id_idx + 1]]['probability']
 
         # compute hazard intensity cumulative probability distribution
         haz_prob_to = np.cumsum(haz_prob)
@@ -801,7 +806,9 @@ def sample_haz_intensity(event_id, areaperil_ids, haz_prob_rec, areaperil_ids_rn
                     haz_bin_idx = binary_search(rval, haz_prob_to, Nbins)
 
                 # write the hazard intensity bin for this sample
-                int32_mv[cursor], cursor = haz_bin_idx, cursor + 1
+                haz_intensity_bin_idx = event_footprint[haz_prob_rec_idx_ptr[areaperil_id_idx] +
+                                                        haz_bin_idx]['intensity_bin_id']
+                int32_mv[cursor], cursor = haz_intensity_bin_idx, cursor + 1
                 # print("haz_bin_idx", haz_bin_idx)
 
         last_processed_areaperil_ids_idx += 1
@@ -809,7 +816,9 @@ def sample_haz_intensity(event_id, areaperil_ids, haz_prob_rec, areaperil_ids_rn
     return cursor, cursor * int32_mv.itemsize, last_processed_areaperil_ids_idx
 
 
-def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
+# TODO: set cache=True before merging
+@nb.njit(cache=False, fastmath=True)
+def read_footprint(event_id, event_footprint):
     # if valid_area_peril_id is not None:
     #     valid_area_peril_dict = gen_valid_area_peril(valid_area_peril_id)
     # else:
@@ -829,9 +838,9 @@ def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
     last_areaperil_id = 0
 
     # init a counter for the local `rec` array
-    last_rec_idx_ptr = 0
+    # last_rec_idx_ptr = 0
 
-    Nhaz_int_bins_read = 0
+    # Nhaz_int_bins_read = 0
 
     while footprint_i < len(event_footprint):
 
@@ -855,16 +864,16 @@ def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
                     this_rng_index = areaperil_ids_rng_index_map[areaperil_id]
 
                 # read hazard intensity pdf
-                start_rec = last_rec_idx_ptr
-                end_rec = start_rec + Nhaz_int_bins_read
-                if end_rec > haz_prob_rec.shape[0]:
+                # start_rec = last_rec_idx_ptr
+                # end_rec = start_rec + Nhaz_int_bins_read
+                # if end_rec > haz_prob_rec.shape[0]:
                     # double its size
-                    # TODO decide how/whether we need this dynamic array or we can conservatively define haz_prob_rec
-                    print("need to double haz_prob_rec size: start_rec", start_rec, "end_rec",
-                          end_rec, "haz_prob_rec.shape[0]", haz_prob_rec.shape[0])
-                    tmp_rec = np.empty(haz_prob_rec.shape[0] * 2, dtype=oasis_float)
-                    tmp_rec[:start_rec] = haz_prob_rec[:start_rec]
-                    haz_prob_rec = tmp_rec
+                    # haz_prob_rec should have same length as event_footprint, so dynamic array is not needed
+                    # print("need to double haz_prob_rec size: start_rec", start_rec, "end_rec",
+                    #       end_rec, "haz_prob_rec.shape[0]", haz_prob_rec.shape[0])
+                    # tmp_rec = np.empty(haz_prob_rec.shape[0] * 2, dtype=oasis_float)
+                    # tmp_rec[:start_rec] = haz_prob_rec[:start_rec]
+                    # haz_prob_rec = tmp_rec
 
                 # TODO perhaps here we don't need to use the tmp structure
                 # we can just store directly into haz_prob_rec and update haz_prob_rec_idx_ptr at the end of each areaperil id, as it is now
@@ -872,23 +881,25 @@ def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
                 # but here there's not this limitation. we can save memory and performance if we do this.
                 # plus: haz_prob_rec_idx_ptr will contain, for each intensity bin, the actual intensity bin id, so
                 # later on, we can use haz_prob_rec_idx_ptr + haz_bin_idx to find the actual bin id. SOLVED IT :-)))
-                for j in range(start_rec, end_rec, 1):
-                    haz_prob_rec[j] = haz_prob_tmp[j - start_rec]
+                # for j in range(start_rec, end_rec, 1):
+                #     haz_prob_rec[j] = haz_prob_tmp[j - start_rec]
 
                 # store the index to the haz prob rec
                 # note that i-th element in haz_prob_rec_idx_ptr corresponds to i-th element in areperil_ids
-                haz_prob_rec_idx_ptr.append(haz_prob_rec_idx_ptr[-1] + Nhaz_int_bins_read)
-                last_rec_idx_ptr = end_rec
+                # haz_prob_rec_idx_ptr.append(haz_prob_rec_idx_ptr[-1] + Nhaz_int_bins_read)
+                haz_prob_rec_idx_ptr.append(footprint_i)
+                # last_rec_idx_ptr = end_rec
                 areaperil_ids_rng_index_lst.append(this_rng_index)
 
                 # restart populating the haz_prob_tmp array from the start
-                Nhaz_int_bins_read = 0
+                # Nhaz_int_bins_read = 0
 
             last_areaperil_id = areaperil_id
 
         # store haz prob from current footprint row
-        haz_prob_tmp[Nhaz_int_bins_read] = event_footprint[footprint_i]['probability']
-        Nhaz_int_bins_read += 1
+        # haz_prob_tmp[Nhaz_int_bins_read] = event_footprint[footprint_i]['probability']
+        # haz_prob_rec[Nhaz_int_bins_read] = event_footprint[footprint_i]['probability']
+        # Nhaz_int_bins_read += 1
 
         # go to next footprint row
         footprint_i += 1
@@ -896,4 +907,4 @@ def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
     # TODO: either we change while to for loop, or we need to repeat after the while loop
     # the processing to add the last areaperil_id.
 
-    return areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr, haz_prob_rec
+    return areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr
