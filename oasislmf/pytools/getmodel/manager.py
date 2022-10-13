@@ -704,12 +704,14 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
 
                     # re-usable array to store haz_prob_rec
                     haz_prob_tmp = np.zeros(num_intensity_bins, dtype=oasis_float)
-                    haz_prob_rec = np.empty(num_intensity_bins * 10, dtype=oasis_float)
+                    haz_prob_rec = np.empty(num_intensity_bins + 2, dtype=oasis_float)
 
                     print(haz_prob_tmp.shape, haz_prob_rec.shape)
 
-                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr = read_footprint(
+                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr, haz_prob_rec = read_footprint(
                         event_id, event_footprint, haz_prob_tmp, haz_prob_rec)
+
+                    print(haz_prob_tmp.shape, haz_prob_rec.shape)
 
                     Nareaperil_ids = len(areaperil_ids)
 
@@ -858,12 +860,18 @@ def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
                 if end_rec > haz_prob_rec.shape[0]:
                     # double its size
                     # TODO decide how/whether we need this dynamic array or we can conservatively define haz_prob_rec
-                    print("double haz_prob_rec size: start_rec", start_rec, "end_rec",
+                    print("need to double haz_prob_rec size: start_rec", start_rec, "end_rec",
                           end_rec, "haz_prob_rec.shape[0]", haz_prob_rec.shape[0])
-                    # tmp_rec = np.empty(haz_prob_rec.shape[0] * 2, dtype=oasis_float)
-                    # tmp_rec[:start_rec] = haz_prob_rec[:start_rec]
-                    # haz_prob_rec = tmp_rec
+                    tmp_rec = np.empty(haz_prob_rec.shape[0] * 2, dtype=oasis_float)
+                    tmp_rec[:start_rec] = haz_prob_rec[:start_rec]
+                    haz_prob_rec = tmp_rec
 
+                # TODO perhaps here we don't need to use the tmp structure
+                # we can just store directly into haz_prob_rec and update haz_prob_rec_idx_ptr at the end of each areaperil id, as it is now
+                # the need in gulpy comes from the need to possibly interrupt the function (eg if the stream is empty)
+                # but here there's not this limitation. we can save memory and performance if we do this.
+                # plus: haz_prob_rec_idx_ptr will contain, for each intensity bin, the actual intensity bin id, so
+                # later on, we can use haz_prob_rec_idx_ptr + haz_bin_idx to find the actual bin id. SOLVED IT :-)))
                 for j in range(start_rec, end_rec, 1):
                     haz_prob_rec[j] = haz_prob_tmp[j - start_rec]
 
@@ -885,4 +893,7 @@ def read_footprint(event_id, event_footprint, haz_prob_tmp, haz_prob_rec):
         # go to next footprint row
         footprint_i += 1
 
-    return areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr
+    # TODO: either we change while to for loop, or we need to repeat after the while loop
+    # the processing to add the last areaperil_id.
+
+    return areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr, haz_prob_rec
