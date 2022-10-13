@@ -11,7 +11,7 @@ from numba.types import int32 as nb_int32, int64 as nb_int64, int8 as nb_int8
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
     ProbMean, damagecdfrec_stream, oasis_float_to_int32_size, areaperil_int_to_int32_size,
-    items_data_type, ProbMean_size, NP_BASE_ARRAY_SIZE, GETMODEL_STREAM_BUFF_SIZE
+    items_data_type, ProbMean_size, NP_BASE_ARRAY_SIZE
 )
 from oasislmf.pytools.gul.random import generate_hash
 
@@ -40,7 +40,7 @@ def gen_valid_area_peril(valid_area_peril_id):
     return valid_area_peril_dict
 
 
-def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_area_peril_id=None, buff_size=GETMODEL_STREAM_BUFF_SIZE, ):
+def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_size, valid_area_peril_id=None):
     """Read the getmodel output stream yielding data event by event.
 
     Args:
@@ -50,7 +50,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
         coverages (numpy.ndarray[coverage_type]): array with coverage data.
         compute (numpy.array[int]): list of coverages to be computed.
         seeds (numpy.array[int]): the random seeds for each coverage_id.
-        buff_size (int): size in bytes of the read buffer (see note). Default is GETMODEL_STREAM_BUFF_SIZE.
+        buff_size (int): size in bytes of the read buffer (see note).
 
     Raises:
         ValueError: If the stream type is not 1.

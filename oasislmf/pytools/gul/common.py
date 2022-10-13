@@ -11,10 +11,6 @@ from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 # probably need to set this dynamically depending on the stream type
 gul_header = np.int32(1 | 2 << 24).tobytes()
 
-PIPE_CAPACITY = 65536  # bytes
-GETMODEL_STREAM_BUFF_SIZE = 2 * PIPE_CAPACITY
-GULPY_STREAM_BUFF_SIZE_WRITE = PIPE_CAPACITY
-
 items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                           ('damagecdf_i', np.int32),
                                           ('rng_index', np.int32)

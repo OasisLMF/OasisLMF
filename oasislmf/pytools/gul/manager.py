@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from numba import njit
 from numba.typed import Dict, List
+from oasislmf.pytools.common import PIPE_CAPACITY
 
 from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
 
@@ -20,7 +21,7 @@ from oasislmf.pytools.getmodel.common import oasis_float, Keys, Correlation
 
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, GULPY_STREAM_BUFF_SIZE_WRITE,
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
 )
 from oasislmf.pytools.gul.io import (
@@ -210,7 +211,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         number_size = max(gulSampleslevelHeader_size, gulSampleslevelRec_size)
 
         # define the raw memory view, the int32 view of it, and their respective cursors
-        mv_size_bytes = GULPY_STREAM_BUFF_SIZE_WRITE * 2
+        mv_size_bytes = 2 * PIPE_CAPACITY
         mv_write = memoryview(bytearray(mv_size_bytes))
         int32_mv_write = np.ndarray(mv_size_bytes // number_size, buffer=mv_write, dtype='i4')
 
@@ -279,7 +280,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
 
-        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
+        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id, buff_size=2 * PIPE_CAPACITY):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
@@ -304,7 +305,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                     arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
-                    GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
+                    PIPE_CAPACITY, int32_mv_write, cursor
                 )
 
                 select([], select_stream_list, select_stream_list)
