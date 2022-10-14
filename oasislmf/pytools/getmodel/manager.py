@@ -706,6 +706,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
                     # draw samples of hazard intensity from the probability distribution
                     # stream out: event_id, areaperil_id, intensity_bin_id for each sample
 
+                    # TODO: for hazards with no intensity uncertainty (ie len(prob)==1), skip drawing the sample and return 0
                     areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr = map_areaperil_ids_in_footprint(
                         event_id, event_footprint)
 
