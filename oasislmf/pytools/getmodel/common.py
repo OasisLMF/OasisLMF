@@ -16,6 +16,7 @@ parquetfootprint_filename = "footprint.parquet"
 parquetfootprint_meta_filename = "footprint_parquet_meta.json"
 
 areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
+nb_areaperil_int = nb.from_dtype(areaperil_int)
 oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
 
 FootprintHeader = nb.from_dtype(np.dtype([('num_intensity_bins', np.int32),
