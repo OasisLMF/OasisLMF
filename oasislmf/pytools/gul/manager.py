@@ -280,7 +280,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
 
-        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id, buff_size=2 * PIPE_CAPACITY):
+        for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, 2 * PIPE_CAPACITY, valid_area_peril_id):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
 
