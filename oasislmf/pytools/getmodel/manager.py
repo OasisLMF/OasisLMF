@@ -706,7 +706,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
                     # draw samples of hazard intensity from the probability distribution
                     # stream out: event_id, areaperil_id, intensity_bin_id for each sample
 
-                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr = read_footprint(
+                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr = map_areaperil_ids_in_footprint(
                         event_id, event_footprint)
 
                     Nareaperil_ids = len(areaperil_ids)
@@ -746,7 +746,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
 @nb.njit(cache=True, fastmath=True)
 def sample_haz_intensity(event_id, areaperil_ids, event_footprint, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
                          sample_size, last_processed_areaperil_ids_idx, Nareaperil_ids, rndms, buff_size, int32_mv, cursor, max_number_size, debug):
-
+    """TODO: Add docstring"""
     for areaperil_id_idx in range(last_processed_areaperil_ids_idx, Nareaperil_ids):
 
         areaperil_id = areaperil_ids[areaperil_id_idx]
@@ -796,9 +796,8 @@ def sample_haz_intensity(event_id, areaperil_ids, event_footprint, areaperil_ids
     return cursor, cursor * int32_mv.itemsize, last_processed_areaperil_ids_idx
 
 
-# TODO: set cache=True before merging
-@nb.njit(cache=False, fastmath=True)
-def read_footprint(event_id, event_footprint):
+@nb.njit(cache=True, fastmath=True)
+def map_areaperil_ids_in_footprint(event_id, event_footprint):
     """
     Map all the areaperil_ids in the footprint, calculating seeds for hazard intensity sampling. 
 
