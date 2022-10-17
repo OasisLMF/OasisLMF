@@ -317,10 +317,11 @@ KTOOLS_FIFO_RELATIVE = False
 KTOOLS_DISABLE_ERR_GUARD = False
 KTOOLS_GUL_LEGACY_STREAM = False
 # ktools gul alloc rules:
+# 3 = total loss using multiplicative method
 # 2 = total loss is maximum subperil loss
 # 1 = default with back allocation
 # 0 = default without back allocation
-KTOOLS_ALLOC_GUL_MAX = 2
+KTOOLS_ALLOC_GUL_MAX = 3
 KTOOLS_ALLOC_FM_MAX = 3
 KTOOLS_ALLOC_GUL_DEFAULT = 0
 KTOOLS_ALLOC_IL_DEFAULT = 2
