@@ -572,7 +572,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
 
     if 'condpriority' not in accounts_df.columns:
         accounts_df['condpriority'] = 0
-    accounts_df['condpriority'].fillna(0)
+    accounts_df['condpriority'].fillna(0, inplace=True)
 
     policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=[cond_tag, 'condpriority'])
     cond_df = accounts_df[[portfolio_num, acc_num, cond_tag, 'condpriority']].drop_duplicates()
@@ -724,7 +724,6 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
                 if loc not in cur_parent_group['needed_loc']:
                     cur_parent_group['needed_loc'][loc] = True
             cur_parent_cond = cur_parent_group.get('parent')
-
             if breaker > max_loop:
                 raise RecursionError(f'Issue with condtag {cur_parent_cond} stuck looping through hierarchy')
             else:
@@ -737,7 +736,6 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
 
     loc_to_cond = {}
     account_groups = {}
-
     for rec in column_base_il_df[main_key + [cond_tag, cond_num, loc_num, 'layer_id', 'condpriority']].drop_duplicates().to_dict(orient="records"):
         group_key = tuple(rec[name] for name in main_key)
         groups = account_groups.setdefault(group_key, {})
