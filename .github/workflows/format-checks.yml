@@ -1,6 +1,9 @@
 name: Python format checks
 
-on: [pull_request]
+on: [push]
+
+env:
+  max_line_length: 120
 
 jobs:
   build:
@@ -20,14 +23,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade pip-tools
-      - uses: jitterbit/get-changed-files@v1
-        with:
-          # Format of the steps output context.
-          format: 'space-delimited' 
       - name: autopep8
         id: autopep8
         run: |
-          autopep8 --diff --exit-code --recursive .
+          autopep8 --diff --exit-code --recursive --max-line-length ${{ env.max_line_length }} .
       - name: Fail if autopep8 made changes
         if: steps.autopep8.outputs.exit-code == 2
         run: exit 1
