@@ -27,7 +27,7 @@ jobs:
       - name: autopep8
         id: autopep8
         run: |
-          autopep8 --diff --exit-code .
+          autopep8 --diff --exit-code --recursive .
       - name: Fail if autopep8 made changes
         if: steps.autopep8.outputs.exit-code == 2
         run: exit 1
