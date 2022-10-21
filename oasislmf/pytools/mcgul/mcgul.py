@@ -1,19 +1,19 @@
 import os
-from contextlib import ExitStack
-from select import select
 import sys
 import numpy as np
-import logging
 import pandas as pd
+import logging
 import atexit
+from contextlib import ExitStack
+from select import select
+from pathlib import Path
 from numba import njit
 from numba.types import uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64, int8 as nb_int8
 from numba.typed import Dict, List
+
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
-
 from oasislmf.pytools.getmodel.common import Correlation, oasis_float
-
 from oasislmf.pytools.getmodel.common import areaperil_int, nb_areaperil_int, oasis_float, Index_type, Keys
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.io import gen_structs, gen_valid_area_peril
@@ -582,8 +582,8 @@ def cumsum():
     y = np.empty(100, dtype='f4')
     cumsum = 0
     for i in range(0, 100):
-      cumsum += x[i]
-      y[i] = cumsum
+        cumsum += x[i]
+        y[i] = cumsum
 
     y /= y[-1]
 
@@ -686,8 +686,6 @@ def reconstruct_coverages(event_id, areaperil_ids_map, item_map, coverages, comp
 
 
 if __name__ == '__main__':
-
-    from pathlib import Path
 
     test_dir = Path("/home/mtazzari/repos/OasisPiWind/runs/losses-20220824044200")
     run(
