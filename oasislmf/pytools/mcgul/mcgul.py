@@ -488,16 +488,23 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     vuln_rndms = vuln_rndms_base[rng_index]
 
                 for sample_idx in range(1, sample_size + 1):
-                    # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
-                    haz_rval = haz_rndms[sample_idx - 1]
+                    if Nbins == 1:
+                        # if hazard intensity has no uncertainty, there is no need to sample
+                        haz_bin_idx = 0
 
-                    if haz_rval >= haz_prob_to[Nbins - 1]:
-                        haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
-                        haz_bin_idx = Nbins - 1
                     else:
-                        # find the bin in which the random value `haz_rval` falls into
-                        # len(haz_prob_to) can be cached and stored above
-                        haz_bin_idx = binary_search(haz_rval, haz_prob_to, Nbins)
+                        # if hazard intensity has a probability distribution, sample it
+
+                        # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
+                        haz_rval = haz_rndms[rng_index][sample_idx - 1]
+
+                        if haz_rval >= haz_prob_to[Nbins - 1]:
+                            haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
+                            haz_bin_idx = Nbins - 1
+                        else:
+                            # find the bin in which the random value `haz_rval` falls into
+                            # len(haz_prob_to) can be cached and stored above
+                            haz_bin_idx = binary_search(haz_rval, haz_prob_to, Nbins)
 
                     cdf_start_in_footprint = haz_prob_rec_idx_ptr[haz_prob_rec_idx_ptr[hazcdf_i]]
                     haz_int_bin_idx = event_footprint[cdf_start_in_footprint +
@@ -550,7 +557,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                 # compute mean values
                 # TODO: placeholder: compute mean values for the last damage cdf
                 gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                    tiv, vuln_prob_to, damage_bins['interpolation'], Nbins, damage_bins[Nbins - 1]['bin_to'],
+                    tiv, vuln_prob_to, damage_bins['interpolation'], Ndamage_bins, damage_bins[Ndamage_bins - 1]['bin_to'],
                 )
 
                 losses[MAX_LOSS_IDX, item_i] = max_loss
