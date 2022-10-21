@@ -398,7 +398,7 @@ def stream_to_data_monte_carlo(int32_mv, valid_buf, size_cdf_entry, last_event_i
         end_rec = start_rec + Nbins_to_read
         for j in range(start_rec, end_rec, 1):
             haz_int_bin_id, cursor = int32_mv[cursor], cursor + 1
-            rec[j]['prob_to'][j] = vuln_array[, , haz_int_bin_id]
+            # rec[j]['prob_to'][j] = vuln_array[, , haz_int_bin_id]
             cursor += oasis_float_to_int32_size
 
             rec[j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
