@@ -58,7 +58,7 @@ Commit and push the changes once you are happy with them.
 When you're finished with the changes, create a pull request, also known as a PR.
 - Fill the PR template in all its parts.
 - As a general rule, the **develop** branch is the target of all PRs for new features or bugfixes.
-- Invite **at least two** OasisLMF team members as reviewers.
+- Add the "Ready for Review" label to this PR.
 - Don't forget to [link PR to issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) if you are solving one.
 - Enable the checkbox to [allow maintainer edits](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/allowing-changes-to-a-pull-request-branch-created-from-a-fork) so the branch can be updated for a merge.
 Once you submit your PR, a Docs team member will review your proposal. We may ask questions or request additional information.
