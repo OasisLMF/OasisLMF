@@ -541,8 +541,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
-def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
-        sample_size, full_monte_carlo, random_generator, debug):
+def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
     """
     Runs the main process of the getmodel process.
 
@@ -552,8 +551,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
         file_out: (Optional[str]) the path to the output directory
         ignore_file_type: set(str) file extension to ignore when loading
         data_server: (bool) if set to True runs the data server
-        sample_size: TBD
-        random_generator: TBD
+        peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
 
     Returns: None
     """
