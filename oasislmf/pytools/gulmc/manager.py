@@ -55,7 +55,7 @@ def generate_item_map(items, coverages):
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
     Nitems = items.shape[0]
 
-    areaperil_ids = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int32))
+    areaperil_ids = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
 
     for j in range(Nitems):
         append_to_dict_value(
@@ -76,7 +76,25 @@ def generate_item_map(items, coverages):
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
         random_generator, peril_filter=[], file_in=None, file_out=None, data_server=None, ignore_correlation=False, **kwargs):
+    """TODO add description
 
+    Args:
+        run_dir (_type_): _description_
+        ignore_file_type (_type_): _description_
+        sample_size (_type_): _description_
+        loss_threshold (_type_): _description_
+        alloc_rule (_type_): _description_
+        debug (_type_): _description_
+        random_generator (_type_): _description_
+        peril_filter (list, optional): _description_. Defaults to [].
+        file_in (_type_, optional): _description_. Defaults to None.
+        file_out (_type_, optional): _description_. Defaults to None.
+        data_server (_type_, optional): _description_. Defaults to None.
+        ignore_correlation (bool, optional): _description_. Defaults to False.
+
+    Raises:
+        ValueError: _description_
+    """
     logger.info("starting gulpy")
 
     # TODO: store static_path in a paraparameters file
@@ -292,7 +310,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             if event_footprint is not None:
 
                 areaperil_ids, haz_prob_rec_idx_ptr, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr = map_areaperil_ids_in_footprint(
-                    event_id, event_footprint, areaperil_to_vulns_idx_dict)
+                    event_footprint, areaperil_to_vulns_idx_dict)
                 # TODO: here we could filter areaperil_ids_map on the existing areaperil_ids in the event footprint
                 # instead of filter inside reconstruct_coverages
 
@@ -352,6 +370,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 logger.info(f"event {event_id} DONE")
 
 
+@njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, vuln_array, damage_bins, Ndamage_bins_max,
                          loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij, corr_data_by_item_id,
@@ -518,28 +537,28 @@ def cumsum():
     return x, y
 
 
-# @njit(cache=True, fastmath=True)
-def map_areaperil_ids_in_footprint(event_id, event_footprint, areaperil_to_vulns_idx_dict):
+@njit(cache=True, fastmath=True)
+def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict):
     """
     Map all the areaperil_ids in the footprint...
     """
     # init data structures
-    haz_prob_start_in_footprint = List.empty_list(nb_int32)
+    haz_prob_start_in_footprint = List.empty_list(nb_int64)
     # haz_prob_length_in_footprint = List.empty_list(nb_int32)
 
     areaperil_ids = List.empty_list(nb_areaperil_int)
 
     # a footprint row contains: event_id areaperil_id intensity_bin prob
     footprint_i = 0
-    last_areaperil_id = nb_uint32(0)
-    last_areaperil_id_start = 0
-    haz_cdf_i = nb_int32(0)
-    areaperil_to_haz_cdf = Dict.empty(nb_areaperil_int, nb_int32)
+    last_areaperil_id = nb_areaperil_int(0)
+    last_areaperil_id_start = nb_int64(0)
+    haz_cdf_i = nb_int64(0)
+    areaperil_to_haz_cdf = Dict.empty(nb_areaperil_int, nb_int64)
 
     haz_cdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
     cdf_start = 0
     cdf_end = 0
-    haz_cdf_ptr = [0]
+    haz_cdf_ptr = List([0])
     while footprint_i < len(event_footprint):
 
         areaperil_id = event_footprint[footprint_i]['areaperil_id']
@@ -599,6 +618,7 @@ def map_areaperil_ids_in_footprint(event_id, event_footprint, areaperil_to_vulns
     return areaperil_ids, haz_prob_start_in_footprint, areaperil_to_haz_cdf, haz_cdf[:cdf_end], haz_cdf_ptr
 
 
+@njit(cache=True, fastmath=True)
 def reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, vuln_dict, item_map, coverages, compute, haz_seeds, vuln_seeds):
 
     # reconstruct coverage: probably best outsite of this function
