@@ -74,6 +74,28 @@ def generate_item_map(items, coverages):
     return item_map, areaperil_ids
 
 
+def get_vulnerability_weights(static_path, ignore_file_type=set()):
+    """
+    Loads the vulnerability weights (from the weights file.
+    Fields are: areaperil_id, agg_vulnerability, vulnerability_id, weight.
+
+    Args:
+        static_path: (str) the path pointing to the static file where the data is
+        ignore_file_type: set(str) file extension to ignore when loading
+
+    Returns: (List[Union[VulnerabilityWeights]]) loaded data from the damage_bin_dict file
+    """
+    input_files = set(os.listdir(static_path))
+    if "weights.bin" in input_files and 'bin' not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(static_path, 'weights.bin')}")
+        return np.fromfile(os.path.join(static_path, "weights.bin"), dtype=VulnerabilityWeights)
+    elif "weights.csv" in input_files and 'csv' not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(static_path, 'weights.csv')}")
+        return np.genfromtxt(os.path.join(static_path, "weights.csv"), dtype=VulnerabilityWeights)
+    else:
+        raise FileNotFoundError(f'weights file not found at {static_path}')
+
+
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
         random_generator, peril_filter=[], file_in=None, file_out=None, data_server=None, ignore_correlation=False, **kwargs):
     """TODO add description

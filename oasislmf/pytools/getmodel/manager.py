@@ -349,28 +349,6 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
     return vuln_array, vulns_id, num_damage_bins
 
 
-def get_vulnerability_weights(static_path, ignore_file_type=set()):
-    """
-    Loads the vulnerability weights (from the weights file.
-    Fields are: areaperil_id, agg_vulnerability, vulnerability_id, weight.
-
-    Args:
-        static_path: (str) the path pointing to the static file where the data is
-        ignore_file_type: set(str) file extension to ignore when loading
-
-    Returns: (List[Union[VulnerabilityWeights]]) loaded data from the damage_bin_dict file
-    """
-    input_files = set(os.listdir(static_path))
-    if "weights.bin" in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'weights.bin')}")
-        return np.fromfile(os.path.join(static_path, "weights.bin"), dtype=VulnerabilityWeights)
-    elif "weights.csv" in input_files and 'csv' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'weights.csv')}")
-        return np.genfromtxt(os.path.join(static_path, "weights.csv"), dtype=VulnerabilityWeights)
-    else:
-        raise FileNotFoundError(f'weights file not found at {static_path}')
-
-
 def get_mean_damage_bins(static_path, ignore_file_type=set()):
     """
     Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
@@ -637,58 +615,23 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
         logger.debug('init vulnerability')
 
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
-        # Nvuln_funcs, Ndamage_bins, Nintensity_bins = vuln_array.shape
-
-        # get agg vuln table
-        # vuln_weights = get_vulnerability_weights(static_path, ignore_file_type)
-
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
 
-        if full_monte_carlo and not sample_size:
-            raise ValueError(f"Expect sample size > 0 in full monte carlo mode, got {sample_size}.")
+        # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
+        max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size
+        mv = memoryview(bytearray(buff_size))
+        int32_mv = np.ndarray(buff_size // np.int32().itemsize, buffer=mv, dtype=np.int32)
 
-        # prepare output buffer, write stream header
-        if full_monte_carlo:
-            # number of bytes to read at a given time.
-
-            max_number_size = 4 + 4 + sample_size * (oasis_float.itemsize if debug else 4)
-            mv_size_bytes = 2 * PIPE_CAPACITY
-            mv_write = memoryview(bytearray(2 * PIPE_CAPACITY))
-            int32_mv_write = np.ndarray(mv_size_bytes // max_number_size, buffer=mv_write, dtype='i4')
-
-            # header
-            stream_out.write(np.uint32(5).tobytes())
-            stream_out.write(np.int32(sample_size).tobytes())
-
-        else:
-            # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
-            max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size
-            mv = memoryview(bytearray(buff_size))
-            int32_mv = np.ndarray(buff_size // np.int32().itemsize, buffer=mv, dtype=np.int32)
-
-            # header
-            stream_out.write(np.uint32(1).tobytes())
-
-        # set the random generator function
-        generate_rndm = get_random_generator(random_generator)
-
-        # it's impossible to know how many unique areaperil_ids are in the footprint without traversing it
-        haz_seeds = []
-
-        cursor = 0
-        cursor_bytes = 0
+        # header
+        stream_out.write(np.uint32(1).tobytes())
 
         logger.debug('doCdf starting')
         while True:
             len_read = streams_in.readinto(event_id_mv)
             if len_read == 0:
                 break
-
-            # to be replaced with more idiomatic:
-            # if not streams_in.readinto(event_id_mv):
-            #     break
 
             # get the next event_id from the input stream
             event_id = event_ids[0]
@@ -698,160 +641,16 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter,
             else:
                 event_footprint = footprint_obj.get_event(event_id)
 
-            # to be replaced with more idiomatic:
-            # event_footprint = (FootprintLayerClient if data_server else footprint_obj).get_event(event_id)
-
             if event_footprint is not None:
-                if full_monte_carlo:
-                    # draw samples of hazard intensity from the probability distribution
-                    # stream out: event_id, areaperil_id, intensity_bin_id for each sample
+                # compute effective damageability probability distribution
+                # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
+                for cursor_bytes in doCdf(event_id,
+                                          num_intensity_bins, event_footprint,
+                                          areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
+                                          vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
+                                          int32_mv, max_result_relative_size):
 
-                    # TODO: for hazards with no intensity uncertainty (ie len(prob)==1), skip drawing the sample and return 0
-                    areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr = map_areaperil_ids_in_footprint(
-                        event_id, event_footprint)
-
-                    Nareaperil_ids = len(areaperil_ids)
-
-                    # draw random values for intensity samples
-                    rndms = generate_rndm(haz_seeds[:rng_index], sample_size)
-
-                    last_processed_areaperil_ids_idx = 0
-
-                    while last_processed_areaperil_ids_idx < Nareaperil_ids:
-
-                        cursor, cursor_bytes, last_processed_areaperil_ids_idx = sample_haz_intensity(
-                            event_id, areaperil_ids, event_footprint, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
-                            sample_size, last_processed_areaperil_ids_idx, Nareaperil_ids, rndms,
-                            PIPE_CAPACITY, int32_mv_write, cursor, max_number_size, debug)
-
-                        select([], [stream_out], [stream_out])
-
-                        stream_out.write(int32_mv_write[:cursor_bytes])
-                        cursor = 0
-
-                else:
-                    # compute effective damageability probability distribution
-                    # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
-                    for cursor_bytes in doCdf(event_id,
-                                              num_intensity_bins, event_footprint,
-                                              areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-                                              vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
-                                              int32_mv, max_result_relative_size):
-
-                        if cursor_bytes:
-                            stream_out.write(mv[:cursor_bytes])
-                        else:
-                            break
-
-
-@nb.njit(cache=True, fastmath=True)
-def sample_haz_intensity(event_id, areaperil_ids, event_footprint, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr,
-                         sample_size, last_processed_areaperil_ids_idx, Nareaperil_ids, rndms, buff_size, int32_mv, cursor, max_number_size, debug):
-    """TODO: Add docstring"""
-    for areaperil_id_idx in range(last_processed_areaperil_ids_idx, Nareaperil_ids):
-
-        areaperil_id = areaperil_ids[areaperil_id_idx]
-        rng_index = areaperil_ids_rng_index_lst[areaperil_id_idx]
-
-        haz_prob = event_footprint[haz_prob_rec_idx_ptr[areaperil_id_idx]:haz_prob_rec_idx_ptr[areaperil_id_idx + 1]]['probability']
-
-        # compute hazard intensity cumulative probability distribution
-        haz_prob_to = np.cumsum(haz_prob)
-        haz_prob_to /= haz_prob_to[-1]
-        Nbins = len(haz_prob_to)
-
-        # return before processing this coverage if bytes to be written in mv exceed `buff_size`
-        if cursor * int32_mv.itemsize + max_number_size > buff_size:
-            return cursor, cursor * int32_mv.itemsize, last_processed_areaperil_ids_idx
-
-        # write header
-        int32_mv[cursor], cursor = event_id, cursor + 1
-        int32_mv[cursor], cursor = areaperil_id, cursor + 1
-
-        if debug is True:
-            for sample_idx in range(sample_size):
-                rval = rndms[rng_index][sample_idx]
-
-                # write random value (float)
-                int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = rval
-
-        else:
-            for sample_idx in range(sample_size):
-                # cap `rval` to the maximum `haz_prob_to` value (which should be 1.)
-                rval = rndms[rng_index][sample_idx]
-
-                if rval >= haz_prob_to[Nbins - 1]:
-                    rval = haz_prob_to[Nbins - 1] - 0.00000003
-                    haz_bin_idx = Nbins - 1
-                else:
-                    # find the bin in which the random value `rval` falls into
-                    haz_bin_idx = binary_search(rval, haz_prob_to, Nbins)
-
-                # write the hazard intensity bin id for this sample
-                haz_intensity_bin_idx = event_footprint[haz_prob_rec_idx_ptr[areaperil_id_idx] +
-                                                        haz_bin_idx]['intensity_bin_id']
-                int32_mv[cursor], cursor = haz_intensity_bin_idx, cursor + 1
-
-        last_processed_areaperil_ids_idx += 1
-
-    return cursor, cursor * int32_mv.itemsize, last_processed_areaperil_ids_idx
-
-
-@nb.njit(cache=True, fastmath=True)
-def map_areaperil_ids_in_footprint(event_id, event_footprint):
-    """
-    Map all the areaperil_ids in the footprint, calculating seeds for hazard intensity sampling. 
-
-    Args:
-        event_id (int): _description_
-        event_footprint: (List[Tuple[int, int, float]]) information about the footprint with event_id, areaperil_id, probability.
-
-    Returns:
-        List[int], List[int], int, List[int], List[int]: list of areaperil_ids, seeds to be used for sampling
-            the hazard intensity probability for each areaperil_id, the total number of seeds calculated, 
-            a list with the seed of each areaperil_id, a list with the number of the first row 
-            in the event footprint for each areaperil_id.
-
-    """
-    # init data structures
-    areaperil_ids_rng_index_map = Dict.empty(nb_uint32, nb_int64)
-    haz_prob_rec_idx_ptr = List([0])
-
-    rng_index = nb_int64(0)
-    haz_seeds = []
-    areaperil_ids = List.empty_list(nb_areaperil_int)
-    areaperil_ids_rng_index_lst = List.empty_list(nb_int64)
-
-    # a footprint row contains: event_id areaperil_id intensity_bin prob
-    footprint_i = 0
-    last_areaperil_id = nb_uint32(0)
-
-    while footprint_i < len(event_footprint) + 1:
-
-        areaperil_id = event_footprint[footprint_i]['areaperil_id']
-
-        if areaperil_id != last_areaperil_id:
-            if last_areaperil_id > 0:
-                # one areaperil_id is completed
-                areaperil_ids.append(last_areaperil_id)
-
-                # if this areaperil_id was not seen yet, process it.
-                # it assumes that hash only depends on event_id and areaperil_id
-                # and that only 1 event_id is processed at a time.
-                if areaperil_id not in areaperil_ids_rng_index_map:
-                    areaperil_ids_rng_index_map[areaperil_id] = rng_index
-                    haz_seeds.append(generate_hash(areaperil_id, event_id))
-                    this_rng_index = rng_index
-                    rng_index += 1
-
-                else:
-                    this_rng_index = areaperil_ids_rng_index_map[areaperil_id]
-
-                haz_prob_rec_idx_ptr.append(footprint_i)
-                areaperil_ids_rng_index_lst.append(this_rng_index)
-
-            last_areaperil_id = areaperil_id
-
-        footprint_i += 1
-
-    return areaperil_ids, haz_seeds, rng_index, areaperil_ids_rng_index_lst, haz_prob_rec_idx_ptr
+                    if cursor_bytes:
+                        stream_out.write(mv[:cursor_bytes])
+                    else:
+                        break
