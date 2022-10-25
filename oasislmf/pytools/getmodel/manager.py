@@ -7,7 +7,6 @@ TODO: use selector and select for output
 import atexit
 import logging
 import os
-from select import select
 
 import pandas as pd
 import sys
@@ -16,17 +15,11 @@ from contextlib import ExitStack
 import numba as nb
 import numpy as np
 import pyarrow.parquet as pq
-from numba.typed import Dict, List
-from numba.types import uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64, int8 as nb_int8
 from oasislmf.pytools.common import PIPE_CAPACITY
 
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import areaperil_int, nb_areaperil_int, oasis_float, Index_type, Keys
+from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float, Index_type, Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.gul.common import oasis_float_to_int32_size
-from oasislmf.pytools.gul.io import gen_structs
-from oasislmf.pytools.gul.random import generate_hash, get_random_generator
-from oasislmf.pytools.gul.utils import binary_search
 
 logger = logging.getLogger(__name__)
 
