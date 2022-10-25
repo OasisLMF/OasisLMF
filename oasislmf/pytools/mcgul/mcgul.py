@@ -291,7 +291,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             if event_footprint is not None:
 
-                areaperil_ids, haz_prob_rec_idx_ptr, haz_prob_length_in_footprint, areaperil_to_haz_cdf, haz_cdf_new, haz_cdf_ptr_new = map_areaperil_ids_in_footprint(
+                areaperil_ids, haz_prob_rec_idx_ptr, haz_prob_length_in_footprint, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr = map_areaperil_ids_in_footprint(
                     event_footprint, areaperil_to_vulns_idx_dict)
                 # TODO: here we could filter areaperil_ids_map on the existing areaperil_ids in the event footprint
                 # instead of filter inside reconstruct_coverages
@@ -300,21 +300,22 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     # no items to be computed for this event
                     continue
 
-                haz_cdf = np.zeros(sum(haz_prob_length_in_footprint))
-                cdf_start = 0
-                haz_cdf_ptr = []
-                for ap_i in range(len(areaperil_ids)):
-                    ap_cdf = np.cumsum(event_footprint['probability'][haz_prob_rec_idx_ptr[ap_i]: haz_prob_rec_idx_ptr[ap_i] + haz_prob_length_in_footprint[ap_i]])
-                    cdf_end = cdf_start + haz_prob_length_in_footprint[ap_i]
-                    haz_cdf[cdf_start:cdf_end] = ap_cdf / ap_cdf[-1]
-                    haz_cdf_ptr.append(cdf_start)
-                    cdf_start = cdf_end
+                # moved into map_areaperil_ids_in_footprint
+                # haz_cdf = np.zeros(sum(haz_prob_length_in_footprint))
+                # cdf_start = 0
+                # haz_cdf_ptr = []
+                # for ap_i in range(len(areaperil_ids)):
+                #     ap_cdf = np.cumsum(event_footprint['probability'][haz_prob_rec_idx_ptr[ap_i]: haz_prob_rec_idx_ptr[ap_i] + haz_prob_length_in_footprint[ap_i]])
+                #     cdf_end = cdf_start + haz_prob_length_in_footprint[ap_i]
+                #     haz_cdf[cdf_start:cdf_end] = ap_cdf / ap_cdf[-1]
+                #     haz_cdf_ptr.append(cdf_start)
+                #     cdf_start = cdf_end
 
-                haz_cdf_ptr.append(cdf_start)
+                # haz_cdf_ptr.append(cdf_start)
 
-                assert haz_cdf_new == haz_cdf 
-                assert all(haz_cdf_ptr_new == haz_cdf_ptr)
-                # TODO: I'm here: why haz_cdf_ptr_new is different from haz_cdf_ptr???
+                # assert haz_cdf_new == haz_cdf
+                # assert all(haz_cdf_ptr_new == haz_cdf_ptr)
+                # # TODO: I'm here: why haz_cdf_ptr_new is different from haz_cdf_ptr???
 
                 compute_i, items_data, rng_index = reconstruct_coverages(
                     event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, vuln_dict, item_map, coverages, compute, haz_seeds, vuln_seeds)
@@ -538,7 +539,8 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict)
 
     haz_cdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
     cdf_start = 0
-    haz_cdf_ptr = []
+    cdf_end = 0
+    haz_cdf_ptr = [0]
     while footprint_i < len(event_footprint):
 
         areaperil_id = event_footprint[footprint_i]['areaperil_id']
@@ -562,7 +564,7 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict)
                         # if cumsum > 0.999999940:
                         #     break
 
-                    haz_cdf_ptr.append(cdf_start)
+                    haz_cdf_ptr.append(cdf_end)
                     cdf_start = cdf_end
 
             last_areaperil_id = areaperil_id
@@ -570,14 +572,14 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict)
 
         footprint_i += 1
 
-    # last entry
+    # last row  # TODO go ahead from here
     if areaperil_id in areaperil_to_vulns_idx_dict:
         areaperil_ids.append(areaperil_id)
         haz_prob_start_in_footprint.append(last_areaperil_id_start)
         haz_prob_length_in_footprint.append(footprint_i - last_areaperil_id_start)
         areaperil_to_haz_cdf[areaperil_id] = haz_cdf_i
 
-        cdf_end = cdf_start + footprint_i - last_areaperil_id_start
+        cdf_end = cdf_start + 1
         cumsum = 0
         for i in range(cdf_start, cdf_end, 1):
             cumsum += event_footprint['probability'][last_areaperil_id_start + i]
@@ -585,10 +587,10 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict)
             # if cumsum > 0.999999940:
             #     break
 
-        haz_cdf_ptr.append(cdf_start)
+        haz_cdf_ptr.append(cdf_end)
         # cdf_start = cdf_end
 
-        haz_cdf_ptr.append(cdf_end)  # add last end
+        # haz_cdf_ptr.append(cdf_end)  # add last end
 
     return areaperil_ids, haz_prob_start_in_footprint, haz_prob_length_in_footprint, areaperil_to_haz_cdf, haz_cdf[:cdf_end], haz_cdf_ptr
 
