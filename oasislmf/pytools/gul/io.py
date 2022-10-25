@@ -51,6 +51,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_si
         compute (numpy.array[int]): list of coverages to be computed.
         seeds (numpy.array[int]): the random seeds for each coverage_id.
         buff_size (int): size in bytes of the read buffer (see note).
+        valid_area_peril_id (list[int]): list of valid areaperil_ids.
 
     Raises:
         ValueError: If the stream type is not 1.
