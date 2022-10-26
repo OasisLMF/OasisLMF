@@ -13,26 +13,22 @@ from numba.typed import Dict, List
 
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
-from oasislmf.pytools.getmodel.common import Correlation, oasis_float
-from oasislmf.pytools.getmodel.common import nb_areaperil_int, oasis_float, Keys
+from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+from oasislmf.pytools.getmodel.common import (
+    Correlation, nb_areaperil_int, oasis_float, Keys)
+from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.pytools.getmodel.manager import (
+    VulnerabilityWeights, get_damage_bins, Item, get_items, get_vulns)
+from oasislmf.pytools.gul.common import (
+    MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, items_MC_data_type,
+    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.io import gen_structs
 from oasislmf.pytools.gul.random import compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash, generate_hash_haz, get_corr_rval
-from oasislmf.pytools.getmodel.common import oasis_float
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.manager import VulnerabilityWeights, get_damage_bins, Item
-from oasislmf.pytools.getmodel.manager import get_items, get_vulns
-from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.gul.manager import get_coverages, gul_get_items, write_losses
 from oasislmf.pytools.gul.random import get_random_generator
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
-from oasislmf.pytools.gul.common import (
-    MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
-    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
-)
-from oasislmf.pytools.gul.common import items_MC_data_type
 
 logger = logging.getLogger(__name__)
 
