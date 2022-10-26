@@ -298,13 +298,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 eps_ij = np.zeros((1, 1), dtype='float64')
 
             last_processed_coverage_ids_idx = 0
+            buff_size = GULPY_STREAM_BUFF_SIZE_WRITE
             while last_processed_coverage_ids_idx < compute_i:
-                cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
+                cursor, cursor_bytes, last_processed_coverage_ids_idx, buff_size = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                     arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
-                    GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
+                    buff_size, int32_mv_write, cursor
                 )
 
                 select([], select_stream_list, select_stream_list)
@@ -348,7 +349,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         cursor (int): index of int32_mv where to start writing.
 
     Returns:
-        int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
+        int, int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx, buff_size
     """
     max_size_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
 
@@ -358,14 +359,20 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         Nitem_ids = coverage['cur_items']
         exposureValue = tiv / Nitem_ids
 
-        # estimate max number of bytes are needed to output this coverage
+        # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
         est_cursor_bytes = Nitem_ids * max_size_per_item
 
-        # return before processing this coverage if bytes to be written in mv exceed `buff_size`
+        # return before processing this coverage if the number of free bytes left in the buffer
+        # is not sufficient to write out the full coverage
         if cursor * int32_mv.itemsize + est_cursor_bytes > buff_size:
-            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
+
+            # double buff size if it is smaller than the bytes needed to write just this coverage
+            if est_cursor_bytes > buff_size:
+                buff_size *= 2
+
+            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
 
         items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
 
@@ -450,7 +457,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
+    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
 
 
 @njit(cache=True, fastmath=True)
