@@ -13,6 +13,7 @@ import sys
 from contextlib import ExitStack
 
 import numba as nb
+from numba.typed import Dict
 import numpy as np
 import pyarrow.parquet as pq
 from oasislmf.pytools.common import PIPE_CAPACITY

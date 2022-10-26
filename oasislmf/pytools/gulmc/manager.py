@@ -8,21 +8,20 @@ from contextlib import ExitStack
 from select import select
 from pathlib import Path
 from numba import njit
-from numba.types import uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64, int8 as nb_int8
+from numba.types import uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64
 from numba.typed import Dict, List
 
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 from oasislmf.pytools.getmodel.common import Correlation, oasis_float
-from oasislmf.pytools.getmodel.common import areaperil_int, nb_areaperil_int, oasis_float, Index_type, Keys
+from oasislmf.pytools.getmodel.common import nb_areaperil_int, oasis_float, Keys
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
-from oasislmf.pytools.gul.io import gen_structs, gen_valid_area_peril
+from oasislmf.pytools.gul.io import gen_structs
 from oasislmf.pytools.gul.random import compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash, generate_hash_haz, get_corr_rval
 from oasislmf.pytools.getmodel.common import oasis_float
-from oasislmf.pytools.getmodel.manager import areaperil_int_relative_size, results_relative_size, sample_haz_intensity
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_mean_damage_bins
-from oasislmf.pytools.getmodel.manager import get_items, get_vulns, convert_vuln_id_to_index
+from oasislmf.pytools.getmodel.manager import VulnerabilityWeights, get_damage_bins, Item
+from oasislmf.pytools.getmodel.manager import get_items, get_vulns
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.gul.manager import get_coverages, gul_get_items, write_losses
@@ -257,7 +256,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         do_correlation = False
         if ignore_correlation:
-            logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
+            logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
             file_path = os.path.join(input_path, 'correlations.bin')
@@ -268,11 +267,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
                 do_correlation = True
             else:
-                logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
                             "the correlation value is zero for all peril correlation groups.")
 
         if do_correlation:
-            logger.info(f"Correlated random number generation: switched ON.")
+            logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
             corr_data_by_item_id[0] = (0, 0.)
@@ -310,23 +309,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         vuln_prob_to = np.zeros(Ndamage_bins_max, dtype=oasis_float)
 
         while True:
-            # len_read = streams_in.readinto(event_id_mv)
-            # if len_read == 0:
-            #     break
-
-            # to be replaced with more idiomatic:
             if not streams_in.readinto(event_id_mv):
                 break
 
             # get the next event_id from the input stream
             event_id = event_ids[0]
 
-            # if data_server:
-            #     event_footprint = FootprintLayerClient.get_event(event_id)
-            # else:
-            #     event_footprint = footprint_obj.get_event(event_id)
-
-            # to be replaced with more idiomatic:
             event_footprint = (FootprintLayerClient if data_server else footprint_obj).get_event(event_id)
 
             if event_footprint is not None:
@@ -340,30 +328,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     # no items to be computed for this event
                     continue
 
-                # moved into map_areaperil_ids_in_footprint
-                # haz_cdf = np.zeros(sum(haz_prob_length_in_footprint))
-                # cdf_start = 0
-                # haz_cdf_ptr = []
-                # for ap_i in range(len(areaperil_ids)):
-                #     ap_cdf = np.cumsum(event_footprint['probability'][haz_prob_rec_idx_ptr[ap_i]: haz_prob_rec_idx_ptr[ap_i] + haz_prob_length_in_footprint[ap_i]])
-                #     cdf_end = cdf_start + haz_prob_length_in_footprint[ap_i]
-                #     haz_cdf[cdf_start:cdf_end] = ap_cdf / ap_cdf[-1]
-                #     haz_cdf_ptr.append(cdf_start)
-                #     cdf_start = cdf_end
-
-                # haz_cdf_ptr.append(cdf_start)
-
-                # assert all(haz_cdf_new == haz_cdf)
-                # assert haz_cdf_ptr_new == haz_cdf_ptr
-
                 compute_i, items_data, rng_index = reconstruct_coverages(
                     event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, vuln_dict, item_map, coverages, compute, haz_seeds, vuln_seeds)
 
-                # generation of "base" random values is done as before
+                # generation of "base" random values for hazard intensity and vulnerability sampling
                 haz_rndms_base = generate_rndm(haz_seeds[:rng_index], sample_size)
                 vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
 
-                # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
                 # generate the correlated samples for the whole event, for all peril correlation groups
                 if do_correlation:
                     corr_seeds = generate_correlated_hash_vector(unique_peril_correlation_groups, event_id)
@@ -375,14 +346,15 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     eps_ij = np.zeros((1, 1), dtype='float64')
 
                 last_processed_coverage_ids_idx = 0
+                buff_size = PIPE_CAPACITY
                 while last_processed_coverage_ids_idx < compute_i:
 
-                    cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
+                    cursor, cursor_bytes, last_processed_coverage_ids_idx, buff_size = compute_event_losses(
                         event_id, coverages, compute[:compute_i], items_data,
                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, vuln_array, damage_bins, Ndamage_bins_max,
                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
-                        z_unif, debug, PIPE_CAPACITY, int32_mv, cursor
+                        z_unif, debug, buff_size, int32_mv, cursor
                     )
 
                     select([], select_stream_list, select_stream_list)
@@ -411,14 +383,20 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
         exposureValue = tiv / Nitems
 
-        # estimate max number of bytes are needed to output this coverage
+        # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
         est_cursor_bytes = Nitems * max_size_per_item
 
-        # return before processing this coverage if bytes to be written in mv exceed `buff_size`
+        # return before processing this coverage if the number of free bytes left in the buffer
+        # is not sufficient to write out the full coverage
         if cursor * int32_mv.itemsize + est_cursor_bytes > buff_size:
-            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
+
+            # double buff size if it is smaller than the bytes needed to write just this coverage
+            if est_cursor_bytes > buff_size:
+                buff_size *= 2
+
+            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
 
         items = items_data[coverage['start_items']: coverage['start_items'] + Nitems]
 
@@ -541,7 +519,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
+    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
 
 
 @njit
