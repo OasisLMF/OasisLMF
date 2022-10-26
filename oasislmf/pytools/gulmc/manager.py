@@ -518,25 +518,11 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
 
 
-@njit
-def cumsum():
-    # TODO cleanup
-    x = np.ones(100)
-    y = np.empty(100, dtype='f4')
-    cumsum = 0
-    for i in range(0, 100):
-        cumsum += x[i]
-        y[i] = cumsum
-
-    y /= y[-1]
-
-    return x, y
-
-
 @njit(cache=True, fastmath=True)
 def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict):
     """
     Map all the areaperil_ids in the footprint...
+    TODO: add docstring
     """
     # init data structures
     haz_prob_start_in_footprint = List.empty_list(nb_int64)
@@ -616,7 +602,7 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict)
 
 @njit(cache=True, fastmath=True)
 def reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, vuln_dict, item_map, coverages, compute, haz_seeds, vuln_seeds):
-
+    # TODO add docstring
     # reconstruct coverage: probably best outsite of this function
     # register the items to their coverage
 
