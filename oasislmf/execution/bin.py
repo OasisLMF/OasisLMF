@@ -390,7 +390,7 @@ def check_inputs_directory(directory_to_check, il=False, ri=False, check_binarie
     _check_each_inputs_directory(directory_to_check, il=il, check_binaries=check_binaries)
 
     if ri:
-        for ri_directory_to_check in glob.glob('{}{}RI_\d+$'.format(directory_to_check, os.path.sep)):
+        for ri_directory_to_check in glob.glob(r'{}{}RI_\d+$'.format(directory_to_check, os.path.sep)):
             _check_each_inputs_directory(ri_directory_to_check, il=True, check_binaries=check_binaries)
 
 

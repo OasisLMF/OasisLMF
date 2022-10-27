@@ -177,7 +177,7 @@ def balance(pipe_in, pipe_out, read_size, write_size, queue_size):
 
     pipeline = queue.Queue(maxsize=queue_size)
     sentinel = object()
-    stopper = np.zeros(1, dtype=np.bool)
+    stopper = np.zeros(1, dtype=bool)
     try:
         # check stream input header and write it to the stream output
         headers = set([s.read(8) for s in inputs])

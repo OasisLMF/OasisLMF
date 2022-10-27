@@ -20,7 +20,7 @@ items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                           ('rng_index', np.int32)
                                           ]))
 
-coverage_type = nb.from_dtype(np.dtype([('tiv', np.float),
+coverage_type = nb.from_dtype(np.dtype([('tiv', np.float32),
                                         ('max_items', np.int32),
                                         ('start_items', np.int32),
                                         ('cur_items', np.int32)

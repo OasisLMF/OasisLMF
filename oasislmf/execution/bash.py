@@ -1698,7 +1698,8 @@ def create_bash_analysis(
         if not process_number:
             print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
         else:
-            print_command(filename, f"find {fifo_queue_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+            print_command(
+                filename, f"find {fifo_queue_dir} ( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' )" + " -exec rm -R -f {} +")
 
 
         if full_correlation:
@@ -1707,7 +1708,7 @@ def create_bash_analysis(
     #if not process_number:
     print_command(filename, 'rm -R -f {}*'.format(work_dir))
     #else:
-    #    print_command(filename, f"find {work_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+    #    print_command(filename, f"find {work_dir} ( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' )" + " -exec rm -R -f {} +")
 
 
     print_command(filename, 'mkdir -p {}'.format(work_kat_dir))

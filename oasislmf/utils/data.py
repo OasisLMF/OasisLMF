@@ -84,10 +84,10 @@ PANDAS_BASIC_DTYPES = {
     'float32': np.float32,
     'float64': np.float64,
     builtins.float: np.float64,
-    'bool': np.bool,
-    builtins.bool: np.bool,
-    'str': np.object,
-    builtins.str: np.object,
+    'bool': bool,
+    builtins.bool: bool,
+    'str': object,
+    builtins.str: object,
     'category': 'category'
 }
 
