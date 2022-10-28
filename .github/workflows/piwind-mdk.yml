@@ -20,10 +20,6 @@ on:
         description: 'Branch of build script repo - https://github.com/OasisLMF/build'
         required: true
         default: master
-      oasislmf_branch:
-        description: 'Branch of oasislmf to tests'
-        required: true
-        default: develop
       piwind_branch:
         description: 'Branch to run PiWind from'
         required: true
@@ -37,8 +33,8 @@ on:
 env:
   BUILD_WORKSPACE: oasis_build
   MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace
+  OASISLMF_BRANCH: "${{ github.ref_name }}"
   BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}"
-  OASISLMF_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.oasislmf_branch || github.ref_name }}"
   PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
   MDK_RUN: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.mdk_run_type || 'ri' }}"
 

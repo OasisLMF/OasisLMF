@@ -58,10 +58,6 @@ on:
         description: 'OasisPlatform Version to test using'
         required: true
         default: latest
-      oasislmf_branch:
-        description: 'Branch of oasislmf to tests'
-        required: true
-        default: develop
       piwind_branch:
         description: 'Branch to run PiWind from'
         required: true
@@ -73,7 +69,7 @@ on:
 
 env:
   # This repos branch
-  OASISLMF_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.oasislmf_branch || github.ref_name }}"  # branch to git install from
+  OASISLMF_BRANCH: "${{ github.ref_name }}"  # branch to git install from
 
   # PiWind options
   PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
