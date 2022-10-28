@@ -38,7 +38,7 @@ env:
   BUILD_WORKSPACE: oasis_build
   MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace
   BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}"
-  MDK_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.oasislmf_branch || 'develop' }}"
+  OASISLMF_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.oasislmf_branch || github.ref_name }}"
   PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
   MDK_RUN: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.mdk_run_type || 'ri' }}"
 
@@ -49,6 +49,13 @@ jobs:
       matrix:
         py-version: [3.8, 3.9]
     steps:
+      - name: Set Production mode for testing master branch
+        if: |
+          github.event_name == 'push' &&
+          (env.OASISLMF_BRANCH == 'master' || contains(env.OASISLMF_BRANCH, 'hotfix'))
+        run: |
+          echo "BUILD_WORKER=false" >> $GITHUB_ENV
+          echo "PIWIND_BRANCH=master" >> $GITHUB_ENV
       - name: clone PiWind repository
         uses: actions/checkout@v3
         with:
@@ -68,4 +75,4 @@ jobs:
         run: |
           sed -i 's/FROM.*/FROM python:${{ matrix.py-version }}/g' docker/Dockerfile.mdk-tester
           docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:${{ matrix.py-version }} .
-          docker run mdk-runner:${{ matrix.py-version }} --model-repo-branch ${{ env.PIWIND_BRANCH }} --mdk-repo-branch ${{ env.MDK_BRANCH }} --model-run-mode ${{ env.MDK_RUN }}
+          docker run mdk-runner:${{ matrix.py-version }} --model-repo-branch ${{ env.PIWIND_BRANCH }} --mdk-repo-branch ${{ env.OASISLMF_BRANCH }} --model-run-mode ${{ env.MDK_RUN }}

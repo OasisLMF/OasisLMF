@@ -72,25 +72,26 @@ on:
         default: true
 
 env:
+  # This repos branch
+  OASISLMF_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.oasislmf_branch || github.ref_name }}"  # branch to git install from
+
+  # PiWind options
+  PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
+
   # Build repo vars
   BUILD_REPO: OasisLMF/build       # fixed repo for shared build scripts
   BUILD_WORKSPACE: oasis_build     # dir to clone build repo to
   BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}" # build repo branch to use
   MODEL_SH: /buildscript/utils.sh  # Bash script functions (loads the shared build bash functions)
 
-  # PiWind options
-  PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
-
-  # 'Create' a new `coreoasis/model_worker` image but git installing oasislmf using the "MDK_BRANCH" value
+  # 'Create' a new `coreoasis/model_worker` image but git installing oasislmf using the "OASISLMF_BRANCH" value
   BUILD_WORKER: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_worker || 'true' }}"   # enable / disable
-  MDK_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.mdk_branch || 'develop' }}"  # branch to git install from
   TAG_RELEASE: ${{ github.ref_name }}-${{ github.run_number }}  # tag for new `coreoasis/model_worker` image
 
   # OasisPlatform options
   LAST_RELEASE_TAG: ''    #  (Not needed here)
   TAG_OASIS: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.platform_version || 'latest' }}"  # Verion of OasisPlatform to run tests with
   MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace  # PiWind path month for model_worker
-  MODEL_BRANCH: ${{ github.ref_name }}
   IMAGE_WORKER: coreoasis/model_worker                       # Docker image to use as worker
 
   # OasisPlatform - model identifiers
@@ -105,20 +106,6 @@ jobs:
   check_results:
     runs-on: ubuntu-latest
     steps:
-      - name: clone PiWind repository
-        uses: actions/checkout@v3
-        with:
-          repository: OasisLMF/OasisPiWind
-          fetch-depth: 1
-          ref: ${{ env.PIWIND_BRANCH }}
-          path: ${{ env.MODEL_WORKSPACE }}
-      - name: clone build repository
-        uses: actions/checkout@v3
-        with:
-          repository: ${{ env.BUILD_REPO }}
-          fetch-depth: 1
-          ref: ${{ env.BUILD_BRANCH }}
-          path: ${{ env.BUILD_WORKSPACE }}
       - name: set default vars
         run: |
           echo "TAG_OASIS=${TAG_OASIS}" >> $GITHUB_ENV
@@ -137,9 +124,27 @@ jobs:
           echo "PATH_KEYS_DATA=${MODEL_WORKSPACE}/keys_data/PiWind" >> $GITHUB_ENV   # same as keys_data
           echo "TEST_DATA_DIR=${MODEL_WORKSPACE}/tests" >> $GITHUB_ENV
           echo "MULTI_PERIL=1" >> $GITHUB_ENV     # Set the GUL alloc rule to 1 in compose
-      - name: Disable MDK worker build for master based branches
-        if: env.MODEL_BRANCH == 'master' || contains(env.MODEL_BRANCH, 'hotfix')
-        run: echo "BUILD_WORKER=false" >> $GITHUB_ENV
+      - name: Set Production mode for testing master branch
+        if: |
+          github.event_name == 'push' && 
+          (env.OASISLMF_BRANCH == 'master' || contains(env.OASISLMF_BRANCH, 'hotfix'))
+        run: |
+          echo "BUILD_WORKER=false" >> $GITHUB_ENV
+          echo "PIWIND_BRANCH=master" >> $GITHUB_ENV
+      - name: clone PiWind repository
+        uses: actions/checkout@v3
+        with:
+          repository: OasisLMF/OasisPiWind
+          fetch-depth: 1
+          ref: ${{ env.PIWIND_BRANCH }}
+          path: ${{ env.MODEL_WORKSPACE }}
+      - name: clone build repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.BUILD_REPO }}
+          fetch-depth: 1
+          ref: ${{ env.BUILD_BRANCH }}
+          path: ${{ env.BUILD_WORKSPACE }}
       - name: build worker
         # see open issue on if statements
         # https://github.com/actions/runner/issues/1173
@@ -147,7 +152,7 @@ jobs:
         working-directory: ${{ env.BUILD_WORKSPACE }}
         run: |
           echo "TAG_RUN_WORKER=${TAG_RELEASE}" >> $GITHUB_ENV
-          docker build --no-cache -f docker/Dockerfile.worker-git --pull --build-arg BRANCH=${{ env.MDK_BRANCH }} -t coreoasis/model_worker:${{ env.TAG_RELEASE }} .
+          docker build --no-cache -f docker/Dockerfile.worker-git --pull --build-arg BRANCH=${{ env.OASISLMF_BRANCH }} -t coreoasis/model_worker:${{ env.TAG_RELEASE }} .
       - name: do not build worker, update tags
         if: env.BUILD_WORKER == 'false' && env.TAG_OASIS == 'latest'
         run: |
