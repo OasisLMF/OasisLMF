@@ -1,0 +1,229 @@
+#  =============================================================================
+#  Workflow description:
+#    Runs the quantitative tests on the PiWind model and checks for differences in output vs
+#    https://github.com/OasisLMF/OasisPiWind/tree/master/tests/ci/expected
+#
+#    If the generated output differs from the expected results folder then that step is failed.
+#    Each test 'case' is executed via the OasisPlatform by running docker-compose
+#
+#    Note: there are two test modes set by the 'build_worker' option
+#      1) build_worker=false - Test piwind on the most recent docker image release of 'coreoasis/model_worker'
+#      2) build_worker=true  - Build a new worker image by git installing an oasislmf branch (set by 'mdk_branch')
+#
+#
+#  Stored artifacts:
+#    'docker-logs': A zip file containing the docker logs from each container running the oasis stack.
+#                   Any execution errors will generally be stored in 'worker.log' file.
+#
+#          docker-logs
+#          ├── celery-db.log
+#          ├── rabbit.log
+#          ├── server-db.log
+#          ├── server.log
+#          ├── worker.log
+#          └── worker-monitor.log
+#
+#    'loss-outputs': A zip file containing the generated 'oasis-files' and 'losses'.
+#                    Each test is stored within a sub-dir following the same structure
+#                    as the dir 'OasisPiWind/tests/ci/expected' from the piwind repo.
+#                    These results and logs intended to help with debugging, so are only stored for 5 days.
+#
+#          loss-outputs
+#          ├── 0_case
+#          │   ├── input              # (Generated ktools files)
+#                    ...
+#          │   └── output             # (output csv files)
+#          │       ├── gul_S1_eltcalc.csv
+#          │       └── gul_S1_summary-info.csv
+#              ...
+#          ├── 8_case
+#          │   ├── input
+#          │   └── output
+#          └── control_set
+#              ├── input
+#              └── output
+#  ==============================================================================
+
+name: check_output
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      build_branch:
+        description: 'Branch of build script repo - https://github.com/OasisLMF/build'
+        required: true
+        default: master
+      platform_version:
+        description: 'OasisPlatform Version to test using'
+        required: true
+        default: latest
+      oasislmf_branch:
+        description: 'Branch of oasislmf to tests'
+        required: true
+        default: develop
+      piwind_branch:
+        description: 'Branch to run PiWind from'
+        required: true
+        default: develop
+      build_worker:
+        description: 'Build new worker based on "mdk_branch" value'
+        required: true
+        default: true
+
+env:
+  # Build repo vars
+  BUILD_REPO: OasisLMF/build       # fixed repo for shared build scripts
+  BUILD_WORKSPACE: oasis_build     # dir to clone build repo to
+  BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}" # build repo branch to use
+  MODEL_SH: /buildscript/utils.sh  # Bash script functions (loads the shared build bash functions)
+
+  # PiWind options
+  PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
+
+  # 'Create' a new `coreoasis/model_worker` image but git installing oasislmf using the "MDK_BRANCH" value
+  BUILD_WORKER: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_worker || 'true' }}"   # enable / disable
+  MDK_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.mdk_branch || 'develop' }}"  # branch to git install from
+  TAG_RELEASE: ${{ github.ref_name }}-${{ github.run_number }}  # tag for new `coreoasis/model_worker` image
+
+  # OasisPlatform options
+  LAST_RELEASE_TAG: ''    #  (Not needed here)
+  TAG_OASIS: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.platform_version || 'latest' }}"  # Verion of OasisPlatform to run tests with
+  MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace  # PiWind path month for model_worker
+  MODEL_BRANCH: ${{ github.ref_name }}
+  IMAGE_WORKER: coreoasis/model_worker                       # Docker image to use as worker
+
+  # OasisPlatform - model identifiers
+  MODEL_ID: 1
+  MODEL_SUPPLIER: OasisLMF
+  MODEL_NAME: PiWind
+
+  # Docker test max timeout (seconds)
+  TEST_MAX_RUNTIME: 300
+
+jobs:
+  check_results:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone PiWind repository
+        uses: actions/checkout@v3
+        with: 
+          repository: OasisLMF/PiWind
+          fetch-depth: 1
+          ref: ${{ env. }}
+          path: ${{ env.MODEL_WORKSPACE }}
+      - name: clone build repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.BUILD_REPO }}
+          fetch-depth: 1
+          ref: ${{ env.BUILD_BRANCH }}
+          path: ${{ env.BUILD_WORKSPACE }}
+      - name: set default vars
+        run: |
+          echo "TAG_OASIS=${TAG_OASIS}" >> $GITHUB_ENV
+          echo "TAG_RELEASE=${TAG_RELEASE#*\/}" >> $GITHUB_ENV
+          echo "TAG_RUN_PLATFORM=${TAG_OASIS}" >> $GITHUB_ENV
+          echo "TAG_RUN_WORKER=${TAG_OASIS}" >> $GITHUB_ENV
+          echo "PIPELINE=buildscript/pipeline.sh" >> $GITHUB_ENV
+          echo "PIPELINE_LOAD=buildscript/utils.sh" >> $GITHUB_ENV  # needed by pipeline.sh
+          echo "MODEL_VARIENT=${MODEL_NAME}" >> $GITHUB_ENV
+          echo "MODEL_TEST_DIR=${MODEL_WORKSPACE}/tests" >> $GITHUB_ENV
+          echo "MODEL_TEST_INI=test-config.ini" >> $GITHUB_ENV
+          echo "MODEL_DATA=${MODEL_WORKSPACE}/model_data/PiWind" >> $GITHUB_ENV
+          echo "KEYS_DATA=${MODEL_WORKSPACE}/keys_data/PiWind" >> $GITHUB_ENV
+          echo "OASIS_MODEL_DATA_DIR=${MODEL_WORKSPACE}" >> $GITHUB_ENV
+          echo "VERS_MODEL_DATA=${MODEL_WORKSPACE}/model_data/PiWind" >> $GITHUB_ENV   # same as MODEL_DATA
+          echo "PATH_KEYS_DATA=${MODEL_WORKSPACE}/keys_data/PiWind" >> $GITHUB_ENV   # same as keys_data
+          echo "TEST_DATA_DIR=${MODEL_WORKSPACE}/tests" >> $GITHUB_ENV
+          echo "MULTI_PERIL=1" >> $GITHUB_ENV     # Set the GUL alloc rule to 1 in compose
+      - name: Disable MDK worker build for master based branches
+        if: env.MODEL_BRANCH == 'master' || contains(env.MODEL_BRANCH, 'hotfix')
+        run: echo "BUILD_WORKER=false" >> $GITHUB_ENV
+      - name: build worker
+        # see open issue on if statements
+        # https://github.com/actions/runner/issues/1173
+        if: env.BUILD_WORKER == 'true'
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          echo "TAG_RUN_WORKER=${TAG_RELEASE}" >> $GITHUB_ENV
+          docker build --no-cache -f docker/Dockerfile.worker-git --pull --build-arg BRANCH=${{ env.MDK_BRANCH }} -t coreoasis/model_worker:${{ env.TAG_RELEASE }} .
+      - name: do not build worker, update tags
+        if: env.BUILD_WORKER == 'false' && env.TAG_OASIS == 'latest'
+        run: |
+          echo ${{ env.BUILD_WORKER }}
+          LAST_RELEASE_TAG=$(curl https://api.github.com/repos/OasisLMF/OasisPlatform/releases | jq -r '( first ) | .name')
+          echo "LAST_RELEASE_TAG=${LAST_RELEASE_TAG}" >> $GITHUB_ENV
+          echo "TAG_RUN_WORKER=${LAST_RELEASE_TAG}" >> $GITHUB_ENV
+          echo "TAG_RUN_PLATFORM=${LAST_RELEASE_TAG}" >> $GITHUB_ENV
+      - name: print model vars
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: $PIPELINE print_model_vars
+      - name: Run - control_set
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case control_set
+      - name: Run - 0_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 0_case
+      - name: Run - 1_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 1_case
+      - name: Run - 2_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 2_case
+      - name: Run - 3_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 3_case
+      - name: Run - 4_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 4_case
+      - name: Run - 5_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 5_case
+      - name: Run - 7_case
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+          $TEST_BASE_CMD --test-case 7_case
+#      - name: Run - 8_case
+#        working-directory: ${{ env.BUILD_WORKSPACE }}
+#        run: |
+#          TEST_BASE_CMD="$PIPELINE run_test --test-output --config /var/oasis/test/$MODEL_TEST_INI"
+#          $TEST_BASE_CMD --test-case 8_case
+      - name: create_docker_logs
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          docker-compose -f compose/oasis.platform.yml -f compose/model.worker.yml logs server-db      > ./stage/log/server-db.log
+          docker-compose -f compose/oasis.platform.yml -f compose/model.worker.yml logs server         > ./stage/log/server.log
+          docker-compose -f compose/oasis.platform.yml -f compose/model.worker.yml logs celery-db      > ./stage/log/celery-db.log
+          docker-compose -f compose/oasis.platform.yml -f compose/model.worker.yml logs rabbit         > ./stage/log/rabbit.log
+          docker-compose -f compose/oasis.platform.yml -f compose/model.worker.yml logs worker         > ./stage/log/worker.log
+          docker-compose -f compose/oasis.platform.yml -f compose/model.worker.yml logs worker-monitor > ./stage/log/worker-monitor.log
+      - name: 'Store docker logs'
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-logs
+          path: |
+            ${{ env.BUILD_WORKSPACE }}/stage/log/*.log
+          retention-days: 5
+      - name: 'Store loss outputs'
+        uses: actions/upload-artifact@v3
+        with:
+          name: loss-outputs
+          path: |
+            ${{ env.BUILD_WORKSPACE }}/stage/output/**/*.*
+          retention-days: 5

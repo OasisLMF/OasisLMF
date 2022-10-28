@@ -1,0 +1,72 @@
+#  ==============================================================================
+#  Workflow description:
+#    Runs the command line interface of OasisLMF package on the PiWind model.
+#    Multiple versions of python are tested and be extending via  
+#    the `py-version` test matrix.
+#
+#    Loss results are not checked and the workflow should only fail on:
+#      1. Package installation failure when pip installing 'oasislmf'
+#      2. An invocation error or python exception when executing 'oasislmf model run ..'
+#      3. Empty files are produced (either input files / or results)
+#  ==============================================================================
+
+name: run_mdk
+
+on:
+  #repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      build_branch:
+        description: 'Branch of build script repo - https://github.com/OasisLMF/build'
+        required: true
+        default: master
+      oasislmf_branch:
+        description: 'Branch of oasislmf to tests'
+        required: true
+        default: develop
+      piwind_branch:
+        description: 'Branch to run PiWind from'
+        required: true
+        default: develop
+      mdk_run_type:
+        description: 'Loss modes to test, options are one of "[gul, il, ri]"'
+        required: true
+        default: ri
+  push:
+
+env:
+  BUILD_WORKSPACE: oasis_build
+  MODEL_BRANCH: ${{ github.ref_name }}
+  MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace
+  BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}"
+  MDK_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.oasislmf_branch || 'develop' }}"
+  PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
+  MDK_RUN: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.mdk_run_type || 'ri' }}"
+
+jobs:
+  run_mdk:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        py-version: [3.8, 3.9]
+    steps:
+      - name: clone PiWind repository
+        uses: actions/checkout@v3
+        with:
+          repository: OasisLMF/PiWind
+          fetch-depth: 1
+          ref: ${{ env.BUILD_BRANCH }}
+          path: ${{ env.MODEL_WORKSPACE }}
+      - name: clone build repository
+        uses: actions/checkout@v3
+        with:
+          repository: OasisLMF/build
+          fetch-depth: 1
+          ref: ${{ env.BUILD_BRANCH }}
+          path: ${{ env.BUILD_WORKSPACE }}
+      - name: run MDK
+        working-directory: ${{ env.BUILD_WORKSPACE }}
+        run: |
+          sed -i 's/FROM.*/FROM python:${{ matrix.py-version }}/g' docker/Dockerfile.mdk-tester
+          docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:${{ matrix.py-version }} .
+          docker run mdk-runner:${{ matrix.py-version }} --model-repo-branch ${{ env.MODEL_BRANCH}} --mdk-repo-branch ${{ env.MDK_BRANCH }} --model-run-mode ${{ env.MDK_RUN }}
