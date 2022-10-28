@@ -1,7 +1,7 @@
 #  ==============================================================================
 #  Workflow description:
 #    Runs the command line interface of OasisLMF package on the PiWind model.
-#    Multiple versions of python are tested and be extending via  
+#    Multiple versions of python are tested and be extending via
 #    the `py-version` test matrix.
 #
 #    Loss results are not checked and the workflow should only fail on:
@@ -53,7 +53,7 @@ jobs:
       - name: clone PiWind repository
         uses: actions/checkout@v3
         with:
-          repository: OasisLMF/PiWind
+          repository: OasisLMF/OasisPiWind
           fetch-depth: 1
           ref: ${{ env.BUILD_BRANCH }}
           path: ${{ env.MODEL_WORKSPACE }}
