@@ -44,7 +44,7 @@
 #              └── output
 #  ==============================================================================
 
-name: check_output
+name: PiWind check output
 
 on:
   push:

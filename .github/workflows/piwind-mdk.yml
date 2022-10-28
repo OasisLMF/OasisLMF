@@ -10,7 +10,7 @@
 #      3. Empty files are produced (either input files / or results)
 #  ==============================================================================
 
-name: run_mdk
+name: PiWind MDK
 
 on:
   #repository_dispatch:
