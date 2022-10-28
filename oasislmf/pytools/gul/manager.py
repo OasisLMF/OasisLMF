@@ -192,11 +192,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # number of bytes to read at a given time.
         number_size = max(gulSampleslevelHeader_size, gulSampleslevelRec_size)
 
-        # define the raw memory view, the int32 view of it, and their respective cursors
-        mv_size_bytes = GULPY_STREAM_BUFF_SIZE_WRITE * 2
-        mv_write = memoryview(bytearray(mv_size_bytes))
-        int32_mv_write = np.ndarray(mv_size_bytes // number_size, buffer=mv_write, dtype='i4')
-
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
@@ -212,6 +207,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
 
+        # maximum bytes to be written in the output stream for 1 item
+        max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds):
 
             event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
@@ -219,12 +217,23 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             rndms = generate_rndm(seeds[:rng_index], sample_size)
 
             last_processed_coverage_ids_idx = 0
+
+            # adjust buff size so that the buffer fits the longest coverage
+            buff_size = GULPY_STREAM_BUFF_SIZE_WRITE
+            max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
+            while buff_size < max_bytes_per_coverage:
+                buff_size *= 2
+
+            # define the raw memory view, the int32 view of it, and their respective cursors
+            mv_write = memoryview(bytearray(buff_size))
+            int32_mv_write = np.ndarray(buff_size // number_size, buffer=mv_write, dtype='i4')
+
             while last_processed_coverage_ids_idx < compute_i:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, rndms, debug,
-                    GULPY_STREAM_BUFF_SIZE_WRITE, int32_mv_write, cursor
+                    max_bytes_per_item, buff_size, int32_mv_write, cursor
                 )
 
                 select([], select_stream_list, select_stream_list)
@@ -239,7 +248,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
-                         loss_threshold, losses, alloc_rule, rndms, debug, buff_size,
+                         loss_threshold, losses, alloc_rule, rndms, debug, max_bytes_per_item, buff_size,
                          int32_mv, cursor):
     """Compute losses for an event.
 
@@ -261,28 +270,30 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
           drawn for each seed.
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
+        max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
         buff_size (int): size in bytes of the output buffer.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
-        
+
     Returns:
         int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
     """
-    max_size_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
         tiv = coverage['tiv']  # coverages are indexed from 1
         Nitem_ids = coverage['cur_items']
         exposureValue = tiv / Nitem_ids
 
-        # estimate max number of bytes are needed to output this coverage
+        # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
-        est_cursor_bytes = Nitem_ids * max_size_per_item
+        cursor_bytes = cursor * int32_mv.itemsize
+        est_cursor_bytes = Nitem_ids * max_bytes_per_item
 
-        # return before processing this coverage if bytes to be written in mv exceed `buff_size`
-        if cursor * int32_mv.itemsize + est_cursor_bytes > buff_size:
-            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
+        # return before processing this coverage if the number of free bytes left in the buffer
+        # is not sufficient to write out the full coverage
+        if cursor_bytes + est_cursor_bytes > buff_size:
+            return cursor, cursor_bytes, last_processed_coverage_ids_idx
 
         items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
 
