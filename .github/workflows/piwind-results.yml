@@ -110,7 +110,7 @@ jobs:
         with:
           repository: OasisLMF/OasisPiWind
           fetch-depth: 1
-          ref: ${{ env. }}
+          ref: ${{ env.PIWIND_BRANCH }}
           path: ${{ env.MODEL_WORKSPACE }}
       - name: clone build repository
         uses: actions/checkout@v3
