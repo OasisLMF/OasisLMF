@@ -13,7 +13,6 @@
 name: PiWind MDK
 
 on:
-  #repository_dispatch:
   workflow_dispatch:
     inputs:
       build_branch:
@@ -34,9 +33,9 @@ env:
   BUILD_WORKSPACE: oasis_build
   MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace
   OASISLMF_BRANCH: "${{ github.ref_name }}"
-  BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}"
-  PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
-  MDK_RUN: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.mdk_run_type || 'ri' }}"
+  BUILD_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_branch || 'master' }}"
+  PIWIND_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
+  MDK_RUN: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mdk_run_type || 'ri' }}"
 
 jobs:
   run_mdk:

@@ -72,21 +72,21 @@ env:
   OASISLMF_BRANCH: "${{ github.ref_name }}"  # branch to git install from
 
   # PiWind options
-  PIWIND_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
+  PIWIND_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
 
   # Build repo vars
   BUILD_REPO: OasisLMF/build       # fixed repo for shared build scripts
   BUILD_WORKSPACE: oasis_build     # dir to clone build repo to
-  BUILD_BRANCH: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_branch || 'master' }}" # build repo branch to use
+  BUILD_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_branch || 'master' }}" # build repo branch to use
   MODEL_SH: /buildscript/utils.sh  # Bash script functions (loads the shared build bash functions)
 
   # 'Create' a new `coreoasis/model_worker` image but git installing oasislmf using the "OASISLMF_BRANCH" value
-  BUILD_WORKER: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.build_worker || 'true' }}"   # enable / disable
+  BUILD_WORKER: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_worker || 'true' }}"   # enable / disable
   TAG_RELEASE: ${{ github.ref_name }}-${{ github.run_number }}  # tag for new `coreoasis/model_worker` image
 
   # OasisPlatform options
   LAST_RELEASE_TAG: ''    #  (Not needed here)
-  TAG_OASIS: "${{ github.event_name == 'repository_dispatch' && github.event.inputs.platform_version || 'latest' }}"  # Verion of OasisPlatform to run tests with
+  TAG_OASIS: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.platform_version || 'latest' }}"  # Verion of OasisPlatform to run tests with
   MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace  # PiWind path month for model_worker
   IMAGE_WORKER: coreoasis/model_worker                       # Docker image to use as worker
 
