@@ -232,11 +232,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # number of bytes to read at a given time.
         number_size = max(gulSampleslevelHeader_size, gulSampleslevelRec_size)
 
-        # define the raw memory view, the int32 view of it, and their respective cursors
-        mv_size_bytes = PIPE_CAPACITY * 2
-        mv_write = memoryview(bytearray(mv_size_bytes))
-        int32_mv = np.ndarray(mv_size_bytes // number_size, buffer=mv_write, dtype='i4')
-
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
@@ -304,6 +299,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
         vuln_prob_to = np.zeros(Ndamage_bins_max, dtype=oasis_float)
 
+        # maximum bytes to be written in the output stream for 1 item
+        max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -342,15 +340,25 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     eps_ij = np.zeros((1, 1), dtype='float64')
 
                 last_processed_coverage_ids_idx = 0
-                buff_size = PIPE_CAPACITY
+
+                # adjust buff size so that the buffer fits the longest coverage
+                buff_size = PIPE_CAPACITY * 2
+                max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
+                while buff_size < max_bytes_per_coverage:
+                    buff_size *= 2
+
+                # define the raw memory view, the int32 view of it, and their respective cursors
+                mv_write = memoryview(bytearray(buff_size))
+                int32_mv = np.ndarray(buff_size // number_size, buffer=mv_write, dtype='i4')
+
                 while last_processed_coverage_ids_idx < compute_i:
 
-                    cursor, cursor_bytes, last_processed_coverage_ids_idx, buff_size = compute_event_losses(
+                    cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                         event_id, coverages, compute[:compute_i], items_data,
                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, vuln_array, damage_bins, Ndamage_bins_max,
                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
-                        z_unif, debug, buff_size, int32_mv, cursor
+                        z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
                     select([], select_stream_list, select_stream_list)
@@ -365,9 +373,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, vuln_array, damage_bins, Ndamage_bins_max,
                          loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
-                         z_unif, debug, buff_size, int32_mv, cursor):
-
-    max_size_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+                         z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
 
     # evaluate if there's a simpler/more pythonic way of storing coverage and items_by coverage
     # I think we can avoid the coverage reconstruction, and it'd be sufficient to produce a dense
@@ -382,17 +388,13 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
-        est_cursor_bytes = Nitems * max_size_per_item
+        cursor_bytes = cursor * int32_mv.itemsize
+        est_cursor_bytes = Nitems * max_bytes_per_item
 
         # return before processing this coverage if the number of free bytes left in the buffer
         # is not sufficient to write out the full coverage
-        if cursor * int32_mv.itemsize + est_cursor_bytes > buff_size:
-
-            # double buff size if it is smaller than the bytes needed to write just this coverage
-            if est_cursor_bytes > buff_size:
-                buff_size *= 2
-
-            return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
+        if cursor_bytes + est_cursor_bytes > buff_size:
+            return cursor, cursor_bytes, last_processed_coverage_ids_idx
 
         items = items_data[coverage['start_items']: coverage['start_items'] + Nitems]
 
@@ -515,7 +517,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx, buff_size
+    return cursor, cursor_bytes, last_processed_coverage_ids_idx
 
 
 @njit(cache=True, fastmath=True)
