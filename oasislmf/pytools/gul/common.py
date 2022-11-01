@@ -19,7 +19,9 @@ items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
 items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                              ('vulnerability_id', np.int32),
                                              ('hazcdf_i', np.int32),
-                                             ('rng_index', np.int32)
+                                             ('rng_index', np.int32),
+                                             ('eff_vuln_cdf_i', np.int32),
+                                             ('eff_vuln_cdf_Ndamage_bins', np.int32)
                                              ]))
 
 coverage_type = nb.from_dtype(np.dtype([('tiv', np.float),
