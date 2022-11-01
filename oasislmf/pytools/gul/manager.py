@@ -299,7 +299,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             last_processed_coverage_ids_idx = 0
 
             # adjust buff size so that the buffer fits the longest coverage
-            buff_size = GULPY_STREAM_BUFF_SIZE_WRITE
+            buff_size = PIPE_CAPACITY * 2
             max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
             while buff_size < max_bytes_per_coverage:
                 buff_size *= 2

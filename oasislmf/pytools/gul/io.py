@@ -7,6 +7,7 @@ import numpy as np
 from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32, int64 as nb_int64, int8 as nb_int8
+from oasislmf.pytools.common import PIPE_CAPACITY
 
 from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 from oasislmf.pytools.gul.common import (
@@ -40,7 +41,7 @@ def gen_valid_area_peril(valid_area_peril_id):
     return valid_area_peril_dict
 
 
-def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, buff_size, valid_area_peril_id=None):
+def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_area_peril_id=None, buff_size=PIPE_CAPACITY):
     """Read the getmodel output stream yielding data event by event.
 
     Args:
