@@ -21,7 +21,7 @@ from oasislmf.pytools.getmodel.manager import (
     VulnerabilityWeights, get_damage_bins, Item, get_items, get_vulns)
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, items_MC_data_type,
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, items_MC_data_type,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.io import gen_structs
@@ -314,7 +314,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             if event_footprint is not None:
 
                 areaperil_ids, haz_prob_rec_idx_ptr, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins = map_areaperil_ids_in_footprint(
-                    event_footprint, areaperil_to_vulns_idx_dict, vuln_array, areaperil_to_vulns_idx_array, areaperil_to_vulns)
+                    event_footprint, areaperil_to_vulns_idx_dict, vuln_array, areaperil_to_vulns_idx_array)
                 # TODO: here we could filter areaperil_ids_map on the existing areaperil_ids in the event footprint
                 # instead of filter inside reconstruct_coverages
 
@@ -370,7 +370,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 logger.info(f"event {event_id} DONE")
 
 
-# @njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf,
                          areaperil_to_eff_vuln_cdf_Ndamage_bins, vuln_array, damage_bins, Ndamage_bins_max,
@@ -530,8 +530,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     return cursor, cursor_bytes, last_processed_coverage_ids_idx
 
 
-# @njit(cache=True, fastmath=True)
-def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict, vuln_array, areaperil_to_vulns_idx_array, areaperil_to_vulns):
+@njit(cache=True, fastmath=True)
+def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict, vuln_array, areaperil_to_vulns_idx_array):
     """
     Map all the areaperil_ids in the footprint...
     TODO: add docstring
@@ -552,16 +552,17 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
     haz_pdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
     haz_cdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
     Nvulns, Ndamage_bins_max, Nint_bins = vuln_array.shape
-    eff_vuln_pdf = np.empty((Ndamage_bins_max, Nint_bins), dtype=oasis_float)  # max size
+
     eff_vuln_cdf = np.empty((Nvulns * Ndamage_bins_max), dtype=oasis_float)  # max size
     cdf_start = 0
     cdf_end = 0
     haz_cdf_ptr = List([0])
-    # eff_vuln_cdf_cumsum = np.zeros(Ndamage_bins_max, dtype=oasis_float)
     eff_vuln_cdf_start = 0
-    # areaperil_to_eff_vuln_cdf = Dict.empty(nb_areaperil_int, List.empty_list(nb_int64)) # enable when enabling numba
-    areaperil_to_eff_vuln_cdf = dict()
-    areaperil_to_eff_vuln_cdf_Ndamage_bins = dict()
+    areaperil_to_eff_vuln_cdf = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int64)  # enable when enabling numba
+    areaperil_to_eff_vuln_cdf_Ndamage_bins = Dict.empty(
+        ITEM_MAP_KEY_TYPE_internal, nb_int64)  # enable when enabling numba
+    # areaperil_to_eff_vuln_cdf = dict()
+    # areaperil_to_eff_vuln_cdf_Ndamage_bins = dict()
 
     while footprint_i < len(event_footprint):
 
@@ -585,22 +586,12 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
                     cumsum = 0
                     for i in range(Nbins_to_read):
                         haz_pdf[cdf_start + i] = event_footprint['probability'][last_areaperil_id_start + i]
-                        # intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
-                        # for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-                        #     eff_vuln_pdf[vuln_idx, :, intensity_bin_i] = vuln_array[vuln_idx, :, intensity_bin_i] * prob
-                        # TODO: make this faster
-                        # TODO: generate Ndamage_bins_max_eff_vuln
-
-                        # for j in range(Ndamage_bins):
-                        #     eff_vuln_pdf[k, j, intensity_bin_i] = vuln_array[k, j, intensity_bin_i] * prob
-
                         cumsum += haz_pdf[cdf_start + i]
                         haz_cdf[cdf_start + i] = cumsum
 
                     areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
 
                     # compute eff vuln cdf
-                    # areaperil_to_eff_vuln_cdf[last_areaperil_id] = []
                     for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
 
                         eff_vuln_cdf_cumsum = 0.
@@ -608,8 +599,6 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
                         while Ndamage_bins < Ndamage_bins_max:
                             for i in range(Nbins_to_read):
                                 intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
-                                # prob = event_footprint['probability'][last_areaperil_id_start + i]
-                                # for j in range(Ndamage_bins):
                                 eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
                                                                   Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
                             eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
@@ -644,15 +633,6 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
         cumsum = 0
         for i in range(Nbins_to_read):
             haz_pdf[cdf_start + i] = event_footprint['probability'][last_areaperil_id_start + i]
-            # intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
-            # for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-            #     eff_vuln_pdf[vuln_idx, :, intensity_bin_i] = vuln_array[vuln_idx, :, intensity_bin_i] * prob
-            # TODO: make this faster
-            # TODO: generate Ndamage_bins_max_eff_vuln
-
-            # for j in range(Ndamage_bins):
-            #     eff_vuln_pdf[k, j, intensity_bin_i] = vuln_array[k, j, intensity_bin_i] * prob
-
             cumsum += haz_pdf[cdf_start + i]
             haz_cdf[cdf_start + i] = cumsum
 
@@ -667,8 +647,6 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
             while Ndamage_bins < Ndamage_bins_max:
                 for i in range(Nbins_to_read):
                     intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
-                    # prob = event_footprint['probability'][last_areaperil_id_start + i]
-                    # for j in range(Ndamage_bins):
                     eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
                                                       Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
                 eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
@@ -681,22 +659,19 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
             areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_idx)] = Ndamage_bins
 
         haz_cdf_ptr.append(cdf_end)
-        # cdf_start = cdf_end
-
-        # haz_cdf_ptr.append(cdf_end)  # add last end
 
     return areaperil_ids, haz_prob_start_in_footprint, areaperil_to_haz_cdf, haz_cdf[:cdf_end], haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins
 
 
-# @njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, vuln_dict, item_map, coverages, compute, haz_seeds, vuln_seeds, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins):
     # TODO add docstring
     # reconstruct coverage: probably best outsite of this function
     # register the items to their coverage
 
     # init data structures
-    # group_id_rng_index, _ = gen_structs()
-    group_id_rng_index = dict()
+    group_id_rng_index, _ = gen_structs()
+    # group_id_rng_index = dict()
     rng_index = 0
     compute_i = 0
     items_data_i = 0
