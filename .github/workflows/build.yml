@@ -30,21 +30,52 @@ jobs:
     needs: [ktools]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
-      - name: Install ktools
-        if: env.KTOOLS_BRANCH == ''
-        run: |
-          export KTOOLS_VER=$(grep -Eo '[0-9]\.[0-9]\.[0-9]+' setup.py)
-          export KTOOLS_BIN_DIR=$HOME/.local/bin
-          mkdir -p $KTOOLS_BIN_DIR
-          export PATH=$PATH:$KTOOLS_BIN_DIR
-          wget https://github.com/OasisLMF/ktools/releases/download/v$KTOOLS_VER/Linux_x86_64.tar.gz
-          tar -xvzf  Linux_x86_64.tar.gz -C $HOME/.local/bin
+    - uses: actions/checkout@v3
 
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+    - run: pip install setup-tools  
+
+    - name: Download ktools build (Linux)
+      if: env.KTOOLS_BRANCH != ''
+      run: 
+
+    - name: Download ktools build (Linux)
+      uses: actions/download-artifact@v3
+      with:
+        name: Linux_x86_64
+        path: ${{ github.workspace }}/ 
+
+    - name: Download ktools build (Darwin)
+      if: env.KTOOLS_BRANCH != ''
+      uses: actions/download-artifact@v3
+      with:
+        name: Darwin_x86_64
+        path: ${{ github.workspace }}/ 
+
+    - name: Set local ktools tar dir
+      if: env.KTOOLS_BRANCH != ''
+      run: |
+        echo "KTOOLS_TAR_FILE_DIR=${{ github.workspace }}" >> $GITHUB_ENV
+      
+    - name: Build source dist
+      run: python setup.py sdist
+
+    - name: Build binary dist (Linux)
+      run: python setup.py bdist_wheel --plat-name Linux_x86_64
+
+    - name: Build binary dist (Darwin)
+      run: python setup.py bdist_wheel --plat-name Darwin_x86_64
+      
+
+    - name: GPG sign packages  
+      run: echo 'placeholder'
+
+
+    - name: Store packages   
+      run: echo 'placeholder'
 
 # Clone this repo
 
