@@ -13,7 +13,7 @@ on:
 
 env:
   #KTOOLS_BRANCH: 'hotfix/github-actions'
-  KTOOLS_BRANCH: ''
+  CKTOOLS_BRANCH: ''
 
 jobs:
   ktools:
@@ -39,6 +39,24 @@ jobs:
         python-version: 3.9
     - run: pip install pip-tools
 
+    - name: Set local ktools tar dir
+      if: env.KTOOLS_BRANCH != ''
+      run: |
+        echo "KTOOLS_TAR_FILE_DIR=${{ github.workspace }}" >> $GITHUB_ENV
+
+    - name: Build source dist
+      run: |
+        python setup.py sdist
+        TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
+        echo "PKG_SRC_PATH=${TAR_PKG}" >> $GITHUB_ENV
+
+    - name: Store source dist
+      uses: actions/upload-artifact@v3
+      with:
+        name: oasislmf-source-pkg
+        path: ${{ env.PKG_SRC_PATH }}
+        retention-days: 5
+
     - name: Download ktools build (Linux)
       if: env.KTOOLS_BRANCH != ''
       uses: actions/download-artifact@v3
@@ -46,43 +64,38 @@ jobs:
         name: Linux_x86_64
         path: ${{ github.workspace }}/
 
-    - name: Download ktools build (Darwin)
-      if: env.KTOOLS_BRANCH != ''
-      uses: actions/download-artifact@v3
-      with:
-        name: Darwin_x86_64
-        path: ${{ github.workspace }}/
-
-    - name: Set local ktools tar dir
-      if: env.KTOOLS_BRANCH != ''
-      run: |
-        echo "KTOOLS_TAR_FILE_DIR=${{ github.workspace }}" >> $GITHUB_ENV
-
-    - name: Build source dist
-      run: python setup.py sdist
-
     - name: Build binary dist (Linux)
-      run: python setup.py bdist_wheel --plat-name Linux_x86_64
+      run: |
+        python setup.py bdist_wheel --plat-name Linux_x86_64
+        WHL_LINUX=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl")
+        echo "PKG_LINUX_PATH=${WHL_LINUX}" >> $GITHUB_ENV
 
-    - name: Build binary dist (Darwin)
-      run: python setup.py bdist_wheel --plat-name Darwin_x86_64
+    - name: Store Linux Wheel
+      uses: actions/upload-artifact@v3
+      with:
+        name: oasislmf-bin-pkg_linux
+        path: ${{ env.PKG_LINUX_PATH }}
+        retention-days: 5
 
+    #- name: Download ktools build (Darwin)
+    #  if: env.KTOOLS_BRANCH != ''
+    #  uses: actions/download-artifact@v3
+    #  with:
+    #    name: Darwin_x86_64
+    #    path: ${{ github.workspace }}/
 
-    - name: GPG sign packages
-      run: echo 'placeholder'
+    #- name: Build binary dist (Darwin)
+    #  if: env.KTOOLS_BRANCH != ''
+    #  run: |
+    #    python setup.py bdist_wheel --plat-name Darwin_x86_64
+    #    WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
+    #    echo "PKG_DARWIN_PATH=${WHL_OSX}" >> $GITHUB_ENV
 
-
-    - name: Store packages
-      run: echo 'placeholder'
-
-# Clone this repo
-
-# setup python env
-
-# build wheel
-
-# sign package
-
-# Store package and sig
+    #- name: Store OSX Wheel
+    #  uses: actions/upload-artifact@v3
+    #  with:
+    #    name: oasislmf-bin-pkg_darwin
+    #    path: ${{ env.PKG_DARWIN_PATH }}
+    #    retention-days: 5
 
 
