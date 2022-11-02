@@ -30,7 +30,7 @@ on:
         default: ri
 
 jobs:
-  Piwind:
+  PiWind:
     uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@hotfix/ghactions-reusable-workflow
     #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
     with:
