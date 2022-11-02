@@ -13,6 +13,7 @@
 name: PiWind MDK
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       build_branch:
@@ -27,47 +28,16 @@ on:
         description: 'Loss modes to test, options are one of "[gul, il, ri]"'
         required: true
         default: ri
-  push:
 
 env:
-  BUILD_WORKSPACE: oasis_build
-  MODEL_WORKSPACE: ${{ github.workspace }}/piwind_workspace
-  OASISLMF_BRANCH: "${{ github.ref_name }}"
   BUILD_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_branch || 'master' }}"
-  PIWIND_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.piwind_branch || 'develop' }}"
+  PIWIND_BRANCH: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.piwind_branch || 'hotfix/ghactions-reusable-workflow' }}"
   MDK_RUN: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mdk_run_type || 'ri' }}"
 
 jobs:
-  run_mdk:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        py-version: [3.8, 3.9]
-    steps:
-      - name: Set Production mode for testing master branch
-        if: |
-          github.event_name == 'push' &&
-          (env.OASISLMF_BRANCH == 'master' || contains(env.OASISLMF_BRANCH, 'hotfix'))
-        run: |
-          echo "BUILD_WORKER=false" >> $GITHUB_ENV
-          echo "PIWIND_BRANCH=master" >> $GITHUB_ENV
-      - name: clone PiWind repository
-        uses: actions/checkout@v3
-        with:
-          repository: OasisLMF/OasisPiWind
-          fetch-depth: 1
-          ref: ${{ env.BUILD_BRANCH }}
-          path: ${{ env.MODEL_WORKSPACE }}
-      - name: clone build repository
-        uses: actions/checkout@v3
-        with:
-          repository: OasisLMF/build
-          fetch-depth: 1
-          ref: ${{ env.BUILD_BRANCH }}
-          path: ${{ env.BUILD_WORKSPACE }}
-      - name: run MDK
-        working-directory: ${{ env.BUILD_WORKSPACE }}
-        run: |
-          sed -i 's/FROM.*/FROM python:${{ matrix.py-version }}/g' docker/Dockerfile.mdk-tester
-          docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:${{ matrix.py-version }} .
-          docker run mdk-runner:${{ matrix.py-version }} --model-repo-branch ${{ env.PIWIND_BRANCH }} --mdk-repo-branch ${{ env.OASISLMF_BRANCH }} --model-run-mode ${{ env.MDK_RUN }}
+  run_piwind_mdk:
+    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@${{ env.BUILD_BRANCH }}
+    with:
+      build_branch: ${{ env.BUILD_BRANCH }}
+      mdk_branch: ${{ github.ref_name }}
+      mdk_run_type: ${{ env.MDK_RUN }}
