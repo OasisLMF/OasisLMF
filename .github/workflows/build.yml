@@ -10,10 +10,13 @@ on:
         required: false
         default: ""
 
-
-env:
-  #KTOOLS_BRANCH: 'hotfix/github-actions'
-  CKTOOLS_BRANCH: ''
+  workflow_call:
+    inputs:
+      ktools_branch:
+        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        required: false
+        default: ""
+        type: string
 
 jobs:
   ktools:
@@ -23,13 +26,14 @@ jobs:
     secrets: inherit
     with:
       create_ktools_builder: 'false'
-      ktools_branch: 'hotfix/github-actions'
-      #ktools_branch: ${{ inputs.ktools_branch }}
+      ktools_branch: ${{ inputs.ktools_branch }}
 
   build:
     if: ${{ always() }}
     needs: [ktools]
     runs-on: ubuntu-latest
+    outputs:
+      linux_wheel: ${{ steps.linux_whl.outputs.filename }}
     steps:
     - uses: actions/checkout@v3
 
@@ -40,7 +44,7 @@ jobs:
     - run: pip install pip-tools
 
     - name: Set local ktools tar dir
-      if: env.KTOOLS_BRANCH != ''
+      if: inputs.ktools_branch != ''
       run: |
         echo "KTOOLS_TAR_FILE_DIR=${{ github.workspace }}" >> $GITHUB_ENV
 
@@ -58,7 +62,7 @@ jobs:
         retention-days: 5
 
     - name: Download ktools build (Linux)
-      if: env.KTOOLS_BRANCH != ''
+      if: inputs.ktools_branch != ''
       uses: actions/download-artifact@v3
       with:
         name: Linux_x86_64
@@ -77,15 +81,23 @@ jobs:
         path: ${{ env.PKG_LINUX_PATH }}
         retention-days: 5
 
+    - name: Output Linux Wheel name 
+      id: linux_whl
+      run: |
+        FILENAME=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl" -exec basename {} \;)
+        echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+
+
+
     #- name: Download ktools build (Darwin)
-    #  if: env.KTOOLS_BRANCH != ''
+    #  if: inputs.ktools_branch != ''
     #  uses: actions/download-artifact@v3
     #  with:
     #    name: Darwin_x86_64
     #    path: ${{ github.workspace }}/
 
     #- name: Build binary dist (Darwin)
-    #  if: env.KTOOLS_BRANCH != ''
+    #  if: inputs.ktools_branch != ''
     #  run: |
     #    python setup.py bdist_wheel --plat-name Darwin_x86_64
     #    WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
