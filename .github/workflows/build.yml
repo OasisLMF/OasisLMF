@@ -20,7 +20,7 @@ on:
     outputs:
       filename:
         description: "The first output string"
-        value: ${{ jobs.build.outputs.pkg_filename }}
+        value: ${{ jobs.oasislmf.outputs.pkg_filename }}
 
 jobs:
   ktools:
