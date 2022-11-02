@@ -39,10 +39,6 @@ jobs:
     - run: pip install setup-tools  
 
     - name: Download ktools build (Linux)
-      if: env.KTOOLS_BRANCH != ''
-      run: 
-
-    - name: Download ktools build (Linux)
       uses: actions/download-artifact@v3
       with:
         name: Linux_x86_64
