@@ -9,13 +9,13 @@ on:
         description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
         required: false
         default: ""
- 
+
 
 env:
   KTOOLS_BRANCH: 'hotfix/github-actions'
 
 jobs:
-  ktools: 
+  ktools:
     uses:  OasisLMF/ktools/.github/workflows/build.yml@hotfix/github-actions
     #uses:  OasisLMF/ktools/.github/workflows/build.yml@master
     secrets: inherit
@@ -23,10 +23,6 @@ jobs:
       create_ktools_builder: 'false'
       ktools_branch: 'hotfix/github-actions'
       #ktools_branch: ${{ inputs.ktools_branch }}
-  
-
-
-
 
 
   build:
@@ -35,12 +31,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
       - name: Install ktools
-        if: env.KTOOLS_BRANCH == '' 
+        if: env.KTOOLS_BRANCH == ''
         run: |
           export KTOOLS_VER=$(grep -Eo '[0-9]\.[0-9]\.[0-9]+' setup.py)
           export KTOOLS_BIN_DIR=$HOME/.local/bin
@@ -52,12 +48,12 @@ jobs:
 
 # Clone this repo
 
-# setup python env 
+# setup python env
 
-# build wheel 
+# build wheel
 
-# sign package 
+# sign package
 
-# Store package and sig 
+# Store package and sig
 
 
