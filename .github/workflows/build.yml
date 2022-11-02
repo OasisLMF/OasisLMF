@@ -17,6 +17,10 @@ on:
         required: false
         default: ""
         type: string
+    outputs:
+      filename:
+        description: "The first output string"
+        value: ${{ jobs.build.outputs.pkg_filename }}
 
 jobs:
   ktools:
@@ -33,7 +37,7 @@ jobs:
     needs: [ktools]
     runs-on: ubuntu-latest
     outputs:
-      linux_wheel: ${{ steps.linux_whl.outputs.filename }}
+      pkg_filename: ${{ steps.linux_whl.outputs.filename }}
     steps:
     - uses: actions/checkout@v3
 
@@ -81,7 +85,7 @@ jobs:
         path: ${{ env.PKG_LINUX_PATH }}
         retention-days: 5
 
-    - name: Output Linux Wheel name 
+    - name: Output Linux Wheel name
       id: linux_whl
       run: |
         FILENAME=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl" -exec basename {} \;)
