@@ -17,7 +17,7 @@ env:
 
 jobs:
   ktools:
-    #if: env.KTOOLS_BRANCH != ''
+    if: inputs.ktools_branch != ''
     uses:  OasisLMF/ktools/.github/workflows/build.yml@hotfix/github-actions
     #uses:  OasisLMF/ktools/.github/workflows/build.yml@master
     secrets: inherit
