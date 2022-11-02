@@ -1,13 +1,20 @@
-name: Python package
+name: Unittest package
 
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      ktools_branch:
+        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        required: false
+        default: ""
 
 jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      create_ktools_builder: 'false'
+      ktools_branch: ${{ inputs.ktools_branch }}
 
   unittest:
     runs-on: ubuntu-latest
