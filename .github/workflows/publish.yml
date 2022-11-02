@@ -1,0 +1,22 @@
+#    - name: Configure GPG Key
+#      run: |
+#        echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
+#      env:
+#        GPG_SIGNING_KEY: ${{ secrets.GPG_PYPI_SIGNING_KEY}}
+#
+#
+#    - name: GPG sign Source Dist
+#      run: |
+#        TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
+#        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${TAR_PKG}"
+#      env:
+#        GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
+#
+#
+#
+#
+#        #WHL_LINUX=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl")
+#        #bash -c "echo ${PASSPHRASE} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_LINUX}"
+#        #WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
+#        #bash -c "echo ${PASSPHRASE} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_OSX}"
+#
