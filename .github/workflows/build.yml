@@ -32,7 +32,7 @@ jobs:
       create_ktools_builder: 'false'
       ktools_branch: ${{ inputs.ktools_branch }}
 
-  build:
+  oasislmf:
     if: ${{ always() }}
     needs: [ktools]
     runs-on: ubuntu-latest
