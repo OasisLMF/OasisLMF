@@ -29,18 +29,12 @@ on:
         required: true
         default: ri
 
-
-env:
-  BUILD_BRANCH: "${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}"
-  PIWIND_BRANCH: "${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}"
-  MDK_RUN: "${{ github.event_name == 'push' && 'ri' || inputs.mdk_run_type }}"
-
 jobs:
   run_piwind_mdk:
     uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@hotfix/ghactions-reusable-workflow
     #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
     with:
-      build_branch: ${{ env.BUILD_BRANCH }}
+      build_branch: ${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}
       mdk_branch: ${{ github.ref_name }}
-      mdk_run_type: ${{ env.MDK_RUN }}
-      piwind_branch: ${{ env.PIWIND_BRANCH }}
+      mdk_run_type: ${{ github.event_name == 'push' && 'ri' || inputs.mdk_run_type }}
+      piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
