@@ -1,22 +1,255 @@
-#    - name: Configure GPG Key
-#      run: |
-#        echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
-#      env:
-#        GPG_SIGNING_KEY: ${{ secrets.GPG_PYPI_SIGNING_KEY}}
-#
-#
-#    - name: GPG sign Source Dist
-#      run: |
-#        TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
-#        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${TAR_PKG}"
-#      env:
-#        GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
-#
-#
-#
-#
-#        #WHL_LINUX=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl")
-#        #bash -c "echo ${PASSPHRASE} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_LINUX}"
-#        #WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
-#        #bash -c "echo ${PASSPHRASE} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_OSX}"
-#
+name: Release Oasislmf
+
+
+on:
+  # ONLY USE PUSH FOR TESTING
+ # push:
+  workflow_dispatch:
+    inputs:
+      build_branch:
+        description: 'Branch of build script repo, used for running create changelog script'
+        required: true
+        default: 'master'
+
+      release_tag:
+        description: 'Release tag to publish ktools, example: "v{n}.{n}.{n}" where n = int, e.g. v3.0.0,  if "pre_release=true" then valid formats are "v{n}.{n}.{n}rc{n}"'
+        required: true
+
+      prev_release_tag:
+        description: 'The last release, used for generating the changelog and release notes'
+        required: true
+
+      pre_release:
+        description: 'Mark release as pre-release'
+        required: true
+        default: 'false'
+
+      auto_merge:
+        description: 'Run Git flow, git_merge(source_branch -> master) and then git_merge(master -> develop)'
+        required: true
+        default: 'true'
+
+env:
+  #MAIN_BRANCH: "master"
+  #DEVELOP_BRANCH: "develop"
+
+  GIT_USERNAME: 'awsbuild'
+  GIT_EMAIL: 'awsbuild@oasislmf.org'
+
+  WORKSPACE: ${{ github.workspace }}/OasisLMF
+  #BUILD_BRANCH: ${{ inputs.build_branch }}
+  #RELEASE_TAG: ${{ inputs.release_tag }}
+  #PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
+  #PRE_RELEASE: ${{ inputs.pre_release }}
+  #AUTO_MERGE: ${{ inputs.auto_merge }}
+
+  # -- TESTING ONLY ----
+  MAIN_BRANCH: "test-master"
+  DEVELOP_BRANCH: "test-develop"
+
+  BUILD_BRANCH: 'master'
+  RELEASE_TAG: '1.27.0rc2'
+  PREV_RELEASE_TAG: '1.26.3'
+  PRE_RELEASE: 'true'
+  AUTO_MERGE: 'false'
+
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      ktools_branch: "" # Don't release with a value here -- only release from ktools production.
+
+
+
+create_release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+
+    # --- test version tags and checkout --- #
+    - name: Check tag is valid for release
+      if: env.PRE_RELEASE == 'false'
+      run: |
+        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
+        fi
+    - name: Check tag is valid for pre-release
+      if: env.PRE_RELEASE == 'true'
+      run: |
+        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)rc([1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
+        fi
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # fetch the whole repo for complete history
+        path: ${{ env.WORKSPACE }}
+
+    - name: Check tag matches version set
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        BUILD_VER=$(cat VERSION.in)
+        RELEASE_VER=$(echo ${{ env.RELEASE_TAG }} | cut -c2-)
+        [[ "$RELEASE_VER" = "$BUILD_VER" ]] && ERROR_CODE=0 || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
+        fi
+    - name: Check if tag exisits
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        git rev-parse -q --verify "refs/tags/${{ env.RELEASE_TAG }}" && ERROR_CODE=1 || ERROR_CODE=0
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
+        fi
+
+ # --- Setup Changelog builder script --- #
+    - name: Setup github user
+      run: |
+        git config --global user.email ${{ env.GIT_EMAIL }}
+        git config --global user.name ${{ env.GIT_USERNAME }}
+        git config --global pull.ff only
+    - name: Check for merge conflicts and tag
+      working-directory: ${{ env.WORKSPACE }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      run: |
+        git checkout ${{ env.MAIN_BRANCH }}
+        git merge ${{ github.ref_name }} --no-ff --no-commit
+        git merge --abort
+        git checkout ${{ github.ref_name }}
+        git tag ${{ env.RELEASE_TAG }}
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Setup Changelog builder
+      working-directory: ${{ github.workspace }}
+      run: |
+        BASE_URL="https://raw.githubusercontent.com/OasisLMF/build/${{ env.BUILD_BRANCH }}/buildscript"
+        pip install -r $BASE_URL/requirments_changelog.txt
+        wget $BASE_URL/auto_changelog.py
+        chmod +x auto_changelog.py
+
+    - name: Setup Twine
+      working-directory: ${{ github.workspace }}
+      run: pip install twine
+
+    - name: Create changelog
+      working-directory: ${{ env.WORKSPACE }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      run: |
+        ${{ github.workspace }}/auto_changelog.py build-changelog \
+          --repo OasisLMF \
+          --from-tag ${{ env.PREV_RELEASE_TAG }} \
+          --to-tag ${{ env.RELEASE_TAG }} \
+          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
+          --local-repo-path ./ \
+          --output-path ./CHANGELOG.rst
+         #--apply-milestone     # DONT FORGET TO UNCOMMENT
+        git add ./CHANGELOG.rst
+        git commit -m 'Update changelog'
+    - name: Create Release notes
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        ${{ github.workspace }}/auto_changelog.py build-release \
+          --repo OasisLMF \
+          --from-tag ${{ env.PREV_RELEASE_TAG }} \
+          --to-tag ${{ env.RELEASE_TAG }} \
+          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
+          --local-repo-path ./ \
+          --output-path ./RELEASE.md
+
+    - name: Download Source package
+      uses: actions/download-artifact@v3
+      with:
+        name: oasislmf-source-pkg
+        path: ${{ github.workspace }}/
+
+    - name: Download Linux package
+      uses: actions/download-artifact@v3
+      with:
+        name: oasislmf-bin-pkg_linux
+        path: ${{ github.workspace }}/
+
+    - name: Download OSX package
+      uses: actions/download-artifact@v3
+      with:
+        name: oasislmf-bin-pkg_darwin
+        path: ${{ github.workspace }}/
+
+
+    # --- Sign packages --- #
+    - name: Configure GPG Key
+      run: |
+        echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
+      env:
+        GPG_SIGNING_KEY: ${{ secrets.GPG_PYPI_SIGNING_KEY}}
+
+    - name: GPG sign Source package
+      working-directory: ${{ github.workspace }}
+      run: |
+        TAR_PKG=$(find ./ -name "oasislmf-*.tar.gz")
+        # Take name from output
+        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${TAR_PKG}"
+      env:
+        GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
+
+
+    - name: GPG sign Linux package
+      working-directory: ${{ github.workspace }}
+      run: |
+        WHL_LINUX=$(find ./ -name "oasislmf-*manylinux1_x86_64.whl")
+        # Take name from output
+        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_LINUX}"
+      env:
+        GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
+
+
+    - name: GPG sign OSX package
+      working-directory: ${{ github.workspace }}
+      run: |
+        WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
+        # Take name from output
+        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_OSX}"
+      env:
+        GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
+
+    # --- Publish to twine --- #
+
+
+    # --- Create Release --- #
+    - name: Push changes
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        git push origin ${{ env.RELEASE_TAG  }}
+        git push
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        tag_name: ${{ env.RELEASE_TAG }}
+        release_name: Release ${{ env.RELEASE_TAG }}
+        body_path: ${{ env.WORKSPACE }}/RELEASE.md
+        draft: false
+        prerelease: ${{ env.PRE_RELEASE }}
+
+    ## --- Attach build assest --- #
+    #- name: Upload Linux package
+    #  id: upload-linux-release-asset
+    #  uses: actions/upload-release-asset@v1
+    #  env:
+    #    GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+    #  with:
+    #    upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #    asset_path: ${{ github.workspace }}/Linux_x86_64.tar.gz
+    #    asset_name: Linux_x86_64.tar.gz
+    #    asset_content_type: application/octet-stream
