@@ -1,4 +1,4 @@
-name: Python package
+name: Build package
 
 
 on:
@@ -16,6 +16,7 @@ env:
 
 jobs:
   ktools:
+    if: env.KTOOLS_BRANCH != ''
     uses:  OasisLMF/ktools/.github/workflows/build.yml@hotfix/github-actions
     #uses:  OasisLMF/ktools/.github/workflows/build.yml@master
     secrets: inherit
@@ -23,7 +24,6 @@ jobs:
       create_ktools_builder: 'false'
       ktools_branch: 'hotfix/github-actions'
       #ktools_branch: ${{ inputs.ktools_branch }}
-
 
   build:
     if: ${{ always() }}
