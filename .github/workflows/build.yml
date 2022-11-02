@@ -1,0 +1,63 @@
+name: Python package
+
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      ktools_branch:
+        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        required: false
+        default: ""
+ 
+
+env:
+  KTOOLS_BRANCH: 'hotfix/github-actions'
+
+jobs:
+  ktools: 
+    uses:  OasisLMF/ktools/.github/workflows/build.yml@hotfix/github-actions
+    #uses:  OasisLMF/ktools/.github/workflows/build.yml@master
+    secrets: inherit
+    with:
+      create_ktools_builder: 'false'
+      ktools_branch: 'hotfix/github-actions'
+      #ktools_branch: ${{ inputs.ktools_branch }}
+  
+
+
+
+
+
+  build:
+    if: ${{ always() }}
+    needs: [ktools]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - name: Install ktools
+        if: env.KTOOLS_BRANCH == '' 
+        run: |
+          export KTOOLS_VER=$(grep -Eo '[0-9]\.[0-9]\.[0-9]+' setup.py)
+          export KTOOLS_BIN_DIR=$HOME/.local/bin
+          mkdir -p $KTOOLS_BIN_DIR
+          export PATH=$PATH:$KTOOLS_BIN_DIR
+          wget https://github.com/OasisLMF/ktools/releases/download/v$KTOOLS_VER/Linux_x86_64.tar.gz
+          tar -xvzf  Linux_x86_64.tar.gz -C $HOME/.local/bin
+
+
+# Clone this repo
+
+# setup python env 
+
+# build wheel 
+
+# sign package 
+
+# Store package and sig 
+
+
