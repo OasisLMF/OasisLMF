@@ -12,7 +12,8 @@ on:
 
 
 env:
-  KTOOLS_BRANCH: 'hotfix/github-actions'
+  #KTOOLS_BRANCH: 'hotfix/github-actions'
+  KTOOLS_BRANCH: ''
 
 jobs:
   ktools:
@@ -36,26 +37,26 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: 3.9
-    - run: pip install setup-tools  
+    - run: pip install pip-tools
 
     - name: Download ktools build (Linux)
       uses: actions/download-artifact@v3
       with:
         name: Linux_x86_64
-        path: ${{ github.workspace }}/ 
+        path: ${{ github.workspace }}/
 
     - name: Download ktools build (Darwin)
       if: env.KTOOLS_BRANCH != ''
       uses: actions/download-artifact@v3
       with:
         name: Darwin_x86_64
-        path: ${{ github.workspace }}/ 
+        path: ${{ github.workspace }}/
 
     - name: Set local ktools tar dir
       if: env.KTOOLS_BRANCH != ''
       run: |
         echo "KTOOLS_TAR_FILE_DIR=${{ github.workspace }}" >> $GITHUB_ENV
-      
+
     - name: Build source dist
       run: python setup.py sdist
 
@@ -64,13 +65,13 @@ jobs:
 
     - name: Build binary dist (Darwin)
       run: python setup.py bdist_wheel --plat-name Darwin_x86_64
-      
 
-    - name: GPG sign packages  
+
+    - name: GPG sign packages
       run: echo 'placeholder'
 
 
-    - name: Store packages   
+    - name: Store packages
       run: echo 'placeholder'
 
 # Clone this repo
