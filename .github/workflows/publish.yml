@@ -115,8 +115,8 @@ jobs:
      - name: Check package names match release tag
        run: |
          ERROR_CODE=0
-         SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
-         BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+         #SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+         #BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
          #TAG=${{ env.RELEASE_TAG }}
          #[[ "$TAG" = "$SRC_VER" ]] || ERROR_CODE=1
          #[[ "$TAG" = "$BIN_VER" ]] || ERROR_CODE=1
