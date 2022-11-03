@@ -1,12 +1,8 @@
 name: Oasislmf Release
 
-
-# https://github.com/marketplace/actions/slack-send
-#  ADD to end of workflow
-
 on:
   # ONLY USE PUSH FOR TESTING
-  push:
+  #push:
   workflow_dispatch:
     inputs:
       build_branch:
@@ -33,28 +29,28 @@ on:
         default: 'true'
 
 env:
-  #MAIN_BRANCH: "master"
-  #DEVELOP_BRANCH: "develop"
+  MAIN_BRANCH: "master"
+  DEVELOP_BRANCH: "develop"
 
   GIT_USERNAME: 'awsbuild'
   GIT_EMAIL: 'awsbuild@oasislmf.org'
 
   WORKSPACE: ${{ github.workspace }}/OasisLMF
-  #BUILD_BRANCH: ${{ inputs.build_branch }}
-  #RELEASE_TAG: ${{ inputs.release_tag }}
-  #PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
-  #PRE_RELEASE: ${{ inputs.pre_release }}
-  #AUTO_MERGE: ${{ inputs.auto_merge }}
+  BUILD_BRANCH: ${{ inputs.build_branch }}
+  RELEASE_TAG: ${{ inputs.release_tag }}
+  PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
+  PRE_RELEASE: ${{ inputs.pre_release }}
+  AUTO_MERGE: ${{ inputs.auto_merge }}
 
   # -- TESTING ONLY ----
-  MAIN_BRANCH: "test-master"
-  DEVELOP_BRANCH: "test-develop"
+  #MAIN_BRANCH: "test-master"
+  #DEVELOP_BRANCH: "test-develop"
 
-  BUILD_BRANCH: 'master'
-  RELEASE_TAG: '1.27.0rc3'
-  PREV_RELEASE_TAG: '1.26.3'
-  PRE_RELEASE: 'true'
-  AUTO_MERGE: 'false'
+  #BUILD_BRANCH: 'master'
+  #RELEASE_TAG: '1.27.0rc20'
+  #PREV_RELEASE_TAG: '1.26.3'
+  #PRE_RELEASE: 'true'
+  #AUTO_MERGE: 'false'
 
 
 jobs:
@@ -63,7 +59,6 @@ jobs:
     secrets: inherit
     with:
       ktools_branch: "" # Don't release with a value here -- only release from ktools production.
-
 
   release:
     runs-on: ubuntu-latest
@@ -77,6 +72,259 @@ jobs:
       run_status: ${{ steps.slack_vars.outputs.run_status }}
       run_date: ${{ steps.slack_vars.outputs.run_date }}
     steps:
+    # --- Pre Publish checks --- #
+    - name: Check tag is valid for release
+      if: env.PRE_RELEASE == 'false'
+      run: |
+        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
+        fi
+
+    - name: Check tag is valid for pre-release
+      if: env.PRE_RELEASE == 'true'
+      run: |
+        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)rc([1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
+        fi
+
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # fetch the whole repo for complete history
+        path: ${{ env.WORKSPACE }}
+
+    - name: Check if tag exisits
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        git rev-parse -q --verify "refs/tags/${{ env.RELEASE_TAG }}" && ERROR_CODE=1 || ERROR_CODE=0
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
+        fi
+
+    - name: Check tag matches version set
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+       BUILD_VER=$(grep '__version__' oasislmf/__init__.py | awk -F"'" '{print $2}')
+       RELEASE_VER=${{ env.RELEASE_TAG }}
+       [[ "$RELEASE_VER" = "$BUILD_VER" ]] && ERROR_CODE=0 || ERROR_CODE=1
+       if [[ "$ERROR_CODE" == 1 ]]; then
+           echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
+       fi
+
+    - name: Test package names
+      run: |
+        ERROR_CODE=0
+        SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+        BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+        [[ "${{ env.RELEASE_TAG }}" = "$SRC_VER" ]] || ERROR_CODE=1
+        [[ "${{ env.RELEASE_TAG }}" = "$BIN_VER" ]] || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "Package names don't match release tag."
+            echo "  RELEASE_TAG: ${{ env.RELEASE_TAG }}"
+            echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
+            exit $ERROR_CODE
+        fi
+
+ # --- Setup Changelog builder script --- #
+    - name: Setup github user
+      run: |
+        git config --global user.email ${{ env.GIT_EMAIL }}
+        git config --global user.name ${{ env.GIT_USERNAME }}
+        git config --global pull.ff only
+    - name: Check for merge conflicts and tag
+      working-directory: ${{ env.WORKSPACE }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      run: |
+        git checkout ${{ env.MAIN_BRANCH }}
+        git merge ${{ github.ref_name }} --no-ff --no-commit
+        git merge --abort
+        git checkout ${{ github.ref_name }}
+        git tag ${{ env.RELEASE_TAG }}
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Setup Changelog builder
+      working-directory: ${{ github.workspace }}
+      run: |
+        BASE_URL="https://raw.githubusercontent.com/OasisLMF/build/${{ env.BUILD_BRANCH }}/buildscript"
+        pip install -r $BASE_URL/requirments_changelog.txt
+        wget $BASE_URL/auto_changelog.py
+        chmod +x auto_changelog.py
+
+    - name: Setup Twine
+      working-directory: ${{ github.workspace }}
+      run: pip install twine
+
+    - name: Create changelog
+      working-directory: ${{ env.WORKSPACE }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      run: |
+        ${{ github.workspace }}/auto_changelog.py build-changelog \
+          --repo OasisLMF \
+          --from-tag ${{ env.PREV_RELEASE_TAG }} \
+          --to-tag ${{ env.RELEASE_TAG }} \
+          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
+          --local-repo-path ./ \
+          --output-path ./CHANGELOG.rst
+          --apply-milestone
+        git add ./CHANGELOG.rst
+        git commit -m 'Update changelog'
+    - name: Create Release notes
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        ${{ github.workspace }}/auto_changelog.py build-release \
+          --repo OasisLMF \
+          --from-tag ${{ env.PREV_RELEASE_TAG }} \
+          --to-tag ${{ env.RELEASE_TAG }} \
+          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
+          --local-repo-path ./ \
+          --output-path ./RELEASE.md
+
+    - name: Download Source package
+      uses: actions/download-artifact@v3
+      with:
+        name: oasislmf-source-pkg
+        path: ${{ github.workspace }}/
+
+    - name: Download Linux package
+      uses: actions/download-artifact@v3
+      with:
+        name: oasislmf-bin-pkg_linux
+        path: ${{ github.workspace }}/
+
+    - name: Download OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
+      uses: actions/download-artifact@v3
+      with:
+        name: oasislmf-bin-pkg_darwin
+        path: ${{ github.workspace }}/
+
+
+    # --- Sign packages --- #
+    - name: Import GPG key
+      id: import_gpg
+      uses: crazy-max/ghaction-import-gpg@v5
+      with:
+        gpg_private_key: ${{ secrets.GPG_PYPI_SIGNING_KEY }}
+        passphrase: ${{ secrets.GPG_PYPI_SIGNING_PASS }}
+
+    - name: GPG sign Source package
+      working-directory: ${{ github.workspace }}
+      run: |
+        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}
+
+    - name: GPG sign Linux package
+      working-directory: ${{ github.workspace }}
+      run: |
+        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.linux_pkg_filename }}
+
+    #- name: DEBUG - show me the packages
+    #  working-directory: ${{ github.workspace }}
+    #  run: ls -la; env
+
+    - name: GPG sign OSX package
+      working-directory: ${{ github.workspace }}
+      if: needs.build.outputs.osx_pkg_filename != ''
+      run: |
+        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.darwin_pkg_filename }}
+
+
+    # --- Create Release --- #
+    - name: Push changes
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        git push origin ${{ env.RELEASE_TAG  }}
+        git push
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        tag_name: ${{ env.RELEASE_TAG }}
+        release_name: Release ${{ env.RELEASE_TAG }}
+        body_path: ${{ env.WORKSPACE }}/RELEASE.md
+        draft: false
+        prerelease: ${{ env.PRE_RELEASE }}
+
+    # --- Attach build assest --- #
+    - name: Upload Source package
+      id: upload-source-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.src_pkg_filename }}
+        asset_name: ${{ needs.build.outputs.src_pkg_filename }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload Linux package
+      id: upload-linux-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.linux_pkg_filename }}
+        asset_name: ${{ needs.build.outputs.linux_pkg_filename }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
+      id: upload-osx-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
+        asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
+        asset_content_type: application/octet-stream
+
+    # --- Publish to twine --- #
+
+    - name: PYPI - Source package
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+      run: |
+        #twine upload --repository testpypi \
+        twine upload \
+        ${{ needs.build.outputs.src_pkg_filename }} \
+        ${{ needs.build.outputs.src_pkg_filename }}.asc
+
+    - name: PYPI - Linux package
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+      run: |
+        #twine upload --repository testpypi \
+        twine upload \
+        ${{ needs.build.outputs.linux_pkg_filename }} \
+        ${{ needs.build.outputs.linux_pkg_filename }}.asc
+
+    - name: PYPI - OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+      run: |
+        #twine upload --repository testpypi \
+        twine upload \
+        ${{ needs.build.outputs.osx_pkg_filename }}
+        ${{ needs.build.outputs.osx_pkg_filename }}.asc
+
     - name: slack message vars
       id: slack_vars
       run: |
@@ -92,6 +340,8 @@ jobs:
         echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
 
+  # --- Notify Slack --- #
+
   slack:
     uses: ./.github/workflows/notify.yml
     secrets: inherit
@@ -104,262 +354,3 @@ jobs:
       run_id: ${{ needs.release.outputs.run_id }}
       run_status: ${{ needs.release.outputs.run_status }}
       run_date: ${{ needs.release.outputs.run_date }}
-
-
-
-#    # --- Pre Publish checks --- #
-#    - name: Check tag is valid for release
-#      if: env.PRE_RELEASE == 'false'
-#      run: |
-#        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
-#        if [[ "$ERROR_CODE" == 1 ]]; then
-#            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
-#        fi
-#
-#    - name: Check tag is valid for pre-release
-#      if: env.PRE_RELEASE == 'true'
-#      run: |
-#        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)rc([1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
-#        if [[ "$ERROR_CODE" == 1 ]]; then
-#            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
-#        fi
-#
-#    - name: Checkout
-#      uses: actions/checkout@v3
-#      with:
-#        fetch-depth: 0 # fetch the whole repo for complete history
-#        path: ${{ env.WORKSPACE }}
-#
-#    - name: Check if tag exisits
-#      working-directory: ${{ env.WORKSPACE }}
-#      run: |
-#        git rev-parse -q --verify "refs/tags/${{ env.RELEASE_TAG }}" && ERROR_CODE=1 || ERROR_CODE=0
-#        if [[ "$ERROR_CODE" == 1 ]]; then
-#            echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
-#        fi
-#
-#    - name: Check tag matches version set
-#      working-directory: ${{ env.WORKSPACE }}
-#      run: |
-#       BUILD_VER=$(grep '__version__' oasislmf/__init__.py | awk -F"'" '{print $2}')
-#       RELEASE_VER=${{ env.RELEASE_TAG }}
-#       [[ "$RELEASE_VER" = "$BUILD_VER" ]] && ERROR_CODE=0 || ERROR_CODE=1
-#       if [[ "$ERROR_CODE" == 1 ]]; then
-#           echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
-#       fi
-#
-#    - name: Test package names
-#      run: |
-#        ERROR_CODE=0
-#        SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
-#        BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
-#        [[ "${{ env.RELEASE_TAG }}" = "$SRC_VER" ]] || ERROR_CODE=1
-#        [[ "${{ env.RELEASE_TAG }}" = "$BIN_VER" ]] || ERROR_CODE=1
-#        if [[ "$ERROR_CODE" == 1 ]]; then
-#            echo "Package names don't match release tag."
-#            echo "  RELEASE_TAG: ${{ env.RELEASE_TAG }}"
-#            echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
-#            exit $ERROR_CODE
-#        fi
-#
-# # --- Setup Changelog builder script --- #
-#    - name: Setup github user
-#      run: |
-#        git config --global user.email ${{ env.GIT_EMAIL }}
-#        git config --global user.name ${{ env.GIT_USERNAME }}
-#        git config --global pull.ff only
-#    - name: Check for merge conflicts and tag
-#      working-directory: ${{ env.WORKSPACE }}
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-#      run: |
-#        git checkout ${{ env.MAIN_BRANCH }}
-#        git merge ${{ github.ref_name }} --no-ff --no-commit
-#        git merge --abort
-#        git checkout ${{ github.ref_name }}
-#        git tag ${{ env.RELEASE_TAG }}
-#    - name: Setup python
-#      uses: actions/setup-python@v4
-#      with:
-#        python-version: '3.9'
-#
-#    - name: Setup Changelog builder
-#      working-directory: ${{ github.workspace }}
-#      run: |
-#        BASE_URL="https://raw.githubusercontent.com/OasisLMF/build/${{ env.BUILD_BRANCH }}/buildscript"
-#        pip install -r $BASE_URL/requirments_changelog.txt
-#        wget $BASE_URL/auto_changelog.py
-#        chmod +x auto_changelog.py
-#
-#    - name: Setup Twine
-#      working-directory: ${{ github.workspace }}
-#      run: pip install twine
-#
-#    - name: Create changelog
-#      working-directory: ${{ env.WORKSPACE }}
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-#      run: |
-#        ${{ github.workspace }}/auto_changelog.py build-changelog \
-#          --repo OasisLMF \
-#          --from-tag ${{ env.PREV_RELEASE_TAG }} \
-#          --to-tag ${{ env.RELEASE_TAG }} \
-#          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
-#          --local-repo-path ./ \
-#          --output-path ./CHANGELOG.rst
-#         #--apply-milestone     # DONT FORGET TO UNCOMMENT
-#        git add ./CHANGELOG.rst
-#        git commit -m 'Update changelog'
-#    - name: Create Release notes
-#      working-directory: ${{ env.WORKSPACE }}
-#      run: |
-#        ${{ github.workspace }}/auto_changelog.py build-release \
-#          --repo OasisLMF \
-#          --from-tag ${{ env.PREV_RELEASE_TAG }} \
-#          --to-tag ${{ env.RELEASE_TAG }} \
-#          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
-#          --local-repo-path ./ \
-#          --output-path ./RELEASE.md
-#
-#    - name: Download Source package
-#      uses: actions/download-artifact@v3
-#      with:
-#        name: oasislmf-source-pkg
-#        path: ${{ github.workspace }}/
-#
-#    - name: Download Linux package
-#      uses: actions/download-artifact@v3
-#      with:
-#        name: oasislmf-bin-pkg_linux
-#        path: ${{ github.workspace }}/
-#
-#    - name: Download OSX package
-#      if: needs.build.outputs.osx_pkg_filename != ''
-#      uses: actions/download-artifact@v3
-#      with:
-#        name: oasislmf-bin-pkg_darwin
-#        path: ${{ github.workspace }}/
-#
-#
-#    # --- Sign packages --- #
-#    - name: Import GPG key
-#      id: import_gpg
-#      uses: crazy-max/ghaction-import-gpg@v5
-#      with:
-#        gpg_private_key: ${{ secrets.GPG_PYPI_SIGNING_KEY }}
-#        passphrase: ${{ secrets.GPG_PYPI_SIGNING_PASS }}
-#
-#    - name: GPG sign Source package
-#      working-directory: ${{ github.workspace }}
-#      run: |
-#        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}
-#
-#    - name: GPG sign Linux package
-#      working-directory: ${{ github.workspace }}
-#      run: |
-#        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.linux_pkg_filename }}
-#
-#    #- name: DEBUG - show me the packages
-#    #  working-directory: ${{ github.workspace }}
-#    #  run: ls -la; env
-#
-#    - name: GPG sign OSX package
-#      working-directory: ${{ github.workspace }}
-#      if: needs.build.outputs.osx_pkg_filename != ''
-#      run: |
-#        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.darwin_pkg_filename }}
-#
-#
-#    # --- Create Release --- #
-#    - name: Push changes
-#      working-directory: ${{ env.WORKSPACE }}
-#      run: |
-#        git push origin ${{ env.RELEASE_TAG  }}
-#        git push
-#
-#    - name: Create Release
-#      id: create_release
-#      uses: actions/create-release@v1
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-#      with:
-#        tag_name: ${{ env.RELEASE_TAG }}
-#        release_name: Release ${{ env.RELEASE_TAG }}
-#        body_path: ${{ env.WORKSPACE }}/RELEASE.md
-#        draft: false
-#        prerelease: ${{ env.PRE_RELEASE }}
-#
-#    # --- Attach build assest --- #
-#    - name: Upload Source package
-#      id: upload-source-release-asset
-#      uses: actions/upload-release-asset@v1
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-#      with:
-#        upload_url: ${{ steps.create_release.outputs.upload_url }}
-#        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.src_pkg_filename }}
-#        asset_name: ${{ needs.build.outputs.src_pkg_filename }}
-#        asset_content_type: application/octet-stream
-#
-#    - name: Upload Linux package
-#      id: upload-linux-release-asset
-#      uses: actions/upload-release-asset@v1
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-#      with:
-#        upload_url: ${{ steps.create_release.outputs.upload_url }}
-#        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.linux_pkg_filename }}
-#        asset_name: ${{ needs.build.outputs.linux_pkg_filename }}
-#        asset_content_type: application/octet-stream
-#
-#    - name: Upload OSX package
-#      if: needs.build.outputs.osx_pkg_filename != ''
-#      id: upload-osx-release-asset
-#      uses: actions/upload-release-asset@v1
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-#      with:
-#        upload_url: ${{ steps.create_release.outputs.upload_url }}
-#        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
-#        asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
-#        asset_content_type: application/octet-stream
-
-    # --- Publish to twine --- #
-
-   # - name: PYPI - Source package
-   #   env:
-   #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-   #     TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-   #     #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
-   #   run: |
-   #     #twine upload --repository testpypi \
-   #     twine upload \
-   #     ${{ needs.build.outputs.src_pkg_filename }} \
-   #     ${{ needs.build.outputs.src_pkg_filename }}.asc
-
-   # - name: PYPI - Linux package
-   #   env:
-   #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-   #     TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-   #     #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
-   #   run: |
-   #     #twine upload --repository testpypi \
-   #     twine upload \
-   #     ${{ needs.build.outputs.linux_pkg_filename }} \
-   #     ${{ needs.build.outputs.linux_pkg_filename }}.asc
-
-   # - name: PYPI - OSX package
-   #   if: needs.build.outputs.osx_pkg_filename != ''
-   #   env:
-   #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-   #     TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-   #     #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
-   #   run: |
-   #     #twine upload --repository testpypi \
-   #     twine upload \
-   #     ${{ needs.build.outputs.osx_pkg_filename }}
-   #     ${{ needs.build.outputs.osx_pkg_filename }}.asc
-
-
-    # --- Notify Slack --- #
-
