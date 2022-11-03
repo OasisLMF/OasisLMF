@@ -46,7 +46,7 @@ jobs:
 
       - name: Install package
         run: |
-          pip install ${{ needs.build.outputs.filename }}
+          pip install ${{ needs.build.outputs.linux_pkg_filename }}
 
 
       #- name: Install ktools
