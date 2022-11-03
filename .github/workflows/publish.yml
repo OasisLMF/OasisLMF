@@ -65,35 +65,34 @@ jobs:
       ktools_branch: "" # Don't release with a value here -- only release from ktools production.
 
 
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      heading: ${{ steps.slack_vars.outputs.heading }}
+      title: ${{ steps.slack_vars.outputs.title }}
+      build_branch: ${{ steps.slack_vars.outputs.branch }}
+      run_url: ${{ steps.slack_vars.outputs.run_url }}
+      run_id: ${{ steps.slack_vars.outputs.run_id }}
+      run_status: ${{ steps.slack_vars.outputs.run_status }}
+      run_date: ${{ steps.slack_vars.outputs.run_date }}
+    steps:
+    - name: slack message vars
+      id: slack_vars
+      run: |
+         HEAD=$(echo "*OasisLMF Release* (${{ env.RELEASE_TAG }})")
+         DATE=$(date)
+         TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>"
+         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+         echo "heading=$HEAD" >> $GITHUB_OUTPUT
+         echo "run_date=$DATE" >> $GITHUB_OUTPUT
+         echo "title=$TITLE" >> $GITHUB_OUTPUT
+         echo "run_url=$JOB_URL" >> $GITHUB_OUTPUT
+         echo "run_id=${{ github.run_id }}"  >> $GITHUB_OUTPUT
+         echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
 
-#  release:
-#    runs-on: ubuntu-latest
-#    needs: build
-#    outputs:
-#      heading: ${{ steps.slack_vars.outputs. }}
-#      title: ${{ steps.slack_vars.outputs.title }}
-#      build_branch: ${{ steps.slack_vars.outputs.branch }}
-#      run_url: ${{ steps.slack_vars.outputs.run_url }}
-#      run_id: ${{ steps.slack_vars.outputs.run_id }}
-#      run_status: ${{ steps.slack_vars.outputs.run_status }}
-#      run_date: ${{ steps.slack_vars.outputs.run_date }}
-#    steps:
-#    - name: slack message vars
-#      id: slack_vars
-#      run: |
-#         HEAD=$(echo "*OasisLMF Release* (${{ env.RELEASE_TAG }})")
-#         DATE=$(date)
-#         TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>" 
-#         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-#         echo "heading=$HEAD" >> $GITHUB_OUTPUT 
-#         echo "run_date=$DATE" >> $GITHUB_OUTPUT 
-#         echo "title=$TITLE" >> $GITHUB_OUTPUT 
-#         echo "run_url=$JOB_URL" >> $GITHUB_OUTPUT 
-#         echo "run_id=${{ github.run_id }}"  >> $GITHUB_OUTPUT
-#         echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-#         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
-
-#   slack: 
+#   slack:
 #     uses: ./.github/workflows/notify.yml
 #     secrets: inherit
 #     needs: release
@@ -260,7 +259,7 @@ jobs:
 #      run: |
 #        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.linux_pkg_filename }}
 #
-#    #- name: DEBUG - show me the packages 
+#    #- name: DEBUG - show me the packages
 #    #  working-directory: ${{ github.workspace }}
 #    #  run: ls -la; env
 #
@@ -363,4 +362,4 @@ jobs:
 
 
     # --- Notify Slack --- #
-        
+
