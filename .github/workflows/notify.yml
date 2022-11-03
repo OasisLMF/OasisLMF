@@ -66,20 +66,20 @@ jobs:
           # For posting a rich message using Block Kit
           payload: |
             {
-~             "text": "${{ inputs.heading }}",
+              "text": "${{ inputs.heading }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-~                   "text": "${{ inputs.title }}"
+                    "text": "${{ inputs.title }}"
                   }
                 },
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-~                   "text": " *build branch:* ${{ inputs.build_branch }} \n *workflow run:* <${{ inputs.run_url }}| Build ${{ inputs.run_id }}>  \n *build result:* ${{ inputs.run_status }} \n *date:* ${{ inputs.run_date }}"
+                    "text": " *build branch:* ${{ inputs.build_branch }} \n *workflow run:* <${{ inputs.run_url }}| Build ${{ inputs.run_id }}>  \n *build result:* ${{ inputs.run_status }} \n *date:* ${{ inputs.run_date }}"
                   }
                 }
               ]
