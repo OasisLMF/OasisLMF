@@ -198,6 +198,7 @@ jobs:
         path: ${{ github.workspace }}/
 
     - name: Download OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
       uses: actions/download-artifact@v3
       with:
         name: oasislmf-bin-pkg_darwin
