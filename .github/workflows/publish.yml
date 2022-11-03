@@ -80,17 +80,17 @@ jobs:
     - name: slack message vars
       id: slack_vars
       run: |
-         HEAD=$(echo "*OasisLMF Release* (${{ env.RELEASE_TAG }})")
-         DATE=$(date)
-         TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>"
-         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-         echo "heading=$HEAD" >> $GITHUB_OUTPUT
-         echo "run_date=$DATE" >> $GITHUB_OUTPUT
-         echo "title=$TITLE" >> $GITHUB_OUTPUT
-         echo "run_url=$JOB_URL" >> $GITHUB_OUTPUT
-         echo "run_id=${{ github.run_id }}"  >> $GITHUB_OUTPUT
-         echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
+        HEAD=$(echo "*OasisLMF Release* (${{ env.RELEASE_TAG }})")
+        DATE=$(date)
+        TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>"
+        JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        echo "heading=$HEAD" >> $GITHUB_OUTPUT
+        echo "run_date=$DATE" >> $GITHUB_OUTPUT
+        echo "title=$TITLE" >> $GITHUB_OUTPUT
+        echo "run_url=$JOB_URL" >> $GITHUB_OUTPUT
+        echo "run_id=${{ github.run_id }}"  >> $GITHUB_OUTPUT
+        echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
 
 #   slack:
 #     uses: ./.github/workflows/notify.yml
