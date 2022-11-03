@@ -248,7 +248,7 @@ jobs:
 
     # --- Attach build assest --- #
     - name: Upload Source package
-      id: upload-linux-release-asset
+      id: upload-source-release-asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
@@ -271,7 +271,7 @@ jobs:
 
     - name: Upload OSX package
       if: needs.build.outputs.osx_pkg_filename != ''
-      id: upload-linux-release-asset
+      id: upload-osx-release-asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
