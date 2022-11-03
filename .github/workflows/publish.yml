@@ -2,11 +2,11 @@ name: Release Oasislmf
 
 
 # https://github.com/marketplace/actions/slack-send
-#  ADD to end of workflow 
+#  ADD to end of workflow
 
 on:
   # ONLY USE PUSH FOR TESTING
- # push:
+  push:
   workflow_dispatch:
     inputs:
       build_branch:
@@ -110,7 +110,7 @@ create_release:
         fi
 
 
-    # Test that the output filenames exist and match tags 
+    # Test that the output filenames exist and match tags
 
 
  # --- Setup Changelog builder script --- #
@@ -247,6 +247,17 @@ create_release:
         prerelease: ${{ env.PRE_RELEASE }}
 
     # --- Attach build assest --- #
+    - name: Upload Source package
+      id: upload-linux-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.src_pkg_filename }}
+        asset_name: ${{ needs.build.outputs.src_pkg_filename }}
+        asset_content_type: application/octet-stream
+
     - name: Upload Linux package
       id: upload-linux-release-asset
       uses: actions/upload-release-asset@v1
@@ -254,6 +265,18 @@ create_release:
         GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ github.workspace }}/Linux_x86_64.tar.gz
-        asset_name: Linux_x86_64.tar.gz
+        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.linux_pkg_filename }}
+        asset_name: ${{ needs.build.outputs.linux_pkg_filename }}
+        asset_content_type: application/octet-stream
+
+    - name: Upload OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
+      id: upload-linux-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
+        asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
         asset_content_type: application/octet-stream
