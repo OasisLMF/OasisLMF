@@ -214,7 +214,7 @@ jobs:
 
     - name: DEBUG - show me the packages 
       working-directory: ${{ github.workspace }}
-      run: ls -la
+      run: ls -la; env
 
     - name: GPG sign Source package
       working-directory: ${{ github.workspace }}
