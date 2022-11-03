@@ -117,15 +117,15 @@ jobs:
          ERROR_CODE=0
          SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
          BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
-         TAG=${{ env.RELEASE_TAG }}
-         [[ "$TAG" = "$SRC_VER" ]] || ERROR_CODE=1
-         [[ "$TAG" = "$BIN_VER" ]] || ERROR_CODE=1
-         if [[ "$ERROR_CODE" == 1 ]]; then
-             echo "Package names don't match release tag."
-             echo "  RELEASE_TAG: $TAG"
-             echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
-             exit $ERROR_CODE
-         fi
+         #TAG=${{ env.RELEASE_TAG }}
+         #[[ "$TAG" = "$SRC_VER" ]] || ERROR_CODE=1
+         #[[ "$TAG" = "$BIN_VER" ]] || ERROR_CODE=1
+         #if [[ "$ERROR_CODE" == 1 ]]; then
+         #    echo "Package names don't match release tag."
+         #    echo "  RELEASE_TAG: $TAG"
+         #    echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
+         #    exit $ERROR_CODE
+         #fi
 
  # --- Setup Changelog builder script --- #
     - name: Setup github user
