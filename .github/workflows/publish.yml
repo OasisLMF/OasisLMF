@@ -215,6 +215,7 @@ jobs:
     - name: GPG sign Source package
       working-directory: ${{ github.workspace }}
       run: |
+        export GPG_TTY=$(tty)
         FILE=${{ needs.build.outputs.src_pkg_filename }}
         bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a $FILE"
       env:
@@ -223,6 +224,7 @@ jobs:
     - name: GPG sign Linux package
       working-directory: ${{ github.workspace }}
       run: |
+        export GPG_TTY=$(tty)
         FILE=${{ needs.build.outputs.linux_pkg_filename }}
         bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a $FILE"
       env:
@@ -233,6 +235,7 @@ jobs:
       working-directory: ${{ github.workspace }}
       if: needs.build.outputs.osx_pkg_filename != ''
       run: |
+        export GPG_TTY=$(tty)
         FILE=${{ needs.build.outputs.darwin_pkg_filename }}
         bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_OSX}"
       env:
