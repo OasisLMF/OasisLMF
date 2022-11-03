@@ -47,7 +47,7 @@
 name: PiWind check output
 
 on:
-  push:
+  #push:
   workflow_dispatch:
     inputs:
       build_branch:

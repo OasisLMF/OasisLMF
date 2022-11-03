@@ -1,7 +1,7 @@
-name: Test oasislmf
+name: Oasislmf Testing
 
 on:
-  push:
+  #push:
   workflow_dispatch:
     inputs:
       ktools_branch:

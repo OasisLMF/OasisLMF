@@ -1,8 +1,8 @@
-name: Build oasislmf
+name: Oasislmf Build
 
 
 on:
-  push:
+  #push:
   workflow_dispatch:
     inputs:
       ktools_branch:

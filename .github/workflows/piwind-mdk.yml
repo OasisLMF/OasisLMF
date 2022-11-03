@@ -13,7 +13,7 @@
 name: PiWind MDK
 
 on:
-  push:
+  #push:
   workflow_dispatch:
     inputs:
       build_branch:
