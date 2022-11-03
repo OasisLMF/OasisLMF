@@ -1,53 +1,7 @@
-#  =============================================================================
-#  Workflow description:
-#    Runs the quantitative tests on the PiWind model and checks for differences in output vs
-#    https://github.com/OasisLMF/OasisPiWind/tree/master/tests/ci/expected
-#
-#    If the generated output differs from the expected results folder then that step is failed.
-#    Each test 'case' is executed via the OasisPlatform by running docker-compose
-#
-#    Note: there are two test modes set by the 'build_worker' option
-#      1) build_worker=false - Test piwind on the most recent docker image release of 'coreoasis/model_worker'
-#      2) build_worker=true  - Build a new worker image by git installing an oasislmf branch (set by 'mdk_branch')
-#
-#
-#  Stored artifacts:
-#    'docker-logs': A zip file containing the docker logs from each container running the oasis stack.
-#                   Any execution errors will generally be stored in 'worker.log' file.
-#
-#          docker-logs
-#          ├── celery-db.log
-#          ├── rabbit.log
-#          ├── server-db.log
-#          ├── server.log
-#          ├── worker.log
-#          └── worker-monitor.log
-#
-#    'loss-outputs': A zip file containing the generated 'oasis-files' and 'losses'.
-#                    Each test is stored within a sub-dir following the same structure
-#                    as the dir 'OasisPiWind/tests/ci/expected' from the piwind repo.
-#                    These results and logs intended to help with debugging, so are only stored for 5 days.
-#
-#          loss-outputs
-#          ├── 0_case
-#          │   ├── input              # (Generated ktools files)
-#                    ...
-#          │   └── output             # (output csv files)
-#          │       ├── gul_S1_eltcalc.csv
-#          │       └── gul_S1_summary-info.csv
-#              ...
-#          ├── 8_case
-#          │   ├── input
-#          │   └── output
-#          └── control_set
-#              ├── input
-#              └── output
-#  ==============================================================================
-
 name: PiWind check output
 
 on:
-  #push:
+  push:
   workflow_dispatch:
     inputs:
       build_branch:
@@ -69,8 +23,7 @@ on:
 
 jobs:
   PiWind:
-    uses: OasisLMF/OasisPiWind/.github/workflows/check_results.yml@hotfix/ghactions-reusable-workflow
-    #uses: OasisLMF/OasisPiWind/.github/workflows/check_results.yml@master
+    uses: OasisLMF/OasisPiWind/.github/workflows/check_results.yml@master
     with:
       build_branch: ${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}
       platform_version: ${{ github.event_name == 'push' && 'latest' ||  inputs.platform_version }}

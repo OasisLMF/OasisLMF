@@ -1,19 +1,7 @@
-#  ==============================================================================
-#  Workflow description:
-#    Runs the command line interface of OasisLMF package on the PiWind model.
-#    Multiple versions of python are tested and be extending via
-#    the `py-version` test matrix.
-#
-#    Loss results are not checked and the workflow should only fail on:
-#      1. Package installation failure when pip installing 'oasislmf'
-#      2. An invocation error or python exception when executing 'oasislmf model run ..'
-#      3. Empty files are produced (either input files / or results)
-#  ==============================================================================
-
 name: PiWind MDK
 
 on:
-  #push:
+  push:
   workflow_dispatch:
     inputs:
       build_branch:
@@ -31,8 +19,7 @@ on:
 
 jobs:
   PiWind:
-    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@hotfix/ghactions-reusable-workflow
-    #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
+    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
     with:
       build_branch: ${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}
       mdk_branch: ${{ github.ref_name }}

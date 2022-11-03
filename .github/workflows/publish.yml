@@ -11,15 +11,15 @@ on:
         default: 'master'
 
       release_tag:
-        description: 'Release tag to publish ktools, example: "v{n}.{n}.{n}" where n = int, e.g. v3.0.0,  if "pre_release=true" then valid formats are "v{n}.{n}.{n}rc{n}"'
+        description: 'Release tag to publish oasislmf package, example: "{n}.{n}.{n}" where n = int, e.g. 3.0.0,  if "pre_release=true" then valid formats are "{n}.{n}.{n}rc{n}", 3.0.0rc1'
         required: true
 
       prev_release_tag:
-        description: 'The last release, used for generating the changelog and release notes'
+        description: 'The previous oasislmf release version, this is used for generating the release notes, any changes after that relase will be logged'
         required: true
 
       pre_release:
-        description: 'Mark release as pre-release'
+        description: 'Mark GitHub release as pre-release'
         required: true
         default: 'false'
 
@@ -175,6 +175,7 @@ jobs:
           --apply-milestone
         git add ./CHANGELOG.rst
         git commit -m 'Update changelog'
+
     - name: Create Release notes
       working-directory: ${{ env.WORKSPACE }}
       run: |
@@ -223,10 +224,6 @@ jobs:
       working-directory: ${{ github.workspace }}
       run: |
         gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.linux_pkg_filename }}
-
-    #- name: DEBUG - show me the packages
-    #  working-directory: ${{ github.workspace }}
-    #  run: ls -la; env
 
     - name: GPG sign OSX package
       working-directory: ${{ github.workspace }}
@@ -289,8 +286,7 @@ jobs:
         asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
         asset_content_type: application/octet-stream
 
-    # --- Publish to twine --- #
-
+    # --- Publish to Pypi --- #
     - name: PYPI - Source package
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
@@ -341,7 +337,6 @@ jobs:
         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
 
   # --- Notify Slack --- #
-
   slack:
     uses: ./.github/workflows/notify.yml
     secrets: inherit
