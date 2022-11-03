@@ -94,7 +94,7 @@ jobs:
                   "type": "mrkdwn",
                   "text": "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>"
                 }
-              }
+              },
               {
                 "type": "section",
                 "text": {
