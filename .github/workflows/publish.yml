@@ -62,8 +62,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      #ktools_branch: "" # Don't release with a value here -- only release from ktools production.
-      ktools_branch: "develop"
+      ktools_branch: "" # Don't release with a value here -- only release from ktools production.
 
 
 
@@ -73,10 +72,6 @@ jobs:
     steps:
 
     # --- Pre Publish checks --- #
-    - name: Check ktools bins are from a release
-      if: needs.build.inputs.ktools_branch != ''
-      run: echo "Ktools binaries must be linked from a release" && exit 1  
-
     - name: Check tag is valid for release
       if: env.PRE_RELEASE == 'false'
       run: |
