@@ -206,11 +206,19 @@ jobs:
 
 
     # --- Sign packages --- #
-    - name: Configure GPG Key
-      run: |
-        echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import --batch
-      env:
-        GPG_SIGNING_KEY: ${{ secrets.GPG_PYPI_SIGNING_KEY}}
+    #- name: Configure GPG Key
+    #  run: |
+    #    echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import --batch
+    #  env:
+    #    GPG_SIGNING_KEY: ${{ secrets.GPG_PYPI_SIGNING_KEY}}
+
+    - name: Import GPG key
+      id: import_gpg
+      uses: crazy-max/ghaction-import-gpg@v5
+      with:
+        gpg_private_key: ${{ secrets.GPG_PYPI_SIGNING_KEY_2 }}
+        passphrase: ${{ secrets.GPG_PYPI_SIGNING_PASS }}
+
 
     - name: DEBUG - show me the packages 
       working-directory: ${{ github.workspace }}
@@ -220,7 +228,8 @@ jobs:
       working-directory: ${{ github.workspace }}
       run: |
         #export GPG_TTY=$(tty)
-        echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}
+        gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}
+        #echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
 
