@@ -1,6 +1,6 @@
-name: Slack Release 
+name: Slack Message
 
-on: 
+on:
   workflow_call:
     inputs:
       heading:
@@ -20,7 +20,7 @@ on:
         required: true
         default: ""
         type: string
-      
+
       run_url:
         description: ''
         required: true
@@ -39,25 +39,25 @@ on:
         default: ""
         type: string
 
-      date:
+      run_date:
         description: ''
         required: true
         default: ""
         type: string
 
 
-jobs: 
-  slack: 
+jobs:
+  slack:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        channel: [oasis, members] #Array of slack channels 
+        channel: [oasis, members] #Array of slack channels
         include:
           - channel: oasis
             webhook_secret: SLACK_WEBHOOK_URL_OASIS
           - channel: members
             webhook_secret: SLACK_WEBHOOK_URL_MEMBERS
-    
+
     steps:
       - name: Test slack message
         id: slack
@@ -79,7 +79,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-~                   "text": " *build branch:* ${{ inputs.build_branch }} \n *workflow run:* <${{ inputs.run_url }}| Build ${{ inputs.run_id }}>  \n *build result:* ${{ inputs.run_status }} \n *date:* ${{ inputs.date }}"
+~                   "text": " *build branch:* ${{ inputs.build_branch }} \n *workflow run:* <${{ inputs.run_url }}| Build ${{ inputs.run_id }}>  \n *build result:* ${{ inputs.run_status }} \n *date:* ${{ inputs.run_date }}"
                   }
                 }
               ]
