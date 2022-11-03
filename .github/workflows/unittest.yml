@@ -1,13 +1,13 @@
 name: Oasislmf Testing
 
 on:
-  #push:
+  push:
   workflow_dispatch:
     inputs:
       ktools_branch:
         description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
         required: false
-        default: ""
+        default: "develop"
 
 jobs:
   build:
@@ -27,8 +27,6 @@ jobs:
         - { python-version: '3.9', pkg-version: ""}
         - { python-version: '3.10', pkg-version: ""}
         - { python-version: '3.10', pkg-version: 'numba==0.55.1' }
-        # currently only supports a single fixed package ver, could be expanded using
-        # pip-compile --upgrade-package 'pkg1==<ver>' --upgrade-package 'pkg2==<ver>'
 
     steps:
       - uses: actions/checkout@v3
@@ -37,7 +35,6 @@ jobs:
         with:
           python-version: ${{ matrix.cfg.python-version }}
 
-      # pull linux wheel from build job
       - name: Download package
         uses: actions/download-artifact@v3
         with:
@@ -47,18 +44,6 @@ jobs:
       - name: Install package
         run: |
           pip install ${{ needs.build.outputs.linux_pkg_filename }}
-
-
-      #- name: Install ktools
-      #  run: |
-      #    export KTOOLS_VER=$(grep -Eo '[0-9]\.[0-9]\.[0-9]+' setup.py)
-      #    export KTOOLS_BIN_DIR=$HOME/.local/bin
-      #    mkdir -p $KTOOLS_BIN_DIR
-      #    export PATH=$PATH:$KTOOLS_BIN_DIR
-      #    wget https://github.com/OasisLMF/ktools/releases/download/v$KTOOLS_VER/Linux_x86_64.tar.gz
-      #    tar -xvzf  Linux_x86_64.tar.gz -C $HOME/.local/bin
-      #- name: Install Package
-      #  run: pip install --no-dependencies -e .
 
       - name: Install pip-tools
         run: |
