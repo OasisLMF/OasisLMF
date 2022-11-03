@@ -1,4 +1,4 @@
-name: Unittest package
+name: Test oasislmf
 
 on:
   push:
