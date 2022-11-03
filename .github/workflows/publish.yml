@@ -298,7 +298,8 @@ jobs:
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: twine upload --repository testpypi \
+      run: |
+        twine upload --repository testpypi \
         ${{ needs.build.outputs.src_pkg_filename }} \
         ${{ needs.build.outputs.src_pkg_filename }}.asc
 
@@ -306,7 +307,8 @@ jobs:
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: twine upload --repository testpypi \
+      run: |
+        twine upload --repository testpypi \
         ${{ needs.build.outputs.linux_pkg_filename }} \
         ${{ needs.build.outputs.linux_pkg_filename }}.asc
 
@@ -315,6 +317,7 @@ jobs:
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: twine upload --repository testpypi \
+      run: |
+        twine upload --repository testpypi \
         ${{ needs.build.outputs.osx_pkg_filename }}
         ${{ needs.build.outputs.osx_pkg_filename }}.asc
