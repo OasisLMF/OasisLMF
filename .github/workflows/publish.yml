@@ -219,16 +219,16 @@ jobs:
     - name: GPG sign Source package
       working-directory: ${{ github.workspace }}
       run: |
-        export GPG_TTY=$(tty)
-        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}"
+        #export GPG_TTY=$(tty)
+        bash -c "export GPG_TTY=$(tty); echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.src_pkg_filename }}"
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
 
     - name: GPG sign Linux package
       working-directory: ${{ github.workspace }}
       run: |
-        export GPG_TTY=$(tty)
-        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.linux_pkg_filename }}"
+        #export GPG_TTY=$(tty)
+        bash -c "export GPG_TTY=$(tty); echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.linux_pkg_filename }}"
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
 
@@ -238,7 +238,7 @@ jobs:
       if: needs.build.outputs.osx_pkg_filename != ''
       run: |
         FILE=${{ needs.build.outputs.darwin_pkg_filename }}
-        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.darwin_pkg_filename }}"
+        bash -c "export GPG_TTY=$(tty); echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${{ needs.build.outputs.darwin_pkg_filename }}"
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
 
