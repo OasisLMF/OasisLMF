@@ -51,7 +51,7 @@ env:
   DEVELOP_BRANCH: "test-develop"
 
   BUILD_BRANCH: 'master'
-  RELEASE_TAG: '1.27.0rc2'
+  RELEASE_TAG: '1.27.0rc3'
   PREV_RELEASE_TAG: '1.26.3'
   PRE_RELEASE: 'true'
   AUTO_MERGE: 'false'
@@ -106,7 +106,7 @@ jobs:
       working-directory: ${{ env.WORKSPACE }}
       run: |
        BUILD_VER=$(grep '__version__' oasislmf/__init__.py | awk -F"'" '{print $2}')
-       RELEASE_VER=$(echo ${{ env.RELEASE_TAG }} | cut -c2-)
+       RELEASE_VER=${{ env.RELEASE_TAG }}
        [[ "$RELEASE_VER" = "$BUILD_VER" ]] && ERROR_CODE=0 || ERROR_CODE=1
        if [[ "$ERROR_CODE" == 1 ]]; then
            echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
