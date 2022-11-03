@@ -92,18 +92,18 @@ jobs:
         echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
 
-#   slack:
-#     uses: ./.github/workflows/notify.yml
-#     secrets: inherit
-#     needs: release
-#     with:
-#       heading: ${{ needs.release.outputs.heading }}
-#       title: ${{ needs.release.outputs.title }}
-#       build_branch: ${{ needs.release.outputs.build_branch }}
-#       run_url: ${{ needs.release.outputs.run_url }}
-#       run_id: ${{ needs.release.outputs.run_id }}
-#       run_status: ${{ needs.release.outputs.run_status }}
-#       run_date: ${{ needs.release.outputs.run_date }}
+   slack:
+     uses: ./.github/workflows/notify.yml
+     secrets: inherit
+     needs: release
+     with:
+       heading: ${{ needs.release.outputs.heading }}
+       title: ${{ needs.release.outputs.title }}
+       build_branch: ${{ needs.release.outputs.build_branch }}
+       run_url: ${{ needs.release.outputs.run_url }}
+       run_id: ${{ needs.release.outputs.run_id }}
+       run_status: ${{ needs.release.outputs.run_status }}
+       run_date: ${{ needs.release.outputs.run_date }}
 
 
 
