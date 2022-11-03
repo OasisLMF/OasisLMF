@@ -79,6 +79,7 @@ jobs:
         if [[ "$ERROR_CODE" == 1 ]]; then
             echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
         fi
+
     - name: Check tag is valid for pre-release
       if: env.PRE_RELEASE == 'true'
       run: |
@@ -86,21 +87,13 @@ jobs:
         if [[ "$ERROR_CODE" == 1 ]]; then
             echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
         fi
+
     - name: Checkout
       uses: actions/checkout@v3
       with:
         fetch-depth: 0 # fetch the whole repo for complete history
         path: ${{ env.WORKSPACE }}
 
-    - name: Check tag matches version set
-      working-directory: ${{ env.WORKSPACE }}
-      run: |
-        BUILD_VER=$(cat VERSION.in)
-        RELEASE_VER=$(echo ${{ env.RELEASE_TAG }} | cut -c2-)
-        [[ "$RELEASE_VER" = "$BUILD_VER" ]] && ERROR_CODE=0 || ERROR_CODE=1
-        if [[ "$ERROR_CODE" == 1 ]]; then
-            echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
-        fi
     - name: Check if tag exisits
       working-directory: ${{ env.WORKSPACE }}
       run: |
@@ -109,9 +102,29 @@ jobs:
             echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
         fi
 
+    - name: Check tag matches version set
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        BUILD_VER=$(grep '__version__' oasislmf/__init__.py | awk -F"'" '{print $2}')
+        RELEASE_VER=$(echo ${{ env.RELEASE_TAG }} | cut -c2-)
+        [[ "$RELEASE_VER" = "$BUILD_VER" ]] && ERROR_CODE=0 || ERROR_CODE=1
+        if [[ "$ERROR_CODE" == 1 ]]; then
+            echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
+        fi
 
-    # Test that the output filenames exist and match tags
-
+     - name: Check package names match release tag
+       run: |
+         ERROR_CODE=0
+         SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+         BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+         [[ "${{ env.RELEASE_TAG }}" = "$SRC_VER" ]] || ERROR_CODE=1
+         [[ "${{ env.RELEASE_TAG }}" = "$BIN_VER" ]] || ERROR_CODE=1
+         if [[ "$ERROR_CODE" == 1 ]]; then
+             echo "Package names don't match release tag."
+             echo "  RELEASE_TAG: ${{ env.RELEASE_TAG }"
+             echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
+             exit $ERROR_CODE
+         fi
 
  # --- Setup Changelog builder script --- #
     - name: Setup github user
@@ -224,9 +237,6 @@ jobs:
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
 
-    # --- Publish to twine --- #
-
-
     # --- Create Release --- #
     - name: Push changes
       working-directory: ${{ env.WORKSPACE }}
@@ -280,3 +290,31 @@ jobs:
         asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
         asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
         asset_content_type: application/octet-stream
+
+    # --- Publish to twine --- #
+    # REMOVE '--repository testpypi' for real publish
+
+    - name: PYPI - Source package
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: twine upload --repository testpypi \
+        ${{ needs.build.outputs.src_pkg_filename }} \
+        ${{ needs.build.outputs.src_pkg_filename }}.asc
+
+    - name: PYPI - Linux package
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: twine upload --repository testpypi \
+        ${{ needs.build.outputs.linux_pkg_filename }} \
+        ${{ needs.build.outputs.linux_pkg_filename }}.asc
+
+    - name: PYPI - OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: twine upload --repository testpypi \
+        ${{ needs.build.outputs.osx_pkg_filename }}
+        ${{ needs.build.outputs.osx_pkg_filename }}.asc
