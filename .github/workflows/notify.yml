@@ -4,43 +4,43 @@ on:
   workflow_call:
     inputs:
       heading:
-        description: ''
+        description: 'Slack text block heading'
         required: true
         default: ""
         type: string
 
       title:
-        description: ''
+        description: 'Title of build message'
         required: true
         default: ""
         type: string
 
       build_branch:
-        description: ''
+        description: 'Branch which build ran on'
         required: true
         default: ""
         type: string
 
       run_url:
-        description: ''
+        description: 'URL for Github actions run'
         required: true
         default: ""
         type: string
 
       run_id:
-        description: ''
+        description: 'run ID of workflow run'
         required: true
         default: ""
         type: string
 
       run_status:
-        description: ''
+        description: 'Status of run'
         required: true
         default: ""
         type: string
 
       run_date:
-        description: ''
+        description: 'Date run was executed on'
         required: true
         default: ""
         type: string
@@ -59,7 +59,7 @@ jobs:
           webhook_secret: SLACK_WEBHOOK_URL_MEMBERS
 
     steps:
-    - name: Test slack message
+    - name: Send slack message
       id: slack
       uses: slackapi/slack-github-action@v1.23.0
       with:
