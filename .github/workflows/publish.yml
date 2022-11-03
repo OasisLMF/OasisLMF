@@ -112,9 +112,9 @@ jobs:
             echo "PACKAGE_VER: $BUILD_VER stored in 'oasislmf/__init__.py' dosn't match RELEASE_TAG: $RELEASE_VER" && exit $ERROR_CODE
         fi
 
-     - name: Check package names match release tag
+     - name: Test package names
        run: |
-         ERROR_CODE=0
+         #ERROR_CODE=0
          #SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
          #BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
          #TAG=${{ env.RELEASE_TAG }}
