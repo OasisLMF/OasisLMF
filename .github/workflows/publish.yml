@@ -82,7 +82,7 @@ jobs:
       run: |
         HEAD=$(echo "*OasisLMF Release* (${{ env.RELEASE_TAG }})")
         DATE=$(date)
-        TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>"
+        TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>")
         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         echo "heading=$HEAD" >> $GITHUB_OUTPUT
         echo "run_date=$DATE" >> $GITHUB_OUTPUT
