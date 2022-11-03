@@ -1,6 +1,9 @@
 name: Release Oasislmf
 
 
+# https://github.com/marketplace/actions/slack-send
+#  ADD to end of workflow 
+
 on:
   # ONLY USE PUSH FOR TESTING
  # push:
@@ -68,7 +71,7 @@ create_release:
     needs: build
     steps:
 
-    # --- test version tags and checkout --- #
+    # --- Pre Publish checks --- #
     - name: Check tag is valid for release
       if: env.PRE_RELEASE == 'false'
       run: |
@@ -105,6 +108,10 @@ create_release:
         if [[ "$ERROR_CODE" == 1 ]]; then
             echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
         fi
+
+
+    # Test that the output filenames exist and match tags 
+
 
  # --- Setup Changelog builder script --- #
     - name: Setup github user
@@ -194,28 +201,25 @@ create_release:
     - name: GPG sign Source package
       working-directory: ${{ github.workspace }}
       run: |
-        TAR_PKG=$(find ./ -name "oasislmf-*.tar.gz")
-        # Take name from output
-        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${TAR_PKG}"
+        FILE=${{ needs.build.outputs.src_pkg_filename }}
+        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a $FILE"
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
-
 
     - name: GPG sign Linux package
       working-directory: ${{ github.workspace }}
       run: |
-        WHL_LINUX=$(find ./ -name "oasislmf-*manylinux1_x86_64.whl")
-        # Take name from output
-        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_LINUX}"
+        FILE=${{ needs.build.outputs.linux_pkg_filename }}
+        bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a $FILE"
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
 
 
     - name: GPG sign OSX package
       working-directory: ${{ github.workspace }}
+      if: needs.build.outputs.osx_pkg_filename != ''
       run: |
-        WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
-        # Take name from output
+        FILE=${{ needs.build.outputs.darwin_pkg_filename }}
         bash -c "echo ${{ env.GPG_SIGNING_PASS }} | gpg --batch --no-tty --passphrase-fd 0 --detach-sign -a ${WHL_OSX}"
       env:
         GPG_SIGNING_PASS: ${{ secrets.GPG_PYPI_SIGNING_PASS}}
@@ -242,14 +246,14 @@ create_release:
         draft: false
         prerelease: ${{ env.PRE_RELEASE }}
 
-    ## --- Attach build assest --- #
-    #- name: Upload Linux package
-    #  id: upload-linux-release-asset
-    #  uses: actions/upload-release-asset@v1
-    #  env:
-    #    GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
-    #  with:
-    #    upload_url: ${{ steps.create_release.outputs.upload_url }}
-    #    asset_path: ${{ github.workspace }}/Linux_x86_64.tar.gz
-    #    asset_name: Linux_x86_64.tar.gz
-    #    asset_content_type: application/octet-stream
+    # --- Attach build assest --- #
+    - name: Upload Linux package
+      id: upload-linux-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/Linux_x86_64.tar.gz
+        asset_name: Linux_x86_64.tar.gz
+        asset_content_type: application/octet-stream
