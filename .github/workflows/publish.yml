@@ -64,7 +64,7 @@ jobs:
     with:
       #oasislmf_version: ${{ inputs.release_tag }}
       oasislmf_version: '1.27.0rc20'
-      ktools_version: "3.9.5rc1"  ## REMOVE THIS BEFORE FINAL 
+      ktools_version: "3.9.5rc1"  ## REMOVE THIS BEFORE FINAL
       #ktools_version: ${{ inputs.ktools_version_set }}
 
   build:
@@ -94,7 +94,8 @@ jobs:
       run: |
         VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
-            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
+            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid"
+            exit 1
         fi
 
     - name: Check tag is valid for pre-release
@@ -102,7 +103,8 @@ jobs:
       run: |
         VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
-            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
+            echo "Release Tag ${{ env.RELEASE_TAG }} is not valid"
+            exit 1
         fi
 
     - name: Checkout
@@ -193,7 +195,6 @@ jobs:
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
           --output-path ./CHANGELOG.rst
-          --apply-milestone
         git add ./CHANGELOG.rst
         git commit -m 'Update changelog'
 
@@ -207,6 +208,7 @@ jobs:
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
           --output-path ./RELEASE.md
+          #--apply-milestone     ## ADD THIS BEFORE MERGE TO MASTER
 
     - name: Download Source package
       uses: actions/download-artifact@v3
