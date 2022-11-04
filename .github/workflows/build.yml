@@ -39,7 +39,6 @@ jobs:
       ktools_branch: ${{ inputs.ktools_branch }}
 
   oasislmf:
-    #if: ${{ always() }}
     if: ${{ ! failure() || ! cancelled() }}
     needs: [ktools]
     runs-on: ubuntu-latest
