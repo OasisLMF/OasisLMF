@@ -5,11 +5,6 @@ on:
   #push:
   workflow_dispatch:
     inputs:
-      build_branch:
-        description: 'Branch of build script repo, used for running create changelog script'
-        required: true
-        default: 'master'
-
       ktools_version_set: 
         description: '(Optional) Pin a new ktools version, semvar (without the "v") For ktools release v3.0.0 input [3.0.0]'
         required: false
@@ -34,11 +29,11 @@ on:
         default: 'true'
 
 env:
-  MAIN_BRANCH: "master"
-  DEVELOP_BRANCH: "develop"
+  MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
+  DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
+  BUILD_SCRIPTS: "master"    # build scripts branch 
 
   WORKSPACE: ${{ github.workspace }}/OasisLMF
-  BUILD_BRANCH: ${{ inputs.build_branch }}
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
   PRE_RELEASE: ${{ inputs.pre_release }}
@@ -48,7 +43,7 @@ env:
   #MAIN_BRANCH: "test-master"
   #DEVELOP_BRANCH: "test-develop"
 
-  #BUILD_BRANCH: 'master'
+  #BUILD_SCRIPTS: 'master'
   #RELEASE_TAG: '1.27.0rc20'
   #PREV_RELEASE_TAG: '1.26.3'
   #PRE_RELEASE: 'true'
@@ -81,6 +76,7 @@ jobs:
       run_id: ${{ steps.slack_vars.outputs.run_id }}
       run_status: ${{ steps.slack_vars.outputs.run_status }}
       run_date: ${{ steps.slack_vars.outputs.run_date }}
+
     steps:
     # --- Pre Publish checks --- #
     - name: Check tag is valid for release
@@ -165,7 +161,7 @@ jobs:
     - name: Setup Changelog builder
       working-directory: ${{ github.workspace }}
       run: |
-        BASE_URL="https://raw.githubusercontent.com/OasisLMF/build/${{ env.BUILD_BRANCH }}/buildscript"
+        BASE_URL="https://raw.githubusercontent.com/OasisLMF/build/${{ env.BUILD_SCRIPTS }}/buildscript"
         pip install -r $BASE_URL/requirments_changelog.txt
         wget $BASE_URL/auto_changelog.py
         chmod +x auto_changelog.py
@@ -338,9 +334,9 @@ jobs:
     - name: slack message vars
       id: slack_vars
       run: |
-        HEAD=$(echo "*OasisLMF Release* (${{ env.RELEASE_TAG }})")
+        HEAD=$(echo "*${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
         DATE=$(date)
-        TITLE=$(echo "• <https://github.com/OasisLMF/OasisLMF/releases/tag/${{ env.RELEASE_TAG }}|OasisLMF ${{ env.RELEASE_TAG }} (Release Notes)>")
+        TITLE=$(echo "• <https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}|${{ github.event.repository.name }} ${{ env.RELEASE_TAG }} - Release Notes>")
         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         echo "heading=$HEAD" >> $GITHUB_OUTPUT
         echo "run_date=$DATE" >> $GITHUB_OUTPUT
