@@ -8,42 +8,67 @@ on:
         required: true
         default: ""
         type: string
-
       title:
         description: 'Title of build message'
         required: true
         default: ""
         type: string
-
       build_branch:
         description: 'Branch which build ran on'
         required: true
         default: ""
         type: string
-
       run_url:
         description: 'URL for Github actions run'
         required: true
         default: ""
         type: string
-
       run_id:
         description: 'run ID of workflow run'
         required: true
         default: ""
         type: string
-
       run_status:
         description: 'Status of run'
         required: true
         default: ""
         type: string
-
       run_date:
         description: 'Date run was executed on'
         required: true
         default: ""
         type: string
+
+  workflow_dispatch:
+    inputs:
+      heading:
+        description: 'Slack text block heading'
+        required: true
+        default: ""
+      title:
+        description: 'Title of build message'
+        required: true
+        default: ""
+      build_branch:
+        description: 'Branch which build ran on'
+        required: true
+        default: ""
+      run_url:
+        description: 'URL for Github actions run'
+        required: true
+        default: ""
+      run_id:
+        description: 'run ID of workflow run'
+        required: true
+        default: ""
+      run_status:
+        description: 'Status of run'
+        required: true
+        default: ""
+      run_date:
+        description: 'Date run was executed on'
+        required: true
+        default: ""
 
 
 jobs:
