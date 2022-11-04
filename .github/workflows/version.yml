@@ -81,6 +81,7 @@ jobs:
         git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
 
     - name: Push  
+      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
       run: git push 
 
 #  oasislmf:
