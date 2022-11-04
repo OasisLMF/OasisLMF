@@ -33,6 +33,10 @@ env:
   oasislmf_file: 'oasislmf/__init__.py'
   oasislmf_regex: '^__version__'
 
+  # TESTING WRITE VERSIONS
+  ktools_version: '4.0.0'
+  oasislmf_version: '9.9.9rc9'
+  
 
 jobs:
   version:
@@ -40,51 +44,46 @@ jobs:
     steps:
 
     - name: Check input is valid semvar (Ktools)
-      if: inputs.ktools_version != ''
+      if: env.ktools_version != ''
       run: |
-        VALID=$(echo ${{ inputs.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
+        VALID=$(echo ${{ env.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
         [[ $VALID = 1 ]] || exit 1
 
     - name: Check input is valid semvar (Oasislmf)
-      if: inputs.oasislmf_version != ''
+      if: env.oasislmf_version != ''
       run: |
-        VALID=$(echo ${{ inputs.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
+        VALID=$(echo ${{ env.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
         [[ $VALID = 1 ]] || exit 1
 
     - name: Checkout
-      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
+      if: env.ktools_version != '' ||  env.oasislmf_version != ''
       uses: actions/checkout@v3
       with:
         fetch-depth: 0 # fetch the whole repo for complete history
 
     - name: Setup github user
-      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
+      if: env.ktools_version != '' ||  env.oasislmf_version != ''
       run: |
         git config --global user.email ${{ env.GIT_EMAIL }}
         git config --global user.name ${{ env.GIT_USERNAME }}
         git config --global pull.ff only
 
     - name: Write ktools version 
-      if: inputs.ktools_version != ''
+      if: env.ktools_version != ''
       run: |
         CURRENT_VER=$(grep ${{ env.ktools_regex }} ${{ env.ktools_file }} | awk -F"'" '{print $2}')
-        sed -i 's|'$CURRENT_VER'|'${{ inputs.ktools_version }}'|g' ${{ env.ktools_file }}
+        sed -i 's|'$CURRENT_VER'|'${{ env.ktools_version }}'|g' ${{ env.ktools_file }}
         git add ${{ env.ktools_file }}
-        git commit -m "Set Ktools to version ${{ inputs.ktools_version }}"
+        git commit -m "Set Ktools to version ${{ env.ktools_version }}"
 
     - name: Write oasislmf version 
-      if: inputs.oasislmf_version != ''
+      if: env.oasislmf_version != ''
       run: |
         CURRENT_VER=$(grep ${{ env.oasislmf_regex }} ${{ env.oasislmf_file }} | awk -F"'" '{print $2}')
-        sed -i 's|'$CURRENT_VER'|'${{ inputs.oasislmf_version }}'|g' ${{ env.oasislmf_file }}
+        sed -i 's|'$CURRENT_VER'|'${{ env.oasislmf_version }}'|g' ${{ env.oasislmf_file }}
         git add ${{ env.oasislmf_file }}
-        git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
+        git commit -m "Set oasislmf to version ${{ env.oasislmf_version }}"
 
     - name: Push  
-      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
+      if: env.ktools_version != '' ||  env.oasislmf_version != ''
       run: git push 
-
-#  oasislmf:
-#    needs: [ktools]
-#    if: inputs.oasislmf_version != ''
-#    runs-on: ubuntu-latest    
