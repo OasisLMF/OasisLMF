@@ -5,11 +5,6 @@ on:
   #push:
   workflow_dispatch:
     inputs:
-      ktools_version_set: 
-        description: '(Optional) Pin a new ktools version, semvar (without the "v") For ktools release v3.0.0 input [3.0.0]'
-        required: false
-        default: ''
-
       release_tag:
         description: 'Release tag to publish oasislmf package, example: "{n}.{n}.{n}" where n = int, e.g. 3.0.0,  if "pre_release=true" then valid formats are "{n}.{n}.{n}rc{n}", 3.0.0rc1'
         required: true
@@ -28,10 +23,18 @@ on:
         required: true
         default: 'true'
 
+      # TESTING ONLY
+      # This is Risky and should be exposed by default --> Run ./.github/workflows/version.yml separately and wait for testing workflows to pass before publish
+      #ktools_version_set:
+      #  description: '(Optional) Pin a new ktools version, semvar (without the "v") For ktools release v3.0.0 input [3.0.0]'
+      #  required: false
+      #  default: ''
+
+
 env:
   MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
   DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
-  BUILD_SCRIPTS: "master"    # build scripts branch 
+  BUILD_SCRIPTS: "master"    # build scripts branch
 
   WORKSPACE: ${{ github.workspace }}/OasisLMF
   RELEASE_TAG: ${{ inputs.release_tag }}
@@ -51,17 +54,18 @@ env:
 
 
 jobs:
-  version:
+  update:
     uses: ./.github/workflows/version.yml
     secrets: inherit
     with:
-      ktools_version: ${{ inputs.ktools_version_set }}
-      oasislmf_version: ${{ inputs.release_tag }} 
+      oasislmf_version: ${{ inputs.release_tag }}
+      ktools_version: ""
+      #ktools_version: ${{ inputs.ktools_version_set }}
 
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
-    needs: version
+    needs: update
     with:
       ktools_branch: "" # Don't release with a value here -- only release from ktools production.
 
@@ -99,6 +103,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         fetch-depth: 0 # fetch the whole repo for complete history
+        ref: ${{ github.ref_name }}
         path: ${{ env.WORKSPACE }}
 
     - name: Check if tag exisits
