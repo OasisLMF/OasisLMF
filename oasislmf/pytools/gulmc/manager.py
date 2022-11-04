@@ -229,9 +229,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
-        # number of bytes to read at a given time.
-        number_size = max(gulSampleslevelHeader_size, gulSampleslevelRec_size)
-
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
@@ -343,14 +340,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 last_processed_coverage_ids_idx = 0
 
                 # adjust buff size so that the buffer fits the longest coverage
-                buff_size = PIPE_CAPACITY * 2
+                buff_size = PIPE_CAPACITY
                 max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
                 while buff_size < max_bytes_per_coverage:
                     buff_size *= 2
 
-                # define the raw memory view, the int32 view of it, and their respective cursors
+                # define the raw memory view and its int32 view
                 mv_write = memoryview(bytearray(buff_size))
-                int32_mv = np.ndarray(buff_size // number_size, buffer=mv_write, dtype='i4')
+                int32_mv = np.ndarray(buff_size // 4, buffer=mv_write, dtype='i4')
 
                 while last_processed_coverage_ids_idx < compute_i:
 
@@ -363,8 +360,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                         z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
-                    select([], select_stream_list, select_stream_list)
-                    stream_out.write(mv_write[:cursor_bytes])
+                    # write the losses to the output stream
+                    write_start = 0
+                    while write_start < cursor_bytes:
+                        select([], select_stream_list, select_stream_list)
+                        write_start += stream_out.write(mv_write[write_start:cursor_bytes])
+
                     cursor = 0
 
                 logger.info(f"event {event_id} DONE")
