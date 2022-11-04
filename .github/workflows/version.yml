@@ -33,6 +33,8 @@ env:
   oasislmf_file: 'oasislmf/__init__.py'
   oasislmf_regex: '^__version__'
 
+  
+
   # TESTING WRITE VERSIONS
   ktools_version: '4.0.0'
   oasislmf_version: '9.9.9rc9'
@@ -61,6 +63,9 @@ jobs:
         git config --global user.email ${{ env.GIT_EMAIL }}
         git config --global user.name ${{ env.GIT_USERNAME }}
         git config --global pull.ff only
+      env:
+        GIT_EMAIL: ${{ secrets.BUILD_GIT_EMAIL }}
+        GIT_USERNAME: ${{ secrets.BUILD_GIT_USERNAME }}
 
     - name: Checkout
       if: env.ktools_version != '' ||  env.oasislmf_version != ''
@@ -88,3 +93,5 @@ jobs:
     - name: Push  
       if: env.ktools_version != '' ||  env.oasislmf_version != ''
       run: git push 
+      env:
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}

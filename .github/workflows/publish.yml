@@ -32,9 +32,6 @@ env:
   MAIN_BRANCH: "master"
   DEVELOP_BRANCH: "develop"
 
-  GIT_USERNAME: 'awsbuild'
-  GIT_EMAIL: 'awsbuild@oasislmf.org'
-
   WORKSPACE: ${{ github.workspace }}/OasisLMF
   BUILD_BRANCH: ${{ inputs.build_branch }}
   RELEASE_TAG: ${{ inputs.release_tag }}
@@ -133,10 +130,14 @@ jobs:
         git config --global user.email ${{ env.GIT_EMAIL }}
         git config --global user.name ${{ env.GIT_USERNAME }}
         git config --global pull.ff only
+      env:
+        GIT_EMAIL: ${{ secrets.BUILD_GIT_EMAIL }}
+        GIT_USERNAME: ${{ secrets.BUILD_GIT_USERNAME }}
+
     - name: Check for merge conflicts and tag
       working-directory: ${{ env.WORKSPACE }}
       env:
-        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       run: |
         git checkout ${{ env.MAIN_BRANCH }}
         git merge ${{ github.ref_name }} --no-ff --no-commit
@@ -163,13 +164,13 @@ jobs:
     - name: Create changelog
       working-directory: ${{ env.WORKSPACE }}
       env:
-        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       run: |
         ${{ github.workspace }}/auto_changelog.py build-changelog \
           --repo OasisLMF \
           --from-tag ${{ env.PREV_RELEASE_TAG }} \
           --to-tag ${{ env.RELEASE_TAG }} \
-          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
+          --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
           --output-path ./CHANGELOG.rst
           --apply-milestone
@@ -183,7 +184,7 @@ jobs:
           --repo OasisLMF \
           --from-tag ${{ env.PREV_RELEASE_TAG }} \
           --to-tag ${{ env.RELEASE_TAG }} \
-          --github-token ${{ secrets.AWSBUILD_GIT_TOKEN }} \
+          --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
           --output-path ./RELEASE.md
 
@@ -243,7 +244,7 @@ jobs:
       id: create_release
       uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       with:
         tag_name: ${{ env.RELEASE_TAG }}
         release_name: Release ${{ env.RELEASE_TAG }}
@@ -256,7 +257,7 @@ jobs:
       id: upload-source-release-asset
       uses: actions/upload-release-asset@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ${{ github.workspace }}/${{ needs.build.outputs.src_pkg_filename }}
@@ -267,7 +268,7 @@ jobs:
       id: upload-linux-release-asset
       uses: actions/upload-release-asset@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ${{ github.workspace }}/${{ needs.build.outputs.linux_pkg_filename }}
@@ -279,7 +280,7 @@ jobs:
       id: upload-osx-release-asset
       uses: actions/upload-release-asset@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.AWSBUILD_GIT_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
