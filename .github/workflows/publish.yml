@@ -92,7 +92,7 @@ jobs:
     - name: Check tag is valid for release
       if: env.PRE_RELEASE == 'false'
       run: |
-        VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)$")
+        VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
             echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
         fi
@@ -100,7 +100,7 @@ jobs:
     - name: Check tag is valid for pre-release
       if: env.PRE_RELEASE == 'true'
       run: |
-        VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)$")
+        VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)$")
         if [[ ! "$VALID" == 1 ]]; then
             echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
         fi
