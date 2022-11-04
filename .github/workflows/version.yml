@@ -57,6 +57,12 @@ jobs:
         VALID=$(echo ${{ env.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
         [[ $VALID = 1 ]] || exit 1
 
+    - name: Checkout
+      if: env.ktools_version != '' ||  env.oasislmf_version != ''
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # fetch the whole repo for complete history
+
     - name: Setup github user
       if: env.ktools_version != '' ||  env.oasislmf_version != ''
       run: |
@@ -66,13 +72,6 @@ jobs:
       env:
         GIT_EMAIL: ${{ secrets.BUILD_GIT_EMAIL }}
         GIT_USERNAME: ${{ secrets.BUILD_GIT_USERNAME }}
-
-    - name: Checkout
-      if: env.ktools_version != '' ||  env.oasislmf_version != ''
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0 # fetch the whole repo for complete history
-        repository: ${{ github.ref_name }}
 
     - name: Write ktools version 
       if: env.ktools_version != ''
