@@ -463,8 +463,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         continue
 
                     cdf_start_in_footprint = haz_prob_rec_idx_ptr[hazcdf_i]
-                    haz_int_bin_idx = event_footprint[cdf_start_in_footprint +
-                                                      haz_bin_idx]['intensity_bin_id']
+                    haz_int_bin_idx = event_footprint[cdf_start_in_footprint + haz_bin_idx]['intensity_bin_id']
                     # TODO instead of using event_footprint, store the intensity_bin_id in haz_cdf as a ndarray
 
                     # damage sampling
@@ -509,8 +508,11 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                 # compute mean values
                 # TODO: placeholder: compute mean values for the last damage cdf
                 gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                    tiv, eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i +
-                                      eff_vuln_cdf_Ndamage_bins], damage_bins['interpolation'], Ndamage_bins, damage_bins[Ndamage_bins - 1]['bin_to'],
+                    tiv,
+                    eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins],
+                    damage_bins['interpolation'],
+                    Ndamage_bins,
+                    damage_bins[Ndamage_bins - 1]['bin_to'],
                 )
 
                 losses[MAX_LOSS_IDX, item_i] = max_loss
@@ -559,11 +561,8 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
     cdf_end = 0
     haz_cdf_ptr = List([0])
     eff_vuln_cdf_start = 0
-    areaperil_to_eff_vuln_cdf = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int64)  # enable when enabling numba
-    areaperil_to_eff_vuln_cdf_Ndamage_bins = Dict.empty(
-        ITEM_MAP_KEY_TYPE_internal, nb_int64)  # enable when enabling numba
-    # areaperil_to_eff_vuln_cdf = dict()
-    # areaperil_to_eff_vuln_cdf_Ndamage_bins = dict()
+    areaperil_to_eff_vuln_cdf = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int64)
+    areaperil_to_eff_vuln_cdf_Ndamage_bins = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int64)
 
     while footprint_i < len(event_footprint):
 
@@ -571,19 +570,17 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
 
         if areaperil_id != last_areaperil_id:
             # one areaperil_id is completed
+
             if last_areaperil_id > 0:
                 if last_areaperil_id in areaperil_to_vulns_idx_dict:
 
                     areaperil_ids.append(last_areaperil_id)
                     haz_prob_start_in_footprint.append(last_areaperil_id_start)
-                    # haz_prob_length_in_footprint.append(footprint_i - last_areaperil_id_start)
                     areaperil_to_haz_cdf[last_areaperil_id] = haz_cdf_i
-
                     haz_cdf_i += 1
 
                     Nbins_to_read = footprint_i - last_areaperil_id_start
                     cdf_end = cdf_start + Nbins_to_read
-
                     cumsum = 0
                     for i in range(Nbins_to_read):
                         haz_pdf[cdf_start + i] = event_footprint['probability'][last_areaperil_id_start + i]
@@ -637,10 +634,8 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
             cumsum += haz_pdf[cdf_start + i]
             haz_cdf[cdf_start + i] = cumsum
 
-        areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
-
         # compute eff vuln cdf
-        # areaperil_to_eff_vuln_cdf[last_areaperil_id] = []
+        areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
         for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
 
             eff_vuln_cdf_cumsum = 0.
