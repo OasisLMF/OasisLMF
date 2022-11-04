@@ -391,7 +391,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
         # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
-        # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
         cursor_bytes = cursor * int32_mv.itemsize
         est_cursor_bytes = Nitems * max_bytes_per_item
 
@@ -410,9 +409,23 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             eff_vuln_cdf_i = item['eff_vuln_cdf_i']
             eff_vuln_cdf_Ndamage_bins = item['eff_vuln_cdf_Ndamage_bins']
 
-            # haz_prob_to = haz_cdf[haz_prob_rec_idx_ptr[hazcdf_i]:haz_prob_rec_idx_ptr[hazcdf_i + 1]]
             haz_prob_to = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
             Nbins = len(haz_prob_to)
+
+            # compute mean values
+            gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
+                tiv,
+                eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins],
+                damage_bins['interpolation'],
+                eff_vuln_cdf_Ndamage_bins,
+                damage_bins[eff_vuln_cdf_Ndamage_bins - 1]['bin_to'],
+            )
+
+            losses[MAX_LOSS_IDX, item_i] = max_loss
+            losses[CHANCE_OF_LOSS_IDX, item_i] = chance_of_loss
+            losses[TIV_IDX, item_i] = exposureValue
+            losses[STD_DEV_IDX, item_i] = std_dev
+            losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
                 if do_correlation:
@@ -459,7 +472,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
                     if debug:
                         losses[sample_idx, item_i] = vuln_rval
-                        Ndamage_bins = Ndamage_bins_max  # TODO temporary to get compute_mean_loss() to work
                         continue
 
                     cdf_start_in_footprint = haz_prob_rec_idx_ptr[hazcdf_i]
@@ -503,23 +515,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         losses[sample_idx, item_i] = gul
                     else:
                         losses[sample_idx, item_i] = 0
-
-                # print(eff_vuln_cdf[eff_vuln_cdf_i:areaperil_to_eff_vuln_cdf_Ndamage_bins])
-                # compute mean values
-                # TODO: placeholder: compute mean values for the last damage cdf
-                gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                    tiv,
-                    eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins],
-                    damage_bins['interpolation'],
-                    Ndamage_bins,
-                    damage_bins[Ndamage_bins - 1]['bin_to'],
-                )
-
-                losses[MAX_LOSS_IDX, item_i] = max_loss
-                losses[CHANCE_OF_LOSS_IDX, item_i] = chance_of_loss
-                losses[TIV_IDX, item_i] = exposureValue
-                losses[STD_DEV_IDX, item_i] = std_dev
-                losses[MEAN_IDX, item_i] = gul_mean
 
         cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
                               int32_mv, cursor)
