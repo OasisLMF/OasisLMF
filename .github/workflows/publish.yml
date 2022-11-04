@@ -2,7 +2,7 @@ name: Oasislmf Release
 
 on:
   # ONLY USE PUSH FOR TESTING
-  push:
+  #push:
   workflow_dispatch:
     inputs:
       release_tag:
