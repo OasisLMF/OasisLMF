@@ -1,4 +1,4 @@
-name: Oasislmf Set Version
+name: Oasislmf Version
 
 on:
   workflow_dispatch:
@@ -72,7 +72,8 @@ jobs:
         CURRENT_VER=$(grep ${{ inputs.ktools_regex }} ${{ inputs.ktools_file }} | awk -F"'" '{print $2}')
         sed -i 's|'$CURRENT_VER'|'${{ inputs.ktools_version }}'|g' ${{ inputs.ktools_file }}
         git add ${{ inputs.ktools_file }}
-        git commit -m "Set Ktools to version ${{ inputs.ktools_version }}"
+        # Only commit if something changed
+        [[ -z $(git status -s) ]] || git commit -m "Set Ktools to version ${{ inputs.ktools_version }}"
 
     - name: Write oasislmf version
       if: inputs.oasislmf_version != ''
@@ -80,7 +81,8 @@ jobs:
         CURRENT_VER=$(grep ${{ inputs.oasislmf_regex }} ${{ inputs.oasislmf_file }} | awk -F"'" '{print $2}')
         sed -i 's|'$CURRENT_VER'|'${{ inputs.oasislmf_version }}'|g' ${{ inputs.oasislmf_file }}
         git add ${{ inputs.oasislmf_file }}
-        git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
+        # Only commit if something changed
+        [[ -z $(git status -s) ]] || git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
 
     - name: Push
       if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''

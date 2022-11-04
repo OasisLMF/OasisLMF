@@ -10,6 +10,11 @@ on:
         required: true
         default: 'master'
 
+      ktools_version_set: 
+        description: '(Optional) Pin a new ktools version, semvar (without the "v") For ktools release v3.0.0 input [3.0.0]'
+        required: false
+        default: ''
+
       release_tag:
         description: 'Release tag to publish oasislmf package, example: "{n}.{n}.{n}" where n = int, e.g. 3.0.0,  if "pre_release=true" then valid formats are "{n}.{n}.{n}rc{n}", 3.0.0rc1'
         required: true
@@ -51,9 +56,17 @@ env:
 
 
 jobs:
+  version:
+    uses: ./.github/workflows/version.yml
+    secrets: inherit
+    with:
+      ktools_version: ${{ inputs.ktools_version_set }}
+      oasislmf_version: ${{ inputs.release_tag }} 
+
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
+    needs: version
     with:
       ktools_branch: "" # Don't release with a value here -- only release from ktools production.
 
