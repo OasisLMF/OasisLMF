@@ -80,8 +80,8 @@ jobs:
         git add ${{ env.oasislmf_file }}
         git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
 
-     - name: Push  
-       run: git push 
+    - name: Push  
+      run: git push 
 
 #  oasislmf:
 #    needs: [ktools]
