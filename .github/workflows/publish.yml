@@ -88,7 +88,7 @@ jobs:
     steps:
     # --- Pre Publish checks --- #
     - name: check branchname is valid for release
-      if: ${{ !startsWith(github.ref_name , 'release/') }} || ${{ !startsWith(github.ref_name, 'backports/')}}
+      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'backports/') }}
       run: |
         echo "Releases must be trigged on branchs 'release/x.x.x' or 'backports/x.x.x' "
         exit 1
@@ -139,8 +139,8 @@ jobs:
     - name: Test package names
       run: |
         ERROR_CODE=0
-        SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
-        BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d*)\.(\d*)\.(\d*)rc(\d*)|(\d*)\.(\d*)\.(\d*)")
+        SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)")
+        BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)")
         [[ "${{ env.RELEASE_TAG }}" = "$SRC_VER" ]] || ERROR_CODE=1
         [[ "${{ env.RELEASE_TAG }}" = "$BIN_VER" ]] || ERROR_CODE=1
         if [[ "$ERROR_CODE" == 1 ]]; then
