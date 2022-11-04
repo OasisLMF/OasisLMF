@@ -19,7 +19,7 @@ on:
         default: 'false'
 
       auto_merge:
-        description: 'Run Git flow, git_merge(source_branch -> master) and then git_merge(master -> develop)'
+        description: 'Run Git flow, git_merge(source_branch -> master) and then git_merge(master -> develop): [true, false]'
         required: true
         default: 'true'
 
@@ -37,25 +37,24 @@ on:
 
 
 env:
-  MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
-  DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
+  #MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
+  #DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
   BUILD_SCRIPTS: "master"    # build scripts branch
-
   WORKSPACE: ${{ github.workspace }}/OasisLMF
-  RELEASE_TAG: ${{ inputs.release_tag }}
-  PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
-  PRE_RELEASE: ${{ inputs.pre_release }}
-  AUTO_MERGE: ${{ inputs.auto_merge }}
+
+  #RELEASE_TAG: ${{ inputs.release_tag }}
+  #PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
+  #PRE_RELEASE: ${{ inputs.pre_release }}
+  #AUTO_MERGE: ${{ inputs.auto_merge }}
 
   # -- TESTING ONLY ----
-  #MAIN_BRANCH: "test-master"
-  #DEVELOP_BRANCH: "test-develop"
+  MAIN_BRANCH: "test-master"
+  DEVELOP_BRANCH: "test-develop"
 
-  #BUILD_SCRIPTS: 'master'
-  #RELEASE_TAG: '1.27.0rc20'
-  #PREV_RELEASE_TAG: '1.26.3'
-  #PRE_RELEASE: 'true'
-  #AUTO_MERGE: 'false'
+  RELEASE_TAG: '1.27.0rc20'
+  PREV_RELEASE_TAG: '1.26.0'
+  PRE_RELEASE: 'true'
+  AUTO_MERGE: 'true'
 
 
 jobs:
@@ -64,7 +63,7 @@ jobs:
     secrets: inherit
     with:
       oasislmf_version: ${{ inputs.release_tag }}
-      ktools_version: ""
+      ktools_version: "3.9.5rc1"  ## REMOVE THIS BEFORE FINAL 
       #ktools_version: ${{ inputs.ktools_version_set }}
 
   build:
@@ -345,7 +344,7 @@ jobs:
     - name: slack message vars
       id: slack_vars
       run: |
-        HEAD=$(echo "*${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
+        HEAD=$(echo "* TESTING ${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
         DATE=$(date)
         TITLE=$(echo "• <https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}|${{ github.event.repository.name }} ${{ env.RELEASE_TAG }} - Release Notes>")
         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
