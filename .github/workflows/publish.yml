@@ -62,7 +62,8 @@ jobs:
     uses: ./.github/workflows/version.yml
     secrets: inherit
     with:
-      oasislmf_version: ${{ inputs.release_tag }}
+      #oasislmf_version: ${{ inputs.release_tag }}
+      oasislmf_version: '1.27.0rc20'
       ktools_version: "3.9.5rc1"  ## REMOVE THIS BEFORE FINAL 
       #ktools_version: ${{ inputs.ktools_version_set }}
 
@@ -91,16 +92,16 @@ jobs:
     - name: Check tag is valid for release
       if: env.PRE_RELEASE == 'false'
       run: |
-        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
-        if [[ "$ERROR_CODE" == 1 ]]; then
+        VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)$")
+        if [[ ! "$VALID" == 1 ]]; then
             echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
         fi
 
     - name: Check tag is valid for pre-release
       if: env.PRE_RELEASE == 'true'
       run: |
-        echo ${{ env.RELEASE_TAG }} | grep -Eq  "^(0|[1-9]*)\.(0|[1-9]*)\.(0|[1-9]*)rc([1-9]*)$" && ERROR_CODE=0 || ERROR_CODE=1
-        if [[ "$ERROR_CODE" == 1 ]]; then
+        VALID=$(echo ${{ env.RELEASE_TAG }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)$")
+        if [[ ! "$VALID" == 1 ]]; then
             echo "Release Tag ${{ env.RELEASE_TAG }} is not valid" && exit $ERROR_CODE
         fi
 
