@@ -88,7 +88,7 @@ jobs:
     steps:
     # --- Pre Publish checks --- #
     - name: check branchname is valid for release
-      if: ! startsWith(github.ref_name , 'release/') || ! startsWith(github.ref_name, 'backports/')
+      if: ${{ !startsWith(github.ref_name , 'release/') }} || ${{ !startsWith(github.ref_name, 'backports/')}}
       run: |
         echo "Releases must be trigged on branchs 'release/x.x.x' or 'backports/x.x.x' "
         exit 1
