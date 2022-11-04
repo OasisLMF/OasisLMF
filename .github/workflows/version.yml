@@ -47,7 +47,7 @@ jobs:
     - name: Check input is valid semvar (Oasislmf)
       if: inputs.oasislmf_version != ''
       run: |
-        VALID=$(echo ${{ inputs.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
+        VALID=$(echo ${{ inputs.oasislmf_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
         [[ "$VALID" -eq "1" ]] || exit 1
 
     - name: Checkout
@@ -69,18 +69,18 @@ jobs:
     - name: Write ktools version
       if: inputs.ktools_version != ''
       run: |
-        CURRENT_VER=$(grep ${{ inputs.ktools_regex }} ${{ inputs.ktools_file }} | awk -F"'" '{print $2}')
-        sed -i 's|'$CURRENT_VER'|'${{ inputs.ktools_version }}'|g' ${{ inputs.ktools_file }}
-        git add ${{ inputs.ktools_file }}
+        CURRENT_VER=$(grep ${{ env.ktools_regex }} ${{ env.ktools_file }} | awk -F"'" '{print $2}')
+        sed -i 's|'$CURRENT_VER'|'${{ inputs.ktools_version }}'|g' ${{ env.ktools_file }}
+        git add ${{ env.ktools_file }}
         # Only commit if something changed
         [[ -z $(git status -s) ]] || git commit -m "Set Ktools to version ${{ inputs.ktools_version }}"
 
     - name: Write oasislmf version
       if: inputs.oasislmf_version != ''
       run: |
-        CURRENT_VER=$(grep ${{ inputs.oasislmf_regex }} ${{ inputs.oasislmf_file }} | awk -F"'" '{print $2}')
-        sed -i 's|'$CURRENT_VER'|'${{ inputs.oasislmf_version }}'|g' ${{ inputs.oasislmf_file }}
-        git add ${{ inputs.oasislmf_file }}
+        CURRENT_VER=$(grep ${{ env.oasislmf_regex }} ${{ env.oasislmf_file }} | awk -F"'" '{print $2}')
+        sed -i 's|'$CURRENT_VER'|'${{ inputs.oasislmf_version }}'|g' ${{ env.oasislmf_file }}
+        git add ${{ env.oasislmf_file }}
         # Only commit if something changed
         [[ -z $(git status -s) ]] || git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
 
