@@ -42,13 +42,13 @@ jobs:
       if: inputs.ktools_version != ''
       run: |
         VALID=$(echo ${{ inputs.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
-        [[ $VALID = 1 ]] || exit 1
+        [[ "$VALID" -eq "1" ]] || exit 1
 
     - name: Check input is valid semvar (Oasislmf)
       if: inputs.oasislmf_version != ''
       run: |
         VALID=$(echo ${{ inputs.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
-        [[ $VALID = 1 ]] || exit 1
+        [[ "$VALID" -eq "1" ]] || exit 1
 
     - name: Checkout
       if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
