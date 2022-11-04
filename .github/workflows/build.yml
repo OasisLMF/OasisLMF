@@ -39,10 +39,12 @@ on:
 jobs:
   ktools:
     if: inputs.ktools_branch != ''
-    uses:  OasisLMF/ktools/.github/workflows/build.yml@master
+    #uses:  OasisLMF/ktools/.github/workflows/build.yml@master
+    uses:  OasisLMF/ktools/.github/workflows/build.yml@hotfix/github-actions
     secrets: inherit
     with:
       create_ktools_builder: 'false'
+      skip_cmake: 'true'
       ktools_branch: ${{ inputs.ktools_branch }}
 
   oasislmf:
