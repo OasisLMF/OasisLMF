@@ -6,15 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag to publish oasislmf package, example: "{n}.{n}.{n}" where n = int, e.g. 3.0.0,  if "pre_release=true" then valid formats are "{n}.{n}.{n}rc{n}", 3.0.0rc1'
+        description: 'Release tag to publish oasislmf package, example: "{n}.{n}.{n}" where n = int, e.g. 3.0.0,  if "pre_release=true" then valid formats are: ["{n}.{n}.{n}", "{n}.{n}.{n}rc{n}"]'
         required: true
 
       prev_release_tag:
-        description: 'The previous oasislmf release version, this is used for generating the release notes, any changes after that relase will be logged'
+        description: 'The previous oasislmf release version, this is used for generating the release notes, any changes after that relase will be logged: ["{n}.{n}.{n}", "{n}.{n}.{n}rc{n}"]'
         required: true
 
       pre_release:
-        description: 'Mark GitHub release as pre-release'
+        description: 'Mark GitHub release as pre-release: [true, false]'
         required: true
         default: 'false'
 
@@ -37,24 +37,24 @@ on:
 
 
 env:
-  #MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
-  #DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
+  MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
+  DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
   BUILD_SCRIPTS: "master"    # build scripts branch
   WORKSPACE: ${{ github.workspace }}/OasisLMF
 
-  #RELEASE_TAG: ${{ inputs.release_tag }}
-  #PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
-  #PRE_RELEASE: ${{ inputs.pre_release }}
-  #AUTO_MERGE: ${{ inputs.auto_merge }}
+  RELEASE_TAG: ${{ inputs.release_tag }}
+  PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
+  PRE_RELEASE: ${{ inputs.pre_release }}
+  AUTO_MERGE: ${{ inputs.auto_merge }}
 
-  # -- TESTING ONLY ----
-  MAIN_BRANCH: "test-master"
-  DEVELOP_BRANCH: "test-develop"
+  ## -- TESTING ONLY ----
+  #MAIN_BRANCH: "test-master"
+  #DEVELOP_BRANCH: "test-develop"
 
-  RELEASE_TAG: '1.27.0rc20'
-  PREV_RELEASE_TAG: '1.26.0'
-  PRE_RELEASE: 'true'
-  AUTO_MERGE: 'true'
+  #RELEASE_TAG: '1.27.0rc20'
+  #PREV_RELEASE_TAG: '1.26.0'
+  #PRE_RELEASE: 'true'
+  #AUTO_MERGE: 'true'
 
 
 jobs:
@@ -62,17 +62,15 @@ jobs:
     uses: ./.github/workflows/version.yml
     secrets: inherit
     with:
-      #oasislmf_version: ${{ inputs.release_tag }}
-      oasislmf_version: '1.27.0rc20'
-      ktools_version: "3.9.5rc1"  ## REMOVE THIS BEFORE FINAL
-      #ktools_version: ${{ inputs.ktools_version_set }}
+      oasislmf_version: ${{ inputs.release_tag }}
+      ktools_version: "" # !! TESTING ONLY !!
 
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     needs: update
     with:
-      ktools_branch: "" # Don't release with a value here -- only release from ktools production.
+      ktools_branch: "" # !! TESTING ONLY !!
       build_osx: ${{ inputs.build_osx }}
 
   release:
@@ -207,8 +205,8 @@ jobs:
           --to-tag ${{ env.RELEASE_TAG }} \
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
+          --apply-milestone \
           --output-path ./RELEASE.md
-          #--apply-milestone     ## ADD THIS BEFORE MERGE TO MASTER
 
     - name: Download Source package
       uses: actions/download-artifact@v3
@@ -311,43 +309,37 @@ jobs:
 
     # --- Publish to Pypi --- #
     - name: PYPI - Source package
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
       run: |
-        #twine upload --repository testpypi \
         twine upload \
         ${{ needs.build.outputs.src_pkg_filename }} \
         ${{ needs.build.outputs.src_pkg_filename }}.asc
-
-    - name: PYPI - Linux package
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+
+    - name: PYPI - Linux package
       run: |
-        #twine upload --repository testpypi \
         twine upload \
         ${{ needs.build.outputs.linux_pkg_filename }} \
         ${{ needs.build.outputs.linux_pkg_filename }}.asc
-
-    - name: PYPI - OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        #TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+
+    - name: PYPI - OSX package
+      if: needs.build.outputs.osx_pkg_filename != ''
       run: |
-        #twine upload --repository testpypi \
         twine upload \
         ${{ needs.build.outputs.osx_pkg_filename }}
         ${{ needs.build.outputs.osx_pkg_filename }}.asc
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
     - name: slack message vars
       id: slack_vars
       run: |
-        HEAD=$(echo "* TESTING ${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
+        HEAD=$(echo "*${{ github.event.repository.name}} Release* (${{ env.RELEASE_TAG }})")
         DATE=$(date)
         TITLE=$(echo "• <https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}|${{ github.event.repository.name }} ${{ env.RELEASE_TAG }} - Release Notes>")
         JOB_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
