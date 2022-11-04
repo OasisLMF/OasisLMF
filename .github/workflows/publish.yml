@@ -23,6 +23,11 @@ on:
         required: true
         default: 'true'
 
+      build_osx:
+        description: 'If set, build ktools from scratch and use output to build package: [true, false]'
+        required: false
+        default: 'false'
+
       # TESTING ONLY
       # This is Risky and should be exposed by default --> Run ./.github/workflows/version.yml separately and wait for testing workflows to pass before publish
       #ktools_version_set:
@@ -68,6 +73,7 @@ jobs:
     needs: update
     with:
       ktools_branch: "" # Don't release with a value here -- only release from ktools production.
+      build_osx: ${{ inputs.build_osx }}
 
   release:
     runs-on: ubuntu-latest

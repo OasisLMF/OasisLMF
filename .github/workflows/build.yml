@@ -1,21 +1,30 @@
 name: Oasislmf Build
 
-
 on:
   workflow_dispatch:
     inputs:
       ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        description: 'If set, build ktools from scratch and use output to build package: [Branch, commit]'
         required: false
         default: ""
+      build_osx:
+        description: 'If set, build ktools from scratch and use output to build package: [true, false]'
+        required: false
+        default: "false"
 
   workflow_call:
     inputs:
       ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        description: 'If set, build ktools from scratch and use output to build package: [Branch, commit]'
         required: false
         default: ""
         type: string
+      build_osx:
+        description: 'If set, build ktools from scratch and use output to build package: [true, false]'
+        required: false
+        default: "false"
+        type: string
+
     outputs:
       src_pkg_filename:
         description: "Source package filename"
@@ -30,8 +39,7 @@ on:
 jobs:
   ktools:
     if: inputs.ktools_branch != ''
-    uses:  OasisLMF/ktools/.github/workflows/build.yml@hotfix/github-actions
-    #uses:  OasisLMF/ktools/.github/workflows/build.yml@master
+    uses:  OasisLMF/ktools/.github/workflows/build.yml@master
     secrets: inherit
     with:
       create_ktools_builder: 'false'
@@ -131,21 +139,15 @@ jobs:
 
 
     ## --- Darwin Distribution --- #
-    #Need to check that a release has a darwin binary file before
-    #running the build based on a release
-
-    #https://docs.github.com/en/rest/releases/assets
-    #https://github.com/marketplace/actions/github-api-request
-
     - name:  Build - binary distribution (Darwin)
-      if: inputs.ktools_branch != ''
+      if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
       run: |
         python setup.py bdist_wheel --plat-name Darwin_x86_64
         WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
         echo "PKG_DARWIN_PATH=${WHL_OSX}" >> $GITHUB_ENV
 
     - name: Store - binary distribution (Darwin)
-      if: inputs.ktools_branch != ''
+      if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
       uses: actions/upload-artifact@v3
       with:
         name: oasislmf-bin-pkg_darwin
@@ -153,7 +155,7 @@ jobs:
         retention-days: 5
 
     - name: Filename - binary distribution (Darwin)
-      if: inputs.ktools_branch != ''
+      if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
       id: darwin_whl
       run: |
         FILENAME=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl" -exec basename {} \;)
