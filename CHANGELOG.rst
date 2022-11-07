@@ -1,6 +1,17 @@
 OasisLMF Changelog
 ==================
 
+`1.27.0rc3`_
+ ---------
+* [#1120](https://github.com/OasisLMF/OasisLMF/pull/1121) - GUL alloc rule range in MDK has not been updated to reflect addition of rule 3
+* [#1129](https://github.com/OasisLMF/OasisLMF/pull/1128) - Add contributing guidelines
+* [#1133](https://github.com/OasisLMF/OasisLMF/pull/1133) - Fix/package install error
+* [#1135](https://github.com/OasisLMF/OasisLMF/pull/1136) - gulpy appears to hang when sample size is large
+* [#1139](https://github.com/OasisLMF/OasisLMF/pull/1139) - Hotfix/GitHub actions
+* [#1141](https://github.com/OasisLMF/OasisLMF/pull/1140) - `gulpy` produces zero losses for entire items for large number of samples
+* [#1119](https://github.com/OasisLMF/OasisLMF/pull/1119) - use correct condpriority to fix cond class exclusion
+.. _`1.27.0rc3`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.0rc1...1.27.0rc3
+
 `1.27.0rc1`_
  ---------
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
