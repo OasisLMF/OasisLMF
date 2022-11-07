@@ -24,4 +24,4 @@ jobs:
       build_branch: ${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}
       mdk_branch: ${{ github.ref_name }}
       mdk_run_type: ${{ github.event_name == 'push' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name == 'push' && 'backports/1.23.x' || inputs.piwind_branch }}
