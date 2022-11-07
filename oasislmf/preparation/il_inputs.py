@@ -563,29 +563,39 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     cond_class = oed_hierarchy['condclass']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
-    if cond_class in accounts_df.columns:
+    ###### prepare accounts_df #####
+    # Oed schema allows policy levels to contain location with and without specific cond class
+    # for a specific layer, a location without cond class for this layer is pass through
+    # if the cond class for other location is 0 and excluded if cond class is 1
+
+    # first we determine if the layer has the pass through or the exclusion rule and store the result in polcondclass
+    if cond_class in accounts_df.columns: # cond_class is use to specify if a condition exclude other location (1) or not (0)
+        # policy level cond class is set to 1 if some location are excluded
         accounts_df['polcondclass'] = (accounts_df.groupby([portfolio_num, acc_num, policy_num, 'layer_id'], sort=False)
                                                   [cond_class]
                                                   .transform(max))
     else:
+        # otherwise they are set to 0 (no exclusion)
         accounts_df[['polcondclass', cond_class]] = 0
 
     if 'condpriority' not in accounts_df.columns:
         accounts_df['condpriority'] = 0
     accounts_df['condpriority'].fillna(0, inplace=True)
 
+    # create a df all_cond_policy containing all the cond_tag for each policies
     policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=[cond_tag, 'condpriority'])
     cond_df = accounts_df[[portfolio_num, acc_num, cond_tag, 'condpriority']].drop_duplicates()
     all_cond_policy = (pd.merge(policy_df, cond_df, on=[portfolio_num, acc_num])
                        .drop(columns=cond_class)
                        .rename(columns={'polcondclass':cond_class}))
 
+    # get which cond tag are not specified in which layer
     missing_cond_policy_df = pd.merge(accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id', cond_tag]],
                            all_cond_policy, how='right', indicator=True)
     missing_cond_policy_df = missing_cond_policy_df[missing_cond_policy_df['_merge'] == 'right_only'].drop(columns ='_merge')
 
-    ###### prepare accounts_df #####
-    # create account line without condition
+    # finally, we can create default cond that will be applied to the location that have no cond in some layer
+    # depending on the cond_class, the default cond will be passing through or excluding the loss
     null_cond = accounts_df[accounts_df[cond_tag] != '0']
     null_cond[cond_tag] = '0'
     null_cond = pd.concat([null_cond, missing_cond_policy_df])
