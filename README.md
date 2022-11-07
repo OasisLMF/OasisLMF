@@ -1,7 +1,14 @@
 <img src="https://oasislmf.org/packages/oasis_theme_package/themes/oasis_theme/assets/src/oasis-lmf-colour.png" alt="Oasis LMF logo" width="250"/>
 
-[![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases) [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf) [![Build Status](https://ci.oasislmfdev.org/buildStatus/icon?job=oasis_oasislmf/master)](https://ci.oasislmfdev.org/job/oasis_oasislmf/job/master/)
+[![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases)
+[![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)
 [![Binder](https://static.mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/OasisLMF/OasisLMF/develop?filepath=FmTesting.ipynb)
+
+[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
+[![PiWind check output](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+
+
 
 # OasisLMF
 
@@ -31,7 +38,7 @@ Release candidates are published on the first Thursday of each month, and tagged
 
 #### Release Cycle (Production Builds)
 The 'Standard release' which will replace the LTS tags will work in the same way. These are stable versions of oasis intended for production use which will be published on a 6 monthly cycle (approximately).
-Oasis will backport stability fixes and security updates from the Monthly builds which are released alongside the `intermediate monthly` builds. Backport branches  will still keep the format `backports/<major>.<minor>.x`. 
+Oasis will backport stability fixes and security updates from the Monthly builds which are released alongside the `intermediate monthly` builds. Backport branches  will still keep the format `backports/<major>.<minor>.x`.
 
 > Note: Backported fixes to the existing `LTS` release will continue to be tagged in the same way until the next main oasis release is published as `1.27.0`
 
