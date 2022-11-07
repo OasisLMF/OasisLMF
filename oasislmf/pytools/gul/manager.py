@@ -24,18 +24,15 @@ from oasislmf.pytools.gul.common import (
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
 )
+from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.io import (
     write_negative_sidx, write_sample_header,
     write_sample_rec, read_getmodel_stream,
 )
-
 from oasislmf.pytools.gul.random import (
     get_random_generator, compute_norm_cdf_lookup,
     compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
 )
-
-from oasislmf.pytools.gul.random import get_random_generator
-from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 
@@ -207,9 +204,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
 
-        # number of bytes to read at a given time.
-        number_size = max(gulSampleslevelHeader_size, gulSampleslevelRec_size)
-
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
 
@@ -224,7 +218,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         do_correlation = False
         if ignore_correlation:
-            logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
+            logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
             file_path = os.path.join(input_path, 'correlations.bin')
@@ -235,11 +229,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
                 do_correlation = True
             else:
-                logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
                             "the correlation value is zero for all peril correlation groups.")
 
         if do_correlation:
-            logger.info(f"Correlated random number generation: switched ON.")
+            logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
             corr_data_by_item_id[0] = (0, 0.)
@@ -304,9 +298,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             while buff_size < max_bytes_per_coverage:
                 buff_size *= 2
 
-            # define the raw memory view, the int32 view of it, and their respective cursors
+            # define the raw memory view and its int32 view
             mv_write = memoryview(bytearray(buff_size))
-            int32_mv_write = np.ndarray(buff_size // number_size, buffer=mv_write, dtype='i4')
+            int32_mv_write = np.ndarray(buff_size // 4, buffer=mv_write, dtype='i4')
 
             while last_processed_coverage_ids_idx < compute_i:
                 cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
@@ -317,8 +311,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     max_bytes_per_item, buff_size, int32_mv_write, cursor
                 )
 
-                select([], select_stream_list, select_stream_list)
-                stream_out.write(mv_write[:cursor_bytes])
+                # write the losses to the output stream
+                write_start = 0
+                while write_start < cursor_bytes:
+                    select([], select_stream_list, select_stream_list)
+                    write_start += stream_out.write(mv_write[write_start:cursor_bytes])
+
                 cursor = 0
 
             logger.info(f"event {event_id} DONE")
