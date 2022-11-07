@@ -1,30 +1,36 @@
 <img src="https://oasislmf.org/packages/oasis_theme_package/themes/oasis_theme/assets/src/oasis-lmf-colour.png" alt="Oasis LMF logo" width="250"/>
 
 [![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases) [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf) [![Build Status](https://ci.oasislmfdev.org/buildStatus/icon?job=oasis_oasislmf/master)](https://ci.oasislmfdev.org/job/oasis_oasislmf/job/master/)
-[![Binder](https://static.mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/OasisLMF/OasisLMF/develop?filepath=FmTesting.ipynb) 
+[![Binder](https://static.mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/OasisLMF/OasisLMF/develop?filepath=FmTesting.ipynb)
+
+[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
+[![PiWind check output](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+
+
 
 # OasisLMF
 
 The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses at all these levels.
 
 
-## Releases and maintenance 
-Releases are published on a monthly cadence which tracks our team's development cycle. The planned fixes, enhancements and features can be seen on the [project development board](https://github.com/orgs/OasisLMF/projects/35) before each release. 
+## Releases and maintenance
+Releases are published on a monthly cadence which tracks our team's development cycle. The planned fixes, enhancements and features can be seen on the [project development board](https://github.com/orgs/OasisLMF/projects/35) before each release.
 
-### Release Cycle 
+### Release Cycle
 Release candidates are published on the last Thursday of each month, and tagged as `<version>rc<candidate-version>`, if no changes are required a candidate release is switched from `pre-release` to a `montly release` on the following Thursday (First Thursday of the next month)
 Within the release candidate testing week a pre-release version of oasislmf can be installed using `pip install oasislmf --pre`
 
 ### Long(er) term support release
-Starting from Oasis version `1.15.x` Oasis will backport fixes to the (Long Term support) LTS version of Oasis. This is a single version of oasis that will be updated along with the main release cycle. 
-The LTS release with switch to track a newer version of monthly release as high priority feature milestones are met. We expect that to happen on a quarterly basis. 
+Starting from Oasis version `1.15.x` Oasis will backport fixes to the (Long Term support) LTS version of Oasis. This is a single version of oasis that will be updated along with the main release cycle.
+The LTS release with switch to track a newer version of monthly release as high priority feature milestones are met. We expect that to happen on a quarterly basis.
 
 
 ## Features
 
 For running models locally the CLI provides a `model` subcommand with the following options:
 
-* `model generate-exposure-pre-analysis`: generate new Exposure input using user custom code (ex: geo-coding, exposure enhancement, or dis-aggregation...) 
+* `model generate-exposure-pre-analysis`: generate new Exposure input using user custom code (ex: geo-coding, exposure enhancement, or dis-aggregation...)
 * `model generate-keys`: generates Oasis keys files from model lookups; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports; if the lookup is for a complex/custom model the keys file will have the same format except that area peril ID and vulnerability ID are replaced by a model data JSON string
 * `model generate-oasis-files`: generates the Oasis input CSV files for losses (GUL, GUL + IL, or GUL + IL + RIL); it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED format), as well as assets for instantiating model lookups and generating keys files
 * `model generate-losses`: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files
@@ -74,11 +80,11 @@ Bash completion is a functionality which bash helps users type their commands by
 
 Once oasislmf is installed you'll need to be activate the feature by sourcing a bash file. (only needs to be run once)
 
-### Local 
+### Local
 
     oasislmf admin enable-bash-complete
 
-### Global 
+### Global
 
     echo 'complete -C completer_oasislmf oasislmf' | sudo tee /usr/share/bash-completion/completions/oasislmf
 
@@ -165,7 +171,7 @@ or to publish the platform specific wheel run:
 
     python setup.py publish --wheel
 
-### Creating a bdist for another platform 
+### Creating a bdist for another platform
 
 To create a distribution for a non-host platform use the `--plat-name` flag:
 
@@ -193,7 +199,7 @@ which will create `.whl` file in the `dist` subfolder. To attach a GPG signature
 This will create `.asc` signature file named `<package file name>.{tar.gz,whl}.asc` in `dist`. You can just publish the package with the signature using:
 
     twine upload dist/<package file name>.{tar.gz,whl} dist/<package file name>.{tar.gz,whl}.asc
-    
+
 ## Documentation
 * <a href="https://github.com/OasisLMF/OasisLMF/issues">Issues</a>
 * <a href="https://github.com/OasisLMF/OasisLMF/releases">Releases</a>
