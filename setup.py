@@ -73,7 +73,14 @@ class InstallKtoolsMixin(object):
         with a fallback of compile ktools from source
         '''
         bin_install_kwargs = self.try_get_bin_install_kwargs()
+
+
         if bin_install_kwargs:
+            # This only executes if 'KTOOLS_TAR_FILE_DIR' is set and the directory contains a correctly named ktools tar
+            if os.path.isfile(bin_install_kwargs.get('ktools_tar_override', '')):
+                self.install_ktools_local(**bin_install_kwargs)
+                return
+
             try:
                 self.install_ktools_bin(**bin_install_kwargs)
             except:
@@ -191,9 +198,17 @@ class InstallKtoolsMixin(object):
                 ARCH = None
                 OS = None
 
-        return {"system_os": OS, "system_architecture": ARCH}
 
-    def install_ktools_source(self, system_os=None, system_architecture=None):
+        # ENV OVERRIDE TO install a localy copy of ktools 
+        #TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', '')) 
+
+        if os.getenv('KTOOLS_TAR_FILE_DIR', None):
+            TAR_OVERRIDE = os.path.join(os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR')), '{}_{}.tar.gz'.format(OS, ARCH))
+            return {"system_os": OS, "system_architecture": ARCH, 'ktools_tar_override': TAR_OVERRIDE}
+        else:    
+            return {"system_os": OS, "system_architecture": ARCH}
+
+    def install_ktools_source(self, system_os=None, system_architecture=None, ktools_tar_override=None):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
@@ -204,14 +219,21 @@ class InstallKtoolsMixin(object):
             build_dir = self.build_ktools(local_extract_path, system_os)
             self.ktools_components = list(self.add_ktools_build_to_path(build_dir))
 
-    def install_ktools_bin(self, system_os, system_architecture):
+    def install_ktools_bin(self, system_os, system_architecture, ktools_tar_override=None):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, '{}_{}.tar.gz'.format(system_os, system_architecture))
             local_extract_path = os.path.join(d, 'extracted')
             bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/{}_{}.tar.gz'.format(KTOOLS_VERSION, system_os, system_architecture)
-
             self.fetch_ktools_tar(local_tar_path, bin_url)
+            
             self.unpack_tar(local_tar_path, local_extract_path)
+            self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
+
+    def install_ktools_local(self, system_os, system_architecture, ktools_tar_override):
+        print(f"OVERRIDE: Ktools installation from local file: '{ktools_tar_override}'")
+        with temp_dir() as d:
+            local_extract_path = os.path.join(d, 'extracted')
+            self.unpack_tar(ktools_tar_override, local_extract_path)
             self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
 
 
