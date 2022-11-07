@@ -4,10 +4,10 @@
 [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)
 [![Binder](https://static.mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/OasisLMF/OasisLMF/develop?filepath=FmTesting.ipynb)
 
-[![Unittest Status](https://github.com/OasisLMF/OasisLMF/actions/workflows/oasislmf-unittest.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/oasislmf-unittest.yml)
-[![MDK Status](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
-[![Output check Status](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml)
-[![release](https://github.com/OasisLMF/OasisLMF/actions/workflows/publish.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/publish.yml)
+[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
+[![PiWind check output](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+
 
 
 # OasisLMF
