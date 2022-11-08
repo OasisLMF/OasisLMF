@@ -146,7 +146,13 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-def create_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_end=None):
+def create_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_end=None):    
+    """Creates a bash function to check the logs to ensure same number of process started and finsished.
+
+    Args: 
+        custom_gulcalc_log_start (str): Custom message printed to the logs when a process starts.
+        custom_gulcalc_log_end (str): Custom message printed to the logs when a process ends.
+    """
     CHECK_FUNC = """
 check_complete(){
     set +e
@@ -162,7 +168,21 @@ check_complete(){
             echo "[OK] $p"
         fi
     done
-    if [ "$has_error" -ne 0 ]; then
+"""
+    # Add in check for custom gulcalc if settings are provided 
+    if custom_gulcalc_log_start and custom_gulcalc_log_end:
+        CHECK_FUNC+=f"""
+    started=$( cat log/gul_stderror.err |  grep "{custom_gulcalc_log_start}" | wc -l)
+    finished=$( cat log/gul_stderror.err |  grep "{custom_gulcalc_log_end}" | wc -l)
+    if [ "$finished" -lt "$started" ]; then
+        echo "[ERROR] gulcalc - $((started-finished)) processes lost"
+        has_error=1 
+    elif [ "$started" -gt 0 ]; then
+        echo "[OK] gulcalc"
+    fi
+"""
+        
+    CHECK_FUNC+="""    if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     else
         echo 'Run Completed'
