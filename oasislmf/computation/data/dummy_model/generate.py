@@ -108,7 +108,7 @@ class VulnerabilityFile(ModelFile):
                 probabilities /= np.sum(probabilities)
 
                 for damage_bin, probability in enumerate(probabilities):
-                    yield vulnerability + 1, intensity_bin+1, damage_bin+1, probability
+                    yield vulnerability + 1, intensity_bin + 1, damage_bin + 1, probability
 
 
 class EventsFile(ModelFile):

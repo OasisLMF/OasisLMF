@@ -480,7 +480,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     # compute number of steps (steps), max size of each level node_level_start, max size of node to compute (compute_len)
     node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
     for i in range(start_level, level_node_len.shape[0]):
-        node_level_start[i +1] = node_level_start[i] + level_node_len[i]
+        node_level_start[i + 1] = node_level_start[i] + level_node_len[i]
     steps = max_level + (1 - start_level)
     compute_len = node_level_start[-1] + steps + level_node_len[-1] + 1
 

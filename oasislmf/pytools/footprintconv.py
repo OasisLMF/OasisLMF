@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def compress_footprint(static_path, decompressed_size=True, compression_level = -1):
+def compress_footprint(static_path, decompressed_size=True, compression_level=-1):
     with ExitStack() as stack:
         footprint_obj = stack.enter_context(open(os.path.join(static_path, footprint_filename), 'rb'))
         footprint_map = mmap.mmap(footprint_obj.fileno(), length=0, access=mmap.ACCESS_READ)

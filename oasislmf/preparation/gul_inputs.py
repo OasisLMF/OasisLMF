@@ -48,9 +48,9 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 VALID_OASIS_GROUP_COLS = [
     'item_id',
     'peril_id',
-        'coverage_id',
-        'coverage_type_id',
-        'peril_correlation_group'
+    'coverage_id',
+    'coverage_type_id',
+    'peril_correlation_group'
 ]
 
 

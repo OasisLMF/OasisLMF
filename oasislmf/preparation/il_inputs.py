@@ -93,10 +93,10 @@ profile_cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'ded
 profile_cols_map = {
     'deductible': 'deductible1',
     'deductible_min': 'deductible2',
-                    'deductible_max': 'deductible3',
-                    'attachment': 'attachment1',
-                    'limit': 'limit1',
-                    'share': 'share1'
+    'deductible_max': 'deductible3',
+    'attachment': 'attachment1',
+    'limit': 'limit1',
+    'share': 'share1'
 }
 
 
@@ -403,7 +403,7 @@ def get_account_df(accounts_fp, accounts_profile):
         fm_terms,
         levels=cond_pol_layer_levels,
         terms=terms_floats,
-        term_group_ids= [1, 2, 3,4,5,6]
+        term_group_ids=[1, 2, 3, 4, 5, 6]
     )
     term_cols_ints = get_fm_terms_oed_columns(
         fm_terms,
@@ -1255,7 +1255,7 @@ def get_il_input_items(
             fm_aggregation_profile[level_info['id']]['FMAggKey']['cov_agg_id'] = {
                 "src": "FM",
                 "field": "cov_agg_id",
-                    "name": "coverage aggregation id"
+                "name": "coverage aggregation id"
             }
 
         all_steps = column_base_il_df['steptriggertype'].unique()

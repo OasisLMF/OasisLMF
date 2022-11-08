@@ -77,8 +77,8 @@ class GetModelTests(TestCase):
     #         df = pd.DataFrame(data)
     #         print(df.head())
     #
-      # with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
-      #     json.dump(meta_data, outfile)
+    # with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
+    #     json.dump(meta_data, outfile)
 
     # def test_load_parquet(self):
     #     vulns_dict = get_items(input_path="./")[0]
@@ -119,20 +119,20 @@ class GetModelTests(TestCase):
     #     with Footprint.load(static_path="./conversions/") as test:
     #         outcome = test
     #         print(outcome)
-          # print("here is the outcome: ", outcome.footprint_index)
+    # print("here is the outcome: ", outcome.footprint_index)
 
-      # buffer = []
-      #
-      # for key in outcome.footprint_index.keys():
-      #     row = outcome.footprint_index[key]
-      #     row["event_id"] = key
-      #     buffer.append(row)
-      # df = pd.DataFrame(buffer)
-      # print(df.head())
-      # table = pa.Table.from_pandas(df)
-      # pq.write_table(table, "./footprint.parquet")
+    # buffer = []
+    #
+    # for key in outcome.footprint_index.keys():
+    #     row = outcome.footprint_index[key]
+    #     row["event_id"] = key
+    #     buffer.append(row)
+    # df = pd.DataFrame(buffer)
+    # print(df.head())
+    # table = pa.Table.from_pandas(df)
+    # pq.write_table(table, "./footprint.parquet")
 
-          # print(outcome.footprint_index.head())
+    # print(outcome.footprint_index.head())
 
     # def test_update(self):
     #     vulns_dict = get_items(input_path="./", file_type="bin")[0]

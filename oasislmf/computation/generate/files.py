@@ -89,30 +89,34 @@ class GenerateFiles(ComputationStep):
     """
     step_params = [
         # Command line options
-        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
-        {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True,  'help': 'Pre-generated keys CSV file path'},
+        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+            'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
         {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
         {'name': 'lookup_config_json', 'flag': '-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir', 'flag': '-k', 'is_path': True, 'pre_exist': True,  'help': 'Model lookup/keys data directory path'},
+        {'name': 'lookup_data_dir', 'flag': '-k', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
         {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
-        {'name': 'lookup_num_processes', 'type': int,  'default': -1,                       'help': 'Number of workers in multiprocess pools'},
-        {'name': 'lookup_num_chunks', 'type': int,  'default': -1,                       'help': 'Number of chunks to split the location file into for multiprocessing'},
+        {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
+        {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
-        {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': True,  'help': 'Model settings JSON file path'},
-        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
-        {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True,  'help': 'Source (OED) exposure profile JSON path'},
-        {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True,  'help': 'Source (OED) accounts profile JSON path'},
-        {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True,  'help': 'FM (OED) aggregation profile path'},
+        {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': True, 'help': 'Model settings JSON file path'},
+        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
+            'help': 'Directory containing additional model data files which varies between analysis runs'},
+        {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
+        {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
+        {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
-        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
-        {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True,  'help': 'Source accounts CSV file path'},
-        {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance info. CSV file path'},
-        {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
-        {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool, 'const': True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
-        {'name': 'group_id_cols',              'flag': '-G', 'nargs': '+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
-        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?',  'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path', 'required': True},
+        {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
+        {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
+        {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
+        {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool,
+            'const': True, 'nargs': '?', 'help': 'Disables creation of an exposure summary report'},
+        {'name': 'group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
+        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?',
+            'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
         {"name": "hashed_group_id", 'type': str2bool, 'const': False, 'nargs': '?', 'default': True, 'help': "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
@@ -398,21 +402,26 @@ class GenerateDummyModelFiles(ComputationStep):
 
     # Command line options
     step_params = [
-        {'name': 'num_vulnerabilities', 'flag': '-v', 'required': True, 'type': int,                              'help': 'Number of vulnerabilities'},
-        {'name': 'num_intensity_bins', 'flag': '-i', 'required': True, 'type': int,                              'help': 'Number of intensity bins'},
-        {'name': 'num_damage_bins', 'flag': '-d', 'required': True, 'type': int,                              'help': 'Number of damage bins'},
-        {'name': 'vulnerability_sparseness', 'flag': '-s', 'required': False, 'type': float, 'default': 1.0, 'help': 'Percentage of bins normalised to range [0,1] impacted for a vulnerability at an intensity level'},
-        {'name': 'num_events', 'flag': '-e', 'required': True, 'type': int,                              'help': 'Number of events'},
-        {'name': 'num_areaperils', 'flag': '-a', 'required': True, 'type': int,                              'help': 'Number of areaperils'},
-        {'name': 'areaperils_per_event', 'flag': '-A', 'required': False, 'type': int, 'default': None,        'help': 'Number of areaperils impacted per event'},
-        {'name': 'intensity_sparseness', 'flag': '-S', 'required': False, 'type': float, 'default': 1.0,         'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
+        {'name': 'num_vulnerabilities', 'flag': '-v', 'required': True, 'type': int, 'help': 'Number of vulnerabilities'},
+        {'name': 'num_intensity_bins', 'flag': '-i', 'required': True, 'type': int, 'help': 'Number of intensity bins'},
+        {'name': 'num_damage_bins', 'flag': '-d', 'required': True, 'type': int, 'help': 'Number of damage bins'},
+        {'name': 'vulnerability_sparseness', 'flag': '-s', 'required': False, 'type': float, 'default': 1.0,
+            'help': 'Percentage of bins normalised to range [0,1] impacted for a vulnerability at an intensity level'},
+        {'name': 'num_events', 'flag': '-e', 'required': True, 'type': int, 'help': 'Number of events'},
+        {'name': 'num_areaperils', 'flag': '-a', 'required': True, 'type': int, 'help': 'Number of areaperils'},
+        {'name': 'areaperils_per_event', 'flag': '-A', 'required': False, 'type': int, 'default': None, 'help': 'Number of areaperils impacted per event'},
+        {'name': 'intensity_sparseness', 'flag': '-S', 'required': False, 'type': float, 'default': 1.0,
+            'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
         {'name': 'no_intensity_uncertainty', 'flag': '-u', 'required': False,
             'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
-        {'name': 'num_periods', 'flag': '-p', 'required': True, 'type': int,                              'help': 'Number of periods'},
-        {'name': 'periods_per_event_mean', 'flag': '-P', 'required': False, 'type': int, 'default': 1,           'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
-        {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0, 'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
-        {'name': 'num_randoms', 'flag': '-r', 'required': False, 'type': int, 'default': 0,           'help': 'Number of random numbers'},
-        {'name': 'random_seed', 'flag': '-R', 'required': False, 'type': int, 'default': -1,          'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
+        {'name': 'num_periods', 'flag': '-p', 'required': True, 'type': int, 'help': 'Number of periods'},
+        {'name': 'periods_per_event_mean', 'flag': '-P', 'required': False, 'type': int, 'default': 1,
+            'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
+        {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0,
+            'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
+        {'name': 'num_randoms', 'flag': '-r', 'required': False, 'type': int, 'default': 0, 'help': 'Number of random numbers'},
+        {'name': 'random_seed', 'flag': '-R', 'required': False, 'type': int, 'default': -
+            1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
     ]
 
     def _validate_input_arguments(self):
@@ -511,7 +520,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
     """
 
     step_params = [
-        {'name': 'num_locations', 'flag': '-l', 'required': True, 'type': int,               'help': 'Number of locations'},
+        {'name': 'num_locations', 'flag': '-l', 'required': True, 'type': int, 'help': 'Number of locations'},
         {'name': 'coverages_per_location', 'flag': '-c', 'required': True, 'type': int, 'help': 'Number of coverage types per location'},
         {'name': 'num_layers', 'flag': '-L', 'required': False, 'type': int, 'default': 1, 'help': 'Number of layers'}
     ]

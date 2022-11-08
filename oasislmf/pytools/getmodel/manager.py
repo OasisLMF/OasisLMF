@@ -38,9 +38,9 @@ results_relative_size = 2 * oasis_float_relative_size
 damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('bin_from', oasis_float),
                                               ('bin_to', oasis_float),
-    ('interpolation', oasis_float),
-    ('interval_type', np.int32),
-]))
+                                              ('interpolation', oasis_float),
+                                              ('interval_type', np.int32),
+                                              ]))
 
 damagebindictionaryCsv = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                                  ('bin_from', oasis_float),

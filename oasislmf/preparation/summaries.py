@@ -829,14 +829,14 @@ def get_exposure_summary(
     # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
 
-    df_summary_peril = pd.DataFrame(columns=['loc_id', 'coverage_type_id', 'tiv','peril_id'])
+    df_summary_peril = pd.DataFrame(columns=['loc_id', 'coverage_type_id', 'tiv', 'peril_id'])
 
     for peril_id in peril_list:
         tmp_df = df_summary
         tmp_df['peril_id'] = peril_id
         df_summary_peril = pd.concat([df_summary_peril, tmp_df])
 
-    df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id','coverage_type_id','peril_id'])
+    df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id', 'coverage_type_id', 'peril_id'])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
     df_summary_peril['status'] = df_summary_peril['status'].fillna(no_return)
 
@@ -893,12 +893,12 @@ def write_gul_errors_map(
     :type keys_errors_df: pandas.DataFrame
     """
 
-    cols = ['loc_id', 'portnumber', 'accnumber','locnumber','peril_id','coverage_type_id','tiv','status','message']
+    cols = ['loc_id', 'portnumber', 'accnumber', 'locnumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
     gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
 
-    exposure_id_cols = ['loc_id', 'portnumber', 'accnumber','locnumber']
-    keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id','status','message']
-    tiv_maps = {1: 'buildingtiv', 2:'othertiv',3:'contentstiv',4:'bitiv'}
+    exposure_id_cols = ['loc_id', 'portnumber', 'accnumber', 'locnumber']
+    keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
+    tiv_maps = {1: 'buildingtiv', 2: 'othertiv', 3: 'contentstiv', 4: 'bitiv'}
     exposure_cols = exposure_id_cols + list(tiv_maps.values())
 
     keys_errors_df.columns = keys_error_cols
@@ -954,12 +954,12 @@ def write_exposure_summary(
     if keys_fp:
         keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
         keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-        keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id','status']
+        keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
 
     # get keys errors
     if keys_errors_fp:
         keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
-        keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id','status','message']
+        keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
         if not keys_errors_df.empty:
             write_gul_errors_map(target_dir, exposure_df, keys_errors_df)
 
