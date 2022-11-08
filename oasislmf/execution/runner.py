@@ -96,6 +96,8 @@ def run(analysis_settings,
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_end=custom_gulcalc_log_end,
         **kwargs,
     )
     bash_trace = subprocess.check_output(['bash', filename])

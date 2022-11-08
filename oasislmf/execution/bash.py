@@ -4,29 +4,24 @@ import io
 import logging
 import multiprocessing
 import os
-import pandas as pd
 import random
 import re
 import shutil
 import string
 from functools import partial
+
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 from collections import Counter
 
+from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
+                              EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,
+                              KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
+                              KTOOLS_ALLOC_GUL_DEFAULT,
+                              KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT)
 from ..utils.exceptions import OasisException
-from ..utils.defaults import (
-    KTOOLS_ALLOC_GUL_DEFAULT,
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    KTOOL_N_GUL_PER_LB,
-    KTOOL_N_FM_PER_LB,
-    EVE_DEFAULT_SHUFFLE,
-    EVE_NO_SHUFFLE,
-    EVE_ROUND_ROBIN,
-    EVE_FISHER_YATES,
-    EVE_STD_SHUFFLE,
-)
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
@@ -2206,6 +2201,8 @@ def genbash(
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_end=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
