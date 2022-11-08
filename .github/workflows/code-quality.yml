@@ -1,0 +1,37 @@
+# This workflow performs code quality checks like:
+#   - PEP8: the workflow fails if code is not PEP8 compliant
+#   - flake8: the problems identified by flake 8 are listed but the workflow
+#             presently doesn't fail if flake reports errors.
+
+name: Code Quality checks
+
+on: [push]
+
+env:
+  max_line_length: 120
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: install pip tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade pip-tools
+      - name: install code quality tools
+        run: pip install --upgrade autopep8 flake8
+      - name: Run flake 8
+        # for now, flake8 failure is not going to fail the workflow
+        run: flake8 --exit-zero --show-source oasislmf/
+      - name: check PEP8 compliance
+        id: autopep8
+        run: |
+          autopep8 --diff --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 .

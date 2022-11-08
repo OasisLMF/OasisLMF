@@ -681,8 +681,7 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     # Separate TIVs and number of distinct locations by coverage type and acquire sum
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         tiv_sum = df.loc[
-            (df['peril_id'] == peril_id) &
-            (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
+            (df['peril_id'] == peril_id) & (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
             'tiv'
         ].sum()
         tiv_sum = float(tiv_sum)
@@ -690,8 +689,7 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
         exposure_summary[peril_id][status]['tiv'] += tiv_sum
 
         loc_count = df.loc[
-            (df['peril_id'] == peril_id) &
-            (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
+            (df['peril_id'] == peril_id) & (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
             'loc_id'
         ].drop_duplicates().count()
         loc_count = int(loc_count)
