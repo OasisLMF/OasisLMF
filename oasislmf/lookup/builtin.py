@@ -11,7 +11,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-try: # needed for rtree
+try:  # needed for rtree
     from shapely.geometry import Point
     # Hide numerous warnings similar to:
     # > ...lib64/python3.8/site-packages/geopandas/_compat.py:112: UserWarning: The Shapely GEOS
@@ -24,7 +24,7 @@ try: # needed for rtree
         warnings.filterwarnings('ignore', category=UserWarning, module="geopandas._compat",
                                 message="The Shapely GEOS version")
         import geopandas as gpd
-    try: # needed only for min distance
+    try:  # needed only for min distance
         from sklearn.neighbors import BallTree
     except ImportError:
         BallTree = None
@@ -42,6 +42,7 @@ from ..utils.peril import PERILS, PERIL_GROUPS
 from .base import AbstractBasicKeyLookup, MultiprocLookupMixin
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
+
 
 def get_nearest(src_points, candidates, k_neighbors=1):
     """Find nearest neighbors for all source points from a set of candidate points"""
@@ -79,8 +80,24 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     right = right_gdf.copy().reset_index(drop=True)
 
     # Parse coordinates from points and insert them into a numpy array as RADIANS
-    left_radians = np.array(left_gdf[left_geom_col].apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180)).to_list())
-    right_radians = np.array(right[right_geom_col].apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180)).to_list())
+    left_radians = np.array(
+        left_gdf[left_geom_col].apply(
+            lambda geom: (
+                geom.x *
+                np.pi /
+                180,
+                geom.y *
+                np.pi /
+                180)).to_list())
+    right_radians = np.array(
+        right[right_geom_col].apply(
+            lambda geom: (
+                geom.x *
+                np.pi /
+                180,
+                geom.y *
+                np.pi /
+                180)).to_list())
 
     # Find the nearest points
     # -----------------------
@@ -104,7 +121,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     return closest_points
 
 
-key_columns= ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
+key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
 
 class DeterministicLookup(AbstractBasicKeyLookup):
@@ -112,7 +129,7 @@ class DeterministicLookup(AbstractBasicKeyLookup):
 
     def process_locations(self, locations):
         loc_ids = (loc_it['loc_id'] for _, loc_it in locations.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
-        success_status= OASIS_KEYS_STATUS['success']['id']
+        success_status = OASIS_KEYS_STATUS['success']['id']
         return pd.DataFrame.from_records((
             {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1,
              'vulnerability_id': i + 1, 'status': success_status}
@@ -210,10 +227,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_config = self.config['step_definition'][step_name]
             needed_column = set(step_config.get("columns", []))
             if not needed_column.issubset(locations.columns):
-                raise OasisException(f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}, {OPT_INSTALL_MESSAGE}")
+                raise OasisException(
+                    f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}, {OPT_INSTALL_MESSAGE}")
             if hasattr(self, step_name):
                 step_function = getattr(self, step_name)
-            else :
+            else:
                 step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
                 setattr(self, step_name, step_function)
             locations = step_function(locations)
@@ -225,10 +243,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         # check all success location have all ids set correctly
         success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]
         for id_col in ['coverage_type', 'area_peril_id', 'vulnerability_id']:
-            unknown_ids =  success_locations[id_col] == OASIS_UNKNOWN_ID
+            unknown_ids = success_locations[id_col] == OASIS_UNKNOWN_ID
             fail_locations = success_locations.loc[unknown_ids].index
             locations.loc[fail_locations, ['status', 'message']] = OASIS_KEYS_STATUS['fail'][
-                                                                    'id'], f'{id_col} has an unknown id'
+                'id'], f'{id_col} has an unknown id'
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
@@ -278,7 +296,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
             location = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
-                location.loc[~location['peril_id'].isin(model_perils_covered), ['status', 'message']] = OASIS_KEYS_STATUS['noreturn']['id'], f'unsuported peril_id'
+                location.loc[~location['peril_id'].isin(model_perils_covered), [
+                    'status', 'message']] = OASIS_KEYS_STATUS['noreturn']['id'], f'unsuported peril_id'
             return location
         return fct
 
@@ -348,7 +367,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
-                raise OasisException(f"sklearn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
+                raise OasisException(
+                    f"sklearn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
             gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
 
@@ -378,7 +398,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
                     valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
                     common_col = gdf_loc_na.columns & nearest_neighbor_df.columns
-                    gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
+                    gdf_loc.loc[valid_nearest_neighbor.index,
+                                common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
                 gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
             self.set_id_columns(gdf_loc, id_columns)
@@ -393,8 +414,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 peril_id_covered = np.unique(gdf_area_peril['peril_id'])
                 res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
                 for peril_id in peril_id_covered:
-                    res.append(get_area(locations.loc[locations['peril_id']==peril_id],
-                                        gdf_area_peril.loc[gdf_area_peril['peril_id']==peril_id].drop(columns=['peril_id'])))
+                    res.append(get_area(locations.loc[locations['peril_id'] == peril_id],
+                                        gdf_area_peril.loc[gdf_area_peril['peril_id'] == peril_id].drop(columns=['peril_id'])))
 
                 return pd.concat(res).reset_index()
             else:
@@ -454,10 +475,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
 
         df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
-        df_to_merge.rename(columns={column:column.lower() for column in df_to_merge.columns}, inplace=True)
+        df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
         def merge(locations):
-            locations = locations.merge(df_to_merge,how='left')
+            locations = locations.merge(df_to_merge, how='left')
             self.set_id_columns(locations, id_columns)
             return locations
         return merge

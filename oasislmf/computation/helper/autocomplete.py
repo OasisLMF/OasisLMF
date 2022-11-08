@@ -17,7 +17,8 @@ class HelperTabComplete(ComputationStep):
     """
     step_params = [
         {'name': 'bash_rc_file', 'flag': '-p', 'help': 'Path to bash configuration RC file, "~/.bashrc". '},
-        {'name': 'no_confirm', 'flag': '-y', 'action': 'store_true', 'default': False, 'help': 'Skip the confirmation prompt'},
+        {'name': 'no_confirm', 'flag': '-y', 'action': 'store_true',
+            'default': False, 'help': 'Skip the confirmation prompt'},
     ]
 
     def confirm_action(self, question_str, no_confirm=False):

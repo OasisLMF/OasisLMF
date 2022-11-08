@@ -31,7 +31,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_null_is_on_the_command_line_as_false_but_not_in_config___command_line_false_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_null_is_on_the_command_line_as_false_but_not_in_config___command_line_false_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -45,7 +46,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_false_is_not_on_the_command_line_or_in_config___command_default_false_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_false_is_not_on_the_command_line_or_in_config___command_default_false_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -59,7 +61,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_true_is_not_on_the_command_line_or_in_config___command_default_true_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_true_is_not_on_the_command_line_or_in_config___command_default_true_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -73,7 +76,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_true_is_on_the_command_line_as_false_but_not_in_config___command_line_false_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_true_is_on_the_command_line_as_false_but_not_in_config___command_line_false_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -87,7 +91,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_null_is_on_the_command_line_as_true_but_not_in_config___command_line_true_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_null_is_on_the_command_line_as_true_but_not_in_config___command_line_true_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -101,7 +106,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_false_is_on_the_command_line_as_true_but_not_in_config___command_line_true_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_false_is_on_the_command_line_as_true_but_not_in_config___command_line_true_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -148,7 +154,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_null_is_not_on_the_command_line_but_is_in_config_as_true___config_true_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_null_is_not_on_the_command_line_but_is_in_config_as_true___config_true_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'foo': True}, conf_file)
@@ -162,7 +169,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_false_is_not_on_the_command_line_but_is_in_config_as_true___config_false_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_false_is_not_on_the_command_line_but_is_in_config_as_true___config_false_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'foo': True}, conf_file)
@@ -176,7 +184,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_true_is_not_on_the_command_line_but_is_in_config_as_false___config_false_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_true_is_not_on_the_command_line_but_is_in_config_as_false___config_false_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'foo': False}, conf_file)
@@ -190,7 +199,8 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
-    def test_boolean_variable_with_command_default_null_is_not_on_the_command_line_but_is_in_config_as_false___config_false_value_is_picked_up(self):
+    def test_boolean_variable_with_command_default_null_is_not_on_the_command_line_but_is_in_config_as_false___config_false_value_is_picked_up(
+            self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'foo': False}, conf_file)
@@ -219,7 +229,8 @@ class InputValuesGet(TestCase):
             os.remove(conf_file.name)
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters))
-    def test_variable_is_not_on_the_command_line_or_config_var_is_not_required_default_is_supplied___default_is_returned(self, default):
+    def test_variable_is_not_on_the_command_line_or_config_var_is_not_required_default_is_supplied___default_is_returned(
+            self, default):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -249,7 +260,8 @@ class InputValuesGet(TestCase):
             os.remove(conf_file.name)
 
     @given(floats(0.0, 1.0))
-    def test_float_variable_is_not_on_the_command_line_or_config_var_is_not_required_default_is_supplied___default_is_returned(self, default):
+    def test_float_variable_is_not_on_the_command_line_or_config_var_is_not_required_default_is_supplied___default_is_returned(
+            self, default):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -266,7 +278,8 @@ class InputValuesGet(TestCase):
             os.remove(conf_file.name)
 
     @given(floats(0.0, 1.0), floats(0.0, 1.0))
-    def test_float_variable_is_on_the_command_line_but_not_in_config_var_is_not_required_default_is_supplied___command_line_is_used(self, cmd_var, default):
+    def test_float_variable_is_on_the_command_line_but_not_in_config_var_is_not_required_default_is_supplied___command_line_is_used(
+            self, cmd_var, default):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'bar': 'boo'}, conf_file)
@@ -283,7 +296,8 @@ class InputValuesGet(TestCase):
             os.remove(conf_file.name)
 
     @given(floats(0.0, 1.0), floats(0.0, 1.0), floats(0.0, 1.0))
-    def test_float_variable_is_on_the_command_line_and_in_config_var_is_not_required_default_is_supplied___command_line_is_used(self, cmd_var, conf_var, default):
+    def test_float_variable_is_on_the_command_line_and_in_config_var_is_not_required_default_is_supplied___command_line_is_used(
+            self, cmd_var, conf_var, default):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'foo': conf_var}, conf_file)
@@ -300,7 +314,8 @@ class InputValuesGet(TestCase):
             os.remove(conf_file.name)
 
     @given(floats(0.0, 1.0), floats(0.0, 1.0))
-    def test_float_variable_is_not_on_command_line_but_is_in_config_var_is_not_required_default_is_supplied___config_is_used(self, conf_var, default):
+    def test_float_variable_is_not_on_command_line_but_is_in_config_var_is_not_required_default_is_supplied___config_is_used(
+            self, conf_var, default):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
             json.dump({'foo': conf_var}, conf_file)

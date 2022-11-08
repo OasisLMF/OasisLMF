@@ -49,19 +49,31 @@ class GenerateKeys(ComputationStep):
     """
 
     step_params = [
-        {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
-        {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
-        {'name': 'keys_errors_csv',            'flag':'-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
-        {'name': 'keys_format',                'flag':'-f',  'help': 'Keys files output format', 'choices':['oasis', 'json'], 'default':'oasis'},
-        {'name': 'lookup_config_json',         'flag':'-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir',            'flag':'-d', 'is_path': True, 'pre_exist': True,  'help': 'Model lookup/keys data directory path'},
-        {'name': 'lookup_module_path',         'flag':'-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
-        {'name': 'lookup_complex_config_json', 'flag':'-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
-        {'name': 'lookup_num_processes',       'type':int,  'default': -1,                       'help': 'Number of workers in multiprocess pools'},
-        {'name': 'lookup_num_chunks',          'type':int,  'default': -1,                       'help': 'Number of chunks to split the location file into for multiprocessing'},
-        {'name': 'model_version_csv',          'flag':'-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
-        {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
-        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True,
+            'help': 'Source location CSV file path', 'required': True},
+        {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True,
+            'pre_exist': False, 'help': 'Generated keys CSV output path'},
+        {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True,
+            'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
+        {'name': 'keys_format', 'flag': '-f', 'help': 'Keys files output format',
+            'choices': ['oasis', 'json'], 'default':'oasis'},
+        {'name': 'lookup_config_json', 'flag': '-g', 'is_path': True,
+            'pre_exist': False, 'help': 'Lookup config JSON file path'},
+        {'name': 'lookup_data_dir', 'flag': '-d', 'is_path': True,
+            'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
+        {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True,
+            'pre_exist': False, 'help': 'Model lookup module path'},
+        {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True,
+            'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
+        {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
+        {'name': 'lookup_num_chunks', 'type': int, 'default': -1,
+            'help': 'Number of chunks to split the location file into for multiprocessing'},
+        {'name': 'model_version_csv', 'flag': '-v', 'is_path': True,
+            'pre_exist': False, 'help': 'Model version CSV file path'},
+        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
+            'help': 'Directory containing additional model data files which varies between analysis runs'},
+        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?',
+            'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
 
         # Manager only options
         {'name': 'verbose', 'default': False},
@@ -124,10 +136,17 @@ class GenerateKeys(ComputationStep):
 class GenerateKeysDeterministic(ComputationStep):
 
     step_params = [
-        {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
-        {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False,  'help': 'Generated keys CSV output path'},
-        {'name': 'num_subperils',               'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'supported_oed_coverage_types', 'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True,
+            'help': 'Source location CSV file path', 'required': True},
+        {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True,
+            'pre_exist': False, 'help': 'Generated keys CSV output path'},
+        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
+            'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'supported_oed_coverage_types',
+         'type': int,
+         'nargs': '+',
+         'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
+         'help': 'Select List of supported coverage_types [1, .. ,4]'},
     ]
 
     def _get_output_dir(self):

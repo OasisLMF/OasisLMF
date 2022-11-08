@@ -25,11 +25,13 @@ from requests.exceptions import (
 from .session import APISession
 from ..utils.exceptions import OasisException
 
+
 class ApiEndpoint(object):
     """
     Used to Implement the default requests common to all Oasis API
     End points.
     """
+
     def __init__(self, session, url_endpoint, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
@@ -60,6 +62,7 @@ class JsonEndpoint(object):
     """
     Used for JSON data End points.
     """
+
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
@@ -102,10 +105,12 @@ class JsonEndpoint(object):
             f.write(json.dumps(r.json(), ensure_ascii=False, indent=4))
         return r
 
+
 class FileEndpoint(object):
     """
     File Resources Endpoint for Upload / Downloading
     """
+
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
 
@@ -131,7 +136,6 @@ class FileEndpoint(object):
         }
         file_ext = pathlib.Path(file_path).suffix[1:].lower()
         return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
-
 
     def upload(self, ID, file_path, content_type=None):
         try:
@@ -304,7 +308,8 @@ class API_analyses(ApiEndpoint):
         self.lookup_validation_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_validation_file/')
         self.summary_levels_file = FileEndpoint(self.session, self.url_endpoint, 'summary_levels_file/')
         self.input_file = FileEndpoint(self.session, self.url_endpoint, 'input_file/')
-        self.input_generation_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'input_generation_traceback_file/')
+        self.input_generation_traceback_file = FileEndpoint(
+            self.session, self.url_endpoint, 'input_generation_traceback_file/')
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
         self.run_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'run_traceback_file/')
         self.run_log_file = FileEndpoint(self.session, self.url_endpoint, 'run_log_file/')
@@ -373,7 +378,8 @@ class API_analyses(ApiEndpoint):
 
 
 class APIClient(object):
-    def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
+    def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin',
+                 password='password', timeout=25, logger=None, **kwargs):
         self.logger = logger or logging.getLogger(__name__)
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)

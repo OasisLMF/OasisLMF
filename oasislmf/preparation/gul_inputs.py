@@ -46,12 +46,12 @@ pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 VALID_OASIS_GROUP_COLS = [
-        'item_id',
-        'peril_id',
-        'coverage_id',
-        'coverage_type_id',
-        'peril_correlation_group'
-    ]
+    'item_id',
+    'peril_id',
+    'coverage_id',
+    'coverage_type_id',
+    'peril_correlation_group'
+]
 
 
 def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
@@ -156,7 +156,8 @@ def get_gul_input_items(
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[cov_level_id].items()})
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower()
+                            for k, v in profile[cov_level_id].items()})
     tiv_cols = list(tiv_terms.values())
 
     # Get the list of coverage type IDs - financial terms for the coverage
@@ -296,7 +297,11 @@ def get_gul_input_items(
         other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
         other_cov_type_term_cols = (
             [v for k, v in tiv_terms.items() if k != cov_type] +
-            get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
+            get_fm_terms_oed_columns(
+                fm_terms=fm_terms,
+                levels=['site coverage'],
+                term_group_ids=other_cov_types,
+                terms=terms)
         )
         other_tiv_cols = list(set(tiv_terms.values()) - {tiv_col})
         cov_type_group.drop(
@@ -312,7 +317,11 @@ def get_gul_input_items(
         # One row with four coverages is being transformed to four rows, one per coverage,
         # in this loop
         cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
-        cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
+        cov_type_term_cols = get_fm_terms_oed_columns(
+            fm_terms,
+            levels=['site coverage'],
+            term_group_ids=[cov_type],
+            terms=cov_type_terms)
         column_mapping_dict = {
             generic_col: cov_col
             for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms)

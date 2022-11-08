@@ -39,10 +39,13 @@ class CompressData(TestCase):
         self.assertEqual(expected, result)
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(front=text(min_size=MOCKED_CHUNK_SIZE, max_size=MOCKED_CHUNK_SIZE), overflow=text(min_size=0, max_size=MOCKED_CHUNK_SIZE - 1))
-    def test_data_is_larger_than_the_chunk_size___result_is_the_concatenated_compressed_version_of_the_chunks(self, front, overflow):
+    @given(front=text(min_size=MOCKED_CHUNK_SIZE, max_size=MOCKED_CHUNK_SIZE),
+           overflow=text(min_size=0, max_size=MOCKED_CHUNK_SIZE - 1))
+    def test_data_is_larger_than_the_chunk_size___result_is_the_concatenated_compressed_version_of_the_chunks(
+            self, front, overflow):
         compressor = zlib.compressobj()
-        expected = compressor.compress(front.encode('utf-8')) + compressor.compress(overflow.encode('utf-8')) + compressor.flush()
+        expected = compressor.compress(front.encode('utf-8')) + \
+            compressor.compress(overflow.encode('utf-8')) + compressor.flush()
 
         result = compress_string(front + overflow)
 

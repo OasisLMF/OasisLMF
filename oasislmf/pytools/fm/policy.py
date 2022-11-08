@@ -13,6 +13,7 @@ from numba import njit
 class UnknownCalcrule(Exception):
     pass
 
+
 @njit(cache=True)
 def min2(a, b):
     return a if a < b else b
@@ -72,11 +73,11 @@ def calcrule_5(policy, loss_out, loss_in):
     """
     effective_deductible = loss_in * policy['deductible_1']
     effective_limit = loss_in * policy['limit_1']
-    if policy['deductible_1'] + policy['limit_1'] >= 1 : # always under limit
+    if policy['deductible_1'] + policy['limit_1'] >= 1:  # always under limit
         for i in range(loss_in.shape[0]):
             loss_out[i] = loss_in[i] - effective_deductible[i]
 
-    else: # always over limit
+    else:  # always over limit
         loss_out[:] = effective_limit
 
 
@@ -109,7 +110,7 @@ def calcrule_15(policy, loss_out, loss_in):
     """
     deductible and limit % loss
     """
-    effective_limit = policy['deductible_1']/(1 - policy['limit_1'])
+    effective_limit = policy['deductible_1'] / (1 - policy['limit_1'])
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible_1']:
             loss_out[i] = 0
@@ -135,7 +136,7 @@ def calcrule_17(policy, loss_out, loss_in):
     if policy['deductible_1'] >= 1:
         loss_out.fill(0)
     else:
-        post_ded_attachment = policy['attachment_1'] / (1- policy['deductible_1'])
+        post_ded_attachment = policy['attachment_1'] / (1 - policy['deductible_1'])
         post_ded_attachment_limit = (policy['attachment_1'] + policy['limit_1']) / (1 - policy['deductible_1'])
         maxi = policy['limit_1'] * policy['share_1']
         for i in range(loss_in.shape[0]):
@@ -339,7 +340,8 @@ def calc(policy, loss_out, loss_in, stepped):
         calcrule_16(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 17:
         calcrule_17(policy, loss_out, loss_in)
-    # calcrule_18 (deductible % tiv with attachment, limit and share) is redirected to 2 when building financial structure
+    # calcrule_18 (deductible % tiv with attachment, limit and share) is
+    # redirected to 2 when building financial structure
     elif policy['calcrule_id'] == 20:
         calcrule_20(policy, loss_out, loss_in)
     # calcrule_21 (deductible % tiv with min and max deductible) is redirected to 13 when building financial structure

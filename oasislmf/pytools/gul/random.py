@@ -130,9 +130,9 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
           Default is 0, i.e. no seeds are skipped.
 
     Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
           row in rndms that stores the corresponding random values.
     """
     Nseeds = len(seeds)
@@ -159,9 +159,9 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
         n (int): number of random samples to generate for each seed.
 
     Returns:
-        rndms (array[float]): 2-d array of shape (number of seeds, n) 
+        rndms (array[float]): 2-d array of shape (number of seeds, n)
           containing the random values generated for each seed.
-        rndms_idx (Dict[int64, int]): mapping between `seed` and the 
+        rndms_idx (Dict[int64, int]): mapping between `seed` and the
           row in rndms that stores the corresponding random values.
         skip_seeds (int): number of seeds to skip starting from the beginning
           of the `seeds` array. For skipped seeds no random numbers are generated

@@ -14,6 +14,7 @@ parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty ta
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
 
+
 def main() -> None:
     """
     Is the entry point for the modelpy command which loads data and constructs a model.

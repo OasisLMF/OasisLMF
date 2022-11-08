@@ -22,6 +22,7 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'ExposurePreAnalysis'
 
+
 class GenerateKeysCmd(OasisComputationCommand):
     """
     Generates keys from a model lookup, and write Oasis keys and keys error files.

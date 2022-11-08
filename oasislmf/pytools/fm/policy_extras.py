@@ -39,7 +39,7 @@ def deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limi
         over_limit[i] += loss_delta - under_limit[i]
         deductible[i] = max_deductible
         under_limit[i] = 0
-    elif loss_in[i] >= -loss_delta :
+    elif loss_in[i] >= -loss_delta:
         loss_out[i] = loss_in[i] + loss_delta
         under_limit[i] -= loss_delta
         deductible[i] = max_deductible
@@ -50,7 +50,8 @@ def deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limi
 
 
 @njit(cache=True)
-def deductible_under_min(i, loss_out, loss_in, effective_deductible, over_limit, under_limit, min_deductible, deductible):
+def deductible_under_min(i, loss_out, loss_in, effective_deductible,
+                         over_limit, under_limit, min_deductible, deductible):
     """
     Deductible is under the minimum, we raise the deductible from over_limit first then loss if over_limit is not enough
 
@@ -153,12 +154,12 @@ def calcrule_5(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     effective_deductible = loss_in * policy['deductible_1']
     effective_limit = loss_in * policy['limit_1']
     deductible += effective_deductible
-    if policy['deductible_1'] + policy['limit_1'] >= 1 : # always under limit
+    if policy['deductible_1'] + policy['limit_1'] >= 1:  # always under limit
         for i in range(loss_in.shape[0]):
             loss_out[i] = loss_in[i] - effective_deductible[i]
             under_limit[i] = min2(effective_limit[i] - loss_out[i], under_limit[i] + effective_deductible[i])
 
-    else: # always over limit
+    else:  # always over limit
         loss_out[:] = effective_limit
         over_limit += loss_in - effective_deductible - effective_limit
         under_limit[:] = 0
@@ -177,7 +178,15 @@ def calcrule_7(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if deductible[i] > max_ded_left:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif deductible[i] < min_ded_left:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                policy['deductible_1'])
         else:
             if loss_in[i] > policy['deductible_1']:
                 loss_out[i] = loss_in[i] - policy['deductible_1']
@@ -204,7 +213,15 @@ def calcrule_8(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     min_ded_left = policy['deductible_2'] - policy['deductible_1']
     for i in range(loss_in.shape[0]):
         if deductible[i] < min_ded_left:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                policy['deductible_1'])
         else:
             if loss_in[i] > policy['deductible_1']:
                 loss_out[i] = loss_in[i] - policy['deductible_1']
@@ -253,7 +270,15 @@ def calcrule_11(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
     for i in range(loss_in.shape[0]):
         if deductible[i] < min_ded_left:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                policy['deductible_1'])
         else:
             if loss_in[i] > policy['deductible_1']:
                 loss_out[i] = loss_in[i] - policy['deductible_1']
@@ -294,7 +319,15 @@ def calcrule_13(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if deductible[i] > max_ded_left:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif deductible[i] < min_ded_left:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                policy['deductible_1'])
         else:
             if loss_in[i] > policy['deductible_1']:
                 loss_out[i] = loss_in[i] - policy['deductible_1']
@@ -326,7 +359,7 @@ def calcrule_15(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     deductible and limit % loss
     """
-    effective_limit = policy['deductible_1']/(1 - policy['limit_1'])
+    effective_limit = policy['deductible_1'] / (1 - policy['limit_1'])
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible_1']:
             under_limit[i] = min2(effective_limit, under_limit[i] + loss_in[i])
@@ -362,7 +395,7 @@ def calcrule_17(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     if policy['deductible_1'] >= 1:
         loss_out.fill(0)
     else:
-        post_ded_attachment = policy['attachment_1'] / (1- policy['deductible_1'])
+        post_ded_attachment = policy['attachment_1'] / (1 - policy['deductible_1'])
         post_ded_attachment_limit = (policy['attachment_1'] + policy['limit_1']) / (1 - policy['deductible_1'])
         maxi = policy['limit_1'] * policy['share_1']
         for i in range(loss_in.shape[0]):
@@ -388,7 +421,15 @@ def calcrule_19(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if effective_deductible + deductible[i] > policy['deductible_3'] > 0:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif effective_deductible + deductible[i] < policy['deductible_2']:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                policy['deductible_1'])
         else:
             if loss_in[i] > effective_deductible:
                 loss_out[i] = loss_in[i] - effective_deductible
@@ -487,7 +528,15 @@ def calcrule_26(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if effective_deductible + deductible[i] > policy['deductible_3'] > 0:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif effective_deductible + deductible[i] < policy['deductible_2']:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], effective_deductible)
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                effective_deductible)
         else:
             if loss_in[i] > effective_deductible:
                 loss_out[i] = loss_in[i] - effective_deductible
@@ -580,7 +629,15 @@ def calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if effective_deductible + deductible[i] > policy['deductible_3'] > 0:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif effective_deductible + deductible[i] < policy['deductible_2']:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], effective_deductible)
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                effective_deductible)
         else:
             if loss_in[i] > effective_deductible:
                 loss_out[i] = loss_in[i] - effective_deductible
@@ -612,7 +669,15 @@ def calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if deductible[i] > max_ded_left > 0:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif deductible[i] < min_ded_left:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(
+                i,
+                loss_out,
+                loss_in,
+                deductible,
+                over_limit,
+                under_limit,
+                policy['deductible_2'],
+                policy['deductible_1'])
         else:
             if loss_in[i] > policy['deductible_1']:
                 loss_out[i] = loss_in[i] - policy['deductible_1']
@@ -687,7 +752,8 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_16(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 17:
         calcrule_17(policy, loss_out, loss_in, deductible, over_limit, under_limit)
-    # calcrule_18 (deductible % tiv with attachment, limit and share) is redirected to 2 when building financial structure
+    # calcrule_18 (deductible % tiv with attachment, limit and share) is
+    # redirected to 2 when building financial structure
     elif policy['calcrule_id'] == 19:
         calcrule_19(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 20:

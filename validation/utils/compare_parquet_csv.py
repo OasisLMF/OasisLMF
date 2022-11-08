@@ -11,12 +11,29 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('-p', '--parquet-path', help='path to parquet file', type=str, required=True)
 parser.add_argument('-c', '--csv-path', help='path to csv file', type=str, required=True)
-parser.add_argument('-s', '--sort', help='sort by string, int and categorical columns before check', action='store_true')
+parser.add_argument(
+    '-s',
+    '--sort',
+    help='sort by string, int and categorical columns before check',
+    action='store_true')
 parser.add_argument('--check-exact', help='Whether to compare number exactly.', action='store_true')
 parser.add_argument('--cols-case-sensitive', help='Lower cased column names before compare', action='store_true')
-parser.add_argument('--raise-error', help='Raise AssertionError exception if DataFrames differ, default is to print the exception message', action='store_true')
-parser.add_argument('--rtol', help='relative tolerance. Only used when check_exact is False', default=1e-05, action='store', type=float)
-parser.add_argument('--atol', help='Absolute tolerance. Only used when check_exact is False', default=1e-08, action='store', type=float)
+parser.add_argument(
+    '--raise-error',
+    help='Raise AssertionError exception if DataFrames differ, default is to print the exception message',
+    action='store_true')
+parser.add_argument(
+    '--rtol',
+    help='relative tolerance. Only used when check_exact is False',
+    default=1e-05,
+    action='store',
+    type=float)
+parser.add_argument(
+    '--atol',
+    help='Absolute tolerance. Only used when check_exact is False',
+    default=1e-08,
+    action='store',
+    type=float)
 
 
 def is_sorting_type(dtype):
@@ -44,13 +61,15 @@ def compare(parquet_path, csv_path, sort, cols_case_sensitive, raise_error, **kw
     except AssertionError as e:
         if raise_error:
             raise
-        else:    
+        else:
             print(e)
 
 
 if __name__ == '__main__':
     # example:
-    # python ~/OasisLMF/validation/utils/compare_parquet_csv.py -p ~/OasisPiWind/tests/inputs/SourceLocOEDPiWind.parquet  -c ~/OasisPiWind/tests/inputs/SourceLocOEDPiWind.csv
+    # python ~/OasisLMF/validation/utils/compare_parquet_csv.py -p
+    # ~/OasisPiWind/tests/inputs/SourceLocOEDPiWind.parquet  -c
+    # ~/OasisPiWind/tests/inputs/SourceLocOEDPiWind.csv
 
     kwargs = vars(parser.parse_args())
     compare(**kwargs)

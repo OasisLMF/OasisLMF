@@ -38,7 +38,7 @@ nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
                                          ('parent', np_oasis_int),
                                          ('children', np_oasis_int),
                                          ('output_ids', np_oasis_int),
-                                        ]))
+                                         ]))
 
 compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('max_level', np_oasis_int),
@@ -54,10 +54,10 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('items_len', np_oasis_int),
                                           ('output_len', np_oasis_int),
                                           ('stepped', np.bool),
-                                         ]))
+                                          ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
                                            ('i_end', np_oasis_int),
-                                          ]))
+                                           ]))
 
 
 def load_static(static_path):
@@ -90,7 +90,7 @@ def load_static(static_path):
                 col_map = {}
             with open(os.path.join(static_path, name + '.csv')) as file_in:
                 cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
-                df =pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype)
+                df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype)
                 res = np.empty(df.shape[0], dtype=_dtype)
                 for name in _dtype.names:
                     res[name] = df[col_map.get(name, name)]
@@ -163,6 +163,7 @@ def get_all_children(node_to_dependencies, node, items_only):
 
     return children
 
+
 @njit(cache=True)
 def get_all_parent(node_to_dependencies, node, max_level):
     res = set()
@@ -180,8 +181,6 @@ def get_all_parent(node_to_dependencies, node, max_level):
     return List(res)
 
 
-
-
 @njit(cache=True)
 def is_multi_peril(fm_programme):
     for i in range(fm_programme.shape[0]):
@@ -196,7 +195,7 @@ def get_tiv(children, items, coverages):
     used_cov = np.zeros_like(coverages, dtype=np.uint8)
     tiv = 0
     for child_programme in children:
-        coverage_i = items[child_programme[1]-1]['coverage_id']-1
+        coverage_i = items[child_programme[1] - 1]['coverage_id'] - 1
         if not used_cov[coverage_i]:
             used_cov[coverage_i] = 1
             tiv += coverages[coverage_i]
@@ -311,7 +310,8 @@ def prepare_profile_stepped(profile, tiv):
 
 
 @njit(cache=True)
-def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
+def extract_financial_structure(allocation_rule, fm_programme, fm_policytc,
+                                fm_profile, stepped, fm_xref, items, coverages):
     """
     :param allocation_rule:
         option to indicate out the loss are allocated to the output
@@ -331,7 +331,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         output_array:
     """
     ##### policytc_id_to_profile_index ####
-    # policies may have multiple step, crate a mapping between policytc_id and the start and end index in fm_profile file
+    # policies may have multiple step, crate a mapping between policytc_id and
+    # the start and end index in fm_profile file
     max_policytc_id = np.max(fm_profile['policytc_id'])
     policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=profile_index_dtype)
     has_tiv_policy = Dict.empty(np_oasis_int, np_oasis_int)
@@ -396,7 +397,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             new_fm_profile[fm_profile.shape[0] + i] = fm_profile[new_fm_profile_list[i]]
         fm_profile = new_fm_profile
 
-    #fm_xref
+    # fm_xref
     if multi_peril:  # if single peril we can skip item level computation (level 0)
         start_level = np_oasis_int(0)
     else:
@@ -438,7 +439,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         if parent not in node_layers:
             node_layers[parent] = np_oasis_int(len(programme_node_to_layers[parent]))
 
-
     # create 2 mapping to get the parents and the childs of each nodes
     # update the number of layer for nodes based on the number of layer of their parents
     # go through each level from top to botom
@@ -454,9 +454,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             if programme['level_id'] == level:
                 parent = (np_oasis_int(programme['level_id']), np_oasis_int(programme['to_agg_id']))
 
-                if programme['from_agg_id'] > 0: # level of node is programme['level_id'] - 1
+                if programme['from_agg_id'] > 0:  # level of node is programme['level_id'] - 1
                     child_programme = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
-                else: # negative agg_id level is item level
+                else:  # negative agg_id level is item level
                     child_programme = (start_level, np_oasis_int(-programme['from_agg_id']))
 
                 if parent not in parent_to_children:
@@ -479,13 +479,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 # child_to_parents[child_programme] = [parent]
                 node_layers[child_programme] = node_layers[parent]
 
-    # compute number of steps (steps), max size of each level node_level_start, max size of node to compute (compute_len)
+    # compute number of steps (steps), max size of each level
+    # node_level_start, max size of node to compute (compute_len)
     node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
     for i in range(start_level, level_node_len.shape[0]):
-        node_level_start[i+1]= node_level_start[i] + level_node_len[i]
+        node_level_start[i + 1] = node_level_start[i] + level_node_len[i]
     steps = max_level + (1 - start_level)
     compute_len = node_level_start[-1] + steps + level_node_len[-1] + 1
-
 
     output_array_size = 0
     for node, layer_size in node_layers.items():
@@ -505,7 +505,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     extra_i = 0
     output_i = 0
 
-    for level in range(start_level, max_level+1):
+    for level in range(start_level, max_level + 1):
         for agg_id in range(1, level_node_len[level] + 1):
             node_programme = (np_oasis_int(level), np_oasis_int(agg_id))
             node = nodes_array[node_i]
@@ -536,7 +536,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 node['parent_len'] = len(parents)
                 node['parent'] = parents_i
                 for parent in parents:
-                    node_parents_array[parents_i], parents_i = node_level_start[parent[0]] + parent[1], np_oasis_int(parents_i + 1)
+                    node_parents_array[parents_i], parents_i = node_level_start[parent[0]] + \
+                        parent[1], np_oasis_int(parents_i + 1)
             else:
                 node['parent_len'] = 0
 
@@ -580,14 +581,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
                             for parent in all_parent:
                                 all_children = get_all_children(parent_to_children, parent, False)
-                                for child_programme in all_children: # include current node
+                                for child_programme in all_children:  # include current node
                                     child = nodes_array[node_level_start[child_programme[0]] + child_programme[1]]
                                     if child['extra'] == null_index:
                                         child['extra'], extra_i = extra_i, extra_i + node['layer_len']
 
                             break
 
-            else: # item level has no profile
+            else:  # item level has no profile
                 node['profile_len'] = 1
                 node['profiles'] = 0
 
@@ -657,7 +658,11 @@ def load_financial_structure(allocation_rule, static_path):
     compute_info = np.load(os.path.join(static_path, f'compute_info_{allocation_rule}.npy'), mmap_mode='r')
     nodes_array = np.load(os.path.join(static_path, f'nodes_array_{allocation_rule}.npy'), mmap_mode='r')
     node_parents_array = np.load(os.path.join(static_path, f'node_parents_array_{allocation_rule}.npy'), mmap_mode='r')
-    node_profiles_array = np.load(os.path.join(static_path, f'node_profiles_array_{allocation_rule}.npy'), mmap_mode='r')
+    node_profiles_array = np.load(
+        os.path.join(
+            static_path,
+            f'node_profiles_array_{allocation_rule}.npy'),
+        mmap_mode='r')
     output_array = np.load(os.path.join(static_path, f'output_array_{allocation_rule}.npy'), mmap_mode='r')
     fm_profile = np.load(os.path.join(static_path, f'fm_profile.npy'), mmap_mode='r')
 

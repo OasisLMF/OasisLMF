@@ -35,23 +35,23 @@ oasis_float_relative_size = oasis_float.itemsize // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
 
-damagebindictionary =  nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                    ('bin_from', oasis_float),
-                                    ('bin_to', oasis_float),
-                                    ('interpolation', oasis_float),
-                                    ('interval_type', np.int32),
-                                  ]))
+damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
+                                              ('bin_from', oasis_float),
+                                              ('bin_to', oasis_float),
+                                              ('interpolation', oasis_float),
+                                              ('interval_type', np.int32),
+                                              ]))
 
-damagebindictionaryCsv =  nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                                  ('bin_from', oasis_float),
-                                                  ('bin_to', oasis_float),
-                                                  ('interpolation', oasis_float)]))
+damagebindictionaryCsv = nb.from_dtype(np.dtype([('bin_index', np.int32),
+                                                 ('bin_from', oasis_float),
+                                                 ('bin_to', oasis_float),
+                                                 ('interpolation', oasis_float)]))
 
-EventCSV =  nb.from_dtype(np.dtype([('event_id', np.int32),
-                                    ('areaperil_id', areaperil_int),
-                                    ('intensity_bin_id', np.int32),
-                                    ('probability', oasis_float)
-                                    ]))
+EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
+                                   ('areaperil_id', areaperil_int),
+                                   ('intensity_bin_id', np.int32),
+                                   ('probability', oasis_float)
+                                   ]))
 
 Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ('coverage_id', np.int32),
@@ -75,7 +75,7 @@ VulnerabilityIndex = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
 VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
                                            ('damage_bin_id', np.int64),
                                            ('probability', oasis_float)
-                                          ]))
+                                           ]))
 
 vuln_offset = 4
 
@@ -88,7 +88,7 @@ def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
 
 @nb.jit(cache=True)
 def load_areaperil_id_u8(int32_mv, cursor, areaperil_id):
-    int32_mv[cursor: cursor+1] = areaperil_id.view('i4')
+    int32_mv[cursor: cursor + 1] = areaperil_id.view('i4')
     return cursor + 2
 
 
@@ -141,8 +141,8 @@ def load_items(items, valid_area_peril_id):
                 areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
 
     areaperil_to_vulns_idx_dict = Dict()
-    areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype = Index_type)
-    areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype = np.int32)
+    areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype=Index_type)
+    areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype=np.int32)
 
     areaperil_i = 0
     vulnerability_i = 0
@@ -153,9 +153,9 @@ def load_items(items, valid_area_peril_id):
 
         for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
             areaperil_to_vulns[vulnerability_i] = vuln_id
-            vulnerability_i +=1
+            vulnerability_i += 1
         areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
-        areaperil_i+=1
+        areaperil_i += 1
 
     return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns
 
@@ -187,7 +187,7 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
 
 @nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                                 num_damage_bins, num_intensity_bins):
+                       num_damage_bins, num_intensity_bins):
     """
     Loads the vulnerability binary index file.
 
@@ -209,7 +209,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
             end = start + vuln_idx['size'] // VulnerabilityRow.itemsize
             for vuln_i in range(start, end):
                 vuln = vulns_bin[vuln_i]
-                cur_vuln_array[vuln['damage_bin_id'] -1, vuln['intensity_bin_id'] - 1] = vuln['probability']
+                cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 
     return vuln_array
 
@@ -312,12 +312,29 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                 num_damage_bins = header[0]
             if "vulnerability.idx" in static_path:
                 logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=VulnerabilityRow, offset=4, mode='r')
-                vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"), dtype=VulnerabilityIndex, mode='r')
+                vulns_bin = np.memmap(
+                    os.path.join(
+                        static_path,
+                        "vulnerability.bin"),
+                    dtype=VulnerabilityRow,
+                    offset=4,
+                    mode='r')
+                vulns_idx_bin = np.memmap(
+                    os.path.join(
+                        static_path,
+                        "vulnerability.idx"),
+                    dtype=VulnerabilityIndex,
+                    mode='r')
                 vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                                                          num_damage_bins, num_intensity_bins)
+                                                num_damage_bins, num_intensity_bins)
             else:
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=Vulnerability, offset=4, mode='r')
+                vulns_bin = np.memmap(
+                    os.path.join(
+                        static_path,
+                        "vulnerability.bin"),
+                    dtype=Vulnerability,
+                    offset=4,
+                    mode='r')
                 vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
@@ -487,9 +504,9 @@ def doCdf(event_id,
                         cursor = 0
 
                     cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
-                              int32_mv, num_damage_bins,
-                              intensities_min, intensities_max, intensities,
-                              event_id, areaperil_id, vuln_i, cursor)
+                                       int32_mv, num_damage_bins,
+                                       intensities_min, intensities_max, intensities,
+                                       event_id, areaperil_id, vuln_i, cursor)
 
             areaperil_id[0] = event_row['areaperil_id']
             has_vuln = areaperil_id[0] in areaperil_to_vulns_idx_dict
@@ -499,7 +516,7 @@ def doCdf(event_id,
                 intensities_min = num_intensity_bins
                 intensities_max = 0
         if has_vuln:
-            if event_row['probability']>0:
+            if event_row['probability'] > 0:
                 intensity_bin_i = event_row['intensity_bin_id'] - 1
                 intensities[intensity_bin_i] = event_row['probability']
                 if intensity_bin_i > intensities_max:
@@ -517,9 +534,9 @@ def doCdf(event_id,
                 cursor = 0
 
             cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
-                      int32_mv, num_damage_bins,
-                      intensities_min, intensities_max, intensities,
-                      event_id, areaperil_id, vuln_i, cursor)
+                               int32_mv, num_damage_bins,
+                               intensities_min, intensities_max, intensities,
+                               event_id, areaperil_id, vuln_i, cursor)
 
     yield cursor * oasis_int_size
 
@@ -573,12 +590,14 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         if peril_filter:
             keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
             valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-            logger.debug(f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+            logger.debug(
+                f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
         else:
             valid_area_peril_id = None
 
         logger.debug('init items')
-        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, ignore_file_type, valid_area_peril_id)
+        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(
+            input_path, ignore_file_type, valid_area_peril_id)
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
@@ -609,7 +628,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         logger.debug('doCdf starting')
         while True:
             len_read = streams_in.readinto(event_id_mv)
-            if len_read==0:
+            if len_read == 0:
                 break
 
             if data_server:
@@ -619,9 +638,9 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
             if event_footprint is not None:
                 for cursor_bytes in doCdf(event_ids[0],
-                      num_intensity_bins, event_footprint,
-                      areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-                      vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
+                                          num_intensity_bins, event_footprint,
+                                          areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
+                                          vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
                                           int32_mv, max_result_relative_size):
 
                     if cursor_bytes:

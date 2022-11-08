@@ -44,7 +44,7 @@ def prepare_input_files_directory(
             target_dir, 'target Oasis files directory'
         )
 
-        # Copy preserving original filenames 
+        # Copy preserving original filenames
         paths = [
             (p, os.path.join(target_dir, os.path.basename(p))) for p in (
                 exposure_profile_fp, accounts_profile_fp,
@@ -53,15 +53,15 @@ def prepare_input_files_directory(
             ) if p
         ]
 
-        # Copy and rename to default set in 
+        # Copy and rename to default set in
         # oasislmf.utils.defaults.SOURCE_FILENAMES
         paths_rename = (
-            (exposure_fp, "loc"), 
-            (accounts_fp, "acc"), 
-            (ri_info_fp, "info"), 
+            (exposure_fp, "loc"),
+            (accounts_fp, "acc"),
+            (ri_info_fp, "info"),
             (ri_scope_fp, "scope"),
             (complex_lookup_config_fp, "complex_lookup")
-        )    
+        )
 
         for fp, key in paths_rename:
             if fp:

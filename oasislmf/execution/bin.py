@@ -148,7 +148,13 @@ def prepare_run_directory(
                 shutil.move(src, run_dir)
 
         dst = os.path.join(run_dir, 'analysis_settings.json')
-        shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
+        shutil.copy(
+            analysis_settings_fp,
+            dst) if not (
+            os.path.exists(dst) and filecmp.cmp(
+                analysis_settings_fp,
+                dst,
+                shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
 
@@ -196,8 +202,8 @@ def _create_return_period_bin(run_dir, return_periods):
     bin_fp = os.path.join(run_dir, 'input', 'returnperiods.bin')
     pd.DataFrame(
         return_periods,
-        columns =['return_period']).sort_values(ascending=False, by=['return_period']
-    ).to_csv(csv_fp, index=False)
+        columns=['return_period']).sort_values(ascending=False, by=['return_period']
+                                               ).to_csv(csv_fp, index=False)
 
     try:
         cmd_str = "returnperiodtobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
@@ -205,13 +211,14 @@ def _create_return_period_bin(run_dir, return_periods):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
 
+
 def _create_events_bin(run_dir, event_ids):
     csv_fp = os.path.join(run_dir, 'input', 'events.csv')
     bin_fp = os.path.join(run_dir, 'input', 'events.bin')
     pd.DataFrame(
         event_ids,
-        columns =['event_id']).sort_values(ascending=True, by=['event_id']
-    ).to_csv(csv_fp, index=False)
+        columns=['event_id']).sort_values(ascending=True, by=['event_id']
+                                          ).to_csv(csv_fp, index=False)
 
     try:
         cmd_str = "evetobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
@@ -219,14 +226,15 @@ def _create_events_bin(run_dir, event_ids):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
 
+
 def _create_quantile_bin(run_dir, quantiles):
     csv_fp = os.path.join(run_dir, 'input', 'quantile.csv')
     bin_fp = os.path.join(run_dir, 'input', 'quantile.bin')
     pd.DataFrame(
         quantiles,
         dtype='float',
-        columns =['quantile']).sort_values(ascending=True, by=['quantile']
-    ).to_csv(csv_fp, index=False)
+        columns=['quantile']).sort_values(ascending=True, by=['quantile']
+                                          ).to_csv(csv_fp, index=False)
 
     try:
         cmd_str = "quantiletobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
@@ -234,11 +242,13 @@ def _create_quantile_bin(run_dir, quantiles):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting quantile.csv to ktools binary format: {}".format(e))
 
+
 def _load_default_quantile_bin(run_dir):
     default_quantile_fp = os.path.join(STATIC_DATA_FP, 'quantile.csv')
     _create_quantile_bin(run_dir,
-        pd.read_csv(default_quantile_fp)["quantile"].tolist()
-    )
+                         pd.read_csv(default_quantile_fp)["quantile"].tolist()
+                         )
+
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False, extension='bin'):
     bin_fp = os.path.join(run_dir, 'input', '{}.{}'.format(bin_name, extension))
@@ -249,7 +259,9 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
             model_data_bin_fp = os.path.join(run_dir, 'static', '{}.{}'.format(bin_name, extension))
         else:
             # 'verbatim' -  Try setting value as given
-            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, str(setting_val), extension))
+            model_data_bin_fp = os.path.join(
+                run_dir, 'static', '{}_{}.{}'.format(
+                    bin_name, str(setting_val), extension))
             if not os.path.isfile(model_data_bin_fp):
                 # 'compatibility' - Fallback name formatting to keep existing conversion
                 setting_val = str(setting_val).replace(' ', '_').lower()
@@ -275,13 +287,16 @@ def _calc_selected(analysis_settings, calc_type_list):
     for calc_type in calc_type_list:
 
         if gul_section:
-            if any(gul_summary.get(calc_type, None) or gul_summary.get('ord_output', {}).get(calc_type) for gul_summary in gul_section):
+            if any(gul_summary.get(calc_type, None) or gul_summary.get('ord_output', {}).get(calc_type)
+                   for gul_summary in gul_section):
                 return True
         if il_section:
-            if any(il_summary.get(calc_type, None) or il_summary.get('ord_output', {}).get(calc_type) for il_summary in il_section):
+            if any(il_summary.get(calc_type, None) or il_summary.get('ord_output', {}).get(calc_type)
+                   for il_summary in il_section):
                 return True
         if ri_section:
-            if any(ri_summary.get(calc_type, None) or ri_summary.get('ord_output', {}).get(calc_type) for ri_summary in ri_section):
+            if any(ri_summary.get(calc_type, None) or ri_summary.get('ord_output', {}).get(calc_type)
+                   for ri_summary in ri_section):
                 return True
     return False
 
@@ -298,7 +313,8 @@ def _leccalc_selected(analysis_settings):
     ri_section = analysis_settings.get('ri_summaries')
 
     if gul_section:
-        is_in_gul = any(leccalc_enabled(gul_summary) or ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
+        is_in_gul = any(leccalc_enabled(gul_summary) or ord_enabled(gul_summary, ORD_LECCALC)
+                        for gul_summary in gul_section)
     if il_section:
         is_in_il = any(leccalc_enabled(il_summary) or ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
     if ri_section:
@@ -330,18 +346,24 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
 
         # Prepare event_rates.csv
         if os.path.exists(os.path.join(run_dir, 'static', 'event_rates.csv')) or model_settings.get('event_rates_set'):
-            _prepare_input_bin(run_dir, 'event_rates', model_settings, setting_key='event_rates_set', ri=ri, extension='csv')
+            _prepare_input_bin(
+                run_dir,
+                'event_rates',
+                model_settings,
+                setting_key='event_rates_set',
+                ri=ri,
+                extension='csv')
 
         # Prepare quantile.bin
         if analysis_settings.get('quantiles'):
             # 1. Create quantile file from user input
             _create_quantile_bin(run_dir, analysis_settings.get('quantiles'))
-        elif  _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
+        elif _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
             # 2. copy quantile file from model data
             if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
                 _prepare_input_bin(run_dir, 'quantile', model_settings, ri=ri)
             else:
-            # 3. Create quantile file from package `_data/quantile.csv`
+                # 3. Create quantile file from package `_data/quantile.csv`
                 _load_default_quantile_bin(run_dir)
 
         # Prepare occurrence / returnperiod depending on output calcs selected
@@ -363,7 +385,6 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         # Prepare periods.bin
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
-
 
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
@@ -390,7 +411,7 @@ def check_inputs_directory(directory_to_check, il=False, ri=False, check_binarie
     _check_each_inputs_directory(directory_to_check, il=il, check_binaries=check_binaries)
 
     if ri:
-        for ri_directory_to_check in glob.glob('{}{}RI_\d+$'.format(directory_to_check, os.path.sep)):
+        for ri_directory_to_check in glob.glob('{}{}RI_\\d+$'.format(directory_to_check, os.path.sep)):
             _check_each_inputs_directory(ri_directory_to_check, il=True, check_binaries=check_binaries)
 
 

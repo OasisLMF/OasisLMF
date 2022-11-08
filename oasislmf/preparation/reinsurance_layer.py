@@ -91,7 +91,8 @@ def write_files_for_reinsurance(
     """
     inuring_metadata = {}
 
-    items_df = gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates()
+    items_df = gul_inputs_df.loc[:, ['item_id', 'coverage_id',
+                                     'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates()
     coverages_df = gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates()
     ri_inputs = _get_ri_inputs(
         items_df,
@@ -252,12 +253,12 @@ class ReinsuranceLayer(object):
 
     def _match_exact(self, df_, ri_df_, fields=None):
 
-        if fields == None:
+        if fields is None:
             fields = []
 
         df_ = df_.merge(
             ri_df_[fields + ['layer_id', 'level_id', 'profile_id']].drop_duplicates(),
-            how='left', on=fields+['layer_id', 'level_id'], suffixes=['', '_y']
+            how='left', on=fields + ['layer_id', 'level_id'], suffixes=['', '_y']
         )
         df_['profile_id'] = df_['profile_id'].where(
             df_['profile_id_y'].isna(), df_['profile_id_y']
@@ -305,7 +306,13 @@ class ReinsuranceLayer(object):
 
         df_['profile_id'] = self._match_exact(
             df_=df_,
-            ri_df_=ri_df_[(ri_df_[valid_fields[0]] == True) & (ri_df_[valid_fields[1]] == True) & (ri_df_[valid_fields[2]] == True)],
+            ri_df_=ri_df_[
+                (ri_df_[
+                    valid_fields[0]] == True) & (
+                    ri_df_[
+                        valid_fields[1]] == True) & (
+                    ri_df_[
+                        valid_fields[2]] == True)],
             fields=fields
         )
 
@@ -388,9 +395,15 @@ class ReinsuranceLayer(object):
         okay = True
         if row.reinstype == oed.REINS_TYPE_FAC or row.reinstype == oed.REINS_TYPE_SURPLUS_SHARE:
             if row.risklevel == oed.REINS_RISK_LEVEL_ACCOUNT:
-                okay = self._is_valid_id(row.accnumber) and not self._is_valid_id(row.polnumber) and not self._is_valid_id(row.locnumber)
+                okay = self._is_valid_id(
+                    row.accnumber) and not self._is_valid_id(
+                    row.polnumber) and not self._is_valid_id(
+                    row.locnumber)
             elif row.risklevel == oed.REINS_RISK_LEVEL_POLICY:
-                okay = self._is_valid_id(row.accnumber) and self._is_valid_id(row.polnumber) and not self._is_valid_id(row.locnumber)
+                okay = self._is_valid_id(
+                    row.accnumber) and self._is_valid_id(
+                    row.polnumber) and not self._is_valid_id(
+                    row.locnumber)
             elif row.risklevel == oed.REINS_RISK_LEVEL_LOCATION:
                 okay = self._is_valid_id(row.accnumber) and self._is_valid_id(row.locnumber)
             elif row.risklevel == oed.REINS_RISK_LEVEL_LOCATION_GROUP:
@@ -603,14 +616,15 @@ class ReinsuranceLayer(object):
         )
         ri_df['layer_id'] = 0
         ri_df.columns = ri_df.columns.str.lower()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'layer_id'] = ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC].groupby(fields, observed=True).cumcount() + 1
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'layer_id'] = ri_df.loc[ri_df['reinstype']
+                                                                                    == oed.REINS_TYPE_FAC].groupby(fields, observed=True).cumcount() + 1
         ri_info_no_fac = self.ri_info_df[self.ri_info_df['ReinsType'] != oed.REINS_TYPE_FAC].reset_index(drop=True)
         ri_info_no_fac.columns = ri_info_no_fac.columns.str.lower()
         ri_info_no_fac['layer_id'] = ri_info_no_fac.index + 1 + ri_df['layer_id'].max()
         ri_df = ri_df.merge(ri_info_no_fac, how='left', on=ri_info_no_fac.columns.to_list()[:-1], suffixes=['', '_y'])
         ri_df['layer_id'] = ri_df['layer_id'].where(ri_df['layer_id_y'].isna(), ri_df['layer_id_y'])
         ri_df = ri_df.drop('layer_id_y', axis=1)
-        del(ri_info_no_fac)
+        del (ri_info_no_fac)
         ri_df['valid_row'] = ri_df.apply(lambda row: self._check_ri_df_row(row), axis=1)
         if ri_df['valid_row'].all() == False:
             raise OasisException(
@@ -711,7 +725,8 @@ class ReinsuranceLayer(object):
         )
         # Filter level
         profile_map_df.loc[
-            (profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id()),
+            (profile_map_df['layer_id'].isin(layer_id_set)) & (
+                profile_map_df['level_id'] == self._get_filter_level_id()),
             'profile_id'
         ] = passthroughprofile_id
 
@@ -729,7 +744,8 @@ class ReinsuranceLayer(object):
         )
         # Filter level
         filter_idx = self._get_filter_level_profile_ids(
-            df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id())],
+            df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (
+                profile_map_df['level_id'] == self._get_filter_level_id())],
             ri_df_=ri_df[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK][fields + valid_fields + ['layer_id']]
         )
         profile_map_df.loc[filter_idx, 'profile_id'] = passthroughprofile_id
@@ -748,7 +764,8 @@ class ReinsuranceLayer(object):
         )
         # Filter level
         filter_idx = self._get_filter_level_profile_ids(
-            df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id())],
+            df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (
+                profile_map_df['level_id'] == self._get_filter_level_id())],
             ri_df_=ri_df[ri_df['reinstype'] == oed.REINS_TYPE_QUOTA_SHARE][fields + valid_fields + ['layer_id']]
         )
         profile_map_df.loc[filter_idx, 'profile_id'] = passthroughprofile_id
@@ -769,7 +786,8 @@ class ReinsuranceLayer(object):
         )
         # Filter level
         profile_map_df.loc[
-            (profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id()),
+            (profile_map_df['layer_id'].isin(layer_id_set)) & (
+                profile_map_df['level_id'] == self._get_filter_level_id()),
             'profile_id'
         ] = passthroughprofile_id
 
@@ -787,7 +805,8 @@ class ReinsuranceLayer(object):
         )
         # Filter level
         filter_idx = self._get_filter_level_profile_ids(
-            df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id())],
+            df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (
+                profile_map_df['level_id'] == self._get_filter_level_id())],
             ri_df_=ri_df[ri_df['reinstype'] == oed.REINS_TYPE_CAT_XL][fields + valid_fields + ['layer_id']]
         )
         profile_map_df.loc[filter_idx, 'profile_id'] = passthroughprofile_id
@@ -795,7 +814,8 @@ class ReinsuranceLayer(object):
         # OccLimit / Placed Percent
         occlimit_df = self.ri_info_df.copy()
         occlimit_df.columns = occlimit_df.columns.str.lower()
-        occlimit_df = occlimit_df.merge(ri_df[occlimit_df.columns.to_list() + ['layer_id']], how='left').drop_duplicates()
+        occlimit_df = occlimit_df.merge(ri_df[occlimit_df.columns.to_list() +
+                                        ['layer_id']], how='left').drop_duplicates()
         occlimit_df = occlimit_df[occlimit_df['reinstype'] != oed.REINS_TYPE_FAC]
         occlimit_df['level_id'] = self._get_risk_level_id() + 1
         occlimit_df = occlimit_df.reset_index(drop=True)
@@ -832,10 +852,12 @@ class ReinsuranceLayer(object):
             self._log_dataframe({'profile_map_df': profile_map_df})
 
         # Write out Oasis structure
-        self.fmprogrammes_df = xref_df[xref_df['agg_id_to'] != 0][['agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
+        self.fmprogrammes_df = xref_df[xref_df['agg_id_to'] != 0][[
+            'agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
         self.fmprogrammes_df.columns = ['from_agg_id', 'level_id', 'to_agg_id']
         self.fmprofiles_df = fmprofiles_df.sort_values(by='profile_id').reset_index(drop=True)
-        self.fm_policytcs_df = profile_map_df[profile_map_df['level_id'] > 1][['layer_id', 'level_id', 'agg_id', 'profile_id']].reset_index(drop=True)
+        self.fm_policytcs_df = profile_map_df[profile_map_df['level_id'] > 1][[
+            'layer_id', 'level_id', 'agg_id', 'profile_id']].reset_index(drop=True)
         self.fm_policytcs_df['level_id'] = self.fm_policytcs_df['level_id'] - 1
 
         if self.logger:

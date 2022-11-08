@@ -109,7 +109,6 @@ class ComputationStep:
                 func_args[param] = func_kwargs[param]
         return func_args
 
-
     @classmethod
     def get_signature(cls):
         """ Create a function signature based on the 'get_params()' return
@@ -134,7 +133,6 @@ class ComputationStep:
         except Exception:
             # ignore any errors in signature creation and return blank
             return None
-
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""

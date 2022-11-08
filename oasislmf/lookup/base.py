@@ -21,7 +21,7 @@ from ..utils.exceptions import OasisException
 UNKNOWN_ID = -1
 
 
-''' Basic abstract classes that facilitate the implementation of KeyLookupInterface  
+''' Basic abstract classes that facilitate the implementation of KeyLookupInterface
 '''
 
 
@@ -38,7 +38,9 @@ class AbstractBasicKeyLookup:
 
         keys_data_path = config.get('keys_data_path')
         keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
-        config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
+        config['keys_data_path'] = as_path(
+            keys_data_path, 'keys_data_path', preexists=(
+                True if keys_data_path else False))
 
     @abc.abstractmethod
     def process_locations(self, locations):
@@ -76,7 +78,8 @@ class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     """
     multiproc_enabled = True
 
-    def __init__(self, config=None, config_json=None, config_fp=None, config_dir=None, user_data_dir=None, output_dir=None):
+    def __init__(self, config=None, config_json=None, config_fp=None,
+                 config_dir=None, user_data_dir=None, output_dir=None):
         if config:
             config_dir = config_dir or '.'
         elif config_json:
@@ -110,12 +113,13 @@ class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             for k, v in section_config.items():
                 if isinstance(v, str) and '%%KEYS_DATA_PATH%%' in v:
                     self._config[section][k] = v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
-                elif type(v) == list:
+                elif isinstance(v, list):
                     self._config[section][k] = tuple(v)
                 elif isinstance(v, dict):
                     for _k, _v in v.items():
                         if isinstance(_v, str) and '%%KEYS_DATA_PATH%%' in _v:
-                            self._config[section][k][_k] = _v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
+                            self._config[section][k][_k] = _v.replace(
+                                '%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
 
     @property
     def config(self):

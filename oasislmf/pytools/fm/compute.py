@@ -52,7 +52,8 @@ def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i,
     else:
         computes[next_compute_i], next_compute_i = children[node['children'] + 1], next_compute_i + 1
         child = nodes_array[children[node['children'] + 1]]
-        loss_indexes[child['ba']: child['ba'] + node['layer_len']] = loss_indexes[node['ba']: node['ba'] + node['layer_len']]
+        loss_indexes[child['ba']: child['ba'] + node['layer_len']
+                     ] = loss_indexes[node['ba']: node['ba'] + node['layer_len']]
 
     return loss_i, next_compute_i
 
@@ -76,15 +77,16 @@ def compute_event(compute_info,
     loss_i = next_compute_i
     extra_i = 0
     compute_i = 0
-    for level in range(compute_info['start_level'], compute_info['max_level'] + 1):#perform the bottom up loss computation
+    for level in range(compute_info['start_level'], compute_info['max_level'] +
+                       1):  # perform the bottom up loss computation
         # print(level, next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i+2], computes[next_compute_i-2: next_compute_i+1])
-        next_compute_i += 1 # next_compute_i will stay at 0 wich will stop the while loop and start the next level
+        next_compute_i += 1  # next_compute_i will stay at 0 wich will stop the while loop and start the next level
         while computes[compute_i]:
             node, compute_i = nodes_array[computes[compute_i]], compute_i + 1
 
-            #compute loss sums and extra sum
+            # compute loss sums and extra sum
             len_children = children[node['children']]
-            if len_children:#if no children and in compute then layer 1 loss is already set
+            if len_children:  # if no children and in compute then layer 1 loss is already set
                 if len_children > 1:
                     for p in range(node['profile_len']):
                         node_loss = losses[loss_i]
@@ -98,19 +100,20 @@ def compute_event(compute_info,
                             child = nodes_array[children[c]]
                             node_loss += losses[loss_indexes[child['il'] + p]]
                             node_extra += extras[extra_indexes[child['extra'] + p]]
-                    #fill up all layer if necessary
+                    # fill up all layer if necessary
                     for layer in range(node['profile_len'], node['layer_len']):
                         loss_indexes[node['loss'] + layer] = loss_indexes[node['loss']]
                         extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
                 else:
                     child = nodes_array[children[node['children'] + 1]]
-                    loss_indexes[node['loss']:node['loss'] + node['layer_len']] = loss_indexes[child['il']:child['il'] + node['layer_len']]
+                    loss_indexes[node['loss']:node['loss'] + node['layer_len']
+                                 ] = loss_indexes[child['il']:child['il'] + node['layer_len']]
 
                     for p in range(node['profile_len']):
                         extras[extra_i][:] = extras[extra_indexes[child['extra'] + p]]
                         extra_indexes[node['extra'] + p], extra_i = extra_i, extra_i + 1
 
-                    #fill up all layer if necessary
+                    # fill up all layer if necessary
                     for layer in range(node['profile_len'], node['layer_len']):
                         extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
 
@@ -119,13 +122,13 @@ def compute_event(compute_info,
                     extras[extra_i].fill(0)
                     extra_indexes[node['extra'] + p], extra_i = extra_i, extra_i + 1
 
-                #fill up all layer if necessary
+                # fill up all layer if necessary
                 for layer in range(node['profile_len'], node['layer_len']):
                     extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
 
-            #compute il
+            # compute il
             for p in range(node['profile_len']):
-                node_profile = node_profiles_array[node['profiles']+p]
+                node_profile = node_profiles_array[node['profiles'] + p]
                 if node_profile['i_start'] < node_profile['i_end']:
                     extra = extras[extra_indexes[node['extra'] + p]]
                     loss_in = losses[loss_indexes[node['loss'] + p]]
@@ -145,8 +148,9 @@ def compute_event(compute_info,
                 loss_indexes[node['il'] + layer] = loss_indexes[node['il']]
 
             if level == compute_info['max_level']:
-                loss_indexes[node['ba']:node['ba'] + node['layer_len']] = loss_indexes[node['il']:node['il'] + node['layer_len']]
-                if node['parent_len']:# for allocation 1 we set only the parent in computes
+                loss_indexes[node['ba']:node['ba'] + node['layer_len']
+                             ] = loss_indexes[node['il']:node['il'] + node['layer_len']]
+                if node['parent_len']:  # for allocation 1 we set only the parent in computes
                     parent_id = node_parents_array[node['parent']]
                     computes[next_compute_i], next_compute_i = parent_id, next_compute_i + 1
                 else:
@@ -154,10 +158,10 @@ def compute_event(compute_info,
             else:
                 # set parent children and next computation
                 for pa in range(node['parent_len']):
-                    parent_id = node_parents_array[node['parent']+pa]
+                    parent_id = node_parents_array[node['parent'] + pa]
                     parent = nodes_array[parent_id]
                     parent_children_len = children[parent['children']] + 1
-                    if parent_children_len == 1 and not pa:#only parent 0 is a real parent, parent 2 is only used on alloc 1
+                    if parent_children_len == 1 and not pa:  # only parent 0 is a real parent, parent 2 is only used on alloc 1
                         computes[next_compute_i], next_compute_i = parent_id, next_compute_i + 1
                     children[parent['children']] = parent_children_len
                     children[parent['children'] + parent_children_len] = computes[compute_i - 1]
@@ -187,7 +191,7 @@ def compute_event(compute_info,
                                                    computes, next_compute_i, 'loss')
         compute_i += 1
     else:
-        for level in range(compute_info['max_level'] - compute_info['start_level']):# perform back allocation 2
+        for level in range(compute_info['max_level'] - compute_info['start_level']):  # perform back allocation 2
             # print(level, next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i + 2], computes[next_compute_i - 1: next_compute_i + 1])
             next_compute_i += 1
             while computes[compute_i]:
@@ -208,12 +212,13 @@ def compute_event(compute_info,
         # we go through the last level node and replace the gross loss by net loss, then reset compute_i to its value
         out_compute_i = compute_i
         while computes[compute_i]:
-            node_i, compute_i= computes[compute_i], compute_i + 1
+            node_i, compute_i = computes[compute_i], compute_i + 1
             node = nodes_array[node_i]
             # net loss layer i is initial loss - sum of all layer up to i
-            losses[loss_indexes[node['ba']]] = np.maximum(losses[loss_indexes[node['loss']]] - losses[loss_indexes[node['ba']]], 0)
+            losses[loss_indexes[node['ba']]] = np.maximum(
+                losses[loss_indexes[node['loss']]] - losses[loss_indexes[node['ba']]], 0)
             for layer in range(1, node['layer_len']):
-                losses[loss_indexes[node['ba'] + layer]] = np.maximum((losses[loss_indexes[node['ba'] + layer - 1 ]]
+                losses[loss_indexes[node['ba'] + layer]] = np.maximum((losses[loss_indexes[node['ba'] + layer - 1]]
                                                                        - losses[loss_indexes[node['ba'] + layer]]),
                                                                       0)
 

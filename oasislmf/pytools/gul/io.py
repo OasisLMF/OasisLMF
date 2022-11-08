@@ -40,7 +40,8 @@ def gen_valid_area_peril(valid_area_peril_id):
     return valid_area_peril_dict
 
 
-def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_area_peril_id=None, buff_size=GETMODEL_STREAM_BUFF_SIZE, ):
+def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds,
+                         valid_area_peril_id=None, buff_size=GETMODEL_STREAM_BUFF_SIZE, ):
     """Read the getmodel output stream yielding data event by event.
 
     Args:

@@ -38,16 +38,20 @@ def create_currency_rates(currency_conversion):
 
     if currency_conversion.get('currency_conversion_type') == 'DictBasedCurrencyRates':
         if currency_conversion.get("source_type") == 'csv':
-            return DictBasedCurrencyRates.from_csv(get_path('file_path'), **currency_conversion.get("read_parameters", {}))
+            return DictBasedCurrencyRates.from_csv(
+                get_path('file_path'), **currency_conversion.get("read_parameters", {}))
         elif currency_conversion.get("source_type") == 'parquet':
-            return DictBasedCurrencyRates.from_parquet(get_path('file_path'), **currency_conversion.get("read_parameters", {}))
+            return DictBasedCurrencyRates.from_parquet(
+                get_path('file_path'), **currency_conversion.get("read_parameters", {}))
         elif currency_conversion.get("source_type", '').lower() == 'dict':
             return DictBasedCurrencyRates(currency_conversion['currency_rates'])
         else:
-            raise OasisException(f"Unsuported currency_conversion source type : {currency_conversion.get('source_type')}")
+            raise OasisException(
+                f"Unsuported currency_conversion source type : {currency_conversion.get('source_type')}")
     elif currency_conversion.get('currency_conversion_type') == 'FxCurrencyRates':
         if FxCurrencyRates is None:
-            raise OasisException(f"You must install package forex-python to use builtin_currency_conversion_type FxCurrencyRates")
+            raise OasisException(
+                f"You must install package forex-python to use builtin_currency_conversion_type FxCurrencyRates")
 
         _datetime = currency_conversion.get('datetime')
         if _datetime is not None:
@@ -65,7 +69,8 @@ def create_currency_rates(currency_conversion):
         return _class(**currency_conversion.get("custom_parameters", {}))
 
     else:
-        raise OasisException(f"unsupported currency_conversion_type {currency_conversion.get('currency_conversion_type')}")
+        raise OasisException(
+            f"unsupported currency_conversion_type {currency_conversion.get('currency_conversion_type')}")
 
 
 def manage_multiple_currency(oed_path, oed_df, reporting_currency, currency_rate, ods_fields):
@@ -74,17 +79,20 @@ def manage_multiple_currency(oed_path, oed_df, reporting_currency, currency_rate
 
     if not reporting_currency:
         if len(currencies) > 1:
-            logger.warning(f"file {oed_path} contains multiple currencies, but no reporting_currency has been specified")
+            logger.warning(
+                f"file {oed_path} contains multiple currencies, but no reporting_currency has been specified")
 
     elif currency_rate is None:
         if len(currencies) > 1 or currencies[0] != reporting_currency:
-            raise OasisException(f"currency_conversion_json is necessary to perform conversion of {oed_path} to {reporting_currency}")
+            raise OasisException(
+                f"currency_conversion_json is necessary to perform conversion of {oed_path} to {reporting_currency}")
 
     else:
         logs = []
         for cur in currencies:
             if cur != reporting_currency:
-                logs.append(f"{cur} => {reporting_currency}: rate of exchange {currency_rate.get_rate(cur, reporting_currency)}")
+                logs.append(
+                    f"{cur} => {reporting_currency}: rate of exchange {currency_rate.get_rate(cur, reporting_currency)}")
         if logs:
             logger.info(f"currency conversion for file {oed_path}:\n\t" + "\n\t".join(logs))
             convert_currency(oed_df, reporting_currency, currency_rate, ods_fields)

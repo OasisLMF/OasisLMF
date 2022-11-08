@@ -22,23 +22,22 @@ class Genbash(TestCase):
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "cov_kparse_reference")
 
         # defaults
-        cls.ri_iterations    = 0
-        cls.gul_alloc_rule   = 0
-        cls.il_alloc_rule    = 2
-        cls.ri_alloc_rule    = 2
-        cls.num_gul_per_lb   = 0
-        cls.num_fm_per_lb    = 0
-        cls.event_shuffle    = 1
-        cls.fifo_tmp_dir     = False
-        cls.bash_trace       = False
-        cls.stderr_guard     = False
+        cls.ri_iterations = 0
+        cls.gul_alloc_rule = 0
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 2
+        cls.num_gul_per_lb = 0
+        cls.num_fm_per_lb = 0
+        cls.event_shuffle = 1
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = True
         cls.fmpy = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
-
 
     def setUp(self):
         self.temp_reference_file = None
@@ -96,17 +95,17 @@ class Genbash(TestCase):
             fmpy=(fmpy or self.fmpy),
         )
 
-    def gen_chunked_bash(self, name, 
-        num_partitions,
-        num_reinsurance_iterations=None,
-        fifo_tmp_dir=None,
-        stderr_guard=None,
-        gul_alloc_rule=None,
-        il_alloc_rule=None,
-        ri_alloc_rule=None,
-        bash_trace=None,
-        gul_legacy_stream=None,
-        fmpy=None):
+    def gen_chunked_bash(self, name,
+                         num_partitions,
+                         num_reinsurance_iterations=None,
+                         fifo_tmp_dir=None,
+                         stderr_guard=None,
+                         gul_alloc_rule=None,
+                         il_alloc_rule=None,
+                         ri_alloc_rule=None,
+                         bash_trace=None,
+                         gul_legacy_stream=None,
+                         fmpy=None):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -134,9 +133,9 @@ class Genbash(TestCase):
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
-        )   
+        )
 
-        ## debug 
+        # debug
         #print(json.dumps(params, indent=4))
 
         fifo_tmp_dir = params['fifo_tmp_dir']
@@ -148,12 +147,12 @@ class Genbash(TestCase):
 
             with bash_wrapper(params['filename'], bash_trace or self.bash_trace, stderr_guard or self.stderr_guard):
                 create_bash_analysis(
-                    **{ 
+                    **{
                         **params,
                         'process_number': process_id + 1,
                         'fifo_tmp_dir': fifo_tmp_dir,
-                    }   
-                )   
+                    }
+                )
                 fifo_tmp_dir = False
 
         # remove the file if it already exists
@@ -163,7 +162,6 @@ class Genbash(TestCase):
 
         with bash_wrapper(params['filename'], bash_trace or self.bash_trace, stderr_guard or self.stderr_guard):
             create_bash_outputs(**params)
-
 
     def check_chunks(self, name, num_partitions):
         for i in range(num_partitions):
@@ -557,7 +555,7 @@ class Genbash(TestCase):
         self.check("gul_il_ord_palt_output_10_partition")
 
 # =============================================================================
-# chunked analysis checks 
+# chunked analysis checks
 # =============================================================================
 
     def test_gul_summarycalc_1_partition_chunk(self):
@@ -880,6 +878,7 @@ class Genbash(TestCase):
         self.gen_chunked_bash("analysis_settings_4", 1, 1)
         self.check_chunks("analysis_settings_4_1_reins_layer_1_partition", 1)
 
+
 class Genbash_GulItemStream(Genbash):
     @classmethod
     def setUpClass(cls):
@@ -888,13 +887,13 @@ class Genbash_GulItemStream(Genbash):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_reference")
 
-        cls.ri_iterations  = 0
+        cls.ri_iterations = 0
         cls.gul_alloc_rule = 1
-        cls.il_alloc_rule  = 2
-        cls.ri_alloc_rule  = 3
-        cls.fifo_tmp_dir   = False
-        cls.bash_trace     = False
-        cls.stderr_guard   = False
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 3
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -910,13 +909,13 @@ class Genbash_ErrorGuard(Genbash):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "err_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "err_kparse_reference")
 
-        cls.ri_iterations  = 0
+        cls.ri_iterations = 0
         cls.gul_alloc_rule = 1
-        cls.il_alloc_rule  = 2
-        cls.ri_alloc_rule  = 3
-        cls.fifo_tmp_dir   = False
-        cls.bash_trace     = False
-        cls.stderr_guard   = True
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 3
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = True
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -932,13 +931,13 @@ class Genbash_TempDir(Genbash):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_kparse_reference")
 
-        cls.ri_iterations  = 0
+        cls.ri_iterations = 0
         cls.gul_alloc_rule = 1
-        cls.il_alloc_rule  = 2
-        cls.ri_alloc_rule  = 3
-        cls.fifo_tmp_dir   = True
-        cls.bash_trace     = False
-        cls.stderr_guard   = False
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 3
+        cls.fifo_tmp_dir = True
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -954,13 +953,13 @@ class Genbash_FullCorrItemStream(Genbash):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_fc_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "itm_fc_kparse_reference")
 
-        cls.ri_iterations  = 0
+        cls.ri_iterations = 0
         cls.gul_alloc_rule = 1
-        cls.il_alloc_rule  = 2
-        cls.ri_alloc_rule  = 3
-        cls.fifo_tmp_dir   = False
-        cls.bash_trace     = False
-        cls.stderr_guard   = False
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 3
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -976,13 +975,13 @@ class Genbash_FullCorrErrorGuard(Genbash):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "err_fc_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "err_fc_kparse_reference")
 
-        cls.ri_iterations  = 0
+        cls.ri_iterations = 0
         cls.gul_alloc_rule = 1
-        cls.il_alloc_rule  = 2
-        cls.ri_alloc_rule  = 3
-        cls.fifo_tmp_dir   = False
-        cls.bash_trace     = False
-        cls.stderr_guard   = True
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 3
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = True
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -998,13 +997,13 @@ class Genbash_FullCorrTempDir(Genbash):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_fc_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_fc_kparse_reference")
 
-        cls.ri_iterations  = 0
+        cls.ri_iterations = 0
         cls.gul_alloc_rule = 1
-        cls.il_alloc_rule  = 2
-        cls.ri_alloc_rule  = 3
-        cls.fifo_tmp_dir   = True
-        cls.bash_trace     = False
-        cls.stderr_guard   = False
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 3
+        cls.fifo_tmp_dir = True
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -1021,15 +1020,15 @@ class Genbash_LoadBanlancerFmpy(Genbash):
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "lb_kparse_reference")
 
         # defaults
-        cls.ri_iterations    = 0
-        cls.gul_alloc_rule   = 0
-        cls.il_alloc_rule    = 2
-        cls.ri_alloc_rule    = 2
-        cls.num_gul_per_lb   = 2
-        cls.num_fm_per_lb    = 2
-        cls.fifo_tmp_dir     = False
-        cls.bash_trace       = False
-        cls.stderr_guard     = False
+        cls.ri_iterations = 0
+        cls.gul_alloc_rule = 0
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 2
+        cls.num_gul_per_lb = 2
+        cls.num_fm_per_lb = 2
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = False
         cls.fmpy = True
 
@@ -1047,16 +1046,16 @@ class Genbash_EventShuffle(Genbash):
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "eve_kparse_reference")
 
         # defaults
-        cls.ri_iterations    = 0
-        cls.gul_alloc_rule   = 0
-        cls.il_alloc_rule    = 2
-        cls.ri_alloc_rule    = 2
-        cls.num_gul_per_lb   = 2
-        cls.num_fm_per_lb    = 2
-        cls.event_shuffle    = 3
-        cls.fifo_tmp_dir     = False
-        cls.bash_trace       = False
-        cls.stderr_guard     = False
+        cls.ri_iterations = 0
+        cls.gul_alloc_rule = 0
+        cls.il_alloc_rule = 2
+        cls.ri_alloc_rule = 2
+        cls.num_gul_per_lb = 2
+        cls.num_fm_per_lb = 2
+        cls.event_shuffle = 3
+        cls.fifo_tmp_dir = False
+        cls.bash_trace = False
+        cls.stderr_guard = False
         cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):

@@ -12,7 +12,7 @@ from logging import NullHandler
 
 logger = logging.getLogger(__name__)
 handler = NullHandler()
-handler.name='oasislmf'
+handler.name = 'oasislmf'
 logger.addHandler(handler)
 
 
@@ -29,6 +29,7 @@ class MyLoader(Loader):
         new_name = f"oasislmf.{self.sub_module}"
         sys.modules[old_name] = importlib.import_module(new_name)
         return sys.modules[old_name]
+
 
 class MyImport(MetaPathFinder):
     """ Support alias of depreciated sub-modules
@@ -53,11 +54,11 @@ class MyImport(MetaPathFinder):
         }
 
     def find_spec(self, fullname, path=None, target=None):
-        import_path = fullname.split(".",1)
+        import_path = fullname.split(".", 1)
         if fullname.startswith("oasislmf") and len(import_path) > 1:
             import_path = import_path[1]
             for deprecated in self.depricated_modules:
-                if deprecated == import_path or import_path.startswith(deprecated+'.'):
+                if deprecated == import_path or import_path.startswith(deprecated + '.'):
                     with warnings.catch_warnings():
                         warnings.simplefilter("always")
                         warnings.warn(
@@ -66,5 +67,6 @@ class MyImport(MetaPathFinder):
                     import_path = import_path.replace(deprecated, self.depricated_modules[deprecated])
 
             return spec_from_loader(fullname, MyLoader(import_path))
+
 
 sys.meta_path.append(MyImport())

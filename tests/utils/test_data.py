@@ -85,7 +85,8 @@ class TestFactorizeArrays(TestCase):
         rows=integers(min_value=10, max_value=100),
         cols=integers(min_value=10, max_value=100)
     )
-    def test_factorize_ndarray__no_row_or_col_indices_provided__raises_oasis_exception(self, num_chars, str_len, rows, cols):
+    def test_factorize_ndarray__no_row_or_col_indices_provided__raises_oasis_exception(
+            self, num_chars, str_len, rows, cols):
         alphabet = np.random.choice(list(string.ascii_lowercase + string.digits), size=num_chars)
         strings = [''.join([np.random.choice(alphabet) for i in range(str_len)]) for j in range(rows * cols)]
 
@@ -260,7 +261,8 @@ class TestGetDataframe(TestCase):
             'float_col': sampled_from(['float32', 'float64'])
         })
     )
-    def test_get_dataframe__from_csv_file__set_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
+    def test_get_dataframe__from_csv_file__set_col_dtypes_option_and_use_defaults_for_all_other_options(
+            self, data, dtypes):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -295,7 +297,8 @@ class TestGetDataframe(TestCase):
             'FloatCol': sampled_from(['float32', 'float64'])
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_dtypes_option_and_use_defaults_for_all_other_options(
+            self, data, dtypes):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -315,7 +318,8 @@ class TestGetDataframe(TestCase):
 
     @settings(max_examples=10, deadline=None)
     @given(empty_data_err_msg=text(min_size=1, max_size=10, alphabet=string.ascii_lowercase))
-    def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(self, empty_data_err_msg):
+    def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(
+            self, empty_data_err_msg):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame()
@@ -352,7 +356,8 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
+    def test_get_dataframe__from_csv_file__set_required_cols_option_and_use_defaults_for_all_other_options(
+            self, data, required):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -391,7 +396,8 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_option_and_use_defaults_for_all_other_options(
+            self, data, required):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -431,7 +437,8 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
+    def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(
+            self, data, missing_cols):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -467,7 +474,8 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(
+            self, data, missing):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -501,7 +509,8 @@ class TestGetDataframe(TestCase):
             'float_col': floats(min_value=1.0, allow_infinity=False)
         })
     )
-    def test_get_dataframe__from_csv_file__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
+    def test_get_dataframe__from_csv_file__set_col_defaults_option_and_use_defaults_for_all_other_options(
+            self, data, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -537,12 +546,13 @@ class TestGetDataframe(TestCase):
             'FloatCol': floats(min_value=1.0, allow_infinity=False)
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_defaults_option_and_use_defaults_for_all_other_options(
+            self, data, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES  else x)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
@@ -569,7 +579,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             data[-1]['int_col'] = np.nan
@@ -599,7 +610,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data[-1]['int_col'] = np.nan
@@ -632,7 +644,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
@@ -663,7 +676,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
@@ -695,11 +709,13 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k ==
+                     'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -729,11 +745,13 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
+                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -777,7 +795,8 @@ class TestGetDataframe(TestCase):
             'bool_col': just(False)
         })
     )
-    def test_get_dataframe__from_csv_file__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
+    def test_get_dataframe__from_csv_file__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(
+            self, data, required, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -821,7 +840,8 @@ class TestGetDataframe(TestCase):
             'boolCol': just(False)
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(
+            self, data, required, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -866,7 +886,8 @@ class TestGetDataframe(TestCase):
             'bool_col': just(False)
         })
     )
-    def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
+    def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(
+            self, data, missing, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -906,7 +927,8 @@ class TestGetDataframe(TestCase):
             'boolCol': just(False)
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(
+            self, data, missing, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -933,7 +955,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_columns___set_lowercase_cols_option_to_false_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_columns___set_lowercase_cols_option_to_false_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -966,7 +989,8 @@ class TestGetDataframe(TestCase):
             'FloatCol': sampled_from(['float32', 'float64'])
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_columns__set_lowercase_col_option_to_false_and_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
+    def test_get_dataframe__from_csv_file_with_mixed_case_columns__set_lowercase_col_option_to_false_and_col_dtypes_option_and_use_defaults_for_all_other_options(
+            self, data, dtypes):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -1004,7 +1028,8 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options(
+            self, data, required):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -1044,7 +1069,8 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(
+            self, data, missing):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -1079,7 +1105,8 @@ class TestGetDataframe(TestCase):
             'FloatCol': floats(min_value=1.0, allow_infinity=False)
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_col_defaults_option_and_use_defaults_for_all_other_options(
+            self, data, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -1109,7 +1136,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_lowercase_cols_option_to_false_and_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_lowercase_cols_option_to_false_and_non_na_cols_option_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data[-1]['int_col'] = np.nan
@@ -1141,7 +1169,8 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
@@ -1172,11 +1201,13 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(
+            self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
+                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -1219,7 +1250,8 @@ class TestGetDataframe(TestCase):
             'boolCol': just(False)
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(
+            self, data, required, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -1263,7 +1295,8 @@ class TestGetDataframe(TestCase):
             'boolCol': just(False)
         })
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(
+            self, data, missing, defaults):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -1346,7 +1379,6 @@ class TestGetTimestamp(TestCase):
         self.assertEqual(result, expected)
 
 
-
 class TestOedDataTypes(TestCase):
 
     def setUp(self):
@@ -1374,216 +1406,215 @@ class TestOedDataTypes(TestCase):
             np.float64
         )
 
-
     @settings(max_examples=10, deadline=None)
     @given(
         data=fixed_dictionaries({
-             "PortNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "AccNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocName": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocGroup": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CorrelationGroup": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "IsPrimary": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "IsTenant": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingID": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocInceptionDate": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocExpiryDate": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "PercentComplete": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CompletionDate": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CountryCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Latitude": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Longitude": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "StreetAddress": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "PostalCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "City": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "AreaCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "AreaName": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogScheme1": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogName1": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogScheme2": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogName2": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogScheme3": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogName3": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogScheme4": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogName4": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogScheme5": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeogName5": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "AddressMatch": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GeocodeQuality": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Geocoder": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "OrgOccupancyScheme": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "OrgOccupancyCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "OrgConstructionScheme": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "OrgConstructionCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "OccupancyCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ConstructionCode": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "YearBuilt": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "NumberOfStoreys": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "NumberOfBuildings": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloorArea": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloorAreaUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocUserDef1": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocUserDef2": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocUserDef3": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocUserDef4": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocUserDef5": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FlexiLocZZZ": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FlexiLocTEST": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocPerilsCovered": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingTIV": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "OtherTIV": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ContentsTIV": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BITIV": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BIPOI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocCurrency": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocGrossPremium": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocTax": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocBrokerage": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocNetPremium": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "NonCatGroundUpLoss": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocParticipation": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "PayoutBasis": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ReinsTag": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CondNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CondPriority": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedCode1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedType1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDed1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMinDed1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMaxDed1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedCode2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedType2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDed2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMinDed2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMaxDed2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedCode3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedType3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDed3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMinDed3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMaxDed3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedCode4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedType4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDed4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMinDed4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMaxDed4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedCode5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedType5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDed5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMinDed5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMaxDed5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedCode6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDedType6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocDed6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMinDed6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocMaxDed6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitCode1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitType1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimit1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitCode2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitType2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimit2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitCode3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitType3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimit3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitCode4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitType4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimit4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitCode5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitType5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimit5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitCode6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimitType6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocLimit6All": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BIWaitingPeriod": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LocPeril": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "YearUpgraded": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "SurgeLeakage": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "SprinklerType": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "PercentSprinklered": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofCover": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofYearBuilt": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofGeometry": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofEquipment": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofFrame": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofMaintenance": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingCondition": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofAttachedStructures": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofDeck": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofPitch": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofAnchorage": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofDeckAttachment": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "RoofCoverAttachment": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GlassType": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "LatticeType": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloodZone": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "SoftStory": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Basement": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BasementLevelCount": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "WindowProtection": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FoundationType": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "WallAttachedStructure": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "AppurtenantStructure": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ConstructionQuality": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GroundEquipment": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "EquipmentBracing": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Flashing": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingShape": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ShapeIrregularity": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Pounding": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Ornamentation": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "SpecialEQConstruction": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Retrofit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CrippleWall": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FoundationConnection": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ShortColumn": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Fatigue": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Cladding": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BIPreparedness": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BIRedundancy": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FirstFloorHeight": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FirstFloorHeightUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Datum": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GroundElevation": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "GroundElevationUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Tank": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Redundancy": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "InternalPartition": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ExternalDoors": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Torsion": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "MechanicalEquipmentSide": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ContentsWindVuln": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ContentsFloodVuln": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ContentsQuakeVuln": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "SmallDebris": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloorsOccupied": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloodDefenseHeight": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloodDefenseHeightUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FloodDebrisResilience": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BaseFloodElevation": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BaseFloodElevationUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingHeight": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingHeightUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingValuation": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "TreeExposure": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Chimney": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingType": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Packaging": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Protection": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "SalvageProtection": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ValuablesStorage": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "DaysHeld": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BrickVeneer": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "FEMACompliance": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CustomFloodSOP": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "CustomFloodZone": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "MultiStoryHall": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "BuildingExteriorOpening": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "ServiceEquipmentProtection": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "TallOneStory": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "TerrainRoughness": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "NumberOfEmployees": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "Payroll": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "PortNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "AccNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocName": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocGroup": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CorrelationGroup": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "IsPrimary": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "IsTenant": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingID": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocInceptionDate": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocExpiryDate": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "PercentComplete": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CompletionDate": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CountryCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Latitude": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Longitude": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "StreetAddress": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "PostalCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "City": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "AreaCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "AreaName": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogScheme1": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogName1": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogScheme2": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogName2": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogScheme3": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogName3": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogScheme4": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogName4": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogScheme5": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeogName5": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "AddressMatch": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GeocodeQuality": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Geocoder": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "OrgOccupancyScheme": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "OrgOccupancyCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "OrgConstructionScheme": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "OrgConstructionCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "OccupancyCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ConstructionCode": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "YearBuilt": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "NumberOfStoreys": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "NumberOfBuildings": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloorArea": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloorAreaUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocUserDef1": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocUserDef2": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocUserDef3": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocUserDef4": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocUserDef5": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FlexiLocZZZ": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FlexiLocTEST": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocPerilsCovered": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingTIV": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "OtherTIV": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ContentsTIV": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BITIV": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BIPOI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocCurrency": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocGrossPremium": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocTax": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocBrokerage": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocNetPremium": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "NonCatGroundUpLoss": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocParticipation": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "PayoutBasis": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ReinsTag": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CondNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CondPriority": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedCode1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedType1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDed1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMinDed1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMaxDed1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedCode2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedType2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDed2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMinDed2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMaxDed2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedCode3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedType3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDed3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMinDed3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMaxDed3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedCode4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedType4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDed4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMinDed4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMaxDed4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedCode5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedType5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDed5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMinDed5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMaxDed5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedCode6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDedType6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocDed6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMinDed6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocMaxDed6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitCode1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitType1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimit1Building": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitCode2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitType2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimit2Other": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitCode3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitType3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimit3Contents": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitCode4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitType4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimit4BI": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitCode5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitType5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimit5PD": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitCode6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimitType6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocLimit6All": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BIWaitingPeriod": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LocPeril": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "YearUpgraded": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "SurgeLeakage": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "SprinklerType": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "PercentSprinklered": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofCover": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofYearBuilt": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofGeometry": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofEquipment": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofFrame": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofMaintenance": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingCondition": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofAttachedStructures": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofDeck": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofPitch": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofAnchorage": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofDeckAttachment": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "RoofCoverAttachment": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GlassType": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "LatticeType": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloodZone": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "SoftStory": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Basement": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BasementLevelCount": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "WindowProtection": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FoundationType": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "WallAttachedStructure": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "AppurtenantStructure": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ConstructionQuality": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GroundEquipment": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "EquipmentBracing": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Flashing": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingShape": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ShapeIrregularity": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Pounding": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Ornamentation": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "SpecialEQConstruction": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Retrofit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CrippleWall": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FoundationConnection": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ShortColumn": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Fatigue": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Cladding": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BIPreparedness": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BIRedundancy": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FirstFloorHeight": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FirstFloorHeightUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Datum": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GroundElevation": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "GroundElevationUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Tank": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Redundancy": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "InternalPartition": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ExternalDoors": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Torsion": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "MechanicalEquipmentSide": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ContentsWindVuln": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ContentsFloodVuln": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ContentsQuakeVuln": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "SmallDebris": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloorsOccupied": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloodDefenseHeight": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloodDefenseHeightUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FloodDebrisResilience": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BaseFloodElevation": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BaseFloodElevationUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingHeight": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingHeightUnit": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingValuation": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "TreeExposure": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Chimney": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingType": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Packaging": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Protection": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "SalvageProtection": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ValuablesStorage": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "DaysHeld": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BrickVeneer": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "FEMACompliance": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CustomFloodSOP": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "CustomFloodZone": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "MultiStoryHall": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "BuildingExteriorOpening": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "ServiceEquipmentProtection": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "TallOneStory": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "TerrainRoughness": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "NumberOfEmployees": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "Payroll": sampled_from([np.nan, str(1), int(1), float(1)]),
         })
     )
     def test_location_dtypes_loaded_correctly(self, data):
@@ -1614,12 +1645,10 @@ class TestOedDataTypes(TestCase):
                     print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
                     self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
 
-
         finally:
             os.remove(loc_sample_file.name)
 
-
-    ## TODO - add wrapper loading funcs for other OED files and test here
+    # TODO - add wrapper loading funcs for other OED files and test here
 
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)
@@ -1838,7 +1867,6 @@ class TestOedDataTypes(TestCase):
     def test_accounts_loaded_correctly(self, data):
         pass
 
-
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)
     @given(
@@ -1875,7 +1903,6 @@ class TestOedDataTypes(TestCase):
     )
     def test_ri_info_loaded_correctly(self, data):
         pass
-
 
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)

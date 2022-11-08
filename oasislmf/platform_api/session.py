@@ -17,7 +17,8 @@ from ..utils.exceptions import OasisException
 
 
 class APISession(Session):
-    def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, request_interval=0.02, logger=None, **kwargs):
+    def __init__(self, api_url, username, password, timeout=25, retries=5,
+                 retry_delay=1, request_interval=0.02, logger=None, **kwargs):
         super(APISession, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger(__name__)
 
@@ -130,7 +131,15 @@ class APISession(Session):
             try:
                 abs_fp = os.path.realpath(os.path.expanduser(filepath))
                 m = MultipartEncoder(fields={'file': (os.path.basename(filepath), open(abs_fp, 'rb'), content_type)})
-                r = super(APISession, self).post(url, data=m, headers={'Content-Type': m.content_type}, timeout=self.timeout, **kwargs)
+                r = super(
+                    APISession,
+                    self).post(
+                    url,
+                    data=m,
+                    headers={
+                        'Content-Type': m.content_type},
+                    timeout=self.timeout,
+                    **kwargs)
                 r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:

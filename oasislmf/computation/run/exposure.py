@@ -41,20 +41,33 @@ class RunExposure(ComputationStep):
     loss factors (loss % of TIV).
     """
     step_params = [
-        {'name': 'src_dir',              'flag':'-s', 'is_path': True, 'pre_exist': True, 'help': ''},
-        {'name': 'run_dir',              'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': ''},
-        {'name': 'output_file',          'flag':'-f', 'is_path': True, 'pre_exist': False, 'help': '', 'type': str},
-        {'name': 'loss_factor',          'flag':'-l', 'type' :float, 'nargs':'+', 'help': '', 'default': [1.0]},
-        {'name': 'ktools_alloc_rule_il', 'flag':'-a', 'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'ktools_alloc_rule_ri', 'flag':'-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'output_level',         'flag':'-o', 'help': 'Keys files output format', 'choices':['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
-        {'name': 'num_subperils',        'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'coverage_types',       'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
-        {'name': 'fmpy',                 'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
-        {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
-        {'name': 'fmpy_sort_output',     'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
-        {'name': 'stream_type',          'flag':'-t', 'default': 2,  'type':int,  'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
-        {"name": "hashed_group_id",      "default": True, "type": str2bool, "const": False, 'nargs': '?',  "help": "Hashes the group_id in the items.bin"},
+        {'name': 'src_dir', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': ''},
+        {'name': 'run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': ''},
+        {'name': 'output_file', 'flag': '-f', 'is_path': True, 'pre_exist': False, 'help': '', 'type': str},
+        {'name': 'loss_factor', 'flag': '-l', 'type': float, 'nargs': '+', 'help': '', 'default': [1.0]},
+        {'name': 'ktools_alloc_rule_il', 'flag': '-a', 'default': KTOOLS_ALLOC_IL_DEFAULT,
+            'type': int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
+        {'name': 'ktools_alloc_rule_ri', 'flag': '-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,
+            'type': int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format',
+            'choices': ['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
+        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
+            'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'coverage_types',
+         'type': int,
+         'nargs': '+',
+         'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
+         'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True,
+            'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool,
+            'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'stream_type', 'flag': '-t', 'default': 2, 'type': int,
+            'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
+        {"name": "hashed_group_id", "default": True, "type": str2bool, "const": False,
+            'nargs': '?', "help": "Hashes the group_id in the items.bin"},
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
@@ -92,9 +105,10 @@ class RunExposure(ComputationStep):
                 'a file named `location.*` and `account.x` are expected', e
             )
 
-        ri_info_fp = accounts_fp and find_exposure_fp(src_dir, 'info', required = False)
+        ri_info_fp = accounts_fp and find_exposure_fp(src_dir, 'info', required=False)
         ri_scope_fp = ri_info_fp and find_exposure_fp(src_dir, 'scope', required=False)
-        if ri_scope_fp is None: ri_info_fp = None # Need both files for ri
+        if ri_scope_fp is None:
+            ri_info_fp = None  # Need both files for ri
 
         il = bool(accounts_fp)
         ril = bool(ri_scope_fp)
@@ -115,7 +129,7 @@ class RunExposure(ComputationStep):
 
         # 2. Start Oasis files generation
         GenerateFiles(
-           oasis_files_dir=run_dir,
+            oasis_files_dir=run_dir,
             oed_location_csv=location_fp,
             oed_accounts_csv=accounts_fp,
             oed_info_csv=ri_info_fp,
@@ -304,17 +318,28 @@ class RunFmTest(ComputationStep):
     """
 
     step_params = [
-        {'name': 'test_case_name',      'flag': '-c',       'type': str, 'help': 'Runs a specific test sub-directory from "test_case_dir". If not set then run all tests found.'},
-        {'name': 'list_tests',          'flag': '-l',       'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
-        {'name': 'test_case_dir',       'flag': '-t',       'default': os.getcwd(), 'is_path': True, 'pre_exist': True, 'help': 'Test directory - should contain test directories containing OED files and expected results'},
-        {'name': 'run_dir',             'flag': '-r',       'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
-        {'name': 'num_subperils',       'flag': '-p',       'default': 1,  'type':int, 'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'test_tolerance',      'type': float,      'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001', 'default': 1e-4},
-        {'name': 'fmpy',                'default': True,    'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
-        {'name': 'fmpy_low_memory',     'default': False,   'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
-        {'name': 'fmpy_sort_output',    'default': True,    'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
-        {'name': 'update_expected',     'default': False},
-        {'name': 'hashed_group_id',     'default': False},
+        {'name': 'test_case_name', 'flag': '-c', 'type': str,
+            'help': 'Runs a specific test sub-directory from "test_case_dir". If not set then run all tests found.'},
+        {'name': 'list_tests', 'flag': '-l', 'action': 'store_true',
+            'help': 'List the valid test cases in the test directory rather than running'},
+        {'name': 'test_case_dir', 'flag': '-t', 'default': os.getcwd(), 'is_path': True, 'pre_exist': True,
+         'help': 'Test directory - should contain test directories containing OED files and expected results'},
+        {'name': 'run_dir', 'flag': '-r',
+            'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
+        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
+            'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'test_tolerance',
+         'type': float,
+         'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001',
+         'default': 1e-4},
+        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True,
+            'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool,
+            'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'update_expected', 'default': False},
+        {'name': 'hashed_group_id', 'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
     ]
 

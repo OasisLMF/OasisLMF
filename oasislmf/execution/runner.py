@@ -9,8 +9,9 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import genbash
 
-## NEW IMPORTS
+# NEW IMPORTS
 from .bash import create_bash_outputs, create_bash_analysis, bash_params, bash_wrapper
+
 
 @oasis_log()
 def run(analysis_settings,
@@ -24,7 +25,7 @@ def run(analysis_settings,
         filename='run_ktools.sh',
         gul_legacy_stream=False,
         **kwargs
-):
+        ):
 
     ## MOVED into bash_params #########################################
     #  keep here for the moment and refactor after testing
@@ -38,7 +39,8 @@ def run(analysis_settings,
     if custom_gulcalc_cmd:
         if not shutil.which(custom_gulcalc_cmd):
             raise OasisException(
-                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
+                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(
+                    custom_gulcalc_cmd)
             )
     # when not set then fallback to previous behaviour:
     # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
@@ -104,9 +106,9 @@ def run(analysis_settings,
 
 @oasis_log()
 def run_analysis(**params):
-    with bash_wrapper(params['filename'], 
-                      params['bash_trace'], 
-                      params['stderr_guard'], 
+    with bash_wrapper(params['filename'],
+                      params['bash_trace'],
+                      params['stderr_guard'],
                       log_sub_dir=params.get("process_number", None),
                       process_number=params.get("process_number", None)):
         create_bash_analysis(**params)
