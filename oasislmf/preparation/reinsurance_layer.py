@@ -257,7 +257,7 @@ class ReinsuranceLayer(object):
 
         df_ = df_.merge(
             ri_df_[fields + ['layer_id', 'level_id', 'profile_id']].drop_duplicates(),
-            how='left', on=fields+['layer_id', 'level_id'], suffixes=['', '_y']
+            how='left', on=fields + ['layer_id', 'level_id'], suffixes=['', '_y']
         )
         df_['profile_id'] = df_['profile_id'].where(
             df_['profile_id_y'].isna(), df_['profile_id_y']
@@ -603,14 +603,15 @@ class ReinsuranceLayer(object):
         )
         ri_df['layer_id'] = 0
         ri_df.columns = ri_df.columns.str.lower()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'layer_id'] = ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC].groupby(fields, observed=True).cumcount() + 1
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'layer_id'] = ri_df.loc[ri_df['reinstype']
+                                                                                    == oed.REINS_TYPE_FAC].groupby(fields, observed=True).cumcount() + 1
         ri_info_no_fac = self.ri_info_df[self.ri_info_df['ReinsType'] != oed.REINS_TYPE_FAC].reset_index(drop=True)
         ri_info_no_fac.columns = ri_info_no_fac.columns.str.lower()
         ri_info_no_fac['layer_id'] = ri_info_no_fac.index + 1 + ri_df['layer_id'].max()
         ri_df = ri_df.merge(ri_info_no_fac, how='left', on=ri_info_no_fac.columns.to_list()[:-1], suffixes=['', '_y'])
         ri_df['layer_id'] = ri_df['layer_id'].where(ri_df['layer_id_y'].isna(), ri_df['layer_id_y'])
         ri_df = ri_df.drop('layer_id_y', axis=1)
-        del(ri_info_no_fac)
+        del (ri_info_no_fac)
         ri_df['valid_row'] = ri_df.apply(lambda row: self._check_ri_df_row(row), axis=1)
         if ri_df['valid_row'].all() == False:
             raise OasisException(

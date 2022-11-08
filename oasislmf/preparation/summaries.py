@@ -69,11 +69,11 @@ def get_xref_df(il_inputs_df):
     top_level_cols = ['layer_id', SOURCE_IDX['acc'], 'polnumber']
     top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + top_level_cols]
     bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 1]
-    bottom_level_layers_df.drop(columns = top_level_cols, inplace=True)
+    bottom_level_layers_df.drop(columns=top_level_cols, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
             .drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
             .sort_values(['gul_input_id', 'layer_id'])
-           )
+            )
 
 
 @oasis_log
@@ -104,7 +104,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     # GUL Only
     else:
         summary_mapping = inputs_df.copy(deep=True)
-        summary_mapping['layer_id']=1
+        summary_mapping['layer_id'] = 1
         summary_mapping['agg_id'] = summary_mapping['item_id']
 
     summary_mapping.drop(
@@ -187,7 +187,8 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     """
     oed_cols = [c.lower() for c in oed_col_group]                                               # All requred columns
     unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]                    # columns which in locations / Accounts file
-    mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by] if c in summary_map_df.columns]    # Columns already in summary_map_df
+    mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
+                   if c in summary_map_df.columns]    # Columns already in summary_map_df
     tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
@@ -210,7 +211,8 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
-    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'coverage_type_id'] + oed_col_group, keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
+    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'coverage_type_id'] + oed_col_group,
+                                                   keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
 
     return summary_ids[0], summary_ids[1], summary_tiv
 
@@ -478,14 +480,15 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             # is the intersection empty because the columns don't exist?
             if set(cols_group_by).difference(all_cols):
                 err_msg = 'Input error: Summary set columns missing from the input files: {}'.format(
-                           set(cols_group_by).difference(all_cols))
+                    set(cols_group_by).difference(all_cols))
                 raise OasisException(err_msg)
 
             # Fall back to setting all in single group
             summary_set_df['summary_id'] = 1
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
-            summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv', value=map_df.drop_duplicates(['loc_id', 'coverage_type_id'], keep='first').tiv.sum())
+            summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv',
+                                          value=map_df.drop_duplicates(['loc_id', 'coverage_type_id'], keep='first').tiv.sum())
         else:
             (
                 summary_set_df['summary_id'],
@@ -579,7 +582,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
             gul_map_df = il_map_df
             gul_map_df['item_id'] = gul_map_df['agg_id']
     except Exception:
-        if not (il_summaries or ri_summaries): # accounts is not compulsory
+        if not (il_summaries or ri_summaries):  # accounts is not compulsory
             accounts_df = None
             if gul_summaries:
                 gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
@@ -701,6 +704,7 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
 
     return exposure_summary
 
+
 def get_exposure_summary_all(df, exposure_summary, peril_id):
     """
     Populate dictionary of TIV and number of locations, grouped by peril
@@ -786,7 +790,6 @@ def get_exposure_totals(df):
     }
 
 
-
 @oasis_log
 def get_exposure_summary(
     exposure_df,
@@ -810,30 +813,30 @@ def get_exposure_summary(
     :rtype: dict
     """
 
-    #get location tivs by coveragetype
-    df_summary = pd.DataFrame(columns=['loc_id','coverage_type_id','tiv'])
+    # get location tivs by coveragetype
+    df_summary = pd.DataFrame(columns=['loc_id', 'coverage_type_id', 'tiv'])
 
     for field in exposure_profile:
         if 'FMTermType' in exposure_profile[field].keys():
             if exposure_profile[field]['FMTermType'] == 'TIV':
                 cov_name = str.lower(exposure_profile[field]['ProfileElementName'])
                 coverage_type_id = exposure_profile[field]['CoverageTypeID']
-                tmp_df = exposure_df[['loc_id',cov_name]]
-                tmp_df.columns=['loc_id','tiv']
-                tmp_df['coverage_type_id']=coverage_type_id
-                df_summary = pd.concat([df_summary,tmp_df])
+                tmp_df = exposure_df[['loc_id', cov_name]]
+                tmp_df.columns = ['loc_id', 'tiv']
+                tmp_df['coverage_type_id'] = coverage_type_id
+                df_summary = pd.concat([df_summary, tmp_df])
 
-    #get all perils
+    # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
 
-    df_summary_peril = pd.DataFrame(columns=['loc_id','coverage_type_id','tiv','peril_id'])
+    df_summary_peril = pd.DataFrame(columns=['loc_id', 'coverage_type_id', 'tiv','peril_id'])
 
     for peril_id in peril_list:
         tmp_df = df_summary
-        tmp_df['peril_id']=peril_id
-        df_summary_peril = pd.concat([df_summary_peril,tmp_df])
+        tmp_df['peril_id'] = peril_id
+        df_summary_peril = pd.concat([df_summary_peril, tmp_df])
 
-    df_summary_peril = df_summary_peril.merge(keys_df,how='left',on=['loc_id','coverage_type_id','peril_id'])
+    df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id','coverage_type_id','peril_id'])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
     df_summary_peril['status'] = df_summary_peril['status'].fillna(no_return)
 
@@ -859,14 +862,14 @@ def get_exposure_summary(
                     df_summary_peril,
                     exposure_summary,
                     peril_id
-                    )
+                )
             else:
                 exposure_summary = get_exposure_summary_by_status(
                     df_summary_peril[df_summary_peril['status'] == status],
                     exposure_summary,
                     peril_id,
                     status
-                    )
+                )
 
     return exposure_summary
 
@@ -890,28 +893,29 @@ def write_gul_errors_map(
     :type keys_errors_df: pandas.DataFrame
     """
 
-    cols = ['loc_id','portnumber','accnumber','locnumber','peril_id','coverage_type_id','tiv','status','message']
+    cols = ['loc_id', 'portnumber', 'accnumber','locnumber','peril_id','coverage_type_id','tiv','status','message']
     gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
 
-    exposure_id_cols = ['loc_id','portnumber','accnumber','locnumber']
-    keys_error_cols = ['loc_id','peril_id','coverage_type_id','status','message']
-    tiv_maps = {1:'buildingtiv',2:'othertiv',3:'contentstiv',4:'bitiv'}
+    exposure_id_cols = ['loc_id', 'portnumber', 'accnumber','locnumber']
+    keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id','status','message']
+    tiv_maps = {1: 'buildingtiv', 2:'othertiv',3:'contentstiv',4:'bitiv'}
     exposure_cols = exposure_id_cols + list(tiv_maps.values())
 
     keys_errors_df.columns = keys_error_cols
 
-    gul_inputs_errors_df = exposure_df[exposure_cols].merge(keys_errors_df[keys_error_cols],on=['loc_id'])
-    gul_inputs_errors_df['tiv']=0.0
+    gul_inputs_errors_df = exposure_df[exposure_cols].merge(keys_errors_df[keys_error_cols], on=['loc_id'])
+    gul_inputs_errors_df['tiv'] = 0.0
     for cov_type in tiv_maps:
         tiv_field = tiv_maps[cov_type]
-        gul_inputs_errors_df['tiv']=np.where(
-            gul_inputs_errors_df['coverage_type_id']==cov_type,
+        gul_inputs_errors_df['tiv'] = np.where(
+            gul_inputs_errors_df['coverage_type_id'] == cov_type,
             gul_inputs_errors_df[tiv_field],
             gul_inputs_errors_df['tiv']
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    gul_inputs_errors_df[cols].to_csv(gul_error_map_fp,index=False)
+    gul_inputs_errors_df[cols].to_csv(gul_error_map_fp, index=False)
+
 
 @oasis_log
 def write_exposure_summary(
@@ -946,24 +950,24 @@ def write_exposure_summary(
     """
     keys_success_df = keys_errors_df = None
 
-    #get keys success
+    # get keys success
     if keys_fp:
         keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
         keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-        keys_success_df.columns = ['loc_id','peril_id','coverage_type_id','status']
+        keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id','status']
 
-    #get keys errors
+    # get keys errors
     if keys_errors_fp:
         keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
-        keys_errors_df.columns = ['loc_id','peril_id','coverage_type_id','status','message']
+        keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id','status','message']
         if not keys_errors_df.empty:
-            write_gul_errors_map(target_dir,exposure_df,keys_errors_df)
+            write_gul_errors_map(target_dir, exposure_df, keys_errors_df)
 
-    #concatinate keys responses & run
-    df_keys = pd.concat([keys_success_df,keys_errors_df])
+    # concatinate keys responses & run
+    df_keys = pd.concat([keys_success_df, keys_errors_df])
     exposure_summary = get_exposure_summary(exposure_df, df_keys, exposure_profile)
 
-    #write exposure summary as json fileV
+    # write exposure summary as json fileV
     fp = os.path.join(target_dir, 'exposure_summary_report.json')
     with io.open(fp, 'w', encoding='utf-8') as f:
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))

@@ -54,13 +54,16 @@ def parse_args():
                     'PiWind'
     )
 
-    parser.add_argument('-b', '--mdk-repo-branch', default='develop', help='Target branch in the MDK package GitHub repository to build the package from')
+    parser.add_argument('-b', '--mdk-repo-branch', default='develop',
+                        help='Target branch in the MDK package GitHub repository to build the package from')
 
-    parser.add_argument('-m', '--model-repo-name', default='OasisPiWind', help='Target model GitHub repository name (must be an OasisLMF managed repository)')
+    parser.add_argument('-m', '--model-repo-name', default='OasisPiWind',
+                        help='Target model GitHub repository name (must be an OasisLMF managed repository)')
 
     parser.add_argument('-r', '--model-repo-branch', default='master', help='Target branch in the model GitHub repository to clone')
 
-    parser.add_argument('-t', '--clone-target', default=os.path.abspath('.'), help='Local parent folder in which to clone the model repository - default is script run directory')
+    parser.add_argument('-t', '--clone-target', default=os.path.abspath('.'),
+                        help='Local parent folder in which to clone the model repository - default is script run directory')
 
     parser.add_argument('-g', '--git-transfer-protocol', default='ssh', help='Git transfer protocol - https" or "ssh"')
 
@@ -68,7 +71,8 @@ def parse_args():
 
     parser.add_argument('-d', '--model-run-mode', default='ri', help='Model run mode - `gul` for GUL only, `fm` for GUL + FM, `ri` for GUL + FM + RI')
 
-    parser.add_argument('-n', '--no-cleanup', action='store_true', default=False, help='Whether to cleanup installed MDK installed package and model repository')
+    parser.add_argument('-n', '--no-cleanup', action='store_true', default=False,
+                        help='Whether to cleanup installed MDK installed package and model repository')
 
     args = vars(parser.parse_args())
 
@@ -182,68 +186,68 @@ def model_run_ok(model_run_dir, model_run_mode):
 
     ri = model_run_mode == 'ri'
 
-    assert(_is_non_empty_file(model_run_dir, is_dir=True))
+    assert (_is_non_empty_file(model_run_dir, is_dir=True))
 
-    assert(_is_non_empty_file(os.path.join(model_run_dir, 'analysis_settings.json')))
-    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input'), is_dir=True))
-    assert(_is_non_empty_file(os.path.join(model_run_dir, 'output'), is_dir=True))
-    assert(_is_non_empty_file(os.path.join(model_run_dir, 'static'), is_dir=True))
-    assert(_is_non_empty_file(os.path.join(model_run_dir, 'work'), is_dir=True))
-    assert(_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'analysis_settings.json')))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'input'), is_dir=True))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'output'), is_dir=True))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'static'), is_dir=True))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'work'), is_dir=True))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
 
     direct_csv_inputs_fp = os.path.join(model_run_dir, 'input', 'csv') if not ri else os.path.join(model_run_dir, 'input')
 
     try:
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcexp'), substr_match=True))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcexp'), substr_match=True))
     except AssertionError:
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceloc'), substr_match=True))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceloc'), substr_match=True))
 
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys'), substr_match=True))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys-errors'), substr_match=True))
+    assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys'), substr_match=True))
+    assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys-errors'), substr_match=True))
 
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'items.csv')))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'coverages.csv')))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'gulsummaryxref.csv')))
+    assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'items.csv')))
+    assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'coverages.csv')))
+    assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'gulsummaryxref.csv')))
 
     bin_inputs_fp = os.path.join(model_run_dir, 'input')
-    assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'occurrence.bin')))
-    assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'events.bin')))
-    assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'items.bin')))
-    assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'coverages.bin')))
-    assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'gulsummaryxref.bin')))
+    assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'occurrence.bin')))
+    assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'events.bin')))
+    assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'items.bin')))
+    assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'coverages.bin')))
+    assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'gulsummaryxref.bin')))
 
     outputs_fp = os.path.join(model_run_dir, 'output')
-    assert(_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_aalcalc.csv')))
-    assert(_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_eltcalc.csv')))
-    assert(_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_leccalc_full_uncertainty_aep.csv')))
-    assert(_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_leccalc_full_uncertainty_oep.csv')))
+    assert (_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_aalcalc.csv')))
+    assert (_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_eltcalc.csv')))
+    assert (_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_leccalc_full_uncertainty_aep.csv')))
+    assert (_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_leccalc_full_uncertainty_oep.csv')))
 
     if model_run_mode in ['fm', 'ri']:
         try:
-            assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcacc'), substr_match=True))
+            assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcacc'), substr_match=True))
         except AssertionError:
-            assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceacc'), substr_match=True))
+            assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceacc'), substr_match=True))
 
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_programme.csv')))
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_profile.csv')))
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_policytc.csv')))
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_xref.csv')))
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fmsummaryxref.csv')))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_programme.csv')))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_profile.csv')))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_policytc.csv')))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_xref.csv')))
+        assert (_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fmsummaryxref.csv')))
 
-        assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_programme.bin')))
-        assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_profile.bin')))
-        assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_policytc.bin')))
-        assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_xref.bin')))
-        assert(_is_non_empty_file(os.path.join(bin_inputs_fp, 'fmsummaryxref.bin')))
+        assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_programme.bin')))
+        assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_profile.bin')))
+        assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_policytc.bin')))
+        assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'fm_xref.bin')))
+        assert (_is_non_empty_file(os.path.join(bin_inputs_fp, 'fmsummaryxref.bin')))
 
-        assert(_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_aalcalc.csv')))
-        assert(_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_eltcalc.csv')))
-        assert(_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_leccalc_full_uncertainty_aep.csv')))
-        assert(_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_leccalc_full_uncertainty_oep.csv')))
+        assert (_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_aalcalc.csv')))
+        assert (_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_eltcalc.csv')))
+        assert (_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_leccalc_full_uncertainty_aep.csv')))
+        assert (_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_leccalc_full_uncertainty_oep.csv')))
 
         if model_run_mode == 'ri':
-            assert(_is_non_empty_file(os.path.join(model_run_dir, 'ri_layers'), substr_match=True))
-            assert(_is_non_empty_file(os.path.join(model_run_dir, 'RI'), substr_match=True))
+            assert (_is_non_empty_file(os.path.join(model_run_dir, 'ri_layers'), substr_match=True))
+            assert (_is_non_empty_file(os.path.join(model_run_dir, 'RI'), substr_match=True))
 
     return True
 
@@ -280,7 +284,8 @@ if __name__ == "__main__":
     print('\nCloning model repository {} (branch {}) in {}\n'.format(args['model_repo_name'], args['model_repo_branch'], args['clone_target']))
 
     try:
-        clone_repo(args['model_repo_name'], args['clone_target'], repo_branch=args['model_repo_branch'], transfer_protocol=args['git_transfer_protocol'])
+        clone_repo(args['model_repo_name'], args['clone_target'], repo_branch=args['model_repo_branch'],
+                   transfer_protocol=args['git_transfer_protocol'])
     except CalledProcessError as e:
         raise MdkModelRunException('\nError while trying to clone {} repository: {}\n'.format(args['model_repo_name'], e))
 
@@ -293,7 +298,8 @@ if __name__ == "__main__":
     apply_model_run_mode(args['model_run_mode'], model_mdk_config_fp)
 
     model_run_dir = os.path.join(local_model_repo_fp, 'test-run')
-    print('\nRunning {} end-to-end via MDK using config. file {} - model run dir. is {}\n'.format(args['model_repo_name'], model_mdk_config_fp, model_run_dir))
+    print(
+        '\nRunning {} end-to-end via MDK using config. file {} - model run dir. is {}\n'.format(args['model_repo_name'], model_mdk_config_fp, model_run_dir))
 
     try:
         run_model(model_mdk_config_fp, model_run_dir=model_run_dir)

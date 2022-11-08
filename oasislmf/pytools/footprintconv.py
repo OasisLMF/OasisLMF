@@ -7,19 +7,19 @@ import os
 from zlib import compress
 
 from .getmodel.common import (FootprintHeader, EventIndexBin, EventIndexBinZ,
-                             footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename)
+                              footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def compress_footprint(static_path, decompressed_size = True, compression_level = -1):
+def compress_footprint(static_path, decompressed_size=True, compression_level = -1):
     with ExitStack() as stack:
         footprint_obj = stack.enter_context(open(os.path.join(static_path, footprint_filename), 'rb'))
         footprint_map = mmap.mmap(footprint_obj.fileno(), length=0, access=mmap.ACCESS_READ)
         footprint_header = np.frombuffer(bytearray(footprint_map[:FootprintHeader.size]), dtype=FootprintHeader)
         if decompressed_size:
-            footprint_header['has_intensity_uncertainty'] |= 2 # set compressed byte of has_intensity_uncertainty to 1
+            footprint_header['has_intensity_uncertainty'] |= 2  # set compressed byte of has_intensity_uncertainty to 1
             index_dtype = EventIndexBinZ
         else:
             index_dtype = EventIndexBin
@@ -72,6 +72,7 @@ def footprintconvpy():
     logger.setLevel(logging_level)
 
     compress_footprint(**kwargs)
+
 
 if __name__ == '__main__':
     footprintconvpy()

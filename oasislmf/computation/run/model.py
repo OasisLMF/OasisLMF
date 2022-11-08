@@ -21,6 +21,7 @@ from ...utils.data import (
 from ...utils.path import empty_dir
 from ...utils.defaults import store_exposure_fp
 
+
 class RunModel(ComputationStep):
     """
     Run models end to end.
@@ -28,8 +29,10 @@ class RunModel(ComputationStep):
 
     # Override params
     step_params = [
-        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
-        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+            'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
+            'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
@@ -37,7 +40,6 @@ class RunModel(ComputationStep):
         GenerateFiles,
         ExposurePreAnalysis,
     ]
-
 
     def pre_analysis_kwargs(self):
         updated_inputs = {}
@@ -50,7 +52,6 @@ class RunModel(ComputationStep):
                     store_exposure_fp(self.kwargs[input_name], input_name)
                 )
         return {**self.kwargs, **updated_inputs}
-
 
     def run(self):
 

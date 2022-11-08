@@ -27,17 +27,20 @@ class CreateModelBase(ComputationStep):
 
     step_params = [
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'help': 'Where to generate the project'},
-        {'name': 'preset_cookiecutter_json', 'flag': '-p', 'is_path': True, 'pre_exist': True, 'help': 'Cookiecutter JSON file path with all options provided in the file'},
+        {'name': 'preset_cookiecutter_json', 'flag': '-p', 'is_path': True, 'pre_exist': True,
+            'help': 'Cookiecutter JSON file path with all options provided in the file'},
         {'name': 'no_input', 'flag': '-i', 'action': 'store_true', 'help': 'Do not prompt for parameters and only use cookiecutter.json file content'},
         {'name': 'replay', 'flag': '-r', 'action': 'store_true', 'help': 'Do not prompt for parameters and only use information entered previously'},
-        {'name': 'overwrite_if_exists', 'flag': '-f', 'action': 'store_true', 'help': 'Overwrite the contents of any preexisting project directory of the same name'},
+        {'name': 'overwrite_if_exists', 'flag': '-f', 'action': 'store_true',
+            'help': 'Overwrite the contents of any preexisting project directory of the same name'},
         {'name': 'cookiecutter_version', 'flag': '-v', 'action': 'store_true', 'help': 'Cookiecutter version'},
     ]
 
     def run(self):
 
         if cookiecutter_ver is None:
-            raise OasisException("Optional package 'cookiecutter' is not installed, to install oasislmf with extra packages run 'pip install oasislmf[extra]'")
+            raise OasisException(
+                "Optional package 'cookiecutter' is not installed, to install oasislmf with extra packages run 'pip install oasislmf[extra]'")
 
         cmd_str = 'cookiecutter'
         if not self.cookiecutter_version:
@@ -69,6 +72,7 @@ class CreateModelRepo(CreateModelBase):
     ``cookiecutter`` package) on a "simple model" repository template
     on GitHub)
     """
+
     def cookiecutter_uri(self):
         return 'git+ssh://git@github.com/OasisLMF/CookiecutterOasisSimpleModel'
 
@@ -79,5 +83,6 @@ class CreateComplexModelRepo(CreateModelBase):
     ``cookiecutter`` package) on a "simple model" repository template
     on GitHub)
     """
+
     def cookiecutter_uri(self):
         return 'git+ssh://git@github.com/OasisLMF/CookiecutterOasisComplexModel'

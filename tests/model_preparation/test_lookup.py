@@ -286,7 +286,7 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
             keys_errors_file_path = os.path.join(d, 'keys-errors.csv')
 
             result = pd.DataFrame(successes + nonsuccesses)
-            result.rename(columns={'coverage_type_id':'coverage_type'}, inplace=True)
+            result.rename(columns={'coverage_type_id': 'coverage_type'}, inplace=True)
             key_server = BasicKeyServer({'builtin_lookup_type': 'deterministic'})
             _, successes_count, _, nonsuccesses_count = key_server.write_keys_file([result],
                                                                                    successes_fp=keys_file_path,

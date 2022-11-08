@@ -27,6 +27,7 @@ class ModelFile:
     """
     Base class for all dummy model files.
     """
+
     def __init__(self):
         pass
 
@@ -61,7 +62,7 @@ class ModelFile:
         if self.start_stats:
             for stat in self.start_stats:
                 print('{} = {}'.format(stat['desc'], stat['value']))
-        line_format = '{}' + ',{}'*(len(self.dtypes)-1)
+        line_format = '{}' + ',{}' * (len(self.dtypes) - 1)
         print(line_format.format(*self.dtypes.keys()))
         for line in self.generate_data():
             print(line_format.format(*line))
@@ -107,7 +108,7 @@ class VulnerabilityFile(ModelFile):
                 probabilities /= np.sum(probabilities)
 
                 for damage_bin, probability in enumerate(probabilities):
-                    yield vulnerability+1, intensity_bin+1, damage_bin+1, probability
+                    yield vulnerability + 1, intensity_bin+1, damage_bin+1, probability
 
 
 class EventsFile(ModelFile):
@@ -119,7 +120,7 @@ class EventsFile(ModelFile):
         self.file_name = os.path.join(directory, 'events.bin')
 
     def generate_data(self):
-        return (tuple([event]) for event in range(1, self.num_events+1))
+        return (tuple([event]) for event in range(1, self.num_events + 1))
 
 
 class FootprintFiles(ModelFile):
@@ -175,7 +176,7 @@ class FootprintBinFile(FootprintFiles):
         for event in range(self.num_events):
 
             if self.areaperils_per_event == self.num_areaperils:
-                selected_areaperils = np.arange(1, self.num_areaperils+1)
+                selected_areaperils = np.arange(1, self.num_areaperils + 1)
             else:
                 selected_areaperils = np.random.choice(
                     self.num_areaperils, self.areaperils_per_event,
@@ -187,7 +188,7 @@ class FootprintBinFile(FootprintFiles):
             for areaperil in selected_areaperils:
                 if self.no_intensity_uncertainty:
                     intensity_bin = np.random.randint(
-                        1, self.num_intensity_bins+1
+                        1, self.num_intensity_bins + 1
                     )
                     probability = 1.0
                     yield areaperil, intensity_bin, probability
@@ -204,7 +205,7 @@ class FootprintBinFile(FootprintFiles):
                     probabilities /= np.sum(probabilities)
 
                     for intensity_bin, probability in enumerate(probabilities):
-                        yield areaperil, intensity_bin+1, probability
+                        yield areaperil, intensity_bin + 1, probability
 
 
 class FootprintIdxFile(FootprintFiles):
@@ -238,7 +239,7 @@ class FootprintIdxFile(FootprintFiles):
             offset += struct.calcsize(stat['dtype'])
 
         for event in range(self.num_events):
-            yield event+1, offset, size
+            yield event + 1, offset, size
             offset += size
 
 
@@ -255,11 +256,11 @@ class DamageBinDictFile(ModelFile):
 
     def generate_data(self):
         # Exclude first and last bins for now
-        bin_indexes = np.arange(self.num_damage_bins-2)
-        bin_from_values = bin_indexes / (self.num_damage_bins-2)
-        bin_to_values = (bin_indexes + 1) / (self.num_damage_bins-2)
+        bin_indexes = np.arange(self.num_damage_bins - 2)
+        bin_from_values = bin_indexes / (self.num_damage_bins - 2)
+        bin_to_values = (bin_indexes + 1) / (self.num_damage_bins - 2)
         # Set interpolation in middle of bin
-        interpolations = (0.5 + bin_indexes) / (self.num_damage_bins-2)
+        interpolations = (0.5 + bin_indexes) / (self.num_damage_bins - 2)
         # Insert first and last bins
         bin_indexes += 2
         bin_indexes = np.insert(bin_indexes, 0, 1)
@@ -343,12 +344,12 @@ class OccurrenceFile(ModelFile):
         months_weights /= months_weights.sum()   # Normalise
         for event in range(self.num_events):
             for _ in range(self.get_num_periods_per_event()):
-                period_no = np.random.randint(1, self.num_periods+1)
+                period_no = np.random.randint(1, self.num_periods + 1)
                 occ_year = period_no   # Assume one period represents one year
                 occ_month = np.random.choice(months, p=months_weights)
-                occ_day = np.random.randint(1, days_per_month[occ_month-1])
+                occ_day = np.random.randint(1, days_per_month[occ_month - 1])
                 occ_date = self.set_occ_date_id(occ_year, occ_month, occ_day)
-                yield event+1, period_no, occ_date
+                yield event + 1, period_no, occ_date
 
 
 class RandomFile(ModelFile):
@@ -410,16 +411,16 @@ class ItemsFile(ModelFile):
         super().seed_rng()
         for location in range(self.num_locations):
             areaperils = np.random.randint(
-                1, self.num_areaperils+1, size=self.coverages_per_location
+                1, self.num_areaperils + 1, size=self.coverages_per_location
             )
             vulnerabilities = np.random.randint(
-                1, self.num_vulnerabilities+1, size=self.coverages_per_location
+                1, self.num_vulnerabilities + 1, size=self.coverages_per_location
             )
             for coverage in range(self.coverages_per_location):
                 item = self.coverages_per_location * location + coverage + 1
                 # Assume 1-1 mapping between item and coverage IDs
                 # Assume group ID mapped to location
-                yield item, item, areaperils[coverage], vulnerabilities[coverage], location+1
+                yield item, item, areaperils[coverage], vulnerabilities[coverage], location + 1
 
 
 class FMFile(ModelFile):
@@ -440,7 +441,7 @@ class FMProgrammeFile(FMFile):
 
     def generate_data(self):
         levels = [1, 10]
-        levels = range(1, len(levels)+1)
+        levels = range(1, len(levels) + 1)
         for level in levels:
             for agg_id in range(
                 1, self.num_locations * self.coverages_per_location + 1
@@ -469,7 +470,7 @@ class FMPolicyTCFile(FMFile):
     def generate_data(self):
         # Site coverage #1 & policy layer #10 FM levels
         levels = [1, 10]
-        levels = range(1, len(levels)+1)
+        levels = range(1, len(levels) + 1)
         policytc_id = 1
         for level in levels:
             # Site coverage FM level
@@ -483,7 +484,7 @@ class FMPolicyTCFile(FMFile):
             # Policy layer FM level
             elif level == len(levels):
                 for layer in range(self.num_layers):
-                    yield level, 1, layer+1, policytc_id
+                    yield level, 1, layer + 1, policytc_id
                     policytc_id += 1   # Next policytc_id
 
 
@@ -511,10 +512,10 @@ class FMProfileFile(ModelFile):
             policytc_id = init_policytc_id + layer
             attachment1 = init_attachment1 + attachment1_offset * layer
             # Set limit1 at maximum for last layer
-            if (layer+1) == self.num_layers:
+            if (layer + 1) == self.num_layers:
                 limit1 = max_limit1
             else:
-                limit1 = attachment1_offset * (layer+1)
+                limit1 = attachment1_offset * (layer + 1)
             profile_rows.append(
                 (policytc_id, 2, 0.0, 0.0, 0.0, attachment1, limit1, 0.3, 0.0, 0.0)
             )
@@ -535,7 +536,7 @@ class FMXrefFile(FMFile):
         self.file_name = os.path.join(directory, 'fm_xref.bin')
 
     def generate_data(self):
-        layers = range(1, self.num_layers+1)
+        layers = range(1, self.num_layers + 1)
         output_count = 1
         for agg_id in range(
             1, self.num_locations * self.coverages_per_location + 1
@@ -558,7 +559,7 @@ class GULSummaryXrefFile(FMFile):
         summary_id = 1
         summaryset_id = 1
         for item in range(self.num_locations * self.coverages_per_location):
-            yield item+1, summary_id, summaryset_id
+            yield item + 1, summary_id, summaryset_id
 
 
 class FMSummaryXrefFile(FMFile):
@@ -579,4 +580,4 @@ class FMSummaryXrefFile(FMFile):
         for output_id in range(
             self.num_locations * self.coverages_per_location * self.num_layers
         ):
-            yield output_id+1, summary_id, summaryset_id
+            yield output_id + 1, summary_id, summaryset_id

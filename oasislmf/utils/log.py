@@ -47,7 +47,7 @@ def set_rotating_logger(
         maxBytes=max_file_size,
         backupCount=max_backups
     )
-    handler.name='oasislmf'
+    handler.name = 'oasislmf'
     logging.getLogger('oasislmf').setLevel(log_level)
     logging.getLogger('oasislmf').addHandler(handler)
     formatter = logging.Formatter(
@@ -123,7 +123,7 @@ def oasis_log(*args, **kwargs):
             end = time.time()
 
             # Only log timestamps on functions which took longer than 10ms
-            if (end-start) > 0.01:
+            if (end - start) > 0.01:
                 logger.info(
                     "COMPLETED: {}.{} in {}s".format(
                         caller_module_name, func_name, round(end - start, 2)))

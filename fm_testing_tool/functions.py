@@ -6,20 +6,22 @@ from anytree.search import find
 from anytree.exporter import DotExporter
 import collections
 
-PolicyTuple = collections.namedtuple('PolicyTuple','layer_id agg_id calc_rules')
+PolicyTuple = collections.namedtuple('PolicyTuple', 'layer_id agg_id calc_rules')
 CalcRuleTuple = collections.namedtuple('CalcRuleTuple', 'policytc_id calcrule_id is_step trig_start trig_end')
+
 
 def load_df(path, required_file=None):
     if path:
-        return  pd.read_csv(path)
+        return pd.read_csv(path)
     else:
         if required_file:
             raise FileNotFoundError(f"Required File does not exist: {required_file}")
         else:
             return None
 
+
 def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df):
-    missing_node_link = False 
+    missing_node_link = False
 
     def get_policy_tc(agg_id, level_id):
         policytc = fm_policytc_df.loc[
@@ -55,10 +57,10 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
         return len(policytc), policy_list
 
     level_ids = sorted(list(fm_programme_df.level_id.unique()), reverse=True)
-    root = anytree.Node('Insured Loss', agg_id=1, level_id=max(level_ids)+1, policy_tc=None)
+    root = anytree.Node('Insured Loss', agg_id=1, level_id=max(level_ids) + 1, policy_tc=None)
 
     for level in level_ids:
-        agg_id_idxs = list(fm_programme_df[fm_programme_df.level_id == level].drop_duplicates(subset=['level_id','to_agg_id'], keep="first").index)
+        agg_id_idxs = list(fm_programme_df[fm_programme_df.level_id == level].drop_duplicates(subset=['level_id', 'to_agg_id'], keep="first").index)
 
         for node_idx in agg_id_idxs:
             node_info = fm_programme_df.iloc[node_idx]
@@ -69,11 +71,11 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                 parent_node = root
             else:
                 try:
-                    matched_id = fm_programme_df.loc[(fm_programme_df.level_id == level+1) & (fm_programme_df.from_agg_id == node_info.to_agg_id)].to_agg_id.item()
-                    parent_node = find(root, filter_=lambda node: node.level_id == level+1 and node.agg_id == matched_id)
+                    matched_id = fm_programme_df.loc[(fm_programme_df.level_id == level + 1) & (fm_programme_df.from_agg_id == node_info.to_agg_id)].to_agg_id.item()
+                    parent_node = find(root, filter_=lambda node: node.level_id == level + 1 and node.agg_id == matched_id)
                 except ValueError:
                     missing_node_link = True
-                    print('Missing node link: agg_id={}, level_id={}'.format(node_info.to_agg_id,level+1)) 
+                    print('Missing node link: agg_id={}, level_id={}'.format(node_info.to_agg_id, level+1))
 
             # Set node names based on attrs in FM files
             if level >= 3:
@@ -104,12 +106,12 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
 
             # Create Node in FM tree
             node = anytree.Node(
-                    node_name,
-                    agg_id=node_info.to_agg_id,
-                    level_id=level,
-                    parent=parent_node,
-                    layer_max=layer_max,
-                    policy_tc=policy_list,
+                node_name,
+                agg_id=node_info.to_agg_id,
+                level_id=level,
+                parent=parent_node,
+                layer_max=layer_max,
+                policy_tc=policy_list,
             )
 
     # Add item level data
@@ -120,8 +122,8 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
         parent_node = find(root, filter_=lambda node: node.level_id == 1 and node.agg_id == matched_id)
 
         node_name = "\n".join([
-           "item {}\n".format(int(item_info.agg_id)),
-           "locnumber: {}".format(item_info.locnumber),
+            "item {}\n".format(int(item_info.agg_id)),
+            "locnumber: {}".format(item_info.locnumber),
             "accnumber: {}".format(item_info.accnumber),
             "polnumber: {}".format(item_info.polnumber),
             "portnumber: {}".format(item_info.portnumber),

@@ -9,6 +9,7 @@ from unittest import TestCase
 
 import pytest
 
+
 class FmAcceptanceTests(TestCase):
 
     def setUp(self):
@@ -19,11 +20,11 @@ class FmAcceptanceTests(TestCase):
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
-            run_dir=tmp_run_dir
+            run_dir = tmp_run_dir
             if self.keep_output:
                 utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
                 run_dir = os.path.join(
-                    self.test_cases_fp, 'runs', 'test-fm-p{}-{}-{}'.format(subperils, test_case,utcnow)
+                    self.test_cases_fp, 'runs', 'test-fm-p{}-{}-{}'.format(subperils, test_case, utcnow)
                 )
                 print(f'Generating Output in: {run_dir}')
 
@@ -41,7 +42,6 @@ class FmAcceptanceTests(TestCase):
 
         self.assertTrue(result)
 
-
     def test_insurance(self):
         self.run_test('insurance')
 
@@ -49,7 +49,7 @@ class FmAcceptanceTests(TestCase):
     #     self.run_test('insurance_conditions')
 
     def test_insurance_step(self):
-       self.run_test('insurance_step')
+        self.run_test('insurance_step')
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
@@ -78,6 +78,6 @@ class FmAcceptanceTests(TestCase):
 
     def test_reinsurance2_2_subperils(self):
         self.run_test('reinsurance2', subperils=2, expected_dir="expected_subperils")
-        
+
     def test_issues_2_subperils(self):
         self.run_test('issues', subperils=2, expected_dir="expected_subperils")

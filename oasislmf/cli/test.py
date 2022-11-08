@@ -11,7 +11,6 @@ from argparse import RawDescriptionHelpFormatter
 from .command import OasisBaseCommand, OasisComputationCommand
 
 
-
 class ModelValidationCmd(OasisBaseCommand):
     """
     Checks the validity of a set of model data.
@@ -75,7 +74,7 @@ class FmValidationCmd(OasisComputationCommand):
 
 
 class GenerateDummyModelFilesCmd(OasisComputationCommand):
-    
+
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateDummyModelFiles'
 

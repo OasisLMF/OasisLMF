@@ -31,6 +31,7 @@ class OasisFootPrintError(Exception):
     """
     Raises exceptions when loading footprints.
     """
+
     def __init__(self, message: str) -> None:
         """
         The constructor of the OasisFootPrintError class.
@@ -49,6 +50,7 @@ class Footprint:
         static_path (str): the path to the static files directory
         stack (ExitStack): the context manager that combines other context managers and cleanup functions
     """
+
     def __init__(self, static_path) -> None:
         """
         The constructor for the Footprint class.
@@ -135,7 +137,7 @@ class FootprintCsv(Footprint):
         self.num_intensity_bins = max(self.footprint['intensity_bin_id'])
 
         footprint_df = pd.DataFrame(self.footprint, columns=self.footprint.dtype.names)
-        self.has_intensity_uncertainty = footprint_df.groupby(['event_id','areaperil_id']).size().max() > 1
+        self.has_intensity_uncertainty = footprint_df.groupby(['event_id', 'areaperil_id']).size().max() > 1
 
         footprint_index_df = footprint_df.groupby('event_id', as_index=False).size()
         footprint_index_df['offset'] = footprint_index_df['size'].cumsum() - footprint_index_df['size']
@@ -254,7 +256,7 @@ class FootprintBinZ(Footprint):
         if event_info is None:
             return
         else:
-            zdata = self.zfootprint[event_info['offset']: event_info['offset']+event_info['size']]
+            zdata = self.zfootprint[event_info['offset']: event_info['offset'] + event_info['size']]
             data = decompress(zdata)
             return np.frombuffer(data, Event)
 

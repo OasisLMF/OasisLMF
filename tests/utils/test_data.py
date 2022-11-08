@@ -542,7 +542,7 @@ class TestGetDataframe(TestCase):
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES  else x)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
@@ -699,7 +699,8 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k ==
+                     'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -733,7 +734,8 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
+                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -1176,7 +1178,8 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
+                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -1346,7 +1349,6 @@ class TestGetTimestamp(TestCase):
         self.assertEqual(result, expected)
 
 
-
 class TestOedDataTypes(TestCase):
 
     def setUp(self):
@@ -1374,12 +1376,11 @@ class TestOedDataTypes(TestCase):
             np.float64
         )
 
-
     @settings(max_examples=10, deadline=None)
     @given(
         data=fixed_dictionaries({
-             "PortNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
-             "AccNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "PortNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
+            "AccNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
              "LocNumber": sampled_from([np.nan, str(1), int(1), float(1)]),
              "LocName": sampled_from([np.nan, str(1), int(1), float(1)]),
              "LocGroup": sampled_from([np.nan, str(1), int(1), float(1)]),
@@ -1614,12 +1615,10 @@ class TestOedDataTypes(TestCase):
                     print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
                     self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
 
-
         finally:
             os.remove(loc_sample_file.name)
 
-
-    ## TODO - add wrapper loading funcs for other OED files and test here
+    # TODO - add wrapper loading funcs for other OED files and test here
 
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)
@@ -1838,7 +1837,6 @@ class TestOedDataTypes(TestCase):
     def test_accounts_loaded_correctly(self, data):
         pass
 
-
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)
     @given(
@@ -1875,7 +1873,6 @@ class TestOedDataTypes(TestCase):
     )
     def test_ri_info_loaded_correctly(self, data):
         pass
-
 
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)

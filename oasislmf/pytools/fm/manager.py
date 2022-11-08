@@ -24,7 +24,7 @@ def run(create_financial_structure_files, **kwargs):
         return run_synchronous(**kwargs)
 
 
-def run_synchronous(allocation_rule, files_in, files_out, net_loss,  storage_method, **kwargs):
+def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_method, **kwargs):
     if allocation_rule == 3:
         allocation_rule = 2
     elif allocation_rule == 0 and net_loss:
@@ -43,10 +43,10 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss,  storage_met
             stream_type, max_sidx_val = read_stream_header(stream_in)
 
         if storage_method == "sparse":
-            run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out = files_out, net_loss=net_loss, **kwargs)
+            run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, **kwargs)
         else:
             raise ValueError(f"storage_method {storage_method} is not supported for this version")
-            run_synchronous_dense(max_sidx_val, allocation_rule, streams_in=streams_in, files_out = files_out, net_loss=net_loss, **kwargs)
+            run_synchronous_dense(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, **kwargs)
 
     finally:
         if files_in is not None:
@@ -91,7 +91,7 @@ def run_synchronous_dense(max_sidx_val, allocation_rule, static_path, streams_in
                 reset_variable(children, compute_i, computes, loss_i, losses)
 
 
-def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_in, files_out, low_memory, net_loss, sort_output,  **kwargs):
+def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_in, files_out, low_memory, net_loss, sort_output, **kwargs):
     compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = load_financial_structure(
         allocation_rule, static_path)
 
@@ -111,23 +111,23 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             pass_through_out = np.zeros_like(pass_through)
         else:
             pass_through_out = pass_through
-        
+
         with event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
                               loss_indptr, loss_val, pass_through_out, max_sidx_val, computes) as event_writer:
             for event_id, compute_i in read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
                                                            loss_indptr, loss_val, pass_through, len_array, computes):
                 compute_i = compute_event_sparse(compute_info,
-                                           net_loss,
-                                           nodes_array,
-                                           node_parents_array,
-                                           node_profiles_array,
-                                           len_array, max_sidx_val, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, extras_indptr, extras_val,
-                                           children,
-                                           computes,
-                                           compute_i,
-                                           item_parent_i,
-                                           fm_profile,
-                                           stepped)
+                                                 net_loss,
+                                                 nodes_array,
+                                                 node_parents_array,
+                                                 node_profiles_array,
+                                                 len_array, max_sidx_val, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, extras_indptr, extras_val,
+                                                 children,
+                                                 computes,
+                                                 compute_i,
+                                                 item_parent_i,
+                                                 fm_profile,
+                                                 stepped)
                 if allocation_rule == 0:
                     compute_i = event_writer.write(event_id, compute_i)
                 else:

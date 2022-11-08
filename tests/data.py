@@ -88,7 +88,7 @@ fm_terms = tuple(k for k in FM_TERMS)
 fm_profile_types = ('acc', 'loc',)
 
 keys_status_flags = tuple(v['id'] for v in OASIS_KEYS_STATUS.values())
-keys_status_flags = tuple([s for s in keys_status_flags if s != 'noreturn']) # Workaround filter out no-return
+keys_status_flags = tuple([s for s in keys_status_flags if s != 'noreturn'])  # Workaround filter out no-return
 
 
 perils = tuple(v['id'] for v in PERILS.values())
@@ -195,6 +195,7 @@ def source_accounts(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
+
 def min_source_exposure(
     from_location_perils_covered=sampled_from(perils),
     from_location_perils=sampled_from(perils),
@@ -271,11 +272,11 @@ def min_source_exposure(
                 'locmaxded1building': just(0),
                 'locmaxded2other': just(0),
                 'locmaxded3contents': just(0),
-                'locmaxded4bi':just(0),
+                'locmaxded4bi': just(0),
                 'locmaxded5pd': just(0),
                 'locmaxded6all': just(0),
                 'locminded1building': just(0),
-                'locminded2other':just(0),
+                'locminded2other': just(0),
                 'locminded3contents': just(0),
                 'locminded4bi': just(0),
                 'locminded5pd': just(0),
@@ -286,6 +287,7 @@ def min_source_exposure(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+
 
 def source_exposure(
     from_account_ids=text(alphabet=(string.ascii_letters + string.digits), min_size=1, max_size=40),
@@ -444,7 +446,6 @@ def source_exposure(
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
-
 def keys(
     from_peril_ids=sampled_from(perils),
     from_coverage_type_ids=sampled_from(supp_cov_types),
@@ -477,6 +478,7 @@ def keys(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+
 
 def write_source_files(
     exposure=None,

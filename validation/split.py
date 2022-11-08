@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import numpy as np
 import pandas as pd
 import os
@@ -29,18 +30,18 @@ if not os.path.exists(newpath):
 
 cwd = os.getcwd()
 for name, group in split_location:
-    sub_dir = os.path.join(newpath,name)
+    sub_dir = os.path.join(newpath, name)
 
-#loop through the groups and save to directories based on unique values
+# loop through the groups and save to directories based on unique values
 for name, group in split_location:
-    sub_dir = os.path.join(newpath,name)
+    sub_dir = os.path.join(newpath, name)
     if not os.path.exists(sub_dir):
         os.mkdir(sub_dir)
     group = group.drop(['FlexiLocUnit'], axis=1)
     group.to_csv(sub_dir + "/location.csv", index=0)
 
 for name, group in split_account:
-    sub_dir = os.path.join(newpath,name)
+    sub_dir = os.path.join(newpath, name)
     if not os.path.exists(sub_dir):
         os.mkdir(sub_dir)
     group = group.drop(['FlexiAccUnit'], axis=1)
@@ -48,26 +49,27 @@ for name, group in split_account:
 
 names = sorted([str(item[0]) for item in split_location])
 
-#Function to sort fm string in Ascedning order
-import re
+# Function to sort fm string in Ascedning order
+
 
 def ascedning(text):
     return int(text) if text.isdigit() else text
 
+
 def natural_keys(text):
 
-    return [ ascedning(c) for c in re.split(r'(\d+)', text) ]
+    return [ascedning(c) for c in re.split(r'(\d+)', text)]
 
 
 names.sort(key=natural_keys)
-#print(names)
+# print(names)
 
-units_dir=os.path.join(cwd,'units')
+units_dir = os.path.join(cwd, 'units')
 
 if not os.path.exists(units_dir):
     os.mkdir(units_dir)
 
-with open(os.path.join(units_dir,'units.txt'), "w") as txt_file:
+with open(os.path.join(units_dir, 'units.txt'), "w") as txt_file:
     names, groups = map(list, zip(*split_location))
     names.sort(key=natural_keys)
     for name in names:

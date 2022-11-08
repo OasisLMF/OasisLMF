@@ -27,7 +27,7 @@ from ..utils.status import OASIS_KEYS_STATUS
 from .builtin import DeterministicLookup
 from .builtin import Lookup as NewLookup
 
-from multiprocessing import cpu_count,  Queue, Process
+from multiprocessing import cpu_count, Queue, Process
 from queue import Empty, Full
 
 # add pickling support for traceback object
@@ -133,14 +133,14 @@ class KeyServerFactory(object):
             config = json.loads(lookup_config_json)
         elif lookup_config_fp:
             config_dir, config = cls.get_config(lookup_config_fp)
-        else: # no config
+        else:  # no config
             config_dir, config = '.', {}
 
         if not config:
             config_dir, config = cls.update_deprecated_args(config_dir, config,
                                                             complex_lookup_config_fp, model_keys_data_path,
                                                             model_version_file_path, lookup_module_path)
-        else: # reproduce lookup_config overwrite complex_lookup_config_fp
+        else:  # reproduce lookup_config overwrite complex_lookup_config_fp
             complex_lookup_config_fp = None
 
         if config.get('key_server_module_path'):
@@ -236,7 +236,7 @@ class BasicKeyServer:
                 lookup_module_path = os.path.join(self.config_dir, lookup_module_path)
             lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
-        else: # built-in lookup
+        else:  # built-in lookup
             if self.config.get('builtin_lookup_type') == 'deterministic':
                 lookup_cls = DeterministicLookup
             elif self.config.get('builtin_lookup_type') == 'new_lookup':
@@ -354,7 +354,7 @@ class BasicKeyServer:
                 break
 
             if res is None:
-                finished_workers+=1
+                finished_workers += 1
             else:
                 yield res
 
@@ -399,12 +399,12 @@ class BasicKeyServer:
                 if success_heading_row is None:
                     success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                 success_df[success_heading_row.keys()].rename(columns=success_heading_row
-                                                                ).to_csv(successes_file, index=False, header=not i)
+                                                              ).to_csv(successes_file, index=False, header=not i)
                 successes_count += success_df.shape[0]
                 if errors_file:
                     errors_df = result[~success]
                     if 'message' not in errors_df.columns:
-                        errors_df['message'] = "" # If no error message column, fill with blank to prevent KeyError
+                        errors_df['message'] = ""  # If no error message column, fill with blank to prevent KeyError
                     errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row
                                                                     ).to_csv(errors_file, index=False, header=False)
                     error_count += errors_df.shape[0]
@@ -491,7 +491,7 @@ class BasicKeyServer:
         [worker.start() for worker in workers]
 
         try:
-            return self.write_keys_file(self.key_producer(key_queue, error_queue, worker_count= pool_count),
+            return self.write_keys_file(self.key_producer(key_queue, error_queue, worker_count=pool_count),
                                         successes_fp=successes_fp,
                                         errors_fp=errors_fp,
                                         output_format=output_format,
@@ -543,8 +543,8 @@ class BasicKeyServer:
                                                      errors_fp=errors_fp,
                                                      output_format=output_format,
                                                      keys_success_msg=keys_success_msg,
-                                                     num_cores = multiproc_num_cores,
-                                                     num_partitions = multiproc_num_partitions)
+                                                     num_cores=multiproc_num_cores,
+                                                     num_partitions=multiproc_num_partitions)
         else:
             return self.generate_key_files_singleproc(locations,
                                                       successes_fp=successes_fp,

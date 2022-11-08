@@ -109,7 +109,7 @@ for computation_cls in OasisManager.computation_classes:
 
     # set get_arguments() computation_cls funcs as attributes
     setattr(OasisManager, '_params_' + OasisManager.computation_name_to_method(computation_cls.__name__),
-        computation_cls.get_arguments)
+            computation_cls.get_arguments)
 
 if __name__ == "__main__":
     import doctest

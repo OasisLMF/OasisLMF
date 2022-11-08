@@ -1,6 +1,7 @@
 from argparse import RawDescriptionHelpFormatter
 from .command import OasisBaseCommand, OasisComputationCommand
 
+
 class ListApiCmd(OasisComputationCommand):
     """
     Issue API GET requests via the command line
@@ -16,12 +17,14 @@ class RunApiCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRun'
 
+
 class RunInputApiCmd(OasisComputationCommand):
     """
     Run a model via the Oasis Platoform API end to end 
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRunInputs'
+
 
 class RunLossApiCmd(OasisComputationCommand):
     """

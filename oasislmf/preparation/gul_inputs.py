@@ -46,12 +46,12 @@ pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 VALID_OASIS_GROUP_COLS = [
-        'item_id',
-        'peril_id',
+    'item_id',
+    'peril_id',
         'coverage_id',
         'coverage_type_id',
         'peril_correlation_group'
-    ]
+]
 
 
 def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
