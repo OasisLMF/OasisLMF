@@ -120,14 +120,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    # load keys.csv to determine included AreaPerilID from peril_filter
-    if peril_filter:
-        keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-        valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-        logger.debug(
-            f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
-    else:
-        valid_area_peril_id = None
+    # # load keys.csv to determine included AreaPerilID from peril_filter
+    # if peril_filter:
+    #     keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
+    #     valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
+    #     logger.debug(
+    #         f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+    # else:
+    #     valid_area_peril_id = None
 
     # beginning of of gulpy prep
     damage_bins = get_damage_bins(static_path)
