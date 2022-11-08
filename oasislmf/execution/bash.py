@@ -148,7 +148,14 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-CHECK_FUNC = """
+def get_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
+    """Creates a bash function to check the logs to ensure same number of process started and finsished.
+
+    Args: 
+        custom_gulcalc_log_start (str): Custom message printed to the logs when a process starts.
+        custom_gulcalc_log_finish (str): Custom message printed to the logs when a process ends.
+    """
+    check_function = """
 check_complete(){
     set +e
     proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
@@ -163,12 +170,28 @@ check_complete(){
             echo "[OK] $p"
         fi
     done
-    if [ "$has_error" -ne 0 ]; then
+"""
+    # Add in check for custom gulcalc if settings are provided 
+    if custom_gulcalc_log_start and custom_gulcalc_log_finish:
+        check_function += f"""
+    started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
+    finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
+    if [ "$finished" -lt "$started" ]; then
+        echo "[ERROR] gulcalc - $((started-finished)) processes lost"
+        has_error=1 
+    elif [ "$started" -gt 0 ]; then
+        echo "[OK] gulcalc"
+    fi
+"""
+        
+    check_function+="""    if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     else
         echo 'Run Completed'
     fi
 }"""
+    return check_function
+
 
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
@@ -1425,6 +1448,8 @@ def bash_params(
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     custom_gulcalc_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -1475,7 +1500,12 @@ def bash_params(
     else:
         bash_params['_get_getmodel_cmd'] = _get_getmodel_cmd
 
-    # Set fifo dirs
+    # Set custom gulcalc log statment checks, 
+        bash_params['custom_gulcalc_log_start'] = custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start')
+        bash_params['custom_gulcalc_log_finish'] = custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish')
+
+
+    ## Set fifo dirs
     if fifo_tmp_dir:
         bash_params['fifo_queue_dir'] = '/tmp/{}/fifo/'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)))
     else:
@@ -1555,7 +1585,15 @@ def bash_params(
 
 
 @contextlib.contextmanager
-def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_number=None):
+def bash_wrapper(
+    filename, 
+    bash_trace, 
+    stderr_guard, 
+    log_sub_dir=None,
+    process_number=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None
+    ):
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -1579,7 +1617,7 @@ def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_n
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, CHECK_FUNC)
+        print_command(filename, get_check_fucntion(custom_gulcalc_log_start, custom_gulcalc_log_finish))
 
     # Script content
     yield
@@ -2205,6 +2243,8 @@ def genbash(
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -2270,6 +2310,8 @@ def genbash(
         bash_trace=bash_trace,
         filename=filename,
         _get_getmodel_cmd=_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         custom_args=custom_args,
         fmpy=fmpy,
         fmpy_low_memory=fmpy_low_memory,
@@ -2285,7 +2327,13 @@ def genbash(
     # remove the file if it already exists
     if os.path.exists(filename):
         os.remove(filename)
-
-    with bash_wrapper(filename, bash_trace, stderr_guard):
+    
+    with bash_wrapper(  
+        filename, 
+        bash_trace, 
+        stderr_guard,
+        custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
+        custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
+        ):
         create_bash_analysis(**params)
         create_bash_outputs(**params)
