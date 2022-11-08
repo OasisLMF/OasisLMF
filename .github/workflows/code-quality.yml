@@ -3,7 +3,7 @@
 #   - flake8: the problems identified by flake 8 are listed but the workflow
 #             presently doesn't fail if flake reports errors.
 
-name: Code Quality checks
+name: Code Quality
 
 on: [push]
 
