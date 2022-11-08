@@ -8,7 +8,7 @@ import json
 
 import argparse
 
-parser = argparse.ArgumentParser(  )
+parser = argparse.ArgumentParser()
 
 parser.add_argument("-dir", "--subdirectory", help="enter subdirectory name")
 
