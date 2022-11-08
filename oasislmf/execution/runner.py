@@ -2,15 +2,14 @@ import logging
 import multiprocessing
 import os
 import shutil
-
 import subprocess
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from .bash import genbash
-
 ## NEW IMPORTS
-from .bash import create_bash_outputs, create_bash_analysis, bash_params, bash_wrapper
+from .bash import (bash_params, bash_wrapper, create_bash_analysis,
+                   create_bash_outputs, genbash)
+
 
 @oasis_log()
 def run(analysis_settings,
@@ -21,6 +20,8 @@ def run(analysis_settings,
         gul_legacy_stream=False,
         run_debug=False,
         custom_gulcalc_cmd=None,
+        custom_gulcalc_log_start=None,
+        custom_gulcalc_log_end=None,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
         **kwargs

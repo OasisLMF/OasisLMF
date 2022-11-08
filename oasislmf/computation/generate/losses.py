@@ -12,59 +12,41 @@ import io
 import json
 import multiprocessing
 import os
-import pandas as pd
 import re
 import subprocess
 import sys
 import warnings
-
 from collections import OrderedDict
 from itertools import product
 from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
-from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
-from ..base import ComputationStep
-from ...execution import runner, bash
-from ...execution.bin import (
-    csv_to_bin,
-    prepare_run_directory,
-    prepare_run_inputs,
-)
+import pandas as pd
+
+from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
+from ...execution.bin import (csv_to_bin, prepare_run_directory,
+                              prepare_run_inputs)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
+from ...utils.data import (fast_zip_dataframe_columns, get_analysis_settings,
+                           get_dataframe, get_model_settings, get_utctimestamp,
+                           merge_dataframes, set_dataframe_column_dtypes)
+from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE,
+                               KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
+                               KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
+                               KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
+                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG,
+                               KTOOLS_GUL_LEGACY_STREAM,
+                               KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_NUM_PROCESSES,
+                               KTOOLS_STD_DEV_SAMPLE_IDX,
+                               KTOOLS_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...utils.path import setcwd
-
-from ...utils.data import (
-    fast_zip_dataframe_columns,
-    get_analysis_settings,
-    get_model_settings,
-    get_dataframe,
-    get_utctimestamp,
-    merge_dataframes,
-    set_dataframe_column_dtypes,
-)
-from ...utils.defaults import (
-    KTOOLS_ALLOC_FM_MAX,
-    KTOOLS_ALLOC_GUL_DEFAULT,
-    KTOOLS_ALLOC_GUL_MAX,
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    KTOOLS_DEBUG,
-    KTOOLS_GUL_LEGACY_STREAM,
-    KTOOLS_MEAN_SAMPLE_IDX,
-    KTOOLS_NUM_PROCESSES,
-    EVE_DEFAULT_SHUFFLE,
-    EVE_STD_SHUFFLE,
-    KTOOL_N_GUL_PER_LB,
-    KTOOL_N_FM_PER_LB,
-    KTOOLS_STD_DEV_SAMPLE_IDX,
-    KTOOLS_TIV_SAMPLE_IDX
-)
+from ..base import ComputationStep
+from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -518,6 +500,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
+        {'name': 'model_custom_gulcalc_log_start', 'default': None,  'help': 'Log message produced when custom gulcalc binary process starts'},
+        {'name': 'model_custom_gulcalc_log_end',   'default': None,  'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'model_py_server',        'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
     ]
 
@@ -548,6 +532,8 @@ class GenerateLosses(GenerateLossesDir):
                         gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
+                        custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
+                        custom_gulcalc_log_end=self.model_custom_gulcalc_log_end,
                         gulpy=(self.gulpy and not self.model_custom_gulcalc),
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
@@ -572,6 +558,8 @@ class GenerateLosses(GenerateLossesDir):
                         gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
+                        custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
+                        custom_gulcalc_log_end=self.model_custom_gulcalc_log_end,
                     )
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
