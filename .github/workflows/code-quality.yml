@@ -8,7 +8,7 @@ name: Code Quality checks
 on: [push]
 
 env:
-  max_line_length: 120
+  max_line_length: 150
 
 jobs:
   build:
@@ -34,4 +34,4 @@ jobs:
       - name: check PEP8 compliance
         id: autopep8
         run: |
-          autopep8 --diff --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 .
+          autopep8 --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 --in-place .
