@@ -35,6 +35,3 @@ jobs:
         id: autopep8
         run: |
           autopep8 --diff --exit-code --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 .
-      - name: is the code PEP8 compliant?
-        if: steps.autopep8.outputs.exit-code == 2
-        run: exit 1
