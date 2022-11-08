@@ -11,6 +11,7 @@ import string
 from functools import partial
 
 import pandas as pd
+from idna import check_nfc
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,8 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-CHECK_FUNC = """
+def create_check_fucntion():
+    CHECK_FUNC = """
 check_complete(){
     set +e
     proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
@@ -166,6 +168,8 @@ check_complete(){
         echo 'Run Completed'
     fi
 }"""
+    return CHECK_FUNC
+
 
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
@@ -1584,7 +1588,7 @@ def bash_wrapper(
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, CHECK_FUNC)
+        print_command(filename, create_check_fucntion())
 
     # Script content
     yield
