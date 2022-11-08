@@ -146,7 +146,7 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-def create_check_fucntion():
+def create_check_fucntion(custom_gulcalc_log_start, custom_gulcalc_log_end):
     CHECK_FUNC = """
 check_complete(){
     set +e
@@ -1588,7 +1588,7 @@ def bash_wrapper(
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, create_check_fucntion())
+        print_command(filename, create_check_fucntion(custom_gulcalc_log_start, custom_gulcalc_log_end))
 
     # Script content
     yield
