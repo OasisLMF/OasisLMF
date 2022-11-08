@@ -1551,7 +1551,15 @@ def bash_params(
 
 
 @contextlib.contextmanager
-def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_number=None):
+def bash_wrapper(
+    filename, 
+    bash_trace, 
+    stderr_guard, 
+    log_sub_dir=None,
+    process_number=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_end=None
+    ):
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -2281,6 +2289,12 @@ def genbash(
     if os.path.exists(filename):
         os.remove(filename)
 
-    with bash_wrapper(filename, bash_trace, stderr_guard):
+    with bash_wrapper(
+        filename, 
+        bash_trace, 
+        stderr_guard,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_end=custom_gulcalc_log_end,
+        ):
         create_bash_analysis(**params)
         create_bash_outputs(**params)
