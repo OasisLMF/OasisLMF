@@ -146,7 +146,7 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-def create_check_fucntion(custom_gulcalc_log_start, custom_gulcalc_log_end):
+def create_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_end=None):
     CHECK_FUNC = """
 check_complete(){
     set +e
