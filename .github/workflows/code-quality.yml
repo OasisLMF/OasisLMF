@@ -28,10 +28,13 @@ jobs:
           pip install --upgrade pip-tools
       - name: install code quality tools
         run: pip install --upgrade autopep8 flake8
-      - name: Run flake 8
+      - name: Run flake8
         # for now, flake8 failure is not going to fail the workflow
         run: flake8 --exit-zero --show-source oasislmf/
       - name: check PEP8 compliance
         id: autopep8
         run: |
-          autopep8 --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 --in-place .
+          autopep8 --diff --exit-code --recursive --max-line-length ${{ env.max_line_length }} --ignore E402 .
+      - name: is the code PEP8 compliant?
+        if: steps.autopep8.outputs.exit-code == 2
+        run: exit 1
