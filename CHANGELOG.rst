@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.23.14`_
+ ---------
+* [#1120](https://github.com/OasisLMF/OasisLMF/pull/1121) - GUL alloc rule range in MDK has not been updated to reflect addition of rule 3
+* [#1139](https://github.com/OasisLMF/OasisLMF/pull/1139) - Hotfix/GitHub actions
+* [#1148](https://github.com/OasisLMF/OasisLMF/pull/1148) - Remove auto-merge option
+* [#1005](https://github.com/OasisLMF/OasisLMF/pull/1030) - in run_ktools use -s flag on kat for ORD elt reports
+.. _`1.23.14`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.13...1.23.14
+
 `1.23.13`_
  ---------
 * [#1090](https://github.com/OasisLMF/OasisLMF/pull/1090) - Request token refresh on HTTP error 403 - Forbidden
