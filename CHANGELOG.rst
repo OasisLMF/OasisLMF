@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.26.4`_
+ ---------
+* [#1120](https://github.com/OasisLMF/OasisLMF/pull/1121) - GUL alloc rule range in MDK has not been updated to reflect addition of rule 3
+* [#1135](https://github.com/OasisLMF/OasisLMF/pull/1136) - gulpy appears to hang when sample size is large
+* [#1139](https://github.com/OasisLMF/OasisLMF/pull/1139) - Hotfix/GitHub actions
+* [#1141](https://github.com/OasisLMF/OasisLMF/pull/1140) - `gulpy` produces zero losses for entire items for large number of samples
+* [#1148](https://github.com/OasisLMF/OasisLMF/pull/1148) - Remove auto-merge option
+.. _`1.26.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.3...1.26.4
+
 `1.26.3`_
  ---------
 * [#1090](https://github.com/OasisLMF/OasisLMF/pull/1090) - Request token refresh on HTTP error 403 - Forbidden
