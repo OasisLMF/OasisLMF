@@ -12,7 +12,6 @@ __all__ = [
 import io
 import json
 import os
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -26,7 +25,6 @@ from ..utils.data import (
     merge_dataframes,
     set_dataframe_column_dtypes,
     get_dtypes_and_required_cols,
-    reduce_df,
     fill_na_with_categoricals
 )
 from ..utils.defaults import (
@@ -41,7 +39,6 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.peril import PERILS, PERIL_GROUPS
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
 
 

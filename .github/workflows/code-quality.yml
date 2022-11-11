@@ -28,9 +28,8 @@ jobs:
           pip install --upgrade pip-tools
       - name: install code quality tools
         run: pip install --upgrade autopep8 flake8
-      - name: Run flake8
-        # for now, flake8 failure is not going to fail the workflow
-        run: flake8 --exit-zero --show-source oasislmf/
+      - name: Run (partial) flake8
+        run: flake8 --select F401,F522,F524,F541 --show-source oasislmf/
       - name: check PEP8 compliance
         id: autopep8
         run: |

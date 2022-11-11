@@ -242,7 +242,7 @@ class BasicKeyServer:
             elif self.config.get('builtin_lookup_type') == 'new_lookup':
                 lookup_cls = NewLookup
             else:
-                raise OasisException(f"Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
+                raise OasisException("Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
 
         return lookup_cls
 

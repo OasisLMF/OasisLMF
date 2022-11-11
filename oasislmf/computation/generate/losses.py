@@ -924,7 +924,7 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                     # We should only have one summary now
                     self.analysis_settings[param['summary']][0]['id'] = 1
                     if self.analysis_settings[param['summary']][0]['leccalc']['return_period_file']:
-                        warnings.warn(f'Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
+                        warnings.warn('Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
                         self.analysis_settings[param['summary']][0]['leccalc']['return_period_file'] = False
                     loss_types[idx] = True
         (self.gul, self.il) = loss_types

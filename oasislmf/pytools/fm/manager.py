@@ -8,8 +8,6 @@ from .compute_sparse import compute_event as compute_event_sparse
 from .compute_sparse import init_variable as init_variable_sparse
 from .compute_sparse import reset_variable as reset_variable_sparse
 
-from .common import allowed_allocation_rule
-
 
 import tempfile
 import sys

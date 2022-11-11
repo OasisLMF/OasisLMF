@@ -281,7 +281,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             location = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
                 location.loc[~location['peril_id'].isin(model_perils_covered), ['status', 'message']
-                             ] = OASIS_KEYS_STATUS['noreturn']['id'], f'unsuported peril_id'
+                             ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
             return location
         return fct
 
@@ -364,7 +364,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 gdf_loc = gpd.GeoDataFrame(locations)
 
-            gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row[f"longitude"], row[f"latitude"]),
+            gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
                                                     axis=1,
                                                     result_type='reduce')
             gdf_loc = gdf_loc.set_geometry('loc_geometry')

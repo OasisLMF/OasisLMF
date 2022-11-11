@@ -1,4 +1,3 @@
-from requests import codes as status
 from requests import Session
 from requests.adapters import HTTPAdapter
 from requests_toolbelt import MultipartEncoder
@@ -64,7 +63,7 @@ class APISession(Session):
 
             self.tkn_access = r.json()['access_token']
             if 'refresh_token' in r.json():
-                self.logger.debug(f"Refreshing access token")
+                self.logger.debug("Refreshing access token")
                 self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return r
@@ -105,7 +104,7 @@ class APISession(Session):
                 return True
             elif http_err_code in [401, 403]:
                 if self.tkn_refresh is not None:
-                    self.logger.debug(f"requesting refresh token")
+                    self.logger.debug("requesting refresh token")
                     self._refresh_token()
                     return True
         return False

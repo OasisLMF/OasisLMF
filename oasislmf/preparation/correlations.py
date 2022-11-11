@@ -5,8 +5,6 @@ obtained from the model_settings.
 import pandas as pd
 from typing import Optional
 
-from oasislmf.utils.data import get_model_settings
-
 
 def map_data(data: Optional[dict]) -> Optional[pd.DataFrame]:
     """

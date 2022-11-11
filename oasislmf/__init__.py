@@ -1,7 +1,6 @@
 __version__ = '1.27.0rc3'
 
 import sys
-import os
 from importlib.abc import MetaPathFinder, Loader
 from importlib.util import spec_from_loader
 import importlib

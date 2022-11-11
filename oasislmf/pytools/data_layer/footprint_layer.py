@@ -3,7 +3,6 @@ import argparse
 import atexit
 import datetime
 import logging
-import math
 import os
 import pickle
 import socket

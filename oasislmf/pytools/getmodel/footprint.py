@@ -111,8 +111,8 @@ class Footprint:
         else:
             if os.path.isfile(f"{static_path}/footprint.parquet"):
                 raise OasisFootPrintError(
-                    message=f"footprint.parquet needs to be partitioned in order to work, please see: "
-                            f"oasislmf.pytools.data_layer.conversions.footprint => convert_bin_to_parquet"
+                    message="footprint.parquet needs to be partitioned in order to work, please see: "
+                            "oasislmf.pytools.data_layer.conversions.footprint => convert_bin_to_parquet"
                 )
             raise OasisFootPrintError(message=f"no valid footprint in {static_path}")
 

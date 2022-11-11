@@ -3,8 +3,6 @@ __all__ = [
     'RunCmd'
 ]
 
-import os
-
 from argparse import RawDescriptionHelpFormatter
 
 from .command import OasisBaseCommand, OasisComputationCommand

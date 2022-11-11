@@ -13,7 +13,6 @@ from numba import njit, types, from_dtype
 from numba.typed import List, Dict
 import numpy as np
 import pandas as pd
-import numpy.lib.recfunctions as rfn
 import os
 import logging
 logger = logging.getLogger(__name__)
@@ -647,7 +646,7 @@ def create_financial_structure(allocation_rule, static_path):
     np.save(os.path.join(static_path, f'node_parents_array_{allocation_rule}'), node_parents_array)
     np.save(os.path.join(static_path, f'node_profiles_array_{allocation_rule}'), node_profiles_array)
     np.save(os.path.join(static_path, f'output_array_{allocation_rule}'), output_array)
-    np.save(os.path.join(static_path, f'fm_profile'), fm_profile)
+    np.save(os.path.join(static_path, 'fm_profile'), fm_profile)
 
 
 def load_financial_structure(allocation_rule, static_path):
@@ -656,6 +655,6 @@ def load_financial_structure(allocation_rule, static_path):
     node_parents_array = np.load(os.path.join(static_path, f'node_parents_array_{allocation_rule}.npy'), mmap_mode='r')
     node_profiles_array = np.load(os.path.join(static_path, f'node_profiles_array_{allocation_rule}.npy'), mmap_mode='r')
     output_array = np.load(os.path.join(static_path, f'output_array_{allocation_rule}.npy'), mmap_mode='r')
-    fm_profile = np.load(os.path.join(static_path, f'fm_profile.npy'), mmap_mode='r')
+    fm_profile = np.load(os.path.join(static_path, 'fm_profile.npy'), mmap_mode='r')
 
     return compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile

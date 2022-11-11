@@ -13,7 +13,6 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from collections import Counter
 import contextlib
-import copy
 import io
 import logging
 import multiprocessing

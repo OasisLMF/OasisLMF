@@ -220,7 +220,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         do_correlation = False
         if ignore_correlation:
-            logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
+            logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
             file_path = os.path.join(input_path, 'correlations.bin')
@@ -231,11 +231,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
                 do_correlation = True
             else:
-                logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
                             "the correlation value is zero for all peril correlation groups.")
 
         if do_correlation:
-            logger.info(f"Correlated random number generation: switched ON.")
+            logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
             corr_data_by_item_id[0] = (0, 0.)

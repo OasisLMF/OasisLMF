@@ -1,5 +1,4 @@
 import logging
-import multiprocessing
 import os
 import shutil
 
@@ -10,7 +9,7 @@ from ..utils.log import oasis_log
 from .bash import genbash
 
 # NEW IMPORTS
-from .bash import create_bash_outputs, create_bash_analysis, bash_params, bash_wrapper
+from .bash import create_bash_outputs, create_bash_analysis, bash_wrapper
 
 
 @oasis_log()

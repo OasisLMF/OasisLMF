@@ -1,6 +1,3 @@
-import tempfile
-import os
-
 from argparsetree import BaseCommand
 
 from ..validation.model_data import csv_validity_test
@@ -51,7 +48,7 @@ class FmValidationCmd(OasisComputationCommand):
     """
     Run FM acceptance tests from "oasisLMF/validation/*"
 
-    Example use: 
+    Example use:
     1. Run all test cases: "oasisLMF/validation$ oasislmf test fm"
         Stating oasislmf command - RunFmTest
         RUNNING: oasislmf.manager.interface
@@ -62,7 +59,7 @@ class FmValidationCmd(OasisComputationCommand):
     2. Run Directly from a acceptance test Directory: "oasisLMF/validation/reinsurance1$ oasislmf test fm"
         Stating oasislmf command - RunFmTest
         RUNNING: oasislmf.manager.interface
-         ... 
+         ...
 
     3. Select test case sub-directory: "oasisLMF/validation$ oasislmf test fm --test-case-name reinsurance1"
         Stating oasislmf command - RunFmTest
