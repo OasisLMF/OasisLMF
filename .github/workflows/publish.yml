@@ -1,8 +1,6 @@
 name: Oasislmf Release
 
 on:
-  # ONLY USE PUSH FOR TESTING
-  #push:
   workflow_dispatch:
     inputs:
       release_tag:
@@ -18,11 +16,6 @@ on:
         required: true
         default: 'false'
 
-      auto_merge:
-        description: 'Run Gitflow, auto-merge release branch: [true, false]'
-        required: true
-        default: 'true'
-
       build_osx:
         description: 'Build OSX package package: [true, false]'
         required: false
@@ -37,24 +30,11 @@ on:
 
 
 env:
-  MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
-  DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
   BUILD_SCRIPTS: "master"    # build scripts branch
   WORKSPACE: ${{ github.workspace }}/OasisLMF
-
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
   PRE_RELEASE: ${{ inputs.pre_release }}
-  AUTO_MERGE: ${{ inputs.auto_merge }}
-
-  ## -- TESTING ONLY ----
-  #MAIN_BRANCH: "test-master"
-  #DEVELOP_BRANCH: "test-develop"
-
-  #RELEASE_TAG: '1.27.0rc20'
-  #PREV_RELEASE_TAG: '1.26.0'
-  #PRE_RELEASE: 'true'
-  #AUTO_MERGE: 'true'
 
 
 jobs:
@@ -118,14 +98,6 @@ jobs:
         ref: ${{ github.ref_name }}
         path: ${{ env.WORKSPACE }}
 
-    - name: Check if tag exisits
-      working-directory: ${{ env.WORKSPACE }}
-      run: |
-        git rev-parse -q --verify "refs/tags/${{ env.RELEASE_TAG }}" && ERROR_CODE=1 || ERROR_CODE=0
-        if [[ "$ERROR_CODE" == 1 ]]; then
-            echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
-        fi
-
     - name: Check tag matches version set
       working-directory: ${{ env.WORKSPACE }}
       run: |
@@ -150,7 +122,7 @@ jobs:
             exit $ERROR_CODE
         fi
 
- # --- Setup Changelog builder script --- #
+    # --- Setup Changelog builder script --- #
     - name: Setup github user
       run: |
         git config --global user.email ${{ env.GIT_EMAIL }}
@@ -159,22 +131,6 @@ jobs:
       env:
         GIT_EMAIL: ${{ secrets.BUILD_GIT_EMAIL }}
         GIT_USERNAME: ${{ secrets.BUILD_GIT_USERNAME }}
-
-    - name: Check for merge conflicts (Production)
-      if: env.AUTO_MERGE == 'true' && env.PRE_RELEASE == 'false'
-      working-directory: ${{ env.WORKSPACE }}
-      run: |
-        git checkout ${{ env.MAIN_BRANCH }}
-        git merge ${{ github.ref_name }} --no-ff --no-commit
-        git merge --abort
-
-    - name: Check for merge conflicts (Release Candidate)
-      if: env.AUTO_MERGE == 'true' && env.PRE_RELEASE == 'true'
-      working-directory: ${{ env.WORKSPACE }}
-      run: |
-        git checkout ${{ env.DEVELOP_BRANCH }}
-        git merge ${{ github.ref_name }} --no-ff --no-commit
-        git merge --abort
 
     - name: Tag Release
       working-directory: ${{ env.WORKSPACE }}
@@ -326,27 +282,6 @@ jobs:
         asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
         asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
         asset_content_type: application/octet-stream
-
-    # --- Git Flow --- #
-    - name: Run Gitflow (Production)
-      if: env.AUTO_MERGE == 'true' && env.PRE_RELEASE == 'false'
-      working-directory: ${{ env.WORKSPACE }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
-      run: |
-        git checkout ${{ env.MAIN_BRANCH }} && git pull
-        git merge ${{ github.ref_name }} && git push
-        git checkout ${{ env.DEVELOP_BRANCH }} && git pull
-        git merge ${{env.MAIN_BRANCH }} && git push
-
-    - name: Run Gitflow (Release Candidate)
-      if: env.AUTO_MERGE == 'true' && env.PRE_RELEASE == 'true'
-      working-directory: ${{ env.WORKSPACE }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
-      run: |
-        git checkout ${{ env.DEVELOP_BRANCH }} && git pull
-        git merge ${{ github.ref_name }} && git push
 
     # --- Publish to Pypi --- #
     - name: PYPI - Source package
