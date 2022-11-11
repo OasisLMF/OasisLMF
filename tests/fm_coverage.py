@@ -15,5 +15,3 @@ if __name__ == '__main__':
     for i, line in enumerate(lines):
         if line.startswith('def') and not lines[i - 1].startswith('@pytest.mark.skip'):
             print(re.match(r'def test_(\w+\d+)\(self\):$', line).groups()[0])
-
-

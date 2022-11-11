@@ -10,7 +10,6 @@ import inspect
 from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
-from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
 
@@ -109,7 +108,6 @@ class ComputationStep:
                 func_args[param] = func_kwargs[param]
         return func_args
 
-
     @classmethod
     def get_signature(cls):
         """ Create a function signature based on the 'get_params()' return
@@ -134,7 +132,6 @@ class ComputationStep:
         except Exception:
             # ignore any errors in signature creation and return blank
             return None
-
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""

@@ -27,11 +27,11 @@ Event = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                 ('probability', oasis_float)
                                 ]))
 
-EventCSV =  nb.from_dtype(np.dtype([('event_id', np.int32),
-                                    ('areaperil_id', areaperil_int),
-                                    ('intensity_bin_id', np.int32),
-                                    ('probability', oasis_float)
-                                    ]))
+EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
+                                   ('areaperil_id', areaperil_int),
+                                   ('intensity_bin_id', np.int32),
+                                   ('probability', oasis_float)
+                                   ]))
 
 EventIndexBin = nb.from_dtype(np.dtype([('event_id', np.int32),
                                         ('offset', np.int64),

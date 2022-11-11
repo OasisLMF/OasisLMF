@@ -97,7 +97,7 @@ def producer(in_stream, pipeline, read_size, stopper):
         if not len_read:
             in_stream.close()
             event_buffer.write(read_buffer[:left_over])
-            if read_buffer[left_over - 8:left_over-4] != b'\x00\x00\x00\x00':
+            if read_buffer[left_over - 8:left_over - 4] != b'\x00\x00\x00\x00':
                 event_buffer.write(last_event_padding)
             event_buffer.seek(0)
             produce(pipeline, event_buffer, stopper)
@@ -131,9 +131,9 @@ def producer(in_stream, pipeline, read_size, stopper):
 
 
 def consumer(out_stream, pipeline, write_size, sentinel, stopper):
-    s_tot=0
-    w_tot=0
-    p_tot=0
+    s_tot = 0
+    w_tot = 0
+    p_tot = 0
     while True:
         tp = time.time()
         event_buf = pipeline.get()
@@ -148,7 +148,7 @@ def consumer(out_stream, pipeline, write_size, sentinel, stopper):
                 ts = time.time()
                 select.select([], [out_stream], [])
                 tw = time.time()
-                s_tot += tw-ts
+                s_tot += tw - ts
                 try:
                     out_stream.write(data)
                 except Exception:
@@ -185,7 +185,7 @@ def balance(pipe_in, pipe_out, read_size, write_size, queue_size):
             raise Exception('input streams have different header type')
         header = headers.pop()
         [s.write(header) for s in outputs]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(inputs)+len(outputs)) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(inputs) + len(outputs)) as executor:
             producer_task = [executor.submit(producer, s, pipeline, read_size, stopper) for s in inputs]
             consumer_task = [executor.submit(consumer, s, pipeline, write_size, sentinel, stopper) for s in outputs]
             try:
@@ -218,7 +218,6 @@ def balance(pipe_in, pipe_out, read_size, write_size, queue_size):
     write_output_time = {write_output_time}, {write_output_time / len(outputs)}
     wait_pipeline = {wait_pipeline}, {wait_pipeline / len(outputs)}
     """)
-
 
     finally:
         [s.close() for s in inputs]

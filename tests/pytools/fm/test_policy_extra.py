@@ -16,7 +16,7 @@ def test_calcrule_1():
     loss_expected = np.array([0., 0., 5., 15., 25., 30., 30.])
     deductible_expected = np.array([5., 15., 20., 20., 20., 20., 20.])
     over_limit_expected = np.array([5., 5., 5., 5., 5., 10., 20.])
-    under_limit_expected = np.array([5., 15., 20., 15.,  5., 0., 0.])
+    under_limit_expected = np.array([5., 15., 20., 15., 5., 0., 0.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -255,7 +255,7 @@ def test_calcrule_15():
     loss_expected = np.array([0., 0., 5., 15., 24., 30., 36.])
     deductible_expected = np.array([5., 15., 20., 20., 20., 20., 20.])
     over_limit_expected = np.array([5., 5., 5., 5., 6., 10., 14.])
-    under_limit_expected = np.array([5., 15., 17.5, 7.5,  0., 0., 0.])
+    under_limit_expected = np.array([5., 15., 17.5, 7.5, 0., 0., 0.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -269,7 +269,7 @@ def test_calcrule_16():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 16, 1/4, 0, 0, 10, 0.6, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 16, 1 / 4, 0, 0, 10, 0.6, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 7.5, 15., 22.5, 30., 37.5, 45.])
@@ -289,7 +289,7 @@ def test_calcrule_17():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 17, 1/4, 0, 0, 10, 25, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 17, 1 / 4, 0, 0, 10, 25, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 0, 2.5, 6.25, 10., 12.5, 12.5])
@@ -309,7 +309,7 @@ def test_calcrule_19():
     over_limit = np.array([0., 3., 10., 10., 10., 0., 0., 10, 10])
     under_limit = np.array([0., 10., 10., 0., 5., 15., 0., 10, 10])
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 19, 1/4, 10, 20, 0, 30, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 19, 1 / 4, 10, 20, 0, 30, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0.75, 15., 50])
@@ -343,7 +343,7 @@ def test_calcrule_22():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 22, 0, 0, 0, 0, 40, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 22, 0, 0, 0, 0, 40, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 3., 6., 9., 12., 15., 18.])
@@ -363,7 +363,7 @@ def test_calcrule_23():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 23, 0, 0, 0, 0, 40, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 23, 0, 0, 0, 0, 40, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 6., 12., 18., 24., 24., 24.])
@@ -383,7 +383,7 @@ def test_calcrule_24():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 24, 0, 0, 0, 5, 20, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 24, 0, 0, 0, 5, 20, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 0., 3., 6., 9., 12., 12.])
@@ -403,7 +403,7 @@ def test_calcrule_25():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 25, 0, 0, 0, 0, 0, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 25, 0, 0, 0, 0, 0, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 3., 6., 9., 12., 15., 18.])
@@ -423,7 +423,7 @@ def test_calcrule_26():
     over_limit = np.array([0., 3., 10., 10., 10., 0., 0., 10, 10])
     under_limit = np.array([0., 10., 10., 0., 5., 15., 0., 10, 10])
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 26, 1/4, 10, 20, 0, 30, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 26, 1 / 4, 10, 20, 0, 30, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0.75, 15., 30])
@@ -443,7 +443,7 @@ def test_calcrule_33():
     over_limit = np.ones_like(loss_in) * 5
     under_limit = np.ones_like(loss_in) * 5
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 33, 1/4, 0, 0, 10, 30, 0, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 33, 1 / 4, 0, 0, 10, 30, 0, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([0., 7.5, 15., 22.5, 30., 30., 30.])
@@ -484,7 +484,7 @@ def test_calcrule_35():
     over_limit = np.array([0., 3., 10., 10., 10., 0., 0., 10, 10])
     under_limit = np.array([0., 10., 10., 0., 5., 15., 0., 10, 10])
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 35, 1/4, 10, 20, 0, 4/5, 0, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 35, 1 / 4, 10, 20, 0, 4 / 5, 0, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 16., 16., 16., 16., 0.75, 15., 48])
@@ -504,7 +504,7 @@ def test_calcrule_36():
     over_limit = np.array([0., 3., 10., 10., 10., 0., 0., 10, 10])
     under_limit = np.array([0., 10., 10., 0., 5., 15., 0., 10, 10])
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 36, 5, 10, 20, 0, 4/5, 0, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 36, 5, 10, 20, 0, 4 / 5, 0, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 16., 16., 16., 16., 0., 15., 48])

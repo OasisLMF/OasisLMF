@@ -44,7 +44,7 @@ def compare(parquet_path, csv_path, sort, cols_case_sensitive, raise_error, **kw
     except AssertionError as e:
         if raise_error:
             raise
-        else:    
+        else:
             print(e)
 
 

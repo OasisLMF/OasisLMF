@@ -312,11 +312,11 @@ def analysis_settings_compatibility(analysis_settings_data):
     :rtype: dict
     """
     compatibility_profile = {
-        "module_supplier_id":{
+        "module_supplier_id": {
             "from_ver": "1.23.0",
             "updated_to": "model_supplier_id"
         },
-        "model_version_id":{
+        "model_version_id": {
             "from_ver": "1.23.0",
             "updated_to": "model_name_id"
         },
@@ -581,7 +581,7 @@ def get_dataframe(
                     dtype=col_dtypes,
                     encoding=use_encoding,
                     quotechar='"',
-                    skipinitialspace = True,
+                    skipinitialspace=True,
                 )
             elif src_type == 'parquet':
                 df = pd.read_parquet(src_fp or src_buf)
@@ -942,8 +942,8 @@ def get_location_df(
     }
 
     all_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes, all_dtypes=True)
-    str_dtypes, _  = get_dtypes_and_required_cols(get_loc_dtypes)
-    int_dtypes   = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('int')}
+    str_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes)
+    int_dtypes = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('int')}
     float_dtypes = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('float')}
 
     dtypes = {
@@ -967,7 +967,6 @@ def get_location_df(
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
-
 
     # Enforce OED string dtypes: if get_dataframe didn't correctly set  and replace any string 'nan'
     # with blank strings

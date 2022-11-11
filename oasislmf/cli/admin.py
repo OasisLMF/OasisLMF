@@ -16,7 +16,7 @@ class EnableBashCompleteCmd(OasisComputationCommand):
     so that Command autocomplete works for oasislmf CLI
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'HelperTabComplete' 
+    computation_name = 'HelperTabComplete'
 
 
 class CreateSimpleModelCmd(OasisComputationCommand):
@@ -26,7 +26,7 @@ class CreateSimpleModelCmd(OasisComputationCommand):
     on GitHub)
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'CreateModelRepo' 
+    computation_name = 'CreateModelRepo'
 
 
 class CreateComplexModelCmd(OasisComputationCommand):
@@ -36,7 +36,7 @@ class CreateComplexModelCmd(OasisComputationCommand):
     on GitHub)
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'CreateComplexModelRepo' 
+    computation_name = 'CreateComplexModelRepo'
 
 
 class AdminCmd(OasisBaseCommand):

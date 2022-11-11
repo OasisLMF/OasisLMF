@@ -1,8 +1,8 @@
+from random import randint
 import argparse
 import atexit
 import datetime
 import logging
-import math
 import os
 import pickle
 import socket
@@ -26,7 +26,6 @@ TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 PROCESSES_SUPPORTED = 100
 
-from random import randint
 MODEL_LOG_PATH = str(os.getcwd()) + f"/{randint(1,900)}_model_log.txt"
 
 
@@ -55,6 +54,7 @@ class FootprintLayer:
         total_expected (int): the total number of reliant processes expected
         total_served (int): the total number of processes that have ever registered through the server's lifetime
     """
+
     def __init__(self, static_path: str, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
         """
         The constructor for the FootprintLayer class.
@@ -186,7 +186,7 @@ class FootprintLayer:
                                 self.socket.shutdown(socket.SHUT_RDWR)
                                 break
                         connection.close()
-                # Catch all errors, send to logger and keep running        
+                # Catch all errors, send to logger and keep running
                 except Exception as e:
                     logging.error(e)
             connection.close()
@@ -318,4 +318,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -232,25 +232,25 @@ def get_default_fm_aggregation_profile(path=False):
 def get_loc_dtypes():
     return pd.DataFrame(
         get_ods_fields(pd)['Loc']).rename(mapper=MAPPING_FROM_ODS_SPEC
-    ).to_dict()
+                                          ).to_dict()
 
 
 def get_acc_dtypes():
     return pd.DataFrame(
         get_ods_fields(pd)['Acc']).rename(mapper=MAPPING_FROM_ODS_SPEC
-    ).to_dict()
+                                          ).to_dict()
 
 
 def get_scope_dtypes():
     return pd.DataFrame(
         get_ods_fields(pd)['ReinsScope']).rename(mapper=MAPPING_FROM_ODS_SPEC
-    ).to_dict()
+                                                 ).to_dict()
 
 
 def get_info_dtypes():
     return pd.DataFrame(
         get_ods_fields(pd)['ReinsInfo']).rename(mapper=MAPPING_FROM_ODS_SPEC
-    ).to_dict()
+                                                ).to_dict()
 
 
 def get_oed_default_values(terms):
