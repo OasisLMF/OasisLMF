@@ -1,16 +1,14 @@
 name: Oasislmf Release
 
 on:
-  # ONLY USE PUSH FOR TESTING
-  #push:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag to publish oasislmf package, example: "{n}.{n}.{n}" where n = int, e.g. 3.0.0,  if "pre_release=true" then valid formats are: ["{n}.{n}.{n}", "{n}.{n}.{n}rc{n}"]'
+        description: 'Release tag, for release: [{n}.{n}.{n}] e.g. 3.0.0,  for Pre-Release  [{n}.{n}.{n}rc{n}]'
         required: true
 
       prev_release_tag:
-        description: 'The previous oasislmf release version, this is used for generating the release notes, any changes after that relase will be logged: ["{n}.{n}.{n}", "{n}.{n}.{n}rc{n}"]'
+        description: 'The previous oasislmf release version, for changelog: ["{n}.{n}.{n}", "{n}.{n}.{n}rc{n}"]'
         required: true
 
       pre_release:
@@ -18,13 +16,8 @@ on:
         required: true
         default: 'false'
 
-      auto_merge:
-        description: 'Run Git flow, git_merge(source_branch -> master) and then git_merge(master -> develop): [true, false]'
-        required: true
-        default: 'true'
-
       build_osx:
-        description: 'If set, build ktools from scratch and use output to build package: [true, false]'
+        description: 'Build OSX package package: [true, false]'
         required: false
         default: 'false'
 
@@ -37,24 +30,11 @@ on:
 
 
 env:
-  MAIN_BRANCH: "master"      # Gitflow - Production branch for repo
-  DEVELOP_BRANCH: "develop"  # Gitflow - Develop branch for repo
   BUILD_SCRIPTS: "master"    # build scripts branch
   WORKSPACE: ${{ github.workspace }}/OasisLMF
-
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
   PRE_RELEASE: ${{ inputs.pre_release }}
-  AUTO_MERGE: ${{ inputs.auto_merge }}
-
-  ## -- TESTING ONLY ----
-  #MAIN_BRANCH: "test-master"
-  #DEVELOP_BRANCH: "test-develop"
-
-  #RELEASE_TAG: '1.27.0rc20'
-  #PREV_RELEASE_TAG: '1.26.0'
-  #PRE_RELEASE: 'true'
-  #AUTO_MERGE: 'true'
 
 
 jobs:
@@ -118,14 +98,6 @@ jobs:
         ref: ${{ github.ref_name }}
         path: ${{ env.WORKSPACE }}
 
-    - name: Check if tag exisits
-      working-directory: ${{ env.WORKSPACE }}
-      run: |
-        git rev-parse -q --verify "refs/tags/${{ env.RELEASE_TAG }}" && ERROR_CODE=1 || ERROR_CODE=0
-        if [[ "$ERROR_CODE" == 1 ]]; then
-            echo "TAG ${{ env.RELEASE_TAG }} exists in repository, can't create release with this tag" && exit $ERROR_CODE
-        fi
-
     - name: Check tag matches version set
       working-directory: ${{ env.WORKSPACE }}
       run: |
@@ -150,7 +122,7 @@ jobs:
             exit $ERROR_CODE
         fi
 
- # --- Setup Changelog builder script --- #
+    # --- Setup Changelog builder script --- #
     - name: Setup github user
       run: |
         git config --global user.email ${{ env.GIT_EMAIL }}
@@ -160,16 +132,14 @@ jobs:
         GIT_EMAIL: ${{ secrets.BUILD_GIT_EMAIL }}
         GIT_USERNAME: ${{ secrets.BUILD_GIT_USERNAME }}
 
-    - name: Check for merge conflicts and tag
+    - name: Tag Release
       working-directory: ${{ env.WORKSPACE }}
       env:
         GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       run: |
-        git checkout ${{ env.MAIN_BRANCH }}
-        git merge ${{ github.ref_name }} --no-ff --no-commit
-        git merge --abort
         git checkout ${{ github.ref_name }}
         git tag ${{ env.RELEASE_TAG }}
+
     - name: Setup python
       uses: actions/setup-python@v4
       with:
@@ -198,7 +168,8 @@ jobs:
           --to-tag ${{ env.RELEASE_TAG }} \
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
-          --output-path ./CHANGELOG.rst
+          --output-path ./CHANGELOG.rst \
+          --apply-milestone
         git add ./CHANGELOG.rst
         git commit -m 'Update changelog'
 
@@ -211,7 +182,6 @@ jobs:
           --to-tag ${{ env.RELEASE_TAG }} \
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
           --local-repo-path ./ \
-          --apply-milestone \
           --output-path ./RELEASE.md
 
     - name: Download Source package
@@ -342,6 +312,7 @@ jobs:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
+    # --- Slack notify --- #
     - name: slack message vars
       id: slack_vars
       run: |
@@ -370,3 +341,4 @@ jobs:
       run_id: ${{ needs.release.outputs.run_id }}
       run_status: ${{ needs.release.outputs.run_status }}
       run_date: ${{ needs.release.outputs.run_date }}
+
