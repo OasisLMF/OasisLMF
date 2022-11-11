@@ -39,7 +39,7 @@ def deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limi
         over_limit[i] += loss_delta - under_limit[i]
         deductible[i] = max_deductible
         under_limit[i] = 0
-    elif loss_in[i] >= -loss_delta :
+    elif loss_in[i] >= -loss_delta:
         loss_out[i] = loss_in[i] + loss_delta
         under_limit[i] -= loss_delta
         deductible[i] = max_deductible
@@ -153,12 +153,12 @@ def calcrule_5(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     effective_deductible = loss_in * policy['deductible_1']
     effective_limit = loss_in * policy['limit_1']
     deductible += effective_deductible
-    if policy['deductible_1'] + policy['limit_1'] >= 1 : # always under limit
+    if policy['deductible_1'] + policy['limit_1'] >= 1:  # always under limit
         for i in range(loss_in.shape[0]):
             loss_out[i] = loss_in[i] - effective_deductible[i]
             under_limit[i] = min2(effective_limit[i] - loss_out[i], under_limit[i] + effective_deductible[i])
 
-    else: # always over limit
+    else:  # always over limit
         loss_out[:] = effective_limit
         over_limit += loss_in - effective_deductible - effective_limit
         under_limit[:] = 0
@@ -326,7 +326,7 @@ def calcrule_15(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     deductible and limit % loss
     """
-    effective_limit = policy['deductible_1']/(1 - policy['limit_1'])
+    effective_limit = policy['deductible_1'] / (1 - policy['limit_1'])
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible_1']:
             under_limit[i] = min2(effective_limit, under_limit[i] + loss_in[i])
@@ -362,7 +362,7 @@ def calcrule_17(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     if policy['deductible_1'] >= 1:
         loss_out.fill(0)
     else:
-        post_ded_attachment = policy['attachment_1'] / (1- policy['deductible_1'])
+        post_ded_attachment = policy['attachment_1'] / (1 - policy['deductible_1'])
         post_ded_attachment_limit = (policy['attachment_1'] + policy['limit_1']) / (1 - policy['deductible_1'])
         maxi = policy['limit_1'] * policy['share_1']
         for i in range(loss_in.shape[0]):

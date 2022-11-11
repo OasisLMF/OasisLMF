@@ -61,10 +61,10 @@ def test_exposure_pre_analysis_simple_example():
         kwargs = {'oasis_files_dir': d,
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
                   'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
-                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),}
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'), }
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
-        write_oed_location(kwargs['oed_location_csv'] )
+        write_oed_location(kwargs['oed_location_csv'])
         write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
 
         OasisManager().exposure_pre_analysis(**kwargs)

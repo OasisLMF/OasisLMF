@@ -95,7 +95,7 @@ def test_calcrule_15():
 def test_calcrule_16():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 16, 1/4, 0, 0, 10, 0.6, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 16, 1 / 4, 0, 0, 10, 0.6, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 7.5, 15., 22.5, 30., 37.5, 45.])
@@ -107,7 +107,7 @@ def test_calcrule_17():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
 
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 17, 1/4, 0, 0, 10, 25, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 17, 1 / 4, 0, 0, 10, 25, 0.5, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 0, 2.5, 6.25, 10., 12.5, 12.5])
@@ -130,7 +130,7 @@ def test_calcrule_22():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
 
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 22, 0, 0, 0, 0, 40, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 22, 0, 0, 0, 0, 40, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 3., 6., 9., 12., 15., 18.])
@@ -142,7 +142,7 @@ def test_calcrule_23():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
 
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 23, 0, 0, 0, 0, 40, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 23, 0, 0, 0, 0, 40, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 6., 12., 18., 24., 24., 24.])
@@ -153,7 +153,7 @@ def test_calcrule_23():
 def test_calcrule_24():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 24, 0, 0, 0, 5, 20, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 24, 0, 0, 0, 5, 20, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 0., 3., 6., 9., 12., 12.])
@@ -165,7 +165,7 @@ def test_calcrule_25():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
 
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 25, 0, 0, 0, 0, 0, 1/2, 3/4, 4/5)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 25, 0, 0, 0, 0, 0, 1 / 2, 3 / 4, 4 / 5)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 3., 6., 9., 12., 15., 18.])
@@ -177,7 +177,7 @@ def test_calcrule_33():
     loss_in = np.array([0., 10., 20., 30., 40., 50., 60.])
 
     loss_out = np.empty_like(loss_in)
-    policy = np.array([(0, 33, 1/4, 0, 0, 10, 30, 0, 0, 0)], dtype=fm_profile_dtype)[0]
+    policy = np.array([(0, 33, 1 / 4, 0, 0, 10, 30, 0, 0, 0)], dtype=fm_profile_dtype)[0]
     calc(policy, loss_out, loss_in, None)
 
     loss_expected = np.array([0., 7.5, 15., 22.5, 30., 30., 30.])

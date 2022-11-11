@@ -47,7 +47,7 @@ def create_currency_rates(currency_conversion):
             raise OasisException(f"Unsuported currency_conversion source type : {currency_conversion.get('source_type')}")
     elif currency_conversion.get('currency_conversion_type') == 'FxCurrencyRates':
         if FxCurrencyRates is None:
-            raise OasisException(f"You must install package forex-python to use builtin_currency_conversion_type FxCurrencyRates")
+            raise OasisException("You must install package forex-python to use builtin_currency_conversion_type FxCurrencyRates")
 
         _datetime = currency_conversion.get('datetime')
         if _datetime is not None:

@@ -100,7 +100,7 @@ class TestSummaries(TestCase):
 
         # Shared Values between Loc / keys
         loc_size = data.draw(integers(10, 20))
-        supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
+        supported_cov = data.draw(st.lists(integers(1, 4), unique=True, min_size=1, max_size=4))
         perils = 'WTC'
 
         # Create Mock keys_df
@@ -154,7 +154,7 @@ class TestSummaries(TestCase):
         # WARNING: current assumption is that all cov types must be covered to be modelled
         #moddeled = 0
         #moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
-        #for loc_id in moddeld_loc_ids:
+        # for loc_id in moddeld_loc_ids:
         #    if len(gul_inputs[gul_inputs.loc_id == loc_id].coverage_type_id.unique()) == 4:
         #        moddeled+=1
         #self.assertEqual(len(loc_df) - moddeled, exp_summary['total']['not-modelled']['number_of_locations'])
@@ -163,7 +163,7 @@ class TestSummaries(TestCase):
     @settings(max_examples=10, deadline=None)
     def test_multi_perils__single_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
-        supported_cov = data.draw(integers(1,4))
+        supported_cov = data.draw(integers(1, 4))
         perils = data.draw(st.lists(
             st.text(alphabet=(string.ascii_letters + string.digits), min_size=2, max_size=6),
             min_size=2,
@@ -209,7 +209,7 @@ class TestSummaries(TestCase):
     @settings(max_examples=10, deadline=None, suppress_health_check=HealthCheck.all())
     def test_multi_perils__multi_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
-        supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
+        supported_cov = data.draw(st.lists(integers(1, 4), unique=True, min_size=1, max_size=4))
         perils = data.draw(st.lists(
             st.text(alphabet=(string.ascii_letters + string.digits), min_size=2, max_size=6),
             min_size=2,

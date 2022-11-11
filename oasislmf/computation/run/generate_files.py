@@ -20,7 +20,8 @@ class GenerateOasisFiles(ComputationStep):
 
     # Override params
     step_params = [
-        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
+            'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [

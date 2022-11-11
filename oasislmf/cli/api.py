@@ -1,6 +1,7 @@
 from argparse import RawDescriptionHelpFormatter
 from .command import OasisBaseCommand, OasisComputationCommand
 
+
 class ListApiCmd(OasisComputationCommand):
     """
     Issue API GET requests via the command line
@@ -11,21 +12,23 @@ class ListApiCmd(OasisComputationCommand):
 
 class RunApiCmd(OasisComputationCommand):
     """
-    Run a model via the Oasis Platoform API end to end 
+    Run a model via the Oasis Platoform API end to end
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRun'
 
+
 class RunInputApiCmd(OasisComputationCommand):
     """
-    Run a model via the Oasis Platoform API end to end 
+    Run a model via the Oasis Platoform API end to end
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRunInputs'
 
+
 class RunLossApiCmd(OasisComputationCommand):
     """
-    Run a model via the Oasis Platoform API end to end 
+    Run a model via the Oasis Platoform API end to end
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRunLosses'
@@ -41,7 +44,7 @@ class DeleteApiCmd(OasisComputationCommand):
 
 class GetApiCmd(OasisComputationCommand):
     """
-    Download files from the Oasis Platoform API 
+    Download files from the Oasis Platoform API
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformGet'

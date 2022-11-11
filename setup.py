@@ -24,7 +24,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.9.4rc3'
+KTOOLS_VERSION = '3.9.4'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -38,9 +38,11 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
+
 def get_optional_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'optional-package.in'), encoding='utf-8') as reqs:
         return {"extra": reqs.readlines()}
+
 
 def get_version():
     """
@@ -73,7 +75,6 @@ class InstallKtoolsMixin(object):
         with a fallback of compile ktools from source
         '''
         bin_install_kwargs = self.try_get_bin_install_kwargs()
-
 
         if bin_install_kwargs:
             # This only executes if 'KTOOLS_TAR_FILE_DIR' is set and the directory contains a correctly named ktools tar
@@ -113,7 +114,7 @@ class InstallKtoolsMixin(object):
                     break
 
             except URLError as e:
-                self.announce('Fetch ktools tar failed: {} (attempt {})'.format(e, (i+1)), WARN)
+                self.announce('Fetch ktools tar failed: {} (attempt {})'.format(e, (i + 1)), WARN)
                 last_error = e
                 sleep(cooldown)
         else:
@@ -154,7 +155,7 @@ class InstallKtoolsMixin(object):
         system_os_flag = '--enable-osx ' if system_os == 'Darwin' else ''
 
         exit_code = os.system(f'cd {build_dir} && ./autogen.sh && ./configure {system_os_flag} && make && make check')
-        if(exit_code != 0):
+        if (exit_code != 0):
             print('Ktools build failed.\n')
             sys.exit(1)
         return build_dir
@@ -198,14 +199,13 @@ class InstallKtoolsMixin(object):
                 ARCH = None
                 OS = None
 
-
-        # ENV OVERRIDE TO install a localy copy of ktools 
-        #TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', '')) 
+        # ENV OVERRIDE TO install a localy copy of ktools
+        #TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', ''))
 
         if os.getenv('KTOOLS_TAR_FILE_DIR', None):
             TAR_OVERRIDE = os.path.join(os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR')), '{}_{}.tar.gz'.format(OS, ARCH))
             return {"system_os": OS, "system_architecture": ARCH, 'ktools_tar_override': TAR_OVERRIDE}
-        else:    
+        else:
             return {"system_os": OS, "system_architecture": ARCH}
 
     def install_ktools_source(self, system_os=None, system_architecture=None, ktools_tar_override=None):
@@ -225,7 +225,7 @@ class InstallKtoolsMixin(object):
             local_extract_path = os.path.join(d, 'extracted')
             bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/{}_{}.tar.gz'.format(KTOOLS_VERSION, system_os, system_architecture)
             self.fetch_ktools_tar(local_tar_path, bin_url)
-            
+
             self.unpack_tar(local_tar_path, local_extract_path)
             self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
 

@@ -25,7 +25,7 @@ def stream_to_dict_array(stream_obj):
                 sidx = 0
             elif sidx == -2:
                 continue
-            elif sidx==0:
+            elif sidx == 0:
                 agg_id = 0
                 continue
             cur_array[sidx] = 0 if np.isnan(loss) else loss
@@ -48,7 +48,7 @@ def round_dict_array(dict_array, precision):
 
 
 def dict_array_to_np_array(dict_array, len_sample):
-    res = np.empty(len(dict_array), dtype = np.dtype(f"i4, i4, ({len_sample + EXTRA_VALUES})f4"))
+    res = np.empty(len(dict_array), dtype=np.dtype(f"i4, i4, ({len_sample + EXTRA_VALUES})f4"))
     for i, (event_id, agg_id) in enumerate(sorted(dict_array)):
         res[i] = event_id, agg_id, dict_array[(event_id, agg_id)]
     return res
@@ -90,7 +90,7 @@ def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
         try:
             assert_allclose(dict_array1[key], dict_array2[key], precision)
         except AssertionError:
-            mismatch+=1
+            mismatch += 1
             msg_list.append(f"value mismatch for {key} index {i}:\n\t{dict_array_gul.get(key)}\n\t{dict_array1[key]}\n\t{dict_array2[key]}")
             output_id, agg_id, layer_id = np.extract(fm_xref['output_id'] == key[1], fm_xref)[0]
             cur_level, cur_agg_id = 1, agg_id
@@ -98,7 +98,7 @@ def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
                 policytc = np.extract(np.logical_and(fm_policytc['level_id'] == cur_level,
                                                      fm_policytc['agg_id'] == agg_id,
                                                      np.logical_or(fm_policytc['layer_id'] == layer_id, fm_policytc['layer_id'] == 1)),
-                                         fm_policytc)
+                                      fm_policytc)
                 if policytc.shape[0] > 1:
                     policytc_id = np.extract(policytc['layer_id'] == layer_id, policytc['policytc_id'])
                     true_layer = layer_id
@@ -115,8 +115,8 @@ def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
                     break
                 else:
                     brothers = np.extract(np.logical_and(fm_programme['to_agg_id'] == parent['to_agg_id'],
-                                                   fm_programme['level_id'] == cur_level),
-                                    fm_programme)
+                                                         fm_programme['level_id'] == cur_level),
+                                          fm_programme)
                     msg_list.append(f"prothers {brothers}")
 
             if mismatch > 10:

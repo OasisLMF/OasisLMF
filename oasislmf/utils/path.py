@@ -86,6 +86,7 @@ class PathCleaner(object):
         does not exist.
     :type preexists: bool
     """
+
     def __init__(self, label, preexists=True):
         self.label = label
         self.preexists = preexists

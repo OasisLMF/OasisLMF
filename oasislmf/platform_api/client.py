@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import os
+import sys
 import tarfile
 import time
 import pathlib
@@ -25,11 +26,13 @@ from requests.exceptions import (
 from .session import APISession
 from ..utils.exceptions import OasisException
 
+
 class ApiEndpoint(object):
     """
     Used to Implement the default requests common to all Oasis API
     End points.
     """
+
     def __init__(self, session, url_endpoint, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
@@ -60,6 +63,7 @@ class JsonEndpoint(object):
     """
     Used for JSON data End points.
     """
+
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
@@ -102,10 +106,12 @@ class JsonEndpoint(object):
             f.write(json.dumps(r.json(), ensure_ascii=False, indent=4))
         return r
 
+
 class FileEndpoint(object):
     """
     File Resources Endpoint for Upload / Downloading
     """
+
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
 
@@ -131,7 +137,6 @@ class FileEndpoint(object):
         }
         file_ext = pathlib.Path(file_path).suffix[1:].lower()
         return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
-
 
     def upload(self, ID, file_path, content_type=None):
         try:

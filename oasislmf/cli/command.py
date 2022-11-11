@@ -22,6 +22,7 @@ class OasisBaseCommand(BaseCommand):
     2 additional arguments (``--verbose`` and ``--config``) are added to
     the parser so that they are available for all commands.
     """
+
     def __init__(self, *args, **kwargs):
         self._logger = None
         self.args = None
@@ -84,7 +85,6 @@ class OasisBaseCommand(BaseCommand):
             logger.addHandler(ch)
             logger.setLevel(log_level)
             self._logger = logger
-
 
     @property
     def logger(self):
