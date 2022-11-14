@@ -8,7 +8,7 @@ from contextlib import ExitStack
 from select import select
 from pathlib import Path
 from numba import njit
-from numba.types import uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64
+from numba.types import int32 as nb_int32, int64 as nb_int64
 from numba.typed import Dict, List
 
 from oasislmf.pytools.common import PIPE_CAPACITY
