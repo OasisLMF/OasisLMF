@@ -18,7 +18,6 @@ parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 
 
-
 def main() -> None:
     """
     Is the entry point for the modelpy command which loads data and constructs a model.
