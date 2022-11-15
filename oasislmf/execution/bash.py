@@ -1444,6 +1444,8 @@ def bash_params(
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     custom_gulcalc_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_end=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -1494,6 +1496,15 @@ def bash_params(
         bash_params['_get_getmodel_cmd'] = get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings)
     else:
         bash_params['_get_getmodel_cmd'] = _get_getmodel_cmd
+
+    # Set custom gulcalc log statment checks, 
+    if custom_gulcalc_log_start and custom_gulcalc_log_end:
+        bash_params['custom_gulcalc_log_start'] = custom_gulcalc_log_start
+        bash_params['custom_gulcalc_log_end'] = custom_gulcalc_log_end
+    else:
+        bash_params['custom_gulcalc_log_start'] = analysis_settings.get('model_custom_gulcalc_log_start', False)
+        bash_params['custom_gulcalc_log_end'] = analysis_settings.get('model_custom_gulcalc_log_end', False)
+
 
     ## Set fifo dirs
     if fifo_tmp_dir:
@@ -2299,6 +2310,8 @@ def genbash(
         bash_trace=bash_trace,
         filename=filename,
         _get_getmodel_cmd=_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_end=custom_gulcalc_log_end,
         custom_args=custom_args,
         fmpy=fmpy,
         fmpy_low_memory=fmpy_low_memory,
@@ -2308,17 +2321,18 @@ def genbash(
         gulpy=gulpy,
         model_py_server=model_py_server
     )
+    print(params)
 
     # remove the file if it already exists
     if os.path.exists(filename):
         os.remove(filename)
-
-    with bash_wrapper(
+    
+    with bash_wrapper(  
         filename, 
         bash_trace, 
         stderr_guard,
-        custom_gulcalc_log_start=custom_gulcalc_log_start,
-        custom_gulcalc_log_end=custom_gulcalc_log_end,
+        custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
+        custom_gulcalc_log_end=params['custom_gulcalc_log_end'],
         ):
         create_bash_analysis(**params)
         create_bash_outputs(**params)
