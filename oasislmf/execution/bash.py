@@ -11,7 +11,6 @@ import string
 from functools import partial
 
 import pandas as pd
-from idna import check_nfc
 
 logger = logging.getLogger(__name__)
 
@@ -2321,7 +2320,6 @@ def genbash(
         gulpy=gulpy,
         model_py_server=model_py_server
     )
-    print(params)
 
     # remove the file if it already exists
     if os.path.exists(filename):

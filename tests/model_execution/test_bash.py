@@ -97,7 +97,7 @@ class Genbash(TestCase):
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
         )
-        # raise
+
 
     def gen_chunked_bash(self, name, 
         num_partitions,
