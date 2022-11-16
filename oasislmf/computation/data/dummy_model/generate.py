@@ -139,17 +139,31 @@ class FootprintFiles(ModelFile):
         self.intensity_sparseness = intensity_sparseness
         self.no_intensity_uncertainty = no_intensity_uncertainty
 
-    def get_bin_start_stats(self):
-        return [
-            {
-                'desc': 'Number of intensity bins',
-                'value': self.num_intensity_bins, 'dtype': 'i'
-            },
-            {
-                'desc': 'Has Intensity Uncertainty',
-                'value': not self.no_intensity_uncertainty, 'dtype': 'i'
-            }
-        ]
+
+class FootprintIdxFile(FootprintFiles):
+    def __init__(
+        self, num_events, num_areaperils, areaperils_per_event,
+        num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
+        directory
+    ):
+        super().__init__(
+            num_events, num_areaperils, areaperils_per_event,
+            num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
+        )
+        self.dtypes = OrderedDict([
+            ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
+        ])
+        self.dtypes_list = ''.join(self.dtypes.values())
+        self.data_length = num_events
+        self.file_name = os.path.join(directory, 'footprint.idx')
+
+    def write_data(self, event_id, offset, event_size):
+        if event_id == 99:
+            import ipdb; ipdb.set_trace()
+        with open(self.file_name, 'ab') as f:
+            f.write(struct.pack(
+                '=' + self.dtypes_list, event_id, offset, event_size)
+            )
 
 
 class FootprintBinFile(FootprintFiles):
@@ -162,18 +176,46 @@ class FootprintBinFile(FootprintFiles):
             num_events, num_areaperils, areaperils_per_event,
             num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
         )
-        self.start_stats = self.get_bin_start_stats()
-        self.dtypes = FootprintFiles.bin_dtypes
         self.random_seed = random_seed
-        if no_intensity_uncertainty:
-            self.data_length = num_events * areaperils_per_event
-        else:
-            self.data_length = num_events * areaperils_per_event * num_intensity_bins
         self.file_name = os.path.join(directory, 'footprint.bin')
+        self.event_id = 0
+        self.start_stats = [
+            {
+                'desc': 'Number of intensity bins',
+                'value': self.num_intensity_bins, 'dtype': 'i'
+            },
+            {
+                'desc': 'Has Intensity Uncertainty',
+                'value': not self.no_intensity_uncertainty, 'dtype': 'i'
+            }
+        ]
+        self.dtypes = OrderedDict(
+            [
+                ('areaperil_id', 'i'),
+                ('intensity_bin_id', 'i'),
+                ('probability', 'f')
+            ]
+        )
+        self.idx_file = FootprintIdxFile(
+            num_events, num_areaperils, areaperils_per_event,
+            num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
+            directory
+        )
+        # Size is the same for all events
+        self.size = 0
+        for dtype in FootprintFiles.bin_dtypes.values():
+            self.size += struct.calcsize(dtype)
+        if not self.no_intensity_uncertainty:
+            self.size *= self.num_intensity_bins
+        # Set initial offset
+        self.offset = 0
+        for stat in self.start_stats:
+            self.offset += struct.calcsize(stat['dtype'])
 
     def generate_data(self):
         super().seed_rng()
         for event in range(self.num_events):
+            event_size = 0
 
             if self.areaperils_per_event == self.num_areaperils:
                 selected_areaperils = np.arange(1, self.num_areaperils + 1)
@@ -191,6 +233,7 @@ class FootprintBinFile(FootprintFiles):
                         1, self.num_intensity_bins + 1
                     )
                     probability = 1.0
+                    event_size += self.size
                     yield areaperil, intensity_bin, probability
                 else:
                     # Generate probabalities according to intensity sparseness
@@ -202,45 +245,17 @@ class FootprintBinFile(FootprintFiles):
                             np.random.uniform(size=x.shape), 0.0
                         ), 0, triggers
                     )
+                    total_probability = np.sum(probabilities)
+                    if total_probability == 0:
+                        continue   # No impacted intensity bins
+                    event_size += self.size
                     probabilities /= np.sum(probabilities)
 
                     for intensity_bin, probability in enumerate(probabilities):
                         yield areaperil, intensity_bin + 1, probability
 
-
-class FootprintIdxFile(FootprintFiles):
-    def __init__(
-        self, num_events, num_areaperils, areaperils_per_event,
-        num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
-        directory
-    ):
-        super().__init__(
-            num_events, num_areaperils, areaperils_per_event,
-            num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
-        )
-        self.start_stats = None
-        self.dtypes = OrderedDict([
-            ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
-        ])
-        self.data_length = num_events
-        self.file_name = os.path.join(directory, 'footprint.idx')
-
-    def generate_data(self):
-        # Size is the same for all events
-        size = 0
-        for dtype in FootprintFiles.bin_dtypes.values():
-            size += struct.calcsize(dtype)
-        size *= self.areaperils_per_event
-        if not self.no_intensity_uncertainty:
-            size *= self.num_intensity_bins
-        # Set initial offset
-        offset = 0
-        for stat in self.get_bin_start_stats():
-            offset += struct.calcsize(stat['dtype'])
-
-        for event in range(self.num_events):
-            yield event + 1, offset, size
-            offset += size
+            self.idx_file.write_data(event + 1, self.offset, event_size)
+            self.offset += event_size
 
 
 class DamageBinDictFile(ModelFile):
