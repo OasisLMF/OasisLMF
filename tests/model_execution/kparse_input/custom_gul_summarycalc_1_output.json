@@ -7,7 +7,7 @@
     "gul_threshold": 100,
     "model_custom_gulcalc": "custom_gulcalc_command",
     "model_custom_gulcalc_log_start": "Starting custom gulcalc command",
-    "model_custom_gulcalc_log_end": "Custom gulcalc command finished",
+    "model_custom_gulcalc_log_finish": "Custom gulcalc command finished",
     "model_settings": {
       "use_random_number_file": true,
       "event_occurrence_file_id": 1

@@ -21,7 +21,7 @@ def run(analysis_settings,
         run_debug=False,
         custom_gulcalc_cmd=None,
         custom_gulcalc_log_start=None,
-        custom_gulcalc_log_end=None,
+        custom_gulcalc_log_finish=None,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
         **kwargs
@@ -97,7 +97,7 @@ def run(analysis_settings,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
         custom_gulcalc_log_start=custom_gulcalc_log_start,
-        custom_gulcalc_log_end=custom_gulcalc_log_end,
+        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         **kwargs,
     )
     bash_trace = subprocess.check_output(['bash', filename])

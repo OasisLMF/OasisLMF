@@ -152,7 +152,7 @@ class Genbash(TestCase):
                 bash_trace or self.bash_trace,
                 stderr_guard or self.stderr_guard,
                 custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-                custom_gulcalc_log_end=params['custom_gulcalc_log_end'],
+                custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
                 ):
                 create_bash_analysis(
                     **{ 
@@ -173,7 +173,7 @@ class Genbash(TestCase):
             bash_trace or self.bash_trace, 
             stderr_guard or self.stderr_guard,
             custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
-            custom_gulcalc_log_end=params['custom_gulcalc_log_end'],
+            custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
             ):
             create_bash_outputs(**params)
 

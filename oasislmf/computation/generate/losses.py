@@ -501,7 +501,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None,  'help': 'Log message produced when custom gulcalc binary process starts'},
-        {'name': 'model_custom_gulcalc_log_end',   'default': None,  'help': 'Log message produced when custom gulcalc binary process ends'},
+        {'name': 'model_custom_gulcalc_log_finish',   'default': None,  'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'model_py_server',        'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
     ]
 
@@ -533,7 +533,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
-                        custom_gulcalc_log_end=self.model_custom_gulcalc_log_end,
+                        custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
                         gulpy=(self.gulpy and not self.model_custom_gulcalc),
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
@@ -559,7 +559,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
-                        custom_gulcalc_log_end=self.model_custom_gulcalc_log_end,
+                        custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
                     )
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
