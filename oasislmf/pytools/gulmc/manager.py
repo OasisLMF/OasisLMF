@@ -92,7 +92,8 @@ def get_vulnerability_weights(static_path, ignore_file_type=set()):
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
-        random_generator, peril_filter=[], file_in=None, file_out=None, data_server=None, ignore_correlation=False, **kwargs):
+        random_generator, peril_filter=[], file_in=None, file_out=None, data_server=None, ignore_correlation=False,
+        effective_damageability=False, **kwargs):
     """TODO add description
 
     Args:
@@ -357,7 +358,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                         areaperil_to_eff_vuln_cdf_Ndamage_bins, vuln_array, damage_bins, Ndamage_bins_max,
                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
-                        z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor
+                        z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
                     # write the losses to the output stream
@@ -377,7 +378,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          areaperil_to_eff_vuln_cdf_Ndamage_bins, vuln_array, damage_bins, Ndamage_bins_max,
                          loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
-                         z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
+                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
 
     # evaluate if there's a simpler/more pythonic way of storing coverage and items_by coverage
     # I think we can avoid the coverage reconstruction, and it'd be sufficient to produce a dense
@@ -449,23 +450,35 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     vuln_rndms = vuln_rndms_base[rng_index]
 
                 for sample_idx in range(1, sample_size + 1):
-                    if Nbins == 1:
-                        # if hazard intensity has no uncertainty, there is no need to sample
-                        haz_bin_idx = 0
+                    if effective_damageability:
+                        if Nbins == 1:
+                            # if hazard intensity has no uncertainty, there is no need to sample
+                            haz_bin_idx = 0
+
+                        else:
+                            # if hazard intensity has a probability distribution, sample it
+
+                            # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
+                            haz_rval = haz_rndms[rng_index][sample_idx - 1]
+
+                            if haz_rval >= haz_prob_to[Nbins - 1]:
+                                haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
+                                haz_bin_idx = Nbins - 1
+                            else:
+                                # find the bin in which the random value `haz_rval` falls into
+                                # len(haz_prob_to) can be cached and stored above
+                                haz_bin_idx = binary_search(haz_rval, haz_prob_to, Nbins)
+
+                        cdf_start_in_footprint = haz_prob_rec_idx_ptr[hazcdf_i]
+                        haz_int_bin_idx = event_footprint[cdf_start_in_footprint + haz_bin_idx]['intensity_bin_id']
+                        # TODO instead of using event_footprint, store the intensity_bin_id in haz_cdf as a ndarray
+
+                        # damage sampling
+                        # get vulnerability function for the sampled intensity_bin
+                        vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
                     else:
-                        # if hazard intensity has a probability distribution, sample it
-
-                        # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
-                        haz_rval = haz_rndms[rng_index][sample_idx - 1]
-
-                        if haz_rval >= haz_prob_to[Nbins - 1]:
-                            haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
-                            haz_bin_idx = Nbins - 1
-                        else:
-                            # find the bin in which the random value `haz_rval` falls into
-                            # len(haz_prob_to) can be cached and stored above
-                            haz_bin_idx = binary_search(haz_rval, haz_prob_to, Nbins)
+                        vuln_prob = eff_vuln_cdf
 
                     # cap `vuln_rval` to the maximum `vuln_prob_to` value (which should be 1.)
                     vuln_rval = vuln_rndms[sample_idx - 1]
@@ -473,14 +486,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                     if debug:
                         losses[sample_idx, item_i] = vuln_rval
                         continue
-
-                    cdf_start_in_footprint = haz_prob_rec_idx_ptr[hazcdf_i]
-                    haz_int_bin_idx = event_footprint[cdf_start_in_footprint + haz_bin_idx]['intensity_bin_id']
-                    # TODO instead of using event_footprint, store the intensity_bin_id in haz_cdf as a ndarray
-
-                    # damage sampling
-                    # get vulnerability function for the sampled intensity_bin
-                    vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
                     # TODO: here I need to compute the cumsum explicitly and return an array
                     # of length such that the only the last element is 1.

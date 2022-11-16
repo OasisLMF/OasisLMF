@@ -23,6 +23,9 @@ parser.add_argument('-L', help='Loss treshold. Default: 1e-6', default=1e-6,
                     action='store', type=float, dest='loss_threshold')
 parser.add_argument('-S', help='Sample size. Default: 0', default=0, action='store', type=int, dest='sample_size')
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
+parser.add_argument('--effective-damageability',
+                    help='if passed true, the effective damageability is used to draw loss samples instead of full MC. Default: False',
+                    action='store_true', dest='effective_damageability', default=False)
 parser.add_argument('--ignore-correlation',
                     help='if passed true, peril correlation groups (if defined) are ignored for the generation of correlated samples. Default: False',
                     action='store_true', dest='ignore_correlation', default=False)
