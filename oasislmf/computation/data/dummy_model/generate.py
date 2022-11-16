@@ -105,7 +105,11 @@ class VulnerabilityFile(ModelFile):
                         np.random.uniform(size=x.shape), 0.0
                     ), 0, triggers
                 )
-                probabilities /= np.sum(probabilities)
+                total_probability = np.sum(probabilities)
+                if (total_probability == 0):
+                    probabilities[0] = 1.0   ## First damage bin is always zero-loss
+                else:
+                    probabilities /= total_probability
 
                 for damage_bin, probability in enumerate(probabilities):
                     yield vulnerability + 1, intensity_bin + 1, damage_bin + 1, probability
@@ -158,8 +162,6 @@ class FootprintIdxFile(FootprintFiles):
         self.file_name = os.path.join(directory, 'footprint.idx')
 
     def write_data(self, event_id, offset, event_size):
-        if event_id == 99:
-            import ipdb; ipdb.set_trace()
         with open(self.file_name, 'ab') as f:
             f.write(struct.pack(
                 '=' + self.dtypes_list, event_id, offset, event_size)
@@ -249,7 +251,7 @@ class FootprintBinFile(FootprintFiles):
                     if total_probability == 0:
                         continue   # No impacted intensity bins
                     event_size += self.size
-                    probabilities /= np.sum(probabilities)
+                    probabilities /= total_probability
 
                     for intensity_bin, probability in enumerate(probabilities):
                         yield areaperil, intensity_bin + 1, probability
