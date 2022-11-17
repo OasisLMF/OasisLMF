@@ -94,6 +94,9 @@ celerybeat-schedule
 venv/
 ENV/
 
+# pip-compiled requirements
+requirements.txt
+
 # Spyder project settings
 .spyderproject
 .spyproject
