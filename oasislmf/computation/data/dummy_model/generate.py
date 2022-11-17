@@ -214,45 +214,7 @@ class EventsFile(ModelFile):
         return (tuple([event]) for event in range(1, self.num_events + 1))
 
 
-class FootprintFiles(ModelFile):
-    """
-    Parent class for generating random data for Footprint dummy model files.
-
-    The binary footprint file footprint.bin requires the index file
-    footprint.idx. The classes to write the binary and index files inherit from
-    this class.
-    """
-    bin_dtypes = OrderedDict([
-        ('areaperil_id', 'i'), ('intensity_bin_id', 'i'), ('probability', 'f')
-    ])
-
-    def __init__(
-        self, num_events, num_areaperils, areaperils_per_event,
-        num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
-    ):
-        """
-        Initialise Footprint files classes.
-
-        Args:
-            num_events: number of events, int.
-            num_areaperils: number of areaperils, int.
-            areaperils_per_event: number of areaperils impacted per event, int.
-            num_intensity_bins: number of intensity bins, int.
-            intensity_sparseness: percentage of bins normalised to range [0,1]
-                impacted for an event and areaperil, float.
-            no_intensity_uncertainty: flag to indicate whether more than one
-                intensity bin can be impacted, bool.
-            directory: dummy model file destination, str.
-        """
-        self.num_events = num_events
-        self.num_areaperils = num_areaperils
-        self.areaperils_per_event = areaperils_per_event
-        self.num_intensity_bins = num_intensity_bins
-        self.intensity_sparseness = intensity_sparseness
-        self.no_intensity_uncertainty = no_intensity_uncertainty
-
-
-class FootprintIdxFile(FootprintFiles):
+class FootprintIdxFile(ModelFile):
     """
     Generate data for Footprint index dummy model file.
 
@@ -262,26 +224,17 @@ class FootprintIdxFile(FootprintFiles):
     Attributes:
         write_file: Write data to Footprint index file in binary format.
     """
-    def __init__(
-        self, num_events, num_areaperils, areaperils_per_event,
-        num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
-        directory
-    ):
+    def __init__(self, directory):
         """
         Initialise Footprint index file class.
 
         Args:
             directory: dummy model file destination, str.
         """
-        super().__init__(
-            num_events, num_areaperils, areaperils_per_event,
-            num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
-        )
         self.dtypes = OrderedDict([
             ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
         ])
         self.dtypes_list = ''.join(self.dtypes.values())
-        self.data_length = num_events
         self.file_name = os.path.join(directory, 'footprint.idx')
 
     def write_file(self, event_id, offset, event_size):
@@ -304,7 +257,7 @@ class FootprintIdxFile(FootprintFiles):
             )
 
 
-class FootprintBinFile(FootprintFiles):
+class FootprintBinFile(ModelFile):
     """
     Generate data for Footprint binary dummy model file.
 
@@ -334,10 +287,12 @@ class FootprintBinFile(FootprintFiles):
             random_seed: random seed for random number generator, float.
             directory: dummy model file destination, str.
         """
-        super().__init__(
-            num_events, num_areaperils, areaperils_per_event,
-            num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
-        )
+        self.num_events = num_events
+        self.num_areaperils = num_areaperils
+        self.areaperils_per_event = areaperils_per_event
+        self.num_intensity_bins = num_intensity_bins
+        self.intensity_sparseness = intensity_sparseness
+        self.no_intensity_uncertainty = no_intensity_uncertainty
         self.random_seed = random_seed
         self.file_name = os.path.join(directory, 'footprint.bin')
         self.event_id = 0
@@ -358,14 +313,10 @@ class FootprintBinFile(FootprintFiles):
                 ('probability', 'f')
             ]
         )
-        self.idx_file = FootprintIdxFile(
-            num_events, num_areaperils, areaperils_per_event,
-            num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
-            directory
-        )
+        self.idx_file = FootprintIdxFile(directory)
         # Size of data is the same for all events
         self.size = 0
-        for dtype in FootprintFiles.bin_dtypes.values():
+        for dtype in self.dtypes.values():
             self.size += struct.calcsize(dtype)
         if not self.no_intensity_uncertainty:
             self.size *= self.num_intensity_bins
