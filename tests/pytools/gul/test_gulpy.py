@@ -3,17 +3,16 @@
 This file tests gulpy functionality
 """
 import filecmp
-from tempfile import TemporaryDirectory
+import os
+from pathlib import Path
 import pytest
 import subprocess
-import os
-
-import pathlib
-from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Tuple
 
 
 # get tests dirs
-TESTS_DIR = pathlib.Path(__file__).parent.parent.parent
+TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 
 # get all available test models
@@ -30,7 +29,7 @@ random_generators = [0, 1]
 @pytest.mark.parametrize("alloc_rule", alloc_rules)
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations)
 @pytest.mark.parametrize("random_generator", random_generators)
-def test_gulpy(test_model: tuple[str, str], sample_size: int, alloc_rule: int, ignore_correlation: bool,
+def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, ignore_correlation: bool,
                random_generator: int):
 
     test_model_name, test_model_dir_str = test_model

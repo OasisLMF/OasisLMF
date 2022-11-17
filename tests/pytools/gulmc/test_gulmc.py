@@ -2,17 +2,16 @@
 This file tests gulmc functionality
 """
 import filecmp
-from tempfile import TemporaryDirectory
-import pytest
 import os
-
-import pathlib
 from pathlib import Path
+import pytest
+from tempfile import TemporaryDirectory
+from typing import Tuple
 
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 
 # get tests dirs
-TESTS_DIR = pathlib.Path(__file__).parent.parent.parent
+TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 
 # get all available test models
@@ -31,7 +30,7 @@ effective_damageabilities = [True, False]
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations)
 @pytest.mark.parametrize("random_generator", random_generators)
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities)
-def test_gulmc(test_model: tuple[str, str], sample_size: int, alloc_rule: int, ignore_correlation: bool,
+def test_gulmc(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, ignore_correlation: bool,
                random_generator: int, effective_damageability: bool):
 
     test_model_name, test_model_dir_str = test_model
