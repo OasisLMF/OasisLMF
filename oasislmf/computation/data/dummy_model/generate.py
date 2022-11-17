@@ -114,6 +114,7 @@ class VulnerabilityFile(ModelFile):
     Attributes:
         generate_data: Generate Vulnerability dummy model file data.
     """
+
     def __init__(
         self, num_vulnerabilities, num_intensity_bins, num_damage_bins,
         vulnerability_sparseness, random_seed, directory
@@ -190,6 +191,7 @@ class EventsFile(ModelFile):
     Attributes:
         generate_data: Generate Events dummy model file data.
     """
+
     def __init__(self, num_events, directory):
         """
         Initialise VulnerabilityFile class.
@@ -224,6 +226,7 @@ class FootprintIdxFile(ModelFile):
     Attributes:
         write_file: Write data to Footprint index file in binary format.
     """
+
     def __init__(self, directory):
         """
         Initialise Footprint index file class.
@@ -267,6 +270,7 @@ class FootprintBinFile(ModelFile):
     Attributes:
         generate_data: Generate Footprint binary dummy model file data.
     """
+
     def __init__(
         self, num_events, num_areaperils, areaperils_per_event,
         num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
@@ -389,6 +393,7 @@ class DamageBinDictFile(ModelFile):
     Attributes:
         generate_data: Generate Damage Bin Dictionary dummy model file data.
     """
+
     def __init__(self, num_damage_bins, directory):
         """
         Initialise Damage Bin Dictionary file class.
@@ -459,6 +464,7 @@ class OccurrenceFile(ModelFile):
         set_occ_date_id: Set date of occurrence in ktools format.
         generate_data: Generate Occurrence dummy model file data.
     """
+
     def __init__(
             self, num_events, num_periods, random_seed, directory, mean, stddev
     ):
@@ -596,6 +602,7 @@ class RandomFile(ModelFile):
     Attributes:
         generate_data: Generate Random Numbers dummy model file data.
     """
+
     def __init__(self, num_randoms, random_seed, directory):
         """
         Initialise Random Numbers file class.
@@ -633,6 +640,7 @@ class CoveragesFile(ModelFile):
     Attributes:
         generate_data: Generate Coverages dummy model Oasis file data.
     """
+
     def __init__(
         self, num_locations, coverages_per_location, random_seed, directory
     ):
@@ -679,6 +687,7 @@ class ItemsFile(ModelFile):
     Attributes:
         generate_data: Generate Items dummy model Oasis file data.
     """
+
     def __init__(
         self, num_locations, coverages_per_location, num_areaperils,
         num_vulnerabilities, random_seed, directory
@@ -737,6 +746,7 @@ class FMFile(ModelFile):
     """
     Parent class for generating random data for Financial Model files.
     """
+
     def __init__(self, num_locations, coverages_per_location):
         """
         Initialise Financial Model files classes.
@@ -760,6 +770,7 @@ class FMProgrammeFile(FMFile):
         generate_data: Generate Financial Model Programme dummy model Oasis file
             data.
     """
+
     def __init__(self, num_locations, coverages_per_location, directory):
         """
         Initialise Financial Model Programme file class.
@@ -810,6 +821,7 @@ class FMPolicyTCFile(FMFile):
         generate_data: Generate Financial Model Policy dummy model Oasis file
             data.
     """
+
     def __init__(
         self, num_locations, coverages_per_location, num_layers, directory
     ):
@@ -872,6 +884,7 @@ class FMProfileFile(ModelFile):
         generate_data: Generate Financial Model Profile dummy model Oasis file
             data.
     """
+
     def __init__(self, num_layers, directory):
         """
         Initialise Financial Model Profile file class.
@@ -939,6 +952,7 @@ class FMXrefFile(FMFile):
         generate_data: Generate Financial Model Cross Reference dummy model
             Oasis file data.
     """
+
     def __init__(
         self, num_locations, coverages_per_location, num_layers, directory
     ):
@@ -990,6 +1004,7 @@ class GULSummaryXrefFile(FMFile):
         generate_data: Generate Ground Up Losses Summary Cross Reference dummy
             model Oasis file data.
     """
+
     def __init__(self, num_locations, coverages_per_location, directory):
         """
         Initialise Ground Up Losses Summary Cross Reference file class.
@@ -1033,6 +1048,7 @@ class FMSummaryXrefFile(FMFile):
         generate_data: Generate Financial Model Summary Cross Reference dummy
             model Oasis file data.
     """
+
     def __init__(
         self, num_locations, coverages_per_location, num_layers, directory
     ):
