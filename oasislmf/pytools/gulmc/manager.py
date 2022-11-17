@@ -24,10 +24,10 @@ from oasislmf.pytools.gul.common import (
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, items_MC_data_type,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
-from oasislmf.pytools.gul.io import gen_structs
-from oasislmf.pytools.gul.random import compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash, generate_hash_haz, get_corr_rval
+from oasislmf.pytools.gul.random import (
+    compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash,
+    generate_hash_haz, get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.manager import get_coverages, gul_get_items, write_losses
-from oasislmf.pytools.gul.random import get_random_generator
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 logger = logging.getLogger(__name__)
@@ -69,26 +69,27 @@ def generate_item_map(items, coverages):
     return item_map, areaperil_ids
 
 
-def get_vulnerability_weights(static_path, ignore_file_type=set()):
+def get_vulnerability_weights(input_path, ignore_file_type=set()):
     """
     Loads the vulnerability weights (from the weights file.
     Fields are: areaperil_id, agg_vulnerability, vulnerability_id, weight.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        input_path: (str) the path pointing to the static file where the data is
         ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: (List[Union[VulnerabilityWeights]]) loaded data from the damage_bin_dict file
     """
-    input_files = set(os.listdir(static_path))
+    input_files = set(os.listdir(input_path))
     if "weights.bin" in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'weights.bin')}")
-        return np.fromfile(os.path.join(static_path, "weights.bin"), dtype=VulnerabilityWeights)
+        logger.debug(f"loading {os.path.join(input_path, 'weights.bin')}")
+        return np.fromfile(os.path.join(input_path, "weights.bin"), dtype=VulnerabilityWeights)
     elif "weights.csv" in input_files and 'csv' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'weights.csv')}")
-        return np.genfromtxt(os.path.join(static_path, "weights.csv"), dtype=VulnerabilityWeights)
+        logger.debug(f"loading {os.path.join(input_path, 'weights.csv')}")
+        return pd.read_csv(os.path.join(input_path, "weights.csv"), dtype=VulnerabilityWeights)
+        # return np.genfromtxt(os.path.join(input_path, "weights.csv"), dtype=VulnerabilityWeights)
     else:
-        raise FileNotFoundError(f'weights file not found at {static_path}')
+        raise FileNotFoundError(f'weights file not found at {input_path}')
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
@@ -201,7 +202,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         Nvuln, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # # get agg vuln table
-        # vuln_weights = get_vulnerability_weights(static_path, ignore_file_type)
+        # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
 
         # convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         # logger.debug('init mean_damage_bins')
@@ -355,7 +356,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                         event_id, coverages, compute[:compute_i], items_data,
                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf,
-                        areaperil_to_eff_vuln_cdf_Ndamage_bins, vuln_array, damage_bins, Ndamage_bins_max,
+                        vuln_array, damage_bins, Ndamage_bins_max,
                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
@@ -375,7 +376,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf,
-                         areaperil_to_eff_vuln_cdf_Ndamage_bins, vuln_array, damage_bins, Ndamage_bins_max,
+                         vuln_array, damage_bins, Ndamage_bins_max,
                          loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                          z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
@@ -451,6 +452,11 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
                 for sample_idx in range(1, sample_size + 1):
                     if effective_damageability:
+                        # use the effective damageability cdf as the vulnerability cdf
+                        vuln_prob_to = eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins]
+                        Ndamage_bins = eff_vuln_cdf_Ndamage_bins
+
+                    else:
                         if Nbins == 1:
                             # if hazard intensity has no uncertainty, there is no need to sample
                             haz_bin_idx = 0
@@ -477,27 +483,23 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         # get vulnerability function for the sampled intensity_bin
                         vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
-                    else:
-                        vuln_prob = eff_vuln_cdf
+                        # of length such that the only the last element is 1.
+                        Ndamage_bins = 0
+                        cumsum = 0
+                        while Ndamage_bins < Ndamage_bins_max:
+                            cumsum += vuln_prob[Ndamage_bins]
+                            vuln_prob_to[Ndamage_bins] = cumsum
+                            Ndamage_bins += 1
+                            if cumsum > 0.999999940:
+                                break
 
-                    # cap `vuln_rval` to the maximum `vuln_prob_to` value (which should be 1.)
                     vuln_rval = vuln_rndms[sample_idx - 1]
 
                     if debug:
                         losses[sample_idx, item_i] = vuln_rval
                         continue
 
-                    # TODO: here I need to compute the cumsum explicitly and return an array
-                    # of length such that the only the last element is 1.
-                    Ndamage_bins = 0
-                    cumsum = 0
-                    while Ndamage_bins < Ndamage_bins_max:
-                        cumsum += vuln_prob[Ndamage_bins]
-                        vuln_prob_to[Ndamage_bins] = cumsum
-                        Ndamage_bins += 1
-                        if cumsum > 0.999999940:
-                            break
-
+                    # cap `vuln_rval` to the maximum `vuln_prob_to` value (which should be 1.)
                     if vuln_rval >= vuln_prob_to[Ndamage_bins - 1]:
                         vuln_rval = vuln_prob_to[Ndamage_bins - 1] - 0.00000003
                         vuln_bin_idx = Ndamage_bins - 1
@@ -541,8 +543,6 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
     """
     # init data structures
     haz_prob_start_in_footprint = List.empty_list(nb_int64)
-    # haz_prob_length_in_footprint = List.empty_list(nb_int32)
-
     areaperil_ids = List.empty_list(nb_areaperil_int)
 
     # a footprint row contains: event_id areaperil_id intensity_bin prob
@@ -617,13 +617,12 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
         footprint_i += 1
 
     # here we process the last row of the footprint:
-    # this is either the last entry of a cdf started few lines above or a 1-line cdf
-    # in either case we do not need to check if areaperil_id != last_areaperil_id
-    # because we need to store it anyway.
+    # this is either the last entry of a cdf started a few lines above or a 1-line cdf.
+    # In either case we do not need to check if areaperil_id != last_areaperil_id
+    # because we need to store the row anyway.
     if areaperil_id in areaperil_to_vulns_idx_dict:
         areaperil_ids.append(areaperil_id)
         haz_prob_start_in_footprint.append(last_areaperil_id_start)
-        # haz_prob_length_in_footprint.append(footprint_i - last_areaperil_id_start)
         areaperil_to_haz_cdf[areaperil_id] = haz_cdf_i
 
         Nbins_to_read = footprint_i - last_areaperil_id_start
@@ -666,8 +665,7 @@ def reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_
     # register the items to their coverage
 
     # init data structures
-    group_id_rng_index, _ = gen_structs()
-    # group_id_rng_index = dict()
+    group_id_rng_index = Dict.empty(nb_int32, nb_int64)
     rng_index = 0
     compute_i = 0
     items_data_i = 0
@@ -726,16 +724,18 @@ def reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_
 
 if __name__ == '__main__':
 
-    test_dir = Path("/home/mtazzari/repos/OasisPiWind/runs/losses-20220824044200")
+    test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests").joinpath("assets").joinpath("test_model_1")
+
     run(
         run_dir=test_dir,
         ignore_file_type=set(),
-        file_in=test_dir.joinpath('eve.bin'),
+        file_in=test_dir.joinpath("input").joinpath('events.bin'),
         file_out=test_dir.joinpath('gulpy_mc.bin'),
-        sample_size=1,
+        sample_size=10,
         loss_threshold=0.,
         alloc_rule=1,
         debug=False,
         random_generator=1,
         ignore_correlation=True,
+        effective_damageability=True,
     )
