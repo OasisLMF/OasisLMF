@@ -192,6 +192,7 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'model_package_dir',      'flag':'-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
         {'name': 'ktools_legacy_stream',   'type': str2bool, 'const':True, 'nargs':'?', 'default': KTOOLS_GUL_LEGACY_STREAM, 'help': 'Run Ground up losses using the older stream type (Compatibility option)'},
         {'name': 'check_missing_inputs',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
+        {'name': 'copy_model_data', 'default': False, 'type': str2bool, 'help': 'Copy model data instead of creating symbolic links to it.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -257,7 +258,8 @@ class GenerateLossesDir(GenerateLossesBase):
             self.model_data_dir,
             self.analysis_settings_json,
             user_data_dir=self.user_data_dir,
-            ri=ri
+            ri=ri,
+            copy_model_data=self.copy_model_data,
         )
         generate_summaryxref_files(
             model_run_fp,
