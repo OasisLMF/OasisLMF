@@ -198,6 +198,7 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'ktools_alloc_rule_il',   'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri',   'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'check_missing_inputs',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
+        {'name': 'copy_model_data', 'default': False, 'type': str2bool, 'help': 'Copy model data instead of creating symbolic links to it.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -263,7 +264,8 @@ class GenerateLossesDir(GenerateLossesBase):
             self.model_data_dir,
             self.analysis_settings_json,
             user_data_dir=self.user_data_dir,
-            ri=ri
+            ri=ri,
+            copy_model_data=self.copy_model_data,
         )
 
         generate_summaryxref_files(
