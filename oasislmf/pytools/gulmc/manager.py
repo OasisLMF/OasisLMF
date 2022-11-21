@@ -116,9 +116,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    # TODO: store static_path in a paraparameters file
+    # TODO: store static_path in a parameters file
     static_path = os.path.join(run_dir, 'static')
-    # TODO: store input_path in a paraparameters file
+    # TODO: store input_path in a parameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -132,10 +132,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     #     valid_area_peril_id = None
 
     # beginning of of gulpy prep
-    damage_bins = get_damage_bins(static_path)
+    damage_bins = get_damage_bins(static_path, ignore_file_type)
 
     # read coverages from file
-    coverages_tiv = get_coverages(input_path)
+    coverages_tiv = get_coverages(input_path, ignore_file_type)
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
@@ -143,7 +143,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     coverages[1:]['tiv'] = coverages_tiv
     del coverages_tiv
 
-    items = gul_get_items(input_path)
+    items = gul_get_items(input_path, ignore_file_type)
 
     # in-place sort items in order to store them in item_map in the desired order
     # currently numba only supports a simple call to np.sort() with no `order` keyword,
@@ -201,24 +201,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvuln, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
-        # # get agg vuln table
+        # get agg vuln table
         # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
 
-        # convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
-        # logger.debug('init mean_damage_bins')
-        # mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
-
-        # GETMODEL OUT STREAM even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
-        # max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size
-
-        # mv = memoryview(bytearray(buff_size))
-
-        # int32_mv_OUT = np.ndarray(buff_size // np.int32().itemsize, buffer=mv, dtype=np.int32)
-
-        # header
-        # stream_out.write(np.uint32(1).tobytes())
-
-        # GULPY one-time prep
         # set up streams
         if file_out is None or file_out == '-':
             stream_out = sys.stdout.buffer
@@ -355,10 +340,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
                     cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                         event_id, coverages, compute[:compute_i], items_data,
-                        last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf,
-                        vuln_array, damage_bins, Ndamage_bins_max,
-                        loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij, corr_data_by_item_id,
-                        arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                        last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr,
+                        eff_vuln_cdf, areaperil_to_eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
+                        loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij,
+                        corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
@@ -375,8 +360,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
-                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf,
-                         vuln_array, damage_bins, Ndamage_bins_max,
+                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr,
+                         eff_vuln_cdf, areaperil_to_eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
                          loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                          z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor):

@@ -119,6 +119,12 @@ tests/model_execution/tmp_fc_kparse_output/
 
 !tests/pytools/data_layer/oasis_files/meta_data/correlations.bin
 
+# do not ignore tests assets
+!tests/assets/test_model_1/*.bin
+!tests/assets/test_model_1/input/*.bin
+!tests/assets/test_model_1/static/*.bin
+!tests/assets/test_model_1/expected/*.bin
+
 # pycharm
 .idea/
 data/

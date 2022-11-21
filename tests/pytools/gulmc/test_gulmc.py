@@ -15,13 +15,20 @@ TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 
 # get all available test models
-test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.iterdir() if x.is_dir()]
+test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.glob("test_model_*") if x.is_dir()]
 
+# define the grid of model parameters to test
 sample_sizes = [1, 10, 100, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
 random_generators = [0, 1]
 effective_damageabilities = [True, False]
+
+
+@pytest.fixture
+def generate_expected(request):
+    """Fixture to get the value of the `--generate-expected` command line argument."""
+    return request.config.getoption('--generate-expected')
 
 
 @pytest.mark.parametrize("test_model", test_models_dirs)
@@ -30,9 +37,32 @@ effective_damageabilities = [True, False]
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations)
 @pytest.mark.parametrize("random_generator", random_generators)
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities)
-def test_gulmc(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, ignore_correlation: bool,
-               random_generator: int, effective_damageability: bool):
+def test_gulmc(test_model: Tuple[str, str],
+               sample_size: int,
+               alloc_rule: int,
+               ignore_correlation: bool,
+               random_generator: int,
+               effective_damageability: bool,
+               generate_expected: bool):
+    """Test gulmc functionality.
 
+    Args:
+        test_model (Tuple[str, str]): test model name and directory.
+        sample_size (int): number of samples.
+        alloc_rule (int): back allocation rule.
+        ignore_correlation (bool): if True, ignore peril correlation groups.
+        random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
+        effective_damageability (bool): if True, draw loss samples from the effective damageability.
+        generate_expected (bool): If True, produce the expected outputs and store them in the expected/ directory.
+            If False, run the test.
+
+    Notes:
+        For more information on the definitions of gulmc parameters, refer to gulmc documentation.
+        To produce the expected outputs, run:
+        ```
+            pytest --generate-expected tests/pytools/gulmc/test_gulmc.py`
+        ```
+    """
     test_model_name, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
@@ -54,7 +84,7 @@ def test_gulmc(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             run_dir=tmp_result_dir,
             ignore_file_type=set(),
             file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-            file_out=test_out_bin_fname,
+            file_out=ref_out_bin_fname if generate_expected else test_out_bin_fname,
             sample_size=sample_size,
             loss_threshold=0.,
             alloc_rule=alloc_rule,
@@ -64,4 +94,5 @@ def test_gulmc(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             effective_damageability=effective_damageability,
         )
 
-        assert filecmp.cmp(test_out_bin_fname, ref_out_bin_fname, shallow=False)
+        if not generate_expected:
+            assert filecmp.cmp(test_out_bin_fname, ref_out_bin_fname, shallow=False)

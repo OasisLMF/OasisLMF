@@ -372,7 +372,7 @@ def get_damage_bins(static_path, ignore_file_type=set()):
         return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
-        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)
+        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv, skip_header=1, delimiter=',')
     else:
         raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
