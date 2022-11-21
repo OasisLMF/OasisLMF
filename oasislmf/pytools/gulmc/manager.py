@@ -114,7 +114,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     Raises:
         ValueError: _description_
     """
-    logger.info("starting gulpy")
+    logger.info("starting gulmc")
 
     # TODO: store static_path in a parameters file
     static_path = os.path.join(run_dir, 'static')
@@ -122,16 +122,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    # # load keys.csv to determine included AreaPerilID from peril_filter
-    # if peril_filter:
-    #     keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-    #     valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-    #     logger.debug(
-    #         f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
-    # else:
-    #     valid_area_peril_id = None
-
-    # beginning of of gulpy prep
     damage_bins = get_damage_bins(static_path, ignore_file_type)
 
     # read coverages from file
@@ -154,7 +144,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     # init array to store the coverages to be computed
     # coverages are numebered from 1, therefore skip element 0.
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
-    # end of gulpy prep
 
     if data_server:
         logger.debug("data server active")
@@ -347,7 +336,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
                         event_id, coverages, compute[:compute_i], items_data,
                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr,
-                        eff_vuln_cdf, areaperil_to_eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
+                        eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij,
                         corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
@@ -367,11 +356,62 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr,
-                         eff_vuln_cdf, areaperil_to_eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
-                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij, corr_data_by_item_id,
-                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                         eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
+                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms, vuln_rndms_base, eps_ij,
+                         corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                          z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
+    """Compute losses for an event.
 
+
+
+    Args:
+        event_id (int32): event id.
+        coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
+        coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
+        items_data (numpy.array[items_data_type]): items-related data.
+        last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
+          and printed to the output stream.
+        sample_size (int): number of random samples to draw.
+        event_footprint (np.array[Event or EventCSV]): footprint, made of event entries.
+        haz_cdf (np.array[oasis_float]): hazard intensity cdf.
+        haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
+        haz_prob_rec_idx_ptr (numpy.array[int]): array with the indices where each cdf record starts in the footprint.
+        eff_vuln_cdf (_type_): _description_
+        vuln_array (_type_): _description_
+        damage_bins (List[Union[damagebindictionaryCsv, damagebindictionary]]): loaded data from the damage_bin_dict file.
+        Ndamage_bins_max (_type_): _description_
+        loss_threshold (float): threshold above which losses are printed to the output stream.
+        losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
+        vuln_prob_to (_type_): array (to be re-used) to store the damage cdf for eacg item.
+        alloc_rule (int): back-allocation rule.
+        do_correlation (bool): if True, compute correlated random samples.
+        haz_rndms (_type_): _description_
+        vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
+          drawn for each seed.
+
+
+        eps_ij (_type_): _description_
+        corr_data_by_item_id (_type_): _description_
+        arr_min (_type_): _description_
+        arr_max (_type_): _description_
+        arr_N (_type_): _description_
+        norm_inv_cdf (_type_): _description_
+        arr_min_cdf (_type_): _description_
+        arr_max_cdf (_type_): _description_
+        arr_N_cdf (_type_): _description_
+        norm_cdf (_type_): _description_
+        z_unif (_type_): _description_
+        effective_damageability (_type_): _description_
+        debug (bool): if True, for each random sample, print to the output stream the random value
+          instead of the loss.
+        max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
+        buff_size (int): size in bytes of the output buffer.
+        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
+        cursor (int): index of int32_mv where to start writing.
+
+    Returns:
+        _type_: _description_
+    """
     # evaluate if there's a simpler/more pythonic way of storing coverage and items_by coverage
     # I think we can avoid the coverage reconstruction, and it'd be sufficient to produce a dense
     # items_by_coverage numpy ndarray, eg items_data[coverage_idx[coverage_id]:items]...
@@ -404,6 +444,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
             haz_prob_to = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
             Nbins = len(haz_prob_to)
+
+            # TODO: update eff_vuln_cdf if vulnerability_id is aggregate
 
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
@@ -472,6 +514,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
                         # damage sampling
                         # get vulnerability function for the sampled intensity_bin
+                        # TODO update vuln_prob if vulnerability_id is aggregate
                         vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
                         # of length such that the only the last element is 1.
@@ -527,11 +570,15 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
 
 @njit(cache=True, fastmath=True)
-def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict, vuln_array, areaperil_to_vulns_idx_array):
+def map_areaperil_ids_in_footprint(event_footprint,
+                                   areaperil_to_vulns_idx_dict,
+                                   vuln_array,
+                                   areaperil_to_vulns_idx_array):
     """
     Map all the areaperil_ids in the footprint...
     TODO: add docstring
     """
+
     # init data structures
     haz_prob_start_in_footprint = List.empty_list(nb_int64)
     areaperil_ids = List.empty_list(nb_areaperil_int)
@@ -649,10 +696,38 @@ def map_areaperil_ids_in_footprint(event_footprint, areaperil_to_vulns_idx_dict,
     return areaperil_ids, haz_prob_start_in_footprint, areaperil_to_haz_cdf, haz_cdf[:cdf_end], haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins
 
 
-@njit(cache=True, fastmath=True)
-def reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, vuln_dict, item_map, coverages, compute, haz_seeds, vuln_seeds, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins):
-    # TODO add docstring
-    # reconstruct coverage: probably best outsite of this function
+@ njit(cache=True, fastmath=True)
+def reconstruct_coverages(event_id,
+                          areaperil_ids,
+                          areaperil_ids_map,
+                          areaperil_to_haz_cdf,
+                          vuln_dict,
+                          item_map,
+                          coverages,
+                          compute,
+                          haz_seeds,
+                          vuln_seeds,
+                          areaperil_to_eff_vuln_cdf,
+                          areaperil_to_eff_vuln_cdf_Ndamage_bins):
+    """Register each item to its coverage.
+
+    Args:
+        event_id (int32): event id.
+        areaperil_ids (_type_): _description_
+        areaperil_ids_map (_type_): _description_
+        areaperil_to_haz_cdf (_type_): _description_
+        vuln_dict (_type_): _description_
+        item_map (_type_): _description_
+        coverages (_type_): _description_
+        compute (_type_): _description_
+        haz_seeds (_type_): _description_
+        vuln_seeds (_type_): _description_
+        areaperil_to_eff_vuln_cdf (_type_): _description_
+        areaperil_to_eff_vuln_cdf_Ndamage_bins (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # register the items to their coverage
 
     # init data structures
