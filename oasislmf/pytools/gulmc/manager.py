@@ -583,8 +583,7 @@ def process_areaperils_in_footprint(event_footprint,
     last_areaperil_id = nb_areaperil_int(0)
     last_areaperil_id_start = nb_int64(0)
     haz_cdf_i = nb_int64(0)
-    areaperil_to_haz_cdf = Dict.empty(nb_areaperil(): int,
-                                      nb_int64)
+    areaperil_to_haz_cdf = Dict.empty(nb_areaperil_int, nb_int64)
 
     haz_pdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
     haz_cdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
