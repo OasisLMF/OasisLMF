@@ -21,7 +21,8 @@ RUN touch /root/.jupyter/jupyter_notebook_config.json
 
 # Install Develop Oasislmf 
 ARG oasis_ver=develop
-RUN pip3 install git+git://github.com/OasisLMF/OasisLMF.git@$oasis_ver#egg=oasislmf
+#RUN pip3 install git+git://github.com/OasisLMF/OasisLMF.git@$oasis_ver#egg=oasislmf
+RUN pip3 install -v git+https://git@github.com/OasisLMF/OasisLMF.git@$oasis_ver#egg=oasislmf[extra]
 
 # Copy test cases 
 #COPY ./validation/examples /home/run/examples
