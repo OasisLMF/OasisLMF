@@ -185,6 +185,15 @@ def run(run_dir,
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvuln, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
+        d = pd.read_csv(os.path.join(input_path, 'aggregate_vulnerability.csv'))
+        agg_vuln_to_vulns = {agg: grp['vulnerability_id'].to_list() for agg, grp in d.groupby('aggregate_vulnerability_id')}
+
+        d2 = pd.read_csv(os.path.join(input_path, 'weights.csv'))
+        ap_vuln_weights = {agg: grp['count'].to_list()[0] for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id'])}
+
+        # get agg vuln table
+        # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
+
         # set up streams
         if file_out is None or file_out == '-':
             stream_out = sys.stdout.buffer
@@ -462,10 +471,13 @@ def compute_event_losses(event_id,
         # compute losses for each item
         for item_i in range(Nitems):
             item = items[item_i]
-            hazcdf_i = item['hazcdf_i']
             rng_index = item['rng_index']
+            areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
-            eff_vuln_cdf_i = item['eff_vuln_cdf_i']
+            # hazcdf_i = item['hazcdf_i']
+            hazcdf_i = areaperil_to_haz_cdf[areaperil_id]
+            # eff_vuln_cdf_i = item['eff_vuln_cdf_i']
+            eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vulnerability_id)]
             eff_vuln_cdf_Ndamage_bins = item['eff_vuln_cdf_Ndamage_bins']
 
             # get the hazard cdf
@@ -512,6 +524,104 @@ def compute_event_losses(event_id,
                     # do not use correlation
                     vuln_rndms = vuln_rndms_base[rng_index]
 
+                # idea:
+                # first, loop over all samples and determine which haz_bin_idx are used
+                # compute the blended vulnerability only for those
+                # we loop twice over sample_idx, but we may save a lot because we recompute the weighted vulnerability only once.
+                # this approach is good for large sample_size, but for small sample_size looping twice is not problematic,
+                # so, I'd say, it's a good approach in general.
+                used_haz_bin_idxs = set()
+                haz_bin_idxs = np.empty(sample_size, dtype=nb_int64)
+                for sample_idx in range(1, sample_size + 1):
+                    if Nbins == 1:
+                        # if hazard intensity has no uncertainty, there is no need to sample
+                        haz_bin_idx = 0
+
+                    else:
+                        # if hazard intensity has a probability distribution, sample it
+
+                        # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
+                        haz_rval = haz_rndms[rng_index][sample_idx - 1]
+
+                        if haz_rval >= haz_prob_to[Nbins - 1]:
+                            haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
+                            haz_bin_idx = Nbins - 1
+                        else:
+                            # find the bin in which the random value `haz_rval` falls into
+                            # len(haz_prob_to) can be cached and stored above
+                            haz_bin_idx = binary_search(haz_rval, haz_prob_to, Nbins)
+
+                        if haz_bin_idx not in used_haz_bin_idxs:
+                            haz_bin_idx_ids[Nused_haz_bin_idxs] = haz_bin_idx
+                            haz_bin_idxs[sample_idx] = Nused_haz_bin_idxs  # haz_bin_idxs is an array
+                            Nused_haz_bin_idxs += 1
+                        else:
+                            haz_bin_idxs
+
+                        # used_haz_bin_idxs is a set <- here we need a reverse dict so form haz bin idx to sample_idx ?
+                        used_haz_bin_idxs.add(haz_bin_idx)
+                        # or
+                        # if haz_bin_idx not in sample_idx_by_haz_bin_idx: # is a dict[int, list[int]]
+                        #     sample_idx_by_haz_bin_idx[haz_bin_idx] = []
+
+                        # sample_idx_by_haz_bin_idx[haz_bin_idx].append(haz_bin_idx)
+
+                # compute the blended vuln only for the used haz_bin_idxs
+                # damage sampling
+                if vulnerability_id in agg_vuln_to_vulns:
+                    # if sample_size is <= haz intensity bins, then it's better to compute the weighted
+                    # vulnerability that we need.
+                    # if sample_size is >> haz intensity bins, then it's likely that there'll be many samples
+                    # with same `haz_int_bin_idx`, which would have the same weighted vulnerability. in this case
+                    # we should compute all the vulnerability prob before the for loop and here just read the haz_int_bin_idx slice.
+                    # this also applies to vuln_prob defined in the non-aggregate case.
+                    weighted_vuln = np.zeros(len(used_haz_bin_idxs), Ndamage_bins_max, dtype=oasis_float)
+                    weighted_vuln_prot_to = np.zeros(len(used_haz_bin_idxs), Ndamage_bins_max, dtype=oasis_float)
+                    tot_weights = np.sum([ap_vuln_weights[(areaperil_id, vuln_i)] for vuln_i in agg_vuln_to_vulns[vulnerability_id]])
+                    for jj, used_haz_bin_idx in enumerate(used_haz_bin_idxs):
+                        for vuln_i in agg_vuln_to_vulns[vulnerability_id]:
+                            # print(vuln_i, ap_vuln_weights[(areaperil_id, vuln_i)][0])
+                            weighted_vuln[jj] += vuln_array[vuln_i, :, used_haz_bin_idx - 1] * ap_vuln_weights[(areaperil_id, vuln_i)]
+
+                    # actually, it is perhaps faster to compute the cdf of each vulnerability, then compose them using weights
+                    for jj, used_haz_bin_idx in enumerate(used_haz_bin_idxs):
+
+                        # print(vuln_i, ap_vuln_weights[(areaperil_id, vuln_i)][0])
+                        # of length such that the only the last element is 1.
+                        Ndamage_bins = 0
+                        cumsum = 0
+                        while Ndamage_bins < Ndamage_bins_max:
+                            for vuln_i in agg_vuln_to_vulns[vulnerability_id]:
+                                cumsum += vuln_array[vuln_i, Ndamage_bins, used_haz_bin_idx - 1] * \
+                                    ap_vuln_weights[(areaperil_id, vuln_i)] / tot_weights
+
+                            weighted_vuln_prob_to[jj, Ndamage_bins] = cumsum
+                            Ndamage_bins += 1
+                            if cumsum > 0.999999940:
+                                break
+
+                        # TODO: need to store Ndamage_bins for each jj
+                        weighted_vuln[jj] += vuln_array[vuln_i, :, used_haz_bin_idx - 1] * ap_vuln_weights[(areaperil_id, vuln_i)]
+
+                else:
+                    # TODO updated this case
+                    # get vulnerability function for the sampled intensity_bin
+                    vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
+                    Ndamage_bins = 0
+                    cumsum = 0
+                    while Ndamage_bins < Ndamage_bins_max:
+                        cumsum += vuln_prob[Ndamage_bins]
+                        vuln_prob_to[Ndamage_bins] = cumsum
+                        Ndamage_bins += 1
+                        if cumsum > 0.999999940:
+                            break
+
+                # TODO: then, below, for each sample_idx, we use
+                # haz_bin_idx = haz_bin_idxs[sample_idx]
+                # and we get prob_to to use: weighted_vuln_prob_to[sample_idx, :Ndamage_bins[sample_idx]]
+
+                # of length such that the only the last element is 1.
+
                 for sample_idx in range(1, sample_size + 1):
                     if effective_damageability:
                         # use the effective damageability cdf as the vulnerability cdf
@@ -549,8 +659,19 @@ def compute_event_losses(event_id,
                         # TODO instead of using event_footprint, it may be better to store the intensity_bin_id in haz_cdf as ndarray
 
                         # damage sampling
-                        # get vulnerability function for the sampled intensity_bin
-                        vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
+                        if vulnerability_id in agg_vuln_to_vulns:
+                            # if sample_size is <= haz intensity bins, then it's better to compute the weighted
+                            # vulnerability that we need.
+                            # if sample_size is >> haz intensity bins, then it's likely that there'll be many samples
+                            # with same `haz_int_bin_idx`, which would have the same weighted vulnerability. in this case
+                            # we should compute all the vulnerability prob before the for loop and here just read the haz_int_bin_idx slice.
+                            # this also applies to vuln_prob defined in the non-aggregate case.
+                            for vuln_i in agg_vuln_to_vulns[vulnerability_id]:
+                                # print(vuln_i, ap_vuln_weights[(areaperil_id, vuln_i)][0])
+                                weighted_vuln += vuln_array[vuln_i, :, haz_int_bin_idx - 1] * ap_vuln_weights[(areaperil_id, vuln_i)][0]
+                        else:
+                            # get vulnerability function for the sampled intensity_bin
+                            vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
                         # of length such that the only the last element is 1.
                         Ndamage_bins = 0
@@ -853,10 +974,11 @@ def reconstruct_coverages(event_id,
                 # append the data of this item
                 item_i = coverage['start_items'] + coverage['cur_items']
                 items_data[item_i]['item_id'] = item_id
-                items_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
+                items_data[item_i]['areaperil_id'] = areaperil_id
+                # items_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
                 items_data[item_i]['rng_index'] = this_rng_index
                 items_data[item_i]['vulnerability_id'] = vuln_dict[vuln_id]
-                items_data[item_i]['eff_vuln_cdf_i'] = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_dict[vuln_id])]
+                # items_data[item_i]['eff_vuln_cdf_i'] = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_dict[vuln_id])]
                 items_data[item_i]['eff_vuln_cdf_Ndamage_bins'] = areaperil_to_eff_vuln_cdf_Ndamage_bins[(
                     areaperil_id, vuln_dict[vuln_id])]
 
