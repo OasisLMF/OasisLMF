@@ -9,10 +9,10 @@ ipywidgets==7.6.5
 fileupload
 matplotlib
 pandas-datareader
-pandas==1.2.0
 parameterized
 pathlib
 pytest
 qgrid
 tabulate
 graphviz
+oasislmf[extra]
