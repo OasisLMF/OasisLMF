@@ -46,6 +46,8 @@ def generate_item_map(items, coverages):
     Returns:
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
+        areaperil_ids (Dict[int, Dict[int, int]]) dict storing the mapping between each
+          areaperil_id and all the vulnerability ids associated with it.
     """
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
     Nitems = items.shape[0]
@@ -69,50 +71,31 @@ def generate_item_map(items, coverages):
     return item_map, areaperil_ids
 
 
-def get_vulnerability_weights(input_path, ignore_file_type=set()):
-    """
-    Loads the vulnerability weights (from the weights file.
-    Fields are: areaperil_id, agg_vulnerability, vulnerability_id, weight.
-
-    Args:
-        input_path: (str) the path pointing to the static file where the data is
-        ignore_file_type: set(str) file extension to ignore when loading
-
-    Returns: (List[Union[VulnerabilityWeights]]) loaded data from the damage_bin_dict file
-    """
-    input_files = set(os.listdir(input_path))
-    if "weights.bin" in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(input_path, 'weights.bin')}")
-        return np.fromfile(os.path.join(input_path, "weights.bin"), dtype=VulnerabilityWeights)
-    elif "weights.csv" in input_files and 'csv' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(input_path, 'weights.csv')}")
-        return pd.read_csv(os.path.join(input_path, "weights.csv"), dtype=VulnerabilityWeights)
-        # return np.genfromtxt(os.path.join(input_path, "weights.csv"), dtype=VulnerabilityWeights)
-    else:
-        raise FileNotFoundError(f'weights file not found at {input_path}')
-
-
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
         random_generator, peril_filter=[], file_in=None, file_out=None, data_server=None, ignore_correlation=False,
         effective_damageability=False, **kwargs):
-    """TODO add description
+    """Execute the main gulmc worklow.
 
     Args:
-        run_dir (_type_): _description_
-        ignore_file_type (_type_): _description_
-        sample_size (_type_): _description_
-        loss_threshold (_type_): _description_
-        alloc_rule (_type_): _description_
-        debug (_type_): _description_
-        random_generator (_type_): _description_
-        peril_filter (list, optional): _description_. Defaults to [].
-        file_in (_type_, optional): _description_. Defaults to None.
-        file_out (_type_, optional): _description_. Defaults to None.
-        data_server (_type_, optional): _description_. Defaults to None.
-        ignore_correlation (bool, optional): _description_. Defaults to False.
+        run_dir (str): the directory of where the process is running
+        ignore_file_type set(str): file extension to ignore when loading
+        sample_size (int): number of random samples to draw.
+        loss_threshold (float): threshold above which losses are printed to the output stream.
+        alloc_rule (int): back-allocation rule.
+        debug (bool): if True, for each random sample, print to the output stream the random value
+          instead of the loss.
+        random_generator (int): random generator function id.
+        peril_filter (list[int], optional): list of perils to include in the computation (if None, all perils will be included). Defaults to [].
+        file_in (str, optional): filename of input stream. Defaults to None.
+        file_out (str, optional): filename of output stream. Defaults to None.
+        data_server (bool, optional): if True, run the data server.
+        ignore_correlation (bool, optional): if True, do not compute correlated random samples. Defaults to False.
 
     Raises:
-        ValueError: _description_
+        ValueError: if alloc_rule is not 0, 1, or 2.
+
+    Returns:
+        int: 0 if no errors occurred.
     """
     logger.info("starting gulmc")
 
@@ -189,9 +172,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvuln, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
-
-        # get agg vuln table
-        # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
 
         # set up streams
         if file_out is None or file_out == '-':
@@ -292,8 +272,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             if event_footprint is not None:
 
-                areaperil_ids, haz_prob_rec_idx_ptr, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins = map_areaperil_ids_in_footprint(
-                    event_footprint, areaperil_to_vulns_idx_dict, vuln_array, areaperil_to_vulns_idx_array)
+                areaperil_ids, haz_prob_rec_idx_ptr, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins = process_areaperils_in_footprint(
+                    event_footprint, vuln_array, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array)
                 # TODO: here we could filter areaperil_ids_map on the existing areaperil_ids in the event footprint
                 # instead of filter inside reconstruct_coverages
 
@@ -352,6 +332,8 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
                 logger.info(f"event {event_id} DONE")
 
+    return 0
+
 
 @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
@@ -362,7 +344,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
     """Compute losses for an event.
 
-
+    TODO: finish docs
 
     Args:
         event_id (int32): event id.
@@ -372,7 +354,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
         sample_size (int): number of random samples to draw.
-        event_footprint (np.array[Event or EventCSV]): footprint, made of event entries.
+        event_footprint (np.array[Event or EventCSV]): footprint, made of one or more event entries.
         haz_cdf (np.array[oasis_float]): hazard intensity cdf.
         haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
         haz_prob_rec_idx_ptr (numpy.array[int]): array with the indices where each cdf record starts in the footprint.
@@ -412,9 +394,6 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     Returns:
         _type_: _description_
     """
-    # evaluate if there's a simpler/more pythonic way of storing coverage and items_by coverage
-    # I think we can avoid the coverage reconstruction, and it'd be sufficient to produce a dense
-    # items_by_coverage numpy ndarray, eg items_data[coverage_idx[coverage_id]:items]...
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
         tiv = coverage['tiv']
@@ -444,8 +423,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
             haz_prob_to = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
             Nbins = len(haz_prob_to)
-
-            # TODO: update eff_vuln_cdf if vulnerability_id is aggregate
+            # TODO: Nbins can perhaps be stored in item
 
             # compute mean values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
@@ -510,11 +488,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
                         cdf_start_in_footprint = haz_prob_rec_idx_ptr[hazcdf_i]
                         haz_int_bin_idx = event_footprint[cdf_start_in_footprint + haz_bin_idx]['intensity_bin_id']
-                        # TODO instead of using event_footprint, store the intensity_bin_id in haz_cdf as a ndarray
+                        # TODO instead of using event_footprint, it may be better to store the intensity_bin_id in haz_cdf as ndarray
 
                         # damage sampling
                         # get vulnerability function for the sampled intensity_bin
-                        # TODO update vuln_prob if vulnerability_id is aggregate
                         vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
                         # of length such that the only the last element is 1.
@@ -570,15 +547,33 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
 
 
 @njit(cache=True, fastmath=True)
-def map_areaperil_ids_in_footprint(event_footprint,
-                                   areaperil_to_vulns_idx_dict,
-                                   vuln_array,
-                                   areaperil_to_vulns_idx_array):
+def process_areaperils_in_footprint(event_footprint,
+                                    vuln_array,
+                                    areaperil_to_vulns_idx_dict,
+                                    areaperil_to_vulns_idx_array):
     """
-    Map all the areaperil_ids in the footprint...
-    TODO: add docstring
-    """
+    Process all the areaperils in the footprin that have associated vulnerability functions,
+    computing the hazard intensity cdf for each areaperil_id.
 
+    Args:
+        event_footprint (np.array[Event or EventCSV]): footprint, made of one or more event entries.
+        vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
+        areaperil_to_vulns_idx_dict (dict[int, int]): areaperil to vulnerability index dictionary.
+        areaperil_to_vulns_idx_array (List[IndexType]]): areaperil ID to vulnerability index array.
+
+    TODO finish docs for Returns
+
+    Returns:
+        areaperil_ids (): 
+        haz_prob_start_in_footprint (): 
+        areaperil_to_haz_cdf (): 
+        haz_cdf (): 
+        haz_cdf_ptr (): 
+        eff_vuln_cdf (): 
+        areaperil_to_eff_vuln_cdf (): 
+        areaperil_to_eff_vuln_cdf_Ndamage_bins
+
+    """
     # init data structures
     haz_prob_start_in_footprint = List.empty_list(nb_int64)
     areaperil_ids = List.empty_list(nb_areaperil_int)
@@ -588,7 +583,8 @@ def map_areaperil_ids_in_footprint(event_footprint,
     last_areaperil_id = nb_areaperil_int(0)
     last_areaperil_id_start = nb_int64(0)
     haz_cdf_i = nb_int64(0)
-    areaperil_to_haz_cdf = Dict.empty(nb_areaperil_int, nb_int64)
+    areaperil_to_haz_cdf = Dict.empty(nb_areaperil(): int,
+                                      nb_int64)
 
     haz_pdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
     haz_cdf = np.empty(len(event_footprint), dtype=oasis_float)  # max size
@@ -696,7 +692,7 @@ def map_areaperil_ids_in_footprint(event_footprint,
     return areaperil_ids, haz_prob_start_in_footprint, areaperil_to_haz_cdf, haz_cdf[:cdf_end], haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins
 
 
-@ njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def reconstruct_coverages(event_id,
                           areaperil_ids,
                           areaperil_ids_map,
@@ -709,7 +705,10 @@ def reconstruct_coverages(event_id,
                           vuln_seeds,
                           areaperil_to_eff_vuln_cdf,
                           areaperil_to_eff_vuln_cdf_Ndamage_bins):
-    """Register each item to its coverage.
+    """Register each item to its coverage, with the location of the corresponding hazard intensity cdf
+    in the footprint, compute the random seeds for the hazard intensity and vulnerability samples.
+
+    TODO: finish docs for Args
 
     Args:
         event_id (int32): event id.
@@ -719,14 +718,16 @@ def reconstruct_coverages(event_id,
         vuln_dict (_type_): _description_
         item_map (_type_): _description_
         coverages (_type_): _description_
-        compute (_type_): _description_
-        haz_seeds (_type_): _description_
-        vuln_seeds (_type_): _description_
+        compute (numpy.array[int]): list of coverage ids to be computed.
+        haz_seeds (numpy.array[int]): the random seeds to draw the hazard intensity samples.
+        vuln_seeds (numpy.array[int]): the random seeds to draw the damage samples.
         areaperil_to_eff_vuln_cdf (_type_): _description_
         areaperil_to_eff_vuln_cdf_Ndamage_bins (_type_): _description_
 
     Returns:
-        _type_: _description_
+        compute_i (int): index of the last coverage id stored in `compute`.
+        items_data (numpy.array[items_MC_data_type]): item-related data.
+        rng_index (int): number of unique random seeds computed so far.
     """
     # register the items to their coverage
 
