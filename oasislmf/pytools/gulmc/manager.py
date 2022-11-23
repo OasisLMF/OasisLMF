@@ -547,7 +547,9 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     # update cursor_bytes
     cursor_bytes = cursor * int32_mv.itemsize
 
-    return cursor, cursor_bytes, last_processed_coverage_ids_idx
+    return (cursor,
+            cursor_bytes,
+            last_processed_coverage_ids_idx)
 
 
 @njit(cache=True, fastmath=True)
@@ -691,7 +693,14 @@ def process_areaperils_in_footprint(event_footprint,
 
         haz_cdf_ptr.append(cdf_end)
 
-    return areaperil_ids, haz_prob_start_in_footprint, areaperil_to_haz_cdf, haz_cdf[:cdf_end], haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins
+    return (areaperil_ids,
+            haz_prob_start_in_footprint,
+            areaperil_to_haz_cdf,
+            haz_cdf[:cdf_end],
+            haz_cdf_ptr,
+            eff_vuln_cdf,
+            areaperil_to_eff_vuln_cdf,
+            areaperil_to_eff_vuln_cdf_Ndamage_bins)
 
 
 @njit(cache=True, fastmath=True)
@@ -791,7 +800,9 @@ def reconstruct_coverages(event_id,
 
                 coverage['cur_items'] += 1
 
-    return compute_i, items_data, rng_index
+    return (compute_i,
+            items_data,
+            rng_index)
 
 
 if __name__ == '__main__':
