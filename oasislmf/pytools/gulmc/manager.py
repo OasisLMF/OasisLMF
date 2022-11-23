@@ -104,7 +104,8 @@ def run(run_dir,
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
 
     Raises:
-        ValueError: if alloc_rule is not 0, 1, or 2.
+        ValueError: if alloc_rule is not 0, 1, 2, or 3.
+        ValueError: if alloc_rule is 1, 2, or 3 when debug is 1 or 2.
 
     Returns:
         int: 0 if no errors occurred.
@@ -201,6 +202,9 @@ def run(run_dir,
 
         if alloc_rule not in [0, 1, 2, 3]:
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
+
+        if debug > 0 and alloc_rule != 0:
+            raise ValueError(f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}")
 
         cursor = 0
         cursor_bytes = 0
