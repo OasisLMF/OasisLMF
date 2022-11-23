@@ -80,12 +80,6 @@ VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
 
 vuln_offset = 4
 
-VulnerabilityWeights = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
-                                               ('aggregate_vulnerability', np.int32),
-                                               ('vulnerability_id', np.int32),
-                                               ('weight', oasis_float)
-                                               ]))
-
 
 @nb.jit(cache=True)
 def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
