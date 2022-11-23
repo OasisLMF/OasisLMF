@@ -349,7 +349,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     Args:
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
-        coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
+        coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
         items_data (numpy.array[items_data_type]): items-related data.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
@@ -358,18 +358,19 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         haz_cdf (np.array[oasis_float]): hazard intensity cdf.
         haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
         haz_prob_rec_idx_ptr (numpy.array[int]): array with the indices where each cdf record starts in the footprint.
-        eff_vuln_cdf (_type_): _description_
-        vuln_array (_type_): _description_
+        eff_vuln_cdf (np.array[oasis_float]): effective damageability cdf.
+        vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
         damage_bins (List[Union[damagebindictionaryCsv, damagebindictionary]]): loaded data from the damage_bin_dict file.
-        Ndamage_bins_max (_type_): _description_
+        Ndamage_bins_max (int): maximum number of damage bins.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
-        vuln_prob_to (_type_): array (to be re-used) to store the damage cdf for eacg item.
+        vuln_prob_to (np.array[oasis_float]): array (to be re-used) to store the damage cdf for each item.
         alloc_rule (int): back-allocation rule.
         do_correlation (bool): if True, compute correlated random samples.
-        haz_rndms (_type_): _description_
+        haz_rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
+          drawn for each seed for the hazard intensity sampling.
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
-          drawn for each seed.
+          drawn for each seed for the damage sampling.
 
 
         eps_ij (_type_): _description_
@@ -383,7 +384,8 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         arr_N_cdf (_type_): _description_
         norm_cdf (_type_): _description_
         z_unif (_type_): _description_
-        effective_damageability (_type_): _description_
+        effective_damageability (bool): if True, it uses effective damageability to draw damage samples instead of
+          the full monte carlo approach (draw hazard intensity first, then damage).
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
@@ -392,7 +394,10 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         cursor (int): index of int32_mv where to start writing.
 
     Returns:
-        _type_: _description_
+        cursor (int): index of int32_mv where to start writing.
+        cursor_bytes (int): updated value of cursor_bytes, the cursor location in bytes.
+        last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
+          and printed to the output stream.
     """
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
@@ -567,9 +572,9 @@ def process_areaperils_in_footprint(event_footprint,
         areaperil_ids (): 
         haz_prob_start_in_footprint (): 
         areaperil_to_haz_cdf (): 
-        haz_cdf (): 
-        haz_cdf_ptr (): 
-        eff_vuln_cdf (): 
+        haz_cdf (np.array[oasis_float]): hazard intensity cdf.
+        haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
+        eff_vuln_cdf (np.array[oasis_float]): effective damageability cdf.
         areaperil_to_eff_vuln_cdf (): 
         areaperil_to_eff_vuln_cdf_Ndamage_bins
 
@@ -715,8 +720,9 @@ def reconstruct_coverages(event_id,
         areaperil_ids_map (_type_): _description_
         areaperil_to_haz_cdf (_type_): _description_
         vuln_dict (_type_): _description_
-        item_map (_type_): _description_
-        coverages (_type_): _description_
+        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
+          the mapping between areaperil_id, vulnerability_id to item.
+        coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
         compute (numpy.array[int]): list of coverage ids to be computed.
         haz_seeds (numpy.array[int]): the random seeds to draw the hazard intensity samples.
         vuln_seeds (numpy.array[int]): the random seeds to draw the damage samples.

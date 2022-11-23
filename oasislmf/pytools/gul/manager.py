@@ -335,7 +335,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     Args:
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
-        coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
+        coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
         items_data (numpy.array[items_data_type]): items-related data.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
