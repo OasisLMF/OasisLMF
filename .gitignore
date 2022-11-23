@@ -94,6 +94,9 @@ celerybeat-schedule
 venv/
 ENV/
 
+# pip-compiled requirements
+requirements.txt
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -123,5 +126,9 @@ tests/model_execution/tmp_fc_kparse_output/
 .idea/
 data/
 
+# vs code
+.vscode/
+
+# mac os
 .DS_Store/
 .DS_Store
