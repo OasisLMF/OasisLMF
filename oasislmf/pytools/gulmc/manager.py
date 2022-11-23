@@ -17,8 +17,7 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
     Correlation, nb_areaperil_int, oasis_float, Keys)
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import (
-    VulnerabilityWeights, get_damage_bins, Item, get_items, get_vulns)
+from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_items, get_vulns
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, items_MC_data_type,
