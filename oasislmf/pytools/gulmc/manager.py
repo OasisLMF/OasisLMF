@@ -46,13 +46,13 @@ def generate_item_map(items, coverages):
     Returns:
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
-        areaperil_ids (Dict[int, Dict[int, int]]) dict storing the mapping between each
+        areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
           areaperil_id and all the vulnerability ids associated with it.
     """
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
     Nitems = items.shape[0]
 
-    areaperil_ids = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
+    areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
 
     for j in range(Nitems):
         append_to_dict_value(
@@ -63,12 +63,12 @@ def generate_item_map(items, coverages):
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1
 
-        if items[j]['areaperil_id'] not in areaperil_ids:
-            areaperil_ids[items[j]['areaperil_id']] = {items[j]['vulnerability_id']: 0}
+        if items[j]['areaperil_id'] not in areaperil_ids_map:
+            areaperil_ids_map[items[j]['areaperil_id']] = {items[j]['vulnerability_id']: 0}
         else:
-            areaperil_ids[items[j]['areaperil_id']][items[j]['vulnerability_id']] = 0
+            areaperil_ids_map[items[j]['areaperil_id']][items[j]['vulnerability_id']] = 0
 
-    return item_map, areaperil_ids
+    return item_map, areaperil_ids_map
 
 
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
@@ -158,7 +158,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(
             input_path, ignore_file_type, valid_area_peril_id)
 
-        # print(vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns)
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
 
@@ -566,18 +565,17 @@ def process_areaperils_in_footprint(event_footprint,
         areaperil_to_vulns_idx_dict (dict[int, int]): areaperil to vulnerability index dictionary.
         areaperil_to_vulns_idx_array (List[IndexType]]): areaperil ID to vulnerability index array.
 
-    TODO finish docs for Returns
-
     Returns:
-        areaperil_ids (): 
-        haz_prob_start_in_footprint (): 
-        areaperil_to_haz_cdf (): 
+        areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
+        haz_prob_start_in_footprint (List[int]): list with the index where the hazard probability record starts for each areaperil_id.
+        areaperil_to_haz_cdf (dict[int, int]): map between the areaperil_id and the hazard cdf index.
         haz_cdf (np.array[oasis_float]): hazard intensity cdf.
         haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
         eff_vuln_cdf (np.array[oasis_float]): effective damageability cdf.
-        areaperil_to_eff_vuln_cdf (): 
-        areaperil_to_eff_vuln_cdf_Ndamage_bins
-
+        areaperil_to_eff_vuln_cdf (dict[ITEM_MAP_KEY_TYPE_internal, int]): map between `(areaperil_id, vuln_idx)` and the index
+          where the effective damageability function starts in `eff_vuln_cdf`.
+        areaperil_to_eff_vuln_cdf_Ndamage_bins (dict[ITEM_MAP_KEY_TYPE_internal, int]): map between `(areaperil_id, vuln_idx)` and the
+          number of bins populated for the effective damageability function in `eff_vuln_cdf`.
     """
     # init data structures
     haz_prob_start_in_footprint = List.empty_list(nb_int64)
@@ -712,22 +710,24 @@ def reconstruct_coverages(event_id,
     """Register each item to its coverage, with the location of the corresponding hazard intensity cdf
     in the footprint, compute the random seeds for the hazard intensity and vulnerability samples.
 
-    TODO: finish docs for Args
-
     Args:
         event_id (int32): event id.
-        areaperil_ids (_type_): _description_
-        areaperil_ids_map (_type_): _description_
-        areaperil_to_haz_cdf (_type_): _description_
-        vuln_dict (_type_): _description_
+        areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
+        areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
+          areaperil_id and all the vulnerability ids associated with it.
+        areaperil_to_haz_cdf (dict[int, int]): map between the areaperil_id and the hazard cdf index.
+        vuln_dict (Dict[int, int]): map between vulnerability_id and the index where the vulnerability function
+          is stored in vuln_array.
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
         compute (numpy.array[int]): list of coverage ids to be computed.
         haz_seeds (numpy.array[int]): the random seeds to draw the hazard intensity samples.
         vuln_seeds (numpy.array[int]): the random seeds to draw the damage samples.
-        areaperil_to_eff_vuln_cdf (_type_): _description_
-        areaperil_to_eff_vuln_cdf_Ndamage_bins (_type_): _description_
+        areaperil_to_eff_vuln_cdf (dict[ITEM_MAP_KEY_TYPE_internal, int]): map between `(areaperil_id, vuln_idx)` and the index
+          where the effective damageability function starts in `eff_vuln_cdf`.
+        areaperil_to_eff_vuln_cdf_Ndamage_bins (dict[ITEM_MAP_KEY_TYPE_internal, int]): map between `(areaperil_id, vuln_idx)` and the
+          number of bins populated for the effective damageability function in `eff_vuln_cdf`.
 
     Returns:
         compute_i (int): index of the last coverage id stored in `compute`.
