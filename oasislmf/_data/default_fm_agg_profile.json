@@ -99,6 +99,22 @@
             }
         }
     },
+    "8": {
+        "FMLevel": 8,
+        "FMLevelName": "PolPD",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "portnumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "accnumber",
+                "name": "Account num."
+            }
+        }
+    },
     "9": {
         "FMLevel": 9,
         "FMLevelName": "PolAll",
