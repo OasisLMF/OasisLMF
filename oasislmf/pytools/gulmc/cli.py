@@ -13,8 +13,9 @@ parser = argparse.ArgumentParser(
 
 # arguments in alphabetical order (lower-case, then upper-case, then long arguments)
 parser.add_argument('-a', help='back-allocation rule. Default: 0', default=0, type=int, dest='alloc_rule')
-parser.add_argument('-d', help='output random numbers instead of gul. Default: False',
-                    default=False, action='store_true', dest='debug')
+parser.add_argument('-d', help='output the ground up loss (0), the random numbers used for hazard sampling (1), '
+                               'the random numbers used for damage sampling (2). Default: 0',
+                    action='store', type=int, dest='debug', default=0)
 parser.add_argument('-i', '--file-in', help='filename of input stream (list of events from `eve`).',
                     action='store', type=str, dest='file_in')
 parser.add_argument('-o', '--file-out', help='filename of output stream (ground up losses).',

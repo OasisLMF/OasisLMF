@@ -92,7 +92,8 @@ def run(run_dir,
         sample_size (int): number of random samples to draw.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         alloc_rule (int): back-allocation rule.
-        debug (bool): if True, for each random sample, print to the output stream the random value instead of the loss.
+        debug (int): for each random sample, print to the output stream the random loss (if 0), the random value used to draw
+          the hazard intensity sample (if 1), the random value used to draw the damage sample (if 2). Defaults to 0.
         random_generator (int): random generator function id.
         peril_filter (list[int], optional): list of perils to include in the computation (if None, all perils will be included). Defaults to [].
         file_in (str, optional): filename of input stream. Defaults to None.
@@ -422,8 +423,8 @@ def compute_event_losses(event_id,
         z_unif (np.array[float]): buffer to be re-used to store all the correlated random values.
         effective_damageability (bool): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
-        debug (bool): if True, for each random sample, print to the output stream the random value
-          instead of the loss.
+        debug (int): for each random sample, print to the output stream the random loss (if 0),
+          the random value used to draw the hazard intensity sample (if 1), the random value used to draw the damage sample (if 2).
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
         buff_size (int): size in bytes of the output buffer.
         int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
@@ -526,6 +527,11 @@ def compute_event_losses(event_id,
                             # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
                             haz_rval = haz_rndms[rng_index][sample_idx - 1]
 
+                            if debug == 1:
+                                # store the random value used for the hazard intensity sampling instead of the loss
+                                losses[sample_idx, item_i] = haz_rval
+                                continue
+
                             if haz_rval >= haz_prob_to[Nbins - 1]:
                                 haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
                                 haz_bin_idx = Nbins - 1
@@ -555,7 +561,8 @@ def compute_event_losses(event_id,
                     # draw samples of damage from the vulnerability function
                     vuln_rval = vuln_rndms[sample_idx - 1]
 
-                    if debug:
+                    if debug == 2:
+                        # store the random value used for the damage sampling instead of the loss
                         losses[sample_idx, item_i] = vuln_rval
                         continue
 
@@ -868,7 +875,7 @@ if __name__ == '__main__':
         sample_size=10,
         loss_threshold=0.,
         alloc_rule=1,
-        debug=False,
+        debug=0,
         random_generator=1,
         ignore_correlation=True,
         effective_damageability=True,
