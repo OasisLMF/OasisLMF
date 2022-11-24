@@ -16,7 +16,7 @@ on:
         description: ''
         required: false
         default: true
-      build_oasislmf:   
+      build_oasislmf:
         description: 'Build the oasislmf package for worker installation [true, false]'
         required: false
         default: false
@@ -32,6 +32,7 @@ jobs:
   piwind:
     #uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@dockerbuild/github-actions
+    secrets: inherit
     needs: [build]
     with:
       piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
