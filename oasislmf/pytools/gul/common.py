@@ -19,11 +19,11 @@ items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
 # TODO: 'vulnerability_id' should be renamed to 'vulnerability_idx' because it is the
 #       index of vuln_array where the vulnerability function is stored.
 items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
-                                             ('areaperil_id', areaperil_int),
+                                             #      ('areaperil_id', areaperil_int),
                                              ('vulnerability_id', np.int32),
-                                             #      ('hazcdf_i', np.int32),
+                                             ('hazcdf_i', np.int32),
                                              ('rng_index', np.int32),
-                                             #      ('eff_vuln_cdf_i', np.int32),
+                                             ('eff_vuln_cdf_i', np.int32),
                                              ('eff_vuln_cdf_Ndamage_bins', np.int32)
                                              ]))
 

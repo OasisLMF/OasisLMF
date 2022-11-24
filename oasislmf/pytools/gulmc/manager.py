@@ -185,11 +185,11 @@ def run(run_dir,
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvuln, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
-        d = pd.read_csv(os.path.join(input_path, 'aggregate_vulnerability.csv'))
-        agg_vuln_to_vulns = {agg: grp['vulnerability_id'].to_list() for agg, grp in d.groupby('aggregate_vulnerability_id')}
+        # d = pd.read_csv(os.path.join(input_path, 'aggregate_vulnerability.csv'))
+        # agg_vuln_to_vulns = {agg: grp['vulnerability_id'].to_list() for agg, grp in d.groupby('aggregate_vulnerability_id')}
 
-        d2 = pd.read_csv(os.path.join(input_path, 'weights.csv'))
-        ap_vuln_weights = {agg: grp['count'].to_list()[0] for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id'])}
+        # d2 = pd.read_csv(os.path.join(input_path, 'weights.csv'))
+        # ap_vuln_weights = {agg: grp['count'].to_list()[0] for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id'])}
 
         # get agg vuln table
         # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
@@ -474,10 +474,10 @@ def compute_event_losses(event_id,
             rng_index = item['rng_index']
             areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
-            # hazcdf_i = item['hazcdf_i']
-            hazcdf_i = areaperil_to_haz_cdf[areaperil_id]
-            # eff_vuln_cdf_i = item['eff_vuln_cdf_i']
-            eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vulnerability_id)]
+            hazcdf_i = item['hazcdf_i']
+            # hazcdf_i = areaperil_to_haz_cdf[areaperil_id]
+            eff_vuln_cdf_i = item['eff_vuln_cdf_i']
+            # eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vulnerability_id)]
             eff_vuln_cdf_Ndamage_bins = item['eff_vuln_cdf_Ndamage_bins']
 
             # get the hazard cdf
@@ -530,8 +530,9 @@ def compute_event_losses(event_id,
                 # we loop twice over sample_idx, but we may save a lot because we recompute the weighted vulnerability only once.
                 # this approach is good for large sample_size, but for small sample_size looping twice is not problematic,
                 # so, I'd say, it's a good approach in general.
-                used_haz_bin_idxs = set()
+                used_haz_bin_idxs = Dict.empty(nb_int64, nb_int64)
                 haz_bin_idxs = np.empty(sample_size, dtype=nb_int64)
+                Nused_haz_bin_idxs = 0
                 for sample_idx in range(1, sample_size + 1):
                     if Nbins == 1:
                         # if hazard intensity has no uncertainty, there is no need to sample
@@ -552,8 +553,8 @@ def compute_event_losses(event_id,
                             haz_bin_idx = binary_search(haz_rval, haz_prob_to, Nbins)
 
                         if haz_bin_idx not in used_haz_bin_idxs:
-                            haz_bin_idx_ids[Nused_haz_bin_idxs] = haz_bin_idx
-                            haz_bin_idxs[sample_idx] = Nused_haz_bin_idxs  # haz_bin_idxs is an array
+                            used_haz_bin_idxs[haz_bin_idx] = Nused_haz_bin_idxs
+                            haz_bin_idxs[Nused_haz_bin_idxs] = haz_bin_idx
                             Nused_haz_bin_idxs += 1
                         else:
                             haz_bin_idxs
@@ -974,11 +975,11 @@ def reconstruct_coverages(event_id,
                 # append the data of this item
                 item_i = coverage['start_items'] + coverage['cur_items']
                 items_data[item_i]['item_id'] = item_id
-                items_data[item_i]['areaperil_id'] = areaperil_id
-                # items_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
+                # items_data[item_i]['areaperil_id'] = areaperil_id
+                items_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
                 items_data[item_i]['rng_index'] = this_rng_index
                 items_data[item_i]['vulnerability_id'] = vuln_dict[vuln_id]
-                # items_data[item_i]['eff_vuln_cdf_i'] = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_dict[vuln_id])]
+                items_data[item_i]['eff_vuln_cdf_i'] = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_dict[vuln_id])]
                 items_data[item_i]['eff_vuln_cdf_Ndamage_bins'] = areaperil_to_eff_vuln_cdf_Ndamage_bins[(
                     areaperil_id, vuln_dict[vuln_id])]
 
