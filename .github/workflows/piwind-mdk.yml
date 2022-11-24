@@ -4,10 +4,6 @@ on:
   push:
   workflow_dispatch:
     inputs:
-      build_branch:
-        description: 'Branch of build script repo - https://github.com/OasisLMF/build'
-        required: true
-        default: master
       piwind_branch:
         description: 'Branch to run PiWind from'
         required: true
@@ -22,7 +18,6 @@ jobs:
     #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
     uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@dockerbuild/github-actions
     with:
-      build_branch: ${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}
       mdk_branch: ${{ github.ref_name }}
       mdk_run_type: ${{ github.event_name == 'push' && 'ri' || inputs.mdk_run_type }}
       piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
