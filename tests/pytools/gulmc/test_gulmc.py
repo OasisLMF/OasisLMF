@@ -136,18 +136,12 @@ def test_debug_flag(test_model: Tuple[str, str],
             # link to test model data and expected results (copy would be too slow)
             os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
-            ref_out_bin_fname = tmp_result_dir.joinpath("expected").joinpath(
-                f'exp_res_{test_model_name}_a{alloc_rule}_S{sample_size}_L0_ign_corr{ignore_correlation}_'
-                f'rng{random_generator}_eff_damag{effective_damageability}.bin'
-            )
-
             # run gulmc
-            test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=ref_out_bin_fname if generate_expected else test_out_bin_fname,
+                file_out=tmp_result_dir.joinpath('tmp.bin'),
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
@@ -194,18 +188,12 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
             # link to test model data and expected results (copy would be too slow)
             os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
-            ref_out_bin_fname = tmp_result_dir.joinpath("expected").joinpath(
-                f'exp_res_{test_model_name}_a{alloc_rule}_S{sample_size}_L0_ign_corr{ignore_correlation}_'
-                f'rng{random_generator}_eff_damag{effective_damageability}.bin'
-            )
-
             # run gulmc
-            test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=ref_out_bin_fname if generate_expected else test_out_bin_fname,
+                file_out=tmp_result_dir.joinpath('tmp.bin'),
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
