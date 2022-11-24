@@ -5,7 +5,7 @@
 
 name: Code Quality
 
-on: [push]
+#on: [push]
 
 env:
   max_line_length: 150
