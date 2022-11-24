@@ -24,7 +24,7 @@ on:
 
 jobs:
   build:
-    #if: inputs.build_oasislmf == 'true'
+    if: inputs.build_oasislmf == 'true'
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
@@ -36,7 +36,8 @@ jobs:
     secrets: inherit
     needs: [build]
     with:
-      piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
+      #piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name == 'push' && 'dockerbuild/github-actions' || inputs.piwind_branch }} # TESTING 
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ${{ github.ref_name }}
       platform_version: ${{ github.event_name == 'push' && 'latest' ||  inputs.platform_version }}
