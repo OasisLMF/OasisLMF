@@ -4,7 +4,7 @@
 configparser>=3.5.0
 coverage
 discover
-flake8>=6
+flake8
 freezegun
 future
 hypothesis
@@ -12,7 +12,7 @@ ipdb
 mock
 parameterized
 pip-tools>=2.0.2
-virtualenv
+virtualenv<=20.16.2
 pytest
 pytest-cov
 pytest-ignore-flaky
