@@ -27,6 +27,7 @@ jobs:
   piwind:
     #uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@dockerbuild/github-actions
+    needs: [build]
     with:
       piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
