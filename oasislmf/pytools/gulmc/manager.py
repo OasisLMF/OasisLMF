@@ -20,7 +20,7 @@ from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_items, get_vulns
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, items_MC_data_type,
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, VulnCdfLookup, items_MC_data_type,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.random import (
@@ -183,7 +183,7 @@ def run(run_dir,
         logger.debug('init vulnerability')
 
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
-        Nvuln, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
+        Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # d = pd.read_csv(os.path.join(input_path, 'aggregate_vulnerability.csv'))
         # agg_vuln_to_vulns = {agg: grp['vulnerability_id'].to_list() for agg, grp in d.groupby('aggregate_vulnerability_id')}
@@ -333,12 +333,16 @@ def run(run_dir,
                 mv_write = memoryview(bytearray(buff_size))
                 int32_mv = np.ndarray(buff_size // 4, buffer=mv_write, dtype='i4')
 
+                Nvulnerability, Ndamage_bins_max, Nintensity_bins
+                vuln_cdf_lookup = np.zeros((Nvulnerability, Nintensity_bins), dtype=VulnCdfLookup)  # need to be zeros to detect when it was populated
+                all_vuln_cdfs = np.empty((Nvulnerability * Nintensity_bins * Ndamage_bins_max), dtype=oasis_float)
+                last_cdf_entry = 0
                 while last_processed_coverage_ids_idx < compute_i:
 
-                    cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
+                    cursor, cursor_bytes, last_processed_coverage_ids_idx, last_cdf_entry = compute_event_losses(
                         event_id, coverages, compute[:compute_i], items_data,
                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr,
-                        eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
+                        eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max, vuln_cdf_lookup, all_vuln_cdfs, last_cdf_entry,
                         loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij,
                         corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
@@ -372,9 +376,12 @@ def compute_event_losses(event_id,
                          vuln_array,
                          damage_bins,
                          Ndamage_bins_max,
+                         vuln_cdf_lookup,
+                         all_vuln_cdfs,
+                         last_cdf_entry,
                          loss_threshold,
                          losses,
-                         vuln_prob_to,
+                         vuln_cdf_empty,
                          alloc_rule,
                          do_correlation,
                          haz_rndms,
@@ -464,7 +471,7 @@ def compute_event_losses(event_id,
         # return before processing this coverage if the number of free bytes left in the buffer
         # is not sufficient to write out the full coverage
         if cursor_bytes + est_cursor_bytes > buff_size:
-            return cursor, cursor_bytes, last_processed_coverage_ids_idx
+            return cursor, cursor_bytes, last_processed_coverage_ids_idx, last_cdf_entry
 
         items = items_data[coverage['start_items']: coverage['start_items'] + Nitems]
 
@@ -472,7 +479,7 @@ def compute_event_losses(event_id,
         for item_i in range(Nitems):
             item = items[item_i]
             rng_index = item['rng_index']
-            areaperil_id = item['areaperil_id']
+            # areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
             hazcdf_i = item['hazcdf_i']
             # hazcdf_i = areaperil_to_haz_cdf[areaperil_id]
@@ -648,7 +655,9 @@ def compute_event_losses(event_id,
                         vuln_cdf_entry = vuln_cdf_lookup[vulnerability_id, haz_bin_idx]
                         if vuln_cdf_entry['length'] > 0:
                             # cdf was computed already
-                            vuln_prob_to = all_vuln_cdfs[vuln_cdf_entry['start']:vuln_cdf_entry['start'] + vuln_cdf_entry['length']]
+                            Ndamage_bins = vuln_cdf_entry['length']
+                            vuln_prob_to = all_vuln_cdfs[vuln_cdf_entry['start']:vuln_cdf_entry['start'] + Ndamage_bins]
+
                         else:
                             # cdf has to be computed
                             # get vulnerability function for the sampled intensity_bin
@@ -656,6 +665,7 @@ def compute_event_losses(event_id,
 
                             # of length such that the only the last element is 1.
                             # in principle we could store directly in all_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_all_vuln_cdfs
+                            vuln_prob_to = vuln_cdf_empty
                             Ndamage_bins = 0
                             cumsum = 0
                             while Ndamage_bins < Ndamage_bins_max:
@@ -665,18 +675,19 @@ def compute_event_losses(event_id,
                                 if cumsum > 0.999999940:
                                     break
 
-                            if last_cdf_entry + Ndamage_bins < len_all_vuln_cdfs:
-                                # it fits in the array
-                                all_vuln_cdfs[last_cdf_entry:last_cdf_entry + Ndamage_bins] = vuln_prob_to
-                                last_cdf_entry += Ndamage_bins
-
-                            else:
+                            while last_cdf_entry + Ndamage_bins > all_vuln_cdfs.shape[0]:
+                                # if last_cdf_entry + Ndamage_bins > len_all_vuln_cdfs:
                                 # need to make the array bigger
-                                new_all_vuln_cdfs = np.empty(2 * len_all_vuln_cdfs, dtype=all_vuln_cdfs.dtype)
-                                new_all_vuln_cdfs[:len_all_vuln_cdfs] = all_vuln_cdfs
+                                new_all_vuln_cdfs = np.empty(2 * all_vuln_cdfs.shape[0], dtype=all_vuln_cdfs.dtype)
+                                new_all_vuln_cdfs[:last_cdf_entry] = all_vuln_cdfs[:last_cdf_entry]
                                 all_vuln_cdfs = new_all_vuln_cdfs
-                                len_all_vuln_cdfs *= 2
 
+                            all_vuln_cdfs[last_cdf_entry:last_cdf_entry + Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
+
+                            vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['start'] = last_cdf_entry
+                            vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['length'] = Ndamage_bins
+
+                            last_cdf_entry += Ndamage_bins
                         # if vulnerability_id in agg_vuln_to_vulns:
                         #     # if sample_size is <= haz intensity bins, then it's better to compute the weighted
                         #     # vulnerability that we need.
@@ -732,7 +743,8 @@ def compute_event_losses(event_id,
 
     return (cursor,
             cursor_bytes,
-            last_processed_coverage_ids_idx)
+            last_processed_coverage_ids_idx,
+            last_cdf_entry)
 
 
 @njit(cache=True, fastmath=True)
@@ -1009,5 +1021,5 @@ if __name__ == '__main__':
         debug=0,
         random_generator=1,
         ignore_correlation=True,
-        effective_damageability=True,
+        effective_damageability=False,
     )
