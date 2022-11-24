@@ -554,13 +554,15 @@ def compute_event_losses(event_id,
 
                         if haz_bin_idx not in used_haz_bin_idxs:
                             used_haz_bin_idxs[haz_bin_idx] = Nused_haz_bin_idxs
-                            haz_bin_idxs[Nused_haz_bin_idxs] = haz_bin_idx
+                            this_haz_bin_idx = Nused_haz_bin_idxs
                             Nused_haz_bin_idxs += 1
                         else:
-                            haz_bin_idxs
+                            this_haz_bin_idx = used_haz_bin_idxs[haz_bin_idx]
+
+                        haz_bin_idxs.append(this_haz_bin_idx)
 
                         # used_haz_bin_idxs is a set <- here we need a reverse dict so form haz bin idx to sample_idx ?
-                        used_haz_bin_idxs.add(haz_bin_idx)
+                        # used_haz_bin_idxs.add(haz_bin_idx)
                         # or
                         # if haz_bin_idx not in sample_idx_by_haz_bin_idx: # is a dict[int, list[int]]
                         #     sample_idx_by_haz_bin_idx[haz_bin_idx] = []
