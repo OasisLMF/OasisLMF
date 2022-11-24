@@ -16,9 +16,14 @@ on:
         description: ''
         required: false
         default: true
+      build_oasislmf:   
+        description: 'Build the oasislmf package for worker installation [true, false]'
+        required: false
+        default: false
 
 jobs:
   build:
+    #if: inputs.build_oasislmf == 'true'
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
