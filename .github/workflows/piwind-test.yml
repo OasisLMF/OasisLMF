@@ -1,4 +1,5 @@
-name: PiWind check output
+name: PiWind output check
+
 
 on:
   push:
