@@ -19,7 +19,8 @@ on:
 
 jobs:
   PiWind:
-    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
+    #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
+    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@dockerbuild/github-actions
     with:
       build_branch: ${{ github.event_name == 'push' && 'master' ||  inputs.build_branch }}
       mdk_branch: ${{ github.ref_name }}
