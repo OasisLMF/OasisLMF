@@ -31,6 +31,7 @@ jobs:
       ktools_branch: ${{ github.event_name == 'push' && '' ||  inputs.ktools_branch }}
 
   piwind:
+    if: ${{ ! failure() || ! cancelled() }}
     #uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@dockerbuild/github-actions
     secrets: inherit
