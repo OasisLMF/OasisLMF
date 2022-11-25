@@ -1,7 +1,18 @@
 name: PiWind MDK
 
 on:
-  #push:
+  push:
+    branches:
+      - master
+      - develop
+      - backports**
+  pull_request:
+    branches:
+      - master
+      - develop
+      - release**
+      - backports**
+
   workflow_dispatch:
     inputs:
       piwind_branch:

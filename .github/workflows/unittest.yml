@@ -1,7 +1,13 @@
 name: Oasislmf Testing
 
 on:
-  #push:
+  push:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - release**
+      - backports**
   workflow_dispatch:
     inputs:
       ktools_branch:
