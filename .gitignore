@@ -28,6 +28,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# pip-tools generated files
+requirements.txt
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -52,6 +55,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache
 validation/runs
+tmp/
 
 # Translations
 *.mo

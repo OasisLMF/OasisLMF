@@ -7,7 +7,9 @@ import shutil
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.model_execution.bash import genbash, create_bash_outputs, create_bash_analysis, bash_wrapper, bash_params
+from oasislmf.execution.bash import (bash_params, bash_wrapper,
+                                     create_bash_analysis, create_bash_outputs,
+                                     genbash)
 from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
@@ -882,6 +884,7 @@ class Genbash(TestCase):
 class Genbash_GulItemStream(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_output")
@@ -904,6 +907,7 @@ class Genbash_GulItemStream(Genbash):
 class Genbash_ErrorGuard(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "err_kparse_output")
@@ -926,6 +930,7 @@ class Genbash_ErrorGuard(Genbash):
 class Genbash_TempDir(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_kparse_output")
@@ -948,6 +953,7 @@ class Genbash_TempDir(Genbash):
 class Genbash_FullCorrItemStream(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "fc_kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_fc_kparse_output")
@@ -970,6 +976,7 @@ class Genbash_FullCorrItemStream(Genbash):
 class Genbash_FullCorrErrorGuard(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "fc_kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "err_fc_kparse_output")
@@ -992,6 +999,7 @@ class Genbash_FullCorrErrorGuard(Genbash):
 class Genbash_FullCorrTempDir(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "fc_kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_fc_kparse_output")
@@ -1014,6 +1022,7 @@ class Genbash_FullCorrTempDir(Genbash):
 class Genbash_LoadBanlancerFmpy(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "lb_kparse_output")
@@ -1040,6 +1049,7 @@ class Genbash_LoadBanlancerFmpy(Genbash):
 class Genbash_EventShuffle(Genbash):
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "eve_kparse_output")
