@@ -205,6 +205,7 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
             'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
+        {'name': 'copy_model_data', 'default': False, 'type': str2bool, 'help': 'Copy model data instead of creating symbolic links to it.'},
         {'name': 'model_run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir', 'flag': '-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
         {'name': 'ktools_legacy_stream', 'type': str2bool, 'const': True, 'nargs': '?', 'default': KTOOLS_GUL_LEGACY_STREAM,
@@ -280,7 +281,8 @@ class GenerateLossesDir(GenerateLossesBase):
             self.model_data_dir,
             self.analysis_settings_json,
             user_data_dir=self.user_data_dir,
-            ri=ri
+            ri=ri,
+            copy_model_data=self.copy_model_data,
         )
 
         generate_summaryxref_files(
