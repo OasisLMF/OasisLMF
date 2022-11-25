@@ -7,17 +7,12 @@ name: Code Quality
 
 on:
   push:
-    branches:
-      - master
-      - develop
-      - backports**
   pull_request:
     branches:
       - master
       - develop
       - release**
       - backports**
-      - update/piwind-testing # TESTING  
 
 env:
   max_line_length: 150

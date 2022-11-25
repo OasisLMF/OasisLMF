@@ -12,7 +12,6 @@ on:
       - develop
       - release**
       - backports**
-      - update/piwind-testing # TESTING  
 
   workflow_dispatch:
     inputs:
