@@ -34,7 +34,6 @@ on:
         default: false
 
 
-
 jobs:
   build:
     if: inputs.build_oasislmf == 'true'
