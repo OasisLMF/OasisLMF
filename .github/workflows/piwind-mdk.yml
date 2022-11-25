@@ -31,5 +31,5 @@ jobs:
     uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@dockerbuild/github-actions
     with:
       mdk_branch: ${{ github.ref_name }}
-      mdk_run_type: ${{ github.event_name == 'push' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
+      mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
