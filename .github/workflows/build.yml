@@ -62,9 +62,6 @@ jobs:
        GITHUB_CONTEXT: ${{ toJson(github) }}
 
     - uses: actions/checkout@v3
-      with:
-        ref: ${{ github.ref_name }}
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
