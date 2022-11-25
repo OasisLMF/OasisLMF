@@ -8,7 +8,7 @@ from contextlib import ExitStack
 from select import select
 from pathlib import Path
 from numba import njit
-from numba.types import int32 as nb_int32, int64 as nb_int64
+from numba.types import uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64
 from numba.typed import Dict, List
 
 from oasislmf.pytools.common import PIPE_CAPACITY
@@ -20,7 +20,8 @@ from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_items, get_vulns
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, VulnCdfLookup, items_MC_data_type,
+    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE,
+    VulnCdfLookup, items_MC_data_type,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.random import (
@@ -185,17 +186,38 @@ def run(run_dir,
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
+        # read and store aggregate vulnerability definitions and weights
+        @njit()
+        def gen_empty_agg_vuln_to_vulns():
+            return Dict.empty(nb_int32, List.empty_list(nb_int32))
+
+        @njit()
+        def gen_empty_ap_vuln_weights():
+            return Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
+
+        agg_vuln_to_vulns = gen_empty_agg_vuln_to_vulns()
         try:
             d = pd.read_csv(os.path.join(input_path, 'aggregate_vulnerability.csv'))
-            agg_vuln_to_vulns = {agg: grp['vulnerability_id'].to_list() for agg, grp in d.groupby('aggregate_vulnerability_id')}
-        except FileNotFoundError:
-            agg_vuln_to_vulns = Dict.empty(nb_int32, nb_int32)
+            d.astype({'aggregate_vulnerability_id': 'int32'})
+            for agg, grp in d.groupby('aggregate_vulnerability_id'):
+                for entry in grp['vulnerability_id'].to_list():
+                    key = nb_int32(agg)
+                    if key not in agg_vuln_to_vulns:
+                        agg_vuln_to_vulns[key] = List.empty_list(nb_int32)
 
+                    agg_vuln_to_vulns[key].append(nb_int32(entry))
+
+        except FileNotFoundError:
+            pass
+
+        ap_vuln_weights = gen_empty_ap_vuln_weights()
         try:
             d2 = pd.read_csv(os.path.join(input_path, 'weights.csv'))
-            ap_vuln_weights = {agg: grp['count'].to_list()[0] for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id'])}
+            for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id']):
+                ap_vuln_weights[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['count'].to_list()[0])
+
         except FileNotFoundError:
-            ap_vuln_weights = Dict.empty(nb_int32, nb_int32)
+            pass
 
         # get agg vuln table
         # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
@@ -711,7 +733,7 @@ def compute_event_losses(event_id,
                                     last_cdf_entry += Ndamage_bins
 
                                 # get_vuln_cdf ends
-                                weight = ap_vuln_weights[(areaperil_id, vuln_i)][0]
+                                weight = ap_vuln_weights[(areaperil_id, vuln_i)]
                                 tot_weights += weight
                                 weighted_vuln_to[:Ndamage_bins] += vuln_prob_to[:Ndamage_bins] * weight
                                 # note: this requires that all the vulnerability functions in one aggregate must have the same number of damage bins.
@@ -1136,7 +1158,8 @@ def reconstruct_coverages(event_id,
 
 if __name__ == '__main__':
 
-    test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests").joinpath("assets").joinpath("test_model_1")
+    test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+        .joinpath("assets").joinpath("wip_test_model_2")  # .joinpath("test_model_1")
 
     run(
         run_dir=test_dir,
