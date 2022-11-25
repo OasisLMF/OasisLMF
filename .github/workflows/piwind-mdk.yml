@@ -1,7 +1,19 @@
 name: PiWind MDK
 
 on:
-  #push:
+  push:
+    branches:
+      - master
+      - develop
+      - backports**
+  pull_request:
+    branches:
+      - master
+      - develop
+      - release**
+      - backports**
+      - update/piwind-testing # TESTING  
+
   workflow_dispatch:
     inputs:
       piwind_branch:
@@ -13,11 +25,13 @@ on:
         required: true
         default: ri
 
+
 jobs:
   PiWind:
     #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
     uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@dockerbuild/github-actions
     with:
-      mdk_branch: ${{ github.ref_name }}
-      mdk_run_type: ${{ github.event_name == 'push' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name == 'push' && 'develop' || inputs.piwind_branch }}
+      #mdk_branch: ${{ github.ref_name }}
+      mdk_branch: ${{ github.ref }}
+      mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}

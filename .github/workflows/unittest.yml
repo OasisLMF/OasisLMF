@@ -1,7 +1,14 @@
 name: Oasislmf Testing
 
 on:
-  #push:
+  push:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - release**
+      - backports**
+      - update/piwind-testing # TESTING  
   workflow_dispatch:
     inputs:
       ktools_branch:
