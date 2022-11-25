@@ -1,6 +1,6 @@
 __all__ = [
     'VulnerabilityFile',
-    'Eventsfile',
+    'EventsFile',
     'FootprintBinFile',
     'FootprintIdxFile',
     'DamageBinDictFile',
@@ -123,13 +123,13 @@ class VulnerabilityFile(ModelFile):
         Initialise VulnerabilityFile class.
 
         Args:
-            num_vulnerabilities: number of vulnerabilities, int.
-            num_intensity_bins: number of intensity bins, int.
-            num_damage_bins: number of damage bins, int.
-            vulnerability_sparseness: percentage of bins normalised to range
-                [0,1] impacted for a vulnerability at an intensity level, float.
-            random_seed: random seed for random number generator, float.
-            directory: dummy model file destination, str.
+            num_vulnerabilities (int): number of vulnerabilities.
+            num_intensity_bins (int): number of intensity bins.
+            num_damage_bins(int): number of damage bins.
+            vulnerability_sparseness (float): percentage of bins normalised to
+                range [0,1] impacted for a vulnerability at an intensity level.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
         """
         self.num_vulnerabilities = num_vulnerabilities
         self.num_intensity_bins = num_intensity_bins
@@ -154,10 +154,10 @@ class VulnerabilityFile(ModelFile):
         Generate Vulnerability dummy model file data.
 
         Yields:
-            vulnerability ID: int
-            intensity bin ID: int
-            damage bin ID: int
-            probability: float
+            vulnerability (int): vulnerability ID.
+            intensity_bin (int): intensity bin ID.
+            damage_bin (int): damage bin ID.
+            probability (float): impact probability.
         """
         super().seed_rng()
         for vulnerability in range(self.num_vulnerabilities):
@@ -197,8 +197,8 @@ class EventsFile(ModelFile):
         Initialise VulnerabilityFile class.
 
         Args:
-            num_events: number of events, int.
-            directory: dummy model file destination, str.
+            num_events (int): number of events.
+            directory (str): dummy model file destination.
         """
         self.num_events = num_events
         self.dtypes = {'event_id': 'i'}
@@ -211,7 +211,7 @@ class EventsFile(ModelFile):
         Generate Events dummy model file data.
 
         Yields:
-            event ID: int
+            event (int): event ID.
         """
         return (tuple([event]) for event in range(1, self.num_events + 1))
 
@@ -232,7 +232,7 @@ class FootprintIdxFile(ModelFile):
         Initialise Footprint index file class.
 
         Args:
-            directory: dummy model file destination, str.
+            directory (str): dummy model file destination.
         """
         self.dtypes = OrderedDict([
             ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
@@ -248,11 +248,11 @@ class FootprintIdxFile(ModelFile):
         writes to file. Called by FootprintBinFile.generate_data().
 
         Args:
-            event_id: event ID, int.
-            offset: position of data for event ID in generated Footprint binary
-                file relative to beginning of that file, long long.
-            size: size of data corresponding to event ID in generated Footprint
-                binary file, long long.
+            event_id (int): event ID.
+            offset (long long): position of data for event ID in generated
+                Footprint binary file relative to beginning of that file.
+            size (long long): size of data corresponding to event ID in
+                generated Footprint binary file, long long.
         """
         with open(self.file_name, 'ab') as f:
             f.write(struct.pack(
@@ -280,16 +280,16 @@ class FootprintBinFile(ModelFile):
         Initialise Footprint binary file class.
 
         Args:
-            num_events: number of events, int.
-            num_areaperils: number of areaperils, int.
-            areaperils_per_event: number of areaperils impacted per event, int.
-            num_intensity_bins: number of intensity bins, int.
-            intensity_sparseness: percentage of bins normalised to range [0,1]
-                impacted for an event and areaperil, float.
-            no_intensity_uncertainty: flag to indicate whether more than one
-                intensity bin can be impacted, bool.
-            random_seed: random seed for random number generator, float.
-            directory: dummy model file destination, str.
+            num_events (int): number of events.
+            num_areaperils (int): number of areaperils.
+            areaperils_per_event (int): number of areaperils impacted per event.
+            num_intensity_bins (int): number of intensity bins.
+            intensity_sparseness (float): percentage of bins normalised to
+                range [0,1] impacted for an event and areaperil.
+            no_intensity_uncertainty (bool): flag to indicate whether more than
+                one intensity bin can be impacted, bool.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
         """
         self.num_events = num_events
         self.num_areaperils = num_areaperils
@@ -334,9 +334,9 @@ class FootprintBinFile(ModelFile):
         Generate Footprint binary dummy model file data.
 
         Yields:
-            areaperil ID: int
-            intensity bin ID: int
-            probability: float
+            areaperil (int): areaperil ID.
+            intensity_bin (int): intensity bin ID.
+            probability (float): impact probability.
         """
         super().seed_rng()
         for event in range(self.num_events):
@@ -399,8 +399,8 @@ class DamageBinDictFile(ModelFile):
         Initialise Damage Bin Dictionary file class.
 
         Args:
-            num_damage_bins: number of damage bins, int.
-            directory: dummy model file destination, str.
+            num_damage_bins (int): number of damage bins.
+            directory (str): dummy model file destination.
         """
         self.num_damage_bins = num_damage_bins
         self.dtypes = OrderedDict([
@@ -420,11 +420,11 @@ class DamageBinDictFile(ModelFile):
         (interpolation) of 1.
 
         Yields:
-            damage bin ID: int
-            damage bin lower limit: float
-            damage bin upper limit: float
-            damage bin midpoint (interpolation): float
-            interval type: int (deprecated)
+            bin_id (int): damage bin ID.
+            bin_from (float): damage bin lower limit.
+            bin_to (float): damage bin upper limit.
+            interpolation (float): damage bin midpoint.
+            interval_type (int): interval_type (deprecated).
         """
         # Exclude first and last bins for now
         bin_indexes = np.arange(self.num_damage_bins - 2)
@@ -472,14 +472,14 @@ class OccurrenceFile(ModelFile):
         Initialise Occurrence file class.
 
         Args:
-            num_events: number of events, int.
-            num_periods: total number of periods, int.
-            random_seed: random seed for random number generator, float.
-            directory: dummy model file destination, str.
-            mean: mean of truncated normal distribution sampled to determine
-                number of periods per event.
-            stddev: standard deviation of truncated normal distribution sampled
-                to determine number of periods per event.
+            num_events (int): number of events.
+            num_periods (int): total number of periods.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
+            mean (float): mean of truncated normal distribution sampled to
+                determine number of periods per event.
+            stddev (float): standard deviation of truncated normal distribution
+                sampled to determine number of periods per event.
         """
         self.num_events = num_events
         self.num_periods = num_periods
@@ -521,7 +521,8 @@ class OccurrenceFile(ModelFile):
           therefore g(b) -> infinity ===> Phi(g(b)) -> 1
 
         Returns:
-            number of periods for this event: int
+            bound_a (int): lower boundary, when converted to an integer gives
+                number of periods for this event.
         """
         alpha = (0.5 - self.mean) / self.stddev
         phi_alpha = 0.5 * (1 + erf(alpha / np.sqrt(2)))
@@ -542,7 +543,7 @@ class OccurrenceFile(ModelFile):
         function is required to obtain number of periods for this event.
 
         Returns:
-            Number of periods for this event: int
+            mean|bound_a (int): Number of periods for this event.
         """
         # Return mean if standard deviation is 0
         if self.stddev == 0:
@@ -557,12 +558,12 @@ class OccurrenceFile(ModelFile):
         Reduce year, month and day information to a single integer.
 
         Args:
-            year: int
-            month: int
-            day: int
+            year (int): year.
+            month (int): month.
+            day (int): day.
 
         Returns:
-            date: int
+            date (int): date in ktools format.
         """
         # Set date relative to epoch
         month = (month + 9) % 12
@@ -574,9 +575,9 @@ class OccurrenceFile(ModelFile):
         Generate Occurrence dummy model file data.
 
         Yields:
-            event ID: int
-            period number: int
-            date: int
+            event (int): event ID.
+            period_no (int): period number.
+            date (int): date in ktools format.
         """
         super().seed_rng()
         months = np.arange(1, 13)
@@ -608,9 +609,9 @@ class RandomFile(ModelFile):
         Initialise Random Numbers file class.
 
         Args:
-            num_randoms: number of random numbers, int.
-            random_seed: random seed for random number generator, float.
-            directory: dummy model file destination, str.
+            num_randoms (int): number of random numbers.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
         """
         self.num_randoms = num_randoms
         self.dtypes = {'random_no': 'f'}
@@ -624,7 +625,7 @@ class RandomFile(ModelFile):
         Generate Random Numbers dummy model file data.
 
         Yields:
-            random number: float
+            random number (float): random number.
         """
         super().seed_rng()
         # First random number is 0
@@ -648,10 +649,10 @@ class CoveragesFile(ModelFile):
         Initialise Coverages file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            random_seed: random seed for random number generator, float.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
         """
         self.num_locations = num_locations
         self.coverages_per_location = coverages_per_location
@@ -666,8 +667,7 @@ class CoveragesFile(ModelFile):
         Generate Coverages dummy model file data.
 
         Yields:
-            coverage ID: int
-            total insured value: float
+            total insured value (float): Total Insured Value (TIV).
         """
         super().seed_rng()
         # Assume 1-1 mapping between item and coverage IDs
@@ -696,12 +696,12 @@ class ItemsFile(ModelFile):
         Initialise Items file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            num_areaperils: number of areaperils, int.
-            num_vulnerabilities: number of vulnerabilities, int.
-            random_seed: random seed for random number generator, float.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            num_areaperils (int): number of areaperils.
+            num_vulnerabilities (int): number of vulnerabilities.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
         """
         self.num_locations = num_locations
         self.coverages_per_location = coverages_per_location
@@ -721,11 +721,13 @@ class ItemsFile(ModelFile):
         Generate Items dummy model file data.
 
         Yields:
-            item ID: int
-            coverage ID: int = item ID (1-1 mapping)
-            areaperil ID: int
-            vulnerability ID: int
-            group ID: int (mapped to location ID)
+            item (int): item ID.
+            item (int): coverage ID = item ID (1-1 mapping).
+            areaperils[coverage] (int): areaperil ID corresponding to
+                coverage ID.
+            vulnerabilities[coverage] (int): vulnerability ID corresponding to
+                coverage ID.
+            location (int): group ID mapped to location ID.
         """
         super().seed_rng()
         for location in range(self.num_locations):
@@ -752,8 +754,8 @@ class FMFile(ModelFile):
         Initialise Financial Model files classes.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
         """
         self.num_locations = num_locations
         self.coverages_per_location = coverages_per_location
@@ -776,9 +778,9 @@ class FMProgrammeFile(FMFile):
         Initialise Financial Model Programme file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            directory (str): dummy model file destination.
         """
         super().__init__(num_locations, coverages_per_location)
         self.dtypes = OrderedDict([
@@ -792,9 +794,9 @@ class FMProgrammeFile(FMFile):
         Generate Financial Model Programme dummy model file data.
 
         Yields:
-            from aggregate ID: int
-            level ID: int
-            to aggregate ID: int
+            agg_id (int): from aggregate ID.
+            level (int): level ID.
+            agg_id (int): to aggregate ID.
         """
         levels = [1, 10]
         levels = range(1, len(levels) + 1)
@@ -829,10 +831,10 @@ class FMPolicyTCFile(FMFile):
         Initialise Financial Model Policy file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            num_layers: number of layers, int.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            num_layers (int): number of layers.
+            directory (str): dummy model file destination.
         """
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
@@ -848,10 +850,10 @@ class FMPolicyTCFile(FMFile):
         Generate Financial Model Policy dummy model file data.
 
         Yields:
-            layer ID: int
-            level ID: int
-            aggregate ID: int
-            profile/policyTC ID: int
+            level (int): level ID.
+            agg_id (int): aggregate ID.
+            layer (int): layer ID.
+            policytc_id (int): profile/policyTC ID.
         """
         # Site coverage #1 & policy layer #10 FM levels
         levels = [1, 10]
@@ -890,8 +892,8 @@ class FMProfileFile(ModelFile):
         Initialise Financial Model Profile file class.
 
         Args:
-            num_layers: number of layers, int.
-            directory: dummy model file destination, str.
+            num_layers (int): number of layers.
+            directory (str): dummy model file destination.
         """
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
@@ -908,16 +910,19 @@ class FMProfileFile(ModelFile):
         Generate Financial Model Profile dummy model file data.
 
         Yields:
-            profile/policyTC ID: int
-            calculation rule ID: int (2 or 100)
-            first deductible: float (fixed at 0.0)
-            second deductible: float (fixed at 0.0)
-            third deductible: float (fixed at 0.0)
-            attachment point/excess: float
-            limit: float
-            first proportional share: float (0.0 or 0.3)
-            second proportional share: float (fixed at 0.0)
-            third proportional share: float (fixed at 0.0)
+            policytc_id (int): profile/policyTC ID.
+            calculation rule ID (int): calculation rule ID (2 or 100).
+            first deductible (float): first deductible (fixed at 0.0).
+            second deductible (float): second deductible (fixed at 0.0).
+            third deductible (float): third deductible (fixed at 0.0).
+            attachment1 (float): attachment point/excess.
+            limit1 (float): limit.
+            first proportional share (float): first proportional
+                share (0.0 or 0.3).
+            second proportional share (float): second proportional
+                share (fixed at 0.0).
+            third proportional share (float): third proportional
+                share (fixed at 0.0).
         """
         # Pass through for level 1
         profile_rows = [(1, 100, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)]
@@ -960,10 +965,10 @@ class FMXrefFile(FMFile):
         Initialise Financial Model Cross Reference file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            num_layers: number of layers, int.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            num_layers (int): number of layers.
+            directory (str): dummy model file destination.
         """
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
@@ -978,9 +983,9 @@ class FMXrefFile(FMFile):
         Generate Financial Model Cross Reference dummy model file data.
 
         Yields:
-            output ID: int
-            aggregate ID: int
-            layer ID: int
+            output_count (int): output ID.
+            agg_id (int): aggregate ID.
+            layer (int): layer ID.
         """
         layers = range(1, self.num_layers + 1)
         output_count = 1
@@ -1010,9 +1015,9 @@ class GULSummaryXrefFile(FMFile):
         Initialise Ground Up Losses Summary Cross Reference file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            directory (str): dummy model file destination.
         """
         super().__init__(num_locations, coverages_per_location)
         self.dtypes = OrderedDict([
@@ -1026,9 +1031,9 @@ class GULSummaryXrefFile(FMFile):
         Generate Ground Up Losses Summary Cross Reference dummy model file data.
 
         Yields:
-            item ID: int
-            summary ID: int
-            summary set ID: int
+            item (int): item ID.
+            summary_id (int): summary ID.
+            summaryset_id (int): summary set ID.
         """
         summary_id = 1
         summaryset_id = 1
@@ -1056,10 +1061,10 @@ class FMSummaryXrefFile(FMFile):
         Initialise Financial Model Summary Cross Reference file class.
 
         Args:
-            num_locations: number of locations, int.
-            coverages_per_location: number of coverage types per location, int.
-            num_layers: number of layers, int.
-            directory: dummy model file destination, str.
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            num_layers (int): number of layers.
+            directory (str): dummy model file destination.
         """
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
@@ -1074,9 +1079,9 @@ class FMSummaryXrefFile(FMFile):
         Generate Financial Model Summary Cross Reference dummy model file data.
 
         Yields:
-            output ID: int
-            summary ID: int
-            summary set ID: int
+            output_id (int): output ID.
+            summary_id (int): summary ID.
+            summaryset_id (int): summary set ID.
         """
         summary_id = 1
         summaryset_id = 1
