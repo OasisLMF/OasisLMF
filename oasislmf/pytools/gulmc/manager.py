@@ -187,6 +187,7 @@ def run(run_dir,
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # read and store aggregate vulnerability definitions and weights
+        # TODO: reorganize this section by defining a read_vulnerability_weights nb function
         @njit()
         def gen_empty_agg_vuln_to_vulns():
             return Dict.empty(nb_int32, List.empty_list(nb_int32))
@@ -438,6 +439,8 @@ def compute_event_losses(event_id,
                          cursor):
     """Compute losses for an event.
 
+    TODO: update docs
+
     Args:
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
@@ -646,6 +649,7 @@ def compute_event_losses(event_id,
 
                 for sample_idx in range(1, sample_size + 1):
                     if effective_damageability:
+                        # TODO: implement aggregate vulnerability case for the effective damageability
                         # use the effective damageability cdf as the vulnerability cdf
                         vuln_prob_to = eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins]
                         Ndamage_bins = eff_vuln_cdf_Ndamage_bins
@@ -700,9 +704,6 @@ def compute_event_losses(event_id,
                                 else:
                                     # cdf has to be computed
 
-                                    # we need to make the content of this 'else' a function
-                                    # so we can call this many times in the aggregate case
-
                                     # get vulnerability function for the sampled intensity_bin
                                     vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
@@ -737,14 +738,15 @@ def compute_event_losses(event_id,
                                 tot_weights += weight
                                 weighted_vuln_to[:Ndamage_bins] += vuln_prob_to[:Ndamage_bins] * weight
                                 # note: this requires that all the vulnerability functions in one aggregate must have the same number of damage bins.
-                                # otherwise this will error  weighted_vuln_to += vuln_prob_to[:Ndamage_bins] * weight
-                                # Q for Joh: is this an accurate expectation? checking this beforehand would be very useful.
+                                # otherwise this will error  weighted_vuln_to may be ill defined
+                                # (eg if different vuln_prob_to have different Ndamage_bins, they sum up at different bins in weighted_vuln_to.
+                                # Q for Joh/Ben: is this an accurate expectation? if this is not a standard, checking this beforehand would be very useful.
                             weighted_vuln_to /= tot_weights
                             vuln_prob_to = weighted_vuln_to
 
                         else:
                             # non-aggregate case
-                            # using this function make the whole run take 50% more time vs having the function inline!!!
+                            # using `get_vuln_cdf` function make the whole run take 50% more time vs having the function inline!!!
                             # vuln_prob_to, Ndamage_bins, last_cdf_entry = get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
                             #                                                           Ndamage_bins_max, last_cdf_entry, all_vuln_cdfs)
 
@@ -757,9 +759,6 @@ def compute_event_losses(event_id,
 
                             else:
                                 # cdf has to be computed
-
-                                # we need to make the content of this 'else' a function
-                                # so we can call this many times in the aggregate case
 
                                 # get vulnerability function for the sampled intensity_bin
                                 vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
@@ -789,17 +788,6 @@ def compute_event_losses(event_id,
                                 vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['length'] = Ndamage_bins
 
                                 last_cdf_entry += Ndamage_bins
-
-                            # if vulnerability_id in agg_vuln_to_vulns:
-                            #     # if sample_size is <= haz intensity bins, then it's better to compute the weighted
-                            #     # vulnerability that we need.
-                            #     # if sample_size is >> haz intensity bins, then it's likely that there'll be many samples
-                            #     # with same `haz_int_bin_idx`, which would have the same weighted vulnerability. in this case
-                            #     # we should compute all the vulnerability prob before the for loop and here just read the haz_int_bin_idx slice.
-                            #     # this also applies to vuln_prob defined in the non-aggregate case.
-                            #     for vuln_i in agg_vuln_to_vulns[vulnerability_id]:
-                            #         # print(vuln_i, ap_vuln_weights[(areaperil_id, vuln_i)][0])
-                            #         weighted_vuln += vuln_array[vuln_i, :, haz_int_bin_idx - 1] * ap_vuln_weights[(areaperil_id, vuln_i)][0]
 
                             # draw samples of damage from the vulnerability function
                     vuln_rval = vuln_rndms[sample_idx - 1]
@@ -861,9 +849,6 @@ def get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup
 
     else:
         # cdf has to be computed
-
-        # we need to make the content of this 'else' a function
-        # so we can call this many times in the aggregate case
 
         # get vulnerability function for the sampled intensity_bin
         vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
@@ -981,6 +966,10 @@ def process_areaperils_in_footprint(event_footprint,
                         while Ndamage_bins < Ndamage_bins_max:
                             for i in range(Nbins_to_read):
                                 intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
+                                # TODO: if vulnerability_id is aggregate,need to account for that.
+                                # at face value, it would seem that we need to compute all the cdfs for all the intensity bin idx
+                                # ...ask Ben and Joh what they think
+                                #
                                 eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
                                                                   Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
                             eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
