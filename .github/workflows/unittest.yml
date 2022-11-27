@@ -6,7 +6,6 @@ on:
     branches:
       - master
       - develop
-      - release**
       - backports**
   workflow_dispatch:
     inputs:
@@ -32,7 +31,6 @@ jobs:
         - { python-version: '3.8', pkg-version: ""}
         - { python-version: '3.9', pkg-version: ""}
         - { python-version: '3.10', pkg-version: ""}
-        - { python-version: '3.10', pkg-version: 'numba==0.55.1' }
 
     steps:
       - uses: actions/checkout@v3

@@ -10,7 +10,6 @@ on:
     branches:
       - master
       - develop
-      - release**
       - backports**
 
   workflow_dispatch:
