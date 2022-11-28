@@ -73,5 +73,5 @@ jobs:
       - name: Run tox
         run: tox -e py
       - name: Upload coverage to Codecov
-        if: matrix.cfg.upload-cov == true && contains(fromJson('["pull_request", "master", "develop"]'), github.event_name)
+        if: matrix.cfg.upload-cov == true
         uses: codecov/codecov-action@v3
