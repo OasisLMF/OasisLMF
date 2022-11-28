@@ -1,0 +1,33 @@
+# codecov.io configuration
+
+# reference for this yml config file:
+#   https://docs.codecov.com/docs/codecovyml-reference
+
+# to check whether codecov.yml is valid, run this command:
+#   curl -X POST --data-binary @codecov.yml https://codecov.io/validate
+
+codecov:
+  notify:
+    require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  status:
+    project:
+      default:
+        threshold: 3%
+        # Allow the coverage to drop by X%, and posting a success status.
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach, diff, flags, files, footer"
+  behavior: default
