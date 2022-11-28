@@ -1,23 +1,43 @@
+# Workflow to manage the GitHub release for OasisLMF (CD)
+#   Tags, builds, creates a GitHub release and uploads to pypi
+#
+# inputs:
+#   release_tag: The SemVar release tag to publish as format - [{n}.{n}.{n}] e.g. 3.0.0,
+#                where 'n' is an int.  For Pre-Releases the format is  [{n}.{n}.{n}rc{n}]
+#                If the tag format is not followed the workflow fails.
+#
+#
+#   prev_release_tag: When building the release notes and changelogs, this is the tag to start listing
+#                     changes from. so if (prev_release_tag=1.26.3, release_tag=1.26.5)
+#
+#                     the changelogs will document all PRs between the exisiting tag '1.26.3' and the
+#                     newly created tag '1.26.5'
+#
+#   pre_release: Either 'true', 'false', if set to true then the release is marked as a pre-release and the version
+#                tag must be formatted as "{n}.{n}.{n}rc{n}"
+#
+#   build_osx: Either 'true', 'false', optional setting to build and upload an OSX python package (intel support only)
+
 name: Oasislmf Release
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag, for release: [{n}.{n}.{n}] e.g. 3.0.0,  for Pre-Release  [{n}.{n}.{n}rc{n}]'
+        description: 'Release tag, for release [semvar]'
         required: true
 
       prev_release_tag:
-        description: 'The previous oasislmf release version, for changelog: ["{n}.{n}.{n}", "{n}.{n}.{n}rc{n}"]'
+        description: 'The previous oasislmf release version [semvar]'
         required: true
 
       pre_release:
-        description: 'Mark GitHub release as pre-release: [true, false]'
+        description: 'Mark GitHub release as pre-release [true, false]'
         required: true
         default: 'false'
 
       build_osx:
-        description: 'Build OSX package package: [true, false]'
+        description: 'Build OSX package package [true, false]'
         required: false
         default: 'false'
 
