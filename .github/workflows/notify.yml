@@ -1,3 +1,13 @@
+# Workflow to send slack notifications to a slack channel
+#    The repo needs to have the follow slack hook urls added as secrets
+#     https://api.slack.com/messaging/webhooks
+#
+#    SLACK_WEBHOOK_URL_OASIS: Post messages to the channel '#oasis-release' (workspace CoreOasis)
+#    SLACK_WEBHOOK_URL_MEMBERS: Post messages to the channel '#oasis-release' (workspace OasisMembers)
+#
+#    If one of these hooks is not set, the job won't fail, it should instead skip that channel.
+#    To add more channels, extend the job matrix
+
 name: Slack Message
 
 on:

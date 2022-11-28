@@ -1,11 +1,23 @@
+# Workflow to run the package unit tests on multiple python versions (CI)
+#
+#  inputs:
+#    ktools_branch: If set, build ktools from scratch and use output to build package
+#                   These new ktools binaries, will be used when testing the oasislmf
+#                   instead of the pinned ktools version
+
 name: Oasislmf Testing
 
 on:
   push:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - backports**
   workflow_dispatch:
     inputs:
       ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        description: 'Build Ktools before tests: [git ref]'
         required: false
 
 jobs:
@@ -25,7 +37,6 @@ jobs:
         - { python-version: '3.8', pkg-version: ""}
         - { python-version: '3.9', pkg-version: ""}
         - { python-version: '3.10', pkg-version: ""}
-        - { python-version: '3.10', pkg-version: 'numba==0.55.1' }
 
     steps:
       - uses: actions/checkout@v3

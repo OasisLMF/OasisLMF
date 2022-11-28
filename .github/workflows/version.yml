@@ -1,14 +1,22 @@
+# Workflow to update the version tags in the oasislmf repo
+#
+#  inputs:
+#    ktools_version: Update the pinned ktools version stored in setup.py
+#                    Note: (without the "v") so for the ktools release v3.0.0, input '3.0.0'
+#
+#    oasislmf_version: Update the package version stored in __init__.py
+
 name: Oasislmf Version
 
 on:
   workflow_dispatch:
     inputs:
       ktools_version:
-        description: 'Update the ktools version, semvar (without the "v") For ktools release v3.0.0 input [3.0.0, 3.0.0rc1] '
+        description: 'Update the ktools version [semvar]'
         required: false
         default: ""
       oasislmf_version:
-        description: 'Update the package version, semvar, input "{n}.{n}.{n}" or for pre-release "{n}.{n}.{n}rc{n}" [3.0.0, 3.0.0rc1]  '
+        description: 'Update the package version [semvar]'
         required: false
         default: ""
 

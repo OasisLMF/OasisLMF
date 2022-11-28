@@ -1,3 +1,24 @@
+# Workflow for building the oasislmf python package
+#
+#  Inputs:
+#    ktools_branch: If given a git reference for the ktools repo, add in an optional
+#                    'build ktools' Job. The output binaries from that job is used to
+#                    build oasislmf instead of pulling them from a ktools release
+#
+#    build_osx: either `true`, `false`, when set to true run the steps to build an
+#                OSX python package using the mac (intel) amd64 ktool binaries.
+#                If 'ktools_branch' is not set, or the file 'Darwin_x86_64.tar.gz'
+#                has not been attached to the pinned ktools release this will fail.
+#
+#  Outputs:
+#    src_pkg_filename:  source package filename, used for downloading the stored
+#                       artifact in other related Jobs
+#
+#    linux_pkg_filename: Linux wheel package filename
+#
+#    osx_pkg_filename:  OSX wheel package filename
+#
+
 name: Oasislmf Build
 
 on:
@@ -62,9 +83,6 @@ jobs:
        GITHUB_CONTEXT: ${{ toJson(github) }}
 
     - uses: actions/checkout@v3
-      with:
-        ref: ${{ github.ref_name }}
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
