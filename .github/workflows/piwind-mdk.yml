@@ -1,3 +1,9 @@
+# Workflow to test the MDK command line works by invoking
+#   'oasislmf model run' on a piwind branch
+#
+#    The output is not checked, and will fail on either exceptions
+#    or empty output files
+
 name: PiWind MDK
 
 on:

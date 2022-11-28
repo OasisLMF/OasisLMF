@@ -1,7 +1,17 @@
+# Workflow to run the package unit tests on multiple python versions (CI)
+#
+#  inputs:
+#    ktools_branch: If set, build ktools from scratch and use output to build package
+#                   These new ktools binaries, will be used when testing the oasislmf
+#                   instead of the pinned ktools version
+
 name: Oasislmf Testing
 
 on:
   push:
+      - master
+      - develop
+      - backports**
   pull_request:
     branches:
       - master
@@ -10,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        description: 'Build Ktools before tests: [git ref]'
         required: false
         default: "develop"
 
