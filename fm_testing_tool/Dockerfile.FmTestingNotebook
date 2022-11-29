@@ -3,7 +3,6 @@ WORKDIR /home/run
 
 # Copy Notebook files 
 COPY ["./fm_testing_tool/requirements.txt", \
-      "./fm_testing_tool/data/*", \
       "./fm_testing_tool/*.ipynb", \ 
       "./fm_testing_tool/*.py", \ 
       "./fm_testing_tool/postBuild", \ 
