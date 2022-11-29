@@ -3,7 +3,6 @@ jupyter
 # from RTT (needs trimming / updates)
 anytree
 hypothesis
-ipdb
 ipython
 ipywidgets==7.6.5
 fileupload
@@ -15,4 +14,4 @@ pytest
 qgrid
 tabulate
 graphviz
-oasislmf[extra]
+oasislmf
