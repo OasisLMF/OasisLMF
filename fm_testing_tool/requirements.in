@@ -1,17 +1,6 @@
-jupyter
-
-# from RTT (needs trimming / updates)
 anytree
-hypothesis
 ipython
 ipywidgets==7.6.5
-fileupload
 matplotlib
-pandas-datareader
-parameterized
-pathlib
-pytest
-qgrid
-tabulate
 graphviz
 oasislmf
