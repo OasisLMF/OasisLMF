@@ -1,4 +1,4 @@
-loc_id,portnumber,accnumber,locnumber,loc_idx,peril_id,coverage_type_id,tiv,coverage_id,item_id,layer_id,agg_id
+loc_id,PortNumber,AccNumber,LocNumber,loc_idx,peril_id,coverage_type_id,tiv,coverage_id,item_id,layer_id,agg_id
 1,FloodGeneral_T1,A2_T1,A2,703,1,1,10000000.0,1,1,1,1
 1,FloodGeneral_T1,A2_T1,A2,703,1,2,15000000.0,2,2,1,2
 1,FloodGeneral_T1,A2_T1,A2,703,1,3,20000000.0,3,3,1,3

@@ -12,6 +12,7 @@ import io
 import json
 import multiprocessing
 import os
+
 import pandas as pd
 import re
 import subprocess
@@ -44,9 +45,11 @@ from ...utils.data import (
     get_analysis_settings,
     get_model_settings,
     get_dataframe,
+    prepare_location_df,
+    prepare_account_df,
     get_utctimestamp,
     merge_dataframes,
-    set_dataframe_column_dtypes,
+    set_dataframe_column_dtypes, get_exposure_data,
 )
 from ...utils.defaults import (
     KTOOLS_ALLOC_FM_MAX,
@@ -200,6 +203,7 @@ class GenerateLossesDir(GenerateLossesBase):
         # Command line options
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'required': True, 'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Analysis settings JSON file path'},
         {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': False, 'required': False, 'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
@@ -244,8 +248,10 @@ class GenerateLossesDir(GenerateLossesBase):
                     return   # Only need to find a single request
 
     def run(self):
+        #need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
+
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
             'fm_profile.csv',
@@ -285,7 +291,12 @@ class GenerateLossesDir(GenerateLossesBase):
             copy_model_data=self.copy_model_data,
         )
 
+        exposure_data = get_exposure_data(self, add_internal_col=True)
+        location_df = exposure_data.location.dataframe
+        account_df =  exposure_data.account.dataframe if exposure_data.account else None
         generate_summaryxref_files(
+            location_df,
+            account_df,
             model_run_fp,
             analysis_settings,
             gul_item_stream=gul_item_stream,
@@ -619,6 +630,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                     )
+
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
                 if os.path.isfile(bash_trace_fp):
@@ -745,7 +757,8 @@ class GenerateLossesDeterministic(ComputationStep):
                 'event_id': int,
                 'item_id': int,
                 'sidx': int,
-                'loss': float})
+                'loss': float},
+            lowercase_cols=False)
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
@@ -783,7 +796,7 @@ class GenerateLossesDeterministic(ComputationStep):
 
         losses['gul'] = guls
 
-        ils = get_dataframe(src_fp=ils_fp)
+        ils = get_dataframe(src_fp=ils_fp, lowercase_cols=False)
         ils.drop(ils[ils['sidx'] < 0].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         if self.include_loss_factor:
@@ -843,7 +856,7 @@ class GenerateLossesDeterministic(ComputationStep):
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
                             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
-                        rils = get_dataframe(src_fp=ri_layer_fp)
+                        rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)
                         rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
                         if self.include_loss_factor:
                             rils['loss_factor_idx'] = rils.apply(

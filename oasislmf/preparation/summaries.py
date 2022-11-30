@@ -4,6 +4,7 @@ __all__ = [
     'merge_oed_to_mapping',
     'write_exposure_summary',
     'get_exposure_summary',
+    'get_useful_summary_cols',
     'get_xref_df',
     'write_summary_levels',
     'write_mapping_file',
@@ -24,16 +25,12 @@ from ..utils.data import (
     get_json,
     merge_dataframes,
     set_dataframe_column_dtypes,
-    get_dtypes_and_required_cols,
     fill_na_with_categoricals
 )
 from ..utils.defaults import (
-    find_exposure_fp,
     SOURCE_IDX,
     SUMMARY_MAPPING,
     SUMMARY_OUTPUT,
-    get_loc_dtypes,
-    get_acc_dtypes,
     get_default_exposure_profile,
 )
 from ..utils.exceptions import OasisException
@@ -42,13 +39,13 @@ from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
 
 
-def get_usefull_summary_cols(oed_hierarchy):
+def get_useful_summary_cols(oed_hierarchy):
     return [
-        oed_hierarchy['accnum']['ProfileElementName'].lower(),
-        oed_hierarchy['locnum']['ProfileElementName'].lower(),
+        oed_hierarchy['accnum']['ProfileElementName'],
+        oed_hierarchy['locnum']['ProfileElementName'],
         'loc_id',
-        oed_hierarchy['polnum']['ProfileElementName'].lower(),
-        oed_hierarchy['portnum']['ProfileElementName'].lower(),
+        oed_hierarchy['polnum']['ProfileElementName'],
+        oed_hierarchy['portnum']['ProfileElementName'],
         SOURCE_IDX['loc'],
         SOURCE_IDX['acc'],
         'item_id',
@@ -63,7 +60,7 @@ def get_usefull_summary_cols(oed_hierarchy):
 
 
 def get_xref_df(il_inputs_df):
-    top_level_cols = ['layer_id', SOURCE_IDX['acc'], 'polnumber']
+    top_level_cols = ['layer_id', SOURCE_IDX['acc'], 'PolNumber']
     top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + top_level_cols]
     bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 1]
     bottom_level_layers_df.drop(columns=top_level_cols, inplace=True)
@@ -92,7 +89,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     if is_fm_summary:
         summary_mapping = get_xref_df(inputs_df)
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
-        summary_mapping = summary_mapping.reindex(sorted(summary_mapping.columns), axis=1)
+        summary_mapping = summary_mapping.reindex(sorted(summary_mapping.columns, key=str.lower), axis=1)
         summary_mapping['output_id'] = factorize_ndarray(
             summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values,
             col_idxs=range(2)
@@ -105,14 +102,14 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         summary_mapping['agg_id'] = summary_mapping['item_id']
 
     summary_mapping.drop(
-        [c for c in summary_mapping.columns if c not in get_usefull_summary_cols(oed_hierarchy)],
+        [c for c in summary_mapping.columns if c not in get_useful_summary_cols(oed_hierarchy)],
         axis=1,
         inplace=True
     )
-    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
-    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    acc_num = oed_hierarchy['accnum']['ProfileElementName']
+    loc_num = oed_hierarchy['locnum']['ProfileElementName']
+    policy_num = oed_hierarchy['polnum']['ProfileElementName']
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName']
 
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
@@ -121,7 +118,6 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
-
     return summary_mapping
 
 
@@ -144,7 +140,7 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     :rtype: pandas.DataFrame
     """
 
-    column_set = [c.lower() for c in oed_column_set]
+    column_set = oed_column_set
     columns_found = [c for c in column_set if c in exposure_df.columns.to_list()]
     columns_missing = list(set(column_set) - set(columns_found))
 
@@ -182,10 +178,10 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
         summary_ids[0] is an int list 1..n  array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ... ])
         summary_ids[1] is an array of values used to factorize  `array(['Layer1', 'Layer2'], dtype=object)`
     """
-    oed_cols = [c.lower() for c in oed_col_group]                                               # All requred columns
-    unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]                    # columns which in locations / Accounts file
+    oed_cols = oed_col_group  # All requred columns
+    unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]  # columns which in locations / Accounts file
     mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
-                   if c in summary_map_df.columns]    # Columns already in summary_map_df
+                   if c in summary_map_df.columns]  # Columns already in summary_map_df
     tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
@@ -215,7 +211,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
 
 
 @oasis_log
-def write_summary_levels(exposure_df, accounts_fp, target_dir):
+def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
     '''
     Json file with list Available / Recommended columns for use in the summary reporting
 
@@ -224,8 +220,8 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     {
         'GUL': {
-            'available': ['accnumber',
-                         'locnumber',
+            'available': ['AccNumber',
+                         'LocNumber',
                          'istenant',
                          'buildingid',
                          'countrycode',
@@ -236,10 +232,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
                          'occupancycode',
                          'constructioncode',
                          'locperilscovered',
-                         'buildingtiv',
-                         'contentstiv',
-                         'bitiv',
-                         'portnumber'],
+                         'BuildingTIV',
+                         'ContentsTIV',
+                         'BITIV',
+                         'PortNumber'],
 
         'IL': {
                 ... etc ...
@@ -257,18 +253,17 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.replace(0, np.nan).dropna(how='any', axis=1).columns.to_list()
-    l_col_info = {k.lower(): v for k, v in get_loc_dtypes().items()}
-    gul_avail = {k: l_col_info[k]['desc'] if k in l_col_info else desc_non_oed
-                 for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
+    l_col_info = {k: v for k, v in exposure_data.get_input_fields('Loc').items()}
+    gul_avail = {k: l_col_info[k]["Type & Description"] if k in l_col_info else desc_non_oed
+                 for k in set([c for c in l_col_list]).difference(int_excluded_cols)}
 
     # IL perspective (join of acc + loc col with no dups)
     il_avail = {}
-    if accounts_fp:
-        accounts_df = get_dataframe(accounts_fp, lowercase_cols=True)
+    if accounts_df is not None:
         a_col_list = accounts_df.loc[:, ~accounts_df.isnull().all()].columns.to_list()
-        a_col_info = {k.lower(): v for k, v in get_acc_dtypes().items()}
-        a_avail = set([c.lower() for c in a_col_list])
-        il_avail = {k: a_col_info[k]['desc'] if k in a_col_info else desc_non_oed
+        a_col_info = {k: v for k, v in exposure_data.get_input_fields('Acc').items()}
+        a_avail = set([c for c in a_col_list])
+        il_avail = {k: a_col_info[k]["Type & Description"] if k in a_col_info else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
 
     # Write JSON
@@ -303,9 +298,10 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     )
 
     # Set chunk size for writing the CSV files - default is max 20K, min 1K
-    chunksize = min(2 * 10**5, max(len(sum_inputs_df), 1000))
+    chunksize = min(2 * 10 ** 5, max(len(sum_inputs_df), 1000))
 
     if is_fm_summary:
+        print('sum_inputs_df', sum_inputs_df.columns)
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
     else:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['gul_map_fn'])
@@ -342,9 +338,9 @@ def get_column_selection(summary_set):
 
     # Use OED column list set in analysis_settings file
     elif isinstance(summary_set['oed_fields'], list) and len(summary_set['oed_fields']) > 0:
-        return [c.lower() for c in summary_set['oed_fields']]
+        return [c for c in summary_set['oed_fields']]
     elif isinstance(summary_set['oed_fields'], str) and len(summary_set['oed_fields']) > 0:
-        return [summary_set['oed_fields'].lower()]
+        return [summary_set['oed_fields']]
     else:
         raise OasisException(
             'Error processing settings file: "oed_fields" '
@@ -388,7 +384,7 @@ def write_df_to_file(df, target_dir, filename):
     :type filename:  str
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
-    chunksize = min(2 * 10**5, max(len(df), 1000))
+    chunksize = min(2 * 10 ** 5, max(len(df), 1000))
     csv_fp = os.path.join(target_dir, filename)
     try:
         df.to_csv(
@@ -510,7 +506,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
 
 
 @oasis_log
-def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False):
+def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
@@ -548,28 +544,10 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         ri,
     ])
 
-    # Load locations file for GUL OED fields
-    input_dir = os.path.join(model_run_fp, 'input')
-    exposure_fp = find_exposure_fp(input_dir, 'loc')
-    loc_dtypes, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
-    exposure_df = get_dataframe(
-        src_fp=exposure_fp,
-        empty_data_error_msg='No source exposure file found.',
-        col_dtypes=loc_dtypes,
-        required_cols=loc_required_cols)
-    exposure_df[SOURCE_IDX['loc']] = exposure_df.index
-
-    # Load accounts file and the more complete il_map if present
-    try:
-        accounts_fp = find_exposure_fp(input_dir, 'acc')
-        acc_dtypes, acc_required_cols = get_dtypes_and_required_cols(get_acc_dtypes)
-        accounts_df = get_dataframe(
-            src_fp=accounts_fp,
-            empty_data_error_msg='No source accounts file found.',
-            col_dtypes=acc_dtypes,
-            required_cols=acc_required_cols)
-        accounts_df[SOURCE_IDX['acc']] = accounts_df.index
-
+    # Load il_map if present
+    if il_summaries or ri_summaries:
+        if account_df is None:
+            raise OasisException('No account file found.')
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
@@ -578,24 +556,20 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         if gul_summaries:
             gul_map_df = il_map_df
             gul_map_df['item_id'] = gul_map_df['agg_id']
-    except Exception:
-        if not (il_summaries or ri_summaries):  # accounts is not compulsory
-            accounts_df = None
-            if gul_summaries:
-                gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
-                gul_map_df = get_dataframe(
-                    src_fp=gul_map_fp,
-                    empty_data_error_msg='No summary map file found.')
-        else:
-            raise
+
+    elif gul_summaries:
+        gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
+        gul_map_df = get_dataframe(
+            src_fp=gul_map_fp,
+            empty_data_error_msg='No summary map file found.')
 
     if gul_summaries:
         # Load GUL summary map
         id_set_index = 'item_id' if gul_item_stream else 'coverage_id'
         gul_summaryxref_df, gul_summary_desc = get_summary_xref_df(
             gul_map_df,
-            exposure_df,
-            accounts_df,
+            location_df,
+            account_df,
             analysis_settings['gul_summaries'],
             'gul',
             id_set_index
@@ -617,8 +591,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
         il_summaryxref_df, il_summary_desc = get_summary_xref_df(
             il_map_df,
-            exposure_df,
-            accounts_df,
+            location_df,
+            account_df,
             analysis_settings['il_summaries'],
             'il'
         )
@@ -645,8 +619,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
         ri_summaryxref_df, ri_summary_desc = get_summary_xref_df(
             il_map_df,
-            exposure_df,
-            accounts_df,
+            location_df,
+            account_df,
             analysis_settings['ri_summaries'],
             'ri'
         )
@@ -787,9 +761,9 @@ def get_exposure_totals(df):
 
 @oasis_log
 def get_exposure_summary(
-    exposure_df,
-    keys_df,
-    exposure_profile=get_default_exposure_profile(),
+        exposure_df,
+        keys_df,
+        exposure_profile=get_default_exposure_profile(),
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -814,7 +788,7 @@ def get_exposure_summary(
     for field in exposure_profile:
         if 'FMTermType' in exposure_profile[field].keys():
             if exposure_profile[field]['FMTermType'] == 'TIV':
-                cov_name = str.lower(exposure_profile[field]['ProfileElementName'])
+                cov_name = exposure_profile[field]['ProfileElementName']
                 coverage_type_id = exposure_profile[field]['CoverageTypeID']
                 tmp_df = exposure_df[['loc_id', cov_name]]
                 tmp_df.columns = ['loc_id', 'tiv']
@@ -871,9 +845,9 @@ def get_exposure_summary(
 
 @oasis_log
 def write_gul_errors_map(
-    target_dir,
-    exposure_df,
-    keys_errors_df
+        target_dir,
+        exposure_df,
+        keys_errors_df
 ):
     """
     Create csv file to help map keys errors back to original exposures.
@@ -888,12 +862,12 @@ def write_gul_errors_map(
     :type keys_errors_df: pandas.DataFrame
     """
 
-    cols = ['loc_id', 'portnumber', 'accnumber', 'locnumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
+    cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
     gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
 
-    exposure_id_cols = ['loc_id', 'portnumber', 'accnumber', 'locnumber']
+    exposure_id_cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber']
     keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
-    tiv_maps = {1: 'buildingtiv', 2: 'othertiv', 3: 'contentstiv', 4: 'bitiv'}
+    tiv_maps = {1: 'BuildingTIV', 2: 'OtherTIV', 3: 'ContentsTIV', 4: 'BITIV'}
     exposure_cols = exposure_id_cols + list(tiv_maps.values())
 
     keys_errors_df.columns = keys_error_cols
@@ -914,11 +888,11 @@ def write_gul_errors_map(
 
 @oasis_log
 def write_exposure_summary(
-    target_dir,
-    exposure_df,
-    keys_fp,
-    keys_errors_fp,
-    exposure_profile
+        target_dir,
+        exposure_df,
+        keys_fp,
+        keys_errors_fp,
+        exposure_profile
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations

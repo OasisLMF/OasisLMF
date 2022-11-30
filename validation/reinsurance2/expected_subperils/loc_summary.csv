@@ -1,4 +1,4 @@
-portnumber,accnumber,locnumber,loss_gul,loss_il,loss_ri
+PortNumber,AccNumber,LocNumber,loss_gul,loss_il,loss_ri
 xx32,xx32_1,1,100000000.0,98999993.0,19798182.5
 xx32,xx32_1,2,100000000.0,98999993.0,19798182.5
 xx32,xx32_2,3,100000000.0,98999995.0,98998168.0

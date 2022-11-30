@@ -1,4 +1,4 @@
-acc_idx,accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
+acc_idx,AccNumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,LocNumber,peril_id,PolNumber,PortNumber,tiv,output_id
 0,105449,1,1,1,1,1,0,23039308,1,477353,fm12,5151251.0,1
 3,105449,1,1,1,2,1,0,23039308,1,477354,fm12,5151251.0,2
 6,105449,1,1,1,3,1,0,23039308,1,477355,fm12,5151251.0,3

@@ -8,6 +8,8 @@ import pathlib
 import shutil
 
 from ..base import ComputationStep
+from ...utils.data import get_exposure_data
+from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
 from ...utils.defaults import store_exposure_fp
@@ -35,24 +37,32 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Name of the class to use for the exposure_pre_analysis'},
                    {'name': 'exposure_pre_analysis_setting_json', 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis config JSON file path'},
-                   {'name': 'oed_location_csv', 'is_path': True, 'pre_exist': True,
-                    'help': 'Source location CSV file path'},
-                   {'name': 'oed_accounts_csv', 'is_path': True, 'pre_exist': True,
-                    'help': 'Source accounts CSV file path'},
-                   {'name': 'oed_info_csv', 'is_path': True, 'pre_exist': True,
-                    'help': 'Reinsurance info. CSV file path'},
-                   {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True,
-                    'help': 'Reinsurance scope CSV file path'},
+                   {'name': 'oed_location_csv', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+                   {'name': 'oed_accounts_csv', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
+                   {'name': 'oed_info_csv', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
+                   {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
+                   {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
                    {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
                     'help': 'Path to the directory in which to generate the Oasis files'},
                    ]
 
     run_dir_key = 'pre-analysis'
 
+    def get_exposure_data_config(self):
+        return {
+            'location': self.oed_location_csv,
+            'account': self.oed_accounts_csv,
+            'ri_info': self.oed_info_csv,
+            'ri_scope': self.oed_scope_csv,
+            'check_oed': self.check_oed,
+            'use_field': True
+        }
+
     def run(self):
         """
         import exposure_pre_analysis_module and call the run method
         """
+        exposure_data = get_exposure_data(self, add_internal_col=True)
 
         # If given a value for 'oasis_files_dir' then use that directly
         if self.oasis_files_dir:
@@ -61,17 +71,8 @@ class ExposurePreAnalysis(ComputationStep):
             input_dir = self.get_default_run_dir()
             pathlib.Path(input_dir).mkdir(parents=True, exist_ok=True)
 
-        kwargs = {}
-        for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
-            file_path_in = getattr(self, input_name)
-            if file_path_in is not None:
-                file_path_raw = os.path.join(input_dir, f'epa_{store_exposure_fp(file_path_in, input_name)}')
-                file_path_out = os.path.join(input_dir, store_exposure_fp(file_path_in, input_name))
-                kwargs[f'raw_{input_name}'] = file_path_raw
-                kwargs[input_name] = file_path_out
-
-                shutil.copyfile(file_path_in, file_path_raw)
-                shutil.copyfile(file_path_in, file_path_out)
+        exposure_data.save(path=input_dir, version_name='raw', save_config=True)
+        kwargs = {'exposure_data': exposure_data}
 
         if self.exposure_pre_analysis_setting_json:
             with open(self.exposure_pre_analysis_setting_json) as exposure_pre_analysis_setting_file:
@@ -85,15 +86,16 @@ class ExposurePreAnalysis(ComputationStep):
             raise OasisException(f"class {self.exposure_pre_analysis_class_name} "
                                  f"is not defined in module {self.exposure_pre_analysis_module}") from e.__cause__
 
-        modified_files = {k: v for (k, v) in kwargs.items() if k.startswith('oed')}
-        original_files = {k: v for (k, v) in kwargs.items() if k.startswith('raw')}
-
-        self.logger.info('\nPre-analysis modified files: {}'.format(
-            json.dumps(modified_files, indent=4)))
+        original_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
         self.logger.info('\nPre-analysis original files: {}'.format(
             json.dumps(original_files, indent=4)))
 
         _class_return = _class(**kwargs).run()
+
+        exposure_data.save(path=input_dir, version_name='', save_config=True)
+        modified_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
+        self.logger.info('\nPre-analysis modified files: {}'.format(
+            json.dumps(modified_files, indent=4)))
         return {
             "class": _class_return,
             "modified": modified_files,

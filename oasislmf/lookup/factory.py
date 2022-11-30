@@ -18,7 +18,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from ..utils.data import get_json, get_location_df
+from ..utils.data import get_json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import import_from_string, get_custom_module, as_path
@@ -292,7 +292,9 @@ class BasicKeyServer:
 
     def get_locations(self, location_fp):
         """load exposure data from location_fp and return the exposure dataframe"""
-        return get_location_df(location_fp)
+        raise NotImplementedError('oasislmf now use ods_tools to pass location to the KeyServer. '
+                                  'this method need to be implemented'
+                                  'if you want to provide you own loader from filepath')
 
     @staticmethod
     @with_error_queue
@@ -512,8 +514,8 @@ class BasicKeyServer:
     @oasis_log()
     def generate_key_files(
         self,
-        location_fp,
-        successes_fp,
+        location_fp=None,
+        successes_fp=None,
         errors_fp=None,
         output_format='oasis',
         keys_success_msg=False,
@@ -535,7 +537,7 @@ class BasicKeyServer:
         if location_df is not None:
             locations = location_df
         else:
-            locations = self.get_locations(location_fp)
+            locations = self.get_locations(location_fp)#need overwrite as not supported anymore we pass the df
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
             return self.generate_key_files_multiproc(locations,
