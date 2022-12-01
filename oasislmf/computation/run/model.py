@@ -18,7 +18,6 @@ from ...utils.data import (
 )
 
 from ...utils.path import empty_dir
-from ...utils.defaults import store_exposure_fp
 
 
 class RunModel(ComputationStep):

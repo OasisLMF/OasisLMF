@@ -3,16 +3,13 @@ __all__ = [
 ]
 
 import json
-import os
 import pathlib
-import shutil
 
 from ..base import ComputationStep
 from ...utils.data import get_exposure_data
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
-from ...utils.defaults import store_exposure_fp
 
 
 class ExposurePreAnalysis(ComputationStep):

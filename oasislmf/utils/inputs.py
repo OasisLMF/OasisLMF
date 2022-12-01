@@ -3,6 +3,7 @@ __all__ = [
     'update_config',
     'has_oasis_env',
     'get_oasis_env',
+    'str2bool'
 ]
 
 import io

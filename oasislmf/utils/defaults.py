@@ -26,7 +26,9 @@ __all__ = [
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'STATIC_DATA_FP',
-    'WRITE_CHUNKSIZE'
+    'WRITE_CHUNKSIZE',
+    'KTOOLS_ALLOC_IL_DEFAULT',
+    'KTOOLS_ALLOC_RI_DEFAULT',
 ]
 
 import os

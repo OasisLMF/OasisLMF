@@ -30,7 +30,6 @@ from ...utils.defaults import (
     KTOOLS_ALLOC_RI_DEFAULT,
     KTOOLS_ALLOC_FM_MAX,
     OASIS_FILES_PREFIXES,
-    find_exposure_fp
 )
 
 

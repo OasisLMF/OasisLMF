@@ -11,7 +11,7 @@ from ...utils.exceptions import OasisException
 from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 from ...utils.inputs import str2bool
-from ...utils.data import get_utctimestamp, prepare_location_df, get_exposure_data
+from ...utils.data import get_utctimestamp, get_exposure_data
 
 
 class KeyComputationStep(ComputationStep):
