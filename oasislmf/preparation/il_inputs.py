@@ -143,9 +143,7 @@ def set_calc_rule_ids(
         il_inputs_calc_rules_df[terms] > 0, 1, 0
     )
     il_inputs_calc_rules_df['id_key'] = [
-        t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[
-                                    :, terms_indicators + types_and_codes
-                                    ].transpose().values)
+        t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)
     ]
     il_inputs_calc_rules_df = merge_dataframes(
         il_inputs_calc_rules_df, calc_rules, how='left', on='id_key', drop_duplicates=False
@@ -153,9 +151,7 @@ def set_calc_rule_ids(
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
     if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
         err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
-        no_match_keys = il_inputs_calc_rules_df.loc[
-            il_inputs_calc_rules_df.calcrule_id == 0
-            ].id_key.unique()
+        no_match_keys = il_inputs_calc_rules_df.loc[il_inputs_calc_rules_df.calcrule_id == 0].id_key.unique()
 
         err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
         for key_id in no_match_keys:
@@ -187,9 +183,7 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_df.loc[
         il_inputs_df['orig_level_id'] != policy_layer_id, 'calcrule_id'
     ] = set_calc_rule_ids(
-        il_inputs_calc_rules_df[
-            il_inputs_calc_rules_df['orig_level_id'] != policy_layer_id
-            ],
+        il_inputs_calc_rules_df[il_inputs_calc_rules_df['orig_level_id'] != policy_layer_id],
         terms, terms_indicators, types_and_codes, types
     )
 
@@ -203,9 +197,7 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_df.loc[
         il_inputs_df['orig_level_id'] == policy_layer_id, 'calcrule_id'
     ] = set_calc_rule_ids(
-        il_inputs_calc_rules_df[
-            il_inputs_calc_rules_df['orig_level_id'] == policy_layer_id
-            ],
+        il_inputs_calc_rules_df[il_inputs_calc_rules_df['orig_level_id'] == policy_layer_id],
         terms, terms_indicators, types_and_codes, types, policy_layer=True
     )
 
@@ -250,9 +242,7 @@ def get_step_calc_rule_ids(il_inputs_df):
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
     if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
         err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
-        no_match_keys = il_inputs_calc_rules_df.loc[
-            il_inputs_calc_rules_df.calcrule_id == 0
-            ].id_key.unique()
+        no_match_keys = il_inputs_calc_rules_df.loc[il_inputs_calc_rules_df.calcrule_id == 0].id_key.unique()
 
         err_msg += '   {}\n'.format(tuple(terms_indicators + types))
         for key_id in no_match_keys:

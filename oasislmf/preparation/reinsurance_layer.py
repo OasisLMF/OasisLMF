@@ -502,8 +502,8 @@ class ReinsuranceLayer(object):
                     profile_id, calcrule_id, deductible1, deductible2,
                     deductible3, attachment, limit, share1, share2, share3
                 ] for profile_id, calcrule_id, deductible1, deductible2,
-                      deductible3, attachment, limit, share1, share2,
-                      share3 in profiles.values
+            deductible3, attachment, limit, share1, share2,
+            share3 in profiles.values
             ],
             columns=profiles.values[0]._fields
         )
