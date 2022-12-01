@@ -1152,6 +1152,7 @@ def get_il_input_items(
                     (level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']].get(ProfileElementName) or {}).get('FMProfileStep')
                     or all_steps))
                         & (level_df['assign_step_calcrule'] > 0))
+
         fm_term_filters[SUPPORTED_FM_LEVELS['policy layer']['id']] = step_policy_term_filter
 
     agg_keys = set()
@@ -1275,6 +1276,7 @@ def get_il_input_items(
                 return step_trigger_type
             except KeyError:
                 return row['steptriggertype']
+
         il_inputs_df['StepTriggerType'] = il_inputs_df.apply(
             lambda row: assign_sub_step_trigger_type(row), axis=1
         )
