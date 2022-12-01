@@ -152,7 +152,7 @@ def _generate_inputs_for_reinsurance_risk_level(
     reins_numbers_2 = ri_info_df[
         ri_info_df.isin({"ReinsNumber": reins_numbers_1.tolist()}).ReinsNumber
         & (ri_info_df.RiskLevel == risk_level)
-        ].ReinsNumber
+    ].ReinsNumber
     if reins_numbers_2.empty:
         return None
 
@@ -211,11 +211,11 @@ class ReinsuranceLayer(object):
 
     def _is_valid_id(self, id_to_check):
         is_valid = (
-                self._is_defined(id_to_check) and
-                (
-                        (isinstance(id_to_check, str) and id_to_check != "") or
-                        (isinstance(id_to_check, numbers.Number) and id_to_check > 0)
-                )
+            self._is_defined(id_to_check) and
+            (
+                (isinstance(id_to_check, str) and id_to_check != "") or
+                (isinstance(id_to_check, numbers.Number) and id_to_check > 0)
+            )
         )
         return is_valid
 
@@ -502,8 +502,8 @@ class ReinsuranceLayer(object):
                     profile_id, calcrule_id, deductible1, deductible2,
                     deductible3, attachment, limit, share1, share2, share3
                 ] for profile_id, calcrule_id, deductible1, deductible2,
-            deductible3, attachment, limit, share1, share2,
-            share3 in profiles.values
+                deductible3, attachment, limit, share1, share2,
+                share3 in profiles.values
             ],
             columns=profiles.values[0]._fields
         )

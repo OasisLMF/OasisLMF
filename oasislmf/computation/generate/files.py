@@ -397,7 +397,7 @@ class GenerateDummyModelFiles(ComputationStep):
          'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'num_randoms', 'flag': '-r', 'required': False, 'type': int, 'default': 0, 'help': 'Number of random numbers'},
         {'name': 'random_seed', 'flag': '-R', 'required': False, 'type': int, 'default': -
-        1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
+         1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
     ]
 
     def _validate_input_arguments(self):
