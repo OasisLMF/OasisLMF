@@ -326,7 +326,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
             logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
-            vuln_csv = np.genfromtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",")
+            vuln_csv = np.genfromtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",", skip_header=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
             vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
