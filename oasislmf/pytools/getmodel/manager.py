@@ -179,7 +179,7 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
         items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
-        items = np.genfromtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",")
+        items = np.genfromtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",", skip_header=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
