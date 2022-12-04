@@ -499,6 +499,17 @@ def run(run_dir,
 
             return cached_vuln_cdf_lookup, cached_vuln_cdf_lengths
 
+        # define vulnerability cdf cache size
+        max_cached_vuln_cdf_size_MB = 200  # cache size in MB
+        max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cahce size in bytes
+        max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
+        max_Nvulnerability_cached_vuln_cdf = max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max  # max number of vulnerability funcions that can be stored in cache
+        # number of vulnerability functions to be cached
+        Nvulns_cached = min(Nvulnerability * Nintensity_bins, max_Nvulnerability_cached_vuln_cdf)
+        logger.info(f"max vulnerability cdf cache size is {max_cached_vuln_cdf_size_MB}MB")
+        logger.info(
+            f"generating a cache of shape ({Nvulns_cached}, {Ndamage_bins_max}) and size {Nvulns_cached * Ndamage_bins_max * oasis_float.itemsize / 1024 / 1024:8.3f}MB")
+
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -547,13 +558,10 @@ def run(run_dir,
                 mv_write = memoryview(bytearray(buff_size))
                 int32_mv = np.ndarray(buff_size // 4, buffer=mv_write, dtype='i4')
 
-                # all_vuln_cdfs = np.empty((Nvulnerability * Nintensity_bins * Ndamage_bins_max), dtype=oasis_float)
-                max_bytes_cached_vuln_cdf = 1024 * 1024 * 200  # 200 MB
-                max_Nnumbers_cached_vuln_cdf = max_bytes_cached_vuln_cdf // oasis_float.itemsize
-                max_Nvulnerability_cached_vuln_cdf = max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max
-                min_Nvulns_cached = min(Nvulnerability * Nintensity_bins, max_Nvulnerability_cached_vuln_cdf)
-                all_vuln_cdfs = np.empty((min_Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
-                cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(min_Nvulns_cached)
+                # vulnerability cache
+                # TODO: in principle cached_vuln_cdfs could be generated once, outside the while loop. check that it is safe to do so
+                cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
+                cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 # cached_vuln_cdf_lookup, cached_vuln_cdf_pointers, cached_vuln_cdf_lengths = gen_empty_vuln_cdf_lookup()
                 # lookup_keys = np.empty((min(Nvulnerability, max_Nvulnerability_cached_vuln_cdf)), dtype=VulnCdfLookup)
                 next_cached_vuln_cdf = nb_int32(0)
@@ -566,7 +574,7 @@ def run(run_dir,
                         areaperil_to_eff_vuln_cdf, areaperil_to_eff_vuln_cdf_Ndamage_bins,
                         eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
-                        all_vuln_cdfs,
+                        cached_vuln_cdfs,
                         agg_vuln_to_vulns, agg_vuln_to_vulns_idx, vuln_dict, ap_vuln_idx_weights,
                         loss_threshold, losses, vuln_prob_to, weighted_vuln_to_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij,
                         corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
@@ -603,7 +611,7 @@ def compute_event_losses(event_id,
                          damage_bins,
                          Ndamage_bins_max,
                          cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
-                         all_vuln_cdfs,
+                         cached_vuln_cdfs,
                          agg_vuln_to_vulns,
                          agg_vuln_to_vulns_idx,
                          vuln_dict,
@@ -847,7 +855,7 @@ def compute_event_losses(event_id,
                                 if lookup_key in cached_vuln_cdf_lookup:
                                     # cdf was computed already
                                     start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
-                                    vuln_prob_to = all_vuln_cdfs[start, :Ndamage_bins]
+                                    vuln_prob_to = cached_vuln_cdfs[start, :Ndamage_bins]
 
                                 else:
                                     # cdf has to be computed
@@ -856,7 +864,7 @@ def compute_event_losses(event_id,
                                     vuln_prob = vuln_array[vuln_i, :, haz_int_bin_idx - 1]
 
                                     # of length such that the only the last element is 1.
-                                    # in principle we could store directly in all_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_all_vuln_cdfs
+                                    # in principle we could store directly in cached_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_cached_vuln_cdfs
                                     vuln_prob_to = vuln_cdf_empty
                                     Ndamage_bins = nb_int32(0)
                                     cumsum = 0
@@ -868,21 +876,21 @@ def compute_event_losses(event_id,
                                             break
 
                                     # turn off dynamic sizing for now
-                                    # while last_cdf_entry + Ndamage_bins > all_vuln_cdfs.shape[0]:
-                                    #     # if last_cdf_entry + Ndamage_bins > len_all_vuln_cdfs:
+                                    # while last_cdf_entry + Ndamage_bins > cached_vuln_cdfs.shape[0]:
+                                    #     # if last_cdf_entry + Ndamage_bins > len_cached_vuln_cdfs:
                                     #     # need to make the array bigger
-                                    #     new_all_vuln_cdfs = np.empty(2 * all_vuln_cdfs.shape[0], dtype=all_vuln_cdfs.dtype)
-                                    #     new_all_vuln_cdfs[:last_cdf_entry] = all_vuln_cdfs[:last_cdf_entry]
-                                    #     all_vuln_cdfs = new_all_vuln_cdfs
+                                    #     new_cached_vuln_cdfs = np.empty(2 * cached_vuln_cdfs.shape[0], dtype=cached_vuln_cdfs.dtype)
+                                    #     new_cached_vuln_cdfs[:last_cdf_entry] = cached_vuln_cdfs[:last_cdf_entry]
+                                    #     cached_vuln_cdfs = new_cached_vuln_cdfs
                                     if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
                                         # overwriting
                                         cached_vuln_cdf_lookup.pop(lookup_keys[next_cached_vuln_cdf])
 
-                                    all_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
+                                    cached_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
                                     cached_vuln_cdf_lookup[lookup_key] = tuple((next_cached_vuln_cdf, Ndamage_bins))
                                     lookup_keys[next_cached_vuln_cdf] = lookup_key
                                     next_cached_vuln_cdf += 1
-                                    next_cached_vuln_cdf %= all_vuln_cdfs.shape[0]
+                                    next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
 
                                 # get_vuln_cdf ends
                                 weight = ap_vuln_idx_weights[(areaperil_id, vuln_i)]
@@ -899,7 +907,7 @@ def compute_event_losses(event_id,
                             # non-aggregate case
                             # using `get_vuln_cdf` function make the whole run take 50% more time vs having the function inline!!!
                             # vuln_prob_to, Ndamage_bins, last_cdf_entry = get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
-                            #                                                           Ndamage_bins_max, last_cdf_entry, all_vuln_cdfs)
+                            #                                                           Ndamage_bins_max, last_cdf_entry, cached_vuln_cdfs)
 
                             # or inlined version of get_vuln_cdf
                             vuln_i = vuln_dict[vulnerability_id]
@@ -907,7 +915,7 @@ def compute_event_losses(event_id,
                             if lookup_key in cached_vuln_cdf_lookup:
                                 # cdf was computed already
                                 start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
-                                vuln_prob_to = all_vuln_cdfs[start, :Ndamage_bins]
+                                vuln_prob_to = cached_vuln_cdfs[start, :Ndamage_bins]
 
                             else:
                                 # cdf has to be computed
@@ -916,7 +924,7 @@ def compute_event_losses(event_id,
                                 vuln_prob = vuln_array[vuln_i, :, haz_int_bin_idx - 1]
 
                                 # of length such that the only the last element is 1.
-                                # in principle we could store directly in all_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_all_vuln_cdfs
+                                # in principle we could store directly in cached_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_cached_vuln_cdfs
                                 vuln_prob_to = vuln_cdf_empty
                                 Ndamage_bins = nb_int32(0)
                                 cumsum = 0
@@ -928,22 +936,22 @@ def compute_event_losses(event_id,
                                         break
 
                                 # turn off dynamic sizing for now
-                                # while last_cdf_entry + Ndamage_bins > all_vuln_cdfs.shape[0]:
-                                #     # if last_cdf_entry + Ndamage_bins > len_all_vuln_cdfs:
+                                # while last_cdf_entry + Ndamage_bins > cached_vuln_cdfs.shape[0]:
+                                #     # if last_cdf_entry + Ndamage_bins > len_cached_vuln_cdfs:
                                 #     # need to make the array bigger
-                                #     new_all_vuln_cdfs = np.empty(2 * all_vuln_cdfs.shape[0], dtype=all_vuln_cdfs.dtype)
-                                #     new_all_vuln_cdfs[:last_cdf_entry] = all_vuln_cdfs[:last_cdf_entry]
-                                #     all_vuln_cdfs = new_all_vuln_cdfs
+                                #     new_cached_vuln_cdfs = np.empty(2 * cached_vuln_cdfs.shape[0], dtype=cached_vuln_cdfs.dtype)
+                                #     new_cached_vuln_cdfs[:last_cdf_entry] = cached_vuln_cdfs[:last_cdf_entry]
+                                #     cached_vuln_cdfs = new_cached_vuln_cdfs
 
                                 if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
                                     # overwriting
                                     cached_vuln_cdf_lookup.pop(lookup_keys[next_cached_vuln_cdf])
 
-                                all_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
+                                cached_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
                                 cached_vuln_cdf_lookup[lookup_key] = tuple((next_cached_vuln_cdf, Ndamage_bins))
                                 lookup_keys[next_cached_vuln_cdf] = lookup_key
                                 next_cached_vuln_cdf += 1
-                                next_cached_vuln_cdf %= all_vuln_cdfs.shape[0]
+                                next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
 
                             # draw samples of damage from the vulnerability function
                     vuln_rval = vuln_rndms[sample_idx - 1]
@@ -995,13 +1003,13 @@ def compute_event_losses(event_id,
 
 @njit(cache=True, fastmath=True, inline='always')
 def get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
-                 Ndamage_bins_max, last_cdf_entry, all_vuln_cdfs):
+                 Ndamage_bins_max, last_cdf_entry, cached_vuln_cdfs):
 
     vuln_cdf_entry = vuln_cdf_lookup[vulnerability_id, haz_bin_idx]
     if vuln_cdf_entry['length'] > 0:
         # cdf was computed already
         Ndamage_bins = vuln_cdf_entry['length']
-        vuln_prob_to = all_vuln_cdfs[vuln_cdf_entry['start']:vuln_cdf_entry['start'] + Ndamage_bins]
+        vuln_prob_to = cached_vuln_cdfs[vuln_cdf_entry['start']:vuln_cdf_entry['start'] + Ndamage_bins]
 
     else:
         # cdf has to be computed
@@ -1010,7 +1018,7 @@ def get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup
         vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
         # of length such that the only the last element is 1.
-        # in principle we could store directly in all_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_all_vuln_cdfs
+        # in principle we could store directly in cached_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_cached_vuln_cdfs
         vuln_prob_to = vuln_cdf_empty
         Ndamage_bins = 0
         cumsum = 0
@@ -1021,14 +1029,14 @@ def get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup
             if cumsum > 0.999999940:
                 break
 
-        while last_cdf_entry + Ndamage_bins > all_vuln_cdfs.shape[0]:
-            # if last_cdf_entry + Ndamage_bins > len_all_vuln_cdfs:
+        while last_cdf_entry + Ndamage_bins > cached_vuln_cdfs.shape[0]:
+            # if last_cdf_entry + Ndamage_bins > len_cached_vuln_cdfs:
             # need to make the array bigger
-            new_all_vuln_cdfs = np.empty(2 * all_vuln_cdfs.shape[0], dtype=all_vuln_cdfs.dtype)
-            new_all_vuln_cdfs[:last_cdf_entry] = all_vuln_cdfs[:last_cdf_entry]
-            all_vuln_cdfs = new_all_vuln_cdfs
+            new_cached_vuln_cdfs = np.empty(2 * cached_vuln_cdfs.shape[0], dtype=cached_vuln_cdfs.dtype)
+            new_cached_vuln_cdfs[:last_cdf_entry] = cached_vuln_cdfs[:last_cdf_entry]
+            cached_vuln_cdfs = new_cached_vuln_cdfs
 
-        all_vuln_cdfs[last_cdf_entry:last_cdf_entry + Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
+        cached_vuln_cdfs[last_cdf_entry:last_cdf_entry + Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
 
         vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['start'] = last_cdf_entry
         vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['length'] = Ndamage_bins
@@ -1084,9 +1092,9 @@ def process_areaperils_in_footprint(event_footprint,
     cdf_start = 0
     cdf_end = 0
     haz_cdf_ptr = List([0])
-    eff_vuln_cdf_start = 0
-    areaperil_to_eff_vuln_cdf = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int64)
-    areaperil_to_eff_vuln_cdf_Ndamage_bins = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int64)
+    eff_vuln_cdf_start = nb_int32(0)
+    areaperil_to_eff_vuln_cdf = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int32)
+    areaperil_to_eff_vuln_cdf_Ndamage_bins = Dict.empty(ITEM_MAP_KEY_TYPE_internal, nb_int32)
 
     while footprint_i < Nevent_footprint_entries:
 
@@ -1118,7 +1126,7 @@ def process_areaperils_in_footprint(event_footprint,
                     areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
                     for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
                         eff_vuln_cdf_cumsum = 0.
-                        Ndamage_bins = 0
+                        Ndamage_bins = nb_int32(0)
                         while Ndamage_bins < Ndamage_bins_max:
                             for i in range(Nbins_to_read):
                                 intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
@@ -1181,7 +1189,7 @@ def process_areaperils_in_footprint(event_footprint,
         for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
 
             eff_vuln_cdf_cumsum = 0.
-            Ndamage_bins = 0
+            Ndamage_bins = nb_int32(0)
             while Ndamage_bins < Ndamage_bins_max:
                 for i in range(Nbins_to_read):
                     intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
