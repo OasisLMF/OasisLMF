@@ -875,13 +875,6 @@ def compute_event_losses(event_id,
                                         if cumsum > 0.999999940:
                                             break
 
-                                    # turn off dynamic sizing for now
-                                    # while last_cdf_entry + Ndamage_bins > cached_vuln_cdfs.shape[0]:
-                                    #     # if last_cdf_entry + Ndamage_bins > len_cached_vuln_cdfs:
-                                    #     # need to make the array bigger
-                                    #     new_cached_vuln_cdfs = np.empty(2 * cached_vuln_cdfs.shape[0], dtype=cached_vuln_cdfs.dtype)
-                                    #     new_cached_vuln_cdfs[:last_cdf_entry] = cached_vuln_cdfs[:last_cdf_entry]
-                                    #     cached_vuln_cdfs = new_cached_vuln_cdfs
                                     if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
                                         # overwriting
                                         cached_vuln_cdf_lookup.pop(lookup_keys[next_cached_vuln_cdf])
@@ -934,14 +927,6 @@ def compute_event_losses(event_id,
                                     Ndamage_bins += 1
                                     if cumsum > 0.999999940:
                                         break
-
-                                # turn off dynamic sizing for now
-                                # while last_cdf_entry + Ndamage_bins > cached_vuln_cdfs.shape[0]:
-                                #     # if last_cdf_entry + Ndamage_bins > len_cached_vuln_cdfs:
-                                #     # need to make the array bigger
-                                #     new_cached_vuln_cdfs = np.empty(2 * cached_vuln_cdfs.shape[0], dtype=cached_vuln_cdfs.dtype)
-                                #     new_cached_vuln_cdfs[:last_cdf_entry] = cached_vuln_cdfs[:last_cdf_entry]
-                                #     cached_vuln_cdfs = new_cached_vuln_cdfs
 
                                 if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
                                     # overwriting
