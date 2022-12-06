@@ -14,6 +14,7 @@ __all__ = [
     'get_json',
     'prepare_location_df',
     'prepare_account_df',
+    'prepare_reinsurance_df',
     'get_analysis_schema_fp',
     'get_model_schema_fp',
     'get_timestamp',
@@ -906,6 +907,14 @@ def prepare_account_df(accounts_df):
     return accounts_df
 
 
+def prepare_reinsurance_df(ri_info, ri_scope):
+    if 'SEL' not in ri_info['RiskLevel'].cat.categories:
+        ri_info['RiskLevel'] = ri_info['RiskLevel'].cat.add_categories(['SEL'])
+    ri_info['RiskLevel'] = ri_info['RiskLevel'].fillna('SEL')
+
+    return ri_info, ri_scope
+
+
 def get_exposure_data(computation_step, add_internal_col=False):
     if 'exposure_data' in computation_step.kwargs:
         exposure_data = computation_step.kwargs['exposure_data']
@@ -923,8 +932,13 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 use_field=True)
 
         if add_internal_col:
-            exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
-            exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+            if exposure_data.location:
+                exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+            if exposure_data.account:
+                exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+            if exposure_data.ri_info and exposure_data.ri_scope:
+                exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
+                                                                                                           exposure_data.ri_scope.dataframe )
     return exposure_data
 
 

@@ -25,6 +25,7 @@ from ...utils.data import (
     get_model_settings,
     prepare_location_df,
     prepare_account_df,
+    prepare_reinsurance_df,
     get_dataframe,
     get_json,
     get_utctimestamp, get_exposure_data,
@@ -336,6 +337,9 @@ class GenerateFiles(ComputationStep):
         if not ri:
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
             return oasis_files
+
+        exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
+                                                                                                   exposure_data.ri_scope.dataframe)
 
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
