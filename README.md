@@ -2,7 +2,7 @@
 
 [![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases)
 [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)
-[![Binder](https://static.mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/OasisLMF/OasisLMF/develop?filepath=FmTesting.ipynb)
+[![FM Testing Tool](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OasisLMF/OasisLMF/blob/develop/fm_testing_tool/FmTesting.ipynb)
 
 [![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
 [![PiWind check output](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml)
