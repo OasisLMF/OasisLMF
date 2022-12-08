@@ -23,10 +23,6 @@ on:
       ods_branch:
         description: "Git install ods_tools branch before tests: [git ref]"
         required: false
- 
-env:
-  ods_branch: 'feature/oed_interface'
-
 
 jobs:
   build:
@@ -35,9 +31,17 @@ jobs:
     with:
       ktools_branch: ${{ inputs.ktools_branch }}
 
+  ods_tools:
+    if: inputs.ods_branch != ''
+    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@hotfix/build-remote-call
+    secrets: inherit
+    with:
+      ods_branch: ${{ inputs.ods_branch }}
+
   unittest:
+    if: ${{ ! failure() || ! cancelled() }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, ods_tools]
     strategy:
       matrix:
         cfg:
@@ -78,10 +82,17 @@ jobs:
           fi
           pip install -r requirements.txt
 
-      - name: install ods_tools branch
-        if: env.ods_branch != ''
+      - name: download ods_tools
+        if: needs.ods_tools.outputs.whl_filename != ''
+        uses: actions/download-artifact@v3
+        with:
+          name: bin_package
+          path: ${{ github.workspace }}/
+
+      - name: install ods_tools
+        if: needs.ods_tools.outputs.whl_filename != ''
         run: |
-          pip install -v git+https://git@github.com/OasisLMF/ODS_OpenExposureData.git@${{ env.ods_branch }}#egg=ods-tools
+          pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
       - name: Run tox
         run: tox -e py
