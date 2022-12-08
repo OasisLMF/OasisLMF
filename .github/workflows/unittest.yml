@@ -63,7 +63,7 @@ jobs:
       - name: Set pip resolver flag
         if: matrix.cfg.python-version == 3.7
         run: |
-          echo "PIP_RESOLVER='--resolver=backtracking'" >> $GITHUB_ENV
+          echo "PIP_RESOLVER=--resolver=backtracking" >> $GITHUB_ENV
       - name: Pip Compile
         run: |
           rm -f requirements.txt
