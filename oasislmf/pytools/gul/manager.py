@@ -50,7 +50,6 @@ def get_coverages(input_path, ignore_file_type=set()):
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
     input_files = set(os.listdir(input_path))
-    # TODO: store default filenames (e.g., coverages.bin) in a parameters file
 
     if "coverages.bin" in input_files and "bin" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.bin')
@@ -148,9 +147,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    # TODO: store static_path in a paraparameters file
     static_path = os.path.join(run_dir, 'static')
-    # TODO: store input_path in a paraparameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 

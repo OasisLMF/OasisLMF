@@ -112,9 +112,7 @@ def run(run_dir,
     """
     logger.info("starting gulmc")
 
-    # TODO: store static_path in a parameters file
     static_path = os.path.join(run_dir, 'static')
-    # TODO: store input_path in a parameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -860,8 +858,7 @@ def reconstruct_coverages(event_id,
                 items_data[item_i]['rng_index'] = this_rng_index
                 items_data[item_i]['vulnerability_id'] = vuln_dict[vuln_id]
                 items_data[item_i]['eff_vuln_cdf_i'] = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_dict[vuln_id])]
-                items_data[item_i]['eff_vuln_cdf_Ndamage_bins'] = areaperil_to_eff_vuln_cdf_Ndamage_bins[(
-                    areaperil_id, vuln_dict[vuln_id])]
+                items_data[item_i]['eff_vuln_cdf_Ndamage_bins'] = areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_dict[vuln_id])]
 
                 coverage['cur_items'] += 1
 

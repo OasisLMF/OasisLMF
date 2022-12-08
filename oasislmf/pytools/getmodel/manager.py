@@ -313,10 +313,8 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                 num_damage_bins = header[0]
             if "vulnerability.idx" in static_path:
                 logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
-                                      dtype=VulnerabilityRow, offset=4, mode='r')
-                vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"),
-                                          dtype=VulnerabilityIndex, mode='r')
+                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=VulnerabilityRow, offset=4, mode='r')
+                vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"), dtype=VulnerabilityIndex, mode='r')
                 vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                                 num_damage_bins, num_intensity_bins)
             else:
