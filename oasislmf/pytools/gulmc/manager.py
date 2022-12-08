@@ -275,6 +275,7 @@ def run(run_dir,
 
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+        event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
         while True:
             if not streams_in.readinto(event_id_mv):
@@ -283,7 +284,7 @@ def run(run_dir,
             # get the next event_id from the input stream
             event_id = event_ids[0]
 
-            event_footprint = (FootprintLayerClient if data_server else footprint_obj).get_event(event_id)
+            event_footprint = event_footprint_obj.get_event(event_id)
 
             if event_footprint is not None:
 
@@ -309,7 +310,6 @@ def run(run_dir,
 
                 else:
                     # create dummy data structures with proper dtypes to allow correct numba compilation
-                    corr_seeds = np.zeros(1, dtype='int64')
                     eps_ij = np.zeros((1, 1), dtype='float64')
 
                 last_processed_coverage_ids_idx = 0
@@ -537,7 +537,6 @@ def compute_event_losses(event_id,
                                 continue
 
                             if haz_rval >= haz_prob_to[Nbins - 1]:
-                                haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
                                 haz_bin_idx = Nbins - 1
                             else:
                                 # find the bin in which the random value `haz_rval` falls into
@@ -553,14 +552,16 @@ def compute_event_losses(event_id,
                         vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
 
                         # of length such that the only the last element is 1.
-                        Ndamage_bins = 0
+                        damage_bin_i = 0
                         cumsum = 0
-                        while Ndamage_bins < Ndamage_bins_max:
-                            cumsum += vuln_prob[Ndamage_bins]
-                            vuln_prob_to[Ndamage_bins] = cumsum
-                            Ndamage_bins += 1
+                        while damage_bin_i < Ndamage_bins_max:
+                            cumsum += vuln_prob[damage_bin_i]
+                            vuln_prob_to[damage_bin_i] = cumsum
+                            damage_bin_i += 1
                             if cumsum > 0.999999940:
                                 break
+
+                        Ndamage_bins = damage_bin_i
 
                     # draw samples of damage from the vulnerability function
                     vuln_rval = vuln_rndms[sample_idx - 1]
@@ -689,17 +690,18 @@ def process_areaperils_in_footprint(event_footprint,
                     areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
                     for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
                         eff_vuln_cdf_cumsum = 0.
-                        Ndamage_bins = 0
-                        while Ndamage_bins < Ndamage_bins_max:
+                        damage_bin_i = 0
+                        while damage_bin_i < Ndamage_bins_max:
                             for i in range(Nbins_to_read):
                                 intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
                                 eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
-                                                                  Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
-                            eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
-                            Ndamage_bins += 1
+                                                                  damage_bin_i, intensity_bin_i] * haz_pdf[cdf_start + i]
+                            eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
+                            damage_bin_i += 1
                             if eff_vuln_cdf_cumsum > 0.999999940:
                                 break
 
+                        Ndamage_bins = damage_bin_i
                         areaperil_to_eff_vuln_cdf[(last_areaperil_id, vuln_idx)] = eff_vuln_cdf_start
                         eff_vuln_cdf_start += Ndamage_bins
                         areaperil_to_eff_vuln_cdf_Ndamage_bins[(last_areaperil_id, vuln_idx)] = Ndamage_bins
@@ -736,17 +738,18 @@ def process_areaperils_in_footprint(event_footprint,
         for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
 
             eff_vuln_cdf_cumsum = 0.
-            Ndamage_bins = 0
-            while Ndamage_bins < Ndamage_bins_max:
+            damage_bin_i = 0
+            while damage_bin_i < Ndamage_bins_max:
                 for i in range(Nbins_to_read):
                     intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
                     eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
-                                                      Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
-                eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
-                Ndamage_bins += 1
+                                                      damage_bin_i, intensity_bin_i] * haz_pdf[cdf_start + i]
+                eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
+                damage_bin_i += 1
                 if eff_vuln_cdf_cumsum > 0.999999940:
                     break
 
+            Ndamage_bins = damage_bin_i
             areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_idx)] = eff_vuln_cdf_start
             eff_vuln_cdf_start += Ndamage_bins
             areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_idx)] = Ndamage_bins
