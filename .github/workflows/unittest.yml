@@ -61,7 +61,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pip-tools
       - name: Set pip resolver flag
-        if: matrix.cfg.python-version == "3.7"
+        if: matrix.cfg.python-version == 3.7
         run: |
           echo "PIP_RESOLVER='--resolver=backtracking'" >> $GITHUB_ENV
       - name: Pip Compile
