@@ -262,10 +262,10 @@ def run(run_dir,
             z_unif = np.zeros(1, dtype='float64')
 
         if effective_damageability is True:
+            logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
+        else:
             logger.info("effective_damageability is False: gulmc will perform the full Monte Carlo sampling: "
                         "sample the hazard intensity first, then sample the damage from the corresponding vulnerability function.")
-        else:
-            logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
 
         # create buffers to be reused when computing losses
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
