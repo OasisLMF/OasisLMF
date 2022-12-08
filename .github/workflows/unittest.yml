@@ -19,7 +19,6 @@ on:
       ktools_branch:
         description: "Build Ktools before tests: [git ref]"
         required: false
-        default: "develop"
 
 jobs:
   build:
