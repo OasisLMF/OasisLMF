@@ -19,7 +19,6 @@ on:
       ktools_branch:
         description: "Build Ktools before tests: [git ref]"
         required: false
-        default: "develop"
 
 jobs:
   build:
@@ -61,13 +60,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install pip-tools
 
+      - name: Set pip resolver flag
+        if: matrix.cfg.python-version == 3.7
+        run: |
+          echo "PIP_RESOLVER=--resolver=backtracking" >> $GITHUB_ENV
       - name: Pip Compile
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            pip-compile requirements.in -o requirements.txt
+            pip-compile requirements.in -o requirements.txt ${PIP_RESOLVER}
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt ${PIP_RESOLVER}
           fi
           pip install -r requirements.txt
       - name: Run tox
