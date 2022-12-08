@@ -152,7 +152,7 @@ def create_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_fini
         custom_gulcalc_log_start (str): Custom message printed to the logs when a process starts.
         custom_gulcalc_log_finish (str): Custom message printed to the logs when a process ends.
     """
-    CHECK_FUNC = """
+    check_function = """
 check_complete(){
     set +e
     proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
@@ -170,7 +170,7 @@ check_complete(){
 """
     # Add in check for custom gulcalc if settings are provided 
     if custom_gulcalc_log_start and custom_gulcalc_log_finish:
-        CHECK_FUNC+=f"""
+        check_function+=f"""
     started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
     finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
     if [ "$finished" -lt "$started" ]; then
@@ -181,13 +181,13 @@ check_complete(){
     fi
 """
         
-    CHECK_FUNC+="""    if [ "$has_error" -ne 0 ]; then
+    check_function+="""    if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     else
         echo 'Run Completed'
     fi
 }"""
-    return CHECK_FUNC
+    return check_function
 
 
 BASH_TRACE = """
