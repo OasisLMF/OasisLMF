@@ -1,28 +1,20 @@
 import os
+import shutil
 import subprocess
 import time
 import unittest
-import hypothesis
-
-from tempfile import TemporaryDirectory
 from collections import OrderedDict
+from tempfile import TemporaryDirectory
 
-import pandas as pd
+import hypothesis
 import numpy as np
-
+import pandas as pd
 from pandas.util.testing import assert_frame_equal
-
 from parameterized import parameterized
 
-from oasislmf.model_preparation import (
-    oed,
-    reinsurance_layer,
-)
-
 from oasislmf.model_execution import bin
+from oasislmf.model_preparation import oed, reinsurance_layer
 from oasislmf.utils.data import get_dataframe, set_dataframe_column_dtypes
-
-import shutil
 
 
 class TestReinsurance(unittest.TestCase):
@@ -3054,10 +3046,6 @@ class TestReinsurance(unittest.TestCase):
             xref_descriptions_df,
             ri_info_df,
             ri_scope_df)
-
-        ri_inputs[0].ri_inputs.fm_policytc.to_csv('/tmp/fm_policytc.csv', index=False)
-        ri_inputs[0].ri_inputs.fm_programme.to_csv('/tmp/fm_programme.csv', index=False)
-        ri_inputs[0].ri_inputs.fm_profile.to_csv('/tmp/fm_profile.csv', index=False)
 
         expected_ri_inputs = [
             reinsurance_layer.RiInputs(

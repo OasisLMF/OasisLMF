@@ -1,0 +1,68 @@
+# Workflow to remote call the PiWind output checks using
+# a branch of oasislmf
+#
+# Inputs:
+#   platform_version: The docker tag (OasisPlatfrom Release) to test the oasis stack with
+#                     SemVar string of published docker images "1.26.4" ({n}.{n}.{n})
+#                     default is "latest"
+#
+#   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
+#
+#   build_oasislmf: Either 'true' or 'false', when set to true then build the oasislmf package from the current
+#                   branch and install to a model_worker for running the tests. If not set pip install the current
+#                   branch using git.
+#
+#   ktools_branch: The git reference to a ktools branch, If 'build_oasislmf=true' and a ktools reference is set, then
+#                  also build ktools and use the binaries when building the oasislmf package.
+
+name: PiWind output check
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - backports**
+  pull_request:
+    branches:
+      - master
+      - develop
+      - backports**
+
+  workflow_dispatch:
+    inputs:
+      platform_version:
+        description: 'OasisPlatform Version to test using [docker tag]'
+        required: true
+        default: latest
+      piwind_branch:
+        description: 'Branch to run PiWind from [git ref]'
+        required: true
+        default: develop
+      ktools_branch:
+        description: 'If building oasislmf, also build ktools [git ref]'
+        required: false
+        default: true
+      build_oasislmf:
+        description: 'Build the oasislmf package for worker installation [true, false]'
+        required: false
+        default: false
+
+jobs:
+  build:
+    if: inputs.build_oasislmf == 'true'
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      ktools_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ktools_branch }}
+
+  piwind:
+    if: ${{ ! failure() || ! cancelled() }}
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
+    secrets: inherit
+    needs: [build]
+    with:
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
+      oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
+      oasislmf_branch: ${{ github.ref }}
+      platform_version: ${{ github.event_name != 'workflow_dispatch' && 'latest' ||  inputs.platform_version }}
