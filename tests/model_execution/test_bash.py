@@ -79,7 +79,7 @@ class Genbash(TestCase):
 
         with io.open(input_filename, encoding='utf-8') as file:
             analysis_settings = json.load(file)['analysis_settings']
-        
+
         genbash(
             num_partitions,
             analysis_settings,
