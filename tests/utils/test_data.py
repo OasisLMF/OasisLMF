@@ -576,6 +576,7 @@ class TestGetDataframe(TestCase):
             data[-2]['str_col'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'str_col']
@@ -606,6 +607,7 @@ class TestGetDataframe(TestCase):
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
@@ -1099,6 +1101,17 @@ class TestGetDataframe(TestCase):
             os.remove(fp.name)
 
     @settings(max_examples=10, deadline=None)
+    @example(data=[{'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'nan', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True},
+                   {'STR_COL': 'a', 'int_col': 1, 'FloatCol': 0.0, 'boolCol': True}]
+             )
     @given(
         data=lists(
             fixed_dictionaries({
@@ -1118,6 +1131,7 @@ class TestGetDataframe(TestCase):
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
