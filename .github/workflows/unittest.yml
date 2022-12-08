@@ -19,7 +19,6 @@ on:
       ktools_branch:
         description: "Build Ktools before tests: [git ref]"
         required: false
-        default: "develop"
 
 jobs:
   build:
@@ -65,9 +64,9 @@ jobs:
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            pip-compile requirements.in -o requirements.txt
+            pip-compile requirements.in -o requirements.txt --resolver=backtracking
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt --resolver=backtracking
           fi
           pip install -r requirements.txt
       - name: Run tox
