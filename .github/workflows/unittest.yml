@@ -19,7 +19,14 @@ on:
       ktools_branch:
         description: "Build Ktools before tests: [git ref]"
         required: false
-        default: "develop"
+
+      ods_branch:
+        description: "Git install ods_tools branch before tests: [git ref]"
+        required: false
+ 
+env:
+  ods_branch: 'feature/oed_interface'
+
 
 jobs:
   build:
@@ -70,6 +77,12 @@ jobs:
             pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
           fi
           pip install -r requirements.txt
+
+      - name: install ods_tools branch
+        if: env.ods_branch != ''
+        run: |
+          pip install -v git+https://git@github.com/OasisLMF/ODS_OpenExposureData.git@${{ env.ods_branch }}#egg=ods-tools
+
       - name: Run tox
         run: tox -e py
       - name: Upload coverage to Codecov
