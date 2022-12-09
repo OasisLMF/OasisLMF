@@ -145,7 +145,7 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-def create_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
+def get_check_fucntion(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
     """Creates a bash function to check the logs to ensure same number of process started and finsished.
 
     Args: 
