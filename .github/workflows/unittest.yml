@@ -32,7 +32,7 @@ jobs:
       ktools_branch: ${{ inputs.ktools_branch }}
 
   ods_tools:
-    if: inputs.ods_branch != ''
+    #if: inputs.ods_branch != '' ## TESTING ONLY
     uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
     secrets: inherit
     with:
