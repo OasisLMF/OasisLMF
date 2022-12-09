@@ -194,8 +194,6 @@ class Genbash(TestCase):
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
             reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
-        print(output_filename)
-        print(reference_filename)
 
         if self.fifo_tmp_dir:
             # Create temp Ref file
@@ -950,7 +948,7 @@ class Genbash_ErrorGuard(Genbash):
     # =============================================================================
     @staticmethod
     def _get_getmodel_cmd(**args):
-            return "custom_gulcalc_command"
+        return "custom_gulcalc_command"
 
     def test_custom_gul_summarycalc_1_partition(self):
         self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
