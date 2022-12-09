@@ -19,7 +19,7 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
     Correlation, Index_type, nb_areaperil_int, oasis_float, Keys)
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_vulns
+from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_items, get_vulns
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE,
@@ -28,7 +28,7 @@ from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.random import (
     compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash,
     generate_hash_haz, get_corr_rval, get_random_generator)
-from oasislmf.pytools.gul.manager import get_coverages, write_losses
+from oasislmf.pytools.gul.manager import get_coverages, gul_get_items, write_losses
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 logger = logging.getLogger(__name__)
@@ -233,9 +233,7 @@ def run(run_dir,
     """
     logger.info("starting gulmc")
 
-    # TODO: store static_path in a parameters file
     static_path = os.path.join(run_dir, 'static')
-    # TODO: store input_path in a parameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -472,10 +470,10 @@ def run(run_dir,
             z_unif = np.zeros(1, dtype='float64')
 
         if effective_damageability is True:
+            logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
+        else:
             logger.info("effective_damageability is False: gulmc will perform the full Monte Carlo sampling: "
                         "sample the hazard intensity first, then sample the damage from the corresponding vulnerability function.")
-        else:
-            logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
 
         # create buffers to be reused when computing losses
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
@@ -510,6 +508,9 @@ def run(run_dir,
         logger.info(
             f"generating a cache of shape ({Nvulns_cached}, {Ndamage_bins_max}) and size {Nvulns_cached * Ndamage_bins_max * oasis_float.itemsize / 1024 / 1024:8.3f}MB")
 
+        # maximum bytes to be written in the output stream for 1 item
+        event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
+
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -517,7 +518,7 @@ def run(run_dir,
             # get the next event_id from the input stream
             event_id = event_ids[0]
 
-            event_footprint = (FootprintLayerClient if data_server else footprint_obj).get_event(event_id)
+            event_footprint = event_footprint_obj.get_event(event_id)
 
             if event_footprint is not None:
 
@@ -543,7 +544,6 @@ def run(run_dir,
 
                 else:
                     # create dummy data structures with proper dtypes to allow correct numba compilation
-                    corr_seeds = np.zeros(1, dtype='int64')
                     eps_ij = np.zeros((1, 1), dtype='float64')
 
                 last_processed_coverage_ids_idx = 0
@@ -832,7 +832,6 @@ def compute_event_losses(event_id,
                                 continue
 
                             if haz_rval >= haz_prob_to[Nbins - 1]:
-                                haz_rval = haz_prob_to[Nbins - 1] - 0.00000003
                                 haz_bin_idx = nb_int32(Nbins - 1)
                             else:
                                 # find the bin in which the random value `haz_rval` falls into
@@ -1111,8 +1110,8 @@ def process_areaperils_in_footprint(event_footprint,
                     areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
                     for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
                         eff_vuln_cdf_cumsum = 0.
-                        Ndamage_bins = nb_int32(0)
-                        while Ndamage_bins < Ndamage_bins_max:
+                        damage_bin_i = nb_int32(0)
+                        while damage_bin_i < Ndamage_bins_max:
                             for i in range(Nbins_to_read):
                                 intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
                                 # TODO: if vulnerability_id is aggregate,need to account for that.
@@ -1120,15 +1119,17 @@ def process_areaperils_in_footprint(event_footprint,
                                 # ...ask Ben and Joh what they think
                                 #
                                 eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
-                                                                  Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
+                                                                  damage_bin_i, intensity_bin_i] * haz_pdf[cdf_start + i]
 
-                                # TODO: vuln_array[vuln_idx,Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i] is part of the cdf for vuln_idx
+                                # TODO: vuln_array[vuln_idx,damage_bin_i, intensity_bin_i] * haz_pdf[cdf_start + i] is part of the cdf for vuln_idx
                                 # TODO; store this array and then compute the cdfs here.
 
-                            eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
-                            Ndamage_bins += 1
+                            eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
+                            damage_bin_i += 1
                             if eff_vuln_cdf_cumsum > 0.999999940:
                                 break
+
+                        Ndamage_bins = damage_bin_i
 
                         areaperil_to_eff_vuln_cdf[(last_areaperil_id, vuln_idx)] = eff_vuln_cdf_start
                         eff_vuln_cdf_start += Ndamage_bins
@@ -1174,16 +1175,18 @@ def process_areaperils_in_footprint(event_footprint,
         for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
 
             eff_vuln_cdf_cumsum = 0.
-            Ndamage_bins = nb_int32(0)
-            while Ndamage_bins < Ndamage_bins_max:
+            damage_bin_i = nb_int32(0)
+            while damage_bin_i < Ndamage_bins_max:
                 for i in range(Nbins_to_read):
                     intensity_bin_i = event_footprint['intensity_bin_id'][last_areaperil_id_start + i] - 1
                     eff_vuln_cdf_cumsum += vuln_array[vuln_idx,
-                                                      Ndamage_bins, intensity_bin_i] * haz_pdf[cdf_start + i]
-                eff_vuln_cdf[eff_vuln_cdf_start + Ndamage_bins] = eff_vuln_cdf_cumsum
-                Ndamage_bins += 1
+                                                      damage_bin_i, intensity_bin_i] * haz_pdf[cdf_start + i]
+                eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
+                damage_bin_i += 1
                 if eff_vuln_cdf_cumsum > 0.999999940:
                     break
+
+            Ndamage_bins = damage_bin_i
 
             areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_idx)] = eff_vuln_cdf_start
             eff_vuln_cdf_start += Ndamage_bins

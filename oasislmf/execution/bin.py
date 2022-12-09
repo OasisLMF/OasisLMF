@@ -48,6 +48,7 @@ def prepare_run_directory(
     inputs_archive=None,
     user_data_dir=None,
     ri=False,
+    copy_model_data=False,
 ):
     """
     Ensures that the model run directory has the correct folder structure in
@@ -156,7 +157,7 @@ def prepare_run_directory(
             for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
                 destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
-                if os.name == 'nt':
+                if os.name == 'nt' or copy_model_data:
                     shutil.copy(sourcefile, destfile)
                 else:
                     os.symlink(sourcefile, destfile)
