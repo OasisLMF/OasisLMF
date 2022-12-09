@@ -1497,12 +1497,8 @@ def bash_params(
         bash_params['_get_getmodel_cmd'] = _get_getmodel_cmd
 
     # Set custom gulcalc log statment checks, 
-    if custom_gulcalc_log_start and custom_gulcalc_log_finish:
-        bash_params['custom_gulcalc_log_start'] = custom_gulcalc_log_start
-        bash_params['custom_gulcalc_log_finish'] = custom_gulcalc_log_finish
-    else:
-        bash_params['custom_gulcalc_log_start'] = analysis_settings.get('model_custom_gulcalc_log_start', False)
-        bash_params['custom_gulcalc_log_finish'] = analysis_settings.get('model_custom_gulcalc_log_finish', False)
+        bash_params['custom_gulcalc_log_start'] = custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start')
+        bash_params['custom_gulcalc_log_finish'] = custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish')
 
 
     ## Set fifo dirs
