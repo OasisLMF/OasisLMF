@@ -58,8 +58,8 @@ check_complete(){
         fi
     done
 
-    started=$( cat log/gul_stderror.err |  grep "Starting custom gulcalc command" | wc -l)
-    finished=$( cat log/gul_stderror.err |  grep "Custom gulcalc command finished" | wc -l)
+    started=$( grep "Starting custom gulcalc command" log/gul_stderror.err | wc -l )
+    finished=$( grep "Custom gulcalc command finished" log/gul_stderror.err | wc -l )
     if [ "$finished" -lt "$started" ]; then
         echo "[ERROR] gulcalc - $((started-finished)) processes lost"
         has_error=1 
