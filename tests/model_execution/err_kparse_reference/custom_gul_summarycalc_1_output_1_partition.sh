@@ -58,8 +58,8 @@ check_complete(){
         fi
     done
 
-    started=$( grep "Starting custom gulcalc command" log/gul_stderror.err | wc -l )
-    finished=$( grep "Custom gulcalc command finished" log/gul_stderror.err | wc -l )
+    started=$( grep "Starting custom gulcalc command" log/gul_stderror.err | wc -l)
+    finished=$( grep "Custom gulcalc command finished" log/gul_stderror.err | wc -l)
     if [ "$finished" -lt "$started" ]; then
         echo "[ERROR] gulcalc - $((started-finished)) processes lost"
         has_error=1 
@@ -97,7 +97,7 @@ tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err &
+( custom_gulcalc_command > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err &
 
 wait $pid1 $pid2
 

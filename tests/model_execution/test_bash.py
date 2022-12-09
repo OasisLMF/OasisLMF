@@ -67,7 +67,9 @@ class Genbash(TestCase):
                 ri_alloc_rule=None,
                 bash_trace=None,
                 gul_legacy_stream=None,
-                fmpy=None):
+                fmpy=None,
+                _get_getmodel_cmd=None,
+                ):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -96,6 +98,7 @@ class Genbash(TestCase):
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
+            _get_getmodel_cmd=_get_getmodel_cmd,
         )
 
 
@@ -109,7 +112,9 @@ class Genbash(TestCase):
         ri_alloc_rule=None,
         bash_trace=None,
         gul_legacy_stream=None,
-        fmpy=None):
+        fmpy=None,
+        _get_getmodel_cmd=None,
+        ):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -136,6 +141,7 @@ class Genbash(TestCase):
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
+            _get_getmodel_cmd=_get_getmodel_cmd,
         )   
         ## debug 
         # print(json.dumps(params, indent=4))
@@ -188,6 +194,8 @@ class Genbash(TestCase):
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
             reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
+        print(output_filename)
+        print(reference_filename)
 
         if self.fifo_tmp_dir:
             # Create temp Ref file
@@ -942,7 +950,9 @@ class Genbash_ErrorGuard(Genbash):
     # =============================================================================
 
     def test_custom_gul_summarycalc_1_partition(self):
-        self.genbash("custom_gul_summarycalc_1_output", 1)
+        def _get_getmodel_cmd(**args):
+            return "custom_gulcalc_command"
+        self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=_get_getmodel_cmd)
         self.check("custom_gul_summarycalc_1_output_1_partition")
     
     def test_custom_gul_summarycalc_1_partition_chunk(self):
