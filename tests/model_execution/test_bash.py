@@ -948,15 +948,16 @@ class Genbash_ErrorGuard(Genbash):
     # =============================================================================
     # Custom GulCalc checks
     # =============================================================================
+    @staticmethod
+    def _get_getmodel_cmd(**args):
+            return "custom_gulcalc_command"
 
     def test_custom_gul_summarycalc_1_partition(self):
-        def _get_getmodel_cmd(**args):
-            return "custom_gulcalc_command"
-        self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=_get_getmodel_cmd)
+        self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
         self.check("custom_gul_summarycalc_1_output_1_partition")
     
     def test_custom_gul_summarycalc_1_partition_chunk(self):
-        self.gen_chunked_bash("custom_gul_summarycalc_1_output", 1)
+        self.gen_chunked_bash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
         self.check_chunks("custom_gul_summarycalc_1_output_1_partition", 1)
 
 
