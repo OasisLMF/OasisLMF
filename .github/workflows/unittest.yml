@@ -97,6 +97,7 @@ jobs:
       - name: install ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
         run: |
+          pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
       - name: Run tox
