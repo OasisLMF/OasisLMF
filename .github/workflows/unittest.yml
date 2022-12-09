@@ -33,11 +33,11 @@ jobs:
 
   ods_tools:
     if: inputs.ods_branch != ''
-    #uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@develop
-    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@feature/oed_interface_ci-test
+    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
     secrets: inherit
     with:
-      ods_branch: ${{ inputs.ods_branch }}
+      ods_branch: 'feature/oed_interface'  ## TESTING ONLY
+      #ods_branch: ${{ inputs.ods_branch }}
 
   unittest:
     if: ${{ ! failure() || ! cancelled() }}
