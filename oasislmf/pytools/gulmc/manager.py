@@ -19,7 +19,7 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
     Correlation, Index_type, nb_areaperil_int, oasis_float, Keys)
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_items, get_vulns
+from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_vulns
 from oasislmf.pytools.gul.common import (
     MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE,
@@ -28,7 +28,7 @@ from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.random import (
     compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash,
     generate_hash_haz, get_corr_rval, get_random_generator)
-from oasislmf.pytools.gul.manager import get_coverages, gul_get_items, write_losses
+from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 logger = logging.getLogger(__name__)
