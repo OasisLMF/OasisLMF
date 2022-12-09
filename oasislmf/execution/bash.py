@@ -170,7 +170,7 @@ check_complete(){
 """
     # Add in check for custom gulcalc if settings are provided 
     if custom_gulcalc_log_start and custom_gulcalc_log_finish:
-        check_function+=f"""
+        check_function += f"""
     started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
     finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
     if [ "$finished" -lt "$started" ]; then
