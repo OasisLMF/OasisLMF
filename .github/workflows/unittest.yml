@@ -100,8 +100,9 @@ jobs:
           pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
-      - name: Run tox
-        run: tox -e py
+      - name: Run Pytest
+        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
+
       - name: Upload coverage to Codecov
         if: matrix.cfg.upload-cov == true
         uses: codecov/codecov-action@v3
