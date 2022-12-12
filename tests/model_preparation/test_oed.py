@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from oasislmf.model_preparation import (
+from oasislmf.preparation import (
     oed
 )
 

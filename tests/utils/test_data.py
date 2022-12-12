@@ -30,6 +30,8 @@ from hypothesis.strategies import (
 )
 from pandas.testing import assert_frame_equal
 from tempfile import NamedTemporaryFile
+from ods_tools.oed import OedExposure, OedSchema
+
 
 from oasislmf.utils.data import (
     factorize_array,
@@ -38,12 +40,7 @@ from oasislmf.utils.data import (
     get_dataframe,
     get_timestamp,
     get_utctimestamp,
-    get_location_df,
-    PANDAS_DEFAULT_NULL_VALUES,
-)
-
-from oasislmf.utils.defaults import (
-    get_loc_dtypes,
+    PANDAS_DEFAULT_NULL_VALUES, prepare_location_df,
 )
 
 from oasislmf.utils.exceptions import OasisException
@@ -1588,37 +1585,30 @@ class TestOedDataTypes(TestCase):
         })
     )
     def test_location_dtypes_loaded_correctly(self, data):
-        loc_expected_dtypes = {k.lower(): v for k, v in get_loc_dtypes().items()}
-        loc_sample_file = NamedTemporaryFile("w", delete=False)
+        df = pd.DataFrame(data, index=[0])
+        oed_exposure = OedExposure(**{'location': df, 'use_field': True})
+        df_result = prepare_location_df(oed_exposure.location.dataframe)
 
-        try:
-            df = pd.DataFrame(data, index=[0])
-            df.to_csv(path_or_buf=loc_sample_file, encoding='utf-8', index=False)
-            loc_sample_file.close()
+        ods_fields = oed_exposure.get_input_fields(oed_exposure.location.oed_type)
+        loc_expected_dtypes = {field_info['Input Field Name']: field_info for field_info in ods_fields.values()}
 
-            df_result = get_location_df(loc_sample_file.name)
-            for col in df_result.columns:
-                if col in loc_expected_dtypes:
-                    dtype_expected = loc_expected_dtypes[col]['py_dtype']
-                    dtype_found = type(df_result[col][0])
-                    print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
-                    if dtype_expected == 'str':
-                        self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
-                    elif dtype_expected == 'int':
-                        self.assertTrue(isinstance(df_result[col][0], self.valid_int_types))
-                    elif dtype_expected == 'float':
-                        self.assertTrue(isinstance(df_result[col][0], self.valid_float_types))
-
-                elif col.lower().startswith('flexiloc'):
-                    dtype_expected = loc_expected_dtypes['flexiloczzz']['py_dtype']
-                    dtype_found = type(df_result[col][0])
-                    print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
+        for col in df_result.columns:
+            if col in loc_expected_dtypes:
+                dtype_expected = loc_expected_dtypes[col]['pd_dtype']
+                dtype_found = type(df_result[col][0])
+                print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
+                if dtype_expected == 'str':
                     self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
+                elif dtype_expected == 'int':
+                    self.assertTrue(isinstance(df_result[col][0], self.valid_int_types))
+                elif dtype_expected == 'float':
+                    self.assertTrue(isinstance(df_result[col][0], self.valid_float_types))
 
-        finally:
-            os.remove(loc_sample_file.name)
-
-    # TODO - add wrapper loading funcs for other OED files and test here
+            elif col.startswith('FlexiLoc'):
+                dtype_expected = loc_expected_dtypes['FlexiLocZZZ']['pd_dtype']
+                dtype_found = type(df_result[col][0])
+                print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
+                self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
 
     @pytest.mark.skip(reason='Needs implementing')
     @settings(max_examples=10, deadline=None)
