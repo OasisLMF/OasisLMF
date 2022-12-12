@@ -177,14 +177,17 @@ def read_items(input_path, ignore_file_type=set()):
           areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
     input_files = set(os.listdir(input_path))
+
     if "items.bin" in input_files and "bin" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.bin')
         logger.debug(f"loading {items_fname}")
         items = np.memmap(items_fname, dtype=Item, mode='r')
+
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
         items = np.genfromtxt(items_fname, dtype=Item, delimiter=",", skip_header=1)
+
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
@@ -576,8 +579,8 @@ def run(run_dir,
                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
                         cached_vuln_cdfs,
                         agg_vuln_to_vulns, agg_vuln_to_vulns_idx, vuln_dict, ap_vuln_idx_weights,
-                        loss_threshold, losses, vuln_prob_to, weighted_vuln_to_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij,
-                        corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                        loss_threshold, losses, vuln_prob_to, weighted_vuln_to_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
+                        eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
