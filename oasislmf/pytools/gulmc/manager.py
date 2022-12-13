@@ -480,8 +480,8 @@ def run(run_dir,
 
         # create buffers to be reused when computing losses
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
-        vuln_prob_to = np.zeros(Ndamage_bins_max, dtype=oasis_float)
-        weighted_vuln_to_empty = np.zeros(Ndamage_bins_max, dtype=oasis_float)
+        vuln_prob_to = np.zeros(Ndamage_bins_max, dtype=np.float64)  # oasis_float)
+        weighted_vuln_to_empty = np.zeros(Ndamage_bins_max, dtype=np.float64)  # oasis_float)
 
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
@@ -563,7 +563,7 @@ def run(run_dir,
 
                 # vulnerability cache
                 # TODO: in principle cached_vuln_cdfs could be generated once, outside the while loop. check that it is safe to do so
-                cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
+                cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins_max), dtype=np.float64)  # oasis_float)
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 # cached_vuln_cdf_lookup, cached_vuln_cdf_pointers, cached_vuln_cdf_lengths = gen_empty_vuln_cdf_lookup()
                 # lookup_keys = np.empty((min(Nvulnerability, max_Nvulnerability_cached_vuln_cdf)), dtype=VulnCdfLookup)
@@ -743,7 +743,8 @@ def compute_event_losses(event_id,
             # if aggregate: agg_eff_vuln_cdf needs to be computed
             if vulnerability_id in agg_vuln_to_vulns:
                 # aggregate case
-                weighted_vuln_to = weighted_vuln_to_empty
+                weighted_vuln_to = weighted_vuln_to_empty * 0.
+                # logger.info(f"{weighted_vuln_to_empty}")
                 tot_weights = 0
                 agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
 
@@ -753,16 +754,24 @@ def compute_event_losses(event_id,
                     sub_vuln_prob_to = eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins]
                     Ndamage_bins = eff_vuln_cdf_Ndamage_bins
                     # get_vuln_cdf ends
-                    weight = ap_vuln_idx_weights[(areaperil_id, vuln_i)]
+                    weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
                     tot_weights += weight
+                    # logger.info(f"weight={weight}, weight_type={type(weight)}, tot_weights={tot_weights}")
                     weighted_vuln_to[:Ndamage_bins] += sub_vuln_prob_to[:Ndamage_bins] * weight
                     # note: this requires that all the vulnerability functions in one aggregate must have the same number of damage bins.
                     # otherwise this will error  weighted_vuln_to may be ill defined
                     # (eg if different vuln_prob_to have different Ndamage_bins, they sum up at different bins in weighted_vuln_to.
                     # TODO: Q for Joh/Ben: is this an accurate expectation? if this is not a standard, checking this beforehand would be very useful.
 
+                weighted_vuln_to /= tot_weights
+
+                i = 0
+                while weighted_vuln_to[i] < 0.999999940:
+                    i += 1
+
+                Ndamage_bins = i + 1
                 eff_damag_cdf_Ndamage_bins = Ndamage_bins
-                eff_damag_cdf = weighted_vuln_to[:eff_damag_cdf_Ndamage_bins] / tot_weights
+                eff_damag_cdf = weighted_vuln_to[:eff_damag_cdf_Ndamage_bins]
 
             else:
                 vuln_i = vuln_dict[vulnerability_id]
@@ -771,6 +780,7 @@ def compute_event_losses(event_id,
                 eff_damag_cdf = eff_vuln_cdf[eff_damag_vuln_cdf_i:eff_damag_vuln_cdf_i + eff_damag_cdf_Ndamage_bins]
 
             # compute mean loss values
+            # logger.info(f"vulnerability_id={vulnerability_id} ap={areaperil_id} prob_to[0]={eff_damag_cdf[0]} {damage_bins['interpolation'][0] }")
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
                 tiv,
                 eff_damag_cdf,
@@ -849,7 +859,7 @@ def compute_event_losses(event_id,
                         # 3) get the vulnerability cdf
                         if vulnerability_id in agg_vuln_to_vulns:
                             # aggregate case
-                            weighted_vuln_to = weighted_vuln_to_empty
+                            weighted_vuln_to = weighted_vuln_to_empty * 0
                             tot_weights = 0
                             agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
                             for vuln_i in agg_vulns_idx:
@@ -895,7 +905,14 @@ def compute_event_losses(event_id,
                                 # otherwise this will error  weighted_vuln_to may be ill defined
                                 # (eg if different vuln_prob_to have different Ndamage_bins, they sum up at different bins in weighted_vuln_to.
                                 # Q for Joh/Ben: is this an accurate expectation? if this is not a standard, checking this beforehand would be very useful.
+
                             weighted_vuln_to /= tot_weights
+
+                            i = 0
+                            while weighted_vuln_to[i] < 0.999999940:
+                                i += 1
+
+                            Ndamage_bins = i + 1
                             vuln_prob_to = weighted_vuln_to
 
                         else:
@@ -1075,7 +1092,7 @@ def process_areaperils_in_footprint(event_footprint,
     haz_cdf = np.empty(Nevent_footprint_entries, dtype=oasis_float)  # max size
     Nvulns, Ndamage_bins_max, Nint_bins = vuln_array.shape
 
-    eff_vuln_cdf = np.empty((Nvulns * Ndamage_bins_max), dtype=oasis_float)  # max size
+    eff_vuln_cdf = np.zeros((Nvulns * Ndamage_bins_max), dtype=np.float64)  # oasis_float)  # max size
     cdf_start = 0
     cdf_end = 0
     haz_cdf_ptr = List([0])
@@ -1314,26 +1331,62 @@ def reconstruct_coverages(event_id,
 
 if __name__ == '__main__':
 
-    test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
-        .joinpath("assets").joinpath("test_model_1")
+    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+    #     .joinpath("assets").joinpath("test_model_1")
 
-    run(
-        run_dir=test_dir,
-        ignore_file_type=set(),
-        file_in=test_dir.joinpath("input").joinpath('events.bin'),
-        file_out=test_dir.joinpath('gulpy_mc.bin'),
-        sample_size=10,
-        loss_threshold=0.,
-        alloc_rule=1,
-        debug=0,
-        random_generator=1,
-        ignore_correlation=True,
-        effective_damageability=False,
-    )
+    # run(
+    #     run_dir=test_dir,
+    #     ignore_file_type=set(),
+    #     file_in=test_dir.joinpath("input").joinpath('events.bin'),
+    #     file_out=test_dir.joinpath('gulpy_mc.bin'),
+    #     sample_size=10,
+    #     loss_threshold=0.,
+    #     alloc_rule=1,
+    #     debug=0,
+    #     random_generator=1,
+    #     ignore_correlation=True,
+    #     effective_damageability=False,
+    # )
+
+    # # aggregate vulnerabilities
+    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+    #     .joinpath("assets").joinpath("wip_test_model_2")
+
+    # run(
+    #     run_dir=test_dir,
+    #     ignore_file_type=set(),
+    #     file_in=test_dir.joinpath("input").joinpath('events.bin'),
+    #     file_out=test_dir.joinpath('gulpy_mc.bin'),
+    #     sample_size=10,
+    #     loss_threshold=0.,
+    #     alloc_rule=1,
+    #     debug=0,
+    #     random_generator=1,
+    #     ignore_correlation=True,
+    #     effective_damageability=False,
+    # )
 
     # aggregate vulnerabilities
+    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+    #     .joinpath("assets").joinpath("test_model_3")
+
+    # run(
+    #     run_dir=test_dir,
+    #     ignore_file_type=set(),
+    #     file_in=test_dir.joinpath("input").joinpath('events.bin'),
+    #     file_out=test_dir.joinpath('gulpy_mc.bin'),
+    #     sample_size=10,
+    #     loss_threshold=0.,
+    #     alloc_rule=1,
+    #     debug=0,
+    #     random_generator=1,
+    #     ignore_correlation=True,
+    #     effective_damageability=False,
+    # )
+
+    # # aggregate vulnerabilities
     test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
-        .joinpath("assets").joinpath("wip_test_model_2")
+        .joinpath("assets").joinpath("test_model_4")
 
     run(
         run_dir=test_dir,
