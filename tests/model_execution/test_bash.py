@@ -101,7 +101,7 @@ class Genbash(TestCase):
         )
 
 
-    def gen_chunked_bash(self, name, 
+    def gen_chunked_bash(self, name,
         num_partitions,
         num_reinsurance_iterations=None,
         fifo_tmp_dir=None,
@@ -141,9 +141,7 @@ class Genbash(TestCase):
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
             _get_getmodel_cmd=_get_getmodel_cmd,
-        )   
-        ## debug 
-        # print(json.dumps(params, indent=4))
+        )
 
         fifo_tmp_dir = params['fifo_tmp_dir']
         for process_id in range(num_partitions):
@@ -153,7 +151,7 @@ class Genbash(TestCase):
                 os.remove(params['filename'])
 
             with bash_wrapper(
-                params['filename'], 
+                params['filename'],
                 bash_trace or self.bash_trace,
                 stderr_guard or self.stderr_guard,
                 custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
@@ -174,8 +172,8 @@ class Genbash(TestCase):
             os.remove(params['filename'])
 
         with bash_wrapper(
-            params['filename'], 
-            bash_trace or self.bash_trace, 
+            params['filename'],
+            bash_trace or self.bash_trace,
             stderr_guard or self.stderr_guard,
             custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
             custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
@@ -947,13 +945,13 @@ class Genbash_ErrorGuard(Genbash):
     # Custom GulCalc checks
     # =============================================================================
     @staticmethod
-    def _get_getmodel_cmd(**args):
+    def _get_getmodel_cmd(**kwargs):
         return "custom_gulcalc_command"
 
     def test_custom_gul_summarycalc_1_partition(self):
         self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
         self.check("custom_gul_summarycalc_1_output_1_partition")
-    
+
     def test_custom_gul_summarycalc_1_partition_chunk(self):
         self.gen_chunked_bash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
         self.check_chunks("custom_gul_summarycalc_1_output_1_partition", 1)
