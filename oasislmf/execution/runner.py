@@ -5,8 +5,7 @@ import subprocess
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-## NEW IMPORTS
-from .bash import (bash_params, bash_wrapper, create_bash_analysis,
+from .bash import (bash_wrapper, create_bash_analysis,
                    create_bash_outputs, genbash)
 
 
