@@ -34,7 +34,7 @@ jobs:
   ods_tools:
     #if: inputs.ods_branch != '' ## TESTING ONLY
     #uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
-    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@feature/oed_interface # TESTING ONLY
+    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@fix/remove-package-build # TESTING ONLY
     secrets: inherit
     with:
       ods_branch: 'feature/oed_interface'  ## TESTING ONLY
