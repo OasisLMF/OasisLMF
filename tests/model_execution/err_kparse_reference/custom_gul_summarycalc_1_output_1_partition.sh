@@ -62,7 +62,7 @@ check_complete(){
     finished=$( grep "Custom gulcalc command finished" log/gul_stderror.err | wc -l)
     if [ "$finished" -lt "$started" ]; then
         echo "[ERROR] gulcalc - $((started-finished)) processes lost"
-        has_error=1 
+        has_error=1
     elif [ "$started" -gt 0 ]; then
         echo "[OK] gulcalc"
     fi
