@@ -15,7 +15,7 @@ from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (
-    Correlation, nb_areaperil_int, oasis_float, Keys)
+    Correlation, HazardCorrelation, nb_areaperil_int, oasis_float, Keys)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_items, get_vulns
 from oasislmf.pytools.gul.common import (
@@ -211,6 +211,24 @@ def run(run_dir,
         haz_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
         vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
+        # haz correlation
+        do_haz_correlation = False
+        if ignore_haz_correlation:
+            logger.info("Correlated random number generation: switched OFF because --ignore-haz-correlation is True.")
+
+        else:
+            file_path = os.path.join(input_path, 'hazard_correlations.bin')
+            data = CorrelationsData.from_bin(file_path=file_path).data
+            Nhaz_correlation_groups = len(data)
+            logger.info(f"Detected {Nhaz_correlation_groups} hazard correlation groups.")
+
+            if Nhaz_correlation_groups > 0 and any(data['correlation_value'] > 0):
+                do_haz_correlation = True
+            else:
+                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                            "the correlation value is zero for all hazard correlation groups.")
+
+        # peril correlation
         do_correlation = False
         if ignore_correlation:
             logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
@@ -227,7 +245,21 @@ def run(run_dir,
                 logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
                             "the correlation value is zero for all peril correlation groups.")
 
-        if do_correlation:
+        if do_haz_correlation:
+            logger.info("Correlated random number generation for hazard intensity: switched ON.")
+
+            haz_corr_data_by_item_id = np.ndarray(Nhaz_correlation_groups + 1, dtype=HazardCorrelation)
+            haz_corr_data_by_item_id[0] = (0, 0.)
+            haz_corr_data_by_item_id[1:]['haz_correlation_group'] = np.array(data['haz_correlation_group'])
+            haz_corr_data_by_item_id[1:]['correlation_value'] = np.array(data['correlation_value'])
+
+            logger.info(
+                f"Correlation values for {Nhaz_correlation_groups} hazard correlation groups have been imported."
+            )
+
+            unique_haz_correlation_groups = np.unique(haz_corr_data_by_item_id[1:]['haz_correlation_group'])
+
+        if do_correlation or do_haz_correlation:
             logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
@@ -256,6 +288,7 @@ def run(run_dir,
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
+            haz_corr_data_by_item_id = np.ndarray(1, dtype=HazardCorrelation)
             arr_min, arr_max, arr_N = 0, 0, 0
             arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
@@ -301,6 +334,15 @@ def run(run_dir,
                 haz_rndms_base = generate_rndm(haz_seeds[:rng_index], sample_size)
                 vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
 
+                if do_haz_correlation:
+                    haz_corr_seeds = generate_correlated_hash_vector(unique_haz_correlation_groups, event_id)
+                    haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+
+                else:
+                    # create dummy data structures with proper dtypes to allow correct numba compilation
+                    haz_corr_seeds = np.zeros(1, dtype='int64')
+                    haz_eps_ij = np.zeros((1, 1), dtype='float64')
+
                 # generate the correlated samples for the whole event, for all peril correlation groups
                 if do_correlation:
                     corr_seeds = generate_correlated_hash_vector(unique_peril_correlation_groups, event_id)
@@ -328,9 +370,9 @@ def run(run_dir,
                         event_id, coverages, compute[:compute_i], items_data,
                         last_processed_coverage_ids_idx, sample_size, event_footprint, haz_cdf, haz_cdf_ptr, haz_prob_rec_idx_ptr,
                         eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
-                        loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base, eps_ij,
-                        corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
-                        z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
+                        loss_threshold, losses, vuln_prob_to, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
+                        haz_eps_ij, haz_corr_data_by_item_id, eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf,
+                        arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
                     # write the losses to the output stream
@@ -368,6 +410,8 @@ def compute_event_losses(event_id,
                          do_correlation,
                          haz_rndms,
                          vuln_rndms_base,
+                         haz_eps_ij,
+                         haz_corr_data_by_item_id,
                          eps_ij,
                          corr_data_by_item_id,
                          arr_min,
@@ -488,6 +532,28 @@ def compute_event_losses(event_id,
 
             # compute random losses
             if sample_size > 0:
+                if do_haz_correlation:
+                    # use correlation definitions to draw correlated random values
+                    item_corr_data = haz_corr_data_by_item_id[item['item_id']]
+                    rho = item_corr_data['correlation_value']
+
+                    if rho > 0:
+                        haz_correlation_group = item_corr_data['haz_correlation_group']
+
+                        get_corr_rval(
+                            haz_eps_ij[haz_correlation_group], haz_rndms_base[rng_index],
+                            rho, arr_min, arr_max, arr_N, norm_inv_cdf,
+                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                        )
+                        haz_rndms = z_unif
+
+                    else:
+                        haz_rndms = haz_rndms_base[rng_index]
+
+                else:
+                    # do not use correlation
+                    haz_rndms = haz_rndms_base[rng_index]
+
                 if do_correlation:
                     # use correlation definitions to draw correlated random values
                     item_corr_data = corr_data_by_item_id[item['item_id']]
