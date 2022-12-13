@@ -100,20 +100,19 @@ class Genbash(TestCase):
             _get_getmodel_cmd=_get_getmodel_cmd,
         )
 
-
     def gen_chunked_bash(self, name,
-        num_partitions,
-        num_reinsurance_iterations=None,
-        fifo_tmp_dir=None,
-        stderr_guard=None,
-        gul_alloc_rule=None,
-        il_alloc_rule=None,
-        ri_alloc_rule=None,
-        bash_trace=None,
-        gul_legacy_stream=None,
-        fmpy=None,
-        _get_getmodel_cmd=None,
-        ):
+                         num_partitions,
+                         num_reinsurance_iterations=None,
+                         fifo_tmp_dir=None,
+                         stderr_guard=None,
+                         gul_alloc_rule=None,
+                         il_alloc_rule=None,
+                         ri_alloc_rule=None,
+                         bash_trace=None,
+                         gul_legacy_stream=None,
+                         fmpy=None,
+                         _get_getmodel_cmd=None,
+                         ):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -156,7 +155,7 @@ class Genbash(TestCase):
                 stderr_guard or self.stderr_guard,
                 custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
                 custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
-                ):
+            ):
                 create_bash_analysis(
                     **{
                         **params,
@@ -177,7 +176,7 @@ class Genbash(TestCase):
             stderr_guard or self.stderr_guard,
             custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
             custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
-            ):
+        ):
             create_bash_outputs(**params)
 
     def check_chunks(self, name, num_partitions):
