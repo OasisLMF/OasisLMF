@@ -1617,7 +1617,7 @@ def bash_wrapper(
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, get_check_fucntion(custom_gulcalc_log_start, custom_gulcalc_log_finish))
+        print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
 
     # Script content
     yield
