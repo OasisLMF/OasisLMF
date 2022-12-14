@@ -597,7 +597,7 @@ def run(run_dir,
     return 0
 
 
-@njit(cache=True, fastmath=True)
+# @njit(cache=True, fastmath=True)
 def compute_event_losses(event_id,
                          coverages,
                          coverage_ids,
@@ -745,33 +745,54 @@ def compute_event_losses(event_id,
                 # aggregate case
                 weighted_vuln_to = weighted_vuln_to_empty * 0.
                 # logger.info(f"{weighted_vuln_to_empty}")
-                tot_weights = 0
+                tot_weights = 0.
                 agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
 
-                for vuln_i in agg_vulns_idx:
-                    eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]
-                    eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_i)]
-                    sub_vuln_prob_to = eff_vuln_cdf[eff_vuln_cdf_i:eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins]
-                    Ndamage_bins = eff_vuln_cdf_Ndamage_bins
-                    # get_vuln_cdf ends
-                    weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
-                    tot_weights += weight
-                    # logger.info(f"weight={weight}, weight_type={type(weight)}, tot_weights={tot_weights}")
-                    weighted_vuln_to[:Ndamage_bins] += sub_vuln_prob_to[:Ndamage_bins] * weight
+                damage_bin_i = 0
+
+                cumsum = 0.
+                while damage_bin_i < Ndamage_bins_max:
+                    for vuln_i in agg_vulns_idx:
+                        eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]  # * can go in 1 dict
+                        eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_i)]  # * can go in 1 dict
+                        weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+
+                        if eff_vuln_cdf[eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins - 1] == 0.:
+                            # print(vuln_i, "empty cdf")
+                            # empty cdf
+                            continue
+
+                        if damage_bin_i == 0:
+                            cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i]
+                            tot_weights += weight  # * (damage_bin_i < 1)  # it only runs for damage_bin_i == 0
+
+                        elif damage_bin_i >= eff_vuln_cdf_Ndamage_bins:
+                            # this eff_vuln_cdf is finished
+                            cdf_bin = 0.
+                            # continue
+                        else:
+                            cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i] - eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i - 1]
+
+                        cumsum += cdf_bin * weight
+                        # print(cdf_bin, cumsum)
+                        # logger.info(f"weight={weight}, weight_type={type(weight)}, tot_weights={tot_weights}")
+
+                    weighted_vuln_to[damage_bin_i] = cumsum
                     # note: this requires that all the vulnerability functions in one aggregate must have the same number of damage bins.
                     # otherwise this will error  weighted_vuln_to may be ill defined
                     # (eg if different vuln_prob_to have different Ndamage_bins, they sum up at different bins in weighted_vuln_to.
                     # TODO: Q for Joh/Ben: is this an accurate expectation? if this is not a standard, checking this beforehand would be very useful.
 
-                weighted_vuln_to /= tot_weights
+                    # weighted_vuln_to /= tot_weights
 
-                i = 0
-                while weighted_vuln_to[i] < 0.999999940:
-                    i += 1
+                    damage_bin_i += 1
 
-                Ndamage_bins = i + 1
+                    if cumsum / tot_weights > 0.999999940:
+                        break
+
+                Ndamage_bins = damage_bin_i
                 eff_damag_cdf_Ndamage_bins = Ndamage_bins
-                eff_damag_cdf = weighted_vuln_to[:eff_damag_cdf_Ndamage_bins]
+                eff_damag_cdf = weighted_vuln_to[:eff_damag_cdf_Ndamage_bins] / tot_weights
 
             else:
                 vuln_i = vuln_dict[vulnerability_id]
@@ -1385,8 +1406,44 @@ if __name__ == '__main__':
     # )
 
     # # aggregate vulnerabilities
+    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+    #     .joinpath("assets").joinpath("test_model_4")
+
+    # run(
+    #     run_dir=test_dir,
+    #     ignore_file_type=set(),
+    #     file_in=test_dir.joinpath("input").joinpath('events.bin'),
+    #     file_out=test_dir.joinpath('gulpy_mc.bin'),
+    #     sample_size=10,
+    #     loss_threshold=0.,
+    #     alloc_rule=1,
+    #     debug=0,
+    #     random_generator=1,
+    #     ignore_correlation=True,
+    #     effective_damageability=False,
+    # )
+
+    # # aggregate vulnerabilities
+    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+    #     .joinpath("assets").joinpath("test_model_5")
+
+    # run(
+    #     run_dir=test_dir,
+    #     ignore_file_type=set(),
+    #     file_in=test_dir.joinpath("input").joinpath('events.bin'),
+    #     file_out=test_dir.joinpath('gulpy_mc.bin'),
+    #     sample_size=10,
+    #     loss_threshold=0.,
+    #     alloc_rule=1,
+    #     debug=0,
+    #     random_generator=1,
+    #     ignore_correlation=True,
+    #     effective_damageability=False,
+    # )
+
+    # # aggregate vulnerabilities
     test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
-        .joinpath("assets").joinpath("test_model_4")
+        .joinpath("assets").joinpath("test_model_6")
 
     run(
         run_dir=test_dir,

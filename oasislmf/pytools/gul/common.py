@@ -52,7 +52,7 @@ ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
 ITEM_MAP_KEY_TYPE_internal = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
 
 AGG_VULN_WEIGHTS_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.int32
+AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float64  # nb.types.int32
 
 # compute the relative size of oasis_float and areaperil_int vs int32
 oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize
