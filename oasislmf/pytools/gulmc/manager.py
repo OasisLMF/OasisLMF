@@ -304,7 +304,7 @@ def run(run_dir,
         try:
             # vulnerability_id and aggregate_vulnerability_id are remapped to the internal ids
             # using the vulnd_dict map that contains only the vulnerability_id used in this portfolio.
-            d = pd.read_csv(os.path.join(input_path, 'aggregate_vulnerability.csv'))
+            d = pd.read_csv(os.path.join(static_path, 'aggregate_vulnerability.csv'))
             d.astype({'aggregate_vulnerability_id': 'int32'})
 
             # TODO: problem: vulnerability_id that are used only as part of aggregate vulnerability_id will not be present in vuln_dict
@@ -329,7 +329,7 @@ def run(run_dir,
             try:
                 # TODO: in principle we should filter and add to ap_vuln_weights only if areaperil_id and vulnerability_
                 #       are used in this portfolio. Since the reader of weights.csv will change, I don't implement it now.
-                d2 = pd.read_csv(os.path.join(input_path, 'weights.csv'))
+                d2 = pd.read_csv(os.path.join(static_path, 'weights.csv'))
                 for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id']):
                     ap_vuln_weights[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['weight'].to_list()[0])
 
