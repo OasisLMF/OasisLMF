@@ -597,7 +597,7 @@ def run(run_dir,
     return 0
 
 
-# @njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def compute_event_losses(event_id,
                          coverages,
                          coverage_ids,
@@ -743,56 +743,59 @@ def compute_event_losses(event_id,
             # if aggregate: agg_eff_vuln_cdf needs to be computed
             if vulnerability_id in agg_vuln_to_vulns:
                 # aggregate case
-                weighted_vuln_to = weighted_vuln_to_empty * 0.
-                # logger.info(f"{weighted_vuln_to_empty}")
+                weighted_vuln_to = weighted_vuln_to_empty
                 tot_weights = 0.
                 agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
 
+                # here we use loop-unrolling for a more performant code.
+                # we explicitly run the first cycle for damage_bin_i=0 to cache eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight
+                # that are retrieved through O(1) but costly get calls to numba typed Dict.
+                # also, we filter out the empty cdfs, i.e. the effective cdfs that are completely zero because hazard intensity does not
+                # overlap with vulnerability intensity bins; by filtering them once, we can avoid checking multiple times.
                 damage_bin_i = 0
-
                 cumsum = 0.
-                while damage_bin_i < Ndamage_bins_max:
-                    for vuln_i in agg_vulns_idx:
-                        eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]  # * can go in 1 dict
-                        eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_i)]  # * can go in 1 dict
-                        weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                tmp_cache = []
+                for vuln_i in agg_vulns_idx:
+                    eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]  # * can go in 1 dict
+                    eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vuln_i)]  # * can go in 1 dict
+                    weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
 
-                        if eff_vuln_cdf[eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins - 1] == 0.:
-                            # print(vuln_i, "empty cdf")
-                            # empty cdf
-                            continue
+                    if eff_vuln_cdf[eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins - 1] == 0.:
+                        # empty cdf, filter out
+                        continue
 
-                        if damage_bin_i == 0:
-                            cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i]
-                            tot_weights += weight  # * (damage_bin_i < 1)  # it only runs for damage_bin_i == 0
+                    tmp_cache.append((eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight))
+                    cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i]
+                    tot_weights += weight
+                    cumsum += cdf_bin * weight
 
-                        elif damage_bin_i >= eff_vuln_cdf_Ndamage_bins:
-                            # this eff_vuln_cdf is finished
-                            cdf_bin = 0.
-                            # continue
-                        else:
-                            cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i] - eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i - 1]
+                weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
+                damage_bin_i += 1
 
-                        cumsum += cdf_bin * weight
-                        # print(cdf_bin, cumsum)
-                        # logger.info(f"weight={weight}, weight_type={type(weight)}, tot_weights={tot_weights}")
+                # continue with the next bins, if necessary
+                if cumsum / tot_weights <= 0.999999940:
+                    while damage_bin_i < Ndamage_bins_max:
+                        for tmp_cache_ in tmp_cache:
+                            eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight = tmp_cache_
 
-                    weighted_vuln_to[damage_bin_i] = cumsum
-                    # note: this requires that all the vulnerability functions in one aggregate must have the same number of damage bins.
-                    # otherwise this will error  weighted_vuln_to may be ill defined
-                    # (eg if different vuln_prob_to have different Ndamage_bins, they sum up at different bins in weighted_vuln_to.
-                    # TODO: Q for Joh/Ben: is this an accurate expectation? if this is not a standard, checking this beforehand would be very useful.
+                            if damage_bin_i >= eff_vuln_cdf_Ndamage_bins:
+                                # this eff_vuln_cdf is finished
+                                cdf_bin = 0.
+                            else:
+                                cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i] - eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i - 1]
+                                cdf_bin *= weight
 
-                    # weighted_vuln_to /= tot_weights
+                            cumsum += cdf_bin
 
-                    damage_bin_i += 1
+                        weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
+                        damage_bin_i += 1
 
-                    if cumsum / tot_weights > 0.999999940:
-                        break
+                        if cumsum / tot_weights > 0.999999940:
+                            break
 
                 Ndamage_bins = damage_bin_i
                 eff_damag_cdf_Ndamage_bins = Ndamage_bins
-                eff_damag_cdf = weighted_vuln_to[:eff_damag_cdf_Ndamage_bins] / tot_weights
+                eff_damag_cdf = weighted_vuln_to[:eff_damag_cdf_Ndamage_bins]
 
             else:
                 vuln_i = vuln_dict[vulnerability_id]
@@ -883,6 +886,7 @@ def compute_event_losses(event_id,
                             weighted_vuln_to = weighted_vuln_to_empty * 0
                             tot_weights = 0
                             agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
+
                             for vuln_i in agg_vulns_idx:
                                 lookup_key = tuple((vuln_i, haz_bin_idx))
                                 if lookup_key in cached_vuln_cdf_lookup:
@@ -892,6 +896,7 @@ def compute_event_losses(event_id,
 
                                 else:
                                     # cdf has to be computed
+                                    # TODO update algorithm to use the validated algorithm that we use for effective damageability
 
                                     # get vulnerability function for the sampled intensity_bin
                                     vuln_prob = vuln_array[vuln_i, :, haz_int_bin_idx - 1]
