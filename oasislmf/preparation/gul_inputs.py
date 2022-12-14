@@ -330,6 +330,8 @@ def get_gul_input_items(
     gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks)
     gul_inputs_df[terms_found].fillna(0., inplace=True)
     gul_inputs_df = gul_inputs_df.sort_index().reset_index(drop=True)
+    term_int_found = list(set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints)))
+    gul_inputs_df[term_int_found] = gul_inputs_df[term_int_found].fillna(0)
     # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
