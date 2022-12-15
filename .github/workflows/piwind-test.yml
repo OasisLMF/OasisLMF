@@ -47,6 +47,11 @@ on:
         description: 'Build the oasislmf package for worker installation [true, false]'
         required: false
         default: false
+      ods_branch:
+        description: 'Build ods_tools package before test [git ref]'
+        required: false
+        type: string
+
 
 jobs:
   build:
@@ -56,13 +61,21 @@ jobs:
     with:
       ktools_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ktools_branch }}
 
+  ods_tools:
+    #if: inputs.ods_branch != '' ## TESTING ONLY
+    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
+    secrets: inherit
+    with:
+      ods_branch: 'feature/oed_interface'  ## TESTING ONLY
+      #ods_branch: ${{ inputs.ods_branch }}
+
   piwind:
     if: ${{ ! failure() || ! cancelled() }}
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
     secrets: inherit
-    needs: [build]
+    needs: [build, ods_tools]
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
-      oasislmf_branch: ${{ github.ref }}
+      ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
       platform_version: ${{ github.event_name != 'workflow_dispatch' && 'latest' ||  inputs.platform_version }}
