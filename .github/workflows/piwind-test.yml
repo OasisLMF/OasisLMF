@@ -66,5 +66,6 @@ jobs:
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
+      oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
       platform_version: ${{ github.event_name != 'workflow_dispatch' && 'latest' ||  inputs.platform_version }}
