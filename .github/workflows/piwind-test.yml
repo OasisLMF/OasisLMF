@@ -8,11 +8,7 @@
 #
 #   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
 #
-#   build_oasislmf: Either 'true' or 'false', when set to true then build the oasislmf package from the current
-#                   branch and install to a model_worker for running the tests. If not set pip install the current
-#                   branch using git.
-#
-#   ktools_branch: The git reference to a ktools branch, If 'build_oasislmf=true' and a ktools reference is set, then
+#   ktools_branch: The git reference to a ktools branch, If a ktools reference is set, then
 #                  also build ktools and use the binaries when building the oasislmf package.
 
 name: PiWind output check
@@ -43,10 +39,6 @@ on:
         description: 'If building oasislmf, also build ktools [git ref]'
         required: false
         default: true
-      build_oasislmf:
-        description: 'Build the oasislmf package for worker installation [true, false]'
-        required: false
-        default: false
       ods_branch:
         description: 'Build ods_tools package before test [git ref]'
         required: false
@@ -55,7 +47,6 @@ on:
 
 jobs:
   build:
-    if: inputs.build_oasislmf == 'true'
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
