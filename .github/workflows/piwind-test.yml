@@ -34,14 +34,12 @@ on:
       piwind_branch:
         description: 'Branch to run PiWind from [git ref]'
         required: true
-        default: develop
       ktools_branch:
         description: 'Build ktools [git ref]'
         required: false
-        default: true
       ods_branch:
         description: 'Build ods_tools package before test [git ref]'
-        required: false
+        required: true
         type: string
 
 jobs:
