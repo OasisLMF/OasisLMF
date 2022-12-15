@@ -42,5 +42,5 @@ jobs:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'feature/oed_interface' || inputs.piwind_branch }} # TESTING
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'feature/oed_interface' || inputs.ods_branch }} # TESTING
       #ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
