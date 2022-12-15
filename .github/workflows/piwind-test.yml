@@ -20,10 +20,6 @@ on:
       - develop
       - backports**
   pull_request:
-    branches:
-      - master
-      - develop
-      - backports**
 
   workflow_dispatch:
     inputs:
