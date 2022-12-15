@@ -36,8 +36,7 @@ on:
 
 jobs:
   PiWind:
-    #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
-    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@hotfix/build-ods-package # TESTING
+    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@master
     with:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}

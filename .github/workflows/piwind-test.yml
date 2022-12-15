@@ -59,8 +59,7 @@ jobs:
 
   piwind:
     if: ${{ ! failure() || ! cancelled() }}
-    #uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@hotfix/build-ods-package   # TESTING
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
     secrets: inherit
     needs: [build, ods_tools]
     with:
