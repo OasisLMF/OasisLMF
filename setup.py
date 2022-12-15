@@ -378,6 +378,7 @@ setup(
             'modelpy=oasislmf.pytools.modelpy:main',
             'cdftocsvpy=oasislmf.pytools.cdftocsv:main',
             'gulpy=oasislmf.pytools.gulpy:main',
+            'gulmc=oasislmf.pytools.gulmc.cli:main',
             'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",

@@ -13,17 +13,18 @@ import sys
 from contextlib import ExitStack
 
 import numba as nb
+from numba.typed import Dict
 import numpy as np
 import pyarrow.parquet as pq
-from numba.typed import Dict
+from oasislmf.pytools.common import PIPE_CAPACITY
 
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from .common import areaperil_int, oasis_float, Index_type, Keys
-from .footprint import Footprint
+from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float, Index_type, Keys
+from oasislmf.pytools.getmodel.footprint import Footprint
 
 logger = logging.getLogger(__name__)
 
-buff_size = 65536
+buff_size = PIPE_CAPACITY
 
 oasis_int_dtype = np.dtype('i4')
 oasis_int = np.int32
@@ -317,7 +318,8 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                 vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                                 num_damage_bins, num_intensity_bins)
             else:
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=Vulnerability, offset=4, mode='r')
+                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
+                                      dtype=Vulnerability, offset=4, mode='r')
                 vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
@@ -362,7 +364,7 @@ def get_damage_bins(static_path, ignore_file_type=set()):
         return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
-        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)
+        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv, skip_header=1, delimiter=',')
     else:
         raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
@@ -371,13 +373,15 @@ def get_damage_bins(static_path, ignore_file_type=set()):
 def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     """
     Calculate the probability of an event happening and then causing damage.
+    Note: vulns is a 1-d array containing 1 damage bin of the damage probability distribution as a
+    function of hazard intensity.
 
     Args:
         p: (float) the probability to be updated
-        intensities_min: (int) intensity minimum
-        intensities_max: (int) intensity maximum
-        vulns: (List[float]) PLEASE FILL IN
-        intensities: (List[float]) list of all the intensities
+        intensities_min: (int) minimum intensity bin id
+        intensities_max: (int) maximum intensity bin id
+        vulns: (List[float]) slice of damage probability distribution given hazard intensity
+        intensities: (List[float]) intensity probability distribution
 
     Returns: (float) the updated probability
     """
@@ -402,9 +406,9 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
         mean_damage_bins: (List[float]) the mean of each damage bin (len(mean_damage_bins) == num_damage_bins)
         int32_mv: (List[int]) FILL IN LATER
         num_damage_bins: (int) number of damage bins in the data
-        intensities_min: (int) intensity minimum
-        intensities_max: (int) intensity maximum
-        intensities: (List[float]) list of all the intensities
+        intensities_min: (int) minimum intensity bin id
+        intensities_max: (int) maximum intensity bin id
+        intensities: (List[float]) intensity probability distribution
         event_id: (int) the event ID that concerns the result being calculated
         areaperil_id: (List[int]) the areaperil ID that concerns the result being calculated
         vuln_i: (int) the index concerning the vulnerability inside the vuln_array
@@ -540,6 +544,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         file_out: (Optional[str]) the path to the output directory
         ignore_file_type: set(str) file extension to ignore when loading
         data_server: (bool) if set to True runs the data server
+        peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
 
     Returns: None
     """
@@ -573,7 +578,8 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         if peril_filter:
             keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
             valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-            logger.debug(f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+            logger.debug(
+                f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
         else:
             valid_area_peril_id = None
 
@@ -599,9 +605,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
         # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
         max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size
-
         mv = memoryview(bytearray(buff_size))
-
         int32_mv = np.ndarray(buff_size // np.int32().itemsize, buffer=mv, dtype=np.int32)
 
         # header
@@ -613,13 +617,18 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
             if len_read == 0:
                 break
 
+            # get the next event_id from the input stream
+            event_id = event_ids[0]
+
             if data_server:
-                event_footprint = FootprintLayerClient.get_event(event_ids[0])
+                event_footprint = FootprintLayerClient.get_event(event_id)
             else:
-                event_footprint = footprint_obj.get_event(event_ids[0])
+                event_footprint = footprint_obj.get_event(event_id)
 
             if event_footprint is not None:
-                for cursor_bytes in doCdf(event_ids[0],
+                # compute effective damageability probability distribution
+                # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
+                for cursor_bytes in doCdf(event_id,
                                           num_intensity_bins, event_footprint,
                                           areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
                                           vuln_array, vulns_id, num_damage_bins, mean_damage_bins,

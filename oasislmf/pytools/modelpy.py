@@ -1,6 +1,8 @@
 import argparse
 import logging
 
+from oasislmf import __version__ as oasis_version
+
 from .getmodel import manager, logger
 
 
@@ -13,6 +15,7 @@ parser.add_argument('--data-server', help='=Use tcp/sockets for IPC data sharing
 parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty take all perils', nargs='+')
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
+parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 
 
 def main() -> None:
