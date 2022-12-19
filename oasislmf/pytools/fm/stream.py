@@ -28,7 +28,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-#gul_header = np.int32(1 << 24).tobytes()
+# gul_header = np.int32(1 << 24).tobytes()
 fm_header = np.int32(1 | 2 << 24).tobytes()
 
 
@@ -215,7 +215,7 @@ def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes
             output_id = output_array[node['output_ids'] + layer]
             if output_id:  # if output is not in xref output_id is 0
                 loss_index = loss_indexes[node['ba'] + layer]
-                #print(computes[compute_i], output_id, loss_index, losses[loss_index])
+                # print(computes[compute_i], output_id, loss_index, losses[loss_index])
                 while cursor < nb_values:
                     if i_index == 0:
                         event_agg[cursor]['event_id'], event_agg[cursor]['agg_id'] = event_id, output_id
