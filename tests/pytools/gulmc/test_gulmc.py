@@ -3,12 +3,16 @@ This file tests gulmc functionality
 """
 import filecmp
 import os
+import subprocess
 from pathlib import Path
-import pytest
 from tempfile import TemporaryDirectory
 from typing import Tuple
 
+import pandas as pd
+import pytest
+
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from oasislmf.pytools.utils import assert_allclose
 
 # get tests dirs
 TESTS_DIR = Path(__file__).parent.parent.parent
@@ -31,7 +35,7 @@ def generate_expected(request):
     return request.config.getoption('--generate-expected')
 
 
-@pytest.mark.parametrize("test_model", test_models_dirs)
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))])
 @pytest.mark.parametrize("sample_size", sample_sizes)
 @pytest.mark.parametrize("alloc_rule", alloc_rules)
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations)
@@ -75,16 +79,16 @@ def test_gulmc(test_model: Tuple[str, str],
 
         ref_out_bin_fname = tmp_result_dir.joinpath("expected").joinpath(
             f'exp_res_{test_model_name}_a{alloc_rule}_S{sample_size}_L0_ign_corr{ignore_correlation}_'
-            f'rng{random_generator}_eff_damag{effective_damageability}.bin'
+            f'rng{random_generator}_eff_damag{effective_damageability}'
         )
 
         # run gulmc
-        test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}.bin')
+        test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}')
         run_gulmc(
             run_dir=tmp_result_dir,
             ignore_file_type=set(),
             file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-            file_out=ref_out_bin_fname if generate_expected else test_out_bin_fname,
+            file_out=ref_out_bin_fname.with_suffix('.bin') if generate_expected else test_out_bin_fname.with_suffix('.bin'),
             sample_size=sample_size,
             loss_threshold=0.,
             alloc_rule=alloc_rule,
@@ -95,10 +99,27 @@ def test_gulmc(test_model: Tuple[str, str],
         )
 
         if not generate_expected:
-            assert filecmp.cmp(test_out_bin_fname, ref_out_bin_fname, shallow=False)
+            try:
+                assert filecmp.cmp(test_out_bin_fname.with_suffix('.bin'), ref_out_bin_fname.with_suffix('.bin'), shallow=False)
+
+            except AssertionError:
+                # if the test fails, convert the binaries to csv, compare them, and print the differences in the `loss` column
+
+                # convert to csv
+                subprocess.run(f"gultocsv < {ref_out_bin_fname.with_suffix('.bin')} > {ref_out_bin_fname.with_suffix('.csv')}",
+                               check=True, capture_output=False, shell=True)
+
+                subprocess.run(f"gultocsv < {test_out_bin_fname.with_suffix('.bin')} > {test_out_bin_fname.with_suffix('.csv')}",
+                               check=True, capture_output=False, shell=True)
+
+                df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
+                df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
+
+                # compare the `loss` columns
+                assert_allclose(df_ref['loss'], df_test['loss'], x_name='expected', y_name='test')
 
 
-@pytest.mark.parametrize("test_model", test_models_dirs)
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))])
 @pytest.mark.parametrize("sample_size", sample_sizes)
 @pytest.mark.parametrize("alloc_rule", alloc_rules)
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations)
@@ -154,7 +175,7 @@ def test_debug_flag(test_model: Tuple[str, str],
     assert f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}" == str(e.value)
 
 
-@pytest.mark.parametrize("test_model", test_models_dirs)
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))])
 @pytest.mark.parametrize("sample_size", sample_sizes)
 @pytest.mark.parametrize("alloc_rule", [-2, -1, 4, 5, 6, 7, 8, 9, 10])
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations)
