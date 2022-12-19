@@ -145,7 +145,7 @@ def test_debug_flag(test_model: Tuple[str, str],
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
     """
-    test_model_name, test_model_dir_str = test_model
+    _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
     with pytest.raises(ValueError) as e:
@@ -197,7 +197,7 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
     """
-    test_model_name, test_model_dir_str = test_model
+    _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
     with pytest.raises(ValueError) as e:
