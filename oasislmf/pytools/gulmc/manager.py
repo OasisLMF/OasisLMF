@@ -727,14 +727,6 @@ def compute_event_losses(event_id,
             hazcdf_i = item['hazcdf_i']
             # hazcdf_i = areaperil_to_haz_cdf[areaperil_id]
 
-            # eff_vuln_cdf_i and eff_vuln_cdf_Ndamage_bins are two integers that define 1 vulnerability cdf
-            # therefore, for aggregate vuln, there are N pairs (eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins)
-            # if the aggregate vulnerability is made of N sub-vulnerability
-            # eff_vuln_cdf_i = item['eff_vuln_cdf_i']
-            # eff_vuln_cdf_i = areaperil_to_eff_vuln_cdf[(areaperil_id, vulnerability_id)]
-            # # eff_vuln_cdf_Ndamage_bins = item['eff_vuln_cdf_Ndamage_bins']
-            # eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf_Ndamage_bins[(areaperil_id, vulnerability_id)]
-
             # get the hazard cdf
             haz_prob_to = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
             Nbins = len(haz_prob_to)
@@ -761,13 +753,15 @@ def compute_event_losses(event_id,
                     weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
 
                     if eff_vuln_cdf[eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins - 1] == 0.:
-                        # empty cdf, filter out
-                        continue
+                        # the cdf is all zeros, i.e. probability of no loss is 100%
+                        # store it as (weighted) 1.0 in the first damage bin and do not include it in the next bins.
+                        pdf_bin = weight
+                    else:
+                        pdf_bin = eff_vuln_cdf[eff_vuln_cdf_i] * weight
+                        tmp_cache.append((eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight))
 
-                    tmp_cache.append((eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight))
-                    cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i]
                     tot_weights += weight
-                    cumsum += cdf_bin * weight
+                    cumsum += pdf_bin
 
                 weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
                 damage_bin_i += 1
@@ -780,17 +774,17 @@ def compute_event_losses(event_id,
 
                             if damage_bin_i >= eff_vuln_cdf_Ndamage_bins:
                                 # this eff_vuln_cdf is finished
-                                cdf_bin = 0.
+                                pdf_bin = 0.
                             else:
-                                cdf_bin = eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i] - eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i - 1]
-                                cdf_bin *= weight
+                                pdf_bin = eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i] - eff_vuln_cdf[eff_vuln_cdf_i + damage_bin_i - 1]
+                                pdf_bin *= weight
 
-                            cumsum += cdf_bin
+                            cumsum += pdf_bin
 
                         weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
                         damage_bin_i += 1
 
-                        if cumsum / tot_weights > 0.999999940:
+                        if weighted_vuln_to[damage_bin_i - 1] > 0.999999940:
                             break
 
                 Ndamage_bins = damage_bin_i
@@ -877,104 +871,70 @@ def compute_event_losses(event_id,
 
                         # 2) get the hazard cdf
                         cdf_start_in_footprint = haz_prob_rec_idx_ptr[hazcdf_i]
-                        haz_int_bin_idx = event_footprint[cdf_start_in_footprint + haz_bin_idx]['intensity_bin_id']
+                        haz_int_bin_id = event_footprint[cdf_start_in_footprint + haz_bin_idx]['intensity_bin_id']
                         # TODO instead of using event_footprint, it may be better to store the intensity_bin_id in haz_cdf as ndarray
 
                         # 3) get the vulnerability cdf
+                        # if aggregate: agg_eff_vuln_cdf needs to be computed
                         if vulnerability_id in agg_vuln_to_vulns:
                             # aggregate case
-                            weighted_vuln_to = weighted_vuln_to_empty * 0
-                            tot_weights = 0
                             agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
+                            weighted_vuln_to = weighted_vuln_to_empty
 
-                            for vuln_i in agg_vulns_idx:
-                                lookup_key = tuple((vuln_i, haz_bin_idx))
-                                if lookup_key in cached_vuln_cdf_lookup:
-                                    # cdf was computed already
-                                    start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
-                                    vuln_prob_to = cached_vuln_cdfs[start, :Ndamage_bins]
-
-                                else:
-                                    # cdf has to be computed
-                                    # TODO update algorithm to use the validated algorithm that we use for effective damageability
-
-                                    # get vulnerability function for the sampled intensity_bin
-                                    vuln_prob = vuln_array[vuln_i, :, haz_int_bin_idx - 1]
-
-                                    # of length such that the only the last element is 1.
-                                    # in principle we could store directly in cached_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_cached_vuln_cdfs
-                                    vuln_prob_to = vuln_cdf_empty
-                                    Ndamage_bins = nb_int32(0)
-                                    cumsum = 0
-                                    while Ndamage_bins < Ndamage_bins_max:
-                                        cumsum += vuln_prob[Ndamage_bins]
-                                        vuln_prob_to[Ndamage_bins] = cumsum
-                                        Ndamage_bins += 1
-                                        if cumsum > 0.999999940:
-                                            break
-
-                                    if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
-                                        # overwriting
-                                        cached_vuln_cdf_lookup.pop(lookup_keys[next_cached_vuln_cdf])
-
-                                    cached_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
-                                    cached_vuln_cdf_lookup[lookup_key] = tuple((next_cached_vuln_cdf, Ndamage_bins))
-                                    lookup_keys[next_cached_vuln_cdf] = lookup_key
-                                    next_cached_vuln_cdf += 1
-                                    next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
-
-                                # get_vuln_cdf ends
-                                weight = ap_vuln_idx_weights[(areaperil_id, vuln_i)]
+                            tot_weights = 0.
+                            weights_buf = []
+                            for j, vuln_i in enumerate(agg_vulns_idx):
+                                weights_buf.append(np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)]))
                                 tot_weights += weight
-                                weighted_vuln_to[:Ndamage_bins] += vuln_prob_to[:Ndamage_bins] * weight
-                                # note: this requires that all the vulnerability functions in one aggregate must have the same number of damage bins.
-                                # otherwise this will error  weighted_vuln_to may be ill defined
-                                # (eg if different vuln_prob_to have different Ndamage_bins, they sum up at different bins in weighted_vuln_to.
-                                # Q for Joh/Ben: is this an accurate expectation? if this is not a standard, checking this beforehand would be very useful.
 
-                            weighted_vuln_to /= tot_weights
+                            damage_bin_i = 0
+                            cumsum = 0.
+                            while damage_bin_i < Ndamage_bins_max:
+                                for j, vuln_i in enumerate(agg_vulns_idx):
+                                    # weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                                    # tot_weights += weight * (damage_bin_i < 1)
+                                    cumsum += vuln_array[vuln_i, damage_bin_i, haz_int_bin_id - 1] * weights_buf[j]
 
-                            i = 0
-                            while weighted_vuln_to[i] < 0.999999940:
-                                i += 1
+                                weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
+                                damage_bin_i += 1
 
-                            Ndamage_bins = i + 1
-                            vuln_prob_to = weighted_vuln_to
+                                if weighted_vuln_to[damage_bin_i - 1] > 0.999999940:
+                                    break
+
+                            Ndamage_bins = damage_bin_i
+                            vuln_prob_to = weighted_vuln_to[:Ndamage_bins]
 
                         else:
                             # non-aggregate case
-                            # using `get_vuln_cdf` function make the whole run take 50% more time vs having the function inline!!!
-                            # vuln_prob_to, Ndamage_bins, last_cdf_entry = get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
-                            #                                                           Ndamage_bins_max, last_cdf_entry, cached_vuln_cdfs)
+                            # vuln_i = vuln_dict[vulnerability_id]
+                            # vuln_prob_to, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(
+                            #     vuln_i, haz_bin_idx, haz_int_bin_id, cached_vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
+                            #     Ndamage_bins_max, cached_vuln_cdfs, lookup_keys, next_cached_vuln_cdf)
 
-                            # or inlined version of get_vuln_cdf
                             vuln_i = vuln_dict[vulnerability_id]
                             lookup_key = tuple((vuln_i, haz_bin_idx))
                             if lookup_key in cached_vuln_cdf_lookup:
-                                # cdf was computed already
+                                # cdf is stored in cache
                                 start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
                                 vuln_prob_to = cached_vuln_cdfs[start, :Ndamage_bins]
 
                             else:
                                 # cdf has to be computed
-
-                                # get vulnerability function for the sampled intensity_bin
-                                vuln_prob = vuln_array[vuln_i, :, haz_int_bin_idx - 1]
-
-                                # of length such that the only the last element is 1.
-                                # in principle we could store directly in cached_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_cached_vuln_cdfs
                                 vuln_prob_to = vuln_cdf_empty
-                                Ndamage_bins = nb_int32(0)
+                                damage_bin_i = nb_int32(0)
                                 cumsum = 0
-                                while Ndamage_bins < Ndamage_bins_max:
-                                    cumsum += vuln_prob[Ndamage_bins]
-                                    vuln_prob_to[Ndamage_bins] = cumsum
-                                    Ndamage_bins += 1
+                                while damage_bin_i < Ndamage_bins_max:
+                                    cumsum += vuln_array[vuln_i, damage_bin_i, haz_int_bin_id - 1]
+                                    vuln_prob_to[damage_bin_i] = cumsum
+                                    damage_bin_i += 1
+
                                     if cumsum > 0.999999940:
                                         break
 
+                                Ndamage_bins = damage_bin_i
+
                                 if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
-                                    # overwriting
+                                    # overwrite cache
                                     cached_vuln_cdf_lookup.pop(lookup_keys[next_cached_vuln_cdf])
 
                                 cached_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
@@ -983,7 +943,7 @@ def compute_event_losses(event_id,
                                 next_cached_vuln_cdf += 1
                                 next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
 
-                            # draw samples of damage from the vulnerability function
+                    # draw samples of damage from the vulnerability function
                     vuln_rval = vuln_rndms[sample_idx - 1]
 
                     if debug == 2:
@@ -1031,49 +991,45 @@ def compute_event_losses(event_id,
             next_cached_vuln_cdf)
 
 
-@njit(cache=True, fastmath=True, inline='always')
-def get_vuln_cdf(vulnerability_id, haz_bin_idx, haz_int_bin_idx, vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
-                 Ndamage_bins_max, last_cdf_entry, cached_vuln_cdfs):
+@njit(cache=True, fastmath=True)
+def get_vuln_cdf(vuln_i, haz_bin_idx, haz_int_bin_id, cached_vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
+                 Ndamage_bins_max, cached_vuln_cdfs, lookup_keys, next_cached_vuln_cdf):
 
-    vuln_cdf_entry = vuln_cdf_lookup[vulnerability_id, haz_bin_idx]
-    if vuln_cdf_entry['length'] > 0:
+    lookup_key = tuple((vuln_i, haz_bin_idx))
+    if lookup_key in cached_vuln_cdf_lookup:
         # cdf was computed already
-        Ndamage_bins = vuln_cdf_entry['length']
-        vuln_prob_to = cached_vuln_cdfs[vuln_cdf_entry['start']:vuln_cdf_entry['start'] + Ndamage_bins]
+        start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
+        vuln_prob_to = cached_vuln_cdfs[start, :Ndamage_bins]
 
     else:
         # cdf has to be computed
 
-        # get vulnerability function for the sampled intensity_bin
-        vuln_prob = vuln_array[vulnerability_id, :, haz_int_bin_idx - 1]
-
         # of length such that the only the last element is 1.
         # in principle we could store directly in cached_vuln_cdfs if last_cdf_entry + Ndamage_bins_max < len_cached_vuln_cdfs
         vuln_prob_to = vuln_cdf_empty
-        Ndamage_bins = 0
+        damage_bin_i = 0
         cumsum = 0
-        while Ndamage_bins < Ndamage_bins_max:
-            cumsum += vuln_prob[Ndamage_bins]
-            vuln_prob_to[Ndamage_bins] = cumsum
-            Ndamage_bins += 1
+        while damage_bin_i < Ndamage_bins_max:
+            cumsum += vuln_array[vuln_i, damage_bin_i, haz_int_bin_id - 1]
+            vuln_prob_to[damage_bin_i] = cumsum
+            damage_bin_i += 1
+
             if cumsum > 0.999999940:
                 break
 
-        while last_cdf_entry + Ndamage_bins > cached_vuln_cdfs.shape[0]:
-            # if last_cdf_entry + Ndamage_bins > len_cached_vuln_cdfs:
-            # need to make the array bigger
-            new_cached_vuln_cdfs = np.empty(2 * cached_vuln_cdfs.shape[0], dtype=cached_vuln_cdfs.dtype)
-            new_cached_vuln_cdfs[:last_cdf_entry] = cached_vuln_cdfs[:last_cdf_entry]
-            cached_vuln_cdfs = new_cached_vuln_cdfs
+        Ndamage_bins = damage_bin_i
 
-        cached_vuln_cdfs[last_cdf_entry:last_cdf_entry + Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
+        if lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
+            # overwrite cache
+            cached_vuln_cdf_lookup.pop(lookup_keys[next_cached_vuln_cdf])
 
-        vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['start'] = last_cdf_entry
-        vuln_cdf_lookup[vulnerability_id, haz_bin_idx]['length'] = Ndamage_bins
+        cached_vuln_cdfs[next_cached_vuln_cdf, :Ndamage_bins] = vuln_prob_to[:Ndamage_bins]
+        cached_vuln_cdf_lookup[lookup_key] = tuple((next_cached_vuln_cdf, Ndamage_bins))
+        lookup_keys[next_cached_vuln_cdf] = lookup_key
+        next_cached_vuln_cdf += 1
+        next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
 
-        last_cdf_entry += Ndamage_bins
-
-    return vuln_prob_to, Ndamage_bins, last_cdf_entry
+    return vuln_prob_to, Ndamage_bins, next_cached_vuln_cdf
 
 
 @njit(cache=True, fastmath=True)
