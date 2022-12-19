@@ -138,7 +138,7 @@ class Genbash(TestCase):
         )
 
         # debug
-        #print(json.dumps(params, indent=4))
+        # print(json.dumps(params, indent=4))
 
         fifo_tmp_dir = params['fifo_tmp_dir']
         for process_id in range(num_partitions):

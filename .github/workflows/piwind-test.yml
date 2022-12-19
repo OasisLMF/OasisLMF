@@ -10,7 +10,6 @@
 #
 #   ktools_branch: The git reference to a ktools branch, If a ktools reference is set, then
 #                  also build ktools and use the binaries when building the oasislmf package.
-
 name: PiWind output check
 
 on:

@@ -32,12 +32,10 @@ jobs:
       ktools_branch: ${{ inputs.ktools_branch }}
 
   ods_tools:
-    #if: inputs.ods_branch != '' ## TESTING ONLY
     uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
     secrets: inherit
     with:
-      ods_branch: 'feature/oed_interface'  ## TESTING ONLY
-      #ods_branch: ${{ inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }}
 
   unittest:
     if: ${{ ! failure() || ! cancelled() }}
