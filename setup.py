@@ -373,6 +373,7 @@ setup(
         'console_scripts': [
             'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
+            'dfcompare=oasislmf.pytools.dfcompare:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
             'modelpy=oasislmf.pytools.modelpy:main',
