@@ -52,7 +52,8 @@ jobs:
     uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix-store-relative-path' ||  inputs.ods_branch }}
+      #ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }}
 
   piwind:
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
