@@ -751,6 +751,18 @@ def compute_event_losses(event_id,
                     tot_weights += weight
                     cumsum += pdf_bin
 
+                if tot_weights == 0.:
+                    print("Impossible to compute the cdf of the following aggregate vulnerability_id because individual weights are all zero.\n"
+                          "Please double check the weights table for the areaperil_id listed below.")
+                    print("aggregate vulnerability_id=", vulnerability_id)
+                    print("individual vulnerability_ids=", agg_vulns_idx)
+                    print("item_id=", item['item_id'])
+                    print("event=", event_id)
+                    print("areaperil_id=", areaperil_id)
+                    print()
+                    raise ValueError(
+                        "Impossible to compute the cdf of the an aggregate vulnerability_id because individual weights are all zero.")
+
                 weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
 
                 # continue with the next bins, if necessary
@@ -866,8 +878,21 @@ def compute_event_losses(event_id,
                             tot_weights = 0.
                             used_weights = []
                             for j, vuln_i in enumerate(agg_vulns_idx):
-                                used_weights.append(np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)]))
+                                weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                                used_weights.append(weight)
                                 tot_weights += weight
+
+                            if tot_weights == 0.:
+                                print("Impossible to compute the cdf of the following aggregate vulnerability_id because individual weights are all zero.\n"
+                                      "Please double check the weights table for the areaperil_id listed below.")
+                                print("aggregate vulnerability_id=", vulnerability_id)
+                                print("individual vulnerability_ids=", agg_vulns_idx)
+                                print("item_id=", item['item_id'])
+                                print("event=", event_id)
+                                print("areaperil_id=", areaperil_id)
+                                print()
+                                raise ValueError(
+                                    "Impossible to compute the cdf of the an aggregate vulnerability_id because individual weights are all zero.")
 
                             # compute the weighted cdf
                             damage_bin_i = nb_int32(0)
