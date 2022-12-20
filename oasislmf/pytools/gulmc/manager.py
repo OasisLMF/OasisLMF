@@ -186,7 +186,7 @@ def read_items(input_path, ignore_file_type=set()):
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.genfromtxt(items_fname, dtype=Item, delimiter=",", skip_header=1)
+        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')

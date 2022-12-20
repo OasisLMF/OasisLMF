@@ -179,7 +179,7 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
         items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
-        items = np.genfromtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",", skip_header=1)
+        items = np.loadtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
@@ -326,7 +326,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
             logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
-            vuln_csv = np.genfromtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",", skip_header=1)
+            vuln_csv = np.loadtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
             vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
@@ -366,7 +366,7 @@ def get_damage_bins(static_path, ignore_file_type=set()):
         return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
-        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv, skip_header=1, delimiter=',')
+        return np.loadtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv, skiprows=1, delimiter=',', ndmin=1)
     else:
         raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
