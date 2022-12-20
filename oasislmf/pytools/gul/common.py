@@ -16,8 +16,6 @@ items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                           ('rng_index', np.int32)
                                           ]))
 
-# TODO: 'vulnerability_id' should be renamed to 'vulnerability_idx' because it is the
-#       index of vuln_array where the vulnerability function is stored.
 items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                              ('areaperil_id', areaperil_int),
                                              ('vulnerability_id', np.int32),
@@ -58,6 +56,9 @@ AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.int32
 # compute the relative size of oasis_float and areaperil_int vs int32
 oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize
 areaperil_int_to_int32_size = areaperil_int.itemsize // np.int32().itemsize
+
+haz_cdf_type = nb.from_dtype(np.dtype([('probability', oasis_float),
+                                       ('intensity_bin_id', np.int32)]))
 
 ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),
                                    ('bin_mean', oasis_float)
