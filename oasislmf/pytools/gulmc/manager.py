@@ -759,9 +759,9 @@ def compute_event_losses(event_id,
                     cumsum += pdf_bin
 
                 weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
+                damage_bin_i += 1
 
                 # continue with the next bins, if necessary
-                damage_bin_i = 1
                 if cumsum / tot_weights <= 0.999999940:
                     while damage_bin_i < Ndamage_bins_max:
                         for tmp_cache_ in sub_vuln_cache:
@@ -1077,10 +1077,8 @@ def process_areaperils_in_footprint(event_footprint,
                             if eff_vuln_cdf_cumsum > 0.999999940:
                                 break
 
-                        Ndamage_bins = damage_bin_i
-
-                        areaperil_to_eff_vuln_cdf[(last_areaperil_id, vuln_idx)] = (nb_int32(eff_vuln_cdf_start), nb_int32(Ndamage_bins))
-                        eff_vuln_cdf_start += Ndamage_bins
+                        areaperil_to_eff_vuln_cdf[(last_areaperil_id, vuln_idx)] = (nb_int32(eff_vuln_cdf_start), nb_int32(damage_bin_i))
+                        eff_vuln_cdf_start += damage_bin_i
 
                     haz_cdf_ptr.append(cdf_end)
                     cdf_start = cdf_end
@@ -1125,9 +1123,8 @@ def process_areaperils_in_footprint(event_footprint,
                 if eff_vuln_cdf_cumsum > 0.999999940:
                     break
 
-            Ndamage_bins = Ndamage_bins
-            areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_idx)] = (nb_int32(eff_vuln_cdf_start), nb_int32(Ndamage_bins))
-            eff_vuln_cdf_start += Ndamage_bins
+            areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_idx)] = (nb_int32(eff_vuln_cdf_start), nb_int32(damage_bin_i))
+            eff_vuln_cdf_start += damage_bin_i
 
         haz_cdf_ptr.append(cdf_end)
 
@@ -1230,7 +1227,10 @@ def reconstruct_coverages(event_id,
                 items_data[item_i]['areaperil_id'] = areaperil_id
                 items_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
                 items_data[item_i]['rng_index'] = this_rng_index
+                # TODO here we need to store vuln_id not, vuln_dict[vuln_id] because the aggregate vuln_id will have no entry in vuln_dict
                 items_data[item_i]['vulnerability_id'] = vuln_id
+                # items_data[item_i]['eff_vuln_cdf_i'] = areaperil_to_eff_vuln_cdf[item_key]
+                # items_data[item_i]['eff_vuln_cdf_Ndamage_bins'] = areaperil_to_eff_vuln_cdf_Ndamage_bins[item_key]
 
                 coverage['cur_items'] += 1
 
