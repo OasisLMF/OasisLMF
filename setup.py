@@ -198,9 +198,8 @@ class InstallKtoolsMixin(object):
                 ARCH = None
                 OS = None
 
-
-        # ENV OVERRIDE TO install a localy copy of ktools 
-        #TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', '')) 
+        # ENV OVERRIDE TO install a localy copy of ktools
+        # TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', ''))
 
         if os.getenv('KTOOLS_TAR_FILE_DIR', None):
             TAR_OVERRIDE = os.path.join(os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR')), '{}_{}.tar.gz'.format(OS, ARCH))
