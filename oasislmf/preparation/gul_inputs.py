@@ -362,7 +362,10 @@ def get_gul_input_items(
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
-    group_id_cols.sort()
+
+    # Keep group_id consistance by lower casing column names and sorting
+    group_id_cols_list = sorted([c.lower() for c in group_id_cols])  # list of case insessative column names
+    group_id_cols_map = {c: c.lower() for c in group_id_cols}         # mapping from PascalCase -> 'lower_case'
 
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
@@ -383,12 +386,12 @@ def get_gul_input_items(
 
     # this block gets fired if the hashed_group_id is True
     elif correlations is False:
-        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df.rename(columns=group_id_cols_map)[group_id_cols_list],
                                                                 index=False).to_numpy() >> 33)
     else:
         # do merge with peril correlation df
         gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
-        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df.rename(columns=group_id_cols_map)[group_id_cols_list],
                                                                 index=False).to_numpy() >> 33)
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
