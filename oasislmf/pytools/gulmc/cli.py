@@ -37,6 +37,8 @@ parser.add_argument('--data-server', help='=Use tcp/sockets for IPC data sharing
 parser.add_argument('--logging-level',
                     help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30',
                     default=30, type=int)
+parser.add_argument('--vuln-cache-size', help='Size in MB of the in-memory cache to store and reuse vulnerability cdf. Default: 200',
+                    default=200, action='store', type=int, dest='max_cached_vuln_cdf_size_MB')
 parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty take all perils',
                     nargs='+', dest='peril_filter')
 parser.add_argument('--random-generator',

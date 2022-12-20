@@ -207,6 +207,7 @@ def run(run_dir,
         data_server=None,
         ignore_correlation=False,
         effective_damageability=False,
+        max_cached_vuln_cdf_size_MB=200,
         **kwargs):
     """Execute the main gulmc worklow.
 
@@ -224,9 +225,9 @@ def run(run_dir,
         file_out (str, optional): filename of output stream. Defaults to None.
         data_server (bool, optional): if True, run the data server. Defaults to None.
         ignore_correlation (bool, optional): if True, do not compute correlated random samples. Defaults to False.
-        effective_damageability (bool): if True, it uses effective damageability to draw damage samples instead of
+        effective_damageability (bool, optional): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
-
+        max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory cache to store and reuse vulnerability cdf. Defaults to 200.
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
         ValueError: if alloc_rule is 1, 2, or 3 when debug is 1 or 2.
@@ -500,7 +501,6 @@ def run(run_dir,
             return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
         # define vulnerability cdf cache size
-        max_cached_vuln_cdf_size_MB = 200  # cache size in MB
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cahce size in bytes
         max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
         max_Nvulnerability_cached_vuln_cdf = max_Nnumbers_cached_vuln_cdf // Ndamage_bins_max  # max number of vulnerability funcions that can be stored in cache
