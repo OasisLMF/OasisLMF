@@ -364,6 +364,7 @@ def get_gul_input_items(
     # directly, otherwise create an index of the group id fields
 
     # Keep group_id consistance by lower casing column names and sorting
+    group_id_cols.sort()
     group_id_cols_list = sorted([c.lower() for c in group_id_cols])  # list of case insessative column names
     group_id_cols_map = {c: c.lower() for c in group_id_cols}         # mapping from PascalCase -> 'lower_case'
 
