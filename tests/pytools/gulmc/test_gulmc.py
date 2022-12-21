@@ -19,7 +19,7 @@ TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 
 # get all available test models
-test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.glob("test_model_*") if x.is_dir()]
+test_models_dirs = [(x.name, x) for x in sorted(TESTS_ASSETS_DIR.glob("test_model_*")) if x.is_dir()]
 
 # define the grid of model parameters to test
 sample_sizes = [0, 1, 10, 100, 1000]
@@ -35,12 +35,12 @@ def generate_expected(request):
     return request.config.getoption('--generate-expected')
 
 
-@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))])
-@pytest.mark.parametrize("sample_size", sample_sizes)
-@pytest.mark.parametrize("alloc_rule", alloc_rules)
-@pytest.mark.parametrize("ignore_correlation", ignore_correlations)
-@pytest.mark.parametrize("random_generator", random_generators)
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"ffective_damageability={str(x):5} ")
+@pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
+@pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
+@pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
+@pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
 def test_gulmc(test_model: Tuple[str, str],
                sample_size: int,
                alloc_rule: int,
@@ -140,13 +140,21 @@ def test_gulmc(test_model: Tuple[str, str],
                 # compare the `loss` columns
                 assert_allclose(df_ref['loss'], df_test['loss'], x_name='expected', y_name='test')
 
+                # remove temporary files
+                ref_out_bin_fname.with_suffix('.csv').unlink()
+                test_out_bin_fname.with_suffix('.csv').unlink()
 
-@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))])
-@pytest.mark.parametrize("sample_size", sample_sizes)
-@pytest.mark.parametrize("alloc_rule", alloc_rules)
-@pytest.mark.parametrize("ignore_correlation", ignore_correlations)
-@pytest.mark.parametrize("random_generator", random_generators)
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+            finally:
+                # remove temporary files
+                test_out_bin_fname.with_suffix('.bin').unlink()
+
+
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"ffective_damageability={str(x):5} ")
+@pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
+@pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
+@pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))], ids=lambda x: x[0])
 def test_debug_flag(test_model: Tuple[str, str],
                     sample_size: int,
                     alloc_rule: int,
@@ -196,13 +204,16 @@ def test_debug_flag(test_model: Tuple[str, str],
 
     assert f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}" == str(e.value)
 
+    # remove temporary file, if it was created
+    tmp_result_dir.joinpath('tmp.bin').unlink().unlink(missing_ok=True)
 
-@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))])
-@pytest.mark.parametrize("sample_size", sample_sizes)
-@pytest.mark.parametrize("alloc_rule", [-2, -1, 4, 5, 6, 7, 8, 9, 10])
-@pytest.mark.parametrize("ignore_correlation", ignore_correlations)
-@pytest.mark.parametrize("random_generator", random_generators)
+
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+@pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
+@pytest.mark.parametrize("alloc_rule", [-2, -1, 4, 5, 6, 7, 8, 9, 10], ids=lambda x: f"a{x} ")
+@pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))], ids=lambda x: x[0])
 def test_alloc_rule_value(test_model: Tuple[str, str],
                           sample_size: int,
                           alloc_rule: int,
@@ -247,3 +258,6 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
             )
 
     assert f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}" == str(e.value)
+
+    # remove temporary file, if it was created
+    tmp_result_dir.joinpath('tmp.bin').unlink(missing_ok=True)
