@@ -36,6 +36,7 @@ jobs:
           - { python-version: "3.7", pkg-version: "", upload-cov: false }
           - { python-version: "3.8", pkg-version: "", upload-cov: false }
           - { python-version: "3.9", pkg-version: "", upload-cov: false }
+          - { python-version: "3.10", pkg-version: "", upload-cov: false }
           - { python-version: "3.10", pkg-version: "", upload-cov: true }
 
     steps:
@@ -63,6 +64,10 @@ jobs:
         if: matrix.cfg.python-version == 3.7
         run: |
           echo "PIP_RESOLVER=--resolver=backtracking" >> $GITHUB_ENV
+      - name: Disable numba jit compilation when coverage is gathered
+        if: matrix.cfg.upload-cov == true
+        run: |
+          echo "NUMBA_DISABLE_JIT=1" >> $GITHUB_ENV
       - name: Pip Compile
         run: |
           rm -f requirements.txt
