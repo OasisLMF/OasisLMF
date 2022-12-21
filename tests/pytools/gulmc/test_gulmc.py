@@ -205,7 +205,7 @@ def test_debug_flag(test_model: Tuple[str, str],
     assert f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}" == str(e.value)
 
     # remove temporary file, if it was created
-    tmp_result_dir.joinpath('tmp.bin').unlink().unlink(missing_ok=True)
+    tmp_result_dir.joinpath('tmp.bin').unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities)
