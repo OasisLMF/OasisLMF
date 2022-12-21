@@ -106,11 +106,12 @@ def test_gulmc(test_model: Tuple[str, str],
 
         else:
             # run the test case
+            file_out = test_out_bin_fname.with_suffix('.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=test_out_bin_fname.with_suffix('.bin'),
+                file_out=file_out,
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
@@ -122,7 +123,7 @@ def test_gulmc(test_model: Tuple[str, str],
 
             # compare the test results to the expected results
             try:
-                assert filecmp.cmp(test_out_bin_fname.with_suffix('.bin'), ref_out_bin_fname.with_suffix('.bin'), shallow=False)
+                assert filecmp.cmp(file_out, ref_out_bin_fname.with_suffix('.bin'), shallow=False)
 
             except AssertionError:
                 # if the test fails, convert the binaries to csv, compare them, and print the differences in the `loss` column
@@ -131,7 +132,7 @@ def test_gulmc(test_model: Tuple[str, str],
                 subprocess.run(f"gultocsv < {ref_out_bin_fname.with_suffix('.bin')} > {ref_out_bin_fname.with_suffix('.csv')}",
                                check=True, capture_output=False, shell=True)
 
-                subprocess.run(f"gultocsv < {test_out_bin_fname.with_suffix('.bin')} > {test_out_bin_fname.with_suffix('.csv')}",
+                subprocess.run(f"gultocsv < {file_out} > {test_out_bin_fname.with_suffix('.csv')}",
                                check=True, capture_output=False, shell=True)
 
                 df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
@@ -146,7 +147,7 @@ def test_gulmc(test_model: Tuple[str, str],
 
             finally:
                 # remove temporary files
-                test_out_bin_fname.with_suffix('.bin').unlink()
+                file_out.unlink()
 
 
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"ffective_damageability={str(x):5} ")
@@ -188,11 +189,12 @@ def test_debug_flag(test_model: Tuple[str, str],
             os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
             # run gulmc
+            file_out = tmp_result_dir.joinpath('tmp.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=tmp_result_dir.joinpath('tmp.bin'),
+                file_out=file_out,
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
@@ -205,7 +207,8 @@ def test_debug_flag(test_model: Tuple[str, str],
     assert f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}" == str(e.value)
 
     # remove temporary file, if it was created
-    tmp_result_dir.joinpath('tmp.bin').unlink(missing_ok=True)
+    if file_out.exists():
+        file_out.unlink()
 
 
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities)
@@ -243,11 +246,12 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
             os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
             # run gulmc
+            file_out = tmp_result_dir.joinpath('tmp.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=tmp_result_dir.joinpath('tmp.bin'),
+                file_out=file_out,
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
@@ -260,4 +264,5 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
     assert f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}" == str(e.value)
 
     # remove temporary file, if it was created
-    tmp_result_dir.joinpath('tmp.bin').unlink(missing_ok=True)
+    if file_out.exists():
+        file_out.unlink()

@@ -1287,4 +1287,5 @@ if __name__ == '__main__':
     )
 
     # remove temporary file
-    test_dir.joinpath('gulpy_mc.bin').unlink(missing_ok=True)
+    if file_out.exists():
+        file_out.unlink()
