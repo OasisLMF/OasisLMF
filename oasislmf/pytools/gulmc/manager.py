@@ -1,197 +1,78 @@
+import atexit
+import logging
 import os
 import sys
+from contextlib import ExitStack
+from pathlib import Path
+from select import select
+
 import numpy as np
 import pandas as pd
-import logging
-import atexit
-from contextlib import ExitStack
-from select import select
-from pathlib import Path
 from numba import njit
-from numba.types import (
-    uint32 as nb_uint32, int32 as nb_int32, int64 as nb_int64,
-    Tuple as nb_Tuple)
 from numba.typed import Dict, List
+from numba.types import Tuple as nb_Tuple
+from numba.types import int32 as nb_int32
+from numba.types import int64 as nb_int64
+from numba.types import uint32 as nb_uint32
 
 from oasislmf.pytools.common import PIPE_CAPACITY
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import (
-    Correlation, Index_type, nb_areaperil_int, oasis_float, Keys)
+from oasislmf.pytools.data_layer.oasis_files.correlations import \
+    CorrelationsData
+from oasislmf.pytools.getmodel.common import (Correlation, Keys,
+                                              nb_areaperil_int, oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, Item, get_vulns
-from oasislmf.pytools.gul.common import (
-    MEAN_IDX, NP_BASE_ARRAY_SIZE, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, ITEM_MAP_KEY_TYPE_internal, AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE, ITEM_MAP_VALUE_TYPE_internal,
-    items_MC_data_type, gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header, haz_cdf_type)
+from oasislmf.pytools.getmodel.manager import Item, get_damage_bins, get_vulns
+from oasislmf.pytools.gul.common import (CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX,
+                                         MEAN_IDX, NP_BASE_ARRAY_SIZE, NUM_IDX,
+                                         STD_DEV_IDX, TIV_IDX,
+                                         ITEM_MAP_KEY_TYPE_internal,
+                                         ITEM_MAP_VALUE_TYPE_internal,
+                                         coverage_type, gul_header,
+                                         gulSampleslevelHeader_size,
+                                         gulSampleslevelRec_size, haz_cdf_type,
+                                         items_MC_data_type)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
-from oasislmf.pytools.gul.random import (
-    compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup, generate_correlated_hash_vector, generate_hash,
-    generate_hash_haz, get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
-from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
+from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
+                                         compute_norm_inv_cdf_lookup,
+                                         generate_correlated_hash_vector,
+                                         generate_hash, generate_hash_haz,
+                                         get_corr_rval, get_random_generator)
+from oasislmf.pytools.gul.utils import binary_search
+from oasislmf.pytools.gulmc.aggregate import (
+    AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE,
+    gen_empty_agg_vuln_to_vuln_ids, gen_empty_areaperil_vuln_ids_to_weights,
+    map_agg_vuln_ids_to_agg_vuln_idxs,
+    map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight)
+from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
+                                          read_items)
 
 logger = logging.getLogger(__name__)
 
 
-@njit(cache=True, fastmath=True)
-def generate_item_map(items, coverages):
-    """Generate item_map; requires items to be sorted.
-
-    Args:
-        items (numpy.ndarray[int32, int32, int32]): 1-d structured array storing
-          `item_id`, `coverage_id`, `group_id` for all items.
-          items need to be sorted by increasing areaperil_id, vulnerability_id
-          in order to output the items in correct order.
-
-    Returns:
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
-        areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
-          areaperil_id and all the vulnerability ids associated with it.
-    """
-    item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
-    Nitems = items.shape[0]
-
-    areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
-
-    for j in range(Nitems):
-        append_to_dict_value(
-            item_map,
-            tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
-            ITEM_MAP_VALUE_TYPE
-        )
-        coverages[items[j]['coverage_id']]['max_items'] += 1
-
-        if items[j]['areaperil_id'] not in areaperil_ids_map:
-            areaperil_ids_map[items[j]['areaperil_id']] = {items[j]['vulnerability_id']: 0}
-        else:
-            areaperil_ids_map[items[j]['areaperil_id']][items[j]['vulnerability_id']] = 0
-
-    return item_map, areaperil_ids_map
+VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_int32))
+VULN_LOOKUP_VALUE_TYPE = nb_Tuple((nb_int32, nb_int32))
 
 
 @njit(cache=True)
-def process_items(items, agg_vuln_to_vulns, valid_area_peril_id):
-    """
-    Processes the Items loaded from the file extracting meta data around the vulnerability data.
+def gen_empty_vuln_cdf_lookup(list_size):
+    """Generate structures needed to store and retrieve vulnerability cdf in the cache.
+    TODO: finish docstring
 
     Args:
-        items: (List[Item]) Data loaded from the vulnerability file
-        valid_area_peril_id: array of area_peril_id to be included (if none, all are included)
-
-    Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
-             vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-             areaperil ID to vulnerability index array, areaperil ID to vulnerability array
-    """
-    areaperil_to_vulns_size = 0
-    areaperil_dict = Dict()
-    vuln_dict = Dict()
-    vuln_idx = 0
-    used_agg_vuln_ids = List()
-    for i in range(items.shape[0]):
-        item = items[i]
-
-        # filter out invalid areaperil id
-        if valid_area_peril_id is not None:
-            if item['areaperil_id'] not in valid_area_peril_id:
-                continue
-
-        # import this vulnerability id if it has not been imported yet
-        if item['vulnerability_id'] not in vuln_dict:
-            if item['vulnerability_id'] in agg_vuln_to_vulns:
-                # vulnerability is aggregate
-                for vuln_i in agg_vuln_to_vulns[item['vulnerability_id']]:
-                    if vuln_i not in vuln_dict:
-                        # import this individual vulnerability_id only if it was not imported already
-                        vuln_dict[vuln_i] = np.int32(vuln_idx)
-                        vuln_idx += 1
-
-                used_agg_vuln_ids.append(item['vulnerability_id'])
-
-            else:
-                # vulnerability is not aggregate
-                vuln_dict[item['vulnerability_id']] = np.int32(vuln_idx)
-                vuln_idx += 1
-
-        # insert an area dictionary into areaperil_dict under the key of areaperil ID
-        if item['areaperil_id'] not in areaperil_dict:
-            area_vuln = Dict()
-
-            if item['vulnerability_id'] in agg_vuln_to_vulns:
-                for vuln_i in agg_vuln_to_vulns[item['vulnerability_id']]:
-                    if vuln_i not in area_vuln:
-                        area_vuln[vuln_i] = 0
-                        areaperil_to_vulns_size += 1
-            else:
-                area_vuln[item['vulnerability_id']] = 0
-                areaperil_to_vulns_size += 1
-
-            areaperil_dict[item['areaperil_id']] = area_vuln
-        else:
-            if item['vulnerability_id'] in agg_vuln_to_vulns:
-                for vuln_i in agg_vuln_to_vulns[item['vulnerability_id']]:
-                    if vuln_i not in areaperil_dict[item['areaperil_id']]:
-                        # import this individual vulnerability_id only if it was not imported already
-                        areaperil_to_vulns_size += 1
-                        areaperil_dict[item['areaperil_id']][vuln_i] = 0
-            else:
-                if item['vulnerability_id'] not in areaperil_dict[item['areaperil_id']]:
-                    areaperil_to_vulns_size += 1
-                    areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
-
-    areaperil_to_vulns_idx_dict = Dict()
-    areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype=Index_type)
-    areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype=np.int32)
-
-    areaperil_i = 0
-    vulnerability_i = 0
-
-    for areaperil_id, vulns in areaperil_dict.items():
-        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
-        areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
-
-        # MT: vulns is a dict and therefore vuln_id are the keys, which are item['vulnerability_id'] stored with
-        # areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
-
-        for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
-            areaperil_to_vulns[vulnerability_i] = vuln_id
-            vulnerability_i += 1
-        areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
-        areaperil_i += 1
-
-    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids
-
-
-def read_items(input_path, ignore_file_type=set()):
-    """Load the items from the items file.
-
-    Args:
-        input_path (str): the path pointing to the file
-        ignore_file_type (Set[str]): file extension to ignore when loading.
+        list_size (_type_): _description_
 
     Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-          vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-          areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+        _type_: _description_
     """
-    input_files = set(os.listdir(input_path))
+    cached_vuln_cdf_lookup = Dict.empty(VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE)
+    cached_vuln_cdf_lookup_keys = List.empty_list(VULN_LOOKUP_VALUE_TYPE)
+    dummy = tuple((nb_int32(-1), nb_int32(-1)))
+    for _ in range(list_size):
+        cached_vuln_cdf_lookup_keys.append(dummy)
 
-    if "items.bin" in input_files and "bin" not in ignore_file_type:
-        items_fname = os.path.join(input_path, 'items.bin')
-        logger.debug(f"loading {items_fname}")
-        items = np.memmap(items_fname, dtype=Item, mode='r')
-
-    elif "items.csv" in input_files and "csv" not in ignore_file_type:
-        items_fname = os.path.join(input_path, 'items.csv')
-        logger.debug(f"loading {items_fname}")
-        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
-
-    else:
-        raise FileNotFoundError(f'items file not found at {input_path}')
-
-    return items
+    return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
 
 def run(run_dir,
@@ -293,15 +174,8 @@ def run(run_dir,
         # read and store aggregate vulnerability definitions and weights
         # TODO: reorganize this section by defining a read_vulnerability_weights nb function
 
-        @njit(cache=True)
-        def gen_empty_agg_vuln_to_vulns():
-            return Dict.empty(nb_int32, List.empty_list(nb_int32))
-
-        @njit(cache=True)
-        def gen_empty_ap_vuln_weights():
-            return Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
-
-        agg_vuln_to_vulns = gen_empty_agg_vuln_to_vulns()
+        # init agg_vuln_to_vuln_ids to allow numba to compile later functions
+        agg_vuln_to_vuln_id = gen_empty_agg_vuln_to_vuln_ids()
         try:
             # vulnerability_id and aggregate_vulnerability_id are remapped to the internal ids
             # using the vulnd_dict map that contains only the vulnerability_id used in this portfolio.
@@ -315,24 +189,25 @@ def run(run_dir,
             for agg, grp in d.groupby('aggregate_vulnerability_id'):
                 agg_idx = nb_int32(agg)
 
-                if agg_idx not in agg_vuln_to_vulns:
-                    agg_vuln_to_vulns[agg_idx] = List.empty_list(nb_int32)
+                if agg_idx not in agg_vuln_to_vuln_id:
+                    agg_vuln_to_vuln_id[agg_idx] = List.empty_list(nb_int32)
 
                 for entry in grp['vulnerability_id'].to_list():
-                    agg_vuln_to_vulns[agg_idx].append(nb_int32(entry))
+                    agg_vuln_to_vuln_id[agg_idx].append(nb_int32(entry))
 
         except FileNotFoundError:
             pass
 
-        ap_vuln_weights = gen_empty_ap_vuln_weights()
-        if len(agg_vuln_to_vulns) > 0:
+        # init ap_vuln_weights to allow numba to compile later functions
+        areaperil_vuln_id_to_weight = gen_empty_areaperil_vuln_ids_to_weights()
+        if len(agg_vuln_to_vuln_id) > 0:
             # at least one aggregate vulnerability is defined
             try:
                 # TODO: in principle we should filter and add to ap_vuln_weights only if areaperil_id and vulnerability_
                 #       are used in this portfolio. Since the reader of weights.csv will change, I don't implement it now.
                 d2 = pd.read_csv(os.path.join(static_path, 'weights.csv'))
                 for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id']):
-                    ap_vuln_weights[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['weight'].to_list()[0])
+                    areaperil_vuln_id_to_weight[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['weight'].to_list()[0])
 
             except FileNotFoundError:
                 pass
@@ -342,44 +217,18 @@ def run(run_dir,
 
         logger.debug('init items')
         vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids = process_items(
-            items, agg_vuln_to_vulns, valid_area_peril_id)
+            items, valid_area_peril_id, agg_vuln_to_vuln_id)
 
-        # make agg_vuln_to_vulns_idx
-        @njit(cache=True)
-        def make_agg_vuln_to_vulns_idx(used_agg_vuln_ids, agg_vuln_to_vulns, vuln_dict):
-            """Make map from aggregate vulnerability id to the list of sub-vulnerability ids of which they are composed, where the
-            value of the sub-vulnerability id is the internal pointer to the dense array where they are stored.
-            """
-            agg_vuln_to_vulns_idx = Dict.empty(nb_int32, List.empty_list(nb_int32))
-            if len(used_agg_vuln_ids) > 0:
-                # at least one aggregate vulnerability is used
-                for agg in used_agg_vuln_ids:
-                    agg_vuln_to_vulns_idx[agg] = List([vuln_dict[vuln] for vuln in agg_vuln_to_vulns[agg]])
-            # else:
-            #     agg_vuln_to_vulns_idx[nb_int32(0)] = List([nb_int32(0)])
-
-            return agg_vuln_to_vulns_idx
-
-        agg_vuln_to_vulns_idx = make_agg_vuln_to_vulns_idx(used_agg_vuln_ids, agg_vuln_to_vulns, vuln_dict)
+        # map each vulnerability_id composing aggregate vulnerabilities to the indices where they are stored in vuln_array
+        agg_vuln_to_vuln_idx = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
 
         # make ap_vuln_weights
-        @njit(cache=True)
-        def make_ap_vuln_idx_weights(areaperil_dict, ap_vuln_weights, vuln_dict):
-            """Make map from aggregate vulnerability id to the list of sub-vulnerability ids of which they are composed, where the
-            value of the sub-vulnerability id is the internal pointer to the dense array where they are stored.
-            """
-            ap_vuln_idx_weights = {}
-            for ap in areaperil_dict:
-                for vuln in areaperil_dict[ap]:
-                    ap_vuln_idx_weights[tuple((ap, vuln_dict[vuln]))] = ap_vuln_weights[tuple((ap, vuln))]
-
-            return ap_vuln_idx_weights
-
-        if len(agg_vuln_to_vulns_idx) > 0:
+        if len(agg_vuln_to_vuln_idx) > 0:
             # at least one aggregate vulnerability is used
-            ap_vuln_idx_weights = make_ap_vuln_idx_weights(areaperil_dict, ap_vuln_weights, vuln_dict)
+            areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
+                areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
         else:
-            ap_vuln_idx_weights = Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
+            areaperil_vuln_idx_to_weight = Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
@@ -487,19 +336,6 @@ def run(run_dir,
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
 
-        VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_int32))
-        VULN_LOOKUP_VALUE_TYPE = nb_Tuple((nb_int32, nb_int32))
-
-        @njit(cache=True)
-        def gen_empty_vuln_cdf_lookup(list_size):
-            cached_vuln_cdf_lookup = Dict.empty(VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE)
-            cached_vuln_cdf_lookup_keys = List.empty_list(VULN_LOOKUP_VALUE_TYPE)
-            dummy = tuple((nb_int32(-1), nb_int32(-1)))
-            for _ in range(list_size):
-                cached_vuln_cdf_lookup_keys.append(dummy)
-
-            return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
-
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cahce size in bytes
         max_Nnumbers_cached_vuln_cdf = max_cached_vuln_cdf_size_bytes // oasis_float.itemsize  # total numbers that can fit in the cache
@@ -524,10 +360,10 @@ def run(run_dir,
 
             if event_footprint is not None:
 
-                areaperil_ids, Nhaz_cdf_event, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf = process_areaperils_in_footprint(
+                areaperil_ids, Nhaz_cdf_this_event, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr, eff_vuln_cdf, areaperil_to_eff_vuln_cdf = process_areaperils_in_footprint(
                     event_footprint, vuln_array, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array)
 
-                if Nhaz_cdf_event == 0:
+                if Nhaz_cdf_this_event == 0:
                     # no items to be computed for this event
                     continue
 
@@ -573,7 +409,7 @@ def run(run_dir,
                         eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
                         cached_vuln_cdfs,
-                        agg_vuln_to_vulns, agg_vuln_to_vulns_idx, vuln_dict, ap_vuln_idx_weights,
+                        agg_vuln_to_vuln_id, agg_vuln_to_vuln_idx, vuln_dict, areaperil_vuln_idx_to_weight,
                         loss_threshold, losses, vuln_prob_to, weighted_vuln_to_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
                         eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
@@ -606,7 +442,9 @@ def compute_event_losses(event_id,
                          vuln_array,
                          damage_bins,
                          Ndamage_bins_max,
-                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
+                         cached_vuln_cdf_lookup,
+                         lookup_keys,
+                         next_cached_vuln_cdf,
                          cached_vuln_cdfs,
                          agg_vuln_to_vulns,
                          agg_vuln_to_vulns_idx,
@@ -651,12 +489,24 @@ def compute_event_losses(event_id,
         sample_size (int): number of random samples to draw.
         haz_cdf (np.array[oasis_float]): hazard intensity cdf.
         haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
+        areaperil_to_eff_vuln_cdf (dict[ITEM_MAP_KEY_TYPE_internal, int]): map between `(areaperil_id, vuln_idx)` and the location
+          where the effective damageability function is stored in `eff_vuln_cdf`.
         eff_vuln_cdf (np.array[oasis_float]): effective damageability cdf.
         vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
         damage_bins (List[Union[damagebindictionaryCsv, damagebindictionary]]): loaded data from the damage_bin_dict file.
         Ndamage_bins_max (int): maximum number of damage bins.
+        cached_vuln_cdf_lookup (): 
+        lookup_keys (): 
+        next_cached_vuln_cdf (): 
+        cached_vuln_cdfs (): 
+        agg_vuln_to_vulns (): 
+        agg_vuln_to_vulns_idx (): 
+        vuln_dict (Dict[int, int]): map between vulnerability_id and the index where the vulnerability function is stored in vuln_array.
+        ap_vuln_idx_weights (): 
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
+        vuln_cdf_empty:
+        weighted_vuln_to_empty:
         vuln_prob_to (np.array[oasis_float]): array (to be re-used) to store the damage cdf for each item.
         alloc_rule (int): back-allocation rule.
         do_correlation (bool): if True, compute correlated random samples.
@@ -715,11 +565,14 @@ def compute_event_losses(event_id,
             rng_index = item['rng_index']
             areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
-            hazcdf_i = item['hazcdf_i']
 
-            # get the hazard cdf
-            haz_prob_to = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]['probability']
-            Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
+            if not effective_damageability:
+                # get the right hazard cdf from the array containing all hazard cdfs
+                hazcdf_i = item['hazcdf_i']
+                haz_cdf_record = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
+                haz_cdf_prob = haz_cdf_record['probability']
+                haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
+                Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
             # if aggregate: agg_eff_vuln_cdf needs to be computed
             if vulnerability_id in agg_vuln_to_vulns:
@@ -851,7 +704,7 @@ def compute_event_losses(event_id,
                         else:
                             # if hazard intensity has a probability distribution, sample it
 
-                            # cap `haz_rval` to the maximum `haz_prob_to` value (which should be 1.)
+                            # cap `haz_rval` to the maximum `haz_cdf_prob` value (which should be 1.)
                             haz_rval = haz_rndms[rng_index][sample_idx - 1]
 
                             if debug == 1:
@@ -859,14 +712,14 @@ def compute_event_losses(event_id,
                                 losses[sample_idx, item_i] = haz_rval
                                 continue
 
-                            if haz_rval >= haz_prob_to[Nhaz_bins - 1]:
+                            if haz_rval >= haz_cdf_prob[Nhaz_bins - 1]:
                                 haz_bin_idx = nb_int32(Nhaz_bins - 1)
                             else:
                                 # find the bin in which the random value `haz_rval` falls into
-                                haz_bin_idx = nb_int32(binary_search(haz_rval, haz_prob_to, Nhaz_bins))
+                                haz_bin_idx = nb_int32(binary_search(haz_rval, haz_cdf_prob, Nhaz_bins))
 
                         # 2) get the hazard intensity bin id
-                        haz_int_bin_id = haz_cdf[haz_cdf_ptr[hazcdf_i] + haz_bin_idx]['intensity_bin_id']
+                        haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
 
                         # 3) get the vulnerability cdf
                         if vulnerability_id in agg_vuln_to_vulns:
@@ -966,24 +819,34 @@ def compute_event_losses(event_id,
 
 
 @njit(cache=True, fastmath=True)
-def get_vuln_cdf(vuln_i, haz_bin_idx, haz_int_bin_id, cached_vuln_cdf_lookup, vuln_array, vuln_cdf_empty,
-                 Ndamage_bins_max, cached_vuln_cdfs, lookup_keys, next_cached_vuln_cdf):
-    """TODO write docstring
+def get_vuln_cdf(vuln_i,
+                 haz_bin_idx,
+                 haz_int_bin_id,
+                 cached_vuln_cdf_lookup,
+                 vuln_array,
+                 vuln_cdf_empty,
+                 Ndamage_bins_max,
+                 cached_vuln_cdfs,
+                 lookup_keys,
+                 next_cached_vuln_cdf):
+    """Compute the cdf of a vulnerability function and store it in cache or, if it is already cached, retrieve it.
 
     Args:
         vuln_i (_type_): _description_
         haz_bin_idx (_type_): _description_
         haz_int_bin_id (_type_): _description_
         cached_vuln_cdf_lookup (_type_): _description_
-        vuln_array (_type_): _description_
+        vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
         vuln_cdf_empty (_type_): _description_
-        Ndamage_bins_max (_type_): _description_
+        Ndamage_bins_max (int): maximum number of damage bins.
         cached_vuln_cdfs (_type_): _description_
         lookup_keys (_type_): _description_
         next_cached_vuln_cdf (_type_): _description_
 
     Returns:
-        _type_: _description_
+        vuln_prob_to ():
+        Ndamage_bins 
+        next_cached_vuln_cdf: _description_
     """
     lookup_key = tuple((vuln_i, haz_bin_idx))
     if lookup_key in cached_vuln_cdf_lookup:
@@ -1017,7 +880,9 @@ def get_vuln_cdf(vuln_i, haz_bin_idx, haz_int_bin_id, cached_vuln_cdf_lookup, vu
         next_cached_vuln_cdf += 1
         next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
 
-    return vuln_prob_to, Ndamage_bins, next_cached_vuln_cdf
+    return (vuln_prob_to,
+            Ndamage_bins,
+            next_cached_vuln_cdf)
 
 
 @njit(cache=True, fastmath=True)
@@ -1037,7 +902,7 @@ def process_areaperils_in_footprint(event_footprint,
 
     Returns:
         areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
-        Nhaz_cdf_event (int): number of hazard cdf stored for this event. If zero, it means no items have losses in such event.
+        Nhaz_cdf_this_event (int): number of hazard cdf stored for this event. If zero, it means no items have losses in such event.
         areaperil_to_haz_cdf (dict[int, int]): map between the areaperil_id and the hazard cdf index.
         haz_cdf (np.array[oasis_float]): hazard intensity cdf.
         haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
@@ -1165,8 +1030,10 @@ def process_areaperils_in_footprint(event_footprint,
 
         haz_cdf_ptr.append(cdf_end)
 
+    Nhaz_cdf_this_event = haz_cdf_i
+
     return (areaperil_ids,
-            haz_cdf_i,
+            Nhaz_cdf_this_event,
             areaperil_to_haz_cdf,
             haz_cdf[:cdf_end],
             haz_cdf_ptr,
@@ -1272,11 +1139,12 @@ if __name__ == '__main__':
     test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
         .joinpath("assets").joinpath("test_model_1")
 
+    file_out = test_dir.joinpath('gulpy_mc.bin')
     run(
         run_dir=test_dir,
         ignore_file_type=set(),
         file_in=test_dir.joinpath("input").joinpath('events.bin'),
-        file_out=test_dir.joinpath('gulpy_mc.bin'),
+        file_out=file_out,
         sample_size=10,
         loss_threshold=0.,
         alloc_rule=1,

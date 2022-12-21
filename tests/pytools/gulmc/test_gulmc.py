@@ -35,7 +35,7 @@ def generate_expected(request):
     return request.config.getoption('--generate-expected')
 
 
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"ffective_damageability={str(x):5} ")
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
 @pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
@@ -150,7 +150,7 @@ def test_gulmc(test_model: Tuple[str, str],
                 file_out.unlink()
 
 
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"ffective_damageability={str(x):5} ")
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
 @pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
@@ -211,7 +211,7 @@ def test_debug_flag(test_model: Tuple[str, str],
         file_out.unlink()
 
 
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
 @pytest.mark.parametrize("alloc_rule", [-2, -1, 4, 5, 6, 7, 8, 9, 10], ids=lambda x: f"a{x} ")

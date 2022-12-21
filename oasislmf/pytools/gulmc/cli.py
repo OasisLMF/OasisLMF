@@ -4,7 +4,7 @@ import argparse
 import logging
 
 from oasislmf import __version__ as oasis_version
-from oasislmf.pytools.gulmc import manager, logger
+from oasislmf.pytools.gulmc import logger, manager
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
