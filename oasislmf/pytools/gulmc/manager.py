@@ -1285,3 +1285,6 @@ if __name__ == '__main__':
         ignore_correlation=True,
         effective_damageability=False,
     )
+
+    # remove temporary file
+    test_dir.joinpath('gulpy_mc.bin').unlink(missing_ok=True)
