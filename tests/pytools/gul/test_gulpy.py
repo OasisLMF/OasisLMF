@@ -16,7 +16,7 @@ TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 
 # get all available test models
-test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.iterdir() if x.is_dir()]
+test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.glob("test_model_1") if x.is_dir()]
 
 sample_sizes = [1, 10, 100, 1000]
 alloc_rules = [1, 2, 3]

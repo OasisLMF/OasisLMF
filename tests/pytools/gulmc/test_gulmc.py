@@ -22,7 +22,7 @@ TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.glob("test_model_*") if x.is_dir()]
 
 # define the grid of model parameters to test
-sample_sizes = [1, 10, 100, 1000]
+sample_sizes = [0, 1, 10, 100, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
 random_generators = [0, 1]
@@ -84,21 +84,43 @@ def test_gulmc(test_model: Tuple[str, str],
 
         # run gulmc
         test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}')
-        run_gulmc(
-            run_dir=tmp_result_dir,
-            ignore_file_type=set(),
-            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-            file_out=ref_out_bin_fname.with_suffix('.bin') if generate_expected else test_out_bin_fname.with_suffix('.bin'),
-            sample_size=sample_size,
-            loss_threshold=0.,
-            alloc_rule=alloc_rule,
-            debug=0,
-            random_generator=random_generator,
-            ignore_correlation=ignore_correlation,
-            effective_damageability=effective_damageability,
-        )
 
-        if not generate_expected:
+        if generate_expected:
+            # generate the expected results
+
+            if not ref_out_bin_fname.with_suffix('.bin').exists():
+                # generate the expected results only if they don't exist yet
+                run_gulmc(
+                    run_dir=tmp_result_dir,
+                    ignore_file_type=set(),
+                    file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                    file_out=ref_out_bin_fname.with_suffix('.bin'),
+                    sample_size=sample_size,
+                    loss_threshold=0.,
+                    alloc_rule=alloc_rule,
+                    debug=0,
+                    random_generator=random_generator,
+                    ignore_correlation=ignore_correlation,
+                    effective_damageability=effective_damageability,
+                )
+
+        else:
+            # run the test case
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=test_out_bin_fname.with_suffix('.bin'),
+                sample_size=sample_size,
+                loss_threshold=0.,
+                alloc_rule=alloc_rule,
+                debug=0,
+                random_generator=random_generator,
+                ignore_correlation=ignore_correlation,
+                effective_damageability=effective_damageability,
+            )
+
+            # compare the test results to the expected results
             try:
                 assert filecmp.cmp(test_out_bin_fname.with_suffix('.bin'), ref_out_bin_fname.with_suffix('.bin'), shallow=False)
 
