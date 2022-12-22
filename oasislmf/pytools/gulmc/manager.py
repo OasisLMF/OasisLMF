@@ -41,10 +41,9 @@ from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
-    AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE,
-    gen_empty_agg_vuln_to_vuln_ids, gen_empty_areaperil_vuln_ids_to_weights,
-    map_agg_vuln_ids_to_agg_vuln_idxs,
-    map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight)
+    gen_empty_areaperil_vuln_ids_to_weights, map_agg_vuln_ids_to_agg_vuln_idxs,
+    map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
+    process_aggregate_vulnerability, read_aggregate_vulnerability)
 from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
                                           read_items)
 
@@ -172,39 +171,15 @@ def run(run_dir,
             valid_area_peril_id = None
 
         # read and store aggregate vulnerability definitions and weights
-        # TODO: reorganize this section by defining a read_vulnerability_weights nb function
+        aggregate_vulnerability = read_aggregate_vulnerability(static_path, ignore_file_type)
 
-        # init agg_vuln_to_vuln_ids to allow numba to compile later functions
-        agg_vuln_to_vuln_id = gen_empty_agg_vuln_to_vuln_ids()
-        try:
-            # vulnerability_id and aggregate_vulnerability_id are remapped to the internal ids
-            # using the vulnd_dict map that contains only the vulnerability_id used in this portfolio.
-            d = pd.read_csv(os.path.join(static_path, 'aggregate_vulnerability.csv'))
-            d.astype({'aggregate_vulnerability_id': 'int32'})
-
-            # TODO: problem: vulnerability_id that are used only as part of aggregate vulnerability_id will not be present in vuln_dict
-            # read all aggregate vulnerability_id without filtering out those that are not used in this portfolio
-            # at this stage we read all these definitions, then we read the items and store only the individual vulnerability functions
-            # that are used
-            for agg, grp in d.groupby('aggregate_vulnerability_id'):
-                agg_idx = nb_int32(agg)
-
-                if agg_idx not in agg_vuln_to_vuln_id:
-                    agg_vuln_to_vuln_id[agg_idx] = List.empty_list(nb_int32)
-
-                for entry in grp['vulnerability_id'].to_list():
-                    agg_vuln_to_vuln_id[agg_idx].append(nb_int32(entry))
-
-        except FileNotFoundError:
-            pass
+        agg_vuln_to_vuln_id = process_aggregate_vulnerability(aggregate_vulnerability)
 
         # init ap_vuln_weights to allow numba to compile later functions
         areaperil_vuln_id_to_weight = gen_empty_areaperil_vuln_ids_to_weights()
         if len(agg_vuln_to_vuln_id) > 0:
             # at least one aggregate vulnerability is defined
             try:
-                # TODO: in principle we should filter and add to ap_vuln_weights only if areaperil_id and vulnerability_
-                #       are used in this portfolio. Since the reader of weights.csv will change, I don't implement it now.
                 d2 = pd.read_csv(os.path.join(static_path, 'weights.csv'))
                 for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id']):
                     areaperil_vuln_id_to_weight[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['weight'].to_list()[0])
@@ -212,23 +187,20 @@ def run(run_dir,
             except FileNotFoundError:
                 pass
 
-        # get agg vuln table
-        # vuln_weights = get_vulnerability_weights(input_path, ignore_file_type)
-
         logger.debug('init items')
         vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids = process_items(
             items, valid_area_peril_id, agg_vuln_to_vuln_id)
 
+        logger.debug('reconstruct aggregate vulnerability definitions and weights')
+
         # map each vulnerability_id composing aggregate vulnerabilities to the indices where they are stored in vuln_array
+        # here we filter out aggregate vulnerability that are not used in this portfolio, therefore
+        # agg_vuln_to_vuln_idx can contain less aggregate vulnerability ids compared to agg_vuln_to_vuln_id
         agg_vuln_to_vuln_idx = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
 
-        # make ap_vuln_weights
-        if len(agg_vuln_to_vuln_idx) > 0:
-            # at least one aggregate vulnerability is used
-            areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
-                areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
-        else:
-            areaperil_vuln_idx_to_weight = Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
+        # remap (areaperil, vuln_id) to weights to (areaperil, vuln_idx) to weights
+        areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
+            areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
