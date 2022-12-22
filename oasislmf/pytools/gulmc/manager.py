@@ -13,7 +13,6 @@ from numba.typed import Dict, List
 from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
-from numba.types import uint32 as nb_uint32
 
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
@@ -41,9 +40,10 @@ from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
-    gen_empty_areaperil_vuln_ids_to_weights, map_agg_vuln_ids_to_agg_vuln_idxs,
+    map_agg_vuln_ids_to_agg_vuln_idxs,
     map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
-    process_aggregate_vulnerability, read_aggregate_vulnerability)
+    process_aggregate_vulnerability, process_vulnerability_weights,
+    read_aggregate_vulnerability, read_vulnerability_weights)
 from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
                                           read_items)
 
@@ -170,22 +170,18 @@ def run(run_dir,
         else:
             valid_area_peril_id = None
 
-        # read and store aggregate vulnerability definitions and weights
+        # prepare for stochastic disaggregation
+        # read aggregate vulnerability definitions and vulnerability weights
         aggregate_vulnerability = read_aggregate_vulnerability(static_path, ignore_file_type)
+        aggregate_weights = read_vulnerability_weights(static_path, ignore_file_type)
 
+        # [r
         agg_vuln_to_vuln_id = process_aggregate_vulnerability(aggregate_vulnerability)
 
-        # init ap_vuln_weights to allow numba to compile later functions
-        areaperil_vuln_id_to_weight = gen_empty_areaperil_vuln_ids_to_weights()
-        if len(agg_vuln_to_vuln_id) > 0:
-            # at least one aggregate vulnerability is defined
-            try:
-                d2 = pd.read_csv(os.path.join(static_path, 'weights.csv'))
-                for agg, grp in d2.groupby(['areaperil_id', 'vulnerability_id']):
-                    areaperil_vuln_id_to_weight[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['weight'].to_list()[0])
+        if aggregate_vulnerability is not None and aggregate_weights is None:
+            raise FileNotFoundError(f'Vulnerability weights file not found at {static_path}')
 
-            except FileNotFoundError:
-                pass
+        areaperil_vuln_id_to_weight = process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id)
 
         logger.debug('init items')
         vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids = process_items(
@@ -1109,7 +1105,7 @@ def reconstruct_coverages(event_id,
 if __name__ == '__main__':
 
     test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
-        .joinpath("assets").joinpath("test_model_1")
+        .joinpath("assets").joinpath("test_model_2")
 
     file_out = test_dir.joinpath('gulpy_mc.bin')
     run(
