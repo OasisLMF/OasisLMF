@@ -193,6 +193,9 @@ def map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(areaperil_to
     if len(areaperil_vuln_id_to_weight) > 0:
         for ap in areaperil_to_vulns:
             for vuln in areaperil_to_vulns[ap]:
-                ap_vuln_idx_weights[tuple((ap, vuln_dict[vuln]))] = areaperil_vuln_id_to_weight[tuple((ap, vuln))]
+                if tuple((ap, vuln)) in areaperil_vuln_id_to_weight:
+                    # if the weights file contains this definition, add this entry to the map.
+                    # otherwise, the weight of this (areaperil_id, vulnerability_id) is assumed to be zero during loss calculation.
+                    ap_vuln_idx_weights[tuple((ap, vuln_dict[vuln]))] = areaperil_vuln_id_to_weight[tuple((ap, vuln))]
 
     return ap_vuln_idx_weights

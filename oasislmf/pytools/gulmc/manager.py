@@ -559,7 +559,10 @@ def compute_event_losses(event_id,
                 used_vuln_data = []
                 for vuln_i in agg_vulns_idx:
                     eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]
-                    weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                    if (areaperil_id, vuln_i) in ap_vuln_idx_weights:
+                        weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                    else:
+                        weight = np.float64(0.)
 
                     if eff_vuln_cdf[eff_vuln_cdf_i + eff_vuln_cdf_Ndamage_bins - 1] == 0.:
                         # the cdf is all zeros, i.e. probability of no loss is 100%
@@ -582,7 +585,7 @@ def compute_event_losses(event_id,
                     print("areaperil_id=", areaperil_id)
                     print()
                     raise ValueError(
-                        "Impossible to compute the cdf of the an aggregate vulnerability_id because individual weights are all zero.")
+                        "Impossible to compute the cdf of an aggregate vulnerability_id because individual weights are all zero.")
 
                 weighted_vuln_to[damage_bin_i] = cumsum / tot_weights
 
@@ -699,7 +702,11 @@ def compute_event_losses(event_id,
                             tot_weights = 0.
                             used_weights = []
                             for j, vuln_i in enumerate(agg_vulns_idx):
-                                weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                                if (areaperil_id, vuln_i) in ap_vuln_idx_weights:
+                                    weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                                else:
+                                    weight = np.float64(0.)
+
                                 used_weights.append(weight)
                                 tot_weights += weight
 
@@ -713,7 +720,7 @@ def compute_event_losses(event_id,
                                 print("areaperil_id=", areaperil_id)
                                 print()
                                 raise ValueError(
-                                    "Impossible to compute the cdf of the an aggregate vulnerability_id because individual weights are all zero.")
+                                    "Impossible to compute the cdf of an aggregate vulnerability_id because individual weights are all zero.")
 
                             # compute the weighted cdf
                             damage_bin_i = nb_int32(0)
