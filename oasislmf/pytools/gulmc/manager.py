@@ -175,7 +175,7 @@ def run(run_dir,
         aggregate_vulnerability = read_aggregate_vulnerability(static_path, ignore_file_type)
         aggregate_weights = read_vulnerability_weights(static_path, ignore_file_type)
 
-        # [r
+        # process aggregate vulnerability and vulnerability weights
         agg_vuln_to_vuln_id = process_aggregate_vulnerability(aggregate_vulnerability)
 
         if aggregate_vulnerability is not None and aggregate_weights is None:
