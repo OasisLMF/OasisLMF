@@ -1,28 +1,24 @@
-from ..utils.defaults import (
-    KTOOLS_ALLOC_GUL_DEFAULT,
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    KTOOL_N_GUL_PER_LB,
-    KTOOL_N_FM_PER_LB,
-    EVE_DEFAULT_SHUFFLE,
-    EVE_NO_SHUFFLE,
-    EVE_ROUND_ROBIN,
-    EVE_FISHER_YATES,
-    EVE_STD_SHUFFLE,
-)
-from ..utils.exceptions import OasisException
-from collections import Counter
 import contextlib
 import io
 import logging
 import multiprocessing
 import os
-import pandas as pd
 import random
 import re
 import shutil
 import string
+from collections import Counter
 from functools import partial
+
+import pandas as pd
+
+from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
+                              EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,
+                              KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
+                              KTOOLS_ALLOC_GUL_DEFAULT,
+                              KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT)
+from ..utils.exceptions import OasisException
+
 logger = logging.getLogger(__name__)
 
 
@@ -2025,6 +2021,8 @@ def create_bash_analysis(
                 print_command(filename, main_cmd)
 
     print_command(filename, '')
+    print(process_counter)
+    # raise
     do_pwaits(filename, process_counter)
 
 
