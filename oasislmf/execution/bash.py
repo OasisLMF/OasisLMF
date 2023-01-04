@@ -2053,7 +2053,6 @@ def create_bash_analysis(
                 print_command(filename, main_cmd)
 
     print_command(filename, '')
-    # raise
     do_pwaits(filename, process_counter)
 
 
