@@ -182,9 +182,6 @@ class Genbash(TestCase):
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
             reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
-        print(output_filename)
-        print(reference_filename)
-        # raise
         if self.fifo_tmp_dir:
             # Create temp Ref file
             ref_template = reference_filename
