@@ -1199,7 +1199,7 @@ def add_pid_to_shell_command(cmd, process_counter):
     :type process_counter: Counter()
     """
     process_counter["pid_monitor_count"] += 1
-    cmd = f'{cmd}pid{process_counter["pid_monitor_count"]}=$!'
+    cmd = f'{cmd} pid{process_counter["pid_monitor_count"]}=$!'
     return cmd
 
 def get_main_cmd_ri_stream(
@@ -1254,7 +1254,8 @@ def get_main_cmd_ri_stream(
     main_cmd += f" > {ri_fifo_name}"
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) &'
-    if process_id is not None:
+
+    if process_counter is not None:
         add_pid_to_shell_command(main_cmd, process_id)
 
     return main_cmd
@@ -1299,7 +1300,7 @@ def get_main_cmd_il_stream(
         main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '
 
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
-    main_cmd = f'( main_cmd ) &'
+    main_cmd = f'( {main_cmd} ) &'
 
     if process_counter is not None:
         main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
