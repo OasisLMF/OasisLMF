@@ -34,9 +34,9 @@ tee < fifo/gul_S1_summary_P1 fifo/gul_S1_pltcalc_P1 > /dev/null & pid2=$!
 
 summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
-eve -R 1 1 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P1  &
+( eve -R 1 1 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P1  ) &  pid3=$!
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3
 
 
 # --- Do ground up loss kats ---
