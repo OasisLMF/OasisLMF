@@ -1256,7 +1256,7 @@ def get_main_cmd_ri_stream(
     main_cmd = f'( {main_cmd} ) &'
 
     if process_counter is not None:
-        add_pid_to_shell_command(main_cmd, process_id)
+        add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
