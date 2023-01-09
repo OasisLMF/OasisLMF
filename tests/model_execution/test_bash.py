@@ -899,7 +899,12 @@ class Genbash(TestCase):
     # =============================================================================
     @staticmethod
     def _get_getmodel_cmd(**kwargs):
-        return "custom_gulcalc_command"
+        error_guard = kwargs.get('stderr_guard')
+        cmd = 'custom_gulcalc_command'
+
+        if error_guard: 
+            cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
+        return cmd 
 
     def test_custom_gul_summarycalc_1_partition(self):
         self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
