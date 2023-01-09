@@ -365,7 +365,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
-                raise OasisException(f"sklearn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
+                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
             gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
 

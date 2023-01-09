@@ -12,60 +12,42 @@ import io
 import json
 import multiprocessing
 import os
-
-import pandas as pd
 import re
 import subprocess
 import sys
 import warnings
-
 from collections import OrderedDict
 from itertools import product
 from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
-from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
-from ..base import ComputationStep
-from ...execution import runner, bash
-from ...execution.bin import (
-    csv_to_bin,
-    prepare_run_directory,
-    prepare_run_inputs,
-)
+import pandas as pd
+
+from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
+from ...execution.bin import (csv_to_bin, prepare_run_directory,
+                              prepare_run_inputs)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
+from ...utils.data import (fast_zip_dataframe_columns, get_analysis_settings,
+                           get_dataframe, get_exposure_data,
+                           get_model_settings, get_utctimestamp,
+                           merge_dataframes, set_dataframe_column_dtypes)
+from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE,
+                               KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
+                               KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
+                               KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
+                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG,
+                               KTOOLS_GUL_LEGACY_STREAM,
+                               KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_NUM_PROCESSES,
+                               KTOOLS_STD_DEV_SAMPLE_IDX,
+                               KTOOLS_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...utils.path import setcwd
-
-from ...utils.data import (
-    fast_zip_dataframe_columns,
-    get_analysis_settings,
-    get_model_settings,
-    get_dataframe,
-    get_utctimestamp,
-    merge_dataframes,
-    set_dataframe_column_dtypes, get_exposure_data,
-)
-from ...utils.defaults import (
-    KTOOLS_ALLOC_FM_MAX,
-    KTOOLS_ALLOC_GUL_DEFAULT,
-    KTOOLS_ALLOC_GUL_MAX,
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    KTOOLS_DEBUG,
-    KTOOLS_GUL_LEGACY_STREAM,
-    KTOOLS_MEAN_SAMPLE_IDX,
-    KTOOLS_NUM_PROCESSES,
-    EVE_DEFAULT_SHUFFLE,
-    EVE_STD_SHUFFLE,
-    KTOOL_N_GUL_PER_LB,
-    KTOOL_N_FM_PER_LB,
-    KTOOLS_STD_DEV_SAMPLE_IDX,
-    KTOOLS_TIV_SAMPLE_IDX
-)
+from ..base import ComputationStep
+from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -384,7 +366,14 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'gulpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use gulcalc python version instead of c++ version'},
         {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+            'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gulmc', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
+        {'name': 'gulmc_random_generator', 'default': 1, 'type': int,
+            'help': 'set the random number generator in gulmc (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
+        {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
+            'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -436,6 +425,10 @@ class GenerateLossesPartial(GenerateLossesDir):
             custom_gulcalc_cmd=self.model_custom_gulcalc,
             gulpy=(self.gulpy and not self.model_custom_gulcalc),
             gulpy_random_generator=self.gulpy_random_generator,
+            gulmc=(self.gulmc and not self.model_custom_gulcalc and not self.gulpy),
+            gulmc_random_generator=self.gulmc_random_generator,
+            gulmc_effective_damageability=self.gulmc_effective_damageability,
+            gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
@@ -578,7 +571,14 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'gulpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use gulcalc python version instead of c++ version'},
         {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+            'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gulmc', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
+        {'name': 'gulmc_random_generator', 'default': 1, 'type': int,
+            'help': 'set the random number generator in gulmc (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
+        {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
+            'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -617,6 +617,10 @@ class GenerateLosses(GenerateLossesDir):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         gulpy=(self.gulpy and not self.model_custom_gulcalc),
                         gulpy_random_generator=self.gulpy_random_generator,
+                        gulmc=(self.gulmc and not self.model_custom_gulcalc and not self.gulpy),
+                        gulmc_random_generator=self.gulmc_random_generator,
+                        gulmc_effective_damageability=self.gulmc_effective_damageability,
+                        gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
