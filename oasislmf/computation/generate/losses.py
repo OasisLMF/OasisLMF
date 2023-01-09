@@ -738,7 +738,7 @@ class GenerateLossesDeterministic(ComputationStep):
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
-        #il_stream_type = 2 if self.fmpy else 1
+        # il_stream_type = 2 if self.fmpy else 1
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
