@@ -1198,8 +1198,10 @@ def add_pid_to_shell_command(cmd, process_counter):
     :param process_counter: The number of process IDs that are being tracked.
     :type process_counter: Counter()
     """
+
     process_counter["pid_monitor_count"] += 1
     cmd = f'{cmd} pid{process_counter["pid_monitor_count"]}=$!'
+
     return cmd
 
 def get_main_cmd_ri_stream(
@@ -1256,7 +1258,7 @@ def get_main_cmd_ri_stream(
     main_cmd = f'( {main_cmd} ) &'
 
     if process_counter is not None:
-        add_pid_to_shell_command(main_cmd, process_counter)
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -2026,7 +2028,7 @@ def create_bash_analysis(
                     fmpy_low_memory,
                     fmpy_sort_output,
                     step_flag,
-                    process_counter
+                    process_counter=process_counter
                 )
                 print_command(filename, main_cmd)
 
@@ -2039,7 +2041,7 @@ def create_bash_analysis(
                     fmpy_low_memory,
                     fmpy_sort_output,
                     step_flag,
-                    process_counter
+                    process_counter=process_counter
                 )
                 print_command(filename, main_cmd)
 
