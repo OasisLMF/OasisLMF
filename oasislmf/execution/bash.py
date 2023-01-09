@@ -250,7 +250,10 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, mod
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
     elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --peril-filter {' '.join(peril_filter)}"
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server}"
+
+        if peril_filter:
+            cmd += f" --peril-filter {' '.join(peril_filter)}"
     else:
         cmd = 'gulcalc'
 
@@ -1133,17 +1136,17 @@ def get_getmodel_itm_cmd(
         cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -r'.format(cmd)
     if correlated_output != '':
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -j {}'.format(cmd, correlated_output)
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
 
-    if not gulpy:
+    if not gulpy and not gulmc:
         # append this arg only if gulcalc is used
         cmd = '{} -i {}'.format(cmd, item_output)
     else:
@@ -1193,14 +1196,14 @@ def get_getmodel_cov_cmd(
         cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -r'.format(cmd)
     if coverage_output != '':
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -c {}'.format(cmd, coverage_output)
-    if not gulpy:
+    if not gulpy and not gulmc:
         # append this arg only if gulcalc is used
         if item_output != '':
             cmd = '{} -i {}'.format(cmd, item_output)
@@ -1676,6 +1679,8 @@ def create_bash_analysis(
     modelpy,
     gulpy,
     gulpy_random_generator,
+    gulmc,
+    gulmc_random_generator,
     model_py_server,
     peril_filter,
     gul_legacy_stream=False,
@@ -1898,6 +1903,8 @@ def create_bash_analysis(
             'modelpy': modelpy,
             'gulpy': gulpy,
             'gulpy_random_generator': gulpy_random_generator,
+            'gulmc': gulmc,
+            'gulmc_random_generator': gulmc_random_generator,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
         }
@@ -1907,10 +1914,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy), gul_fifo_name)
+                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy and not gulmc), gul_fifo_name)
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-' * (not gulpy)
+                getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
