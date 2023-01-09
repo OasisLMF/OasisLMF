@@ -235,7 +235,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, modelpy_server, peril_filter):
+def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -254,6 +254,12 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, mod
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
+
+        if gulmc_effective_damageability:
+            cmd += " --effective-damageability"
+
+        if gulmc_vuln_cache_size:
+            cmd += f" --vuln-cache-size {gulmc_vuln_cache_size}"
     else:
         cmd = 'gulcalc'
 
@@ -1111,6 +1117,8 @@ def get_getmodel_itm_cmd(
         gulpy_random_generator=1,
         gulmc=False,
         gulmc_random_generator=1,
+        gulmc_effective_damageability=False,
+        gulmc_vuln_cache_size=200,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1130,10 +1138,10 @@ def get_getmodel_itm_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1171,6 +1179,8 @@ def get_getmodel_cov_cmd(
         gulpy_random_generator=1,
         gulmc=False,
         gulmc_random_generator=1,
+        gulmc_effective_damageability=False,
+        gulmc_vuln_cache_size=200,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1190,10 +1200,10 @@ def get_getmodel_cov_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1453,6 +1463,8 @@ def bash_params(
     gulpy_random_generator=1,
     gulmc=False,
     gulmc_random_generator=1,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
 
     # new options
     process_number=None,
@@ -1478,6 +1490,8 @@ def bash_params(
     bash_params['gulpy_random_generator'] = gulpy_random_generator
     bash_params['gulmc'] = gulmc
     bash_params['gulmc_random_generator'] = gulmc_random_generator
+    bash_params['gulmc_effective_damageability'] = gulmc_effective_damageability
+    bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1681,6 +1695,8 @@ def create_bash_analysis(
     gulpy_random_generator,
     gulmc,
     gulmc_random_generator,
+    gulmc_effective_damageability,
+    gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
     gul_legacy_stream=False,
@@ -1905,6 +1921,8 @@ def create_bash_analysis(
             'gulpy_random_generator': gulpy_random_generator,
             'gulmc': gulmc,
             'gulmc_random_generator': gulmc_random_generator,
+            'gulmc_effective_damageability': gulmc_effective_damageability,
+            'gulmc_vuln_cache_size': gulmc_vuln_cache_size,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
         }
@@ -2241,6 +2259,8 @@ def genbash(
     gulpy_random_generator=1,
     gulmc=False,
     gulmc_random_generator=1,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
 ):
@@ -2308,6 +2328,8 @@ def genbash(
         gulpy_random_generator=gulpy_random_generator,
         gulmc=gulmc,
         gulmc_random_generator=gulmc_random_generator,
+        gulmc_effective_damageability=gulmc_effective_damageability,
+        gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
     )
