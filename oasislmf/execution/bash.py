@@ -1448,6 +1448,8 @@ def bash_params(
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
+    gulmc=False,
+    gulmc_random_generator=1,
 
     # new options
     process_number=None,
@@ -2230,6 +2232,8 @@ def genbash(
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
+    gulmc=False,
+    gulmc_random_generator=1,
     model_py_server=False,
     peril_filter=[],
 ):
@@ -2295,6 +2299,8 @@ def genbash(
         modelpy=modelpy,
         gulpy=gulpy,
         gulpy_random_generator=gulpy_random_generator,
+        gulmc=gulmc,
+        gulmc_random_generator=gulmc_random_generator,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
     )
