@@ -3,49 +3,25 @@ import io
 import json
 import os
 import string
-
 from collections import OrderedDict
 from datetime import datetime
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import numpy as np
 import pandas as pd
 import pytest
 import pytz
-
-from hypothesis import (
-    given,
-    settings,
-    example,
-)
-from hypothesis.strategies import (
-    datetimes,
-    integers,
-    fixed_dictionaries,
-    floats,
-    just,
-    lists,
-    sampled_from,
-    text,
-)
+from hypothesis import example, given, settings
+from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
+                                   integers, just, lists, sampled_from, text)
 from pandas.testing import assert_frame_equal
-from tempfile import NamedTemporaryFile
 
-from oasislmf.utils.data import (
-    factorize_array,
-    factorize_ndarray,
-    fast_zip_arrays,
-    get_dataframe,
-    get_timestamp,
-    get_utctimestamp,
-    get_location_df,
-    PANDAS_DEFAULT_NULL_VALUES,
-)
-
-from oasislmf.utils.defaults import (
-    get_loc_dtypes,
-)
-
+from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
+                                 factorize_ndarray, fast_zip_arrays,
+                                 get_dataframe, get_location_df, get_timestamp,
+                                 get_utctimestamp)
+from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -197,11 +173,12 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file__use_default_options(self, data):
+    def test_get_dataframe__from_csv_file__use_default_options(self, data): ###
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
