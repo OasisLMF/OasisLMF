@@ -7,9 +7,9 @@ import shutil
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.execution.bash import (bash_params, bash_wrapper,
-                                     create_bash_analysis, create_bash_outputs,
-                                     genbash)
+from oasislmf.model_execution.bash import (bash_params, bash_wrapper,
+                                           create_bash_analysis,
+                                           create_bash_outputs, genbash)
 from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
@@ -66,7 +66,9 @@ class Genbash(TestCase):
                 ri_alloc_rule=None,
                 bash_trace=None,
                 gul_legacy_stream=None,
-                fmpy=None):
+                fmpy=None,
+                _get_getmodel_cmd=None,
+                ):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -95,6 +97,7 @@ class Genbash(TestCase):
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
+            _get_getmodel_cmd=_get_getmodel_cmd,
         )
 
     def gen_chunked_bash(self, name,
@@ -107,7 +110,9 @@ class Genbash(TestCase):
                          ri_alloc_rule=None,
                          bash_trace=None,
                          gul_legacy_stream=None,
-                         fmpy=None):
+                         fmpy=None,
+                         _get_getmodel_cmd=None,
+                         ):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -119,7 +124,6 @@ class Genbash(TestCase):
 
         with io.open(input_filename, encoding='utf-8') as file:
             analysis_settings = json.load(file)['analysis_settings']
-
         params = bash_params(
             max_process_id=num_partitions,
             analysis_settings=analysis_settings,
@@ -135,10 +139,8 @@ class Genbash(TestCase):
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
+            _get_getmodel_cmd=_get_getmodel_cmd,
         )
-
-        # debug
-        # print(json.dumps(params, indent=4))
 
         fifo_tmp_dir = params['fifo_tmp_dir']
         for process_id in range(num_partitions):
@@ -147,7 +149,13 @@ class Genbash(TestCase):
             if os.path.exists(params['filename']):
                 os.remove(params['filename'])
 
-            with bash_wrapper(params['filename'], bash_trace or self.bash_trace, stderr_guard or self.stderr_guard):
+            with bash_wrapper(
+                params['filename'],
+                bash_trace or self.bash_trace,
+                stderr_guard or self.stderr_guard,
+                custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
+                custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
+            ):
                 create_bash_analysis(
                     **{
                         **params,
@@ -162,7 +170,13 @@ class Genbash(TestCase):
         if os.path.exists(params['filename']):
             os.remove(params['filename'])
 
-        with bash_wrapper(params['filename'], bash_trace or self.bash_trace, stderr_guard or self.stderr_guard):
+        with bash_wrapper(
+            params['filename'],
+            bash_trace or self.bash_trace,
+            stderr_guard or self.stderr_guard,
+            custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
+            custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
+        ):
             create_bash_outputs(**params)
 
     def check_chunks(self, name, num_partitions):
@@ -879,6 +893,26 @@ class Genbash(TestCase):
     def test_analysis_settings_4_0_reins_iters_chunk(self):
         self.gen_chunked_bash("analysis_settings_4", 1, 1)
         self.check_chunks("analysis_settings_4_1_reins_layer_1_partition", 1)
+
+    # =============================================================================
+    # Custom GulCalc checks
+    # =============================================================================
+    @staticmethod
+    def _get_getmodel_cmd(**kwargs):
+        error_guard = kwargs.get('stderr_guard')
+        cmd = 'custom_gulcalc_command'
+
+        if error_guard:
+            cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
+        return cmd
+
+    def test_custom_gul_summarycalc_1_partition(self):
+        self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
+        self.check("custom_gul_summarycalc_1_output_1_partition")
+
+    def test_custom_gul_summarycalc_1_partition_chunk(self):
+        self.gen_chunked_bash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
+        self.check_chunks("custom_gul_summarycalc_1_output_1_partition", 1)
 
 
 class Genbash_GulItemStream(Genbash):
