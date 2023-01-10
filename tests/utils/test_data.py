@@ -179,7 +179,7 @@ class TestGetDataframe(TestCase):
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
-            fp.close() lemon
+            fp.close()
 
             expected = df.copy(deep=True)
 
