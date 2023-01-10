@@ -173,7 +173,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file__use_default_options(self, data): ###
+    def test_get_dataframe__from_csv_file__use_default_options(self, data):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
