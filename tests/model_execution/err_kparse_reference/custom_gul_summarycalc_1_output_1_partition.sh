@@ -97,7 +97,7 @@ tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( custom_gulcalc_command > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
+( ( (custom_gulcalc_command) 2>> log/gul_stderror.err > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

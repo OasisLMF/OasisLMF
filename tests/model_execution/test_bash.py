@@ -960,17 +960,6 @@ class Genbash_ErrorGuard(Genbash):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
-    # =============================================================================
-    # Custom GulCalc checks
-    # =============================================================================
-    @staticmethod
-    def _get_getmodel_cmd(**args):
-        return "custom_gulcalc"
-
-    def test_custom_gul_summarycalc_1_partition(self):
-        self.genbash("custom_gul_summarycalc_1_output", 1, _get_getmodel_cmd=self._get_getmodel_cmd)
-        self.check("custom_gul_summarycalc_1_output_1_partition")
-
 
 class Genbash_TempDir(Genbash):
     @classmethod

@@ -34,7 +34,7 @@ tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 
 summarycalc -m -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
-custom_gulcalc_command > fifo/gul_P1  &
+( custom_gulcalc_command > fifo/gul_P1  ) &  pid3=$!
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3
 
