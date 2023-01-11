@@ -1248,11 +1248,15 @@ def get_getmodel_cov_cmd(
 
 def add_pid_to_shell_command(cmd, process_counter):
     """
-    Adds a variable onto the end of the cmd which tracks the process ID and increments the counter.
-    :param cmd: The command that you want to store the pid of in a variable.
-    :type cmd: string
-    :param process_counter: The number of process IDs that are being tracked.
-    :type process_counter: Counter()
+    Add a variable to the end of a command in order to track the ID of the process executing it. 
+    Each time this function is called, the counter `process_counter` is incremented.
+    
+    Args:
+        cmd (str): the command whose process ID is to be stored in a variable.
+        process_counter (Counter or dict): the number of process IDs that are being tracked.
+    
+    Returns:
+        cmd (str): the updated command string.
     """
 
     process_counter["pid_monitor_count"] += 1
