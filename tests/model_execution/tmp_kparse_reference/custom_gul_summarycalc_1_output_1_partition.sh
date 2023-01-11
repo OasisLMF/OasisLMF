@@ -35,9 +35,9 @@ tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary
 
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 &
 
-custom_gulcalc_command > /tmp/%FIFO_DIR%/fifo/gul_P1  &
+( custom_gulcalc_command > /tmp/%FIFO_DIR%/fifo/gul_P1  ) &  pid3=$!
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3
 
 
 # --- Do ground up loss kats ---

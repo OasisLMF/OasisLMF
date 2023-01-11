@@ -44,7 +44,7 @@ pltcalc -H < fifo/full_correlation/gul_S1_pltcalc_P9 > work/full_correlation/kat
 tee < fifo/full_correlation/gul_S1_summary_P9 fifo/full_correlation/gul_S1_pltcalc_P9 > /dev/null & pid4=$!
 summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P9 < fifo/full_correlation/gul_P9 &
 
-eve 9 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P9 -a1 -i - > fifo/gul_P9  &
+( eve 9 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P9 -a1 -i - > fifo/gul_P9  ) &  pid5=$!
 
-wait $pid1 $pid2 $pid3 $pid4
+wait $pid1 $pid2 $pid3 $pid4 $pid5
 

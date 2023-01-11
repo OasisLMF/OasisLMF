@@ -36,6 +36,7 @@ class Genbash(TestCase):
         cls.stderr_guard = False
         cls.gul_legacy_stream = True
         cls.fmpy = False
+        cls.get_getmodel_cmd = None
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -189,7 +190,6 @@ class Genbash(TestCase):
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
             reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
-
         if self.fifo_tmp_dir:
             # Create temp Ref file
             ref_template = reference_filename
@@ -1053,7 +1053,7 @@ class Genbash_FullCorrTempDir(Genbash):
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
 
-class Genbash_LoadBanlancerFmpy(Genbash):
+class Genbash_LoadBalancerFmpy(Genbash):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

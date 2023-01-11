@@ -320,33 +320,33 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P9 < fifo/gul_P9 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P10 < fifo/gul_P10 &
 
-eve -R 1 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  &
-eve -R 2 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  &
-eve -R 3 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P3 > fifo/gul_lb_P3  &
-eve -R 4 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P4 > fifo/gul_lb_P4  &
-eve -R 5 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P5 > fifo/gul_lb_P5  &
-eve -R 6 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P6 > fifo/gul_lb_P6  &
-eve -R 7 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P7 > fifo/gul_lb_P7  &
-eve -R 8 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P8 > fifo/gul_lb_P8  &
-eve -R 9 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P9 > fifo/gul_lb_P9  &
-eve -R 10 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P10 > fifo/gul_lb_P10  &
+( eve -R 1 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
+( eve -R 2 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
+( eve -R 3 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
+( eve -R 4 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
+( eve -R 5 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P5 > fifo/gul_lb_P5  ) & 
+( eve -R 6 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P6 > fifo/gul_lb_P6  ) & 
+( eve -R 7 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P7 > fifo/gul_lb_P7  ) & 
+( eve -R 8 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P8 > fifo/gul_lb_P8  ) & 
+( eve -R 9 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P9 > fifo/gul_lb_P9  ) & 
+( eve -R 10 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P10 > fifo/gul_lb_P10  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 load_balancer -i fifo/gul_lb_P5 fifo/gul_lb_P6 -o fifo/lb_il_P5 fifo/lb_il_P6 &
 load_balancer -i fifo/gul_lb_P7 fifo/gul_lb_P8 -o fifo/lb_il_P7 fifo/lb_il_P8 &
 load_balancer -i fifo/gul_lb_P9 fifo/gul_lb_P10 -o fifo/lb_il_P9 fifo/lb_il_P10 &
-fmcalc -a2 < fifo/lb_il_P1 > fifo/il_P1 &
-fmcalc -a2 < fifo/lb_il_P2 > fifo/il_P2 &
-fmcalc -a2 < fifo/lb_il_P3 > fifo/il_P3 &
-fmcalc -a2 < fifo/lb_il_P4 > fifo/il_P4 &
-fmcalc -a2 < fifo/lb_il_P5 > fifo/il_P5 &
-fmcalc -a2 < fifo/lb_il_P6 > fifo/il_P6 &
-fmcalc -a2 < fifo/lb_il_P7 > fifo/il_P7 &
-fmcalc -a2 < fifo/lb_il_P8 > fifo/il_P8 &
-fmcalc -a2 < fifo/lb_il_P9 > fifo/il_P9 &
-fmcalc -a2 < fifo/lb_il_P10 > fifo/il_P10 &
+( fmcalc -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid101=$!
+( fmcalc -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid102=$!
+( fmcalc -a2 < fifo/lb_il_P3 > fifo/il_P3 ) & pid103=$!
+( fmcalc -a2 < fifo/lb_il_P4 > fifo/il_P4 ) & pid104=$!
+( fmcalc -a2 < fifo/lb_il_P5 > fifo/il_P5 ) & pid105=$!
+( fmcalc -a2 < fifo/lb_il_P6 > fifo/il_P6 ) & pid106=$!
+( fmcalc -a2 < fifo/lb_il_P7 > fifo/il_P7 ) & pid107=$!
+( fmcalc -a2 < fifo/lb_il_P8 > fifo/il_P8 ) & pid108=$!
+( fmcalc -a2 < fifo/lb_il_P9 > fifo/il_P9 ) & pid109=$!
+( fmcalc -a2 < fifo/lb_il_P10 > fifo/il_P10 ) & pid110=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72 $pid73 $pid74 $pid75 $pid76 $pid77 $pid78 $pid79 $pid80 $pid81 $pid82 $pid83 $pid84 $pid85 $pid86 $pid87 $pid88 $pid89 $pid90 $pid91 $pid92 $pid93 $pid94 $pid95 $pid96 $pid97 $pid98 $pid99 $pid100
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72 $pid73 $pid74 $pid75 $pid76 $pid77 $pid78 $pid79 $pid80 $pid81 $pid82 $pid83 $pid84 $pid85 $pid86 $pid87 $pid88 $pid89 $pid90 $pid91 $pid92 $pid93 $pid94 $pid95 $pid96 $pid97 $pid98 $pid99 $pid100 $pid101 $pid102 $pid103 $pid104 $pid105 $pid106 $pid107 $pid108 $pid109 $pid110
 
 
 # --- Do insured loss kats ---
