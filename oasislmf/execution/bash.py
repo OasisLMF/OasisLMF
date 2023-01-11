@@ -144,7 +144,15 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-CHECK_FUNC = """
+
+def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
+    """Creates a bash function to check the logs to ensure same number of process started and finsished.
+
+    Args:
+        custom_gulcalc_log_start (str): Custom message printed to the logs when a process starts.
+        custom_gulcalc_log_finish (str): Custom message printed to the logs when a process ends.
+    """
+    check_function = """
 check_complete(){
     set +e
     proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
@@ -159,12 +167,28 @@ check_complete(){
             echo "[OK] $p"
         fi
     done
-    if [ "$has_error" -ne 0 ]; then
+"""
+    # Add in check for custom gulcalc if settings are provided
+    if custom_gulcalc_log_start and custom_gulcalc_log_finish:
+        check_function += f"""
+    started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
+    finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
+    if [ "$finished" -lt "$started" ]; then
+        echo "[ERROR] gulcalc - $((started-finished)) processes lost"
+        has_error=1
+    elif [ "$started" -gt 0 ]; then
+        echo "[OK] gulcalc"
+    fi
+"""
+
+    check_function += """    if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     else
         echo 'Run Completed'
     fi
 }"""
+    return check_function
+
 
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
@@ -235,7 +259,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator):
+def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -244,8 +268,22 @@ def get_gulcmd(gulpy, gulpy_random_generator):
     Returns:
         str: the ground-up loss calculation command
     """
+    if gulpy and gulmc:
+        raise ValueError("Expect either gulpy or gulmc to be True, got both True.")
+
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
+    elif gulmc:
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server}"
+
+        if peril_filter:
+            cmd += f" --peril-filter {' '.join(peril_filter)}"
+
+        if gulmc_effective_damageability:
+            cmd += " --effective-damageability"
+
+        if gulmc_vuln_cache_size:
+            cmd += f" --vuln-cache-size {gulmc_vuln_cache_size}"
     else:
         cmd = 'gulcalc'
 
@@ -1101,6 +1139,10 @@ def get_getmodel_itm_cmd(
         peril_filter=[],
         gulpy=False,
         gulpy_random_generator=1,
+        gulmc=False,
+        gulmc_random_generator=1,
+        gulmc_effective_damageability=False,
+        gulmc_vuln_cache_size=200,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1118,20 +1160,25 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    if gulmc is True:
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+
+    else:
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -r'.format(cmd)
     if correlated_output != '':
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -j {}'.format(cmd, correlated_output)
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
 
-    if not gulpy:
+    if not gulpy and not gulmc:
         # append this arg only if gulcalc is used
         cmd = '{} -i {}'.format(cmd, item_output)
     else:
@@ -1154,6 +1201,10 @@ def get_getmodel_cov_cmd(
         peril_filter=[],
         gulpy=False,
         gulpy_random_generator=1,
+        gulmc=False,
+        gulmc_random_generator=1,
+        gulmc_effective_damageability=False,
+        gulmc_vuln_cache_size=200,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1171,17 +1222,22 @@ def get_getmodel_cov_cmd(
     :type  eve_shuffle_flag: str
     :return: (str) The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    if gulmc is True:
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+
+    else:
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -r'.format(cmd)
     if coverage_output != '':
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -c {}'.format(cmd, coverage_output)
-    if not gulpy:
+    if not gulpy and not gulmc:
         # append this arg only if gulcalc is used
         if item_output != '':
             cmd = '{} -i {}'.format(cmd, item_output)
@@ -1450,6 +1506,8 @@ def bash_params(
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     custom_gulcalc_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -1458,6 +1516,10 @@ def bash_params(
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
+    gulmc=False,
+    gulmc_random_generator=1,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
 
     # new options
     process_number=None,
@@ -1481,6 +1543,10 @@ def bash_params(
     bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
     bash_params['gulpy_random_generator'] = gulpy_random_generator
+    bash_params['gulmc'] = gulmc
+    bash_params['gulmc_random_generator'] = gulmc_random_generator
+    bash_params['gulmc_effective_damageability'] = gulmc_effective_damageability
+    bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1499,6 +1565,10 @@ def bash_params(
         bash_params['_get_getmodel_cmd'] = get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings)
     else:
         bash_params['_get_getmodel_cmd'] = _get_getmodel_cmd
+
+    # Set custom gulcalc log statment checks,
+        bash_params['custom_gulcalc_log_start'] = custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start')
+        bash_params['custom_gulcalc_log_finish'] = custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish')
 
     # Set fifo dirs
     if fifo_tmp_dir:
@@ -1580,7 +1650,15 @@ def bash_params(
 
 
 @contextlib.contextmanager
-def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_number=None):
+def bash_wrapper(
+    filename,
+    bash_trace,
+    stderr_guard,
+    log_sub_dir=None,
+    process_number=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None
+):
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -1604,7 +1682,7 @@ def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_n
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, CHECK_FUNC)
+        print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
 
     # Script content
     yield
@@ -1682,6 +1760,10 @@ def create_bash_analysis(
     modelpy,
     gulpy,
     gulpy_random_generator,
+    gulmc,
+    gulmc_random_generator,
+    gulmc_effective_damageability,
+    gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
     gul_legacy_stream=False,
@@ -1904,6 +1986,10 @@ def create_bash_analysis(
             'modelpy': modelpy,
             'gulpy': gulpy,
             'gulpy_random_generator': gulpy_random_generator,
+            'gulmc': gulmc,
+            'gulmc_random_generator': gulmc_random_generator,
+            'gulmc_effective_damageability': gulmc_effective_damageability,
+            'gulmc_vuln_cache_size': gulmc_vuln_cache_size,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
         }
@@ -1913,10 +1999,10 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy), gul_fifo_name)
+                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy and not gulmc), gul_fifo_name)
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-' * (not gulpy)
+                getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
@@ -2236,6 +2322,8 @@ def genbash(
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -2244,6 +2332,10 @@ def genbash(
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
+    gulmc=False,
+    gulmc_random_generator=1,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
 ):
@@ -2301,6 +2393,8 @@ def genbash(
         bash_trace=bash_trace,
         filename=filename,
         _get_getmodel_cmd=_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         custom_args=custom_args,
         fmpy=fmpy,
         fmpy_low_memory=fmpy_low_memory,
@@ -2309,6 +2403,10 @@ def genbash(
         modelpy=modelpy,
         gulpy=gulpy,
         gulpy_random_generator=gulpy_random_generator,
+        gulmc=gulmc,
+        gulmc_random_generator=gulmc_random_generator,
+        gulmc_effective_damageability=gulmc_effective_damageability,
+        gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
     )
@@ -2317,6 +2415,12 @@ def genbash(
     if os.path.exists(filename):
         os.remove(filename)
 
-    with bash_wrapper(filename, bash_trace, stderr_guard):
+    with bash_wrapper(
+        filename,
+        bash_trace,
+        stderr_guard,
+        custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
+        custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
+    ):
         create_bash_analysis(**params)
         create_bash_outputs(**params)

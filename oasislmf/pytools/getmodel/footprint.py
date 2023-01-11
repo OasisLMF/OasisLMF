@@ -133,7 +133,7 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
-        self.footprint = np.genfromtxt(os.path.join(self.static_path, "footprint.csv"), dtype=EventCSV, delimiter=",")
+        self.footprint = np.loadtxt(os.path.join(self.static_path, "footprint.csv"), dtype=EventCSV, delimiter=",", skiprows=1, ndmin=1)
         self.num_intensity_bins = max(self.footprint['intensity_bin_id'])
 
         footprint_df = pd.DataFrame(self.footprint, columns=self.footprint.dtype.names)

@@ -3,7 +3,7 @@
 if [ ! -d "../tmp_kparse_output" ]; then
     echo 'no output in "tmp_kparse_output" to update - exit'
     exit 1
-else 
+else
     cp ../tmp_kparse_output/* .
 fi
 
@@ -742,17 +742,20 @@ all_files=(
     il_summarycalc_1_output_20_partition.output.sh
     il_summarycalc_1_output_20_partition.sh
     analysis_settings_5_1_reins_layer_1_partition.sh
-	gul_il_ord_ept_psept_2_output_10_partition.sh
-	gul_il_ord_psept_lec_1_output_10_partition.sh
-	gul_ord_ept_1_output_1_partition.sh
-	gul_ord_ept_1_output_20_partition.sh
-	gul_ord_ept_psept_lec_2_output_10_partition.sh
-	gul_ord_psept_2_output_10_partition.sh
+    gul_il_ord_ept_psept_2_output_10_partition.sh
+    gul_il_ord_psept_lec_1_output_10_partition.sh
+    gul_ord_ept_1_output_1_partition.sh
+    gul_ord_ept_1_output_20_partition.sh
+    gul_ord_ept_psept_lec_2_output_10_partition.sh
+    gul_ord_psept_2_output_10_partition.sh
     gul_ord_palt_output_10_partition.sh
     gul_il_ord_palt_output_10_partition.sh
+    custom_gul_summarycalc_1_output_1_partition.0.sh
+    custom_gul_summarycalc_1_output_1_partition.output.sh
+    custom_gul_summarycalc_1_output_1_partition.sh
 )
 
-for f in "${all_files[@]}"; do 
+for f in "${all_files[@]}"; do
     echo $f
     sed -i 's|/tmp/[a-zA-Z0-9]*/|/tmp/%FIFO_DIR%/|g' $f
-done 
+done
