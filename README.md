@@ -10,12 +10,6 @@
 
 
 
-[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
-[![PiWind check output](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-results.yml)
-[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=master&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
-
-
-
 # OasisLMF
 The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses at all these levels.
 

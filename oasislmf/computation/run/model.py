@@ -3,7 +3,6 @@ __all__ = [
 ]
 
 import os
-import subprocess
 from tqdm import tqdm
 
 from ..base import ComputationStep

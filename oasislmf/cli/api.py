@@ -17,20 +17,6 @@ class RunApiCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformRun'
 
-class RunInputApiCmd(OasisComputationCommand):
-    """
-    Run a model via the Oasis Platoform API end to end 
-    """
-    formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'PlatformRunInputs'
-
-class RunLossApiCmd(OasisComputationCommand):
-    """
-    Run a model via the Oasis Platoform API end to end 
-    """
-    formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'PlatformRunLosses'
-
 
 class RunInputApiCmd(OasisComputationCommand):
     """

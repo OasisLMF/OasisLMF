@@ -11,7 +11,6 @@ from ods_tools.oed import OedSource
 from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
-from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
 
