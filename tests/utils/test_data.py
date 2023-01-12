@@ -24,7 +24,6 @@ from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
                                  factorize_ndarray, fast_zip_arrays,
                                  get_dataframe, get_timestamp,
                                  get_utctimestamp, prepare_location_df)
-from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 
 
