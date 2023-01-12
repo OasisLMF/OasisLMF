@@ -1247,6 +1247,25 @@ def get_getmodel_cov_cmd(
     return cmd
 
 
+def add_pid_to_shell_command(cmd, process_counter):
+    """
+    Add a variable to the end of a command in order to track the ID of the process executing it. 
+    Each time this function is called, the counter `process_counter` is incremented.
+
+    Args:
+        cmd (str): the command whose process ID is to be stored in a variable.
+        process_counter (Counter or dict): the number of process IDs that are being tracked.
+
+    Returns:
+        cmd (str): the updated command string.
+    """
+
+    process_counter["pid_monitor_count"] += 1
+    cmd = f'{cmd} pid{process_counter["pid_monitor_count"]}=$!'
+
+    return cmd
+
+
 def get_main_cmd_ri_stream(
     cmd,
     process_id,
@@ -1260,7 +1279,8 @@ def get_main_cmd_ri_stream(
     fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
-    step_flag=''
+    step_flag='',
+    process_counter=None,
 ):
     """
     Gets the fmcalc ktools command reinsurance stream
@@ -1296,7 +1316,11 @@ def get_main_cmd_ri_stream(
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) &'
+
+    if process_counter is not None:
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -1311,7 +1335,8 @@ def get_main_cmd_il_stream(
     fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
-    step_flag=''
+    step_flag='',
+    process_counter=None,
 ):
     """
     Gets the fmcalc ktools command insured losses stream
@@ -1338,7 +1363,11 @@ def get_main_cmd_il_stream(
         # need extra space at the end to pass test
         main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '
 
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) &'
+
+    if process_counter is not None:
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -1349,6 +1378,7 @@ def get_main_cmd_gul_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     consumer='',
+    process_counter=None,
 ):
     """
     Gets the command to output ground up losses
@@ -1367,7 +1397,11 @@ def get_main_cmd_gul_stream(
 
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) & '
+
+    if process_counter is not None:
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -2084,7 +2118,8 @@ def create_bash_analysis(
                     fmpy,
                     fmpy_low_memory,
                     fmpy_sort_output,
-                    step_flag
+                    step_flag,
+                    process_counter=process_counter
                 )
                 print_command(filename, main_cmd)
 
@@ -2096,13 +2131,18 @@ def create_bash_analysis(
                     fmpy,
                     fmpy_low_memory,
                     fmpy_sort_output,
-                    step_flag
+                    step_flag,
+                    process_counter=process_counter
                 )
                 print_command(filename, main_cmd)
 
             else:
                 main_cmd = get_main_cmd_gul_stream(
-                    getmodel_cmd, process_id, fifo_dir, stderr_guard
+                    cmd=getmodel_cmd,
+                    process_id=process_id,
+                    fifo_dir=fifo_dir,
+                    stderr_guard=stderr_guard,
+                    process_counter=process_counter,
                 )
                 print_command(filename, main_cmd)
 
