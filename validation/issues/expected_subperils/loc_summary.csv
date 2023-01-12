@@ -1,4 +1,4 @@
-portnumber,accnumber,locnumber,loss_gul,loss_il,loss_ri
+PortNumber,AccNumber,LocNumber,loss_gul,loss_il,loss_ri
 724,CX30_01,CX30_01_1,100000000.0,99000000.0,79866667.0
 724,CX30_02,CX30_02_1,100000000.0,49500000.0,49500000.0
 724,CX30_02,CX30_02_2,100000000.0,49500000.0,39933333.5

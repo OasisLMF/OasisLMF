@@ -102,10 +102,10 @@ tee < fifo/full_correlation/il_S1_summary_P16 work/full_correlation/il_S1_summar
 tee < fifo/full_correlation/il_S1_summary_P16.idx work/full_correlation/il_S1_summaryaalcalc/P16.idx > /dev/null & pid4=$!
 ( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P16 < fifo/full_correlation/il_P16 ) 2>> $LOG_DIR/stderror.err  &
 
-( fmcalc -a2 < fifo/full_correlation/gul_fc_P16 > fifo/full_correlation/il_P16 ) 2>> $LOG_DIR/stderror.err &
-( eve 16 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P16 -a1 -i - | fmcalc -a2 > fifo/il_P16  ) 2>> $LOG_DIR/stderror.err &
+( ( fmcalc -a2 < fifo/full_correlation/gul_fc_P16 > fifo/full_correlation/il_P16 ) 2>> $LOG_DIR/stderror.err ) & pid5=$!
+( ( eve 16 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P16 -a1 -i - | fmcalc -a2 > fifo/il_P16  ) 2>> $LOG_DIR/stderror.err ) & pid6=$!
 
-wait $pid1 $pid2 $pid3 $pid4
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
 
 
 check_complete

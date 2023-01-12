@@ -6,8 +6,8 @@ from unittest import main, TestCase
 
 import pandas as pd
 
-from oasislmf.preparation.correlations import map_data, get_correlation_input_items, get_model_settings
-
+from oasislmf.preparation.correlations import map_data, get_correlation_input_items
+from oasislmf.utils.data import get_model_settings
 
 META_PATH = os.path.realpath(__file__).replace("test_correlations.py", "meta_data/")
 

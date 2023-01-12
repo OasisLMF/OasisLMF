@@ -1,0 +1,6 @@
+anytree
+ipython
+ipywidgets==7.6.5
+matplotlib
+graphviz
+oasislmf

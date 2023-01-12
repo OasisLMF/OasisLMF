@@ -1,32 +1,26 @@
 import contextlib
-import copy
 import io
 import logging
 import multiprocessing
 import os
-import pandas as pd
 import random
 import re
 import shutil
 import string
+from collections import Counter
 from functools import partial
+
+import pandas as pd
+
+from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
+                              EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,
+                              KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
+                              KTOOLS_ALLOC_GUL_DEFAULT,
+                              KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT)
+from ..utils.exceptions import OasisException
+
 logger = logging.getLogger(__name__)
 
-from collections import Counter
-
-from ..utils.exceptions import OasisException
-from ..utils.defaults import (
-    KTOOLS_ALLOC_GUL_DEFAULT,
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    KTOOL_N_GUL_PER_LB,
-    KTOOL_N_FM_PER_LB,
-    EVE_DEFAULT_SHUFFLE,
-    EVE_NO_SHUFFLE,
-    EVE_ROUND_ROBIN,
-    EVE_FISHER_YATES,
-    EVE_STD_SHUFFLE,
-)
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
@@ -150,7 +144,15 @@ exit_handler(){
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
-CHECK_FUNC = """
+
+def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=None):
+    """Creates a bash function to check the logs to ensure same number of process started and finsished.
+
+    Args:
+        custom_gulcalc_log_start (str): Custom message printed to the logs when a process starts.
+        custom_gulcalc_log_finish (str): Custom message printed to the logs when a process ends.
+    """
+    check_function = """
 check_complete(){
     set +e
     proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
@@ -165,12 +167,28 @@ check_complete(){
             echo "[OK] $p"
         fi
     done
-    if [ "$has_error" -ne 0 ]; then
+"""
+    # Add in check for custom gulcalc if settings are provided
+    if custom_gulcalc_log_start and custom_gulcalc_log_finish:
+        check_function += f"""
+    started=$( grep "{custom_gulcalc_log_start}" log/gul_stderror.err | wc -l)
+    finished=$( grep "{custom_gulcalc_log_finish}" log/gul_stderror.err | wc -l)
+    if [ "$finished" -lt "$started" ]; then
+        echo "[ERROR] gulcalc - $((started-finished)) processes lost"
+        has_error=1
+    elif [ "$started" -gt 0 ]; then
+        echo "[OK] gulcalc"
+    fi
+"""
+
+    check_function += """    if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     else
         echo 'Run Completed'
     fi
 }"""
+    return check_function
+
 
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
@@ -241,7 +259,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator):
+def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -250,8 +268,22 @@ def get_gulcmd(gulpy, gulpy_random_generator):
     Returns:
         str: the ground-up loss calculation command
     """
+    if gulpy and gulmc:
+        raise ValueError("Expect either gulpy or gulmc to be True, got both True.")
+
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
+    elif gulmc:
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server}"
+
+        if peril_filter:
+            cmd += f" --peril-filter {' '.join(peril_filter)}"
+
+        if gulmc_effective_damageability:
+            cmd += " --effective-damageability"
+
+        if gulmc_vuln_cache_size:
+            cmd += f" --vuln-cache-size {gulmc_vuln_cache_size}"
     else:
         cmd = 'gulcalc'
 
@@ -357,7 +389,6 @@ def ord_enabled(summary_options, ORD_SWITCHES):
     return False
 
 
-
 def do_post_wait_processing(
     runtype,
     analysis_settings,
@@ -392,7 +423,6 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd = 'aalcalc -K{}{}_S{}_summary_palt'.format(
@@ -418,10 +448,10 @@ def do_post_wait_processing(
                     )
                     if summary.get('ord_output', {}).get('alct_confidence'):
                         cmd = '{} {} {}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alct_confidence_level', ''),
-                        summary.get('ord_output', {}).get('alct_confidence')
-                    )
+                            cmd,
+                            ORD_ALT_OUTPUT_SWITCHES.get('alct_confidence_level', ''),
+                            summary.get('ord_output', {}).get('alct_confidence')
+                        )
 
                 if summary.get('ord_output', {}).get('parquet_format'):
                     cmd = '{} {}'.format(
@@ -548,7 +578,7 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
 
 
 def do_fifos_exec_full_correlation(
-    runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo'):
+        runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo'):
     for process_id in process_range(max_process_id, process_number):
         print_command(filename, '{} {}{}_sumcalc_P{}'.format(
             action, fifo_dir, runtype, process_id
@@ -710,7 +740,6 @@ def do_kats(
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
-
     return anykats
 
 
@@ -779,7 +808,6 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
             process_counter['pid_monitor_count'] += 1
             summary_set = summary['id']
 
-
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")}'
             if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd_idx = cmd + '.idx'
@@ -803,7 +831,6 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                 aalcalc_ord_out = f'{work_dir}{runtype}_S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
-
 
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
@@ -916,7 +943,7 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
             summary_set = summary['id']
             for summary_type in SUMMARY_TYPES:
                 if summary.get(summary_type):
-                    #cmd exception for summarycalc
+                    # cmd exception for summarycalc
                     if summary_type == 'summarycalc':
                         cmd = 'summarycalctocsv'
                     else:
@@ -1112,6 +1139,10 @@ def get_getmodel_itm_cmd(
         peril_filter=[],
         gulpy=False,
         gulpy_random_generator=1,
+        gulmc=False,
+        gulmc_random_generator=1,
+        gulmc_effective_damageability=False,
+        gulmc_vuln_cache_size=200,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1129,20 +1160,25 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    if gulmc is True:
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+
+    else:
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -r'.format(cmd)
     if correlated_output != '':
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -j {}'.format(cmd, correlated_output)
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
 
-    if not gulpy:
+    if not gulpy and not gulmc:
         # append this arg only if gulcalc is used
         cmd = '{} -i {}'.format(cmd, item_output)
     else:
@@ -1165,6 +1201,10 @@ def get_getmodel_cov_cmd(
         peril_filter=[],
         gulpy=False,
         gulpy_random_generator=1,
+        gulmc=False,
+        gulmc_random_generator=1,
+        gulmc_effective_damageability=False,
+        gulmc_vuln_cache_size=200,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1182,23 +1222,46 @@ def get_getmodel_cov_cmd(
     :type  eve_shuffle_flag: str
     :return: (str) The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator)} -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    if gulmc is True:
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+
+    else:
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -r'.format(cmd)
     if coverage_output != '':
-        if not gulpy:
+        if not gulpy and not gulmc:
             # append this arg only if gulcalc is used
             cmd = '{} -c {}'.format(cmd, coverage_output)
-    if not gulpy:
+    if not gulpy and not gulmc:
         # append this arg only if gulcalc is used
         if item_output != '':
             cmd = '{} -i {}'.format(cmd, item_output)
     else:
         cmd = '{} {}'.format(cmd, item_output)
 
+    return cmd
+
+
+def add_pid_to_shell_command(cmd, process_counter):
+    """
+    Add a variable to the end of a command in order to track the ID of the process executing it. 
+    Each time this function is called, the counter `process_counter` is incremented.
+
+    Args:
+        cmd (str): the command whose process ID is to be stored in a variable.
+        process_counter (Counter or dict): the number of process IDs that are being tracked.
+
+    Returns:
+        cmd (str): the updated command string.
+    """
+
+    process_counter["pid_monitor_count"] += 1
+    cmd = f'{cmd} pid{process_counter["pid_monitor_count"]}=$!'
 
     return cmd
 
@@ -1216,7 +1279,8 @@ def get_main_cmd_ri_stream(
     fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
-    step_flag=''
+    step_flag='',
+    process_counter=None,
 ):
     """
     Gets the fmcalc ktools command reinsurance stream
@@ -1252,7 +1316,11 @@ def get_main_cmd_ri_stream(
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) &'
+
+    if process_counter is not None:
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -1267,7 +1335,8 @@ def get_main_cmd_il_stream(
     fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
-    step_flag=''
+    step_flag='',
+    process_counter=None,
 ):
     """
     Gets the fmcalc ktools command insured losses stream
@@ -1291,9 +1360,14 @@ def get_main_cmd_il_stream(
     if from_file:
         main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
+        # need extra space at the end to pass test
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '
 
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) &'
+
+    if process_counter is not None:
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -1304,6 +1378,7 @@ def get_main_cmd_gul_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     consumer='',
+    process_counter=None,
 ):
     """
     Gets the command to output ground up losses
@@ -1322,7 +1397,11 @@ def get_main_cmd_gul_stream(
 
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
-    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err &' if stderr_guard else f'{main_cmd} &'
+    main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
+    main_cmd = f'( {main_cmd} ) & '
+
+    if process_counter is not None:
+        main_cmd = add_pid_to_shell_command(main_cmd, process_counter)
 
     return main_cmd
 
@@ -1415,9 +1494,6 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
         yield lb_main_cmd
 
 
-
-
-
 def bash_params(
     analysis_settings,
     max_process_id=-1,
@@ -1435,6 +1511,8 @@ def bash_params(
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     custom_gulcalc_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -1443,8 +1521,12 @@ def bash_params(
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
+    gulmc=False,
+    gulmc_random_generator=1,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
 
-    ## new options
+    # new options
     process_number=None,
     remove_working_files=True,
     model_run_dir='',
@@ -1452,8 +1534,6 @@ def bash_params(
     peril_filter=[],
     **kwargs
 ):
-
-
 
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
@@ -1468,6 +1548,10 @@ def bash_params(
     bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
     bash_params['gulpy_random_generator'] = gulpy_random_generator
+    bash_params['gulmc'] = gulmc
+    bash_params['gulmc_random_generator'] = gulmc_random_generator
+    bash_params['gulmc_effective_damageability'] = gulmc_effective_damageability
+    bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1481,32 +1565,35 @@ def bash_params(
     bash_params["model_py_server"] = model_py_server
     bash_params["peril_filter"] = peril_filter
 
-
     # set complex model gulcalc command
     if not _get_getmodel_cmd and custom_gulcalc_cmd:
         bash_params['_get_getmodel_cmd'] = get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings)
     else:
         bash_params['_get_getmodel_cmd'] = _get_getmodel_cmd
 
-    ## Set fifo dirs
+    # Set custom gulcalc log statment checks,
+        bash_params['custom_gulcalc_log_start'] = custom_gulcalc_log_start or analysis_settings.get('model_custom_gulcalc_log_start')
+        bash_params['custom_gulcalc_log_finish'] = custom_gulcalc_log_finish or analysis_settings.get('model_custom_gulcalc_log_finish')
+
+    # Set fifo dirs
     if fifo_tmp_dir:
         bash_params['fifo_queue_dir'] = '/tmp/{}/fifo/'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)))
     else:
         bash_params['fifo_queue_dir'] = os.path.join(model_run_dir, 'fifo/')
 
-    ## set work dir
+    # set work dir
     if process_number:
         work_base_dir = f'{process_number}.work/'
     else:
         work_base_dir = 'work/'
 
-    ## set dirs
+    # set dirs
     bash_params['stderr_guard'] = stderr_guard
     bash_params['gul_item_stream'] = not gul_legacy_stream
     bash_params['work_dir'] = os.path.join(model_run_dir, work_base_dir)
-    bash_params['work_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'kat/'))
-    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'full_correlation/'))
-    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir ,'full_correlation/kat/'))
+    bash_params['work_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'kat/'))
+    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'full_correlation/'))
+    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'full_correlation/kat/'))
     bash_params['output_dir'] = os.path.join(model_run_dir, 'output/')
     bash_params['output_full_correlation_dir'] = os.path.join(model_run_dir, 'output/full_correlation/')
     bash_params['fifo_full_correlation_dir'] = os.path.join(bash_params['fifo_queue_dir'], 'full_correlation/')
@@ -1555,7 +1642,7 @@ def bash_params(
     if not any(analysis_settings.get(f'{mod}_output') for mod in ['gul', 'il', 'ri']):
         raise OasisException('No valid output settings')
 
-    ## Get perfecting values from 'analysis_settings' settings)
+    # Get perfecting values from 'analysis_settings' settings)
     bash_params['analysis_settings'] = analysis_settings
     bash_params['gul_output'] = analysis_settings.get('gul_output', False)
     bash_params['il_output'] = analysis_settings.get('il_output', False)
@@ -1568,7 +1655,15 @@ def bash_params(
 
 
 @contextlib.contextmanager
-def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_number=None):
+def bash_wrapper(
+    filename,
+    bash_trace,
+    stderr_guard,
+    log_sub_dir=None,
+    process_number=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None
+):
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -1587,13 +1682,12 @@ def bash_wrapper(filename, bash_trace, stderr_guard, log_sub_dir=None, process_n
     print_command(filename, 'rm -R -f $LOG_DIR/*')
     print_command(filename, '')
 
-
     # Trap func and logging
     if bash_trace:
         print_command(filename, BASH_TRACE)
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
-        print_command(filename, CHECK_FUNC)
+        print_command(filename, get_check_function(custom_gulcalc_log_start, custom_gulcalc_log_finish))
 
     # Script content
     yield
@@ -1671,6 +1765,10 @@ def create_bash_analysis(
     modelpy,
     gulpy,
     gulpy_random_generator,
+    gulmc,
+    gulmc_random_generator,
+    gulmc_effective_damageability,
+    gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
     gul_legacy_stream=False,
@@ -1698,17 +1796,16 @@ def create_bash_analysis(
         if not process_number:
             print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
         else:
-            print_command(filename, f"find {fifo_queue_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
-
+            print_command(
+                filename, f"find {fifo_queue_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
 
         if full_correlation:
-            print_command( filename, 'mkdir -p {}'.format(fifo_full_correlation_dir))
+            print_command(filename, 'mkdir -p {}'.format(fifo_full_correlation_dir))
 
-    #if not process_number:
+    # if not process_number:
     print_command(filename, 'rm -R -f {}*'.format(work_dir))
-    #else:
+    # else:
     #    print_command(filename, f"find {work_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
-
 
     print_command(filename, 'mkdir -p {}'.format(work_kat_dir))
     if full_correlation:
@@ -1739,7 +1836,7 @@ def create_bash_analysis(
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
 
-        ## workaround to match bash tests
+        # workaround to match bash tests
         if not process_number:
             if fifo_queue_dir.endswith('fifo/'):
                 print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
@@ -1790,8 +1887,9 @@ def create_bash_analysis(
     if full_correlation:
         fifo_dirs.append(fifo_full_correlation_dir)
         if (il_output or ri_output) and (gul_output or not num_lb):
-            #create fifo for il or ri full correlation compute
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir, process_number, consumer=RUNTYPE_FULL_CORRELATION)
+            # create fifo for il or ri full correlation compute
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir,
+                          process_number, consumer=RUNTYPE_FULL_CORRELATION)
 
     for fifo_dir in fifo_dirs:
         # create fifos for Summarycalc
@@ -1878,7 +1976,7 @@ def create_bash_analysis(
     get_gul_stream_cmds = {}
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
-    #for gul_id in range(1, num_gul_output + 1):
+    # for gul_id in range(1, num_gul_output + 1):
     for gul_id in process_range(num_gul_output, process_number):
         getmodel_args = {
             'number_of_samples': number_of_samples,
@@ -1893,6 +1991,10 @@ def create_bash_analysis(
             'modelpy': modelpy,
             'gulpy': gulpy,
             'gulpy_random_generator': gulpy_random_generator,
+            'gulmc': gulmc,
+            'gulmc_random_generator': gulmc_random_generator,
+            'gulmc_effective_damageability': gulmc_effective_damageability,
+            'gulmc_vuln_cache_size': gulmc_vuln_cache_size,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
         }
@@ -1902,19 +2004,19 @@ def create_bash_analysis(
         if gul_item_stream:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy), gul_fifo_name)
+                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy and not gulmc), gul_fifo_name)
             else:
                 getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-' * (not gulpy)
+                getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
                 getmodel_args['coverage_output'] = f'{gul_fifo_name}'
                 getmodel_args['item_output'] = '-'
-            elif gul_output:# only gul direct stdout to summary
+            elif gul_output:  # only gul direct stdout to summary
                 getmodel_args['coverage_output'] = '-'
                 getmodel_args['item_output'] = ''
-            else:# direct stdout to il
+            else:  # direct stdout to il
                 getmodel_args['coverage_output'] = ''
                 getmodel_args['item_output'] = '-'
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
@@ -1922,31 +2024,31 @@ def create_bash_analysis(
         # gulcalc output file for fully correlated output
         if full_correlation:
             fc_gul_fifo_name = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
-            if need_summary_fifo_for_gul:# need both stream for summary and tream for il
+            if need_summary_fifo_for_gul:  # need both stream for summary and tream for il
                 getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
                                                                    consumer=RUNTYPE_FULL_CORRELATION)
                 if num_lb:
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
-                                                                   consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+                                               consumer=RUNTYPE_LOAD_BALANCED_LOSS)
                     tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} > {tee_output} &"
                     print_command(filename, tee_cmd)
 
                 else:
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
-                                                                   consumer=RUNTYPE_INSURED_LOSS)
+                                               consumer=RUNTYPE_INSURED_LOSS)
                     tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} "
                     get_gul_stream_cmds.setdefault(fifo_full_correlation_dir, []).append((tee_cmd, False))
 
-            elif gul_output:# only gul direct correlated_output to summary
+            elif gul_output:  # only gul direct correlated_output to summary
                 getmodel_args['correlated_output'] = fc_gul_fifo_name
             else:
                 if num_lb:
                     getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
-                                  consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+                                                                       consumer=RUNTYPE_LOAD_BALANCED_LOSS)
 
                 else:
                     getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
-                                                                   consumer=RUNTYPE_FULL_CORRELATION)
+                                                                       consumer=RUNTYPE_FULL_CORRELATION)
                     get_gul_stream_cmds.setdefault(fifo_full_correlation_dir, []).append((getmodel_args['correlated_output'], True))
 
         else:
@@ -1954,7 +2056,7 @@ def create_bash_analysis(
 
         getmodel_args.update(custom_args)
         getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-        if num_lb: # print main_cmd_gul_stream, get_gul_stream_cmds will be updated after by the main lb block
+        if num_lb:  # print main_cmd_gul_stream, get_gul_stream_cmds will be updated after by the main lb block
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
@@ -1962,13 +2064,13 @@ def create_bash_analysis(
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
 
-    if num_lb: # create load balancer cmds
+    if num_lb:  # create load balancer cmds
         for fifo_dir in fifo_dirs:
             get_gul_stream_cmds[fifo_dir] = [
                 (get_fifo_name(fifo_dir, RUNTYPE_LOAD_BALANCED_LOSS, fm_id, RUNTYPE_INSURED_LOSS), True) for
                 fm_id in range(1, num_fm_output + 1)]
 
-            #print the load balancing command
+            # print the load balancing command
             get_input_stream_name = partial(get_fifo_name,
                                             fifo_dir=fifo_dir,
                                             producer=RUNTYPE_GROUNDUP_LOSS,
@@ -1992,17 +2094,15 @@ def create_bash_analysis(
     else:
         step_flag = ' -S'
 
-
     for fifo_dir, gul_streams in get_gul_stream_cmds.items():
         for i, (getmodel_cmd, from_file) in enumerate(gul_streams):
 
-            ## THIS NEEDS EDIT - temp workaround for dist work chunk
+            # THIS NEEDS EDIT - temp workaround for dist work chunk
             if process_number is not None:
                 process_id = process_number
             else:
                 process_id = i + 1
             #######################################################
-
 
             if ri_output:
                 main_cmd = get_main_cmd_ri_stream(
@@ -2018,7 +2118,8 @@ def create_bash_analysis(
                     fmpy,
                     fmpy_low_memory,
                     fmpy_sort_output,
-                    step_flag
+                    step_flag,
+                    process_counter=process_counter
                 )
                 print_command(filename, main_cmd)
 
@@ -2030,13 +2131,18 @@ def create_bash_analysis(
                     fmpy,
                     fmpy_low_memory,
                     fmpy_sort_output,
-                    step_flag
+                    step_flag,
+                    process_counter=process_counter
                 )
                 print_command(filename, main_cmd)
 
             else:
                 main_cmd = get_main_cmd_gul_stream(
-                    getmodel_cmd, process_id, fifo_dir, stderr_guard
+                    cmd=getmodel_cmd,
+                    process_id=process_id,
+                    fifo_dir=fifo_dir,
+                    stderr_guard=stderr_guard,
+                    process_counter=process_counter,
                 )
                 print_command(filename, main_cmd)
 
@@ -2193,14 +2299,13 @@ def create_bash_outputs(
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
         if fifo_tmp_dir:
-            ## workaround to match bash tests
+            # workaround to match bash tests
             if fifo_queue_dir.endswith('fifo/'):
                 print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
             else:
                 print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
         else:
             print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
-
 
 
 # ========================================================================== #
@@ -2222,6 +2327,8 @@ def genbash(
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
+    custom_gulcalc_log_start=None,
+    custom_gulcalc_log_finish=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
@@ -2230,6 +2337,10 @@ def genbash(
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
+    gulmc=False,
+    gulmc_random_generator=1,
+    gulmc_effective_damageability=False,
+    gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
 ):
@@ -2272,7 +2383,6 @@ def genbash(
     :type get_getmodel_cmd: callable
     """
 
-
     params = bash_params(
         max_process_id=max_process_id,
         analysis_settings=analysis_settings,
@@ -2288,6 +2398,8 @@ def genbash(
         bash_trace=bash_trace,
         filename=filename,
         _get_getmodel_cmd=_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         custom_args=custom_args,
         fmpy=fmpy,
         fmpy_low_memory=fmpy_low_memory,
@@ -2296,6 +2408,10 @@ def genbash(
         modelpy=modelpy,
         gulpy=gulpy,
         gulpy_random_generator=gulpy_random_generator,
+        gulmc=gulmc,
+        gulmc_random_generator=gulmc_random_generator,
+        gulmc_effective_damageability=gulmc_effective_damageability,
+        gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
     )
@@ -2304,6 +2420,12 @@ def genbash(
     if os.path.exists(filename):
         os.remove(filename)
 
-    with bash_wrapper(filename, bash_trace, stderr_guard):
+    with bash_wrapper(
+        filename,
+        bash_trace,
+        stderr_guard,
+        custom_gulcalc_log_start=params['custom_gulcalc_log_start'],
+        custom_gulcalc_log_finish=params['custom_gulcalc_log_finish'],
+    ):
         create_bash_analysis(**params)
         create_bash_outputs(**params)

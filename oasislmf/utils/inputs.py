@@ -3,6 +3,7 @@ __all__ = [
     'update_config',
     'has_oasis_env',
     'get_oasis_env',
+    'str2bool'
 ]
 
 import io
@@ -17,25 +18,27 @@ from argparse import ArgumentTypeError
 
 
 def update_config(config_data, config_map=get_config_profile()):
-        config = config_data.copy()
-        obsolete_keys = set(config) & set(config_map)
-        logger = logging.getLogger(__name__)
+    config = config_data.copy()
+    obsolete_keys = set(config) & set(config_map)
+    logger = logging.getLogger(__name__)
 
-        if obsolete_keys:
-            logger.warning('Deprecated key(s) in MDK config:')
-            for key in obsolete_keys:
+    if obsolete_keys:
+        logger.warning('Deprecated key(s) in MDK config:')
+        for key in obsolete_keys:
 
-                # update key
-                if not config_map[key]['deleted']:
-                    logger.warning(f" '{key}' loaded as '{config_map[key]['updated_to']}'")
-                    config[config_map[key]['updated_to']] = config[key]
-                else:
-                    logger.warning(f" '{key}' deleted")
-                del config[key]
-        return config
+            # update key
+            if not config_map[key]['deleted']:
+                logger.warning(f" '{key}' loaded as '{config_map[key]['updated_to']}'")
+                config[config_map[key]['updated_to']] = config[key]
+            else:
+                logger.warning(f" '{key}' deleted")
+            del config[key]
+    return config
+
 
 def has_oasis_env(name):
     return f'OASIS_{name.upper()}' in os.environ
+
 
 def get_oasis_env(name, dtype=None, default=None):
     env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
@@ -53,6 +56,7 @@ class InputValues(object):
     internal_update
 
     """
+
     def __init__(self, args, update_keys=True):
         self.logger = logging.getLogger(__name__)
         self.args = args
@@ -87,7 +91,7 @@ class InputValues(object):
     def load_config_file(self):
         try:
             with io.open(self.config_fp, 'r', encoding='utf-8') as f:
-                return {k.lower(): v for k,v in json.load(f).items()}
+                return {k.lower(): v for k, v in json.load(f).items()}
         except FileNotFoundError:
             raise OasisException('MDK config. file path {} provided does not exist'.format(self.config_fp))
 

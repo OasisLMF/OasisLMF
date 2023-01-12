@@ -7,10 +7,10 @@ import pathlib
 import logging
 import json
 import inspect
+from ods_tools.oed import OedSource
 from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
-from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
 
@@ -38,7 +38,7 @@ class ComputationStep:
         """
         self.logger = logging.getLogger(__name__)
         self.kwargs = kwargs
-        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4))
+        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4, default=str))
 
         for param in self.get_params():
             param_value = kwargs.get(param['name'])
@@ -49,7 +49,9 @@ class ComputationStep:
                 else:
                     param_value = param.get('default')
 
-            if param.get('is_path') and param_value is not None:
+            if (param.get('is_path')
+                    and param_value is not None
+                    and not isinstance(param_value, OedSource)):
                 if param.get('pre_exist') and not os.path.exists(param_value):
                     raise OasisException(
                         f"The path {param_value} ({param['help']}) "
@@ -109,7 +111,6 @@ class ComputationStep:
                 func_args[param] = func_kwargs[param]
         return func_args
 
-
     @classmethod
     def get_signature(cls):
         """ Create a function signature based on the 'get_params()' return
@@ -134,7 +135,6 @@ class ComputationStep:
         except Exception:
             # ignore any errors in signature creation and return blank
             return None
-
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""

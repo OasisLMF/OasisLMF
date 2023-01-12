@@ -48,6 +48,7 @@ def prepare_run_directory(
     inputs_archive=None,
     user_data_dir=None,
     ri=False,
+    copy_model_data=False,
 ):
     """
     Ensures that the model run directory has the correct folder structure in
@@ -156,7 +157,7 @@ def prepare_run_directory(
             for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
                 destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
-                if os.name == 'nt':
+                if os.name == 'nt' or copy_model_data:
                     shutil.copy(sourcefile, destfile)
                 else:
                     os.symlink(sourcefile, destfile)
@@ -196,8 +197,8 @@ def _create_return_period_bin(run_dir, return_periods):
     bin_fp = os.path.join(run_dir, 'input', 'returnperiods.bin')
     pd.DataFrame(
         return_periods,
-        columns =['return_period']).sort_values(ascending=False, by=['return_period']
-    ).to_csv(csv_fp, index=False)
+        columns=['return_period']).sort_values(ascending=False, by=['return_period']
+                                               ).to_csv(csv_fp, index=False)
 
     try:
         cmd_str = "returnperiodtobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
@@ -205,13 +206,14 @@ def _create_return_period_bin(run_dir, return_periods):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
 
+
 def _create_events_bin(run_dir, event_ids):
     csv_fp = os.path.join(run_dir, 'input', 'events.csv')
     bin_fp = os.path.join(run_dir, 'input', 'events.bin')
     pd.DataFrame(
         event_ids,
-        columns =['event_id']).sort_values(ascending=True, by=['event_id']
-    ).to_csv(csv_fp, index=False)
+        columns=['event_id']).sort_values(ascending=True, by=['event_id']
+                                          ).to_csv(csv_fp, index=False)
 
     try:
         cmd_str = "evetobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
@@ -219,14 +221,15 @@ def _create_events_bin(run_dir, event_ids):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
 
+
 def _create_quantile_bin(run_dir, quantiles):
     csv_fp = os.path.join(run_dir, 'input', 'quantile.csv')
     bin_fp = os.path.join(run_dir, 'input', 'quantile.bin')
     pd.DataFrame(
         quantiles,
         dtype='float',
-        columns =['quantile']).sort_values(ascending=True, by=['quantile']
-    ).to_csv(csv_fp, index=False)
+        columns=['quantile']).sort_values(ascending=True, by=['quantile']
+                                          ).to_csv(csv_fp, index=False)
 
     try:
         cmd_str = "quantiletobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
@@ -234,11 +237,13 @@ def _create_quantile_bin(run_dir, quantiles):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting quantile.csv to ktools binary format: {}".format(e))
 
+
 def _load_default_quantile_bin(run_dir):
     default_quantile_fp = os.path.join(STATIC_DATA_FP, 'quantile.csv')
     _create_quantile_bin(run_dir,
-        pd.read_csv(default_quantile_fp)["quantile"].tolist()
-    )
+                         pd.read_csv(default_quantile_fp)["quantile"].tolist()
+                         )
+
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False, extension='bin'):
     bin_fp = os.path.join(run_dir, 'input', '{}.{}'.format(bin_name, extension))
@@ -336,12 +341,12 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         if analysis_settings.get('quantiles'):
             # 1. Create quantile file from user input
             _create_quantile_bin(run_dir, analysis_settings.get('quantiles'))
-        elif  _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
+        elif _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
             # 2. copy quantile file from model data
             if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
                 _prepare_input_bin(run_dir, 'quantile', model_settings, ri=ri)
             else:
-            # 3. Create quantile file from package `_data/quantile.csv`
+                # 3. Create quantile file from package `_data/quantile.csv`
                 _load_default_quantile_bin(run_dir)
 
         # Prepare occurrence / returnperiod depending on output calcs selected
@@ -363,7 +368,6 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         # Prepare periods.bin
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
-
 
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))

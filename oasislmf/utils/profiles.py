@@ -66,7 +66,7 @@ def get_grouped_fm_profile_by_level_and_term_group(
         'limittype': FM_TERMS['limit type']['id'],
         'share': FM_TERMS['share']['id']
     })
-    profile =  OrderedDict({
+    profile = OrderedDict({
         level: OrderedDict({
             FMTermGroupID: OrderedDict({
                 (grouped_fm_term_types.get(term['FMTermType'].lower()) or term['FMTermType'].lower()): term for term in TermGroup

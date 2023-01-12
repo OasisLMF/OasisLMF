@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from numba import njit
 from numba.typed import Dict, List
+from oasislmf.pytools.common import PIPE_CAPACITY
 
 from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
 
@@ -19,22 +20,19 @@ from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
 from oasislmf.pytools.getmodel.common import oasis_float, Keys, Correlation
 
 from oasislmf.pytools.gul.common import (
-    MEAN_IDX, PIPE_CAPACITY, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
+    MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
     ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
     gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
 )
+from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.io import (
     write_negative_sidx, write_sample_header,
     write_sample_rec, read_getmodel_stream,
 )
-
 from oasislmf.pytools.gul.random import (
     get_random_generator, compute_norm_cdf_lookup,
     compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
 )
-
-from oasislmf.pytools.gul.random import get_random_generator
-from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 
 
@@ -52,7 +50,6 @@ def get_coverages(input_path, ignore_file_type=set()):
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
     input_files = set(os.listdir(input_path))
-    # TODO: store default filenames (e.g., coverages.bin) in a parameters file
 
     if "coverages.bin" in input_files and "bin" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.bin')
@@ -62,7 +59,7 @@ def get_coverages(input_path, ignore_file_type=set()):
     elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.csv')
         logger.debug(f"loading {coverages_fname}")
-        coverages = np.genfromtxt(coverages_fname, dtype=oasis_float, delimiter=",")
+        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         raise FileNotFoundError(f'coverages file not found at {input_path}')
@@ -90,7 +87,7 @@ def gul_get_items(input_path, ignore_file_type=set()):
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.genfromtxt(items_fname, dtype=Item, delimiter=",")
+        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
@@ -150,9 +147,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    # TODO: store static_path in a paraparameters file
     static_path = os.path.join(run_dir, 'static')
-    # TODO: store input_path in a paraparameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -220,7 +215,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         do_correlation = False
         if ignore_correlation:
-            logger.info(f"Correlated random number generation: switched OFF because --ignore-correlation is True.")
+            logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
             file_path = os.path.join(input_path, 'correlations.bin')
@@ -231,11 +226,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
                 do_correlation = True
             else:
-                logger.info(f"Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
+                logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
                             "the correlation value is zero for all peril correlation groups.")
 
         if do_correlation:
-            logger.info(f"Correlated random number generation: switched ON.")
+            logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
             corr_data_by_item_id[0] = (0, 0.)
@@ -295,7 +290,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             last_processed_coverage_ids_idx = 0
 
             # adjust buff size so that the buffer fits the longest coverage
-            buff_size = PIPE_CAPACITY
+            buff_size = PIPE_CAPACITY * 2
             max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
             while buff_size < max_bytes_per_coverage:
                 buff_size *= 2
@@ -337,7 +332,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
     Args:
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
-        coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
+        coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
         items_data (numpy.array[items_data_type]): items-related data.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.

@@ -1,16 +1,13 @@
 import logging
-import multiprocessing
 import os
 import shutil
-
 import subprocess
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from .bash import genbash
+from .bash import (bash_wrapper, create_bash_analysis,
+                   create_bash_outputs, genbash)
 
-## NEW IMPORTS
-from .bash import create_bash_outputs, create_bash_analysis, bash_params, bash_wrapper
 
 @oasis_log()
 def run(analysis_settings,
@@ -20,11 +17,13 @@ def run(analysis_settings,
         set_alloc_rule_ri=None,
         run_debug=False,
         custom_gulcalc_cmd=None,
+        custom_gulcalc_log_start=None,
+        custom_gulcalc_log_finish=None,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
         gul_legacy_stream=False,
         **kwargs
-):
+        ):
 
     ## MOVED into bash_params #########################################
     #  keep here for the moment and refactor after testing
@@ -96,6 +95,8 @@ def run(analysis_settings,
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
+        custom_gulcalc_log_start=custom_gulcalc_log_start,
+        custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         **kwargs,
     )
     bash_trace = subprocess.check_output(['bash', filename])
@@ -104,9 +105,9 @@ def run(analysis_settings,
 
 @oasis_log()
 def run_analysis(**params):
-    with bash_wrapper(params['filename'], 
-                      params['bash_trace'], 
-                      params['stderr_guard'], 
+    with bash_wrapper(params['filename'],
+                      params['bash_trace'],
+                      params['stderr_guard'],
                       log_sub_dir=params.get("process_number", None),
                       process_number=params.get("process_number", None)):
         create_bash_analysis(**params)

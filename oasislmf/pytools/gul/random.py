@@ -16,10 +16,14 @@ GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
 HASH_MOD_CODE = np.int64(2147483648)
 
+HAZ_GROUP_ID_HASH_CODE = np.int64(1343271947)
+HAZ_EVENT_ID_HASH_CODE = np.int64(1743274343)
+HAZ_HASH_MOD_CODE = np.int64(2157483709)
+
 
 @njit(cache=True, fastmath=True)
 def generate_hash(group_id, event_id, base_seed=0):
-    """Generate hash for a given `group_id`, `event_id` pair.
+    """Generate hash for a given `group_id`, `event_id` pair for the vulnerability pdf.
 
     Args:
         group_id (int): group id.
@@ -31,6 +35,24 @@ def generate_hash(group_id, event_id, base_seed=0):
     """
     hash = (base_seed + (group_id * GROUP_ID_HASH_CODE) % HASH_MOD_CODE +
             (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE) % HASH_MOD_CODE
+
+    return hash
+
+
+@njit(cache=True, fastmath=True)
+def generate_hash_haz(group_id, event_id, base_seed=0):
+    """Generate hash for a given `group_id`, `event_id` pair for the hazard pdf.
+
+    Args:
+        group_id (int): group id.
+        event_id (int]): event id.
+        base_seed (int, optional): base random seed. Defaults to 0.
+
+    Returns:
+        int64: hash
+    """
+    hash = (base_seed + (group_id * HAZ_GROUP_ID_HASH_CODE) % HAZ_HASH_MOD_CODE +
+            (event_id * HAZ_EVENT_ID_HASH_CODE) % HAZ_HASH_MOD_CODE) % HAZ_HASH_MOD_CODE
 
     return hash
 
