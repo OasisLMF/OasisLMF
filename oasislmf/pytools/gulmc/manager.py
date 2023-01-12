@@ -299,7 +299,7 @@ def run(run_dir,
 
         # create buffers to be reused when computing losses
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
-        vuln_cdf = np.zeros(Ndamage_bins_max, dtype=oasis_float)
+        vuln_cdf_empty = np.zeros(Ndamage_bins_max, dtype=oasis_float)
         weighted_vuln_cdf_empty = np.zeros(Ndamage_bins_max, dtype=oasis_float)
 
         # maximum bytes to be written in the output stream for 1 item
@@ -379,7 +379,7 @@ def run(run_dir,
                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
                         cached_vuln_cdfs,
                         agg_vuln_to_vuln_id, agg_vuln_to_vuln_idx, vuln_dict, areaperil_vuln_idx_to_weight,
-                        loss_threshold, losses, vuln_cdf, weighted_vuln_cdf_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
+                        loss_threshold, losses, vuln_cdf_empty, weighted_vuln_cdf_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
                         eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
@@ -415,8 +415,8 @@ def compute_event_losses(event_id,
                          cached_vuln_cdf_lookup_keys,
                          next_cached_vuln_cdf,
                          cached_vuln_cdfs,
-                         agg_vuln_to_vulns,
-                         agg_vuln_to_vulns_idx,
+                         agg_vuln_to_vuln_id,
+                         agg_vuln_to_vuln_idx,
                          vuln_dict,
                          ap_vuln_idx_weights,
                          loss_threshold,
@@ -467,15 +467,15 @@ def compute_event_losses(event_id,
         cached_vuln_cdf_lookup (Dict[VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE]): dict to store
           the map between vuln_id and intensity bin id and the location of the cdf in the cache.
         cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
-        next_cached_vuln_cdf (): 
+        next_cached_vuln_cdf (int): index of the next free slot in the vuln cdf cache.
         cached_vuln_cdfs (np.array[oasis_float]): vulnerability cdf cache.
-        agg_vuln_to_vulns (): 
-        agg_vuln_to_vulns_idx (): 
+        agg_vuln_to_vuln_id (): 
+        agg_vuln_to_vuln_idx (): 
         vuln_dict (Dict[int, int]): map between vulnerability_id and the index where the vulnerability function is stored in vuln_array.
         ap_vuln_idx_weights (): 
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
-        vuln_cdf_empty:
+        vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store vulnerability cdf.
         weighted_vuln_cdf_empty:
         vuln_cdf (np.array[oasis_float]): array (to be re-used) to store the damage cdf for each item.
         alloc_rule (int): back-allocation rule.
@@ -545,11 +545,11 @@ def compute_event_losses(event_id,
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
             # if aggregate: agg_eff_vuln_cdf needs to be computed
-            if vulnerability_id in agg_vuln_to_vulns:
+            if vulnerability_id in agg_vuln_to_vuln_id:
                 # aggregate case
                 weighted_vuln_cdf = weighted_vuln_cdf_empty
                 tot_weights = 0.
-                agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
+                agg_vulns_idx = agg_vuln_to_vuln_idx[vulnerability_id]
 
                 # here we use loop-unrolling for a more performant code.
                 # we explicitly run the first cycle for damage_bin_i=0 to cache (eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight)
@@ -695,9 +695,9 @@ def compute_event_losses(event_id,
                         haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
 
                         # 3) get the vulnerability cdf
-                        if vulnerability_id in agg_vuln_to_vulns:
+                        if vulnerability_id in agg_vuln_to_vuln_id:
                             # aggregate case
-                            agg_vulns_idx = agg_vuln_to_vulns_idx[vulnerability_id]
+                            agg_vulns_idx = agg_vuln_to_vuln_idx[vulnerability_id]
                             weighted_vuln_cdf = weighted_vuln_cdf_empty
 
                             # cache the weights and compute the total weights
@@ -809,22 +809,22 @@ def get_vuln_cdf(vuln_i,
     """Compute the cdf of a vulnerability function and store it in cache or, if it is already cached, retrieve it.
 
     Args:
-        vuln_i (_type_): _description_
-        haz_bin_idx (_type_): _description_
-        haz_int_bin_id (_type_): _description_
+        vuln_i (int): index of the vuln_array matrix where the vulnerability pdf is stored.
+        haz_bin_idx (int): index of the selected hazard intensity bin.
+        haz_int_bin_id (int): the selected hazard intensity bin id (starts from 1).
         cached_vuln_cdf_lookup (Dict[VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE]): dict to store
           the map between vuln_id and intensity bin id and the location of the cdf in the cache.
         cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
         vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
-        vuln_cdf_empty (_type_): _description_
+        vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store vulnerability cdf.
         Ndamage_bins_max (int): maximum number of damage bins.
         cached_vuln_cdfs (np.array[oasis_float]): vulnerability cdf cache.
-        next_cached_vuln_cdf (_type_): _description_
+        next_cached_vuln_cdf (int): index of the next free slot in the vuln cdf cache.
 
     Returns:
-        vuln_cdf ():
-        Ndamage_bins 
-        next_cached_vuln_cdf: _description_
+        vuln_cdf (np.array[oasis_float]): the desired vulnerability cdf.
+        Ndamage_bins (int): number of bins of vuln_cdf.
+        next_cached_vuln_cdf (int): updated index of the next free slot in the vuln cdf cache.
     """
     lookup_key = tuple((vuln_i, haz_bin_idx))
     if lookup_key in cached_vuln_cdf_lookup:
