@@ -307,6 +307,19 @@
             "title": "User set event ids",
             "description": "List of event ids as integers '[1, 5, 123 .. etc]'"
         },
+        "peril_filter": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type":"string",
+                "title":"OED peril",
+                "description":"OED three letter peril code",
+                "minLength":3,
+                "maxLength":3
+            },
+            "title": "Run filter by peril id",
+            "description": "List of OED peril ids '['WSS', 'WTC' .. ]'"
+        },
         "quantiles": {
             "type": "array",
             "minItems": 1,
@@ -334,6 +347,12 @@
                     "description": "Identifier for the event set file that is used for output calculations.",
                     "default": 1
                 },
+		"event_rates_set": {
+		    "type": "string",
+		    "title": "Event rates set file ID.",
+		    "description": "Identifier for the event rates set file that is used for output calculations.",
+		    "default": 1
+		},
                 "event_occurrence_id": {
                     "type": "string",
                     "title": "Event occurrence file ID.",

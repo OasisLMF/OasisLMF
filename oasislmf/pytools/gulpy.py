@@ -12,6 +12,9 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-a', help='back-allocation rule', default=0, type=int, dest='alloc_rule')
+parser.add_argument('--ignore-correlation',
+                    help='if passed, peril correlation groups (if defined) are ignored for the generation of correlated samples',
+                    action='store_true', dest='ignore_correlation', default=False)
 parser.add_argument('-d', help='output random numbers instead of gul (default: False).',
                     default=False, action='store_true', dest='debug')
 parser.add_argument('-i', '--file-in', help='filename of input stream.', action='store', type=str, dest='file_in')
@@ -19,6 +22,7 @@ parser.add_argument('-o', '--file-out', help='filename of output stream.', actio
 parser.add_argument('-L', help='Loss treshold (default: 1e-6)', default=1e-6,
                     action='store', type=float, dest='loss_threshold')
 parser.add_argument('-S', help='Sample size (default: 0).', default=0, action='store', type=int, dest='sample_size')
+parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty take all perils', nargs='+')
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('--random-generator',

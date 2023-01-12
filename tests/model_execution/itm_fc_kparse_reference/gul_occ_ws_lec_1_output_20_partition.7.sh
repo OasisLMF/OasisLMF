@@ -46,7 +46,7 @@ tee < fifo/full_correlation/gul_S1_summary_P8 work/full_correlation/gul_S1_summa
 tee < fifo/full_correlation/gul_S1_summary_P8.idx work/full_correlation/gul_S1_summaryleccalc/P8.idx > /dev/null & pid4=$!
 summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P8 < fifo/full_correlation/gul_P8 &
 
-eve 8 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P8 -a1 -i - > fifo/gul_P8  &
+( eve 8 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P8 -a1 -i - > fifo/gul_P8  ) &  pid5=$!
 
-wait $pid1 $pid2 $pid3 $pid4
+wait $pid1 $pid2 $pid3 $pid4 $pid5
 

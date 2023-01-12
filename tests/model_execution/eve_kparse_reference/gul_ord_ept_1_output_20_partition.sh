@@ -168,28 +168,28 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
 
-eve -R 1 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P1  &
-eve -R 2 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P2  &
-eve -R 3 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P3  &
-eve -R 4 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P4  &
-eve -R 5 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P5  &
-eve -R 6 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P6  &
-eve -R 7 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P7  &
-eve -R 8 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P8  &
-eve -R 9 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P9  &
-eve -R 10 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P10  &
-eve -R 11 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P11  &
-eve -R 12 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P12  &
-eve -R 13 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P13  &
-eve -R 14 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P14  &
-eve -R 15 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P15  &
-eve -R 16 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P16  &
-eve -R 17 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P17  &
-eve -R 18 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P18  &
-eve -R 19 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P19  &
-eve -R 20 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P20  &
+( eve -R 1 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P1  ) &  pid41=$!
+( eve -R 2 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P2  ) &  pid42=$!
+( eve -R 3 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P3  ) &  pid43=$!
+( eve -R 4 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P4  ) &  pid44=$!
+( eve -R 5 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P5  ) &  pid45=$!
+( eve -R 6 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P6  ) &  pid46=$!
+( eve -R 7 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P7  ) &  pid47=$!
+( eve -R 8 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P8  ) &  pid48=$!
+( eve -R 9 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P9  ) &  pid49=$!
+( eve -R 10 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P10  ) &  pid50=$!
+( eve -R 11 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P11  ) &  pid51=$!
+( eve -R 12 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P12  ) &  pid52=$!
+( eve -R 13 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P13  ) &  pid53=$!
+( eve -R 14 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P14  ) &  pid54=$!
+( eve -R 15 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P15  ) &  pid55=$!
+( eve -R 16 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P16  ) &  pid56=$!
+( eve -R 17 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P17  ) &  pid57=$!
+( eve -R 18 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P18  ) &  pid58=$!
+( eve -R 19 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P19  ) &  pid59=$!
+( eve -R 20 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P20  ) &  pid60=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60
 
 
 # --- Do ground up loss kats ---

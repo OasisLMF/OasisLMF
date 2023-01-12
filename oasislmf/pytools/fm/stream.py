@@ -28,7 +28,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-#gul_header = np.int32(1 << 24).tobytes()
+# gul_header = np.int32(1 << 24).tobytes()
 fm_header = np.int32(1 | 2 << 24).tobytes()
 
 
@@ -152,7 +152,7 @@ def register_streams_in(selector_class, streams_in):
                 'cursor': 0,
                 'valid_buf': 0,
                 'stream_selector': stream_selector
-               }
+                }
         stream_data.append(data)
         main_selector.register(stream_in, selectors.EVENT_READ, data)
     return main_selector, stream_data
@@ -162,7 +162,7 @@ def read_streams(streams_in, nodes_array, losses, index, computes):
     try:
         main_selector, stream_data = register_streams_in(selectors.DefaultSelector, streams_in)
         logger.debug("Streams read with DefaultSelector")
-    except PermissionError: # Fall back option if stream_in contain regular files
+    except PermissionError:  # Fall back option if stream_in contain regular files
         main_selector, stream_data = register_streams_in(selectors.SelectSelector, streams_in)
         logger.debug("Streams read with SelectSelector")
     try:
@@ -212,10 +212,10 @@ def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes
     while computes[compute_i]:
         node = nodes_array[computes[compute_i]]
         for layer in range(i_layer, node['layer_len']):
-            output_id = output_array[node['output_ids']+layer]
+            output_id = output_array[node['output_ids'] + layer]
             if output_id:  # if output is not in xref output_id is 0
-                loss_index = loss_indexes[node['ba']+layer]
-                #print(computes[compute_i], output_id, loss_index, losses[loss_index])
+                loss_index = loss_indexes[node['ba'] + layer]
+                # print(computes[compute_i], output_id, loss_index, losses[loss_index])
                 while cursor < nb_values:
                     if i_index == 0:
                         event_agg[cursor]['event_id'], event_agg[cursor]['agg_id'] = event_id, output_id
@@ -260,7 +260,7 @@ class EventWriter:
         self.output_array = output_array
 
         self.len_sample = len_sample
-        self.loss_shape_1 = len_sample + EXTRA_VALUES # all normal sidx plus the extra values
+        self.loss_shape_1 = len_sample + EXTRA_VALUES  # all normal sidx plus the extra values
 
         self.mv = memoryview(bytearray(nb_number * number_size))
 
@@ -282,21 +282,21 @@ class EventWriter:
             self.stream_out.close()
 
     def write(self, event_id, compute_i):
-        i_index= 0
+        i_index = 0
         i_layer = 0
         stream_out = [self.stream_out]
         while self.computes[compute_i]:
             cursor, compute_i, i_layer, i_index = load_event(self.event_agg,
-                                                              self.sidx_loss,
-                                                              event_id,
-                                                              self.nodes_array,
-                                                              self.losses,
-                                                              self.loss_indexes,
-                                                              self.computes,
-                                                              self.output_array,
-                                                              compute_i,
-                                                              i_layer,
-                                                              i_index, nb_number)
+                                                             self.sidx_loss,
+                                                             event_id,
+                                                             self.nodes_array,
+                                                             self.losses,
+                                                             self.loss_indexes,
+                                                             self.computes,
+                                                             self.output_array,
+                                                             compute_i,
+                                                             i_layer,
+                                                             i_index, nb_number)
 
             _, writable, exceptional = select([], stream_out, stream_out)
             if exceptional:

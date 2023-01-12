@@ -28,6 +28,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# pip-tools generated files
+requirements.txt
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -52,6 +55,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache
 validation/runs
+tmp/
 
 # Translations
 *.mo
@@ -94,6 +98,9 @@ celerybeat-schedule
 venv/
 ENV/
 
+# pip-compiled requirements
+requirements.txt
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -117,9 +124,21 @@ tests/model_execution/err_fc_kparse_output/
 tests/model_execution/itm_fc_kparse_output/
 tests/model_execution/tmp_fc_kparse_output/
 
+!tests/pytools/data_layer/oasis_files/meta_data/correlations.bin
+
+# do not ignore .bin files in test model assets directories
+!tests/assets/test_model_?/*.bin
+!tests/assets/test_model_?/input/*.bin
+!tests/assets/test_model_?/static/*.bin
+!tests/assets/test_model_?/expected/*.bin
+
 # pycharm
 .idea/
 data/
 
+# vs code
+.vscode/
+
+# mac os
 .DS_Store/
 .DS_Store

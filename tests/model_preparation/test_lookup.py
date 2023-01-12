@@ -15,33 +15,16 @@ from hypothesis import (
     settings,
 )
 from hypothesis.strategies import (
-    fixed_dictionaries,
-    integers,
     just,
-    lists,
     sampled_from,
     text,
-    tuples,
 )
-from mock import Mock, patch
-from tempfile import NamedTemporaryFile
 
 from oasislmf.lookup.factory import KeyServerFactory, BasicKeyServer
-from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df
-from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 
 from tests.data import keys
-
-# Determine number and names of required columns in loc file
-_, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
-loc_required_cols = [name.lower() for name in loc_required_cols]
-loc_required_cols.append('loc_id')
-loc_data_cols = [
-    integers(min_value=0, max_value=100)
-    for _ in range(len(loc_required_cols))
-]
 
 
 class OasisLookupFactoryCreate(TestCase):
@@ -250,13 +233,6 @@ class OasisLookupFactoryCreate(TestCase):
                 )
 
 
-class OasisLookupFactoryGetSourceExposure(TestCase):
-
-    def test_no_file_or_exposure_are_provided___oasis_exception_is_raised(self):
-        with self.assertRaises(OasisException):
-            get_location_df(exposure_fp=None)
-
-
 class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
     @settings(deadline=None, suppress_health_check=HealthCheck.all())
@@ -286,7 +262,7 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
             keys_errors_file_path = os.path.join(d, 'keys-errors.csv')
 
             result = pd.DataFrame(successes + nonsuccesses)
-            result.rename(columns={'coverage_type_id':'coverage_type'}, inplace=True)
+            result.rename(columns={'coverage_type_id': 'coverage_type'}, inplace=True)
             key_server = BasicKeyServer({'builtin_lookup_type': 'deterministic'})
             _, successes_count, _, nonsuccesses_count = key_server.write_keys_file([result],
                                                                                    successes_fp=keys_file_path,

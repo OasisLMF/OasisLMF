@@ -18,12 +18,14 @@ from hypothesis.strategies import (
     integers,
 )
 
+from ods_tools.oed import OedExposure
+
 from oasislmf.preparation.summaries import write_exposure_summary
 from oasislmf.preparation.summaries import get_exposure_summary
 from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.defaults import get_default_exposure_profile
-from oasislmf.utils.data import get_location_df, get_ids
+from oasislmf.utils.data import get_ids, prepare_location_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS_MODELLED
 
 from tests.data import (
@@ -56,10 +58,10 @@ class TestSummaries(TestCase):
         cov_types = ['buildings', 'other', 'bi', 'contents']
         lookup_status = ['success', 'fail', 'nomatch', 'fail_ap', 'fail_v', 'notatrisk']
         loc_rename_cols = {
-            'bitiv': 'bi',
-            'buildingtiv': 'buildings',
-            'contentstiv': 'contents',
-            'othertiv': 'other'
+            'BITIV': 'bi',
+            'BuildingTIV': 'buildings',
+            'ContentsTIV': 'contents',
+            'OtherTIV': 'other'
         }
 
         # Check each returned peril
@@ -67,7 +69,7 @@ class TestSummaries(TestCase):
             peril_summary = exp_summary[peril]
 
             # Check the 'All' section
-            supported_tivs = loc_df[['buildingtiv', 'othertiv', 'bitiv', 'contentstiv']].sum(0).rename(loc_rename_cols)
+            supported_tivs = loc_df[['BuildingTIV', 'OtherTIV', 'BITIV', 'ContentsTIV']].sum(0).rename(loc_rename_cols)
             self.assertAlmostEqual(supported_tivs.sum(0), peril_summary['all']['tiv'])
 
             for cov in cov_types:
@@ -100,7 +102,7 @@ class TestSummaries(TestCase):
 
         # Shared Values between Loc / keys
         loc_size = data.draw(integers(10, 20))
-        supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
+        supported_cov = data.draw(st.lists(integers(1, 4), unique=True, min_size=1, max_size=4))
         perils = 'WTC'
 
         # Create Mock keys_df
@@ -124,7 +126,7 @@ class TestSummaries(TestCase):
             from_other_tivs=integers(100, 100000),
             from_contents_tivs=integers(50, 50000),
             from_bi_tivs=integers(20, 20000))))
-        loc_df['loc_id'] = get_ids(loc_df, ['portnumber', 'accnumber', 'locnumber'])
+        loc_df = prepare_location_df(OedExposure(**{'location': loc_df, 'use_field': True}).location.dataframe)
 
         # Run exposure_summary
         exp_summary = get_exposure_summary(
@@ -133,11 +135,11 @@ class TestSummaries(TestCase):
         )
 
         # Run Gul Proccessing
-        gul_inputs = get_gul_input_items(loc_df, keys_df)
+        gul_inputs = get_gul_input_items(loc_df, keys_df, group_id_cols=['loc_id'])
         gul_inputs = gul_inputs[gul_inputs['status'].isin(OASIS_KEYS_STATUS_MODELLED)]
 
         # Fetch expected TIVS
-        tiv_portfolio = loc_df[['buildingtiv', 'othertiv', 'bitiv', 'contentstiv']].sum(1).sum(0)
+        tiv_portfolio = loc_df[['BuildingTIV', 'OtherTIV', 'BITIV', 'ContentsTIV']].sum(1).sum(0)
         tiv_modelled = gul_inputs['tiv'].sum()
         tiv_not_modelled = tiv_portfolio - tiv_modelled
 
@@ -152,18 +154,18 @@ class TestSummaries(TestCase):
 
         # Check number of not-modelled
         # WARNING: current assumption is that all cov types must be covered to be modelled
-        #moddeled = 0
-        #moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
-        #for loc_id in moddeld_loc_ids:
+        # moddeled = 0
+        # moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
+        # for loc_id in moddeld_loc_ids:
         #    if len(gul_inputs[gul_inputs.loc_id == loc_id].coverage_type_id.unique()) == 4:
         #        moddeled+=1
-        #self.assertEqual(len(loc_df) - moddeled, exp_summary['total']['not-modelled']['number_of_locations'])
+        # self.assertEqual(len(loc_df) - moddeled, exp_summary['total']['not-modelled']['number_of_locations'])
 
     @given(st.data())
     @settings(max_examples=10, deadline=None)
     def test_multi_perils__single_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
-        supported_cov = data.draw(integers(1,4))
+        supported_cov = data.draw(integers(1, 4))
         perils = data.draw(st.lists(
             st.text(alphabet=(string.ascii_letters + string.digits), min_size=2, max_size=6),
             min_size=2,
@@ -195,12 +197,12 @@ class TestSummaries(TestCase):
             from_other_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_contents_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_bi_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)))))
-        loc_df['loc_id'] = get_ids(loc_df, ['portnumber', 'accnumber', 'locnumber'])
+        loc_df = prepare_location_df(OedExposure(**{'location': loc_df, 'use_field': True}).location.dataframe)
 
         # Run Summary output check
         self.assertSummaryIsValid(
             loc_df,
-            get_gul_input_items(loc_df, keys_df),
+            get_gul_input_items(loc_df, keys_df, group_id_cols=['loc_id']),
             get_exposure_summary(exposure_df=loc_df, keys_df=keys_df),
             perils_returned
         )
@@ -209,7 +211,7 @@ class TestSummaries(TestCase):
     @settings(max_examples=10, deadline=None, suppress_health_check=HealthCheck.all())
     def test_multi_perils__multi_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
-        supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
+        supported_cov = data.draw(st.lists(integers(1, 4), unique=True, min_size=1, max_size=4))
         perils = data.draw(st.lists(
             st.text(alphabet=(string.ascii_letters + string.digits), min_size=2, max_size=6),
             min_size=2,
@@ -240,11 +242,11 @@ class TestSummaries(TestCase):
             from_other_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_contents_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_bi_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)))))
-        loc_df['loc_id'] = get_ids(loc_df, ['portnumber', 'accnumber', 'locnumber'])
+        loc_df = prepare_location_df(OedExposure(**{'location': loc_df, 'use_field': True}).location.dataframe)
 
         # Run Summary output check
         exp_summary = get_exposure_summary(exposure_df=loc_df, keys_df=keys_df)
-        gul_inputs = get_gul_input_items(loc_df, keys_df)
+        gul_inputs = get_gul_input_items(loc_df, keys_df, group_id_cols=['loc_id'])
         self.assertSummaryIsValid(
             loc_df,
             gul_inputs,
@@ -285,10 +287,7 @@ class TestSummaries(TestCase):
                 keys_errors=nonsuccesses,
                 keys_errors_file_path=keys_errors_fp
             )
-
-            location_fp = os.path.join(tmp_dir, 'location.csv')
-            write_source_files(exposure=loc_data, exposure_fp=location_fp)
-            location_df = get_location_df(location_fp)
+            location_df = prepare_location_df(OedExposure(**{'location': pd.DataFrame.from_dict(loc_data), 'use_field': True}).location.dataframe)
 
             exposure_summary_fp = write_exposure_summary(
                 tmp_dir,
@@ -300,11 +299,9 @@ class TestSummaries(TestCase):
 
             with open(exposure_summary_fp) as f:
                 data = json.load(f)
-                loc_df = pd.DataFrame.from_dict(loc_data)
-                loc_df['loc_id'] = get_ids(loc_df, ['portnumber', 'accnumber', 'locnumber'])
 
                 keys_df = pd.DataFrame.from_dict(keys_data)
                 exp_summary = get_exposure_summary(
-                    loc_df,
+                    location_df,
                     keys_df)
                 self.assertDictAlmostEqual(data, exp_summary)

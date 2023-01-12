@@ -18,7 +18,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from ..utils.data import get_json, get_location_df
+from ..utils.data import get_json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import import_from_string, get_custom_module, as_path
@@ -27,11 +27,12 @@ from ..utils.status import OASIS_KEYS_STATUS
 from .builtin import DeterministicLookup
 from .builtin import Lookup as NewLookup
 
-from multiprocessing import cpu_count,  Queue, Process
+from multiprocessing import cpu_count, Queue, Process
 from queue import Empty, Full
 
 # add pickling support for traceback object
 import tblib.pickling_support
+
 tblib.pickling_support.install()
 
 
@@ -41,6 +42,7 @@ def with_error_queue(fct):
             return fct(error_queue, *args, **kwargs)
         except Exception:
             error_queue.put(sys.exc_info())
+
     return wrapped_fct
 
 
@@ -106,16 +108,16 @@ class KeyServerFactory(object):
 
     @classmethod
     def create(
-        cls,
-        model_keys_data_path=None,
-        model_version_file_path=None,
-        lookup_module_path=None,
-        lookup_config=None,
-        lookup_config_json=None,
-        lookup_config_fp=None,
-        complex_lookup_config_fp=None,
-        user_data_dir=None,
-        output_directory=None,
+            cls,
+            model_keys_data_path=None,
+            model_version_file_path=None,
+            lookup_module_path=None,
+            lookup_config=None,
+            lookup_config_json=None,
+            lookup_config_fp=None,
+            complex_lookup_config_fp=None,
+            user_data_dir=None,
+            output_directory=None,
     ):
         """
         Creates a keys lookup class instance for the given model and supplier -
@@ -133,14 +135,14 @@ class KeyServerFactory(object):
             config = json.loads(lookup_config_json)
         elif lookup_config_fp:
             config_dir, config = cls.get_config(lookup_config_fp)
-        else: # no config
+        else:  # no config
             config_dir, config = '.', {}
 
         if not config:
             config_dir, config = cls.update_deprecated_args(config_dir, config,
                                                             complex_lookup_config_fp, model_keys_data_path,
                                                             model_version_file_path, lookup_module_path)
-        else: # reproduce lookup_config overwrite complex_lookup_config_fp
+        else:  # reproduce lookup_config overwrite complex_lookup_config_fp
             complex_lookup_config_fp = None
 
         if config.get('key_server_module_path'):
@@ -236,13 +238,13 @@ class BasicKeyServer:
                 lookup_module_path = os.path.join(self.config_dir, lookup_module_path)
             lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
-        else: # built-in lookup
+        else:  # built-in lookup
             if self.config.get('builtin_lookup_type') == 'deterministic':
                 lookup_cls = DeterministicLookup
             elif self.config.get('builtin_lookup_type') == 'new_lookup':
                 lookup_cls = NewLookup
             else:
-                raise OasisException(f"Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
+                raise OasisException("Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
 
         return lookup_cls
 
@@ -292,7 +294,9 @@ class BasicKeyServer:
 
     def get_locations(self, location_fp):
         """load exposure data from location_fp and return the exposure dataframe"""
-        return get_location_df(location_fp)
+        raise NotImplementedError('oasislmf now use ods_tools to pass location to the KeyServer. '
+                                  'this method need to be implemented'
+                                  'if you want to provide you own loader from filepath')
 
     @staticmethod
     @with_error_queue
@@ -354,7 +358,7 @@ class BasicKeyServer:
                 break
 
             if res is None:
-                finished_workers+=1
+                finished_workers += 1
             else:
                 yield res
 
@@ -399,12 +403,12 @@ class BasicKeyServer:
                 if success_heading_row is None:
                     success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                 success_df[success_heading_row.keys()].rename(columns=success_heading_row
-                                                                ).to_csv(successes_file, index=False, header=not i)
+                                                              ).to_csv(successes_file, index=False, header=not i)
                 successes_count += success_df.shape[0]
                 if errors_file:
                     errors_df = result[~success]
                     if 'message' not in errors_df.columns:
-                        errors_df['message'] = "" # If no error message column, fill with blank to prevent KeyError
+                        errors_df['message'] = ""  # If no error message column, fill with blank to prevent KeyError
                     errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row
                                                                     ).to_csv(errors_file, index=False, header=False)
                     error_count += errors_df.shape[0]
@@ -449,7 +453,7 @@ class BasicKeyServer:
                                     successes_fp=successes_fp,
                                     errors_fp=errors_fp,
                                     output_format=output_format,
-                                    keys_success_msg=keys_success_msg,)
+                                    keys_success_msg=keys_success_msg, )
 
     def generate_key_files_multiproc(self, loc_df, successes_fp, errors_fp, output_format, keys_success_msg,
                                      num_cores, num_partitions, **kwargs):
@@ -491,11 +495,11 @@ class BasicKeyServer:
         [worker.start() for worker in workers]
 
         try:
-            return self.write_keys_file(self.key_producer(key_queue, error_queue, worker_count= pool_count),
+            return self.write_keys_file(self.key_producer(key_queue, error_queue, worker_count=pool_count),
                                         successes_fp=successes_fp,
                                         errors_fp=errors_fp,
                                         output_format=output_format,
-                                        keys_success_msg=keys_success_msg,)
+                                        keys_success_msg=keys_success_msg, )
         except Exception:
             error_queue.put(sys.exc_info())
         finally:
@@ -511,17 +515,17 @@ class BasicKeyServer:
 
     @oasis_log()
     def generate_key_files(
-        self,
-        location_fp,
-        successes_fp,
-        errors_fp=None,
-        output_format='oasis',
-        keys_success_msg=False,
-        multiproc_enabled=True,
-        multiproc_num_cores=-1,
-        multiproc_num_partitions=-1,
-        location_df=None,
-        **kwargs
+            self,
+            location_fp=None,
+            successes_fp=None,
+            errors_fp=None,
+            output_format='oasis',
+            keys_success_msg=False,
+            multiproc_enabled=True,
+            multiproc_num_cores=-1,
+            multiproc_num_partitions=-1,
+            location_df=None,
+            **kwargs
     ):
         """
         generate key files by calling:
@@ -535,7 +539,7 @@ class BasicKeyServer:
         if location_df is not None:
             locations = location_df
         else:
-            locations = self.get_locations(location_fp)
+            locations = self.get_locations(location_fp)  # need overwrite as not supported anymore we pass the df
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
             return self.generate_key_files_multiproc(locations,
@@ -543,8 +547,8 @@ class BasicKeyServer:
                                                      errors_fp=errors_fp,
                                                      output_format=output_format,
                                                      keys_success_msg=keys_success_msg,
-                                                     num_cores = multiproc_num_cores,
-                                                     num_partitions = multiproc_num_partitions)
+                                                     num_cores=multiproc_num_cores,
+                                                     num_partitions=multiproc_num_partitions)
         else:
             return self.generate_key_files_singleproc(locations,
                                                       successes_fp=successes_fp,

@@ -18,7 +18,7 @@ from mimetypes import guess_extension
 
 from requests.exceptions import HTTPError, ConnectionError
 
-from ...platform.client import APIClient
+from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException
 from ...utils.defaults import API_EXAMPLE_AUTH
 
@@ -203,15 +203,15 @@ class PlatformRunInputs(PlatformBase):
     """ run generate inputs via the Oasis Platoform API
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'model_id',     'type': int, 'help': 'API `id` of a model to run an analysis with'},
+        {'name': 'model_id', 'type': int, 'help': 'API `id` of a model to run an analysis with'},
         {'name': 'portfolio_id', 'type': int, 'help': 'API `id` of a portfolio to run an analysis with'},
-        {'name': 'analysis_id',  'type': int, 'help': 'API `id` of an analysis to run'},
+        {'name': 'analysis_id', 'type': int, 'help': 'API `id` of an analysis to run'},
 
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
-        {'name': 'oed_location_csv',       'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
-        {'name': 'oed_accounts_csv',       'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
-        {'name': 'oed_info_csv',           'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
-        {'name': 'oed_scope_csv',          'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
+        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+        {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
+        {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
+        {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
     ]
 
     def run(self):
@@ -280,8 +280,9 @@ class PlatformRunLosses(PlatformBase):
     """ run generate losses via the Oasis Platoform API
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'analysis_id',            'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
-        {'name': 'output_dir',             'flag': '-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
+        {'name': 'analysis_id', 'type': int, 'required': True, 'help': 'API `id` of an analysis to run'},
+        {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
+            'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
     ]
 
@@ -340,26 +341,28 @@ class PlatformGet(PlatformBase):
     """ Download file(s) from the api
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
+        {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
+            'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
         # Files for models object
-        {'name': 'model_settings',     'type': int, 'nargs': '+', 'help': 'Model ids to download settings file.'},
-        {'name': 'model_versions',     'type': int, 'nargs': '+', 'help': 'Model ids to download versions file'},
+        {'name': 'model_settings', 'type': int, 'nargs': '+', 'help': 'Model ids to download settings file.'},
+        {'name': 'model_versions', 'type': int, 'nargs': '+', 'help': 'Model ids to download versions file'},
         # Files from portfolio
-        {'name': 'portfolio_location_file',          'type': int, 'nargs': '+', 'help': 'Portfolio ids to download Location file'},
-        {'name': 'portfolio_accounts_file',          'type': int, 'nargs': '+', 'help': 'Portfolio ids to download Accounts file'},
+        {'name': 'portfolio_location_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download Location file'},
+        {'name': 'portfolio_accounts_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download Accounts file'},
         {'name': 'portfolio_reinsurance_scope_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download RI scope file.'},
-        {'name': 'portfolio_reinsurance_info_file',  'type': int, 'nargs': '+', 'help': 'Portfolio ids to download RI info file.'},
+        {'name': 'portfolio_reinsurance_info_file', 'type': int, 'nargs': '+', 'help': 'Portfolio ids to download RI info file.'},
         # Files from an analyses
-        {'name': 'analyses_settings_file',                   'type': int, 'nargs': '+', 'help': 'Analyses ids to download settings file'},
-        {'name': 'analyses_run_traceback_file',              'type': int, 'nargs': '+', 'help': 'Analyses ids to download traceback logs'},
-        {'name': 'analyses_run_log_file',                    'type': int, 'nargs': '+', 'help': 'Analyses ids to download Ktools run logs'},
-        {'name': 'analyses_input_generation_traceback_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download input_generation traceback logs'},
-        {'name': 'analyses_input_file',                      'type': int, 'nargs': '+', 'help': 'Analyses ids to download Generated inputs tar'},
-        {'name': 'analyses_output_file',                     'type': int, 'nargs': '+', 'help': 'Analyses ids to download Output losses tar'},
-        {'name': 'analyses_summary_levels_file',             'type': int, 'nargs': '+', 'help': 'Analyses ids to download summary levels file'},
-        {'name': 'analyses_lookup_validation_file',          'type': int, 'nargs': '+', 'help': 'Analyses ids to download exposure summary'},
-        {'name': 'analyses_lookup_success_file',             'type': int, 'nargs': '+', 'help': 'Analyses ids to download successful lookups'},
-        {'name': 'analyses_lookup_errors_file',              'type': int, 'nargs': '+', 'help': 'Analyses ids to download summary of failed lookups'},
+        {'name': 'analyses_settings_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download settings file'},
+        {'name': 'analyses_run_traceback_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download traceback logs'},
+        {'name': 'analyses_run_log_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download Ktools run logs'},
+        {'name': 'analyses_input_generation_traceback_file', 'type': int, 'nargs': '+',
+            'help': 'Analyses ids to download input_generation traceback logs'},
+        {'name': 'analyses_input_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download Generated inputs tar'},
+        {'name': 'analyses_output_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download Output losses tar'},
+        {'name': 'analyses_summary_levels_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download summary levels file'},
+        {'name': 'analyses_lookup_validation_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download exposure summary'},
+        {'name': 'analyses_lookup_success_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download successful lookups'},
+        {'name': 'analyses_lookup_errors_file', 'type': int, 'nargs': '+', 'help': 'Analyses ids to download summary of failed lookups'},
     ]
 
     def extract_args(self, param_suffix):

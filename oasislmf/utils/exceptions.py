@@ -12,6 +12,7 @@ class OasisException(Exception):
     In [call]: raise OasisException('Error Message 1', OSError('Root of error'))
     OasisException: Error Message 1, from OSError: Root of error
     """
+
     def __init__(self, msg, original_exception=None):
         self.original_exception = original_exception
         if original_exception:

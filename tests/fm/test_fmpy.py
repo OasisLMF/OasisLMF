@@ -9,21 +9,23 @@ from unittest import TestCase
 
 import pytest
 
+
 class FmAcceptanceTests(TestCase):
 
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
         self.update_expected = False
         self.keep_output = True
+        self.hashed_group_id = False
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
 
-            run_dir=tmp_run_dir
+            run_dir = tmp_run_dir
             if self.keep_output:
                 utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
                 run_dir = os.path.join(
-                    self.test_cases_fp, 'runs', 'test-fmpy-p{}-{}-{}'.format(subperils, test_case,utcnow)
+                    self.test_cases_fp, 'runs', 'test-fmpy-p{}-{}-{}'.format(subperils, test_case, utcnow)
                 )
                 print(f'Generating Output in: {run_dir}')
 
@@ -37,6 +39,7 @@ class FmAcceptanceTests(TestCase):
                 num_subperils=subperils,
                 test_tolerance=0.001,
                 expected_output_dir=expected_dir,
+                hashed_group_id=self.hashed_group_id,
             )
         self.assertTrue(result)
 
@@ -47,24 +50,24 @@ class FmAcceptanceTests(TestCase):
     def test_insurance_conditions(self):
         self.run_test('insurance_conditions', fmpy=True)
 
-    # superceded by insurance_and_step    
+    # superceded by insurance_and_step
     # def test_insurance_step(self):
     #     self.run_test('insurance_step',fmpy=True)
 
     def test_insurance_and_step(self):
-        self.run_test('insurance_and_step',fmpy=True)
+        self.run_test('insurance_and_step', fmpy=True)
 
     def test_reinsurance1(self):
-        self.run_test('reinsurance1',fmpy=True)
+        self.run_test('reinsurance1', fmpy=True)
 
     def test_reinsurance2(self):
-        self.run_test('reinsurance2',fmpy=True)
+        self.run_test('reinsurance2', fmpy=True)
 
     def test_issues(self):
-        self.run_test('issues',fmpy=True)
+        self.run_test('issues', fmpy=True)
 
     def test_insurance_policy_coverage(self):
-        self.run_test('insurance_policy_coverage',fmpy=True)
+        self.run_test('insurance_policy_coverage', fmpy=True)
 
     # multiperil tests
     # superceded by insurance_and_step
@@ -73,8 +76,8 @@ class FmAcceptanceTests(TestCase):
 
     def test_insurance_conditions_2_subperils(self):
         self.run_test('insurance_conditions', fmpy=True, subperils=2, expected_dir="expected_subperils")
-   
-   # superceded by insurance_and_step     
+
+   # superceded by insurance_and_step
     # def test_insurance_step_2_subperils(self):
     #     self.run_test('insurance_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
@@ -91,4 +94,4 @@ class FmAcceptanceTests(TestCase):
         self.run_test('issues', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
     def test_insurance_policy_coverage_2_subperils(self):
-        self.run_test('insurance_policy_coverage',fmpy=True, subperils=2, expected_dir="expected_subperils")
+        self.run_test('insurance_policy_coverage', fmpy=True, subperils=2, expected_dir="expected_subperils")

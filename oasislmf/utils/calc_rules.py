@@ -5,10 +5,7 @@ __all__ = [
 
 import os
 
-from .data import (
-    fast_zip_arrays,
-    get_dataframe,
-)
+from .data import get_dataframe
 from .defaults import (
     STATIC_DATA_FP,
 )

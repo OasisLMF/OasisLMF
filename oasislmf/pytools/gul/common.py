@@ -11,16 +11,24 @@ from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
 # probably need to set this dynamically depending on the stream type
 gul_header = np.int32(1 | 2 << 24).tobytes()
 
-PIPE_CAPACITY = 65536  # bytes
-GETMODEL_STREAM_BUFF_SIZE = 2 * PIPE_CAPACITY
-GULPY_STREAM_BUFF_SIZE_WRITE = PIPE_CAPACITY
-
 items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                           ('damagecdf_i', np.int32),
                                           ('rng_index', np.int32)
                                           ]))
 
-coverage_type = nb.from_dtype(np.dtype([('tiv', np.float),
+items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
+                                             ('areaperil_id', areaperil_int),
+                                             ('vulnerability_id', np.int32),
+                                             ('hazcdf_i', np.int32),
+                                             ('rng_index', np.int32),
+                                             ('eff_vuln_cdf_i', np.int32),
+                                             ('eff_vuln_cdf_Ndamage_bins', np.int32)
+                                             ]))
+
+VulnCdfLookup = nb.from_dtype(np.dtype([('start', np.int32), ('length', np.int32)]))
+
+
+coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
                                         ('max_items', np.int32),
                                         ('start_items', np.int32),
                                         ('cur_items', np.int32)
@@ -39,10 +47,15 @@ NUM_IDX = 5
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
 ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
+ITEM_MAP_KEY_TYPE_internal = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
+ITEM_MAP_VALUE_TYPE_internal = nb.types.UniTuple(nb.types.int32, 2)
 
 # compute the relative size of oasis_float and areaperil_int vs int32
 oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize
 areaperil_int_to_int32_size = areaperil_int.itemsize // np.int32().itemsize
+
+haz_cdf_type = nb.from_dtype(np.dtype([('probability', oasis_float),
+                                       ('intensity_bin_id', np.int32)]))
 
 ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),
                                    ('bin_mean', oasis_float)
@@ -68,3 +81,10 @@ gulSampleslevelRec = nb.from_dtype(np.dtype([('sidx', 'i4'),
                                              ('loss', oasis_float),
                                              ]))
 gulSampleslevelRec_size = gulSampleslevelRec.size
+
+
+Keys = {'LocID': np.int32,
+        'PerilID': 'category',
+        'CoverageTypeID': np.int32,
+        'AreaPerilID': areaperil_int,
+        'VulnerabilityID': np.int32}

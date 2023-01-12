@@ -676,7 +676,7 @@ class PrepareRunInputs(TestCase):
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "lec_output": True,
                     "leccalc": {"full_uncertainty_aep": True},
                 }]}
@@ -693,7 +693,7 @@ class PrepareRunInputs(TestCase):
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "ord_output": {"psept_oep": True},
                 }]}
                 prepare_run_inputs(settings, d)
@@ -707,7 +707,7 @@ class PrepareRunInputs(TestCase):
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "lec_output": True,
                     "leccalc": {"full_uncertainty_aep": True},
                 }]}
@@ -719,7 +719,7 @@ class PrepareRunInputs(TestCase):
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "ord_output": {"ept_full_uncertainty_aep": True},
                 }]}
                 prepare_run_inputs(settings, d)
@@ -745,7 +745,7 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "lec_output": True,
                     "leccalc": {"full_uncertainty_aep": True},
                 }]}
@@ -762,7 +762,7 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "ord_output": {"ept_per_sample_mean_aep": True},
                 }]}
                 prepare_run_inputs(settings, d)
@@ -779,7 +779,7 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.flush()
 
                 settings = {
-                    "gul_summaries":[{
+                    "gul_summaries": [{
                         "lec_output": True,
                         "leccalc": {"full_uncertainty_aep": True},
                     }],
@@ -799,7 +799,7 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.flush()
 
                 settings = {
-                    "gul_summaries":[{
+                    "gul_summaries": [{
                         "ord_output": {"psept_oep": True},
                     }],
                     'model_settings': {'event_occurrence_id': 'occurrence id'}
@@ -815,7 +815,7 @@ class PrepareRunInputs(TestCase):
             os.remove(os.path.join(d, 'static', 'occurrence.bin'))
 
             with self.assertRaises(OasisException):
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "eltcalc": True,
                     "aalcalc": True,
                     "pltcalc": True,
@@ -831,7 +831,7 @@ class PrepareRunInputs(TestCase):
                 periods_file.write('periods bin')
                 periods_file.flush()
 
-                settings = {"gul_summaries":[{
+                settings = {"gul_summaries": [{
                     "eltcalc": True,
                     "aalcalc": True,
                     "pltcalc": True,

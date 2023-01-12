@@ -1,7 +1,6 @@
-__version__ = '1.27.0rc3'
+__version__ = '1.27.0'
 
 import sys
-import os
 from importlib.abc import MetaPathFinder, Loader
 from importlib.util import spec_from_loader
 import importlib
@@ -12,7 +11,7 @@ from logging import NullHandler
 
 logger = logging.getLogger(__name__)
 handler = NullHandler()
-handler.name='oasislmf'
+handler.name = 'oasislmf'
 logger.addHandler(handler)
 
 
@@ -29,6 +28,7 @@ class MyLoader(Loader):
         new_name = f"oasislmf.{self.sub_module}"
         sys.modules[old_name] = importlib.import_module(new_name)
         return sys.modules[old_name]
+
 
 class MyImport(MetaPathFinder):
     """ Support alias of depreciated sub-modules
@@ -49,20 +49,23 @@ class MyImport(MetaPathFinder):
             "model_execution": "execution",
             "model_preparation": "preparation",
             "api": "platform",
+            "platform": "platform_api"
         }
 
     def find_spec(self, fullname, path=None, target=None):
-        import_path = fullname.split(".",1)
+        import_path = fullname.split(".", 1)
         if fullname.startswith("oasislmf") and len(import_path) > 1:
             import_path = import_path[1]
             for deprecated in self.depricated_modules:
-                if deprecated == import_path or import_path.startswith(deprecated+'.'):
-                    warnings.simplefilter("always")
-                    warnings.warn(
-                        f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.depricated_modules[deprecated]}' instead."
-                    )
+                if deprecated == import_path or import_path.startswith(deprecated + '.'):
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("always")
+                        warnings.warn(
+                            f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.depricated_modules[deprecated]}' instead."
+                        )
                     import_path = import_path.replace(deprecated, self.depricated_modules[deprecated])
 
             return spec_from_loader(fullname, MyLoader(import_path))
+
 
 sys.meta_path.append(MyImport())

@@ -30,7 +30,7 @@ summarycalctocsv -s < fifo/gul_S1_summarycalc_P11 > work/kat/gul_S1_summarycalc_
 tee < fifo/gul_S1_summary_P11 fifo/gul_S1_summarycalc_P11 > /dev/null & pid2=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P11 < fifo/gul_P11 &
 
-eve 11 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P11  &
+( eve 11 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P11  ) &  pid3=$!
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3
 

@@ -100,14 +100,14 @@ def run_tests(test_dir, run_dir, log_fp, oasis_args, threshold=None):
     '''
     sub_dirs = next(os.walk(test_dir))[1]
     test_data = dict()
-    results= dict()
+    results = dict()
 
     for d in sub_dirs:
         loc_fp = os.path.join(test_dir, d, 'loc.csv')
         acc_fp = os.path.join(test_dir, d, 'acc.csv')
         keys_fp = os.path.join(test_dir, d, 'keys.csv')
 
-        n_sample = sum(1 for line in open(loc_fp)) -1
+        n_sample = sum(1 for line in open(loc_fp)) - 1
         cmd_str = f'oasislmf model generate-oasis-files -x {loc_fp} -y {acc_fp} -z {keys_fp} --oasis-files-dir {run_dir} {oasis_args} --verbose'
         test_data[n_sample] = cmd_str
 

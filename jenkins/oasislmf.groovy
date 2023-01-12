@@ -88,6 +88,29 @@ node {
 
 
     try {
+        if (params.TEST_WORKER) {
+            // Test current branch using a model_worker image and checking expected output
+            job_params = [
+                 [$class: 'StringParameterValue',  name: 'MDK_BRANCH', value: MDK_BRANCH],
+                 [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set'],
+                 [$class: 'BooleanParameterValue', name: 'BUILD_WORKER', value: true]
+            ]
+
+            job_branch_name = model_branch.replace("/", "%2F")
+            pipeline = "oasis_PiWind/$job_branch_name"
+            createStage(pipeline, job_params, true).call()
+        } else {
+            // Only check that the MDK runs and creates non-empty files
+            stage('Run MDK: PiWind 3.8') {
+                dir(build_workspace) {
+                    sh "sed -i 's/FROM.*/FROM python:3.8/g' docker/Dockerfile.mdk-tester"
+                    sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:3.8 .'
+                    sh "docker run mdk-runner:3.8 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
+                }
+            }
+        }
+
+
         if (params.UNITTEST || params.PUBLISH) {
             parallel(
                 clone_build: {
@@ -116,32 +139,7 @@ node {
                     }
                 }
             )
-        }    
 
-        if (params.TEST_WORKER) {
-            // Test current branch using a model_worker image and checking expected output
-            job_params = [
-                 [$class: 'StringParameterValue',  name: 'MDK_BRANCH', value: MDK_BRANCH],
-                 [$class: 'StringParameterValue',  name: 'RUN_TESTS', value: 'control_set'],
-                 [$class: 'BooleanParameterValue', name: 'BUILD_WORKER', value: true]
-            ]
-
-            job_branch_name = model_branch.replace("/", "%2F")
-            pipeline = "oasis_PiWind/$job_branch_name"
-            createStage(pipeline, job_params, true).call()
-        } else {
-            // Only check that the MDK runs and creates non-empty files
-            stage('Run MDK: PiWind 3.8') {
-                dir(build_workspace) {
-                    sh "sed -i 's/FROM.*/FROM python:3.8/g' docker/Dockerfile.mdk-tester"
-                    sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:3.8 .'
-                    sh "docker run mdk-runner:3.8 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
-                }
-            }
-        }
-
-
-        if (params.UNITTEST || params.PUBLISH) {
             stage('Set version: ' + source_func) {
                 dir(source_workspace) {
                     // UPDATE ktools and package versions
