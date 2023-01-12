@@ -192,8 +192,8 @@ def run(run_dir,
 
         # map each vulnerability_id composing aggregate vulnerabilities to the indices where they are stored in vuln_array
         # here we filter out aggregate vulnerability that are not used in this portfolio, therefore
-        # agg_vuln_to_vuln_idx can contain less aggregate vulnerability ids compared to agg_vuln_to_vuln_id
-        agg_vuln_to_vuln_idx = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
+        # agg_vuln_to_vuln_idxs can contain less aggregate vulnerability ids compared to agg_vuln_to_vuln_id
+        agg_vuln_to_vuln_idxs = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
 
         # remap (areaperil, vuln_id) to weights to (areaperil, vuln_idx) to weights
         areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
@@ -378,7 +378,7 @@ def run(run_dir,
                         eff_vuln_cdf, vuln_array, damage_bins, Ndamage_bins_max,
                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
                         cached_vuln_cdfs,
-                        agg_vuln_to_vuln_id, agg_vuln_to_vuln_idx, vuln_dict, areaperil_vuln_idx_to_weight,
+                        agg_vuln_to_vuln_id, agg_vuln_to_vuln_idxs, vuln_dict, areaperil_vuln_idx_to_weight,
                         loss_threshold, losses, vuln_cdf_empty, weighted_vuln_cdf_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
                         eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
@@ -416,9 +416,9 @@ def compute_event_losses(event_id,
                          next_cached_vuln_cdf,
                          cached_vuln_cdfs,
                          agg_vuln_to_vuln_id,
-                         agg_vuln_to_vuln_idx,
+                         agg_vuln_to_vuln_idxs,
                          vuln_dict,
-                         ap_vuln_idx_weights,
+                         areaperil_vuln_idx_to_weight,
                          loss_threshold,
                          losses,
                          vuln_cdf_empty,
@@ -446,8 +446,6 @@ def compute_event_losses(event_id,
                          cursor):
     """Compute losses for an event.
 
-    TODO: update docs
-
     Args:
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
@@ -469,14 +467,16 @@ def compute_event_losses(event_id,
         cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
         next_cached_vuln_cdf (int): index of the next free slot in the vuln cdf cache.
         cached_vuln_cdfs (np.array[oasis_float]): vulnerability cdf cache.
-        agg_vuln_to_vuln_id (): 
-        agg_vuln_to_vuln_idx (): 
+        agg_vuln_to_vuln_id (dict[int, list[int]]): map of aggregate vulnerability id to list of vulnerability ids.
+        agg_vuln_to_vuln_idxs (dict[int, list[int]]): map between aggregate vulnerability id and the list of indices where the individual vulnerability_ids
+          that compose it are stored in `vuln_array`.
         vuln_dict (Dict[int, int]): map between vulnerability_id and the index where the vulnerability function is stored in vuln_array.
-        ap_vuln_idx_weights (): 
+        areaperil_vuln_idx_to_weight  (dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]): map between the areaperil id and the index where the vulnerability function 
+          is stored in `vuln_array` and the vulnerability weight.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
         vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store vulnerability cdf.
-        weighted_vuln_cdf_empty:
+        weighted_vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store the weighted vulnerability cdf.
         vuln_cdf (np.array[oasis_float]): array (to be re-used) to store the damage cdf for each item.
         alloc_rule (int): back-allocation rule.
         do_correlation (bool): if True, compute correlated random samples.
@@ -549,7 +549,7 @@ def compute_event_losses(event_id,
                 # aggregate case
                 weighted_vuln_cdf = weighted_vuln_cdf_empty
                 tot_weights = 0.
-                agg_vulns_idx = agg_vuln_to_vuln_idx[vulnerability_id]
+                agg_vulns_idx = agg_vuln_to_vuln_idxs[vulnerability_id]
 
                 # here we use loop-unrolling for a more performant code.
                 # we explicitly run the first cycle for damage_bin_i=0 to cache (eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins, weight)
@@ -561,8 +561,8 @@ def compute_event_losses(event_id,
                 used_vuln_data = []
                 for vuln_i in agg_vulns_idx:
                     eff_vuln_cdf_i, eff_vuln_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]
-                    if (areaperil_id, vuln_i) in ap_vuln_idx_weights:
-                        weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                    if (areaperil_id, vuln_i) in areaperil_vuln_idx_to_weight:
+                        weight = np.float64(areaperil_vuln_idx_to_weight[(areaperil_id, vuln_i)])
                     else:
                         weight = np.float64(0.)
 
@@ -697,15 +697,15 @@ def compute_event_losses(event_id,
                         # 3) get the vulnerability cdf
                         if vulnerability_id in agg_vuln_to_vuln_id:
                             # aggregate case
-                            agg_vulns_idx = agg_vuln_to_vuln_idx[vulnerability_id]
+                            agg_vulns_idx = agg_vuln_to_vuln_idxs[vulnerability_id]
                             weighted_vuln_cdf = weighted_vuln_cdf_empty
 
                             # cache the weights and compute the total weights
                             tot_weights = 0.
                             used_weights = []
                             for j, vuln_i in enumerate(agg_vulns_idx):
-                                if (areaperil_id, vuln_i) in ap_vuln_idx_weights:
-                                    weight = np.float64(ap_vuln_idx_weights[(areaperil_id, vuln_i)])
+                                if (areaperil_id, vuln_i) in areaperil_vuln_idx_to_weight:
+                                    weight = np.float64(areaperil_vuln_idx_to_weight[(areaperil_id, vuln_i)])
                                 else:
                                     weight = np.float64(0.)
 
