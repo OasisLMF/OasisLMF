@@ -59,6 +59,7 @@ profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
                                            ]))
 
 
+
 def load_static(static_path):
     """
     Load the raw financial data from static_path as numpy ndarray
@@ -161,6 +162,24 @@ def get_all_children(node_to_dependencies, node, items_only):
             children.append(parent)
 
     return children
+
+@njit(cache=True)
+def get_all_parent(node_to_dependencies, node, max_level):
+    res = set()
+    temp = List()
+    temp.extend(node)
+
+    while temp:
+        cur_node = temp.pop()
+        if cur_node in node_to_dependencies:
+            temp.extend(node_to_dependencies[cur_node])
+            if cur_node[0] == max_level:
+                res.add(cur_node)
+        elif cur_node[0] <= max_level:
+            res.add(cur_node)
+    return List(res)
+
+
 
 
 @njit(cache=True)

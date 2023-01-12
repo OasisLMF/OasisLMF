@@ -69,6 +69,9 @@ class FmAcceptanceTests(TestCase):
     def test_insurance_policy_coverage(self):
         self.run_test('insurance_policy_coverage', fmpy=True)
 
+    def test_insurance_policy_coverage(self):
+        self.run_test('insurance_policy_coverage',fmpy=True)
+
     # multiperil tests
     # superceded by insurance_and_step
     # def test_insurance_2_subperils(self):
