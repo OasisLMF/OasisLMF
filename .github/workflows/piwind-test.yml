@@ -38,7 +38,7 @@ on:
         required: false
       ods_branch:
         description: 'Build ods_tools package before test [git ref]'
-        required: true
+        required: false
         type: string
 
 jobs:
@@ -49,12 +49,15 @@ jobs:
       ktools_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ktools_branch }}
 
   ods_tools:
+    if: inputs.ods_branch != ''
     uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ods_branch }}
+      ods_branch: inputs.ods_branch
+      #ods_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ods_branch }}
 
   piwind:
+    if: ${{ ! failure() || ! cancelled() }}
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
     secrets: inherit
     needs: [build, ods_tools]
