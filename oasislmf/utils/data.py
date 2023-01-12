@@ -8,10 +8,13 @@ __all__ = [
     'get_analysis_settings',
     'get_model_settings',
     'get_dataframe',
+    'get_exposure_data',
     'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
-    'get_location_df',
+    'prepare_location_df',
+    'prepare_account_df',
+    'prepare_reinsurance_df',
     'get_analysis_schema_fp',
     'get_model_schema_fp',
     'get_timestamp',
@@ -19,11 +22,14 @@ __all__ = [
     'detect_encoding',
     'merge_check',
     'merge_dataframes',
+    'print_dataframe',
     'PANDAS_BASIC_DTYPES',
     'PANDAS_DEFAULT_NULL_VALUES',
     'reduce_df',
     'set_dataframe_column_dtypes'
 ]
+
+from pathlib import Path
 
 import builtins
 import io
@@ -35,7 +41,8 @@ import warnings
 import logging
 
 from datetime import datetime
-from collections import OrderedDict
+
+from ods_tools.oed import OedExposure
 
 try:
     from json import JSONDecodeError
@@ -51,20 +58,8 @@ import pandas as pd
 import pytz
 
 from .exceptions import OasisException
-from .fm import SUPPORTED_FM_LEVELS
 
-from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ..utils.profiles import (
-    get_fm_terms_oed_columns,
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy,
-)
-from ..utils.defaults import (
-    get_default_exposure_profile,
-    get_loc_dtypes,
-    SOURCE_IDX,
-)
+from ..utils.defaults import SOURCE_IDX
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -84,10 +79,10 @@ PANDAS_BASIC_DTYPES = {
     'float32': np.float32,
     'float64': np.float64,
     builtins.float: np.float64,
-    'bool': np.bool,
-    builtins.bool: np.bool,
-    'str': np.object,
-    builtins.str: np.object,
+    'bool': 'bool',
+    builtins.bool: 'bool',
+    'str': 'object',
+    builtins.str: 'object',
     'category': 'category'
 }
 
@@ -164,11 +159,11 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], sort_opt=False):
 
 
 def factorize_dataframe(
-    df,
-    by_row_labels=None,
-    by_row_indices=None,
-    by_col_labels=None,
-    by_col_indices=None
+        df,
+        by_row_labels=None,
+        by_row_indices=None,
+        by_col_labels=None,
+        by_col_indices=None
 ):
     """
     Groups a selection of rows or columns of a Pandas DataFrame array by value,
@@ -453,21 +448,21 @@ def detect_encoding(filepath):
 
 
 def get_dataframe(
-    src_fp=None,
-    src_type=None,
-    src_buf=None,
-    src_data=None,
-    float_precision='high',
-    empty_data_error_msg=None,
-    lowercase_cols=True,
-    required_cols=(),
-    col_defaults={},
-    non_na_cols=(),
-    col_dtypes={},
-    sort_cols=None,
-    sort_ascending=None,
-    memory_map=False,
-    encoding=None
+        src_fp=None,
+        src_type=None,
+        src_buf=None,
+        src_data=None,
+        float_precision='high',
+        empty_data_error_msg=None,
+        lowercase_cols=True,
+        required_cols=(),
+        col_defaults={},
+        non_na_cols=(),
+        col_dtypes={},
+        sort_cols=None,
+        sort_ascending=None,
+        memory_map=False,
+        encoding=None
 ):
     """
     Loads a Pandas dataframe from a source CSV or JSON file, or a text buffer
@@ -653,7 +648,8 @@ def get_dataframe(
 
     if sort_cols:
         _sort_cols = (
-            [(col.lower() if lowercase_cols else col) for col in sort_cols] if (isinstance(sort_cols, list) or isinstance(sort_cols, tuple) or isinstance(sort_cols, set))
+            [(col.lower() if lowercase_cols else col) for col in sort_cols] if (
+                isinstance(sort_cols, list) or isinstance(sort_cols, tuple) or isinstance(sort_cols, set))
             else (sort_cols.lower() if lowercase_cols else sort_cols)
         )
         sort_ascending = sort_ascending if sort_ascending is not None else True
@@ -708,7 +704,7 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
 
         Example if sort_keys=True:
         -----------------
-        index  portnumber accnumber    locnumbera  id (returned)
+        index  PortNumber AccNumber    locnumbera  id (returned)
             0           1    A11111  10002082049    3
             1           1    A11111  10002082050    4
             2           1    A11111  10002082051    5
@@ -801,7 +797,7 @@ def merge_check(left, right, on=[], raise_error=True):
     :return: A dict of booleans, True for an intersection between left/right
     :rtype: dict
 
-    {'portnumber': False, 'accnumber': True, 'layer_id': True, 'condnumber': True}
+    {'PortNumber': False, 'AccNumber': True, 'layer_id': True, 'condnumber': True}
     """
     keys_checked = {}
     for key in on:
@@ -863,139 +859,87 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         return join
 
 
-def get_location_df(
-    exposure_fp,
-    exposure_profile=get_default_exposure_profile(),
-    group_id_cols=['loc_id']
-):
-    """
-    Load OED location data into pandas DataFrame
-
-    Function Moved from gul_inputs.py
-
-    """
-    # Get the grouped exposure profile - this describes the financial terms to
-    # to be found in the source exposure file, which are for the following
-    # FM levels: site coverage (# 1), site pd (# 2), site all (# 3). It also
-    # describes the OED hierarchy terms present in the exposure file, namely
-    # portfolio num., acc. num., loc. num., and cond. num.
-    profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile=exposure_profile)
-
-    if not profile:
-        raise OasisException(
-            'Source exposure profile is possibly missing FM term information: '
-            'FM term definitions for TIV, limit, deductible, attachment and/or share.'
-        )
-
-    # Get the OED hierarchy terms profile - this defines the column names for loc.
-    # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
-    # and accounts files. This is to ensure that the method never makes hard
-    # coded references to the corresponding columns in the source files, as
-    # that would mean that changes to these column names in the source files
-    # may break the method
-    oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-    cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
-
-    # The (site) coverage FM level ID (# 1 in the OED FM levels hierarchy)
-    cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
-
-    # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[cov_level_id].items()})
-    tiv_cols = list(tiv_terms.values())
-
-    # Get the list of coverage type IDs - financial terms for the coverage
-    # level are grouped by coverage type ID in the grouped version of the
-    # exposure profile (profile of the financial terms sourced from the
-    # source exposure file)
-    cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
-
-    # Get the FM terms profile (this is a simplfied view of the main grouped
-    # profile, containing only information about the financial terms), and
-    # the list of OED colum names for the financial terms for the site coverage
-    # (# 1 ) FM level
-    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
-    terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit']
-    terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
-    term_cols_floats = get_fm_terms_oed_columns(
-        fm_terms,
-        levels=['site coverage'],
-        term_group_ids=cov_types,
-        terms=terms_floats
-    )
-    term_cols_ints = get_fm_terms_oed_columns(
-        fm_terms,
-        levels=['site coverage'],
-        term_group_ids=cov_types,
-        terms=terms_ints
-    )
-
-    # Set defaults and data types for the TIV and cov. level IL columns as
-    # as well as the portfolio num. and cond. num. columns
-    defaults = {
-        **{t: 0.0 for t in tiv_cols + term_cols_floats},
-        **{t: 0 for t in term_cols_ints},
-        **{cond_num: 0},
-        **{portfolio_num: '1'}
-    }
-
-    all_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes, all_dtypes=True)
-    str_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes)
-    int_dtypes = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('int')}
-    float_dtypes = {k.lower(): v for k, v in all_dtypes.items() if v.lower().startswith('float')}
-
-    dtypes = {
-        **{t: 'float64' for t in tiv_cols + term_cols_floats + list(float_dtypes.keys())},
-        **{t: 'uint8' for t in term_cols_ints},
-        **{t: 'uint16' for t in [cond_num]},
-        **{t: 'category' for t in [loc_num, portfolio_num, acc_num]},
-        **{t: 'uint32' for t in ['loc_id']},
-        **str_dtypes
-    }
-    # Load the exposure and keys dataframes - set 64-bit float data types
-    # for all real number columns - and in the keys frame rename some columns
-    # to align with underscored-naming convention; set the `loc_id` column
-    # in the exposure dataframe to identify locations uniquely with respect
-    # to portfolios and portfolio accounts
-    exposure_df = get_dataframe(
-        src_fp=exposure_fp,
-        required_cols=(loc_num, acc_num, portfolio_num,),
-        col_dtypes=dtypes,
-        col_defaults=defaults,
-        empty_data_error_msg='No data found in the source exposure (loc.) file',
-        memory_map=True
-    )
-
-    # Enforce OED string dtypes: if get_dataframe didn't correctly set  and replace any string 'nan'
-    # with blank strings
-    dtypes = {
-        **{k.lower(): v for k, v in str_dtypes.items()},
-        **{f: 'str' for f in exposure_df.columns if f.startswith('flexiloc')}
-    }
-    existing_cols = list(set(dtypes).intersection(exposure_df.columns))
-    _dtypes = {
-        col: dtype
-        for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
-    }
-    exposure_df = exposure_df.astype(_dtypes)
-    fill_na_with_categoricals(exposure_df, {col: '' for col in existing_cols})
-    exposure_df.replace('nan', '', inplace=True)
-
-    # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert
-    existing_cols = list(set(int_dtypes.keys()).intersection(exposure_df.columns))
-    exposure_df[existing_cols] = exposure_df[existing_cols].fillna(0)
-    exposure_df[existing_cols] = pd.to_numeric(exposure_df[existing_cols].stack(), errors='coerce', downcast='integer').unstack()
-
+def prepare_location_df(location_df):
     # Set interal location id index
-    if 'loc_id' not in exposure_df.columns:
-        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
-
+    if 'loc_id' not in location_df.columns:
+        location_df['loc_id'] = get_ids(location_df, ['PortNumber', 'AccNumber', 'LocNumber'])
+    else:
+        location_df['loc_id'] = location_df['loc_id'].astype(int)
     # Add file Index column to extract OED columns for summary grouping
-    exposure_df[SOURCE_IDX['loc']] = exposure_df.index
+    location_df[SOURCE_IDX['loc']] = location_df.index
 
-    return exposure_df
+    return location_df
+
+
+def prepare_account_df(accounts_df):
+    accounts_df[SOURCE_IDX['acc']] = accounts_df.index
+
+    if 'LayerNumber' not in accounts_df:
+        accounts_df['LayerNumber'] = 1
+    accounts_df['LayerNumber'].fillna(1, inplace=True)
+
+    # Determine whether step policies are listed, are not full of nans and step
+    # numbers are greater than zero
+    step_policies_present = False
+    if 'StepTriggerType' in accounts_df and 'StepNumber' in accounts_df:
+        if accounts_df['StepTriggerType'].notnull().any():
+            if accounts_df[accounts_df['StepTriggerType'].notnull()]['StepNumber'].gt(0).any():
+                step_policies_present = True
+
+    # Determine whether layer num. column exists in the accounts dataframe and
+    # create it if needed, filling it with default value. The layer num. field
+    # is used to identify unique layers in cases where layers share the same
+    # policy num.
+    # Create `layer_id` column, which is simply an enumeration of the unique
+    # (portfolio_num., acc. num., policy num., layer num.) combinations in the
+    # accounts file.
+    # If step policies are listed use `StepNumber` column in combination
+    layers_cols = ['PortNumber', 'AccNumber']
+    if step_policies_present:
+        layers_cols += ['StepNumber']
+        accounts_df['StepNumber'].fillna(0, inplace=True)
+    id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
+    id_df['layer_id'] = get_ids(id_df,
+                                layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
+                                ).astype('uint32')
+    accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+
+    return accounts_df
+
+
+def prepare_reinsurance_df(ri_info, ri_scope):
+    if 'SEL' not in ri_info['RiskLevel'].cat.categories:
+        ri_info['RiskLevel'] = ri_info['RiskLevel'].cat.add_categories(['SEL'])
+    ri_info['RiskLevel'] = ri_info['RiskLevel'].fillna('SEL')
+
+    return ri_info, ri_scope
+
+
+def get_exposure_data(computation_step, add_internal_col=False):
+    if 'exposure_data' in computation_step.kwargs:
+        exposure_data = computation_step.kwargs['exposure_data']
+    else:
+        if Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
+            exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
+        elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
+            exposure_data = OedExposure(**computation_step.get_exposure_data_config())
+        else:  # ExposureData info was not created, oed input file must have default name (location, account, ...)
+            exposure_data = OedExposure.from_dir(
+                computation_step.oasis_files_dir,
+                currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
+                reporting_currency=getattr(computation_step, 'reporting_currency', None),
+                check_oed=computation_step.check_oed,
+                use_field=True)
+
+        if add_internal_col:
+            if exposure_data.location:
+                exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+            if exposure_data.account:
+                exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+            if exposure_data.ri_info and exposure_data.ri_scope:
+                exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
+                                                                                                           exposure_data.ri_scope.dataframe)
+    return exposure_data
 
 
 def reduce_df(df, cols=None):
@@ -1019,16 +963,16 @@ def reduce_df(df, cols=None):
 
 
 def print_dataframe(
-    df,
-    cols=[],
-    string_cols=[],
-    show_index=False,
-    frame_header=None,
-    column_headers='keys',
-    tablefmt='psql',
-    floatfmt=",.2f",
-    end='\n',
-    **tabulate_kwargs
+        df,
+        cols=[],
+        string_cols=[],
+        show_index=False,
+        frame_header=None,
+        column_headers='keys',
+        tablefmt='psql',
+        floatfmt=",.2f",
+        end='\n',
+        **tabulate_kwargs
 ):
     """
     A method to pretty-print a Pandas dataframe - calls on the ``tabulate``

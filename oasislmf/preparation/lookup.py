@@ -1,9 +1,6 @@
 __all__ = [
     'OasisBuiltinBaseLookup',
     'OasisBaseKeysLookup',
-    'OasisLookup',
-    'OasisPerilLookup',
-    'OasisVulnerabilityLookup',
     'OasisLookupFactory'
 ]
 

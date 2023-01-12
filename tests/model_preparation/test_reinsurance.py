@@ -9,12 +9,10 @@ from tempfile import TemporaryDirectory
 import hypothesis
 import numpy as np
 import pandas as pd
-from pandas.util.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
 from parameterized import parameterized
 
-from oasislmf.model_execution import bin
-from oasislmf.model_preparation import oed, reinsurance_layer
-from oasislmf.utils.data import get_dataframe, set_dataframe_column_dtypes
+from oasislmf.preparation import reinsurance_layer
 
 
 class TestReinsurance(unittest.TestCase):
@@ -34,16 +32,16 @@ class TestReinsurance(unittest.TestCase):
         self.exposure_1_xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx': [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4],
             'output_id': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-            'portnumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-            'polnumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-            'accnumber': ['1', '1', '1', '1', '1', '1', '2', '2', '2', '2', '2', '2'],
-            'locnumber': ['1', '1', '1', '2', '2', '2', '1', '1', '1', '2', '2', '2'],
-            'locgroup': ['ABC', 'ABC', 'ABC', '', '', '', 'ABC', 'ABC', 'ABC', '', '', ''],
-            'cedantname': ['', '', '', '', '', '', '', '', '', '', '', ''],
-            'producername': ['', '', '', '', '', '', '', '', '', '', '', ''],
-            'lob': ['', '', '', '', '', '', '', '', '', '', '', ''],
-            'countrycode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
-            'reinstag': ['', '', '', '', '', '', '', '', '', '', '', ''],
+            'PortNumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+            'PolNumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+            'AccNumber': ['1', '1', '1', '1', '1', '1', '2', '2', '2', '2', '2', '2'],
+            'LocNumber': ['1', '1', '1', '2', '2', '2', '1', '1', '1', '2', '2', '2'],
+            'LocGroup': ['ABC', 'ABC', 'ABC', '', '', '', 'ABC', 'ABC', 'ABC', '', '', ''],
+            'CedantName': ['', '', '', '', '', '', '', '', '', '', '', ''],
+            'ProducerName': ['', '', '', '', '', '', '', '', '', '', '', ''],
+            'LOB': ['', '', '', '', '', '', '', '', '', '', '', ''],
+            'CountryCode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
+            'ReinsTag': ['', '', '', '', '', '', '', '', '', '', '', ''],
             'coverage_type_id': [1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4],
             'peril_id': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'tiv': [1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0]
@@ -51,16 +49,16 @@ class TestReinsurance(unittest.TestCase):
         self.exposure_2_xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx': [1, 1, 1, 2, 2, 2, 3, 3, 3],
             'output_id': [1, 2, 3, 4, 5, 6, 7, 8, 9],
-            'portnumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1'],
-            'polnumber': ['P1', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1'],
-            'accnumber': ['A1', 'A1', 'A1', 'A2', 'A2', 'A2', 'A2', 'A2', 'A2'],
-            'locnumber': ['L1', 'L1', 'L1', 'L2', 'L2', 'L2', 'L3', 'L3', 'L3'],
-            'locgroup': ['ABC', 'ABC', 'ABC', '', '', '', '', '', ''],
-            'cedantname': ['', '', '', '', '', '', '', '', ''],
-            'producername': ['', '', '', '', '', '', '', '', ''],
-            'lob': ['', '', '', '', '', '', '', '', ''],
-            'countrycode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
-            'reinstag': ['', '', '', '', '', '', '', '', ''],
+            'PortNumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1'],
+            'PolNumber': ['P1', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1'],
+            'AccNumber': ['A1', 'A1', 'A1', 'A2', 'A2', 'A2', 'A2', 'A2', 'A2'],
+            'LocNumber': ['L1', 'L1', 'L1', 'L2', 'L2', 'L2', 'L3', 'L3', 'L3'],
+            'LocGroup': ['ABC', 'ABC', 'ABC', '', '', '', '', '', ''],
+            'CedantName': ['', '', '', '', '', '', '', '', ''],
+            'ProducerName': ['', '', '', '', '', '', '', '', ''],
+            'LOB': ['', '', '', '', '', '', '', '', ''],
+            'CountryCode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
+            'ReinsTag': ['', '', '', '', '', '', '', '', ''],
             'coverage_type_id': [1, 3, 4, 1, 3, 4, 1, 2, 3],
             'peril_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
             'tiv': [1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0]
@@ -68,16 +66,16 @@ class TestReinsurance(unittest.TestCase):
         self.exposure_3_xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx': [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5],
             'output_id': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            'portnumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '2', '2', '2'],
-            'polnumber': ['P1', 'P1', 'P1', 'P2', 'P2', 'P2', 'P2', 'P2', 'P2', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1'],
-            'accnumber': ['A1', 'A1', 'A1', 'A1', 'A1', 'A1', 'A2', 'A2', 'A2', 'A2', 'A2', 'A2', 'A1', 'A1', 'A1'],
-            'locnumber': ['L1', 'L1', 'L1', 'L1', 'L1', 'L1', 'L2', 'L2', 'L2', 'L2', 'L2', 'L2', 'L1', 'L1', 'L1'],
-            'locgroup': ['ABC', 'ABC', 'ABC', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'cedantname': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'producername': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'lob': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'countrycode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
-            'reinstag': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'PortNumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '2', '2', '2'],
+            'PolNumber': ['P1', 'P1', 'P1', 'P2', 'P2', 'P2', 'P2', 'P2', 'P2', 'P1', 'P1', 'P1', 'P1', 'P1', 'P1'],
+            'AccNumber': ['A1', 'A1', 'A1', 'A1', 'A1', 'A1', 'A2', 'A2', 'A2', 'A2', 'A2', 'A2', 'A1', 'A1', 'A1'],
+            'LocNumber': ['L1', 'L1', 'L1', 'L1', 'L1', 'L1', 'L2', 'L2', 'L2', 'L2', 'L2', 'L2', 'L1', 'L1', 'L1'],
+            'LocGroup': ['ABC', 'ABC', 'ABC', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'CedantName': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'ProducerName': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'LOB': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'CountryCode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
+            'ReinsTag': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
             'coverage_type_id': [1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 3, 4, 1, 2, 3],
             'peril_id': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'tiv': [1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0, 1000.0, 500.0, 500.0]
@@ -2909,6 +2907,12 @@ class TestReinsurance(unittest.TestCase):
             'CededPercent': [1.0, 1.0]
         })
 
+        print('exposure_1_items_df', self.exposure_1_items_df.columns)
+        print('exposure_1_coverages_df', self.exposure_1_coverages_df.columns)
+        print('exposure_1_xref_descriptions_df', self.exposure_1_xref_descriptions_df.columns)
+        print('ri_info_df', ri_info_df.columns)
+        print('ri_scope_df', ri_scope_df.columns)
+
         ri_inputs = reinsurance_layer._get_ri_inputs(
             self.exposure_1_items_df,
             self.exposure_1_coverages_df,
@@ -2997,16 +3001,16 @@ class TestReinsurance(unittest.TestCase):
         xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx': [1, 1, 2, 1, 1, 2, 1, 1, 2, 3, 11, 12, 3, 14, 15, 3, 17, 18],
             'output_id': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-            'portnumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-            'polnumber': ['1', '2', '1', '1', '2', '1', '1', '2', '1', '1', '1', '2', '1', '1', '2', '1', '1', '2'],
-            'accnumber': ['1', '1', '2', '1', '1', '2', '1', '1', '2', '2', '1', '1', '2', '1', '1', '2', '1', '1'],
-            'locnumber': ['2', '2', '2', '2', '2', '2', '2', '2', '2', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-            'locgroup': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'cedantname': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'producername': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'lob': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            'countrycode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
-            'reinstag': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'PortNumber': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+            'PolNumber': ['1', '2', '1', '1', '2', '1', '1', '2', '1', '1', '1', '2', '1', '1', '2', '1', '1', '2'],
+            'AccNumber': ['1', '1', '2', '1', '1', '2', '1', '1', '2', '2', '1', '1', '2', '1', '1', '2', '1', '1'],
+            'LocNumber': ['2', '2', '2', '2', '2', '2', '2', '2', '2', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+            'LocGroup': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'CedantName': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'ProducerName': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'LOB': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            'CountryCode': ['US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US', 'US'],
+            'ReinsTag': ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
             'coverage_type_id': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'peril_id': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'tiv': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]

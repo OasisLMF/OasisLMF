@@ -148,15 +148,15 @@ def get_gul_input_items(
     # that would mean that changes to these column names in the source files
     # may break the method
     oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName']
+    acc_num = oed_hierarchy['accnum']['ProfileElementName']
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName']
 
     # The (site) coverage FM level ID (# 1 in the OED FM levels hierarchy)
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[cov_level_id].items()})
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'] for k, v in profile[cov_level_id].items()})
     tiv_cols = list(tiv_terms.values())
 
     # Get the list of coverage type IDs - financial terms for the coverage
@@ -169,7 +169,7 @@ def get_gul_input_items(
     # profile, containing only information about the financial terms), and
     # the list of OED colum names for the financial terms for the site coverage
     # (# 1 ) FM level
-    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
+    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile, lowercase=False)
     terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit']
     terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
     terms = terms_floats + terms_ints
@@ -223,7 +223,7 @@ def get_gul_input_items(
 
     # Check if correlation group field used to drive group id
     # and test that it's present and poulated with integers
-    correlation_group_id = list(map(lambda col: col.lower(), CORRELATION_GROUP_ID))
+    correlation_group_id = CORRELATION_GROUP_ID
     correlation_field = correlation_group_id[0]
     correlation_check = False
     if group_id_cols == correlation_group_id:
@@ -235,7 +235,7 @@ def get_gul_input_items(
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
-    gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
+    gul_inputs_df = exposure_df[set(exposure_df_gul_inputs_cols).intersection(exposure_df.columns)]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
     # Rename the main keys dataframe columns - this is due to the fact that the
@@ -260,6 +260,7 @@ def get_gul_input_items(
     if 'model_data' in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
 
+    keys_df['loc_id']
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         keys_df,
@@ -286,6 +287,7 @@ def get_gul_input_items(
     # IL terms (and BI coverage boolean) in each group and update the
     # corresponding frame section in the GUL inputs table
     gul_inputs_reformatted_chunks = []
+    terms_found = set()
     for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
         tiv_col = tiv_terms[cov_type]
 
@@ -315,19 +317,21 @@ def get_gul_input_items(
         cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
         column_mapping_dict = {
             generic_col: cov_col
-            for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms)
+            for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms) if generic_col in cov_type_group.columns
         }
         column_mapping_dict[tiv_col] = 'tiv'
         cov_type_group.rename(columns=column_mapping_dict, inplace=True, copy=False)
-        cov_type_group.loc[:, ['tiv'] + cov_type_terms].fillna(0.0, inplace=True)
-
+        cov_type_group.loc[:, ['tiv'] + list(column_mapping_dict.values())]
+        terms_found.update(column_mapping_dict.values())
         cov_type_group['coverage_type_id'] = cov_type
-
         gul_inputs_reformatted_chunks.append(cov_type_group)
-
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
-    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index(drop=True)
+    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks)
+    gul_inputs_df[terms_found].fillna(0., inplace=True)
+    gul_inputs_df = gul_inputs_df.sort_index().reset_index(drop=True)
+    term_int_found = list(set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints)))
+    gul_inputs_df[term_int_found] = gul_inputs_df[term_int_found].fillna(0)
     # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
@@ -358,7 +362,11 @@ def get_gul_input_items(
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
+
+    # Keep group_id consistance by lower casing column names and sorting
     group_id_cols.sort()
+    group_id_cols_list = sorted([c.lower() for c in group_id_cols])  # list of case insessative column names
+    group_id_cols_map = {c: c.lower() for c in group_id_cols}         # mapping from PascalCase -> 'lower_case'
 
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
@@ -379,12 +387,12 @@ def get_gul_input_items(
 
     # this block gets fired if the hashed_group_id is True
     elif correlations is False:
-        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df.rename(columns=group_id_cols_map)[group_id_cols_list],
                                                                 index=False).to_numpy() >> 33)
     else:
         # do merge with peril correlation df
         gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
-        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df[group_id_cols],
+        gul_inputs_df["group_id"] = (pd.util.hash_pandas_object(gul_inputs_df.rename(columns=group_id_cols_map)[group_id_cols_list],
                                                                 index=False).to_numpy() >> 33)
 
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')

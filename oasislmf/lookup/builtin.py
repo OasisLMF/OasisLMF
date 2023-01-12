@@ -197,9 +197,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     interface_version = "1"
 
     def process_locations(self, locations):
-        # drop all unused columns and remove duplicate rows
+        # drop all unused columns and remove duplicate rows, find and rename usefull column
+        lower_case_column_map = {column.lower(): column for column in locations.columns}
         step_configs = (self.config['step_definition'][step_name] for step_name in self.config["strategy"])
         useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in step_configs), []))
+
+        useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
+                           for useful_col in useful_cols
+                           if useful_col.lower() in lower_case_column_map}
+
+        locations = locations.rename(columns=useful_cols_map)
         locations = locations[locations.columns & useful_cols].drop_duplicates()
 
         # set default status and message
@@ -212,7 +219,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             needed_column = set(step_config.get("columns", []))
             if not needed_column.issubset(locations.columns):
                 raise OasisException(
-                    f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}, {OPT_INSTALL_MESSAGE}")
+                    f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             if hasattr(self, step_name):
                 step_function = getattr(self, step_name)
             else:
@@ -274,7 +281,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         peril_groups_df = pd.DataFrame(res, columns=['peril_group_id', 'peril_id'])
 
         def fct(locations):
-            split_df = locations['LocPerilsCovered'.lower()].str.split(';').apply(pd.Series, 1).stack()
+            for col in locations.columns:
+                if col.lower() == 'locperilscovered':
+                    loc_perils_covered_column = col
+                    break
+            else:
+                raise OasisException('missing LocPerilsCovered column in location')
+
+            split_df = locations[loc_perils_covered_column].str.split(';').apply(pd.Series, 1).stack()
             split_df.index = split_df.index.droplevel(-1)
             split_df.name = 'peril_group_id'
 
