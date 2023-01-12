@@ -25,36 +25,36 @@ logger = logging.getLogger(__name__)
 
 @njit(cache=True)
 def gen_empty_agg_vuln_to_vuln_ids():
-    """TODO
+    """Generate empty map to store the definitions of aggregate vulnerability functions.
 
     Returns:
-        _type_: _description_
+        dict[int, list[int]]: map of aggregate vulnerability id to list of vulnerability ids.
+
     """
     return Dict.empty(nb_int32, List.empty_list(nb_int32))
 
 
 @njit(cache=True)
 def gen_empty_areaperil_vuln_ids_to_weights():
-    """TODO
+    """Generate empty map to store the weights of individual vulnerability functions in each aggregate vulnerability.
 
     Returns:
-        _type_: _description_
+        dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]: map of areaperil_id, vulnerability id to weight.
+
     """
     return Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
 
 
 def read_aggregate_vulnerability(path, ignore_file_type=set()):
     """Load the aggregate vulnerability definitions from file.
-    TODO: check docs
 
     Args:
         path (str): the path pointing to the file
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-        vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-        areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+        np.array[AggregateVulnerability]: aggregate vulnerability table.
+
     """
     input_files = set(os.listdir(path))
 
@@ -76,17 +76,15 @@ def read_aggregate_vulnerability(path, ignore_file_type=set()):
 
 
 def read_vulnerability_weights(path, ignore_file_type=set()):
-    """Load the aggregate vulnerability weights definitions from file.
-    TODO: check docs
+    """Load the vulnerability weights definitions from file.
 
     Args:
         path (str): the path pointing to the file
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-        vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-        areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+        np.array[VulnerabilityWeight]: vulnerability weights table.
+
     """
     input_files = set(os.listdir(path))
 
@@ -108,14 +106,15 @@ def read_vulnerability_weights(path, ignore_file_type=set()):
 
 
 def process_aggregate_vulnerability(aggregate_vulnerability):
-    """
-    TODO: add docs
+    """Rearrange aggregate vulnerability definitions from tabular format to a map between aggregate
+    vulnerability id and the list of vulnerability ids that it is made of.
 
     Args:
-        aggregate_vulnerability (_type_): _description_
+        aggregate_vulnerability (np.array[AggregateVulnerability]): aggregate vulnerability table.
 
     Returns:
-        _type_: _description_
+        dict[int, list[int]]: map of aggregate vulnerability id to list of vulnerability ids.
+
     """
     agg_vuln_to_vuln_id = gen_empty_agg_vuln_to_vuln_ids()
 
@@ -141,15 +140,15 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
 
 
 def process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id):
-    """
-    TODO: add docs
+    """Rearrange vulnerability weights from tabular format to a map between (areaperil_id, vulnerability_id) and the vulnerability weight.
 
     Args:
-        aggregate_weights (_type_): _description_
-        agg_vuln_to_vuln_id (_type_): _description_
+        aggregate_weights (np.array[VulnerabilityWeight]): vulnerability weights table.
+        agg_vuln_to_vuln_id (dict[int, list[int]]): map of aggregate vulnerability id to list of vulnerability ids.
 
     Returns:
-        _type_: _description_
+        dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]: map of areaperil_id, vulnerability id to weight.
+
     """
     areaperil_vuln_id_to_weight = gen_empty_areaperil_vuln_ids_to_weights()
 
