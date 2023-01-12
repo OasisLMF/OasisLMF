@@ -10,12 +10,9 @@ import os
 from pathlib import Path
 from typing import List
 
-from ods_tools import get_ods_fields, read_csv, read_parquet
-
 from .keys import GenerateKeys
 from ..base import ComputationStep
 
-from ...preparation.oed import load_oed_dfs
 from ...preparation.dir_inputs import (
     create_target_directory,
     prepare_input_files_directory
@@ -26,10 +23,12 @@ from ...utils.inputs import str2bool
 
 from ...utils.data import (
     get_model_settings,
-    get_location_df,
+    prepare_location_df,
+    prepare_account_df,
+    prepare_reinsurance_df,
     get_dataframe,
     get_json,
-    get_utctimestamp,
+    get_utctimestamp, get_exposure_data,
 )
 from ...utils.defaults import (
     get_default_accounts_profile,
@@ -38,14 +37,12 @@ from ...utils.defaults import (
     GROUP_ID_COLS,
     OASIS_FILES_PREFIXES,
     WRITE_CHUNKSIZE,
-    store_exposure_fp,
 )
 from ...preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
 )
 from ...preparation.il_inputs import (
-    get_account_df,
     get_il_input_items,
     get_oed_hierarchy,
     write_il_input_files,
@@ -79,7 +76,6 @@ from oasislmf.preparation.correlations import map_data
 from oasislmf.preparation.gul_inputs import process_group_id_cols
 from oasislmf.utils.data import establish_correlations
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
-from ...utils.forex import create_currency_rates, manage_multiple_currency
 
 
 class GenerateFiles(ComputationStep):
@@ -90,7 +86,7 @@ class GenerateFiles(ComputationStep):
     step_params = [
         # Command line options
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
-            'help': 'Path to the directory in which to generate the Oasis files'},
+         'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
         {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
         {'name': 'lookup_config_json', 'flag': '-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
@@ -102,21 +98,22 @@ class GenerateFiles(ComputationStep):
         {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
         {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': True, 'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
-            'help': 'Directory containing additional model data files which varies between analysis runs'},
+         'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
         {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
-        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path', 'required': True},
+        {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
         {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
         {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
-        {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool,
-            'const': True, 'nargs': '?', 'help': 'Disables creation of an exposure summary report'},
+        {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
+        {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
-        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?',
-            'default': False, 'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
+         'help': 'Flag to enable/disable lookup multiprocessing'},
         {"name": "hashed_group_id", 'type': str2bool, 'const': False, 'nargs': '?', 'default': True, 'help': "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
@@ -137,21 +134,16 @@ class GenerateFiles(ComputationStep):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
 
-    @staticmethod
-    def update_multi_currency_oed_file(oed_fp, file_type, reporting_currency, currency_rate):
-        #  load and save location after currency change (only for loc as it is read in the key server)
-        if oed_fp.endswith(".parquet"):
-            location_df = read_parquet(oed_fp)
-        else:
-            location_df = read_csv(oed_fp, file_type=file_type)
-
-        currency_change = manage_multiple_currency(oed_fp, location_df, reporting_currency,
-                                                   currency_rate, get_ods_fields())
-        if currency_change:
-            if oed_fp.endswith(".parquet"):
-                location_df.to_parquet(oed_fp)
-            else:
-                location_df.to_csv(oed_fp, index=False)
+    def get_exposure_data_config(self):
+        return {
+            'location': self.oed_location_csv,
+            'account': self.oed_accounts_csv,
+            'ri_info': self.oed_info_csv,
+            'ri_scope': self.oed_scope_csv,
+            'currency_conversion': self.currency_conversion_json,
+            'check_oed': self.check_oed,
+            'use_field': True
+        }
 
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
@@ -165,9 +157,11 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
+        exposure_data = get_exposure_data(self, add_internal_col=True)
+        self.kwargs['exposure_data'] = exposure_data
 
-        il = True if self.oed_accounts_csv else False
-        ri = all([self.oed_info_csv, self.oed_scope_csv]) and il
+        il = bool(exposure_data.account)
+        ri = exposure_data.ri_info and exposure_data.ri_scope and il
         self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         summarise_exposure = not self.disable_summarise_exposure
 
@@ -175,25 +169,22 @@ class GenerateFiles(ComputationStep):
         # model version into it
         target_dir = prepare_input_files_directory(
             self._get_output_dir(),
-            self.oed_location_csv,
+            exposure_data=exposure_data,
             exposure_profile_fp=self.profile_loc_json,
             keys_fp=self.keys_data_csv,
             keys_errors_fp=self.keys_errors_csv,
             lookup_config_fp=self.lookup_config_json,
             model_version_fp=self.model_version_csv,
             complex_lookup_config_fp=self.lookup_complex_config_json,
-            accounts_fp=self.oed_accounts_csv,
             accounts_profile_fp=self.profile_acc_json,
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
-            ri_info_fp=self.oed_info_csv,
-            ri_scope_fp=self.oed_scope_csv
         )
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
         location_profile = get_json(src_fp=self.profile_loc_json) if self.profile_loc_json else self.profile_loc
         accounts_profile = get_json(src_fp=self.profile_acc_json) if self.profile_acc_json else self.profile_acc
         oed_hierarchy = get_oed_hierarchy(location_profile, accounts_profile)
-        loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
+        loc_grp = oed_hierarchy['locgrp']['ProfileElementName']
 
         fm_aggregation_profile = get_json(src_fp=self.profile_fm_agg_json) if self.profile_fm_agg_json else self.profile_fm_agg
 
@@ -201,20 +192,18 @@ class GenerateFiles(ComputationStep):
         if any(isinstance(lvl, str) for lvl in fm_aggregation_profile.keys()):
             fm_aggregation_profile = {int(k): v for k, v in fm_aggregation_profile.items()}
 
-        if self.currency_conversion_json:
-            currency_conversion = get_json(self.currency_conversion_json)
-            currency_conversion["root_dir"] = os.path.dirname(self.currency_conversion_json)
-            currency_rate = create_currency_rates(currency_conversion)
+        if self.reporting_currency:
+            exposure_data.reporting_currency = self.reporting_currency
+            exposure_data.save(target_dir, self.reporting_currency, save_config=True)
+
+        exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+        location_df = exposure_data.location.dataframe
+
+        if il:
+            exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+            account_df = exposure_data.account.dataframe
         else:
-            currency_rate = None
-
-        #  load and save location after currency change
-        oed_location_csv = os.path.join(target_dir, store_exposure_fp(self.oed_location_csv, 'loc'))
-        self.update_multi_currency_oed_file(oed_location_csv, 'Loc', self.reporting_currency, currency_rate)
-        self.kwargs['oed_location_csv'] = oed_location_csv
-
-        # Load Location file at a single point in the Generate files cmd
-        location_df = get_location_df(oed_location_csv, location_profile)
+            account_df = None
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
@@ -232,7 +221,7 @@ class GenerateFiles(ComputationStep):
 
         # Load keys file  **** WARNING - REFACTOR THIS ****
         dtypes = {
-            'locid': 'str',
+            'locid': 'int64',
             'perilid': 'str',
             'coveragetypeid': 'uint8',
             'areaperilid': 'uint64',
@@ -269,11 +258,11 @@ class GenerateFiles(ComputationStep):
         # otherwise load group cols from args
         else:
             group_id_cols = self.group_id_cols
-        group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
-                                                         exposure_df_columns=list(location_df),
+                                                         exposure_df_columns=location_df,
                                                          has_correlation_groups=correlations)
+
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
@@ -296,7 +285,7 @@ class GenerateFiles(ComputationStep):
 
         # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
-            write_summary_levels(location_df, self.oed_accounts_csv, target_dir)
+            write_summary_levels(location_df, account_df, exposure_data, target_dir)
 
         # Write the GUL input files
         files_prefixes = self.oasis_files_prefixes
@@ -319,18 +308,11 @@ class GenerateFiles(ComputationStep):
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(gul_input_files, indent=4)))
             return gul_input_files
 
-        #  load and save account after currency change
-        oed_accounts_csv = os.path.join(target_dir, store_exposure_fp(self.oed_accounts_csv, 'acc'))
-        self.update_multi_currency_oed_file(oed_accounts_csv, 'Acc', self.reporting_currency, currency_rate)
-        self.kwargs['oed_accounts_csv'] = oed_accounts_csv
-
-        account_df = get_account_df(oed_accounts_csv, accounts_profile)
-
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            location_df,
+            exposure_data.location.dataframe,
             gul_inputs_df,
-            account_df,
+            exposure_data.account.dataframe,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
@@ -356,29 +338,26 @@ class GenerateFiles(ComputationStep):
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
             return oasis_files
 
+        exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
+                                                                                                   exposure_data.ri_scope.dataframe)
+
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
         xref_descriptions_df = merge_oed_to_mapping(
             fm_summary_mapping,
-            location_df,
+            exposure_data.location.dataframe,
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
         ).sort_values(by='agg_id')
 
-        #  load and save account after currency change
-        if os.path.exists(self.oed_info_csv):
-            oed_info_csv = os.path.join(target_dir, store_exposure_fp(self.oed_info_csv, 'info'))
-            self.update_multi_currency_oed_file(oed_info_csv, 'ReinsInfo', self.reporting_currency, currency_rate)
-            self.kwargs['oed_info_csv'] = oed_info_csv
-
-        ri_info_df, ri_scope_df, _ = load_oed_dfs(oed_info_csv, self.oed_scope_csv)
+        self.kwargs['oed_info_csv'] = exposure_data.ri_info
 
         ri_layers = write_files_for_reinsurance(
             gul_inputs_df,
             xref_descriptions_df,
-            ri_info_df,
-            ri_scope_df,
+            exposure_data.ri_info.dataframe,
+            exposure_data.ri_scope.dataframe,
             oasis_files['fm_xref'],
             target_dir,
             self.write_ri_tree
@@ -406,22 +385,23 @@ class GenerateDummyModelFiles(ComputationStep):
         {'name': 'num_intensity_bins', 'flag': '-i', 'required': True, 'type': int, 'help': 'Number of intensity bins'},
         {'name': 'num_damage_bins', 'flag': '-d', 'required': True, 'type': int, 'help': 'Number of damage bins'},
         {'name': 'vulnerability_sparseness', 'flag': '-s', 'required': False, 'type': float, 'default': 1.0,
-            'help': 'Percentage of bins normalised to range [0,1] impacted for a vulnerability at an intensity level'},
+         'help': 'Percentage of bins normalised to range [0,1] impacted for a vulnerability at an intensity level'},
         {'name': 'num_events', 'flag': '-e', 'required': True, 'type': int, 'help': 'Number of events'},
         {'name': 'num_areaperils', 'flag': '-a', 'required': True, 'type': int, 'help': 'Number of areaperils'},
-        {'name': 'areaperils_per_event', 'flag': '-A', 'required': False, 'type': int, 'default': None, 'help': 'Number of areaperils impacted per event'},
+        {'name': 'areaperils_per_event', 'flag': '-A', 'required': False, 'type': int, 'default': None,
+         'help': 'Number of areaperils impacted per event'},
         {'name': 'intensity_sparseness', 'flag': '-S', 'required': False, 'type': float, 'default': 1.0,
-            'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
+         'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
         {'name': 'no_intensity_uncertainty', 'flag': '-u', 'required': False,
-            'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
+         'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
         {'name': 'num_periods', 'flag': '-p', 'required': True, 'type': int, 'help': 'Number of periods'},
         {'name': 'periods_per_event_mean', 'flag': '-P', 'required': False, 'type': int, 'default': 1,
-            'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
+         'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0,
-            'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
+         'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'num_randoms', 'flag': '-r', 'required': False, 'type': int, 'default': 0, 'help': 'Number of random numbers'},
         {'name': 'random_seed', 'flag': '-R', 'required': False, 'type': int, 'default': -
-            1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
+         1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
     ]
 
     def _validate_input_arguments(self):
@@ -581,7 +561,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         self._get_model_file_objects()
         self._get_gul_file_objects()
 
-        il = True   # Assume that FM files should be generated too
+        il = True  # Assume that FM files should be generated too
         if il is True:
             self._get_fm_file_objects()
         else:

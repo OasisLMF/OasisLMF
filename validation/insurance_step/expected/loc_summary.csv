@@ -1,4 +1,4 @@
-portnumber,accnumber,locnumber,loss_gul,loss_il
+PortNumber,AccNumber,LocNumber,loss_gul,loss_il
 FloodGeneral_T1,A2_T1,A2,70000000.0,14285700.0
 FloodGeneral_T1,A3_T1,A3,70000000.0,9990000.0
 FloodGeneral_T1,A4_T1,A4,70000000.0,12087900.0

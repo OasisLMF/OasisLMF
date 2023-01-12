@@ -1,4 +1,4 @@
-portnumber,accnumber,locnumber,loss_gul,loss_il,loss_ri
+PortNumber,AccNumber,LocNumber,loss_gul,loss_il,loss_ri
 OEDTest,CX29_05,CX29_05_1,100000000.0,98999999.0,79199999.0
 OEDTest,CX29_05,CX29_05_2,100000000.0,98999999.0,79199999.0
 OEDTest,CX29_06,CX29_06_1,100000000.0,19799999.759999998,15839999.76

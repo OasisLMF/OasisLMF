@@ -226,6 +226,7 @@ def calcrule_25(policy, loss_out, loss_in):
 def calcrule_28(policy, loss_out, loss_in):
     """
     % loss step payout
+    note that 1 was added to scale_1 in the precompute step
     """
     if policy['step_id'] == 1:
         loss_out.fill(0)
