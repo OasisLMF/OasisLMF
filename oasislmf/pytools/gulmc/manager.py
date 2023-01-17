@@ -422,7 +422,7 @@ def run(run_dir,
                         cached_vuln_cdf_lookup, lookup_keys, next_cached_vuln_cdf,
                         cached_vuln_cdfs,
                         agg_vuln_to_vuln_id, agg_vuln_to_vuln_idxs, vuln_dict, areaperil_vuln_idx_to_weight,
-                        loss_threshold, losses, vuln_cdf_empty, weighted_vuln_cdf_empty, alloc_rule, do_correlation, haz_rndms_base, vuln_rndms_base,
+                        loss_threshold, losses, vuln_cdf_empty, weighted_vuln_cdf_empty, alloc_rule, do_correlation, do_haz_correlation, haz_rndms_base, vuln_rndms_base,
                         haz_eps_ij, haz_corr_data_by_item_id, eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
@@ -468,7 +468,8 @@ def compute_event_losses(event_id,
                          weighted_vuln_cdf_empty,
                          alloc_rule,
                          do_correlation,
-                         haz_rndms,
+                         do_haz_correlation,
+                         haz_rndms_base,
                          vuln_rndms_base,
                          haz_eps_ij,
                          haz_corr_data_by_item_id,
@@ -524,8 +525,9 @@ def compute_event_losses(event_id,
         weighted_vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store the weighted vulnerability cdf.
         vuln_cdf (np.array[oasis_float]): array (to be re-used) to store the damage cdf for each item.
         alloc_rule (int): back-allocation rule.
-        do_correlation (bool): if True, compute correlated random samples.
-        haz_rndms (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
+        do_correlation (bool): if True, compute correlated random samples of damage.
+        do_haz_correlation (bool): if True, compute correlated random samples of hazard intensity.
+        haz_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the hazard intensity sampling.
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
