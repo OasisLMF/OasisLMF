@@ -109,10 +109,10 @@ tee < fifo/il_S1_summary_P2.idx work/il_S1_summaryaalcalc/P2.idx work/il_S1_summ
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> $LOG_DIR/stderror.err &
-( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > fifo/il_P2  ) 2>> $LOG_DIR/stderror.err &
+( ( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid11=$!
+( ( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > fifo/il_P2  ) 2>> $LOG_DIR/stderror.err ) & pid12=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12
 
 
 # --- Do insured loss kats ---

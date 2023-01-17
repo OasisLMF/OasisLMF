@@ -3,22 +3,26 @@ This file tests gulmc functionality
 """
 import filecmp
 import os
+import subprocess
 from pathlib import Path
-import pytest
 from tempfile import TemporaryDirectory
 from typing import Tuple
 
+import pandas as pd
+import pytest
+
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
+from oasislmf.pytools.utils import assert_allclose
 
 # get tests dirs
 TESTS_DIR = Path(__file__).parent.parent.parent
 TESTS_ASSETS_DIR = TESTS_DIR.joinpath("assets")
 
 # get all available test models
-test_models_dirs = [(x.name, x) for x in TESTS_ASSETS_DIR.glob("test_model_*") if x.is_dir()]
+test_models_dirs = [(x.name, x) for x in sorted(TESTS_ASSETS_DIR.glob("test_model_*")) if x.is_dir()]
 
 # define the grid of model parameters to test
-sample_sizes = [1, 10, 100, 1000]
+sample_sizes = [0, 1, 10, 100, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
 random_generators = [0, 1]
@@ -31,12 +35,12 @@ def generate_expected(request):
     return request.config.getoption('--generate-expected')
 
 
-@pytest.mark.parametrize("test_model", test_models_dirs)
-@pytest.mark.parametrize("sample_size", sample_sizes)
-@pytest.mark.parametrize("alloc_rule", alloc_rules)
-@pytest.mark.parametrize("ignore_correlation", ignore_correlations)
-@pytest.mark.parametrize("random_generator", random_generators)
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
+@pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
+@pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
+@pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
+@pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
 def test_gulmc(test_model: Tuple[str, str],
                sample_size: int,
                alloc_rule: int,
@@ -75,35 +79,83 @@ def test_gulmc(test_model: Tuple[str, str],
 
         ref_out_bin_fname = tmp_result_dir.joinpath("expected").joinpath(
             f'exp_res_{test_model_name}_a{alloc_rule}_S{sample_size}_L0_ign_corr{ignore_correlation}_'
-            f'rng{random_generator}_eff_damag{effective_damageability}.bin'
+            f'rng{random_generator}_eff_damag{effective_damageability}'
         )
 
         # run gulmc
-        test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}.bin')
-        run_gulmc(
-            run_dir=tmp_result_dir,
-            ignore_file_type=set(),
-            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-            file_out=ref_out_bin_fname if generate_expected else test_out_bin_fname,
-            sample_size=sample_size,
-            loss_threshold=0.,
-            alloc_rule=alloc_rule,
-            debug=0,
-            random_generator=random_generator,
-            ignore_correlation=ignore_correlation,
-            effective_damageability=effective_damageability,
-        )
+        test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}')
 
-        if not generate_expected:
-            assert filecmp.cmp(test_out_bin_fname, ref_out_bin_fname, shallow=False)
+        if generate_expected:
+            # generate the expected results
+
+            if not ref_out_bin_fname.with_suffix('.bin').exists():
+                # generate the expected results only if they don't exist yet
+                run_gulmc(
+                    run_dir=tmp_result_dir,
+                    ignore_file_type=set(),
+                    file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                    file_out=ref_out_bin_fname.with_suffix('.bin'),
+                    sample_size=sample_size,
+                    loss_threshold=0.,
+                    alloc_rule=alloc_rule,
+                    debug=0,
+                    random_generator=random_generator,
+                    ignore_correlation=ignore_correlation,
+                    effective_damageability=effective_damageability,
+                )
+
+        else:
+            # run the test case
+            file_out = test_out_bin_fname.with_suffix('.bin')
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=file_out,
+                sample_size=sample_size,
+                loss_threshold=0.,
+                alloc_rule=alloc_rule,
+                debug=0,
+                random_generator=random_generator,
+                ignore_correlation=ignore_correlation,
+                effective_damageability=effective_damageability,
+            )
+
+            # compare the test results to the expected results
+            try:
+                assert filecmp.cmp(file_out, ref_out_bin_fname.with_suffix('.bin'), shallow=False)
+
+            except AssertionError:
+                # if the test fails, convert the binaries to csv, compare them, and print the differences in the `loss` column
+
+                # convert to csv
+                subprocess.run(f"gultocsv < {ref_out_bin_fname.with_suffix('.bin')} > {ref_out_bin_fname.with_suffix('.csv')}",
+                               check=True, capture_output=False, shell=True)
+
+                subprocess.run(f"gultocsv < {file_out} > {test_out_bin_fname.with_suffix('.csv')}",
+                               check=True, capture_output=False, shell=True)
+
+                df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
+                df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
+
+                # compare the `loss` columns
+                assert_allclose(df_ref['loss'], df_test['loss'], x_name='expected', y_name='test')
+
+                # remove temporary files
+                ref_out_bin_fname.with_suffix('.csv').unlink()
+                test_out_bin_fname.with_suffix('.csv').unlink()
+
+            finally:
+                # remove temporary files
+                file_out.unlink()
 
 
-@pytest.mark.parametrize("test_model", test_models_dirs)
-@pytest.mark.parametrize("sample_size", sample_sizes)
-@pytest.mark.parametrize("alloc_rule", alloc_rules)
-@pytest.mark.parametrize("ignore_correlation", ignore_correlations)
-@pytest.mark.parametrize("random_generator", random_generators)
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
+@pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
+@pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
+@pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))], ids=lambda x: x[0])
 def test_debug_flag(test_model: Tuple[str, str],
                     sample_size: int,
                     alloc_rule: int,
@@ -124,7 +176,7 @@ def test_debug_flag(test_model: Tuple[str, str],
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
     """
-    test_model_name, test_model_dir_str = test_model
+    _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
     with pytest.raises(ValueError) as e:
@@ -137,11 +189,12 @@ def test_debug_flag(test_model: Tuple[str, str],
             os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
             # run gulmc
+            file_out = tmp_result_dir.joinpath('tmp.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=tmp_result_dir.joinpath('tmp.bin'),
+                file_out=file_out,
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
@@ -153,13 +206,17 @@ def test_debug_flag(test_model: Tuple[str, str],
 
     assert f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}" == str(e.value)
 
+    # remove temporary file, if it was created
+    if file_out.exists():
+        file_out.unlink()
 
-@pytest.mark.parametrize("test_model", test_models_dirs)
-@pytest.mark.parametrize("sample_size", sample_sizes)
-@pytest.mark.parametrize("alloc_rule", [-2, -1, 4, 5, 6, 7, 8, 9, 10])
-@pytest.mark.parametrize("ignore_correlation", ignore_correlations)
-@pytest.mark.parametrize("random_generator", random_generators)
-@pytest.mark.parametrize("effective_damageability", effective_damageabilities)
+
+@pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
+@pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
+@pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
+@pytest.mark.parametrize("alloc_rule", [-2, -1, 4, 5, 6, 7, 8, 9, 10], ids=lambda x: f"a{x} ")
+@pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
+@pytest.mark.parametrize("test_model", [("test_model_1", TESTS_ASSETS_DIR.joinpath("test_model_1"))], ids=lambda x: x[0])
 def test_alloc_rule_value(test_model: Tuple[str, str],
                           sample_size: int,
                           alloc_rule: int,
@@ -176,7 +233,7 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
     """
-    test_model_name, test_model_dir_str = test_model
+    _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
     with pytest.raises(ValueError) as e:
@@ -189,11 +246,12 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
             os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
             # run gulmc
+            file_out = tmp_result_dir.joinpath('tmp.bin')
             run_gulmc(
                 run_dir=tmp_result_dir,
                 ignore_file_type=set(),
                 file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=tmp_result_dir.joinpath('tmp.bin'),
+                file_out=file_out,
                 sample_size=sample_size,
                 loss_threshold=0.,
                 alloc_rule=alloc_rule,
@@ -204,3 +262,7 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
             )
 
     assert f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}" == str(e.value)
+
+    # remove temporary file, if it was created
+    if file_out.exists():
+        file_out.unlink()

@@ -7,42 +7,38 @@ from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import SOURCE_FILENAMES
 from oasislmf.utils.exceptions import OasisException
 
-input_oed_location = """BuildingTIV
-1
-2
-3
-4
-5
+input_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV
+1,A11111,10002082046,1
+1,A11111,10002082047,2
+1,A11111,10002082048,3
+1,A11111,10002082049,4
+1,A11111,10002082050,5
 """
 
-output_oed_location = """BuildingTIV
-2
-4
-6
-8
-10
+output_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV,loc_id,loc_idx
+1,A11111,10002082046,2.0,1,0
+1,A11111,10002082047,4.0,2,1
+1,A11111,10002082048,6.0,3,2
+1,A11111,10002082049,8.0,4,3
+1,A11111,10002082050,10.0,5,4
 """
 
 
 def write_simple_epa_module(module_path, class_name='ExposurePreAnalysis'):
     with open(module_path, 'w') as f:
         f.write(f'''
-import pandas as pd
-
 class {class_name}:
     """
     Example of custum module called by oasislmf/model_preparation/ExposurePreAnalysis.py
     """
 
-    def __init__(self, raw_oed_location_csv, oed_location_csv, exposure_pre_analysis_setting, **kwargs):
-        self.raw_oed_location_csv = raw_oed_location_csv
-        self.oed_location_csv = oed_location_csv
+    def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+        self.exposure_data = exposure_data
         self.exposure_pre_analysis_setting = exposure_pre_analysis_setting
 
     def run(self):
-        panda_df = pd.read_csv(self.raw_oed_location_csv, memory_map=True)
-        panda_df['BuildingTIV'] = panda_df['BuildingTIV'] * self.exposure_pre_analysis_setting['BuildingTIV_multiplyer']
-        panda_df.to_csv(self.oed_location_csv, index=False)
+        self.exposure_data.location.dataframe['BuildingTIV'] = (self.exposure_data.location.dataframe['BuildingTIV']
+                                                                * self.exposure_pre_analysis_setting['BuildingTIV_multiplyer'])
 ''')
 
 
@@ -61,7 +57,8 @@ def test_exposure_pre_analysis_simple_example():
         kwargs = {'oasis_files_dir': d,
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
                   'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
-                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'), }
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
         write_oed_location(kwargs['oed_location_csv'])
@@ -80,7 +77,8 @@ def test_exposure_pre_analysis_class_name():
                   'exposure_pre_analysis_class_name': 'foobar',
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple_foobar.py'),
                   'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
-                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'), }
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'], kwargs['exposure_pre_analysis_class_name'])
         write_oed_location(kwargs['oed_location_csv'])
@@ -104,7 +102,8 @@ def test_wrong_class():
                   'exposure_pre_analysis_class_name': 'foobar',
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
                   'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
-                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'), }
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
         write_oed_location(kwargs['oed_location_csv'])

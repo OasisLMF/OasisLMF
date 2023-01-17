@@ -59,7 +59,7 @@ def get_coverages(input_path, ignore_file_type=set()):
     elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.csv')
         logger.debug(f"loading {coverages_fname}")
-        coverages = np.genfromtxt(coverages_fname, dtype=oasis_float, delimiter=",")
+        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         raise FileNotFoundError(f'coverages file not found at {input_path}')
@@ -87,7 +87,7 @@ def gul_get_items(input_path, ignore_file_type=set()):
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.genfromtxt(items_fname, dtype=Item, delimiter=",")
+        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 

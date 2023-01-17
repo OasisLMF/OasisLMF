@@ -93,7 +93,6 @@ all_files=(
 	gul_ord_psept_2_output_10_partition.sh
     gul_ord_palt_output_10_partition.sh
     gul_il_ord_palt_output_10_partition.sh
-=======
   all_calcs_1_output_1_partition.0.sh
   all_calcs_1_output_1_partition.output.sh
   all_calcs_1_output_1_partition.sh
@@ -826,6 +825,9 @@ all_files=(
   il_summarycalc_1_output_20_partition.9.sh
   il_summarycalc_1_output_20_partition.output.sh
   il_summarycalc_1_output_20_partition.sh
+  custom_gul_summarycalc_1_output_1_partition.0.sh
+  custom_gul_summarycalc_1_output_1_partition.output.sh
+  custom_gul_summarycalc_1_output_1_partition.sh
 )
 
 for f in "${all_files[@]}"; do

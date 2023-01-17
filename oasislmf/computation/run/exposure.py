@@ -16,13 +16,12 @@ from ..generate.keys import GenerateKeysDeterministic
 from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLossesDeterministic
 
-
 from ...preparation.il_inputs import get_oed_hierarchy
 from ...utils.exceptions import OasisException
 
 from ...utils.data import (
     get_dataframe,
-    print_dataframe,
+    print_dataframe, get_exposure_data,
 )
 from ...utils.inputs import str2bool
 from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -31,7 +30,6 @@ from ...utils.defaults import (
     KTOOLS_ALLOC_RI_DEFAULT,
     KTOOLS_ALLOC_FM_MAX,
     OASIS_FILES_PREFIXES,
-    find_exposure_fp
 )
 
 
@@ -43,23 +41,27 @@ class RunExposure(ComputationStep):
     step_params = [
         {'name': 'src_dir', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': ''},
         {'name': 'run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': ''},
+        {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'output_file', 'flag': '-f', 'is_path': True, 'pre_exist': False, 'help': '', 'type': str},
         {'name': 'loss_factor', 'flag': '-l', 'type': float, 'nargs': '+', 'help': '', 'default': [1.0]},
-        {'name': 'ktools_alloc_rule_il', 'flag': '-a', 'default': KTOOLS_ALLOC_IL_DEFAULT,
-            'type': int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'ktools_alloc_rule_ri', 'flag': '-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,
-            'type': int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format',
-            'choices': ['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
-        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int, 'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'coverage_types', 'type': int, 'nargs': '+',
-            'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
+        {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
+        {'name': 'ktools_alloc_rule_il', 'flag': '-a', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
+         'help': 'Set the fmcalc allocation rule used in direct insured loss'},
+        {'name': 'ktools_alloc_rule_ri', 'flag': '-A', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
+         'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['item', 'loc', 'pol', 'acc', 'port'],
+         'default': 'item'},
+        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
+         'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
+         'help': 'Select List of supported coverage_types [1, .. ,4]'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+         'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'stream_type', 'flag': '-t', 'default': 2, 'type': int,
-            'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
+         'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
         {"name": "hashed_group_id", "default": True, "type": str2bool, "const": False, 'nargs': '?', "help": "Hashes the group_id in the items.bin"},
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
@@ -89,22 +91,15 @@ class RunExposure(ComputationStep):
 
         self._check_alloc_rules()
 
-        try:
-            location_fp = find_exposure_fp(src_dir, 'loc')
-            accounts_fp = find_exposure_fp(src_dir, 'acc')
-        except IndexError as e:
+        self.oasis_files_dir = src_dir
+        exposure_data = get_exposure_data(self, add_internal_col=True)
+        if not exposure_data.location or not exposure_data.account:
             raise OasisException(
-                f'No location/exposure and account found in source directory "{src_dir}" - '
-                'a file named `location.*` and `account.x` are expected', e
+                f'No location/exposure found in source directory "{src_dir}" - '
+                'a file named `location.*` is expected'
             )
-
-        ri_info_fp = accounts_fp and find_exposure_fp(src_dir, 'info', required=False)
-        ri_scope_fp = ri_info_fp and find_exposure_fp(src_dir, 'scope', required=False)
-        if ri_scope_fp is None:
-            ri_info_fp = None  # Need both files for ri
-
-        il = bool(accounts_fp)
-        ril = bool(ri_scope_fp)
+        il = bool(exposure_data.account)
+        ril = all([exposure_data.ri_info, exposure_data.ri_scope, il])
 
         self.logger.debug('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
 
@@ -114,25 +109,23 @@ class RunExposure(ComputationStep):
         # 1. Create Deterministic keys file
         keys_fp = os.path.join(run_dir, 'keys.csv')
         GenerateKeysDeterministic(
-            oed_location_csv=location_fp,
             keys_data_csv=keys_fp,
             num_subperils=self.num_subperils,
             supported_oed_coverage_types=self.coverage_types,
+            exposure_data=exposure_data,
         ).run()
 
         # 2. Start Oasis files generation
         GenerateFiles(
             oasis_files_dir=run_dir,
-            oed_location_csv=location_fp,
-            oed_accounts_csv=accounts_fp,
-            oed_info_csv=ri_info_fp,
-            oed_scope_csv=ri_scope_fp,
+            exposure_data=exposure_data,
             keys_data_csv=keys_fp,
             hashed_group_id=self.hashed_group_id,
         ).run()
 
         # 3. Run Deterministic Losses
         losses = GenerateLossesDeterministic(
+            exposure_data=exposure_data,
             oasis_files_dir=run_dir,
             output_dir=os.path.join(run_dir, 'output'),
             include_loss_factor=include_loss_factor,
@@ -152,7 +145,7 @@ class RunExposure(ComputationStep):
         rils_df = losses['ri']
 
         # Read in the summary map
-        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
+        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'), lowercase_cols=False)
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
@@ -167,7 +160,6 @@ class RunExposure(ComputationStep):
             join_cols = ["event_id", "output_id", "loss_factor_idx"]
         else:
             join_cols = ["event_id", "output_id"]
-
         if il:
             ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
             ils_df.rename(columns={'loss': 'loss_il'}, inplace=True)
@@ -177,6 +169,7 @@ class RunExposure(ComputationStep):
                 on=join_cols,
                 suffixes=["_gul", "_il"]
             )
+
         if ril:
             rils_df.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
             rils_df.rename(columns={'loss': 'loss_ri'}, inplace=True)
@@ -187,10 +180,10 @@ class RunExposure(ComputationStep):
             )
 
         oed_hierarchy = get_oed_hierarchy()
-        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-        policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName']
+        acc_num = oed_hierarchy['accnum']['ProfileElementName']
+        loc_num = oed_hierarchy['locnum']['ProfileElementName']
+        policy_num = oed_hierarchy['polnum']['ProfileElementName']
 
         if self.output_level == 'port':
             summary_cols = [portfolio_num]
@@ -311,16 +304,19 @@ class RunFmTest(ComputationStep):
     """
 
     step_params = [
-        {'name': 'test_case_name', 'flag': '-c', 'type': str, 'help': 'Runs a specific test sub-directory from "test_case_dir". If not set then run all tests found.'},
+        {'name': 'test_case_name', 'flag': '-c', 'type': str,
+         'help': 'Runs a specific test sub-directory from "test_case_dir". If not set then run all tests found.'},
         {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
         {'name': 'test_case_dir', 'flag': '-t', 'default': os.getcwd(), 'is_path': True, 'pre_exist': True,
          'help': 'Test directory - should contain test directories containing OED files and expected results'},
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
-        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int, 'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'test_tolerance', 'type': float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001', 'default': 1e-4},
+        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
+         'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'test_tolerance', 'type': float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001',
+         'default': 1e-4},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+         'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
         {'name': 'hashed_group_id', 'default': False},
@@ -331,7 +327,7 @@ class RunFmTest(ComputationStep):
         case_names = []
         for test_case in os.listdir(path=self.test_case_dir):
             if os.path.exists(
-                os.path.join(self.test_case_dir, test_case, self.expected_output_dir)
+                    os.path.join(self.test_case_dir, test_case, self.expected_output_dir)
             ):
                 case_names.append(test_case)
         case_names.sort()

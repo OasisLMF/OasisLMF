@@ -24,7 +24,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.9.4'
+KTOOLS_VERSION = '3.9.6'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -200,7 +200,7 @@ class InstallKtoolsMixin(object):
                 OS = None
 
         # ENV OVERRIDE TO install a localy copy of ktools
-        #TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', ''))
+        # TAR_DIR = os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR', ''))
 
         if os.getenv('KTOOLS_TAR_FILE_DIR', None):
             TAR_OVERRIDE = os.path.join(os.path.abspath(os.getenv('KTOOLS_TAR_FILE_DIR')), '{}_{}.tar.gz'.format(OS, ARCH))
@@ -373,6 +373,7 @@ setup(
         'console_scripts': [
             'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
+            'dfcompare=oasislmf.pytools.dfcompare:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
             'modelpy=oasislmf.pytools.modelpy:main',
