@@ -88,6 +88,7 @@ def run(run_dir,
         file_out=None,
         data_server=None,
         ignore_correlation=False,
+        ignore_haz_correlation=False,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
         **kwargs):
@@ -1198,6 +1199,7 @@ if __name__ == '__main__':
         debug=0,
         random_generator=1,
         ignore_correlation=True,
+        ignore_haz_correlation=True,
         effective_damageability=False,
     )
 
