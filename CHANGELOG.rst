@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.23.15`_
+ ---------
+* [#1187](https://github.com/OasisLMF/OasisLMF/pull/1186) - `sklearn` is now deprecated in requirements files: use `scikit-learn` instead
+* [#1160](https://github.com/OasisLMF/OasisLMF/pull/1160) - Don't write temp files during test
+* [#1165](https://github.com/OasisLMF/OasisLMF/pull/1165) - Hotfix/update piwind tests
+* [#1174](https://github.com/OasisLMF/OasisLMF/pull/1174) - Set pip-compile to backtracking and trim unused requirments
+* [#1206](https://github.com/OasisLMF/OasisLMF/pull/1206) - Backport 1.23.15
+* [#1150](https://github.com/OasisLMF/OasisLMF/pull/1149) - Model data in the `runs/lossess-xxx/static` directory are symbolic links
+.. _`1.23.15`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.14...1.23.15
+
 `1.23.14`_
  ---------
 * [#1120](https://github.com/OasisLMF/OasisLMF/pull/1121) - GUL alloc rule range in MDK has not been updated to reflect addition of rule 3
