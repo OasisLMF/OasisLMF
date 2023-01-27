@@ -567,5 +567,73 @@
         "FMTermType": "Share",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
+    },
+    "AccDed6All": {
+        "ProfileElementName": "AccDed6All",
+        "DeductibleType": "B",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccDedCode6All": {
+        "ProfileElementName": "AccDedCode6All",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccDedType6All": {
+        "ProfileElementName": "AccDedType6All",
+        "DeductibleType": "B",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccMinDed6All": {
+        "ProfileElementName": "AccMinDed6All",
+        "DeductibleType": "MI",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccMaxDed6All": {
+        "ProfileElementName": "AccMaxDed6All",
+        "DeductibleType": "MA",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccLimit6All": {
+        "ProfileElementName": "AccLimit6All",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccLimitCode6All": {
+        "ProfileElementName": "AccLimitCode6All",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "AccLimitType6All": {
+        "ProfileElementName": "AccLimitType6All",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     }
 }

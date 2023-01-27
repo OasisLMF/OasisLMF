@@ -923,11 +923,14 @@ def prepare_account_df(accounts_df):
     if step_policies_present:
         layers_cols += ['StepNumber']
         accounts_df['StepNumber'].fillna(0, inplace=True)
-    id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
-    id_df['layer_id'] = get_ids(id_df,
-                                layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
-                                ).astype('uint32')
-    accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+    if 'layer_id' not in accounts_df.columns:
+        id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
+        id_df['layer_id'] = get_ids(id_df,
+                                    layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
+                                    ).astype('uint32')
+        accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+    else:
+        accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
 
     return accounts_df
 
