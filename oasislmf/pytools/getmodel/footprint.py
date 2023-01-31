@@ -175,11 +175,8 @@ class FootprintBin(Footprint):
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
     def __enter__(self):
-        self.footprint = self.stack.enter_context(
-            mmap.mmap(os.open(os.path.join(self.static_path, footprint_filename), flags=os.O_RDONLY),
-                      length=0, access=mmap.ACCESS_READ
-                      )
-        )
+        footprint_file = self.stack.enter_context(open(os.path.join(self.static_path, footprint_filename), 'rb'))
+        self.footprint = mmap.mmap(footprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
         footprint_header = np.frombuffer(bytearray(self.footprint[:FootprintHeader.size]), dtype=FootprintHeader)
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
@@ -227,8 +224,8 @@ class FootprintBinZ(Footprint):
     footprint_filenames = [zfootprint_filename, zfootprint_index_filename]
 
     def __enter__(self):
-        self.zfootprint = self.stack.enter_context(mmap.mmap(os.open(os.path.join(self.static_path, zfootprint_filename), flags=os.O_RDONLY),
-                                                             length=0, access=mmap.ACCESS_READ))
+        zfootprint_file = self.stack.enter_context(open(os.path.join(self.static_path, zfootprint_filename), 'rb'))
+        self.zfootprint = mmap.mmap(zfootprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.size]), dtype=FootprintHeader)
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
