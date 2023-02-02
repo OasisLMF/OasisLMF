@@ -67,8 +67,10 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
         valid_area_peril_id: array of area_peril_id to be included (if none, all are included)
         agg_vuln_to_vulns: TODO
 
-    Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
-             vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+    TODO: update returns
+
+    Returns: (Tuple[Dict[int, int],  Dict[int, int], List[int], List[Tuple[int, int]], List[int]])
+             vulnerability dictionary, areaperil to vulnerability index dictionary, vulnerability IDs, 
              areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
     if not agg_vuln_to_vulns:
@@ -138,19 +140,16 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
     vulnerability_i = 0
 
     for areaperil_id, vulns in areaperil_dict.items():
-        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
+        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i  # TODO: probably areaperil_to_vulns_idx_dict can be removed or
         areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
 
-        # MT: vulns is a dict and therefore vuln_id are the keys, which are item['vulnerability_id'] stored with
-        # areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
-
         for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
-            areaperil_to_vulns[vulnerability_i] = vuln_id
+            areaperil_to_vulns[vulnerability_i] = vuln_dict[vuln_id]
             vulnerability_i += 1
         areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
         areaperil_i += 1
 
-    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids
+    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns, areaperil_dict, used_agg_vuln_ids
 
 
 def read_items(input_path, ignore_file_type=set()):
