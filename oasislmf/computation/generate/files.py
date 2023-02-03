@@ -10,72 +10,52 @@ import os
 from pathlib import Path
 from typing import List
 
-from .keys import GenerateKeys
-from ..base import ComputationStep
-
-from ...preparation.dir_inputs import (
-    create_target_directory,
-    prepare_input_files_directory
-)
-from ...preparation.reinsurance_layer import write_files_for_reinsurance
-from ...utils.exceptions import OasisException
-from ...utils.inputs import str2bool
-
-from ...utils.data import (
-    get_model_settings,
-    prepare_location_df,
-    prepare_account_df,
-    prepare_reinsurance_df,
-    get_dataframe,
-    get_json,
-    get_utctimestamp, get_exposure_data,
-)
-from ...utils.defaults import (
-    get_default_accounts_profile,
-    get_default_exposure_profile,
-    get_default_fm_aggregation_profile,
-    GROUP_ID_COLS,
-    OASIS_FILES_PREFIXES,
-    WRITE_CHUNKSIZE,
-)
-from ...preparation.gul_inputs import (
-    get_gul_input_items,
-    write_gul_input_files,
-)
-from ...preparation.il_inputs import (
-    get_il_input_items,
-    get_oed_hierarchy,
-    write_il_input_files,
-)
-from ...preparation.summaries import (
-    get_summary_mapping,
-    merge_oed_to_mapping,
-    write_mapping_file,
-    write_exposure_summary,
-    write_summary_levels,
-)
-
-from ..data.dummy_model.generate import (
-    VulnerabilityFile,
-    EventsFile,
-    FootprintBinFile,
-    FootprintIdxFile,
-    DamageBinDictFile,
-    OccurrenceFile,
-    RandomFile,
-    CoveragesFile,
-    ItemsFile,
-    FMProgrammeFile,
-    FMPolicyTCFile,
-    FMProfileFile,
-    FMXrefFile,
-    GULSummaryXrefFile,
-    FMSummaryXrefFile
-)
+from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
+                                                            DamageBinDictFile,
+                                                            EventsFile,
+                                                            FMPolicyTCFile,
+                                                            FMProfileFile,
+                                                            FMProgrammeFile,
+                                                            FMSummaryXrefFile,
+                                                            FMXrefFile,
+                                                            FootprintBinFile,
+                                                            FootprintIdxFile,
+                                                            GULSummaryXrefFile,
+                                                            ItemsFile,
+                                                            OccurrenceFile,
+                                                            RandomFile,
+                                                            VulnerabilityFile)
+from oasislmf.computation.generate.keys import GenerateKeys
 from oasislmf.preparation.correlations import map_data
-from oasislmf.preparation.gul_inputs import process_group_id_cols
-from oasislmf.utils.data import establish_correlations
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
+from oasislmf.preparation.dir_inputs import (create_target_directory,
+                                             prepare_input_files_directory)
+from oasislmf.preparation.gul_inputs import (get_gul_input_items,
+                                             process_group_id_cols,
+                                             write_gul_input_files)
+from oasislmf.preparation.il_inputs import (get_il_input_items,
+                                            get_oed_hierarchy,
+                                            write_il_input_files)
+from oasislmf.preparation.reinsurance_layer import write_files_for_reinsurance
+from oasislmf.preparation.summaries import (get_summary_mapping,
+                                            merge_oed_to_mapping,
+                                            write_exposure_summary,
+                                            write_mapping_file,
+                                            write_summary_levels)
+from oasislmf.pytools.data_layer.oasis_files.correlations import \
+    CorrelationsData
+from oasislmf.utils.data import (establish_correlations, get_dataframe,
+                                 get_exposure_data, get_json,
+                                 get_model_settings, get_utctimestamp,
+                                 prepare_account_df, prepare_location_df,
+                                 prepare_reinsurance_df)
+from oasislmf.utils.defaults import (GROUP_ID_COLS, OASIS_FILES_PREFIXES,
+                                     WRITE_CHUNKSIZE,
+                                     get_default_accounts_profile,
+                                     get_default_exposure_profile,
+                                     get_default_fm_aggregation_profile)
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.inputs import str2bool
 
 
 class GenerateFiles(ComputationStep):
