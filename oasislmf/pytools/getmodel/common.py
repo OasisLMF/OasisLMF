@@ -1,10 +1,10 @@
 """
 This file defines the data types that are loaded from the data files.
 """
-import os
-
 import numba as nb
 import numpy as np
+
+from oasislmf.pytools.common import areaperil_int, oasis_float
 
 # filenames
 footprint_filename = 'footprint.bin'
@@ -15,9 +15,6 @@ csvfootprint_filename = 'footprint.csv'
 parquetfootprint_filename = "footprint.parquet"
 parquetfootprint_meta_filename = "footprint_parquet_meta.json"
 
-areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
-nb_areaperil_int = nb.from_dtype(areaperil_int)
-oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
 
 FootprintHeader = nb.from_dtype(np.dtype([('num_intensity_bins', np.int32),
                                           ('has_intensity_uncertainty', np.int32)
@@ -67,9 +64,3 @@ Keys = {'LocID': np.int32,
         'CoverageTypeID': np.int32,
         'AreaPerilID': areaperil_int,
         'VulnerabilityID': np.int32}
-
-Correlation = nb.from_dtype(np.dtype([
-    ("peril_correlation_group", np.int32),
-    ("damage_correlation_value", oasis_float),
-    ("hazard_correlation_value", oasis_float)
-]))

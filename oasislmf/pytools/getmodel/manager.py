@@ -59,7 +59,6 @@ Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ('areaperil_id', areaperil_int),
                                ('vulnerability_id', np.int32),
                                ('group_id', np.int32)
-                               ('hazard_group_id', np.int32)
                                ]))
 
 
