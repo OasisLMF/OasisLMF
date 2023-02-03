@@ -14,14 +14,15 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.pytools.common import PIPE_CAPACITY
+from oasislmf.pytools.common import (PIPE_CAPACITY, nb_areaperil_int,
+                                     oasis_float)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
-    CorrelationsData
-from oasislmf.pytools.getmodel.common import (Correlation, Keys,
-                                              nb_areaperil_int, oasis_float)
+from oasislmf.pytools.data_layer.oasis_files.correlations import (
+    Correlation, read_correlations)
+from oasislmf.pytools.data_layer.oasis_files.items import Item, read_items
+from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import Item, get_damage_bins, get_vulns
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns
 from oasislmf.pytools.gul.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
                                          AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
                                          CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX,
@@ -36,7 +37,7 @@ from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector,
-                                         generate_hash, generate_hash_haz,
+                                         generate_hash, generate_hash_hazard,
                                          get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
@@ -44,8 +45,7 @@ from oasislmf.pytools.gulmc.aggregate import (
     map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
     process_aggregate_vulnerability, process_vulnerability_weights,
     read_aggregate_vulnerability, read_vulnerability_weights)
-from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
-                                          read_items)
+from oasislmf.pytools.gulmc.items import generate_item_map, process_items
 
 logger = logging.getLogger(__name__)
 
@@ -243,8 +243,7 @@ def run(run_dir,
         vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
         if not ignore_correlation or not ignore_haz_correlation:
-            file_path = os.path.join(input_path, 'correlations.bin')
-            correlations_data = CorrelationsData.from_bin(file_path=file_path).data
+            correlations_data = read_correlations(input_path, ignore_file_type)
             Nperil_correlation_groups = len(correlations_data)
             logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
@@ -278,7 +277,7 @@ def run(run_dir,
             logger.info(f"Correlated random number generation for damage sampling: switched  {'ON' if do_correlation else 'OFF'}.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
-            corr_data_by_item_id[0] = (0, 0.)
+            corr_data_by_item_id[0] = (0, 0., 0.)
             corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(correlations_data['peril_correlation_group'])
             corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(correlations_data['damage_correlation_value'])
             corr_data_by_item_id[1:]['hazard_correlation_value'] = np.array(correlations_data['hazard_correlation_value'])
@@ -304,7 +303,6 @@ def run(run_dir,
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
-            haz_corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
             arr_min, arr_max, arr_N = 0, 0, 0
             arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
@@ -355,11 +353,11 @@ def run(run_dir,
                     # no items to be computed for this event
                     continue
 
-                compute_i, items_data, rng_index = reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, item_map,
-                                                                         coverages, compute, haz_seeds, vuln_seeds)
+                compute_i, items_data, rng_index, hazard_rng_index = reconstruct_coverages(event_id, areaperil_ids, areaperil_ids_map, areaperil_to_haz_cdf, item_map,
+                                                                                           coverages, compute, haz_seeds, vuln_seeds)
 
                 # generation of "base" random values for hazard intensity and vulnerability sampling
-                haz_rndms_base = generate_rndm(haz_seeds[:rng_index], sample_size)
+                haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
                 vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
 
                 if do_haz_correlation:
@@ -408,7 +406,7 @@ def run(run_dir,
                         cached_vuln_cdfs,
                         agg_vuln_to_vuln_id, agg_vuln_to_vuln_idxs, vuln_dict, areaperil_vuln_idx_to_weight,
                         loss_threshold, losses, vuln_cdf_empty, weighted_vuln_cdf_empty, alloc_rule, do_correlation, do_haz_correlation, haz_rndms_base, vuln_rndms_base,
-                        haz_eps_ij, haz_corr_data_by_item_id, eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                        haz_eps_ij, eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
@@ -457,7 +455,6 @@ def compute_event_losses(event_id,
                          haz_rndms_base,
                          vuln_rndms_base,
                          haz_eps_ij,
-                         haz_corr_data_by_item_id,
                          eps_ij,
                          corr_data_by_item_id,
                          arr_min,
@@ -565,6 +562,7 @@ def compute_event_losses(event_id,
         for item_i in range(Nitems):
             item = items[item_i]
             rng_index = item['rng_index']
+            hazard_rng_index = item['hazard_rng_index']
             areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
 
@@ -673,25 +671,25 @@ def compute_event_losses(event_id,
             if sample_size > 0:
                 if do_haz_correlation:
                     # use correlation definitions to draw correlated random values
-                    item_corr_data = haz_corr_data_by_item_id[item['item_id']]
+                    item_corr_data = corr_data_by_item_id[item['item_id']]
                     rho = item_corr_data['hazard_correlation_value']
 
                     if rho > 0:
                         haz_correlation_group = item_corr_data['peril_correlation_group']
 
                         get_corr_rval(
-                            haz_eps_ij[haz_correlation_group], haz_rndms_base[rng_index],
+                            haz_eps_ij[haz_correlation_group], haz_rndms_base[hazard_rng_index],
                             rho, arr_min, arr_max, arr_N, norm_inv_cdf,
                             arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
                         )
                         haz_rndms = z_unif
 
                     else:
-                        haz_rndms = haz_rndms_base[rng_index]
+                        haz_rndms = haz_rndms_base[hazard_rng_index]
 
                 else:
                     # do not use correlation
-                    haz_rndms = haz_rndms_base[rng_index]
+                    haz_rndms = haz_rndms_base[hazard_rng_index]
 
                 if do_correlation:
                     # use correlation definitions to draw correlated random values
@@ -732,7 +730,7 @@ def compute_event_losses(event_id,
                             # if hazard intensity has a probability distribution, sample it
 
                             # cap `haz_rval` to the maximum `haz_cdf_prob` value (which should be 1.)
-                            haz_rval = haz_rndms[rng_index][sample_idx - 1]
+                            haz_rval = haz_rndms[sample_idx - 1]
 
                             if debug == 1:
                                 # store the random value used for the hazard intensity sampling instead of the loss
@@ -1102,11 +1100,14 @@ def reconstruct_coverages(event_id,
     Returns:
         compute_i (int): index of the last coverage id stored in `compute`.
         items_data (numpy.array[items_MC_data_type]): item-related data.
-        rng_index (int): number of unique random seeds computed so far.
+        rng_index (int): number of unique random seeds for damage sampling computed so far.
+        hazard_rng_index (int): number of unique random seeds for hazard intensity sampling computed so far.
     """
     # init data structures
     group_id_rng_index = Dict.empty(nb_int32, nb_int64)
+    hazard_group_id_hazard_rng_index = Dict.empty(nb_int32, nb_int64)
     rng_index = 0
+    hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
     coverages['cur_items'].fill(0)
@@ -1123,20 +1124,28 @@ def reconstruct_coverages(event_id,
             item_key = tuple((areaperil_id, vuln_id))
 
             for item in item_map[item_key]:
-                item_id, coverage_id, group_id = item
+                item_id, coverage_id, group_id, hazard_group_id = item
 
                 # if this group_id was not seen yet, process it.
                 # it assumes that hash only depends on event_id and group_id
                 # and that only 1 event_id is processed at a time.
                 if group_id not in group_id_rng_index:
                     group_id_rng_index[group_id] = rng_index
-                    haz_seeds[rng_index] = generate_hash_haz(group_id, event_id)  # <-- TODO here we need the hazard_group_id
-                    vuln_seeds[rng_index] = generate_hash(group_id, event_id)  # <-- TODO here we need the damage_group_id
+                    vuln_seeds[rng_index] = generate_hash(group_id, event_id)
                     this_rng_index = rng_index
                     rng_index += 1
 
                 else:
                     this_rng_index = group_id_rng_index[group_id]
+
+                if hazard_group_id not in hazard_group_id_hazard_rng_index:
+                    hazard_group_id_hazard_rng_index[hazard_group_id] = hazard_rng_index
+                    haz_seeds[hazard_rng_index] = generate_hash_hazard(hazard_group_id, event_id)
+                    this_hazard_rng_index = hazard_rng_index
+                    hazard_rng_index += 1
+
+                else:
+                    this_hazard_rng_index = hazard_group_id_hazard_rng_index[hazard_group_id]
 
                 coverage = coverages[coverage_id]
                 if coverage['cur_items'] == 0:
@@ -1157,19 +1166,23 @@ def reconstruct_coverages(event_id,
                 items_data[item_i]['areaperil_id'] = areaperil_id
                 items_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
                 items_data[item_i]['rng_index'] = this_rng_index
+                items_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
                 items_data[item_i]['vulnerability_id'] = vuln_id
 
                 coverage['cur_items'] += 1
 
     return (compute_i,
             items_data,
-            rng_index)
+            rng_index,
+            hazard_rng_index)
 
 
 if __name__ == '__main__':
 
-    test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
-        .joinpath("assets").joinpath("test_model_2")
+    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
+    #     .joinpath("assets").joinpath("test_model_2")
+
+    test_dir = Path("/home/mtazzari/repos/OasisPiWind/runs/losses-haz-corr-value")
 
     file_out = test_dir.joinpath('gulpy_mc.bin')
     run(
@@ -1182,8 +1195,8 @@ if __name__ == '__main__':
         alloc_rule=1,
         debug=0,
         random_generator=1,
-        ignore_correlation=True,
-        ignore_haz_correlation=True,
+        ignore_correlation=False,
+        ignore_haz_correlation=False,
         effective_damageability=False,
     )
 
