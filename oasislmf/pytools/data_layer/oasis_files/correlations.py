@@ -16,15 +16,14 @@ class CorrelationsData:
     Attributes:
         data (Optional[pd.DataFrame): correlation data that is either loaded or saved
     """
-    COLUMNS = ["item_id", "peril_correlation_group", "correlation_value"]
+    COLUMNS = ["item_id", "peril_correlation_group", "damage_correlation_value", "hazard_correlation_value"]
 
     def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
         """
         The constructor for the CorrelationsData class.
 
         Args:
-            data: (Optional[pd.DataFrame] default is None but if supplied must have the following columns:
-                                          [item_id, peril_correlation_group, correlation_value]
+            data: (Optional[pd.DataFrame] default is None but if supplied must have the columns listed in CorrelationsData.COLUMNS.
         """
         self.data: Optional[pd.DataFrame] = data
 
@@ -52,7 +51,7 @@ class CorrelationsData:
         """
         data = pd.DataFrame(np.fromfile(file_path, dtype=Correlation))
         data["item_id"] = list(range(1, len(data) + 1))
-        data = data[["item_id", "peril_correlation_group", "correlation_value"]]
+        data = data[CorrelationsData.COLUMNS]
         return CorrelationsData(data=data)
 
     def to_csv(self, file_path: str) -> None:
