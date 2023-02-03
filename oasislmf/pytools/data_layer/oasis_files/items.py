@@ -3,70 +3,51 @@ This file defines the loading and saving for items data.
 """
 from __future__ import annotations
 
+import logging
 import os
-from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
+import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasislmf.pytools.getmodel.common import Item
-
-import logging
+from oasislmf.pytools.common import areaperil_int
 
 logger = logging.getLogger(__name__)
 
 
+Item = nb.from_dtype(np.dtype([('item_id', np.int32),
+                               ('coverage_id', np.int32),
+                               ('areaperil_id', areaperil_int),
+                               ('vulnerability_id', np.int32),
+                               ('group_id', np.int32),
+                               ('hazard_group_id', np.int32)
+                               ]))
+
+
 class ItemsData:
     """
-    This class is responsible for managing the loading and saving of correlation data from binary and CSV files.
+    This class is responsible for managing the loading and saving of items data from binary and CSV files.
 
     Attributes:
-        data (Optional[pd.DataFrame): correlation data that is either loaded or saved
+        data (Optional[pd.DataFrame): items data that is either loaded or saved
     """
-    COLUMNS = ["item_id", "peril_correlation_group", "damage_correlation_value"]
+    COLUMNS = ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id", "hazard_group_id"]
 
     def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
         """
         The constructor for the ItemsData class.
 
         Args:
-            data: (Optional[pd.DataFrame] default is None but if supplied must have the following columns:
-                                          [item_id, peril_correlation_group, damage_correlation_value]
+            data: (Optional[pd.DataFrame] default is None but if supplied must have the columns listed in ItemsData.COLUMNS.
         """
         self.data: Optional[pd.DataFrame] = data
 
-    def read(self, input_path: str | Path, ignore_file_type: set, inplace=True) -> None:
-        """Load the items from the items file.
-
-        Args:
-            input_path (str): the path pointing to the file
-            ignore_file_type (Set[str]): file extension to ignore when loading.
-
-        Returns:
-            Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-            vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-            areaperil ID to vulnerability index array, areaperil ID to vulnerability array
-        """
-        input_files = set(os.listdir(input_path))
-
-        if "items.bin" in input_files and "bin" not in ignore_file_type:
-            items_fname = os.path.join(input_path, 'items.bin')
-            logger.debug(f"loading {items_fname}")
-            self.items = np.memmap(items_fname, dtype=Item, mode='r')
-
-        elif "items.csv" in input_files and "csv" not in ignore_file_type:
-            items_fname = os.path.join(input_path, 'items.csv')
-
-            if inplace:
-                self.data = self.from_csv(os.path.join(input_path, 'items.csv'))
-            else:
-
-        else:
-            raise FileNotFoundError(f'items file not found at {input_path}')
+    def sort(self, by: str | List[str]) -> None:
+        self.data.sort_values(by, inplace=True)
 
     @staticmethod
-    def from_csv(items_fname: str):
+    def from_csv(file_path: str):
         """
         Loads items data from a CSV file.
 
@@ -75,50 +56,7 @@ class ItemsData:
 
         Returns: (ItemsData) the loaded data from the CSV file
         """
-        logger.debug(f"loading {items_fname}")
-
-        return ItemsData(np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1))
-
-    def sort(self, by: str | List[str]):
-        self.data = np.sort(self.data, order=by)
-
-    @staticmethod
-    # @njit(cache=True, fastmath=True)
-    def generate_item_map(items, coverages):
-        """Generate item_map; requires items to be sorted.
-
-        Args:
-            items (numpy.ndarray[int32, int32, int32]): 1-d structured array storing
-            `item_id`, `coverage_id`, `group_id` for all items.
-            items need to be sorted by increasing areaperil_id, vulnerability_id
-            in order to output the items in correct order.
-
-        Returns:
-            item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-            the mapping between areaperil_id, vulnerability_id to item.
-            areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
-            areaperil_id and all the vulnerability ids associated with it.
-        """
-        item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
-        Nitems = items.shape[0]
-
-        areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
-
-        for j in range(Nitems):
-            append_to_dict_value(
-                item_map,
-                tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-                tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
-                ITEM_MAP_VALUE_TYPE
-            )
-            coverages[items[j]['coverage_id']]['max_items'] += 1
-
-            if items[j]['areaperil_id'] not in areaperil_ids_map:
-                areaperil_ids_map[items[j]['areaperil_id']] = {items[j]['vulnerability_id']: 0}
-            else:
-                areaperil_ids_map[items[j]['areaperil_id']][items[j]['vulnerability_id']] = 0
-
-        return item_map, areaperil_ids_map
+        return ItemsData(pd.read_csv(file_path, dtype=Item))
 
     @staticmethod
     def from_bin(file_path: str) -> "ItemsData":
@@ -130,9 +68,7 @@ class ItemsData:
 
         Returns: (ItemsData) the loaded data from the binary file
         """
-        data = pd.DataFrame(np.fromfile(file_path, dtype=Item))
-        data["item_id"] = list(range(1, len(data) + 1))
-        data = data[["item_id", "peril_correlation_group", "damage_correlation_value"]]
+        data = pd.DataFrame(np.fromfile(file_path, dtype=Item), columns=ItemsData.COLUMNS)
         return ItemsData(data=data)
 
     def to_csv(self, file_path: str) -> None:
@@ -155,5 +91,35 @@ class ItemsData:
 
         Returns: None
         """
-        data = np.array(list(self.data.drop("item_id", axis=1).itertuples(index=False)), dtype=Item)
+        data = np.array(list(self.data.itertuples(index=False)), dtype=Item)
         data.tofile(file_path)
+
+
+def read_items(input_path, ignore_file_type=set()):
+    """Load the items from the items file.
+
+    Args:
+        input_path (str): the path pointing to the file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+
+    Returns:
+        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
+          vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+          areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+    """
+    input_files = set(os.listdir(input_path))
+
+    if "items.bin" in input_files and "bin" not in ignore_file_type:
+        items_fname = os.path.join(input_path, 'items.bin')
+        logger.debug(f"loading {items_fname}")
+        items = np.memmap(items_fname, dtype=Item, mode='r')
+
+    elif "items.csv" in input_files and "csv" not in ignore_file_type:
+        items_fname = os.path.join(input_path, 'items.csv')
+        logger.debug(f"loading {items_fname}")
+        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+
+    else:
+        raise FileNotFoundError(f'items file not found at {input_path}')
+
+    return items
