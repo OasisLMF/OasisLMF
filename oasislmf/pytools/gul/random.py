@@ -3,11 +3,12 @@ This file contains the utilities for generating random numbers in gulpy.
 
 """
 
-from math import sqrt
 import logging
+from math import sqrt
+
 import numpy as np
-from scipy.stats import norm
 from numba import njit
+from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,9 @@ GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
 HASH_MOD_CODE = np.int64(2147483648)
 
-HAZ_GROUP_ID_HASH_CODE = np.int64(1343271947)
-HAZ_EVENT_ID_HASH_CODE = np.int64(1743274343)
-HAZ_HASH_MOD_CODE = np.int64(2157483709)
+HAZARD_GROUP_ID_HASH_CODE = np.int64(1343271947)
+HAZARD_EVENT_ID_HASH_CODE = np.int64(1743274343)
+HAZARD_HASH_MOD_CODE = np.int64(2157483709)
 
 
 @njit(cache=True, fastmath=True)
@@ -40,19 +41,19 @@ def generate_hash(group_id, event_id, base_seed=0):
 
 
 @njit(cache=True, fastmath=True)
-def generate_hash_haz(group_id, event_id, base_seed=0):
-    """Generate hash for a given `group_id`, `event_id` pair for the hazard pdf.
+def generate_hash_hazard(hazard_group_id, event_id, base_seed=0):
+    """Generate hash for a given `hazard_group_id`, `event_id` pair for the hazard pdf.
 
     Args:
-        group_id (int): group id.
+        hazard_group_id (int): group id.
         event_id (int]): event id.
         base_seed (int, optional): base random seed. Defaults to 0.
 
     Returns:
         int64: hash
     """
-    hash = (base_seed + (group_id * HAZ_GROUP_ID_HASH_CODE) % HAZ_HASH_MOD_CODE +
-            (event_id * HAZ_EVENT_ID_HASH_CODE) % HAZ_HASH_MOD_CODE) % HAZ_HASH_MOD_CODE
+    hash = (base_seed + (hazard_group_id * HAZARD_GROUP_ID_HASH_CODE) % HAZARD_HASH_MOD_CODE +
+            (event_id * HAZARD_EVENT_ID_HASH_CODE) % HAZARD_HASH_MOD_CODE) % HAZARD_HASH_MOD_CODE
 
     return hash
 

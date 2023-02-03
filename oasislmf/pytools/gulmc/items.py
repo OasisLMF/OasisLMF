@@ -2,7 +2,6 @@
 This file contains specific functionality to read and process items files.
 """
 import logging
-import os
 
 import numpy as np
 from numba import njit
@@ -10,8 +9,8 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.pytools.getmodel.common import Index_type, nb_areaperil_int
-from oasislmf.pytools.getmodel.manager import Item
+from oasislmf.pytools.common import nb_areaperil_int
+from oasislmf.pytools.getmodel.common import Index_type
 from oasislmf.pytools.gul.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.aggregate import gen_empty_agg_vuln_to_vuln_ids
@@ -44,7 +43,7 @@ def generate_item_map(items, coverages):
         append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'], items[j]['hazard_group_id'])),
+            tuple((items[j]['item_id'], items[j]['coverage_id'], items[j]['group_id'], items[j]['hazard_group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1
@@ -151,33 +150,3 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
         areaperil_i += 1
 
     return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids
-
-
-def read_items(input_path, ignore_file_type=set()):
-    """Load the items from the items file.
-
-    Args:
-        input_path (str): the path pointing to the file
-        ignore_file_type (Set[str]): file extension to ignore when loading.
-
-    Returns:
-        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
-          vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
-          areaperil ID to vulnerability index array, areaperil ID to vulnerability array
-    """
-    input_files = set(os.listdir(input_path))
-
-    if "items.bin" in input_files and "bin" not in ignore_file_type:
-        items_fname = os.path.join(input_path, 'items.bin')
-        logger.debug(f"loading {items_fname}")
-        items = np.memmap(items_fname, dtype=Item, mode='r')
-
-    elif "items.csv" in input_files and "csv" not in ignore_file_type:
-        items_fname = os.path.join(input_path, 'items.csv')
-        logger.debug(f"loading {items_fname}")
-        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
-
-    else:
-        raise FileNotFoundError(f'items file not found at {input_path}')
-
-    return items

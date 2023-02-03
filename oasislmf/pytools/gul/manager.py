@@ -14,9 +14,9 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasislmf.pytools.common import PIPE_CAPACITY
-from oasislmf.pytools.data_layer.conversions.correlations import \
-    CorrelationsData
-from oasislmf.pytools.getmodel.common import Correlation, Keys, oasis_float
+from oasislmf.pytools.data_layer.oasis_files.correlations import (
+    Correlation, CorrelationsData)
+from oasislmf.pytools.getmodel.common import Keys, oasis_float
 from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
 from oasislmf.pytools.gul.common import (CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
                                          ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,

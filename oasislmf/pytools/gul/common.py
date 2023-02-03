@@ -5,7 +5,7 @@ This file defines the data types that are loaded from the data files.
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float
+from oasislmf.pytools.common import areaperil_int, oasis_float
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -21,6 +21,7 @@ items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                              ('vulnerability_id', np.int32),
                                              ('hazcdf_i', np.int32),
                                              ('rng_index', np.int32),
+                                             ('hazard_rng_index', np.int32),
                                              ('eff_vuln_cdf_i', np.int32),
                                              ('eff_vuln_cdf_Ndamage_bins', np.int32)
                                              ]))
