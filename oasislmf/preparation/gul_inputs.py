@@ -398,7 +398,7 @@ def get_gul_input_items(
         ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status']
     )
     if correlations is True:
-        usecols += ["peril_correlation_group", "damage_correlation_value"]
+        usecols += ["peril_correlation_group", "damage_correlation_value", "hazard_correlation_value"]
 
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
@@ -530,7 +530,7 @@ def write_gul_input_files(
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
     if correlations_df is None:
-        correlations_df = pd.DataFrame(columns=['item_id', 'peril_correlation_group', 'damage_correlation_value'])
+        correlations_df = pd.DataFrame(columns=CorrelationsData.COLUMNS)
 
     # write the correlations to a binary file
     correlation_data_handle = CorrelationsData(data=correlations_df)
