@@ -44,9 +44,14 @@ def get_correlation_input_items(gul_inputs_df: pd.DataFrame, correlation_map_df:
 
     Returns: (pd.DataFrame) the mapped data of correlations
     """
-    gul_inputs_df = gul_inputs_df.merge(correlation_map_df, left_on='peril_id', right_on='id').reset_index()
-    gul_inputs_df["damage_correlation_value"] = gul_inputs_df["damage_correlation_value"].astype(float)
-    gul_inputs_df = gul_inputs_df.reindex(columns=list(gul_inputs_df))
+    correlation_df = (
+        gul_inputs_df
+        .merge(correlation_map_df, left_on='peril_id', right_on='id')
+        .reset_index()
+        .astype({"damage_correlation_value": "float32", "hazard_correlation_value": "float32"})
+        .reindex(columns=list(gul_inputs_df))
+        [["item_id", "peril_correlation_group", "damage_correlation_value", "hazard_correlation_value"]]
+        .sort_values('item_id')
+    )
 
-    correlation_df = gul_inputs_df[["item_id", "peril_correlation_group", "damage_correlation_value"]]
-    return correlation_df.sort_values('item_id')
+    return correlation_df
