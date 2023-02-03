@@ -2,39 +2,38 @@
 This file is the entry point for the gul command for the package.
 
 """
-import sys
-import os
-from select import select
 import logging
+import os
+import sys
 from contextlib import ExitStack
-import pandas as pd
+from select import select
+
 import numpy as np
+import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
+
 from oasislmf.pytools.common import PIPE_CAPACITY
-
-from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
-
-from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
-
-from oasislmf.pytools.getmodel.common import oasis_float, Keys, Correlation
-
-from oasislmf.pytools.gul.common import (
-    MEAN_IDX, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
-    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
-)
-from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
-from oasislmf.pytools.gul.io import (
-    write_negative_sidx, write_sample_header,
-    write_sample_rec, read_getmodel_stream,
-)
-from oasislmf.pytools.gul.random import (
-    get_random_generator, compute_norm_cdf_lookup,
-    compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
-)
+from oasislmf.pytools.data_layer.conversions.correlations import \
+    CorrelationsData
+from oasislmf.pytools.getmodel.common import Correlation, Keys, oasis_float
+from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
+from oasislmf.pytools.gul.common import (CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
+                                         ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
+                                         MEAN_IDX, NUM_IDX, STD_DEV_IDX,
+                                         TIV_IDX, coverage_type, gul_header,
+                                         gulSampleslevelHeader_size,
+                                         gulSampleslevelRec_size)
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
+                                       split_tiv_classic,
+                                       split_tiv_multiplicative)
+from oasislmf.pytools.gul.io import (read_getmodel_stream, write_negative_sidx,
+                                     write_sample_header, write_sample_rec)
+from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
+                                         compute_norm_inv_cdf_lookup,
+                                         generate_correlated_hash_vector,
+                                         get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
-
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +222,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             Nperil_correlation_groups = len(data)
             logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
-            if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
+            if Nperil_correlation_groups > 0 and any(data['damage_correlation_value'] > 0):
                 do_correlation = True
             else:
                 logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
@@ -235,7 +234,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
             corr_data_by_item_id[0] = (0, 0.)
             corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(data['peril_correlation_group'])
-            corr_data_by_item_id[1:]['correlation_value'] = np.array(data['correlation_value'])
+            corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(data['damage_correlation_value'])
 
             logger.info(
                 f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
@@ -398,7 +397,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             if sample_size > 0:
                 if do_correlation:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
-                    rho = item_corr_data['correlation_value']
+                    rho = item_corr_data['damage_correlation_value']
 
                     if rho > 0:
                         peril_correlation_group = item_corr_data['peril_correlation_group']

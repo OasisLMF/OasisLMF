@@ -2,10 +2,10 @@
 This file defines the data types that are loaded from the data files.
 
 """
-import numpy as np
 import numba as nb
+import numpy as np
 
-from oasislmf.pytools.getmodel.common import oasis_float, areaperil_int
+from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -46,9 +46,9 @@ MAX_LOSS_IDX = -5
 NUM_IDX = 5
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
-ITEM_MAP_KEY_TYPE_internal = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
-ITEM_MAP_VALUE_TYPE_internal = nb.types.UniTuple(nb.types.int32, 2)
+ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 4)
+AREAPERIL_TO_EFF_VULN_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
+AREAPERIL_TO_EFF_VULN_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 2)
 
 # compute the relative size of oasis_float and areaperil_int vs int32
 oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize

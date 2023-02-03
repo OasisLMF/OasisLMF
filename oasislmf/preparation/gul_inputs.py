@@ -14,33 +14,23 @@ from typing import List
 
 import pandas as pd
 
+from oasislmf.pytools.data_layer.oasis_files.correlations import \
+    CorrelationsData
+
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ..utils.data import (
-    factorize_array,
-    factorize_ndarray,
-    merge_dataframes,
-    set_dataframe_column_dtypes,
-)
-from ..utils.defaults import (
-    SOURCE_IDX,
-)
-from ..utils.defaults import (
-    get_default_exposure_profile,
-    GROUP_ID_COLS,
-    CORRELATION_GROUP_ID,
-    OASIS_FILES_PREFIXES,
-)
+from ..utils.data import (factorize_array, factorize_ndarray, merge_dataframes,
+                          set_dataframe_column_dtypes)
+from ..utils.defaults import (CORRELATION_GROUP_ID, GROUP_ID_COLS,
+                              OASIS_FILES_PREFIXES, SOURCE_IDX,
+                              get_default_exposure_profile)
 from ..utils.exceptions import OasisException
 from ..utils.fm import SUPPORTED_FM_LEVELS
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.profiles import (
-    get_fm_terms_oed_columns,
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy,
-)
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
+from ..utils.profiles import (get_fm_terms_oed_columns,
+                              get_grouped_fm_profile_by_level_and_term_group,
+                              get_grouped_fm_terms_by_level_and_term_group,
+                              get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -408,7 +398,7 @@ def get_gul_input_items(
         ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status']
     )
     if correlations is True:
-        usecols += ["peril_correlation_group", "correlation_value"]
+        usecols += ["peril_correlation_group", "damage_correlation_value"]
 
     usecols = [col for col in usecols if col in gul_inputs_df]
     gul_inputs_df = gul_inputs_df[usecols]
@@ -540,7 +530,7 @@ def write_gul_input_files(
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
     if correlations_df is None:
-        correlations_df = pd.DataFrame(columns=['item_id', 'peril_correlation_group', 'correlation_value'])
+        correlations_df = pd.DataFrame(columns=['item_id', 'peril_correlation_group', 'damage_correlation_value'])
 
     # write the correlations to a binary file
     correlation_data_handle = CorrelationsData(data=correlations_df)

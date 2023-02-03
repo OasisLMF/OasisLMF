@@ -70,13 +70,6 @@ Keys = {'LocID': np.int32,
 
 Correlation = nb.from_dtype(np.dtype([
     ("peril_correlation_group", np.int32),
-    ("correlation_value", oasis_float)
-]))
-
-
-# TODO re-think Correlation and HazardCorrelation as children of a base Correlation class
-# TODO the data fields could be called more generically `group` and `value`
-HazardCorrelation = nb.from_dtype(np.dtype([
-    ("haz_correlation_group", np.int32),
-    ("correlation_value", oasis_float)
+    ("damage_correlation_value", oasis_float)
+    ("hazard_correlation_value", oasis_float)
 ]))

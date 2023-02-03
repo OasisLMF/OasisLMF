@@ -20,50 +20,33 @@ import itertools
 import os
 import sys
 import warnings
-
-import pandas as pd
-import numpy as np
-
 from ast import literal_eval
 
-from ..utils.calc_rules import (
-    get_calc_rules,
-    get_step_calc_rules
-)
+import numpy as np
+import pandas as pd
+
+from ..utils.calc_rules import get_calc_rules, get_step_calc_rules
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ..utils.data import (
-    factorize_array,
-    factorize_ndarray,
-    fast_zip_arrays,
-    merge_check,
-    merge_dataframes,
-    set_dataframe_column_dtypes,
-    fill_na_with_categoricals,
-)
-from ..utils.defaults import (
-    assign_defaults_to_il_inputs,
-    get_default_accounts_profile,
-    get_default_exposure_profile,
-    get_default_fm_aggregation_profile,
-    OASIS_FILES_PREFIXES,
-)
+from ..utils.data import (factorize_array, factorize_ndarray, fast_zip_arrays,
+                          fill_na_with_categoricals, merge_check,
+                          merge_dataframes, set_dataframe_column_dtypes)
+from ..utils.defaults import (OASIS_FILES_PREFIXES,
+                              assign_defaults_to_il_inputs,
+                              get_default_accounts_profile,
+                              get_default_exposure_profile,
+                              get_default_fm_aggregation_profile)
 from ..utils.exceptions import OasisException
-from ..utils.fm import (
-    DEDUCTIBLE_AND_LIMIT_TYPES,
-    SUPPORTED_FM_LEVELS,
-    STEP_TRIGGER_TYPES,
-    COVERAGE_AGGREGATION_METHODS,
-    CALCRULE_ASSIGNMENT_METHODS,
-)
+from ..utils.fm import (CALCRULE_ASSIGNMENT_METHODS,
+                        COVERAGE_AGGREGATION_METHODS,
+                        DEDUCTIBLE_AND_LIMIT_TYPES, STEP_TRIGGER_TYPES,
+                        SUPPORTED_FM_LEVELS)
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.profiles import (
-    get_fm_terms_oed_columns,
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy,
-    get_default_step_policies_profile,
-)
+from ..utils.profiles import (get_default_step_policies_profile,
+                              get_fm_terms_oed_columns,
+                              get_grouped_fm_profile_by_level_and_term_group,
+                              get_grouped_fm_terms_by_level_and_term_group,
+                              get_oed_hierarchy)
 from .summaries import get_useful_summary_cols, get_xref_df
 
 pd.options.mode.chained_assignment = None

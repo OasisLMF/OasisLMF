@@ -44,7 +44,7 @@ def generate_item_map(items, coverages):
         append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
+            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'], items[j]['hazard_group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1
