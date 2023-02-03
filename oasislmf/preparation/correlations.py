@@ -26,6 +26,19 @@ def map_data(data: Optional[dict]) -> Optional[pd.DataFrame]:
         supported_perils_df = pd.DataFrame(supported_perils)
         correlation_settings_df = pd.DataFrame(correlation_settings)
 
+        if len(correlation_settings_df) > 0:
+            print(correlation_settings_df)
+            # correlations_settings are defined
+            if "damage_correlation_value" not in correlation_settings_df.columns:
+                raise ValueError(
+                    "Expect correlation settings in model settings file to contain a `damage_correlation_value` "
+                    f"in each `peril_correlation_group` entry, got \n{correlation_settings}.")
+
+            if "hazard_correlation_value" not in correlation_settings_df.columns:
+                raise ValueError(
+                    "Expect correlation settings in model settings file to contain a `hazard_correlation_value` "
+                    f"in each `peril_correlation_group` entry, got \n {correlation_settings}.")
+
         # merge allows duplicates of the "peril_correlation_group" in the supported perils
         # merge does not allow duplicates of the "peril_correlation_group" in the correlation settings
         if len(supported_perils_df) > 0 and len(correlation_settings_df) > 0:
