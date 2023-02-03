@@ -1,12 +1,24 @@
 """
 This file defines the loading and saving for correlations data.
 """
+import logging
+import os
 from typing import Optional
 
+import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasislmf.pytools.getmodel.common import Correlation
+from oasislmf.pytools.common import oasis_float
+
+logger = logging.getLogger(__name__)
+
+
+Correlation = nb.from_dtype(np.dtype([
+    ("peril_correlation_group", np.int32),
+    ("damage_correlation_value", oasis_float),
+    ("hazard_correlation_value", oasis_float)
+]))
 
 
 class CorrelationsData:
@@ -76,3 +88,33 @@ class CorrelationsData:
         """
         data = np.array(list(self.data.drop("item_id", axis=1).itertuples(index=False)), dtype=Correlation)
         data.tofile(file_path)
+
+
+def read_correlations(input_path, ignore_file_type=set()):
+    """Load the correlations from the correlations file.
+
+    Args:
+        input_path (str): the path pointing to the file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+
+    Returns:
+        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
+        vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+        areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+    """
+    input_files = set(os.listdir(input_path))
+
+    if "correlations.bin" in input_files and "bin" not in ignore_file_type:
+        correlations_fname = os.path.join(input_path, 'correlations.bin')
+        logger.debug(f"loading {correlations_fname}")
+        correlations = np.memmap(correlations_fname, dtype=Correlation, mode='rb')
+
+    elif "correlations.csv" in input_files and "csv" not in ignore_file_type:
+        correlations_fname = os.path.join(input_path, 'correlations.csv')
+        logger.debug(f"loading {correlations_fname}")
+        correlations = np.loadtxt(correlations_fname, dtype=Correlation, delimiter=",", skiprows=1, ndmin=1)
+
+    else:
+        raise FileNotFoundError(f'correlations file not found at {input_path}')
+
+    return correlations
