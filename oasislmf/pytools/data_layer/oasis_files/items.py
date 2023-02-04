@@ -24,6 +24,13 @@ Item = nb.from_dtype(np.dtype([('item_id', np.int32),
                                ('hazard_group_id', np.int32)
                                ]))
 
+Item_legacy = nb.from_dtype(np.dtype([('item_id', np.int32),
+                                      ('coverage_id', np.int32),
+                                      ('areaperil_id', areaperil_int),
+                                      ('vulnerability_id', np.int32),
+                                      ('group_id', np.int32)
+                                      ]))
+
 
 class ItemsData:
     """
@@ -33,6 +40,7 @@ class ItemsData:
         data (Optional[pd.DataFrame): items data that is either loaded or saved
     """
     COLUMNS = ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id", "hazard_group_id"]
+    COLUMNS_legacy = ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id"]
 
     def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
         """
@@ -56,19 +64,33 @@ class ItemsData:
 
         Returns: (ItemsData) the loaded data from the CSV file
         """
-        return ItemsData(pd.read_csv(file_path, dtype=Item))
+        try:
+            data = pd.read_csv(file_path, dtype=Item)
+        except ValueError:
+            data = pd.read_csv(file_path, dtype=Item_legacy)
+
+        return ItemsData(data)
 
     @staticmethod
-    def from_bin(file_path: str) -> "ItemsData":
+    def from_bin(file_path: str, legacy: bool = False) -> "ItemsData":
         """
         Loads correlations data from a binary file.
 
         Args:
             file_path: (str) the path to the binary file housing the data
+            legacy: (bool) if True, it uses the Item_legacy definition.
 
-        Returns: (ItemsData) the loaded data from the binary file
+        Returns: (ItemsData) the loaded data from the binary file.
+
+        Note:
+          There is no way to automatically infer whether a binary file uses the legacy definition or not.
+          Therefore, it must be specified by the user.
         """
-        data = pd.DataFrame(np.fromfile(file_path, dtype=Item), columns=ItemsData.COLUMNS)
+        if legacy:
+            data = pd.DataFrame(np.fromfile(file_path, dtype=Item_legacy), columns=ItemsData.COLUMNS_legacy)
+        else:
+            data = pd.DataFrame(np.fromfile(file_path, dtype=Item), columns=ItemsData.COLUMNS)
+
         return ItemsData(data=data)
 
     def to_csv(self, file_path: str) -> None:
@@ -91,7 +113,11 @@ class ItemsData:
 
         Returns: None
         """
-        data = np.array(list(self.data.itertuples(index=False)), dtype=Item)
+        try:
+            data = np.array(list(self.data.itertuples(index=False)), dtype=Item)
+        except ValueError:
+            data = np.array(list(self.data.itertuples(index=False)), dtype=Item_legacy)
+
         data.tofile(file_path)
 
 
