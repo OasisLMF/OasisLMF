@@ -28,7 +28,7 @@ class CorrelationsData:
     Attributes:
         data (Optional[pd.DataFrame): correlation data that is either loaded or saved
     """
-    COLUMNS = ["item_id", "peril_correlation_group", "damage_correlation_value", "hazard_correlation_value"]
+    COLUMNS = list(Correlation.dtype.names)
 
     def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
         """

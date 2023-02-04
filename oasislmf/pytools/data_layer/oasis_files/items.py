@@ -39,8 +39,8 @@ class ItemsData:
     Attributes:
         data (Optional[pd.DataFrame): items data that is either loaded or saved
     """
-    COLUMNS = ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id", "hazard_group_id"]
-    COLUMNS_legacy = ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id"]
+    COLUMNS = list(Item.dtype.names)
+    COLUMNS_legacy = list(Item_legacy.dtype.names)
 
     def __init__(self, data: Optional[pd.DataFrame] = None) -> None:
         """
