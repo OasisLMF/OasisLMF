@@ -1,27 +1,26 @@
 import glob
-import os
 import io
+import os
+import platform
 import re
 import shutil
 import sys
-import platform
 import tarfile
 from contextlib import contextmanager
-from distutils.log import INFO, WARN, ERROR
+from distutils.log import ERROR, INFO, WARN
 from distutils.spawn import find_executable
-from platform import machine, system
 from tempfile import mkdtemp
 from time import sleep
 
-from setuptools import find_packages, setup, Command
-from setuptools.command.install import install
+from setuptools import Command, find_packages, setup
 from setuptools.command.develop import develop
+from setuptools.command.install import install
 
 try:
     from urllib import request as urlrequest
     from urllib.error import URLError
 except ImportError:
-    from urllib2 import urlopen, URLError
+    from urllib2 import URLError
 
 
 KTOOLS_VERSION = '3.9.6'
@@ -384,8 +383,8 @@ setup(
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
             "convertbintoparquet=oasislmf.pytools.data_layer.conversions.footprint:main",
-            "cortocsv=oasislmf.pytools.data_layer.conversions.correlations:convert_bin_to_csv_main",
-            "cortobin=oasislmf.pytools.data_layer.conversions.correlations:convert_csv_to_bin_main"
+            "correlationtocsv=oasislmf.pytools.correlationtocsv:main",
+            "correlationtobin=oasislmf.pytools.correlationtobin:main"
         ]
     },
     license='BSD 3-Clause',
