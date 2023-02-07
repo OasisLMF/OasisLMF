@@ -102,6 +102,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
         {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
@@ -140,6 +141,7 @@ class GenerateFiles(ComputationStep):
             'account': self.oed_accounts_csv,
             'ri_info': self.oed_info_csv,
             'ri_scope': self.oed_scope_csv,
+            'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
             'use_field': True
