@@ -88,7 +88,6 @@ class VulnerabilityFile(ModelFile):
             }
         ]
         self.random_seed = random_seed
-        self.data_length = num_vulnerabilities * num_intensity_bins * num_damage_bins
         self.file_name = os.path.join(directory, 'vulnerability.bin')
 
     def generate_data(self):
@@ -116,7 +115,6 @@ class EventsFile(ModelFile):
         self.num_events = num_events
         self.dtypes = {'event_id': 'i'}
         self.start_stats = None
-        self.data_length = num_events
         self.file_name = os.path.join(directory, 'events.bin')
 
     def generate_data(self):
@@ -165,10 +163,6 @@ class FootprintBinFile(FootprintFiles):
         self.start_stats = self.get_bin_start_stats()
         self.dtypes = FootprintFiles.bin_dtypes
         self.random_seed = random_seed
-        if no_intensity_uncertainty:
-            self.data_length = num_events * areaperils_per_event
-        else:
-            self.data_length = num_events * areaperils_per_event * num_intensity_bins
         self.file_name = os.path.join(directory, 'footprint.bin')
 
     def generate_data(self):
@@ -222,7 +216,6 @@ class FootprintIdxFile(FootprintFiles):
         self.dtypes = OrderedDict([
             ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
         ])
-        self.data_length = num_events
         self.file_name = os.path.join(directory, 'footprint.idx')
 
     def generate_data(self):
@@ -251,7 +244,6 @@ class DamageBinDictFile(ModelFile):
             ('interpolation', 'f'), ('interval_type', 'i')
         ])
         self.start_stats = None
-        self.data_length = num_damage_bins
         self.file_name = os.path.join(directory, 'damage_bin_dict.bin')
 
     def generate_data(self):
@@ -300,7 +292,6 @@ class OccurrenceFile(ModelFile):
             }
         ]
         self.random_seed = random_seed
-        self.data_length = num_events
         self.mean = mean
         self.stddev = stddev
         self.file_name = os.path.join(directory, 'occurrence.bin')
@@ -358,7 +349,6 @@ class RandomFile(ModelFile):
         self.dtypes = {'random_no': 'f'}
         self.start_stats = None
         self.random_seed = random_seed
-        self.data_length = num_randoms
         self.file_name = os.path.join(directory, 'random.bin')
 
     def generate_data(self):
@@ -376,7 +366,6 @@ class CoveragesFile(ModelFile):
         self.dtypes = {'tiv': 'f'}
         self.start_stats = None
         self.random_seed = random_seed
-        self.data_length = num_locations * coverages_per_location
         self.file_name = os.path.join(directory, 'coverages.bin')
 
     def generate_data(self):
@@ -404,7 +393,6 @@ class ItemsFile(ModelFile):
         ])
         self.start_stats = None
         self.random_seed = random_seed
-        self.data_length = num_locations * coverages_per_location
         self.file_name = os.path.join(directory, 'items.bin')
 
     def generate_data(self):
@@ -436,7 +424,6 @@ class FMProgrammeFile(FMFile):
         self.dtypes = OrderedDict([
             ('from_agg_id', 'i'), ('level_id', 'i'), ('to_agg_id', 'i')
         ])
-        self.data_length = num_locations * coverages_per_location * 2   # 2 from number of levels
         self.file_name = os.path.join(directory, 'fm_programme.bin')
 
     def generate_data(self):
@@ -464,7 +451,6 @@ class FMPolicyTCFile(FMFile):
             ('layer_id', 'i'), ('level_id', 'i'), ('agg_id', 'i'),
             ('policytc_id', 'i')
         ])
-        self.data_length = num_locations * coverages_per_location + num_layers
         self.file_name = os.path.join(directory, 'fm_policytc.bin')
 
     def generate_data(self):
@@ -497,7 +483,6 @@ class FMProfileFile(ModelFile):
             ('limit1', 'f'), ('share1', 'f'), ('share2', 'f'), ('share3', 'f')
         ])
         self.start_stats = None
-        self.data_length = 1 + num_layers   # 1 from pass through at level 1
         self.file_name = os.path.join(directory, 'fm_profile.bin')
 
     def generate_data(self):
@@ -532,7 +517,6 @@ class FMXrefFile(FMFile):
         self.dtypes = OrderedDict([
             ('output', 'i'), ('agg_id', 'i'), ('layer_id', 'i')
         ])
-        self.data_length = num_locations * coverages_per_location * num_layers
         self.file_name = os.path.join(directory, 'fm_xref.bin')
 
     def generate_data(self):
@@ -552,7 +536,6 @@ class GULSummaryXrefFile(FMFile):
         self.dtypes = OrderedDict([
             ('item_id', 'i'), ('summary_id', 'i'), ('summaryset_id', 'i')
         ])
-        self.data_length = num_locations * coverages_per_location
         self.file_name = os.path.join(directory, 'gulsummaryxref.bin')
 
     def generate_data(self):
@@ -571,7 +554,6 @@ class FMSummaryXrefFile(FMFile):
         self.dtypes = OrderedDict([
             ('output_id', 'i'), ('summary_id', 'i'), ('summaryset_id', 'i')
         ])
-        self.data_length = num_locations * coverages_per_location * num_layers
         self.file_name = os.path.join(directory, 'fmsummaryxref.bin')
 
     def generate_data(self):
