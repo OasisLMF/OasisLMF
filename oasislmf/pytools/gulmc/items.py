@@ -64,14 +64,12 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
 
     Args:
         items: (List[Item]) Data loaded from the vulnerability file
-        valid_area_peril_id: array of area_peril_id to be included (if none, all are included)
-        agg_vuln_to_vulns: TODO
+        valid_area_peril_id: array of area_peril_id to be included (if none, all are included).
+        agg_vuln_to_vulns (dict[tuple[areaperil_int, int], int]): dict with aggregate vulnerability definitions.
 
-    TODO: update returns
-
-    Returns: (Tuple[Dict[int, int],  Dict[int, int], List[int], List[Tuple[int, int]], List[int]])
-             vulnerability dictionary, areaperil to vulnerability index dictionary, vulnerability IDs, 
-             areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+    Returns: (Tuple[Dict[int, int],  Dict[int, int], np.array[int], np.array[int], dict[int, dict[int, int]], List[int])
+             vulnerability dictionary, areaperil to vulnerability index dictionary, areaperil to vulnerability index array,
+             vuln id to vuln idx for each vulnerability in each areaperil, list of all used vulnerability ids.
     """
     if not agg_vuln_to_vulns:
         agg_vuln_to_vulns = gen_empty_agg_vuln_to_vuln_ids()
@@ -134,7 +132,7 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
 
     areaperil_to_vulns_idx_dict = Dict()
     areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype=Index_type)
-    areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype=np.int32)
+    vuln_id_to_vuln_idx_arr = np.empty(areaperil_to_vulns_size, dtype=np.int32)
 
     areaperil_i = 0
     vulnerability_i = 0
@@ -144,12 +142,17 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
         areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
 
         for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
-            areaperil_to_vulns[vulnerability_i] = vuln_dict[vuln_id]
+            vuln_id_to_vuln_idx_arr[vulnerability_i] = vuln_dict[vuln_id]
             vulnerability_i += 1
         areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
         areaperil_i += 1
 
-    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns, areaperil_dict, used_agg_vuln_ids
+    return (vuln_dict,
+            areaperil_to_vulns_idx_dict,
+            areaperil_to_vulns_idx_array,
+            vuln_id_to_vuln_idx_arr,
+            areaperil_dict,
+            used_agg_vuln_ids)
 
 
 def read_items(input_path, ignore_file_type=set()):
