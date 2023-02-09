@@ -26,7 +26,9 @@ __all__ = [
     'PANDAS_BASIC_DTYPES',
     'PANDAS_DEFAULT_NULL_VALUES',
     'reduce_df',
-    'set_dataframe_column_dtypes'
+    'set_dataframe_column_dtypes',
+    'RI_SCOPE_DEFAULTS',
+    'RI_INFO_DEFAULTS'
 ]
 
 from pathlib import Path
@@ -108,6 +110,29 @@ PANDAS_DEFAULT_NULL_VALUES = {
 
 # Load schema json dir
 SCHEMA_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), 'schema')
+
+RI_INFO_DEFAULTS = {
+    'CededPercent': 1.0,
+    'RiskLimit': 0.0,
+    'RiskAttachment': 0.0,
+    'OccLimit': 0.0,
+    'OccAttachment': 0.0,
+    'TreatyShare': 1.0
+}
+
+RI_SCOPE_DEFAULTS = {
+    'PortNumber': '',
+    'AccNumber': '',
+    'PolNumber': '',
+    'LocGroup': '',
+    'LocNumber': '',
+    'CedantName': '',
+    'ProducerName': '',
+    'LOB': '',
+    'CountryCode': '',
+    'ReinsTag': '',
+    'CededPercent': 1.0
+}
 
 
 def factorize_array(arr, sort_opt=False):
@@ -911,6 +936,15 @@ def prepare_reinsurance_df(ri_info, ri_scope):
     if 'SEL' not in ri_info['RiskLevel'].cat.categories:
         ri_info['RiskLevel'] = ri_info['RiskLevel'].cat.add_categories(['SEL'])
     ri_info['RiskLevel'] = ri_info['RiskLevel'].fillna('SEL')
+
+    # add default column if not present in the RI files
+    fill_na_with_categoricals(ri_info, RI_INFO_DEFAULTS)
+    for column in set(RI_INFO_DEFAULTS).difference(ri_info.columns):
+        ri_info[column] = RI_INFO_DEFAULTS[column]
+
+    fill_na_with_categoricals(ri_scope, RI_SCOPE_DEFAULTS)
+    for column in set(RI_SCOPE_DEFAULTS).difference(ri_scope.columns):
+        ri_scope[column] = RI_SCOPE_DEFAULTS[column]
 
     return ri_info, ri_scope
 
