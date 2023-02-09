@@ -34,6 +34,7 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Name of the class to use for the exposure_pre_analysis'},
                    {'name': 'exposure_pre_analysis_setting_json', 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis config JSON file path'},
+                   {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
                    {'name': 'oed_location_csv', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
                    {'name': 'oed_accounts_csv', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
                    {'name': 'oed_info_csv', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
@@ -51,6 +52,7 @@ class ExposurePreAnalysis(ComputationStep):
             'account': self.oed_accounts_csv,
             'ri_info': self.oed_info_csv,
             'ri_scope': self.oed_scope_csv,
+            'oed_schema_info': self.oed_schema_info,
             'check_oed': self.check_oed,
             'use_field': True
         }

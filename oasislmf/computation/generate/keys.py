@@ -18,6 +18,7 @@ class KeyComputationStep(ComputationStep):
     def get_exposure_data_config(self):
         return {
             'location': self.oed_location_csv,
+            'oed_schema_info': self.oed_schema_info,
             'check_oed': self.check_oed,
             'use_field': True
         }
@@ -59,6 +60,7 @@ class GenerateKeys(KeyComputationStep):
 
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
         {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
@@ -138,6 +140,7 @@ class GenerateKeys(KeyComputationStep):
 class GenerateKeysDeterministic(KeyComputationStep):
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
         {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,

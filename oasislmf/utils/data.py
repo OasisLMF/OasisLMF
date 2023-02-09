@@ -960,6 +960,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
         else:  # ExposureData info was not created, oed input file must have default name (location, account, ...)
             exposure_data = OedExposure.from_dir(
                 computation_step.oasis_files_dir,
+                oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
                 currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
                 reporting_currency=getattr(computation_step, 'reporting_currency', None),
                 check_oed=computation_step.check_oed,
