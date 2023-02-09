@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.23.16`_
+ ---------
+* [#1226](https://github.com/OasisLMF/OasisLMF/pull/1226) - Set ktools to 3.9.7 (oasislmf 1.23) 
+* [#1206](https://github.com/OasisLMF/OasisLMF/pull/1206) - Backport 1.23.15
+* [#1207](https://github.com/OasisLMF/OasisLMF/pull/1119) - (FM) CondClass 1 as second priority condition doesn't work
+.. _`1.23.16`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.15...1.23.16
+
 `1.23.15`_
  ---------
 * [#1187](https://github.com/OasisLMF/OasisLMF/pull/1186) - `sklearn` is now deprecated in requirements files: use `scikit-learn` instead
