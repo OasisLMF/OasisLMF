@@ -138,7 +138,7 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
     vulnerability_i = 0
 
     for areaperil_id, vulns in areaperil_dict.items():
-        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i  # TODO: probably areaperil_to_vulns_idx_dict can be removed or
+        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
         areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
 
         for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel

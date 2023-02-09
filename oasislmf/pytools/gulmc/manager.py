@@ -998,6 +998,11 @@ def process_areaperils_in_footprint(event_footprint,
         # the hazard intensity probability and the damage probability.
         areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
         for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
+            while eff_vuln_cdf.shape[0] < eff_vuln_cdf_start + Ndamage_bins_max:
+                # if eff_vuln_cdf.shape needs to be larger to store all the effective cdfs, double it in size
+                temp_eff_vuln_cdf = np.empty(eff_vuln_cdf.shape[0] * 2, dtype=eff_vuln_cdf.dtype)
+                temp_eff_vuln_cdf[:eff_vuln_cdf_start] = eff_vuln_cdf[:eff_vuln_cdf_start]
+                eff_vuln_cdf = temp_eff_vuln_cdf
 
             eff_vuln_cdf_cumsum = 0.
             damage_bin_i = 0
