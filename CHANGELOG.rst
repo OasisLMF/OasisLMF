@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.26.6`_
+ ---------
+* [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution 
+* [#1207](https://github.com/OasisLMF/OasisLMF/pull/1225) - (FM) CondClass 1 as second priority condition doesn't work
+* [#1228](https://github.com/OasisLMF/OasisLMF/pull/1228) - Set ktools to 3.9.7 (oasislmf 1.26) 
+* [#1205](https://github.com/OasisLMF/OasisLMF/pull/1205) - Backport 1.26.5
+* [#1211](https://github.com/OasisLMF/OasisLMF/pull/1212) - OSError: [Errno 24] Too many open files in gulmc test
+* [#1213](https://github.com/OasisLMF/OasisLMF/pull/1213) - Debug complex model execution  (#1091) - Backport 
+.. _`1.26.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.5...1.26.6
+
 `1.26.5`_
  ---------
 * [#1187](https://github.com/OasisLMF/OasisLMF/pull/1186) - `sklearn` is now deprecated in requirements files: use `scikit-learn` instead
