@@ -3,11 +3,12 @@ This file contains the utilities for generating random numbers in gulpy.
 
 """
 
-from math import sqrt
 import logging
+from math import sqrt
+
 import numpy as np
-from scipy.stats import norm
 from numba import njit
+from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,9 @@ GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
 HASH_MOD_CODE = np.int64(2147483648)
 
-HAZ_GROUP_ID_HASH_CODE = np.int64(1343271947)
-HAZ_EVENT_ID_HASH_CODE = np.int64(1743274343)
-HAZ_HASH_MOD_CODE = np.int64(2157483709)
+HAZ_GROUP_ID_HASH_CODE = np.int64(1143271949)
+HAZ_EVENT_ID_HASH_CODE = np.int64(1243274353)
+HAZ_HASH_MOD_CODE = np.int64(1957483729)
 
 
 @njit(cache=True, fastmath=True)

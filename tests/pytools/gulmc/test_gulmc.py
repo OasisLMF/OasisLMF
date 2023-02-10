@@ -35,6 +35,12 @@ def generate_expected(request):
     return request.config.getoption('--generate-expected')
 
 
+@pytest.fixture
+def overwrite_expected(request):
+    """Fixture to get the value of the `--overwrite-expected` command line argument."""
+    return request.config.getoption('--overwrite-expected')
+
+
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
@@ -47,7 +53,8 @@ def test_gulmc(test_model: Tuple[str, str],
                ignore_correlation: bool,
                random_generator: int,
                effective_damageability: bool,
-               generate_expected: bool):
+               generate_expected: bool,
+               overwrite_expected: bool):
     """Test gulmc functionality.
 
     Args:
@@ -59,12 +66,18 @@ def test_gulmc(test_model: Tuple[str, str],
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
         generate_expected (bool): If True, produce the expected outputs and store them in the expected/ directory.
             If False, run the test.
+        generate_expected (bool): If True, overwrite the expected outputs even if they exist already.
 
     Notes:
         For more information on the definitions of gulmc parameters, refer to gulmc documentation.
         To produce the expected outputs, run:
         ```
-            pytest --generate-expected tests/pytools/gulmc/test_gulmc.py`
+            pytest --generate-expected tests/pytools/gulmc/test_gulmc.py
+        ```
+        By default, the above command only produces the expected outputs that are missing in the /assets/ directory.
+        To overwrite the expected results:
+        ```
+            pytest --generate-expected --overwrite-expected tests/pytools/gulmc/test_gulmc.py
         ```
     """
     test_model_name, test_model_dir_str = test_model
@@ -88,8 +101,8 @@ def test_gulmc(test_model: Tuple[str, str],
         if generate_expected:
             # generate the expected results
 
-            if not ref_out_bin_fname.with_suffix('.bin').exists():
-                # generate the expected results only if they don't exist yet
+            if not ref_out_bin_fname.with_suffix('.bin').exists() or overwrite_expected:
+                # generate the expected results only if they don't exist yet or if overwrite_expected is True
                 run_gulmc(
                     run_dir=tmp_result_dir,
                     ignore_file_type=set(),
