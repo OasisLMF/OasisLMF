@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.27.1`_
+ ---------
+* [#1218](https://github.com/OasisLMF/OasisLMF/pull/1218) - Fix missing default collumn for RI
+* [#1220](https://github.com/OasisLMF/OasisLMF/pull/1220) - Fix mapping of `vuln_idx` to `vuln_i` and implement `eff_vuln_cdf` as a dynamic array to work with large footprints
+* [#1222](https://github.com/OasisLMF/OasisLMF/pull/1222) - add option to have custom oed schema
+* [#1227](https://github.com/OasisLMF/OasisLMF/pull/1227) - Set ktools to 3.9.7 (oasislmf 1.27)
+* [#1207](https://github.com/OasisLMF/OasisLMF/pull/1209) - (FM) CondClass 1 as second priority condition doesn't work
+* [#1211](https://github.com/OasisLMF/OasisLMF/pull/1212) - OSError: [Errno 24] Too many open files in gulmc test
+.. _`1.27.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.0...1.27.1
+
 `1.27.0`_
  ---------
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
