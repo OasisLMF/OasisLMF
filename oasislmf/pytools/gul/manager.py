@@ -58,7 +58,7 @@ def get_coverages(input_path, ignore_file_type=set()):
     elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.csv')
         logger.debug(f"loading {coverages_fname}")
-        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)
+        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)[:, 1]
 
     else:
         raise FileNotFoundError(f'coverages file not found at {input_path}')

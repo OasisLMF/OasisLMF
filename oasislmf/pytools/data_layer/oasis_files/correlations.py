@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 Correlation = nb.from_dtype(np.dtype([
+    ('item_id', np.int32),
     ("peril_correlation_group", np.int32),
     ("damage_correlation_value", oasis_float),
+    ("hazard_group_id", np.int32),
     ("hazard_correlation_value", oasis_float)
 ]))
 
@@ -61,10 +63,7 @@ class CorrelationsData:
 
         Returns: (CorrelationsData) the loaded data from the binary file
         """
-        data = pd.DataFrame(np.fromfile(file_path, dtype=Correlation))
-        data["item_id"] = list(range(1, len(data) + 1))
-        data = data[CorrelationsData.COLUMNS]
-        return CorrelationsData(data=data)
+        return CorrelationsData(data=pd.DataFrame(np.fromfile(file_path, dtype=Correlation)))
 
     def to_csv(self, file_path: str) -> None:
         """
@@ -86,7 +85,7 @@ class CorrelationsData:
 
         Returns: None
         """
-        data = np.array(list(self.data.drop("item_id", axis=1).itertuples(index=False)), dtype=Correlation)
+        data = np.array(list(self.data.itertuples(index=False)), dtype=Correlation)
         data.tofile(file_path)
 
 
@@ -107,7 +106,7 @@ def read_correlations(input_path, ignore_file_type=set()):
     if "correlations.bin" in input_files and "bin" not in ignore_file_type:
         correlations_fname = os.path.join(input_path, 'correlations.bin')
         logger.debug(f"loading {correlations_fname}")
-        correlations = np.memmap(correlations_fname, dtype=Correlation, mode='rb')
+        correlations = np.memmap(correlations_fname, dtype=Correlation, mode='r')
 
     elif "correlations.csv" in input_files and "csv" not in ignore_file_type:
         correlations_fname = os.path.join(input_path, 'correlations.csv')

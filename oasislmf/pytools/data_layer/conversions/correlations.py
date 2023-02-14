@@ -32,21 +32,3 @@ def convert_bin_to_csv(file_path: str, file_out_path: str = "") -> None:
     Returns: None
     """
     CorrelationsData.from_bin(file_path=file_path).to_csv(file_out_path if file_out_path else sys.stdout.buffer)
-
-
-def convert_csv_to_bin_main(file_path: str) -> None:
-    """
-    The command line entry point for converting CSV correlations file to a binary file.
-
-    Returns: None
-    """
-    convert_csv_to_bin(file_path=file_path)
-
-
-def convert_bin_to_csv_main(file_path: str) -> None:
-    """
-    The command line entry point for converting binary correlations file to a CSV file.
-
-    Returns: None
-    """
-    convert_bin_to_csv(file_path=file_path)

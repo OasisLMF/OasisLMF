@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
 
 
-def run(file_path, file_out_path):
-    convert_bin_to_csv(file_path, file_out_path)
+def run(file_in_path, file_out_path):
+    convert_bin_to_csv(file_in_path, file_out_path)
 
 
 parser = argparse.ArgumentParser(
@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(
 )
 
 # arguments in alphabetical order (lower-case, then upper-case, then long arguments)
-parser.add_argument('file_path', action='store', type=str)
+parser.add_argument('-i', action='store', type=str, dest='file_in_path', default="")
 parser.add_argument('-o', action='store', type=str, dest='file_out_path', default="")
 parser.add_argument('--logging-level',
                     help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30',
