@@ -178,4 +178,4 @@ def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
         areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
         areaperil_i += 1
 
-    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_dict, used_agg_vuln_ids
+    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, vuln_id_to_vuln_idx_arr, areaperil_dict, used_agg_vuln_ids
