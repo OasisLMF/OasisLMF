@@ -2,6 +2,7 @@
 This file contains specific functionality to read and process items files.
 """
 import logging
+import os
 
 import numpy as np
 from numba import njit
@@ -10,7 +11,7 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasislmf.pytools.common import nb_areaperil_int
-from oasislmf.pytools.getmodel.common import Index_type
+from oasislmf.pytools.getmodel.common import Index_type, Item
 from oasislmf.pytools.gul.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.aggregate import gen_empty_agg_vuln_to_vuln_ids
@@ -18,8 +19,38 @@ from oasislmf.pytools.gulmc.aggregate import gen_empty_agg_vuln_to_vuln_ids
 logger = logging.getLogger(__name__)
 
 
+def read_items(input_path, ignore_file_type=set(), legacy=False):
+    """Load the items from the items file.
+
+    Args:
+        input_path (str): the path pointing to the file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+
+    Returns:
+        Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
+          vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+          areaperil ID to vulnerability index array, areaperil ID to vulnerability array
+    """
+    input_files = set(os.listdir(input_path))
+
+    if "items.bin" in input_files and "bin" not in ignore_file_type:
+        items_fname = os.path.join(input_path, 'items.bin')
+        logger.debug(f"loading {items_fname}")
+        items = np.memmap(items_fname, dtype=Item, mode='r')
+
+    elif "items.csv" in input_files and "csv" not in ignore_file_type:
+        items_fname = os.path.join(input_path, 'items.csv')
+        logger.debug(f"loading {items_fname}")
+        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+
+    else:
+        raise FileNotFoundError(f'items file not found at {input_path}')
+
+    return items
+
+
 @njit(cache=True, fastmath=True)
-def generate_item_map(items, coverages):
+def generate_item_map(items, coverages, correlations_data):
     """Generate item_map; requires items to be sorted.
 
     Args:
@@ -33,6 +64,7 @@ def generate_item_map(items, coverages):
           the mapping between areaperil_id, vulnerability_id to item.
         areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
           areaperil_id and all the vulnerability ids associated with it.
+        correlations_data TODO
     """
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
     Nitems = items.shape[0]
@@ -43,7 +75,7 @@ def generate_item_map(items, coverages):
         append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['item_id'], items[j]['coverage_id'], items[j]['group_id'], items[j]['hazard_group_id'])),
+            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'], correlations_data[j]['hazard_group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1

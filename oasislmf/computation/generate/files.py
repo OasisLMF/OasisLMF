@@ -49,8 +49,9 @@ from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_model_settings, get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
                                  prepare_reinsurance_df)
-from oasislmf.utils.defaults import (GROUP_ID_COLS, OASIS_FILES_PREFIXES,
-                                     WRITE_CHUNKSIZE,
+from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
+                                     HAZARD_GROUP_ID_COLS,
+                                     OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
                                      get_default_accounts_profile,
                                      get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
@@ -91,10 +92,10 @@ class GenerateFiles(ComputationStep):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables creation of an exposure summary report'},
-        {'name': 'group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
+        {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
+        {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable lookup multiprocessing'},
-        {"name": "hashed_group_id", 'type': str2bool, 'const': False, 'nargs': '?', 'default': True, 'help': "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -228,20 +229,36 @@ class GenerateFiles(ComputationStep):
             model_settings = get_model_settings(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
             try:
-                model_group_fields = model_settings["data_settings"].get("group_fields")
+                model_group_fields = model_settings["data_settings"].get("damage_group_fields")
+            except (KeyError, AttributeError, OasisException) as e:
+                self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
+
+            try:
+                model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
         if model_group_fields and not self.kwargs.get('group_id_cols'):
-            group_id_cols = model_group_fields
+            damage_group_id_cols = model_group_fields
         # otherwise load group cols from args
         else:
-            group_id_cols = self.group_id_cols
+            damage_group_id_cols = self.damage_group_id_cols
 
-        group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
-                                                         exposure_df_columns=location_df,
-                                                         has_correlation_groups=correlations)
+        # load hazard group columns from model_settings.json if not set in kwargs (CLI)
+        if model_hazard_group_fields and not self.kwargs.get('hazard_group_id_cols'):
+            hazard_group_id_cols = model_hazard_group_fields
+        # otherwise load group cols from args
+        else:
+            hazard_group_id_cols = self.hazard_group_id_cols
+
+        damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
+                                                                exposure_df_columns=location_df,
+                                                                has_correlation_groups=correlations)
+
+        hazard_group_id_cols: List[str] = process_group_id_cols(group_id_cols=hazard_group_id_cols,
+                                                                exposure_df_columns=location_df,
+                                                                has_correlation_groups=correlations)
 
         gul_inputs_df = get_gul_input_items(
             location_df,
@@ -249,8 +266,8 @@ class GenerateFiles(ComputationStep):
             peril_correlation_group_df=map_data(data=model_settings),
             correlations=correlations,
             exposure_profile=location_profile,
-            group_id_cols=group_id_cols,
-            hashed_group_id=self.hashed_group_id
+            damage_group_id_cols=damage_group_id_cols,
+            hazard_group_id_cols=hazard_group_id_cols,
         )
 
         # If not in det. loss gen. scenario, write exposure summary file

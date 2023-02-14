@@ -19,8 +19,7 @@ from oasislmf.pytools.common import (PIPE_CAPACITY, nb_areaperil_int,
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import (
     Correlation, read_correlations)
-from oasislmf.pytools.data_layer.oasis_files.items import Item, read_items
-from oasislmf.pytools.getmodel.common import Keys
+from oasislmf.pytools.getmodel.common import Item, Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns
 from oasislmf.pytools.gul.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
@@ -45,7 +44,8 @@ from oasislmf.pytools.gulmc.aggregate import (
     map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
     process_aggregate_vulnerability, process_vulnerability_weights,
     read_aggregate_vulnerability, read_vulnerability_weights)
-from oasislmf.pytools.gulmc.items import generate_item_map, process_items
+from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
+                                          read_items)
 
 logger = logging.getLogger(__name__)
 
@@ -134,13 +134,20 @@ def run(run_dir,
     coverages[1:]['tiv'] = coverages_tiv
     del coverages_tiv
 
+    # if not ignore_correlation or not ignore_haz_correlation:
+    correlations_data = read_correlations(input_path, ignore_file_type)
+    Nperil_correlation_groups = len(np.unique(correlations_data['peril_correlation_group']))
+    logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
+
     items = read_items(input_path, ignore_file_type)
 
     # in-place sort items in order to store them in item_map in the desired order
     # currently numba only supports a simple call to np.sort() with no `order` keyword,
     # so we do the sort here.
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
-    item_map, areaperil_ids_map = generate_item_map(items, coverages)
+    item_map, areaperil_ids_map = generate_item_map(items, coverages, correlations_data)
+    Nitems = items.shape[0]
+    assert Nitems == correlations_data.shape[0]
 
     # init array to store the coverages to be computed
     # coverages are numebered from 1, therefore skip element 0.
@@ -239,13 +246,8 @@ def run(run_dir,
         cursor_bytes = 0
 
         # create the array to store the seeds
-        haz_seeds = np.zeros(len(np.unique(items['hazard_group_id'])), dtype=Item.dtype['hazard_group_id'])
+        haz_seeds = np.zeros(len(np.unique(correlations_data['hazard_group_id'])), dtype=Correlation.dtype['hazard_group_id'])
         vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
-
-        if not ignore_correlation or not ignore_haz_correlation:
-            correlations_data = read_correlations(input_path, ignore_file_type)
-            Nperil_correlation_groups = len(correlations_data)
-            logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
         # haz correlation
         do_haz_correlation = False
@@ -276,8 +278,9 @@ def run(run_dir,
             logger.info(f"correlated random number generation for hazard intensity sampling: switched {'ON' if do_haz_correlation else 'OFF'}.")
             logger.info(f"Correlated random number generation for damage sampling: switched  {'ON' if do_correlation else 'OFF'}.")
 
-            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
-            corr_data_by_item_id[0] = (0, 0., 0.)
+            # TODO this could be stored in items_data
+            corr_data_by_item_id = np.ndarray(Nitems + 1, dtype=Correlation)
+            corr_data_by_item_id[0] = (0, 0, 0., 0, 0.)
             corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(correlations_data['peril_correlation_group'])
             corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(correlations_data['damage_correlation_value'])
             corr_data_by_item_id[1:]['hazard_correlation_value'] = np.array(correlations_data['hazard_correlation_value'])
