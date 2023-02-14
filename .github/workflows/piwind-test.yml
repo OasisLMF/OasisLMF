@@ -53,8 +53,7 @@ jobs:
     uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
     secrets: inherit
     with:
-      ods_branch: inputs.ods_branch
-      #ods_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ods_branch }}
+      ods_branch: ${{ inputs.ods_branch }}
 
   piwind:
     if: ${{ ! failure() || ! cancelled() }}

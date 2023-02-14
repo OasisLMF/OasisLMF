@@ -459,7 +459,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
         null_cond[level_term_cols] = 0
         null_cond.drop_duplicates(subset=[portfolio_num, acc_num, cond_tag, 'layer_id'], inplace=True)
         if cond_class in null_cond.columns:
-            filter_cond = (null_cond[cond_class] == 1)
+            filter_cond = (null_cond['PolCondClass'] == 1)
             if filter_cond.any():
                 null_cond.loc[filter_cond, cond_num] = 'FullFilter'
                 null_cond.loc[filter_cond, 'CondDed6All'] = 1

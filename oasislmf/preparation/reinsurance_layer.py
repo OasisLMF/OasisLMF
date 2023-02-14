@@ -35,17 +35,6 @@ RiLayerInputs = namedtuple(
 )
 
 
-def _get_location_tiv(location, coverage_type_id):
-    0 / 0
-    switcher = {
-        oed.BUILDING_COVERAGE_TYPE_ID: location.get('BuildingTIV', 0),
-        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.get('OtherTIV', 0),
-        oed.CONTENTS_COVERAGE_TYPE_ID: location.get('ContentsTIV', 0),
-        oed.TIME_COVERAGE_TYPE_ID: location.get('BITIV', 0)
-    }
-    return switcher.get(coverage_type_id, 0)
-
-
 def _get_ri_inputs(
         items_df,
         coverages_df,
