@@ -50,7 +50,7 @@ def read_items(input_path, ignore_file_type=set(), legacy=False):
 
 
 @njit(cache=True, fastmath=True)
-def generate_item_map(items, coverages, correlations_data):
+def generate_item_map(items, coverages, correlations_data_by_item_id, correlations_data_arr):
     """Generate item_map; requires items to be sorted.
 
     Args:
@@ -75,7 +75,8 @@ def generate_item_map(items, coverages, correlations_data):
         append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'], correlations_data[j]['hazard_group_id'])),
+            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'],
+                  correlations_data_arr[correlations_data_by_item_id[items[j]['id']]]['hazard_group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1

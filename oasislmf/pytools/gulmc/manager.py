@@ -135,9 +135,24 @@ def run(run_dir,
     del coverages_tiv
 
     # if not ignore_correlation or not ignore_haz_correlation:
-    correlations_data = read_correlations(input_path, ignore_file_type)
-    Nperil_correlation_groups = len(np.unique(correlations_data['peril_correlation_group']))
+    correlations_data_arr = read_correlations(input_path, ignore_file_type)
+    unique_peril_correlation_groups = np.unique(correlations_data_arr['peril_correlation_group'])
+    Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
+
     logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
+
+    @njit
+    def remap_correlations_data(correlations_data_arr):
+
+        d = Dict.empty(nb_int32, nb_int64)
+        for i in range(correlations_data_arr.shape[0]):
+            d[correlations_data_arr[i]['item_id']] = i
+
+        return d
+
+    correlations_data_by_item_id = remap_correlations_data(correlations_data_arr)
+    # correlations_data = {item['item_id']: (correlations_data_arr['peril_correlation_group'], correlations_data_arr['damage_correlation_value'],
+    #                                        correlations_data_arr['hazard_group_id'], correlations_data_arr['hazard_correlation_value'], ) for item in correlations_data_arr}
 
     items = read_items(input_path, ignore_file_type)
 
@@ -145,9 +160,9 @@ def run(run_dir,
     # currently numba only supports a simple call to np.sort() with no `order` keyword,
     # so we do the sort here.
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
-    item_map, areaperil_ids_map = generate_item_map(items, coverages, correlations_data)
+    item_map, areaperil_ids_map = generate_item_map(items, coverages, correlations_data_by_item_id, correlations_data_arr)
     Nitems = items.shape[0]
-    assert Nitems == correlations_data.shape[0]
+    assert Nitems == correlations_data_arr.shape[0]
 
     # init array to store the coverages to be computed
     # coverages are numebered from 1, therefore skip element 0.
@@ -246,7 +261,7 @@ def run(run_dir,
         cursor_bytes = 0
 
         # create the array to store the seeds
-        haz_seeds = np.zeros(len(np.unique(correlations_data['hazard_group_id'])), dtype=Correlation.dtype['hazard_group_id'])
+        haz_seeds = np.zeros(len(np.unique(correlations_data_arr['hazard_group_id'])), dtype=Correlation.dtype['hazard_group_id'])
         vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
         # haz correlation
@@ -255,7 +270,7 @@ def run(run_dir,
             logger.info("correlated random number generation for hazard intensity sampling: switched OFF because --ignore-haz-correlation is True.")
 
         else:
-            if Nperil_correlation_groups > 0 and any(correlations_data['hazard_correlation_value'] > 0):
+            if Nperil_correlation_groups > 0 and any(correlations_data_arr['hazard_correlation_value'] > 0):
                 do_haz_correlation = True
 
             else:
@@ -268,7 +283,7 @@ def run(run_dir,
             logger.info("correlated random number generation for damage sampling: switched OFF because --ignore-correlation is True.")
 
         else:
-            if Nperil_correlation_groups > 0 and any(correlations_data['damage_correlation_value'] > 0):
+            if Nperil_correlation_groups > 0 and any(correlations_data_arr['damage_correlation_value'] > 0):
                 do_correlation = True
             else:
                 logger.info("correlated random number generation for damage sampling: switched OFF because 0 peril correlation groups were detected or "
@@ -278,18 +293,17 @@ def run(run_dir,
             logger.info(f"correlated random number generation for hazard intensity sampling: switched {'ON' if do_haz_correlation else 'OFF'}.")
             logger.info(f"Correlated random number generation for damage sampling: switched  {'ON' if do_correlation else 'OFF'}.")
 
-            # TODO this could be stored in items_data
-            corr_data_by_item_id = np.ndarray(Nitems + 1, dtype=Correlation)
-            corr_data_by_item_id[0] = (0, 0, 0., 0, 0.)
-            corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(correlations_data['peril_correlation_group'])
-            corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(correlations_data['damage_correlation_value'])
-            corr_data_by_item_id[1:]['hazard_correlation_value'] = np.array(correlations_data['hazard_correlation_value'])
+            # corr_data_by_item_id = np.ndarray(Nitems + 1, dtype=Correlation)
+            # corr_data_by_item_id[0] = (0, 0, 0., 0, 0.)
+            # corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(correlations_data_arr['peril_correlation_group'])
+            # corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(correlations_data_arr['damage_correlation_value'])
+            # corr_data_by_item_id[1:]['hazard_correlation_value'] = np.array(correlations_data_arr['hazard_correlation_value'])
 
             logger.info(
                 f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
             )
 
-            unique_peril_correlation_groups = np.unique(corr_data_by_item_id[1:]['peril_correlation_group'])
+            # unique_peril_correlation_groups = np.unique(corr_data_by_item_id[1:]['peril_correlation_group'])
 
             # pre-compute lookup tables for the Gaussian cdf and inverse cdf
             # Notes:
@@ -305,7 +319,7 @@ def run(run_dir,
 
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
-            corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
+            # corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
             arr_min, arr_max, arr_N = 0, 0, 0
             arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
@@ -409,7 +423,7 @@ def run(run_dir,
                         cached_vuln_cdfs,
                         agg_vuln_to_vuln_id, agg_vuln_to_vuln_idxs, vuln_dict, areaperil_vuln_idx_to_weight,
                         loss_threshold, losses, vuln_cdf_empty, weighted_vuln_cdf_empty, alloc_rule, do_correlation, do_haz_correlation, haz_rndms_base, vuln_rndms_base,
-                        haz_eps_ij, eps_ij, corr_data_by_item_id, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                        haz_eps_ij, eps_ij, correlations_data_by_item_id, correlations_data_arr, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
                         z_unif, effective_damageability, debug, max_bytes_per_item, buff_size, int32_mv, cursor
                     )
 
@@ -459,7 +473,8 @@ def compute_event_losses(event_id,
                          vuln_rndms_base,
                          haz_eps_ij,
                          eps_ij,
-                         corr_data_by_item_id,
+                         correlations_data_by_item_id,
+                         correlations_data_arr,
                          arr_min,
                          arr_max,
                          arr_N,
@@ -517,7 +532,8 @@ def compute_event_losses(event_id,
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
         eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)`.
-        corr_data_by_item_id (np.array[Correlation]): correlation definitions for each item_id.
+        correlations_data_by_item_id (np.array[Correlation]): correlation definitions for each item_id. TODO
+        correlations_data_arr (np.array[Correlation]): correlation definitions for each item_id. TODO
         arr_min (float): min value of the lookup table for the inverse Gaussian.
         arr_max (float): max value of the lookup table for the inverse Gaussian.
         arr_N (int): array size of the lookup table for the inverse Gaussian.
@@ -674,7 +690,7 @@ def compute_event_losses(event_id,
             if sample_size > 0:
                 if do_haz_correlation:
                     # use correlation definitions to draw correlated random values
-                    item_corr_data = corr_data_by_item_id[item['item_id']]
+                    item_corr_data = correlations_data_arr[correlations_data_by_item_id[item['item_id']]]
                     rho = item_corr_data['hazard_correlation_value']
 
                     if rho > 0:
@@ -696,7 +712,7 @@ def compute_event_losses(event_id,
 
                 if do_correlation:
                     # use correlation definitions to draw correlated random values
-                    item_corr_data = corr_data_by_item_id[item['item_id']]
+                    item_corr_data = correlations_data_arr[correlations_data_by_item_id[item['item_id']]]
                     rho = item_corr_data['damage_correlation_value']
 
                     if rho > 0:
@@ -1199,7 +1215,7 @@ if __name__ == '__main__':
     # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
     #     .joinpath("assets").joinpath("test_model_2")
 
-    test_dir = Path("/home/mtazzari/repos/OasisPiWind/runs/losses-haz-corr-value")
+    test_dir = Path("/home/mtazzari/repos/OasisPiWind/runs/losses-20230214152223/")
 
     file_out = test_dir.joinpath('gulpy_mc.bin')
     run(
