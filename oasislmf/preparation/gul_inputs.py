@@ -228,7 +228,7 @@ def get_gul_input_items(
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
-    gul_inputs_df = exposure_df[set(exposure_df_gul_inputs_cols).intersection(exposure_df.columns)]
+    gul_inputs_df = exposure_df[list(set(exposure_df_gul_inputs_cols).intersection(exposure_df.columns))]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
     # Rename the main keys dataframe columns - this is due to the fact that the
@@ -281,7 +281,7 @@ def get_gul_input_items(
     # corresponding frame section in the GUL inputs table
     gul_inputs_reformatted_chunks = []
     terms_found = set()
-    for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
+    for cov_type, cov_type_group in gul_inputs_df.groupby(by='coverage_type_id', sort=True):
         tiv_col = tiv_terms[cov_type]
 
         # Remove rows with null/0 TIV
@@ -321,7 +321,7 @@ def get_gul_input_items(
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
     gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks)
-    gul_inputs_df[terms_found].fillna(0., inplace=True)
+    gul_inputs_df[list(terms_found)].fillna(0., inplace=True)
     gul_inputs_df = gul_inputs_df.sort_index().reset_index(drop=True)
     term_int_found = list(set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints)))
     gul_inputs_df[term_int_found] = gul_inputs_df[term_int_found].fillna(0)
