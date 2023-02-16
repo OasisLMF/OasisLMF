@@ -11,17 +11,20 @@ from itertools import chain
 
 import pandas as pd
 
-from ...preparation.il_inputs import get_oed_hierarchy
-from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ...utils.data import get_dataframe, get_exposure_data, print_dataframe
-from ...utils.defaults import (KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_IL_DEFAULT,
-                               KTOOLS_ALLOC_RI_DEFAULT, OASIS_FILES_PREFIXES)
-from ...utils.exceptions import OasisException
-from ...utils.inputs import str2bool
-from ..base import ComputationStep
-from ..generate.files import GenerateFiles
-from ..generate.keys import GenerateKeysDeterministic
-from ..generate.losses import GenerateLossesDeterministic
+from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.generate.files import GenerateFiles
+from oasislmf.computation.generate.keys import GenerateKeysDeterministic
+from oasislmf.computation.generate.losses import GenerateLossesDeterministic
+from oasislmf.preparation.il_inputs import get_oed_hierarchy
+from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
+from oasislmf.utils.data import (get_dataframe, get_exposure_data,
+                                 print_dataframe)
+from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
+                                     KTOOLS_ALLOC_IL_DEFAULT,
+                                     KTOOLS_ALLOC_RI_DEFAULT,
+                                     OASIS_FILES_PREFIXES)
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.inputs import str2bool
 
 
 class RunExposure(ComputationStep):
