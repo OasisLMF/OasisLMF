@@ -11,10 +11,11 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasislmf.pytools.common import nb_areaperil_int
-from oasislmf.pytools.getmodel.common import Index_type, Item
-from oasislmf.pytools.gul.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE
+from oasislmf.pytools.getmodel.common import Index_type
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.aggregate import gen_empty_agg_vuln_to_vuln_ids
+from oasislmf.pytools.gulmc.common import (ITEM_MAP_KEY_TYPE,
+                                           ITEM_MAP_VALUE_TYPE, Item)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def read_items(input_path, ignore_file_type=set(), legacy=False):
 
 
 @njit(cache=True, fastmath=True)
-def generate_item_map(items, coverages, correlations_data_by_item_id, correlations_data_arr):
+def generate_item_map(items, coverages):
     """Generate item_map; requires items to be sorted.
 
     Args:
@@ -64,27 +65,22 @@ def generate_item_map(items, coverages, correlations_data_by_item_id, correlatio
           the mapping between areaperil_id, vulnerability_id to item.
         areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
           areaperil_id and all the vulnerability ids associated with it.
-        correlations_data TODO
+
     """
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
-    Nitems = items.shape[0]
-
     areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
 
-    for j in range(Nitems):
-        append_to_dict_value(
-            item_map,
-            tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'],
-                  correlations_data_arr[correlations_data_by_item_id[items[j]['id']]]['hazard_group_id'])),
-            ITEM_MAP_VALUE_TYPE
-        )
-        coverages[items[j]['coverage_id']]['max_items'] += 1
+    for j, item in enumerate(items):
+        areaperil_id = item['areaperil_id']
+        vulnerability_id = item['vulnerability_id']
 
-        if items[j]['areaperil_id'] not in areaperil_ids_map:
-            areaperil_ids_map[items[j]['areaperil_id']] = {items[j]['vulnerability_id']: 0}
+        append_to_dict_value(item_map, tuple((areaperil_id, vulnerability_id)), j, ITEM_MAP_VALUE_TYPE)
+        coverages[item['coverage_id']]['max_items'] += 1
+
+        if areaperil_id not in areaperil_ids_map:
+            areaperil_ids_map[areaperil_id] = {vulnerability_id: 0}
         else:
-            areaperil_ids_map[items[j]['areaperil_id']][items[j]['vulnerability_id']] = 0
+            areaperil_ids_map[areaperil_id][vulnerability_id] = 0
 
     return item_map, areaperil_ids_map
 

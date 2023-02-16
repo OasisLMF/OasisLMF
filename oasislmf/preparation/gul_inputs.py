@@ -214,7 +214,6 @@ def get_gul_input_items(
 
     # Check if correlation group field is used to drive damage group id
     # and test that it's present and poulated with integers
-    # TODO: should we have damage_correlations_check and hazard_correlations_check?
 
     correlation_group_id = CORRELATION_GROUP_ID
     correlation_field = correlation_group_id[0]

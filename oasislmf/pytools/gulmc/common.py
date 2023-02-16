@@ -7,19 +7,23 @@ from oasislmf.pytools.common import areaperil_int, oasis_float
 # probably need to set this dynamically depending on the stream type
 gul_header = np.int32(1 | 2 << 24).tobytes()
 
+Item = nb.from_dtype(np.dtype([('item_id', np.int32),
+                               ('coverage_id', np.int32),
+                               ('areaperil_id', areaperil_int),
+                               ('vulnerability_id', np.int32),
+                               ('group_id', np.int32)
+                               ]))
+
 items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                           ('damagecdf_i', np.int32),
                                           ('rng_index', np.int32)
                                           ]))
 
 items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
-                                             ('areaperil_id', areaperil_int),
-                                             ('vulnerability_id', np.int32),
+                                             ('item_idx', np.int32),
                                              ('hazcdf_i', np.int32),
                                              ('rng_index', np.int32),
                                              ('hazard_rng_index', np.int32),
-                                             ('eff_vuln_cdf_i', np.int32),
-                                             ('eff_vuln_cdf_Ndamage_bins', np.int32)
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', np.int32), ('length', np.int32)]))
@@ -43,7 +47,8 @@ MAX_LOSS_IDX = -5
 NUM_IDX = 5
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 4)
+# ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 1)
+ITEM_MAP_VALUE_TYPE = nb.types.int64
 AREAPERIL_TO_EFF_VULN_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
 AREAPERIL_TO_EFF_VULN_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 2)
 
