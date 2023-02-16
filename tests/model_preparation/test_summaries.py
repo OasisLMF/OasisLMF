@@ -14,11 +14,10 @@ from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.preparation.summaries import (get_exposure_summary,
                                             write_exposure_summary)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import get_ids, prepare_location_df
+from oasislmf.utils.data import prepare_location_df
 from oasislmf.utils.defaults import get_default_exposure_profile
 from oasislmf.utils.status import OASIS_KEYS_STATUS_MODELLED
-from tests.data import (keys, min_source_exposure, write_keys_files,
-                        write_source_files)
+from tests.data import keys, min_source_exposure, write_keys_files
 
 
 # https://towardsdatascience.com/automating-unit-tests-in-python-with-hypothesis-d53affdc1eba
