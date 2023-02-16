@@ -223,7 +223,8 @@ class GenerateFiles(ComputationStep):
         # ************************************************
 
         # Columns from loc file to assign group_id
-        model_group_fields = None
+        model_damage_group_fields = []
+        model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
 
@@ -231,7 +232,7 @@ class GenerateFiles(ComputationStep):
             model_settings = get_model_settings(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
             try:
-                model_group_fields = model_settings["data_settings"].get("damage_group_fields")
+                model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
 
@@ -241,8 +242,8 @@ class GenerateFiles(ComputationStep):
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
-        if model_group_fields and not self.kwargs.get('group_id_cols'):
-            damage_group_id_cols = model_group_fields
+        if model_damage_group_fields and not self.kwargs.get('group_id_cols'):
+            damage_group_id_cols = model_damage_group_fields
         # otherwise load group cols from args
         else:
             damage_group_id_cols = self.damage_group_id_cols

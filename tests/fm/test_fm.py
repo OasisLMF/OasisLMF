@@ -1,23 +1,37 @@
 import datetime
-import os.path
+import os
 import sys
 import tempfile
 from unittest import TestCase
 
+import pytest
+
 from oasislmf.manager import OasisManager
 
 
+@pytest.fixture(scope="class")
+def update_expected(request):
+    # set a class attribute on the invoking context
+    request.cls.update_expected = request.config.getoption('--update-expected')
+
+
+@pytest.fixture(scope="class")
+def fm_keep_output(request):
+    # set a class attribute on the invoking context
+    request.cls.fm_keep_output = request.config.getoption('--fm-keep-output')
+
+
+@pytest.mark.usefixtures("update_expected")
+@pytest.mark.usefixtures("fm_keep_output")
 class FmAcceptanceTests(TestCase):
 
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
-        self.update_expected = False
-        self.keep_output = True
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             run_dir = tmp_run_dir
-            if self.keep_output:
+            if self.fm_keep_output:
                 utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
                 run_dir = os.path.join(
                     self.test_cases_fp, 'runs', 'test-fm-p{}-{}-{}'.format(subperils, test_case, utcnow)
@@ -48,7 +62,7 @@ class FmAcceptanceTests(TestCase):
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
-      # results ok, programme and policytc differ
+        # results ok, programme and policytc differ
 
     def test_reinsurance2(self):
         self.run_test('reinsurance2')
@@ -64,9 +78,9 @@ class FmAcceptanceTests(TestCase):
     # def test_insurance_conditions_2_subperils(self):
     #     self.run_test('insurance_conditions', subperils=2, expected_dir="expected_subperils")
 
-#   test skipped - fails because of ordering of outputs in ils.csv is different between fm and fmpy, but otherwise correct.
-#   def test_insurance_step_2_subperils(self):
-#       self.run_test('insurance_step', subperils=2, expected_dir="expected_subperils")
+    # test skipped - fails because of ordering of outputs in ils.csv is different between fm and fmpy, but otherwise correct.
+    # def test_insurance_step_2_subperils(self):
+    #     self.run_test('insurance_step', subperils=2, expected_dir="expected_subperils")
 
     def test_reinsurance1_2_subperils(self):
         self.run_test('reinsurance1', subperils=2, expected_dir="expected_subperils")

@@ -47,7 +47,7 @@ MAX_LOSS_IDX = -5
 NUM_IDX = 5
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 4)
+ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)
 AREAPERIL_TO_EFF_VULN_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int64))
 AREAPERIL_TO_EFF_VULN_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 2)
 

@@ -4,21 +4,35 @@ import sys
 import tempfile
 from unittest import TestCase
 
+import pytest
+
 from oasislmf.manager import OasisManager
 
 
+@pytest.fixture(scope="class")
+def update_expected(request):
+    # set a class attribute on the invoking context
+    request.cls.update_expected = request.config.getoption('--update-expected')
+
+
+@pytest.fixture(scope="class")
+def fm_keep_output(request):
+    # set a class attribute on the invoking context
+    request.cls.fm_keep_output = request.config.getoption('--fm-keep-output')
+
+
+@pytest.mark.usefixtures("update_expected")
+@pytest.mark.usefixtures("fm_keep_output")
 class FmAcceptanceTests(TestCase):
 
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
-        self.update_expected = False
-        self.keep_output = True
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
 
             run_dir = tmp_run_dir
-            if self.keep_output:
+            if self.fm_keep_output:
                 utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
                 run_dir = os.path.join(
                     self.test_cases_fp, 'runs', 'test-fmpy-p{}-{}-{}'.format(subperils, test_case, utcnow)

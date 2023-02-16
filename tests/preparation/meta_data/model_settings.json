@@ -49,12 +49,12 @@
         {
             "peril_correlation_group": 1,
             "damage_correlation_value": "0.7",
-            "hazard_correlation_value": 0.0
+            "hazard_correlation_value": "0.0"
         },
         {
             "peril_correlation_group": 2,
             "damage_correlation_value": "0.5",
-            "hazard_correlation_value": 0.3
+            "hazard_correlation_value": "0.3"
         }
     ]
 }

@@ -22,15 +22,6 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import (
 from oasislmf.pytools.getmodel.common import Item, Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns
-from oasislmf.pytools.gul.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
-                                         AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
-                                         CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX,
-                                         MEAN_IDX, NP_BASE_ARRAY_SIZE, NUM_IDX,
-                                         STD_DEV_IDX, TIV_IDX, coverage_type,
-                                         gul_header,
-                                         gulSampleslevelHeader_size,
-                                         gulSampleslevelRec_size, haz_cdf_type,
-                                         items_MC_data_type)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
@@ -44,6 +35,15 @@ from oasislmf.pytools.gulmc.aggregate import (
     map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
     process_aggregate_vulnerability, process_vulnerability_weights,
     read_aggregate_vulnerability, read_vulnerability_weights)
+from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
+                                           AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
+                                           CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX,
+                                           MEAN_IDX, NP_BASE_ARRAY_SIZE,
+                                           NUM_IDX, STD_DEV_IDX, TIV_IDX,
+                                           coverage_type, gul_header,
+                                           gulSampleslevelHeader_size,
+                                           gulSampleslevelRec_size,
+                                           haz_cdf_type, items_MC_data_type)
 from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
                                           read_items)
 

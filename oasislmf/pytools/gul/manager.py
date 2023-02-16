@@ -232,7 +232,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
-            corr_data_by_item_id[0] = (0, 0.)
+            corr_data_by_item_id[0] = (0, 0., 0., 0, 0.)
             corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(data['peril_correlation_group'])
             corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(data['damage_correlation_value'])
 
