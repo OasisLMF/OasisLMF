@@ -182,7 +182,7 @@ def run(run_dir,
         correlations_tb = read_correlations(input_path, ignore_file_type)
         items_tb = read_items(input_path, ignore_file_type)
         if len(correlations_tb) != len(items_tb):
-            logger.warning(
+            logger.info(
                 f"The items table has length {len(items_tb)} while the correlations table has length {len(correlations_tb)}.\n"
                 "It is possible that the correlations are not set up properly in the model settings file."
             )
