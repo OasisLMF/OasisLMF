@@ -90,3 +90,11 @@ Keys = {'LocID': np.int32,
         'CoverageTypeID': np.int32,
         'AreaPerilID': areaperil_int,
         'VulnerabilityID': np.int32}
+
+
+NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float32),
+                                                  ('x_max', np.float32),
+                                                  ('N', np.int32),
+                                                  ('cdf_min', np.float32),
+                                                  ('cdf_max', np.float32),
+                                                  ]))

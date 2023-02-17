@@ -244,12 +244,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             # pre-compute lookup tables for the Gaussian cdf and inverse cdf
             # Notes:
-            #  - the size `arr_N` and `arr_N_cdf` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
+            #  - the size `arr_N` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
+            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N.
             arr_min, arr_max, arr_N = 1e-16, 1 - 1e-16, 1000000
-            arr_min_cdf, arr_max_cdf, arr_N_cdf = -20., 20., 1000000
+            arr_min_cdf, arr_max_cdf = -20., 20.
             norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
-            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N_cdf)
+            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N)
 
             # buffer to be re-used to store all the correlated random values
             z_unif = np.zeros(sample_size, dtype='float64')
@@ -258,7 +258,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
             arr_min, arr_max, arr_N = 0, 0, 0
-            arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
+            arr_min_cdf, arr_max_cdf = 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
             z_unif = np.zeros(1, dtype='float64')
 
@@ -303,7 +303,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
-                    arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
+                    arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf, z_unif, debug,
                     max_bytes_per_item, buff_size, int32_mv_write, cursor
                 )
 
@@ -324,7 +324,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
-                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf,
                          z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
     """Compute losses for an event.
 
@@ -405,7 +405,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         get_corr_rval(
                             eps_ij[peril_correlation_group], rndms_base[rng_index],
                             rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                            arr_min_cdf, arr_max_cdf, norm_cdf, sample_size, z_unif
                         )
                         rndms = z_unif
 

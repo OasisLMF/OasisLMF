@@ -40,7 +40,8 @@ from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
                                            CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX,
                                            MEAN_IDX, NP_BASE_ARRAY_SIZE,
                                            NUM_IDX, STD_DEV_IDX, TIV_IDX, Item,
-                                           Keys, coverage_type, gul_header,
+                                           Keys, NormInversionParameters,
+                                           coverage_type, gul_header,
                                            gulSampleslevelHeader_size,
                                            gulSampleslevelRec_size,
                                            haz_cdf_type, items_MC_data_type)
@@ -285,20 +286,18 @@ def run(run_dir,
 
             # pre-compute lookup tables for the Gaussian cdf and inverse cdf
             # Notes:
-            #  - the size `arr_N` and `arr_N_cdf` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
-            arr_min, arr_max, arr_N = 1e-16, 1 - 1e-16, 1000000
-            arr_min_cdf, arr_max_cdf, arr_N_cdf = -20., 20., 1000000
-            norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
-            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N_cdf)
+            #  - the size `N` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
+            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by N.
+            norm_inv_parameters = np.array((1e-16, 1 - 1e-16, 1000000, -20., 20.), dtype=NormInversionParameters)
+            norm_inv_cdf = compute_norm_inv_cdf_lookup(norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'])
+            norm_cdf = compute_norm_cdf_lookup(norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'], norm_inv_parameters['N'])
 
             # buffer to be re-used to store all the correlated random values
             z_unif = np.zeros(sample_size, dtype='float64')
 
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
-            arr_min, arr_max, arr_N = 0, 0, 0
-            arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
+            norm_inv_parameters = np.array((0., 0., 0, 0., 0.), dtype=NormInversionParameters)
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
             z_unif = np.zeros(1, dtype='float64')
 
@@ -434,13 +433,8 @@ def run(run_dir,
                                                                                                                        vuln_rndms_base,
                                                                                                                        haz_eps_ij,
                                                                                                                        eps_ij,
-                                                                                                                       arr_min,
-                                                                                                                       arr_max,
-                                                                                                                       arr_N,
+                                                                                                                       norm_inv_parameters,
                                                                                                                        norm_inv_cdf,
-                                                                                                                       arr_min_cdf,
-                                                                                                                       arr_max_cdf,
-                                                                                                                       arr_N_cdf,
                                                                                                                        norm_cdf,
                                                                                                                        z_unif,
                                                                                                                        effective_damageability,
@@ -497,13 +491,8 @@ def compute_event_losses(event_id,
                          vuln_rndms_base,
                          haz_eps_ij,
                          eps_ij,
-                         arr_min,
-                         arr_max,
-                         arr_N,
+                         norm_inv_parameters,
                          norm_inv_cdf,
-                         arr_min_cdf,
-                         arr_max_cdf,
-                         arr_N_cdf,
                          norm_cdf,
                          z_unif,
                          effective_damageability,
@@ -554,15 +543,8 @@ def compute_event_losses(event_id,
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
         eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)`.
-        correlations_data_by_item_id (np.array[Correlation]): correlation definitions for each item_id. TODO
-        correlations_data_arr (np.array[Correlation]): correlation definitions for each item_id. TODO
-        arr_min (float): min value of the lookup table for the inverse Gaussian.
-        arr_max (float): max value of the lookup table for the inverse Gaussian.
-        arr_N (int): array size of the lookup table for the inverse Gaussian.
+        norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
         norm_inv_cdf (np.array[float]): inverse Gaussian cdf.
-        arr_min_cdf (float): min value of the grid on which the Gaussian cdf is computed.
-        arr_max_cdf (float): max value of the grid on which the Gaussian cdf is computed.
-        arr_N_cdf (int): array size of the Gaussian cdf.
         norm_cdf (np.array[float]): Gaussian cdf.
         z_unif (np.array[float]): buffer to be re-used to store all the correlated random values.
         effective_damageability (bool): if True, it uses effective damageability to draw damage samples instead of
@@ -716,9 +698,10 @@ def compute_event_losses(event_id,
 
                     if rho > 0:
                         get_corr_rval(
-                            haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index],
-                            rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                            haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], rho,
+                            norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'], norm_inv_cdf,
+                            norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
+                            norm_cdf, sample_size, z_unif
                         )
                         haz_rndms = z_unif
 
@@ -735,9 +718,10 @@ def compute_event_losses(event_id,
 
                     if rho > 0:
                         get_corr_rval(
-                            eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index],
-                            rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                            eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], rho,
+                            norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'], norm_inv_cdf,
+                            norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
+                            norm_cdf, sample_size, z_unif
                         )
                         vuln_rndms = z_unif
 
@@ -861,10 +845,8 @@ def compute_event_losses(event_id,
                         tiv
                     )
 
-                    if gul >= loss_threshold:
-                        losses[sample_idx, item_j] = gul
-                    else:
-                        losses[sample_idx, item_j] = 0
+                    losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
+
         # write the losses to the output memoryview
         cursor = write_losses(event_id,
                               sample_size,
