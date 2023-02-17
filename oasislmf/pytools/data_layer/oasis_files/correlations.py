@@ -112,7 +112,7 @@ def read_correlations(input_path, ignore_file_type=set()):
 
         except ValueError:
             logger.debug("binary file is empty, numpy.memmap failed. trying to read correlations.csv.")
-            read_correlations(input_path, ignore_file_type={'bin'})
+            correlations = read_correlations(input_path, ignore_file_type={'bin'})
 
     elif "correlations.csv" in input_files and "csv" not in ignore_file_type:
         correlations_fname = os.path.join(input_path, 'correlations.csv')
