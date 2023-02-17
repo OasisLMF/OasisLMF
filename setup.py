@@ -373,7 +373,7 @@ setup(
             'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
             "convertbintoparquet=oasislmf.pytools.data_layer.conversions.footprint:main",
-            "correlationtobin=oasislmf.pytools.correlationtobin:main"
+            "correlationtobin=oasislmf.pytools.correlationtobin:main",
             "correlationtocsv=oasislmf.pytools.correlationtocsv:main",
             'dfcompare=oasislmf.pytools.dfcompare:main',
             'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
