@@ -732,13 +732,43 @@ def compute_event_losses(event_id,
                     # do not use correlation
                     vuln_rndms = vuln_rndms_base[rng_index]
 
-                for sample_idx in range(1, sample_size + 1):
-                    if effective_damageability:
+                if effective_damageability:
+                    for sample_idx in range(1, sample_size + 1):
                         vuln_cdf = eff_damag_cdf
                         Ndamage_bins = eff_damag_cdf_Ndamage_bins
 
-                    else:
-                        # use the full monte carlo approach: draw samples from the hazard intensity distribution first
+                        # draw samples of damage from the vulnerability function
+                        vuln_rval = vuln_rndms[sample_idx - 1]
+
+                        if debug == 2:
+                            # store the random value used for the damage sampling instead of the loss
+                            losses[sample_idx, item_j] = vuln_rval
+                            continue
+
+                        # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
+                        if vuln_rval >= vuln_cdf[Ndamage_bins - 1]:
+                            vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
+                            vuln_bin_idx = Ndamage_bins - 1
+                        else:
+                            # find the bin in which the random value `vuln_rval` falls into
+                            vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
+
+                        # compute ground-up losses
+                        gul = get_gul(
+                            damage_bins['bin_from'][vuln_bin_idx],
+                            damage_bins['bin_to'][vuln_bin_idx],
+                            damage_bins['interpolation'][vuln_bin_idx],
+                            vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
+                            vuln_cdf[vuln_bin_idx],
+                            vuln_rval,
+                            tiv
+                        )
+
+                        losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
+
+                else:
+                    # use the full monte carlo approach: draw samples from the hazard intensity distribution first
+                    for sample_idx in range(1, sample_size + 1):
 
                         # 1) get the intensity bin
                         if Nhaz_bins == 1:
@@ -818,34 +848,34 @@ def compute_event_losses(event_id,
                                 vuln_i, haz_bin_idx, haz_int_bin_id, cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, vuln_array, vuln_cdf_empty,
                                 Ndamage_bins_max, cached_vuln_cdfs, next_cached_vuln_cdf)
 
-                    # draw samples of damage from the vulnerability function
-                    vuln_rval = vuln_rndms[sample_idx - 1]
+                        # draw samples of damage from the vulnerability function
+                        vuln_rval = vuln_rndms[sample_idx - 1]
 
-                    if debug == 2:
-                        # store the random value used for the damage sampling instead of the loss
-                        losses[sample_idx, item_j] = vuln_rval
-                        continue
+                        if debug == 2:
+                            # store the random value used for the damage sampling instead of the loss
+                            losses[sample_idx, item_j] = vuln_rval
+                            continue
 
-                    # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
-                    if vuln_rval >= vuln_cdf[Ndamage_bins - 1]:
-                        vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
-                        vuln_bin_idx = Ndamage_bins - 1
-                    else:
-                        # find the bin in which the random value `vuln_rval` falls into
-                        vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
+                        # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
+                        if vuln_rval >= vuln_cdf[Ndamage_bins - 1]:
+                            vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
+                            vuln_bin_idx = Ndamage_bins - 1
+                        else:
+                            # find the bin in which the random value `vuln_rval` falls into
+                            vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
-                    # compute ground-up losses
-                    gul = get_gul(
-                        damage_bins['bin_from'][vuln_bin_idx],
-                        damage_bins['bin_to'][vuln_bin_idx],
-                        damage_bins['interpolation'][vuln_bin_idx],
-                        vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
-                        vuln_cdf[vuln_bin_idx],
-                        vuln_rval,
-                        tiv
-                    )
+                        # compute ground-up losses
+                        gul = get_gul(
+                            damage_bins['bin_from'][vuln_bin_idx],
+                            damage_bins['bin_to'][vuln_bin_idx],
+                            damage_bins['interpolation'][vuln_bin_idx],
+                            vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
+                            vuln_cdf[vuln_bin_idx],
+                            vuln_rval,
+                            tiv
+                        )
 
-                    losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
+                        losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
         # write the losses to the output memoryview
         cursor = write_losses(event_id,
