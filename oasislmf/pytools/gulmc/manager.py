@@ -733,11 +733,12 @@ def compute_event_losses(event_id,
                     vuln_rndms = vuln_rndms_base[rng_index]
 
                 if effective_damageability:
+                    # draw samples of effective damageability (i.e., intensity-averaged damage probability)
+
                     for sample_idx in range(1, sample_size + 1):
                         vuln_cdf = eff_damag_cdf
                         Ndamage_bins = eff_damag_cdf_Ndamage_bins
 
-                        # draw samples of damage from the vulnerability function
                         vuln_rval = vuln_rndms[sample_idx - 1]
 
                         if debug == 2:
@@ -750,7 +751,7 @@ def compute_event_losses(event_id,
                             vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
                             vuln_bin_idx = Ndamage_bins - 1
                         else:
-                            # find the bin in which the random value `vuln_rval` falls into
+                            # find the damage cdf bin in which the random value `vuln_rval` falls into
                             vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                         # compute ground-up losses
@@ -767,7 +768,7 @@ def compute_event_losses(event_id,
                         losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
                 else:
-                    # use the full monte carlo approach
+                    # use the full monte carlo approach (sample hazard intensity and damage independently)
 
                     if vulnerability_id in agg_vuln_to_vuln_id:
                         # aggregate vulnerability
@@ -793,13 +794,13 @@ def compute_event_losses(event_id,
                                 if haz_rval >= haz_cdf_prob[Nhaz_bins - 1]:
                                     haz_bin_idx = nb_int32(Nhaz_bins - 1)
                                 else:
-                                    # find the bin in which the random value `haz_rval` falls into
+                                    # find the hazard intensity cdf bin in which the random value `haz_rval` falls into
                                     haz_bin_idx = nb_int32(binary_search(haz_rval, haz_cdf_prob, Nhaz_bins))
 
                             # 2) get the hazard intensity bin id
                             haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
 
-                            # 3) get the aggregate vulnerability cdf
+                            # 3) get the aggregate vulnerability cdf for a given intensity bin id
                             agg_vulns_idx = agg_vuln_to_vuln_idxs[vulnerability_id]
                             weighted_vuln_cdf = weighted_vuln_cdf_empty
 
@@ -843,7 +844,6 @@ def compute_event_losses(event_id,
                             Ndamage_bins = damage_bin_i
                             vuln_cdf = weighted_vuln_cdf[:Ndamage_bins]
 
-                            # draw samples of damage from the vulnerability function
                             vuln_rval = vuln_rndms[sample_idx - 1]
 
                             if debug == 2:
@@ -856,7 +856,7 @@ def compute_event_losses(event_id,
                                 vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
                                 vuln_bin_idx = Ndamage_bins - 1
                             else:
-                                # find the bin in which the random value `vuln_rval` falls into
+                                # find the damage cdf bin in which the random value `vuln_rval` falls into
                                 vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                             # compute ground-up losses
@@ -896,7 +896,7 @@ def compute_event_losses(event_id,
                                 if haz_rval >= haz_cdf_prob[Nhaz_bins - 1]:
                                     haz_bin_idx = nb_int32(Nhaz_bins - 1)
                                 else:
-                                    # find the bin in which the random value `haz_rval` falls into
+                                    # find the hazard intensity cdf bin in which the random value `haz_rval` falls into
                                     haz_bin_idx = nb_int32(binary_search(haz_rval, haz_cdf_prob, Nhaz_bins))
 
                             # 2) get the hazard intensity bin id
@@ -904,11 +904,17 @@ def compute_event_losses(event_id,
 
                             # 3) get the individual vulnerability cdf
                             vuln_i = vuln_dict[vulnerability_id]
-                            vuln_cdf, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(
-                                vuln_i, haz_bin_idx, haz_int_bin_id, cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, vuln_array, vuln_cdf_empty,
-                                Ndamage_bins_max, cached_vuln_cdfs, next_cached_vuln_cdf)
+                            vuln_cdf, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(vuln_i,
+                                                                                        haz_bin_idx,
+                                                                                        haz_int_bin_id,
+                                                                                        cached_vuln_cdf_lookup,
+                                                                                        cached_vuln_cdf_lookup_keys,
+                                                                                        vuln_array,
+                                                                                        vuln_cdf_empty,
+                                                                                        Ndamage_bins_max,
+                                                                                        cached_vuln_cdfs,
+                                                                                        next_cached_vuln_cdf)
 
-                            # draw samples of damage from the vulnerability function
                             vuln_rval = vuln_rndms[sample_idx - 1]
 
                             if debug == 2:
@@ -921,7 +927,7 @@ def compute_event_losses(event_id,
                                 vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
                                 vuln_bin_idx = Ndamage_bins - 1
                             else:
-                                # find the bin in which the random value `vuln_rval` falls into
+                                # find the damage cdf bin in which the random value `vuln_rval` falls into
                                 vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                             # compute ground-up losses
