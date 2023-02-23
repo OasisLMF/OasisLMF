@@ -15,12 +15,12 @@ input_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV
 1,A11111,10002082050,5
 """
 
-output_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV,loc_id,loc_idx
-1,A11111,10002082046,2.0,1,0
-1,A11111,10002082047,4.0,2,1
-1,A11111,10002082048,6.0,3,2
-1,A11111,10002082049,8.0,4,3
-1,A11111,10002082050,10.0,5,4
+output_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV,ContentsTIV,BITIV,loc_id,loc_idx
+1,A11111,10002082046,2.0,0.0,0.0,1,0
+1,A11111,10002082047,4.0,0.0,0.0,2,1
+1,A11111,10002082048,6.0,0.0,0.0,3,2
+1,A11111,10002082049,8.0,0.0,0.0,4,3
+1,A11111,10002082050,10.0,0.0,0.0,5,4
 """
 
 
