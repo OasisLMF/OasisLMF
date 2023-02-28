@@ -21,6 +21,7 @@ from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float, Index_type, Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
@@ -536,6 +537,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
+@redirect_logging(exec_name='modelpy')
 def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
     """
     Runs the main process of the getmodel process.
