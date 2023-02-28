@@ -164,17 +164,6 @@ class GenerateFiles(ComputationStep):
 
         il = bool(exposure_data.account)
         ri = exposure_data.ri_info and exposure_data.ri_scope and il
-
-        # Send warning if RI files are in args without IL
-        if any([self.oed_info_csv, self.oed_scope_csv]) and not ri:
-            self.logger.warn(
-                'RI option indicated by provision of some RI related assets, but other assets are missing. '
-                'To generate RI inputs you need to provide all of the assets required to generate direct '
-                'Oasis files (GUL + FM input files) plus all of the following assets: '
-                '  * reinsurance info file'
-                '  * reinsurance scope file'
-            )
-
         self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         summarise_exposure = not self.disable_summarise_exposure
 
