@@ -980,6 +980,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
     except OdsException as ods_error:
         raise OasisException("Failed to load OED exposure files", ods_error)
 
+
 def reduce_df(df, cols=None):
     """
     A method to select columns in a dataframe
