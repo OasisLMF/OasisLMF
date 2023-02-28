@@ -147,7 +147,7 @@ class TestSummaries(TestCase):
 
     @given(st.data())
     @settings(max_examples=10, deadline=None)
-    def test_multi_perils__single_covarage(self, data):
+    def test_multi_perils__single_coverage(self, data):
         loc_size = data.draw(integers(10, 20))
         supported_cov = data.draw(integers(1, 4))
         perils = data.draw(st.lists(
@@ -193,7 +193,7 @@ class TestSummaries(TestCase):
 
     @given(st.data())
     @settings(max_examples=10, deadline=None, suppress_health_check=HealthCheck.all())
-    def test_multi_perils__multi_covarage(self, data):
+    def test_multi_perils__multi_coverage(self, data):
         loc_size = data.draw(integers(10, 20))
         supported_cov = data.draw(st.lists(integers(1, 4), unique=True, min_size=1, max_size=4))
         perils = data.draw(st.lists(
