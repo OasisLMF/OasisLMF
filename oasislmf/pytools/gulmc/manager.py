@@ -768,10 +768,10 @@ def compute_event_losses(event_id,
                         losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
                 else:
-                    # use the full monte carlo approach (sample hazard intensity and damage independently)
+                    # full monte carlo (sample hazard intensity and damage independently)
 
                     if vulnerability_id in agg_vuln_to_vuln_id:
-                        # aggregate vulnerability
+                        # full monte carlo, aggregate vulnerability
 
                         for sample_idx in range(1, sample_size + 1):
 
@@ -873,7 +873,7 @@ def compute_event_losses(event_id,
                             losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
                     else:
-                        # individual vulnerability
+                        # full monte carlo, individual vulnerability
 
                         for sample_idx in range(1, sample_size + 1):
 
@@ -905,7 +905,6 @@ def compute_event_losses(event_id,
                             # 3) get the individual vulnerability cdf
                             vuln_i = vuln_dict[vulnerability_id]
                             vuln_cdf, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(vuln_i,
-                                                                                        haz_bin_idx,
                                                                                         haz_int_bin_id,
                                                                                         cached_vuln_cdf_lookup,
                                                                                         cached_vuln_cdf_lookup_keys,
@@ -968,7 +967,6 @@ def compute_event_losses(event_id,
 
 @njit(cache=True, fastmath=True)
 def get_vuln_cdf(vuln_i,
-                 haz_bin_idx,
                  haz_int_bin_id,
                  cached_vuln_cdf_lookup,
                  cached_vuln_cdf_lookup_keys,
@@ -981,7 +979,6 @@ def get_vuln_cdf(vuln_i,
 
     Args:
         vuln_i (int): index of the vuln_array matrix where the vulnerability pdf is stored.
-        haz_bin_idx (int): index of the selected hazard intensity bin.
         haz_int_bin_id (int): the selected hazard intensity bin id (starts from 1).
         cached_vuln_cdf_lookup (Dict[VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE]): dict to store
           the map between vuln_id and intensity bin id and the location of the cdf in the cache.
@@ -997,7 +994,7 @@ def get_vuln_cdf(vuln_i,
         Ndamage_bins (int): number of bins of vuln_cdf.
         next_cached_vuln_cdf (int): updated index of the next free slot in the vuln cdf cache.
     """
-    lookup_key = tuple((vuln_i, haz_bin_idx))
+    lookup_key = tuple((vuln_i, haz_int_bin_id))
     if lookup_key in cached_vuln_cdf_lookup:
         # cdf is cached
         start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
@@ -1029,7 +1026,7 @@ def get_vuln_cdf(vuln_i,
         next_cached_vuln_cdf += 1
         next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
 
-    return (vuln_cdf,
+    return (vuln_cdf[:Ndamage_bins],
             Ndamage_bins,
             next_cached_vuln_cdf)
 
