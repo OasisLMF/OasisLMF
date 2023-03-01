@@ -508,6 +508,7 @@ def compute_event_losses(event_id,
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
         coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
         items_data (numpy.array[items_data_type]): items-related data.
+        items (np.ndarray): items table merged with correlation parameters.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
         sample_size (int): number of random samples to draw.
@@ -534,7 +535,6 @@ def compute_event_losses(event_id,
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
         vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store vulnerability cdf.
         weighted_vuln_cdf_empty (numpy.array[oasis_float]): array (to be re-used) to store the weighted vulnerability cdf.
-        vuln_cdf (np.array[oasis_float]): array (to be re-used) to store the damage cdf for each item.
         alloc_rule (int): back-allocation rule.
         do_correlation (bool): if True, compute correlated random samples of damage.
         do_haz_correlation (bool): if True, compute correlated random samples of hazard intensity.
@@ -542,7 +542,8 @@ def compute_event_losses(event_id,
           drawn for each seed for the hazard intensity sampling.
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
-        eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)`.
+        haz_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for hazard sampling.
+        eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
         norm_inv_cdf (np.array[float]): inverse Gaussian cdf.
         norm_cdf (np.array[float]): Gaussian cdf.
@@ -1223,6 +1224,7 @@ def reconstruct_coverages(event_id,
         areaperil_to_haz_cdf (dict[int, int]): map between the areaperil_id and the hazard cdf index.
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
+        items (np.ndarray): items table merged with correlation parameters.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
         compute (numpy.array[int]): list of coverage ids to be computed.
         haz_seeds (numpy.array[int]): the random seeds to draw the hazard intensity samples.
