@@ -13,23 +13,20 @@ from collections import OrderedDict
 
 import pandas as pd
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
-    CorrelationsData
+from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
-                                 set_dataframe_column_dtypes)
-from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
-                                     DAMAGE_GROUP_ID_COLS,
-                                     HAZARD_GROUP_ID_COLS,
-                                     OASIS_FILES_PREFIXES, SOURCE_IDX,
+from oasislmf.utils.data import factorize_ndarray, merge_dataframes, set_dataframe_column_dtypes
+from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DAMAGE_GROUP_ID_COLS,
+                                     HAZARD_GROUP_ID_COLS, OASIS_FILES_PREFIXES, SOURCE_IDX,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
-from oasislmf.utils.profiles import (
-    get_fm_terms_oed_columns, get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group, get_oed_hierarchy)
+from oasislmf.utils.profiles import (get_fm_terms_oed_columns,
+                                     get_grouped_fm_profile_by_level_and_term_group,
+                                     get_grouped_fm_terms_by_level_and_term_group,
+                                     get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -42,8 +39,10 @@ VALID_OASIS_GROUP_COLS = [
     'peril_correlation_group'
 ]
 
+PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
 
-def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups, peril_correlation_group_col='peril_correlation_group'):
+
+def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
     """
     cleans out columns that are not valid oasis group columns.
 
@@ -56,7 +55,6 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
         exposure_df_columns: (List[str]) the columns in the exposure dataframe
         has_correlation_groups: (bool) if set to True means that we are hashing with correlations in mind therefore the
                              "peril_correlation_group" column is added
-        peril_correlation_group_col (str): column name for peril correlation group. Defaults to 'peril_correlation_group'.                  
 
     Returns: (List[str]) the filtered columns
     """
@@ -65,8 +63,8 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
             warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
             group_id_cols.remove(col)
 
-    if peril_correlation_group_col not in group_id_cols and has_correlation_groups is True:
-        group_id_cols.append(peril_correlation_group_col)
+    if PERIL_CORRELATION_GROUP_COL not in group_id_cols and has_correlation_groups is True:
+        group_id_cols.append(PERIL_CORRELATION_GROUP_COL)
 
     return group_id_cols
 
@@ -83,7 +81,6 @@ def get_gul_input_items(
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
-    TODO: update docstrings
 
     :param exposure_df: Exposure dataframe
     :type exposure_df: pandas.DataFrame
@@ -97,10 +94,13 @@ def get_gul_input_items(
     :param exposure_profile: Exposure profile
     :type exposure_profile: dict
 
-    :return: GUL inputs dataframe
-    :rtype: pandas.DataFrame
+    :param damage_group_id_cols: Columns to be used to generate a hashed damage group id.
+    :type damage_group_id_cols: list[str]
 
-    :return: Exposure dataframe
+    :param hazard_group_id_cols: Columns to be used to generate a hashed hazard group id.
+    :type hazard_group_id_cols: list[str]
+
+    :return: GUL inputs dataframe
     :rtype: pandas.DataFrame
 
     """
@@ -362,9 +362,6 @@ def get_gul_input_items(
     if correlation_check is True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
 
-    # TODO: should we have damage_correlations_check and hazard_correlations_check?
-
-    # this block gets fired if the hashed_group_id is True
     if correlations:
         # do merge with peril correlation df
         gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()

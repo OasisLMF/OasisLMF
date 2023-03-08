@@ -4,8 +4,7 @@ This file defines the functions that convert correlations.
 import sys
 from pathlib import Path
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
-    CorrelationsData
+from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 
 
 def convert_csv_to_bin(file_path: str, file_out_path: str = "") -> None:

@@ -27,7 +27,6 @@ def map_data(data: Optional[dict]) -> Optional[pd.DataFrame]:
         correlation_settings_df = pd.DataFrame(correlation_settings)
 
         if len(correlation_settings_df) > 0:
-            print(correlation_settings_df)
             # correlations_settings are defined
             if "damage_correlation_value" not in correlation_settings_df.columns:
                 raise ValueError(
