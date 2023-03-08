@@ -2,28 +2,16 @@ import io
 import json
 import os
 import string
-
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import pandas as pd
-import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis.strategies import just, sampled_from, text
 
-from tempfile import TemporaryDirectory
-from hypothesis import (
-    given,
-    HealthCheck,
-    settings,
-)
-from hypothesis.strategies import (
-    just,
-    sampled_from,
-    text,
-)
-
-from oasislmf.lookup.factory import KeyServerFactory, BasicKeyServer
+from oasislmf.lookup.factory import BasicKeyServer, KeyServerFactory
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
-
 from tests.data import keys
 
 

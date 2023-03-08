@@ -7,19 +7,19 @@ TODO: use selector and select for output
 import atexit
 import logging
 import os
-
-import pandas as pd
 import sys
 from contextlib import ExitStack
 
 import numba as nb
-from numba.typed import Dict
 import numpy as np
+import pandas as pd
 import pyarrow.parquet as pq
-from oasislmf.pytools.common import PIPE_CAPACITY
+from numba.typed import Dict
 
+from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float, Index_type, Keys
+from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
+                                              oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 

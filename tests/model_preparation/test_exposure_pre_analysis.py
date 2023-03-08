@@ -1,7 +1,7 @@
 import os
-import pytest
-
 from tempfile import TemporaryDirectory
+
+import pytest
 
 from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import SOURCE_FILENAMES

@@ -5,7 +5,6 @@ configparser>=3.5.0
 coverage
 hypothesis
 mock
-parameterized
 pip-tools>=2.0.2
 pytest
 pytest-cov

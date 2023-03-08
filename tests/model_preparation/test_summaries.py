@@ -1,39 +1,23 @@
 import json
 import os
 import string
-
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-import pandas as pd
-
-from hypothesis import (
-    given,
-    settings,
-    HealthCheck,
-)
 import hypothesis.strategies as st
-from hypothesis.strategies import (
-    just,
-    integers,
-)
-
+import pandas as pd
+from hypothesis import HealthCheck, given, settings
+from hypothesis.strategies import integers, just
 from ods_tools.oed import OedExposure
 
-from oasislmf.preparation.summaries import write_exposure_summary
-from oasislmf.preparation.summaries import get_exposure_summary
 from oasislmf.preparation.gul_inputs import get_gul_input_items
+from oasislmf.preparation.summaries import (get_exposure_summary,
+                                            write_exposure_summary)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
+from oasislmf.utils.data import prepare_location_df
 from oasislmf.utils.defaults import get_default_exposure_profile
-from oasislmf.utils.data import get_ids, prepare_location_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS_MODELLED
-
-from tests.data import (
-    keys,
-    min_source_exposure,
-    write_source_files,
-    write_keys_files,
-)
+from tests.data import keys, min_source_exposure, write_keys_files
 
 
 # https://towardsdatascience.com/automating-unit-tests-in-python-with-hypothesis-d53affdc1eba
@@ -135,7 +119,7 @@ class TestSummaries(TestCase):
         )
 
         # Run Gul Proccessing
-        gul_inputs = get_gul_input_items(loc_df, keys_df, group_id_cols=['loc_id'])
+        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'])
         gul_inputs = gul_inputs[gul_inputs['status'].isin(OASIS_KEYS_STATUS_MODELLED)]
 
         # Fetch expected TIVS
@@ -163,7 +147,7 @@ class TestSummaries(TestCase):
 
     @given(st.data())
     @settings(max_examples=10, deadline=None)
-    def test_multi_perils__single_covarage(self, data):
+    def test_multi_perils__single_coverage(self, data):
         loc_size = data.draw(integers(10, 20))
         supported_cov = data.draw(integers(1, 4))
         perils = data.draw(st.lists(
@@ -202,14 +186,14 @@ class TestSummaries(TestCase):
         # Run Summary output check
         self.assertSummaryIsValid(
             loc_df,
-            get_gul_input_items(loc_df, keys_df, group_id_cols=['loc_id']),
+            get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id']),
             get_exposure_summary(exposure_df=loc_df, keys_df=keys_df),
             perils_returned
         )
 
     @given(st.data())
     @settings(max_examples=10, deadline=None, suppress_health_check=HealthCheck.all())
-    def test_multi_perils__multi_covarage(self, data):
+    def test_multi_perils__multi_coverage(self, data):
         loc_size = data.draw(integers(10, 20))
         supported_cov = data.draw(st.lists(integers(1, 4), unique=True, min_size=1, max_size=4))
         perils = data.draw(st.lists(
@@ -246,7 +230,7 @@ class TestSummaries(TestCase):
 
         # Run Summary output check
         exp_summary = get_exposure_summary(exposure_df=loc_df, keys_df=keys_df)
-        gul_inputs = get_gul_input_items(loc_df, keys_df, group_id_cols=['loc_id'])
+        gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'])
         self.assertSummaryIsValid(
             loc_df,
             gul_inputs,

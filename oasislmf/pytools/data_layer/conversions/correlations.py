@@ -1,12 +1,13 @@
 """
 This file defines the functions that convert correlations.
 """
-import os
+import sys
+from pathlib import Path
 
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 
 
-def convert_csv_to_bin(file_path: str) -> None:
+def convert_csv_to_bin(file_path: str, file_out_path: str = "") -> None:
     """
     Converts the correlations data from a CSV file to a binary file.
 
@@ -15,11 +16,12 @@ def convert_csv_to_bin(file_path: str) -> None:
 
     Returns: None
     """
-    data = CorrelationsData.from_csv(file_path=file_path)
-    data.to_bin(file_path=file_path.replace("csv", "bin"))
+    CorrelationsData.from_csv(file_path=file_path).to_bin(
+        file_path=Path(file_path).with_suffix(".bin") if not file_out_path else file_out_path
+    )
 
 
-def convert_bin_to_csv(file_path: str) -> None:
+def convert_bin_to_csv(file_path: str, file_out_path: str = "") -> None:
     """
     Converts the correlations data from a binary file to a CSV file.
 
@@ -28,25 +30,4 @@ def convert_bin_to_csv(file_path: str) -> None:
 
     Returns: None
     """
-    data = CorrelationsData.from_bin(file_path=file_path)
-    data.to_csv(file_path=file_path.replace("bin", "csv"))
-
-
-def convert_csv_to_bin_main() -> None:
-    """
-    The command line entry point for converting CSV correlations file to a binary file.
-
-    Returns: None
-    """
-    file_path = str(os.getcwd()) + "/correlations.csv"
-    convert_csv_to_bin(file_path=file_path)
-
-
-def convert_bin_to_csv_main() -> None:
-    """
-    The command line entry point for converting binary correlations file to a CSV file.
-
-    Returns: None
-    """
-    file_path = str(os.getcwd()) + "/correlations.bin"
-    convert_bin_to_csv(file_path=file_path)
+    CorrelationsData.from_bin(file_path=file_path).to_csv(file_out_path if file_out_path else sys.stdout.buffer)

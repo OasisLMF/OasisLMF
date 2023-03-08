@@ -16,11 +16,12 @@ __all__ = [
     'FMSummaryXrefFile'
 ]
 
-from collections import OrderedDict
-from math import erf
-import numpy as np
 import os
 import struct
+from collections import OrderedDict
+from math import erf
+
+import numpy as np
 
 
 class ModelFile:
@@ -400,7 +401,7 @@ class ItemsFile(ModelFile):
         self.num_vulnerabilities = num_vulnerabilities
         self.dtypes = OrderedDict([
             ('item_id', 'i'), ('coverage_id', 'i'), ('areaperil_id', 'i'),
-            ('vulnerability_id', 'i'), ('group_id', 'i')
+            ('vulnerability_id', 'i'), ('group_id', 'i'),
         ])
         self.start_stats = None
         self.random_seed = random_seed

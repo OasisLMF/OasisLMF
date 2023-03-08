@@ -5,16 +5,21 @@ __all__ = [
     'load_static',
 ]
 
-from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, need_tiv_policy, need_extras, null_index
-from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,\
-    fm_profile_csv_col_map, fm_xref_dtype, fm_xref_csv_col_map, items_dtype, allowed_allocation_rule
+import logging
+import os
 
-from numba import njit, types, from_dtype
-from numba.typed import List, Dict
 import numpy as np
 import pandas as pd
-import os
-import logging
+from numba import from_dtype, njit, types
+from numba.typed import Dict, List
+
+from .common import (allowed_allocation_rule, almost_equal, fm_policytc_dtype,
+                     fm_profile_csv_col_map, fm_profile_dtype,
+                     fm_profile_step_dtype, fm_programme_dtype,
+                     fm_xref_csv_col_map, fm_xref_dtype, items_dtype,
+                     nb_oasis_int, need_extras, need_tiv_policy,
+                     np_oasis_float, np_oasis_int, null_index)
+
 logger = logging.getLogger(__name__)
 
 # temp dictionary types
@@ -52,7 +57,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('start_level', np_oasis_int),
                                           ('items_len', np_oasis_int),
                                           ('output_len', np_oasis_int),
-                                          ('stepped', np.bool),
+                                          ('stepped', np.bool_),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
                                            ('i_end', np_oasis_int),
