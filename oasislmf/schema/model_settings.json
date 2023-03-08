@@ -1117,9 +1117,17 @@
                   ]
                }
             },
-            "group_fields":{
+            "damage_group_fields":{
                "title":"Group OED fields",
-               "description":"List of OED fields from location file to form groups",
+               "description":"List of OED fields from location file to form damage group ids",
+               "type":"array",
+               "items":{
+                  "type":"string"
+               }
+            },
+            "hazard_group_fields":{
+               "title":"Group OED fields",
+               "description":"List of OED fields from location file to form hazard group ids",
                "type":"array",
                "items":{
                   "type":"string"

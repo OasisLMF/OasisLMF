@@ -13,14 +13,19 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import uint32 as nb_uint32
 
-from oasislmf.pytools.getmodel.common import areaperil_int
-from oasislmf.pytools.gulmc.common import (AggregateVulnerability,
-                                           VulnerabilityWeight)
+from oasislmf.pytools.common import areaperil_int
+
+logger = logging.getLogger(__name__)
 
 AGG_VULN_WEIGHTS_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
 AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.int32
 
-logger = logging.getLogger(__name__)
+AggregateVulnerability = nb.from_dtype(np.dtype([('aggregate_vulnerability_id', np.int32),
+                                                 ('vulnerability_id', np.int32),]))
+
+VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', np.int32),
+                                              ('vulnerability_id', np.int32),
+                                              ('weight', np.int32)]))
 
 
 @njit(cache=True)

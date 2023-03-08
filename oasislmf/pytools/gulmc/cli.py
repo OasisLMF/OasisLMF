@@ -30,6 +30,9 @@ parser.add_argument('--effective-damageability',
 parser.add_argument('--ignore-correlation',
                     help='if passed true, peril correlation groups (if defined) are ignored for the generation of correlated samples. Default: False',
                     action='store_true', dest='ignore_correlation', default=False)
+parser.add_argument('--ignore-haz-correlation',
+                    help='if passed true, hazard correlation groups (if defined) are ignored for the generation of correlated samples. Default: False',
+                    action='store_true', dest='ignore_haz_correlation', default=False)
 parser.add_argument('--ignore-file-type', nargs='*',
                     help='the type of file to be loaded. Default: set()', default=set())
 parser.add_argument('--data-server', help='=Use tcp/sockets for IPC data sharing.',

@@ -17,9 +17,9 @@ GROUP_ID_HASH_CODE = np.int64(1543270363)
 EVENT_ID_HASH_CODE = np.int64(1943272559)
 HASH_MOD_CODE = np.int64(2147483648)
 
-HAZ_GROUP_ID_HASH_CODE = np.int64(1143271949)
-HAZ_EVENT_ID_HASH_CODE = np.int64(1243274353)
-HAZ_HASH_MOD_CODE = np.int64(1957483729)
+HAZARD_GROUP_ID_HASH_CODE = np.int64(1143271949)
+HAZARD_EVENT_ID_HASH_CODE = np.int64(1243274353)
+HAZARD_HASH_MOD_CODE = np.int64(1957483729)
 
 
 @njit(cache=True, fastmath=True)
@@ -41,19 +41,19 @@ def generate_hash(group_id, event_id, base_seed=0):
 
 
 @njit(cache=True, fastmath=True)
-def generate_hash_haz(group_id, event_id, base_seed=0):
-    """Generate hash for a given `group_id`, `event_id` pair for the hazard pdf.
+def generate_hash_hazard(hazard_group_id, event_id, base_seed=0):
+    """Generate hash for a given `hazard_group_id`, `event_id` pair for the hazard pdf.
 
     Args:
-        group_id (int): group id.
+        hazard_group_id (int): group id.
         event_id (int]): event id.
         base_seed (int, optional): base random seed. Defaults to 0.
 
     Returns:
         int64: hash
     """
-    hash = (base_seed + (group_id * HAZ_GROUP_ID_HASH_CODE) % HAZ_HASH_MOD_CODE +
-            (event_id * HAZ_EVENT_ID_HASH_CODE) % HAZ_HASH_MOD_CODE) % HAZ_HASH_MOD_CODE
+    hash = (base_seed + (hazard_group_id * HAZARD_GROUP_ID_HASH_CODE) % HAZARD_HASH_MOD_CODE +
+            (event_id * HAZARD_EVENT_ID_HASH_CODE) % HAZARD_HASH_MOD_CODE) % HAZARD_HASH_MOD_CODE
 
     return hash
 
@@ -112,32 +112,32 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, b
     return correlated_hashes
 
 
-def compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N):
-    return norm.ppf(np.linspace(arr_min, arr_max, arr_N))
+def compute_norm_inv_cdf_lookup(cdf_min, cdf_max, N):
+    return norm.ppf(np.linspace(cdf_min, cdf_max, N))
 
 
-def compute_norm_cdf_lookup(arr_min, arr_max, arr_N):
-    return norm.cdf(np.linspace(arr_min, arr_max, arr_N))
-
-
-@njit(cache=True, fastmath=True)
-def get_norm_cdf_cell_nb(x, arr_min, arr_max, arr_N):
-    return int((x - arr_min) * (arr_N - 1) // (arr_max - arr_min))
+def compute_norm_cdf_lookup(x_min, x_max, N):
+    return norm.cdf(np.linspace(x_min, x_max, N))
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval(x_unif, y_unif, rho, arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf,
-                  arr_max_cdf, arr_N_cdf, norm_cdf, Nsamples, z_unif):
+def get_norm_cdf_cell_nb(x, x_min, x_max, N):
+    return int((x - x_min) * (N - 1) // (x_max - x_min))
+
+
+@njit(cache=True, fastmath=True)
+def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
+                  cdf_max, norm_cdf, Nsamples, z_unif):
 
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
 
     for i in range(Nsamples):
-        x_norm = norm_inv_cdf[get_norm_cdf_cell_nb(x_unif[i], arr_min, arr_max, arr_N)]
-        y_norm = norm_inv_cdf[get_norm_cdf_cell_nb(y_unif[i], arr_min, arr_max, arr_N)]
+        x_norm = norm_inv_cdf[get_norm_cdf_cell_nb(x_unif[i], x_min, x_max, N)]
+        y_norm = norm_inv_cdf[get_norm_cdf_cell_nb(y_unif[i], x_min, x_max, N)]
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
 
-        z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, arr_min_cdf, arr_max_cdf, arr_N_cdf)]
+        z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, cdf_min, cdf_max, N)]
 
 
 @njit(cache=True, fastmath=True)

@@ -2,11 +2,12 @@
 This file contains the core mathematical functions used in gulpy.
 
 """
-import numpy as np
-from numba import njit
 from math import sqrt  # faster than numpy.sqrt
 
-from oasislmf.pytools.gul.common import STD_DEV_IDX, NUM_IDX
+import numpy as np
+from numba import njit
+
+from oasislmf.pytools.gul.common import NUM_IDX, STD_DEV_IDX
 
 
 @njit(cache=True, fastmath=False, error_model="numpy")
@@ -38,7 +39,6 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
 
     # linear interpolation
     x = np.float64((bin_mean - bin_from) / bin_width)
-    # if np.int(np.round(x * 100000)) == 50000:
     if np.abs(x - 0.5) <= 5e-6:
         # this condition requires 1 less operation
         gul = tiv * (bin_from + rval_bin_offset * bin_width / bin_height)
@@ -46,7 +46,6 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
         return gul
 
     # quadratic interpolation
-    # MT: I haven't re-derived the algorithm for this case; not sure where the parabola vertex is set
     aa = 3. * bin_height / bin_width**2 * (2. * x - 1.)
     bb = 2. * bin_height / bin_width * (2. - 3. * x)
     cc = - rval_bin_offset
