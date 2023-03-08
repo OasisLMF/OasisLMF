@@ -4,36 +4,29 @@ __all__ = [
 
 import re
 
-from .utils.log import oasis_log
-
-from .computation.hooks.pre_analysis import ExposurePreAnalysis
-from .computation.generate.files import (
-    GenerateFiles,
-    GenerateDummyModelFiles,
-    GenerateDummyOasisFiles
-)
-from .computation.generate.keys import GenerateKeys, GenerateKeysDeterministic
-from .computation.generate.losses import (
-    GenerateLosses,
-    GenerateLossesDir,
-    GenerateLossesPartial,
-    GenerateLossesOutput,
-    GenerateLossesDeterministic,
-    GenerateLossesDummyModel
-)
-from .computation.helper.autocomplete import HelperTabComplete
-from .computation.helper.cookiecutter import CreateModelRepo, CreateComplexModelRepo
-from .computation.run.generate_files import GenerateOasisFiles
-from .computation.run.model import RunModel
-from .computation.run.exposure import RunExposure, RunFmTest
-from .computation.run.platform import (
-    PlatformList,
-    PlatformRun,
-    PlatformRunInputs,
-    PlatformRunLosses,
-    PlatformDelete,
-    PlatformGet
-)
+from oasislmf.computation.generate.files import (GenerateDummyModelFiles,
+                                                 GenerateDummyOasisFiles,
+                                                 GenerateFiles)
+from oasislmf.computation.generate.keys import (GenerateKeys,
+                                                GenerateKeysDeterministic)
+from oasislmf.computation.generate.losses import (GenerateLosses,
+                                                  GenerateLossesDeterministic,
+                                                  GenerateLossesDir,
+                                                  GenerateLossesDummyModel,
+                                                  GenerateLossesOutput,
+                                                  GenerateLossesPartial)
+from oasislmf.computation.helper.autocomplete import HelperTabComplete
+from oasislmf.computation.helper.cookiecutter import (CreateComplexModelRepo,
+                                                      CreateModelRepo)
+from oasislmf.computation.hooks.pre_analysis import ExposurePreAnalysis
+from oasislmf.computation.run.exposure import RunExposure, RunFmTest
+from oasislmf.computation.run.generate_files import GenerateOasisFiles
+from oasislmf.computation.run.model import RunModel
+from oasislmf.computation.run.platform import (PlatformDelete, PlatformGet,
+                                               PlatformList, PlatformRun,
+                                               PlatformRunInputs,
+                                               PlatformRunLosses)
+from oasislmf.utils.log import oasis_log
 
 
 class OasisManager(object):
