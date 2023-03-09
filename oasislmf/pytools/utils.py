@@ -89,6 +89,9 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             except Exception as err:
                 logger.exception(err)
                 raise err
+            finally:
+                logger.handlers.clear()
+                logging.shutdown()
         return wrapper
     return inner
 
