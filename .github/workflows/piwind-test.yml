@@ -50,7 +50,8 @@ jobs:
 
   ods_tools:
     if: inputs.ods_branch != ''
-    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
+    #uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
+    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@feature/split-package
     secrets: inherit
     with:
       ods_branch: ${{ inputs.ods_branch }}
