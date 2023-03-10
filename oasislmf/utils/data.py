@@ -5,8 +5,6 @@ __all__ = [
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
     'fill_na_with_categoricals',
-    'get_analysis_settings',
-    'get_model_settings',
     'get_dataframe',
     'get_exposure_data',
     'get_dtypes_and_required_cols',
@@ -15,8 +13,6 @@ __all__ = [
     'prepare_location_df',
     'prepare_account_df',
     'prepare_reinsurance_df',
-    'get_analysis_schema_fp',
-    'get_model_schema_fp',
     'get_timestamp',
     'get_utctimestamp',
     'detect_encoding',
@@ -253,181 +249,6 @@ def fast_zip_dataframe_columns(df, cols):
     :rtype: np.array
     """
     return fast_zip_arrays(*(df[col].values for col in cols))
-
-
-def get_model_schema_fp():
-    return os.path.join(SCHEMA_DATA_FP, 'model_settings.json')
-
-
-def get_analysis_schema_fp():
-    return os.path.join(SCHEMA_DATA_FP, 'analysis_settings.json')
-
-
-def validate_json(json_data, json_schema):
-    """
-    Wapper function around jsonschema to Validate json data vs a given schema
-
-    :param json_data: JSON data for validation
-    :type  json_data: dict
-
-    :param json_schema: JSON schema to check against
-    :type  json_schema: dict
-
-    :return: returns valid status as boolean and a dictonary of error messages
-    :rtype: (boolean, dict)
-
-    Example error output:
-    ---------------------
-    {
-        "model_settings-event_occurrence_id": [
-            "Additional properties are not allowed ('names' was unexpected)",
-            "'name' is a required property"
-        ],
-        "lookup_settings-supported_perils-0": [
-            "Additional properties are not allowed ('i' was unexpected)",
-            "'id' is a required property"
-        ],
-        "lookup_settings-supported_perils-1-id": [
-            "'TC' is too short"
-        ]
-    }
-    """
-    validator = jsonschema.Draft4Validator(json_schema)
-    validation_errors = [e for e in validator.iter_errors(json_data)]
-
-    exception_msgs = {}
-    is_valid = validator.is_valid(json_data)
-
-    if validation_errors:
-        for err in validation_errors:
-            if err.path:
-                field = '-'.join([str(e) for e in err.path])
-            elif err.schema_path:
-                field = '-'.join([str(e) for e in err.schema_path])
-            else:
-                field = 'error'
-
-            if field in exception_msgs:
-                exception_msgs[field].append(err.message)
-            else:
-                exception_msgs[field] = [err.message]
-
-    return is_valid, exception_msgs
-
-
-def analysis_settings_compatibility(analysis_settings_data):
-    """
-    NOTE: when ready to depricate these older names this fucntion should be remoived
-
-    Check for an older version of the analysis_settings JSON
-
-    Warn the user of the schema change and update the following keys
-        * `module_supplier_id` -> `model_supplier_id`
-        * `model_version_id` -> `model_name_id`
-
-    :param analysis_settings_data: JSON data from an analysis_settings file
-    :type  analysis_settings_data: dict
-
-    :return: updated analysis_ settings
-    :rtype: dict
-    """
-    compatibility_profile = {
-        "module_supplier_id": {
-            "from_ver": "1.23.0",
-            "updated_to": "model_supplier_id"
-        },
-        "model_version_id": {
-            "from_ver": "1.23.0",
-            "updated_to": "model_name_id"
-        },
-    }
-    obsolete_keys = set(compatibility_profile) & set(analysis_settings_data)
-    if obsolete_keys:
-        logger = logging.getLogger(__name__)
-        logger.warning('WARNING: Deprecated key(s) in analysis_settings JSON')
-        for key in obsolete_keys:
-            # warn user
-            logger.warning('   {} : {}'.format(
-                key,
-                compatibility_profile[key],
-            ))
-            # Update settings, if newer key not found
-            updated_key = compatibility_profile[key]['updated_to']
-            if updated_key not in analysis_settings_data:
-                analysis_settings_data[updated_key] = analysis_settings_data[key]
-            del analysis_settings_data[key]
-
-        logger.warning('   These keys have been automatically updated, but should be fixed in the original file.\n')
-    return analysis_settings_data
-
-
-def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
-    """
-    Get analysis settings from file.
-
-    :param model_settings_fp: file path for model settings file
-    :type model_settings_fp: str
-
-    :param key: return contents of `key` from json
-    :type  key: Str
-
-    :param validate: When true run json Schema validation
-    :type  validate: Boolean
-
-    :return: model settings
-    :rtype: dict
-    """
-    try:
-        with io.open(analysis_settings_fp) as f:
-            raw_settings_json = json.load(f)
-            analysis_settings = analysis_settings_compatibility(raw_settings_json)
-
-            if validate:
-                schema = get_json(get_analysis_schema_fp())
-                valid, error_messages = validate_json(analysis_settings, schema)
-                if not valid:
-                    raise OasisException("\nJSON Validation error in 'analysis_settings.json': {}".format(
-                        json.dumps(error_messages, indent=4)
-                    ))
-
-    except (IOError, TypeError, ValueError):
-        raise OasisException('Invalid Analysis settings file or file path: {}'.format(analysis_settings_fp))
-
-    return analysis_settings if not key else analysis_settings.get(key)
-
-
-def get_model_settings(model_settings_fp, key=None, validate=True):
-    """
-    Get model settings from file.
-
-    :param model_settings_fp: file path for model settings file
-    :type model_settings_fp: str
-
-    :param key: return contents of `key` from json
-    :type  key: Str
-
-    :param validate: When true run json Schema validation
-    :type  validate: Boolean
-
-    :return: model settings
-    :rtype: dict
-    """
-    try:
-        with io.open(model_settings_fp) as f:
-            model_settings = json.load(f)
-
-            if validate:
-                schema = get_json(get_model_schema_fp())
-                valid, error_messages = validate_json(model_settings, schema)
-                if not valid:
-                    raise OasisException("\nJSON Validation error in 'model_settings.json': {}".format(
-                        json.dumps(error_messages, indent=4)
-                    ))
-
-    except (IOError, TypeError, ValueError):
-        raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
-
-    return model_settings if not key else model_settings.get(key)
 
 
 def establish_correlations(model_settings: dict) -> bool:
