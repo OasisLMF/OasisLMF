@@ -59,6 +59,7 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
 from ods_tools.oed.setting_schema import ModelSettingSchema
 
+
 class GenerateFiles(ComputationStep):
     """
     Generates the standard Oasis GUL input files + optionally the IL/FM input
