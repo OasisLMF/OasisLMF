@@ -57,7 +57,7 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
-
+from ods_tools.oed.setting_schema import ModelSettingSchema
 
 class GenerateFiles(ComputationStep):
     """
