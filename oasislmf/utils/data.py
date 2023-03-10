@@ -33,10 +33,8 @@ import builtins
 import io
 import os
 import json
-import jsonschema
 import re
 import warnings
-import logging
 
 from datetime import datetime
 
