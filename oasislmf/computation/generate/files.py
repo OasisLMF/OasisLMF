@@ -46,7 +46,7 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json,
-                                 get_model_settings, get_utctimestamp,
+                                 get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
                                  prepare_reinsurance_df)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
@@ -229,7 +229,7 @@ class GenerateFiles(ComputationStep):
         model_settings = None
 
         if self.model_settings_json is not None:
-            model_settings = get_model_settings(self.model_settings_json)
+            model_settings = ModelSettingSchema().get(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
