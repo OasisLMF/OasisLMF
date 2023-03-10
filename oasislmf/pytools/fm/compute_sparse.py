@@ -80,15 +80,13 @@ def first_time_layer_extra(profile_len, base_children_len, temp_children_queue, 
         child_val_len = sidx_indptr[sidx_indexes[child['node_id']] + 1] - sidx_indptr[sidx_indexes[child['node_id']]]
         child_loss_val_layer_0 = loss_val[loss_indptr[child['loss']]:
                                           loss_indptr[child['loss']] + child_val_len]
-        child_extra_val_layer_0 = extras_val[extras_indptr[child['extra']]:
-                                             extras_indptr[child['extra']] + child_val_len]
         for p in range(1, profile_len):
             loss_indptr[child['loss'] + p] = compute_idx['loss_ptr_i']
             loss_val[compute_idx['loss_ptr_i']: compute_idx['loss_ptr_i'] + child_val_len] = child_loss_val_layer_0
             compute_idx['loss_ptr_i'] += child_val_len
 
             extras_indptr[child['extra'] + p] = compute_idx['extras_ptr_i']
-            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len] = child_extra_val_layer_0
+            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len] = 0
             compute_idx['extras_ptr_i'] += child_val_len
 
 
@@ -466,6 +464,9 @@ def compute_event(compute_info,
                                    stepped)
                     # print(level, compute_node['agg_id'], base_children_len, fm_profile[profile_index]['calcrule_id'],
                     #       loss_indptr[storage_node['loss']], loss_in, '=>', loss_out)
+                    # print(temp_node_extras_layer_merge_save[node_sidx[0], DEDUCTIBLE], '=>', temp_node_extras_layer_merge[0, DEDUCTIBLE], extras_indptr[storage_node['extra']])
+                    # print(temp_node_extras_layer_merge_save[node_sidx[0], OVERLIMIT], '=>', temp_node_extras_layer_merge[0, OVERLIMIT])
+                    # print(temp_node_extras_layer_merge_save[node_sidx[0], UNDERLIMIT], '=>', temp_node_extras_layer_merge[0, UNDERLIMIT])
                     back_alloc_layer_extra(compute_node['layer_len'], node_val_len, storage_node['loss'], storage_node['extra'],
                                            loss_in, loss_out, loss_indptr, loss_val,
                                            temp_node_loss_layer_ba,
