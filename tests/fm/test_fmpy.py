@@ -58,6 +58,9 @@ class FmAcceptanceTests(TestCase):
     def test_insurance_and_step(self):
         self.run_test('insurance_and_step', fmpy=True)
 
+    def test_insurance_account(self):
+        self.run_test('insurance_account', fmpy=True)
+
     def test_reinsurance1(self):
         self.run_test('reinsurance1', fmpy=True)
 
