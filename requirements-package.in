@@ -7,7 +7,7 @@ msgpack
 numba>=0.55.1
 numexpr
 numpy<1.23,>=1.18
-ods-tools>=3.0.4
+ods-tools>=3.0.0
 pandas>=1.0.3,!=1.1.0,!=1.1.1
 pytz
 requests-toolbelt
