@@ -55,14 +55,12 @@ jobs:
     secrets: inherit
     with:
       oasislmf_version: ${{ inputs.release_tag }}
-      ktools_version: "" # !! TESTING ONLY !!
 
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     needs: update
     with:
-      ktools_branch: "" # !! TESTING ONLY !!
       build_osx: ${{ inputs.build_osx }}
 
   release:
