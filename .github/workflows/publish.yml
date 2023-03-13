@@ -41,16 +41,8 @@ on:
         required: false
         default: 'false'
 
-      # TESTING ONLY
-      # This is Risky and should be exposed by default --> Run ./.github/workflows/version.yml separately and wait for testing workflows to pass before publish
-      #ktools_version_set:
-      #  description: '(Optional) Pin a new ktools version, semvar (without the "v") For ktools release v3.0.0 input [3.0.0]'
-      #  required: false
-      #  default: ''
-
 
 env:
-  BUILD_SCRIPTS: "master"    # build scripts branch
   WORKSPACE: ${{ github.workspace }}/OasisLMF
   RELEASE_TAG: ${{ inputs.release_tag }}
   PREV_RELEASE_TAG: ${{ inputs.prev_release_tag }}
@@ -63,14 +55,12 @@ jobs:
     secrets: inherit
     with:
       oasislmf_version: ${{ inputs.release_tag }}
-      ktools_version: "" # !! TESTING ONLY !!
 
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     needs: update
     with:
-      ktools_branch: "" # !! TESTING ONLY !!
       build_osx: ${{ inputs.build_osx }}
 
   release:
@@ -166,12 +156,12 @@ jobs:
         python-version: '3.9'
 
     - name: Setup Changelog builder
-      working-directory: ${{ github.workspace }}
       run: |
-        BASE_URL="https://raw.githubusercontent.com/OasisLMF/build/${{ env.BUILD_SCRIPTS }}/buildscript"
-        pip install -r $BASE_URL/requirments_changelog.txt
-        wget $BASE_URL/auto_changelog.py
-        chmod +x auto_changelog.py
+        BRANCH='develop'
+        BASE_URL="https://raw.githubusercontent.com/OasisLMF/OasisPlatform/$BRANCH/scripts"
+        pip install -r $BASE_URL/requirments-changelog.txt
+        wget $BASE_URL/update-changelog.py
+        chmod +x update-changelog.py
 
     - name: Setup Twine
       working-directory: ${{ github.workspace }}
@@ -182,8 +172,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       run: |
-        ${{ github.workspace }}/auto_changelog.py build-changelog \
-          --repo OasisLMF \
+        ${{ github.workspace }}/update-changelog.py build-changelog \
+          --repo ${{ github.event.repository.name }} \
           --from-tag ${{ env.PREV_RELEASE_TAG }} \
           --to-tag ${{ env.RELEASE_TAG }} \
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
@@ -196,8 +186,8 @@ jobs:
     - name: Create Release notes
       working-directory: ${{ env.WORKSPACE }}
       run: |
-        ${{ github.workspace }}/auto_changelog.py build-release \
-          --repo OasisLMF \
+        ${{ github.workspace }}/update-changelog.py build-release \
+          --repo ${{ github.event.repository.name }} \
           --from-tag ${{ env.PREV_RELEASE_TAG }} \
           --to-tag ${{ env.RELEASE_TAG }} \
           --github-token ${{ secrets.BUILD_GIT_TOKEN }} \
