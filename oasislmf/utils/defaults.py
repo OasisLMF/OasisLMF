@@ -7,15 +7,11 @@ __all__ = [
     'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
-    'get_loc_dtypes',
-    'get_acc_dtypes',
-    'get_scope_dtypes',
-    'get_info_dtypes',
-    'get_oed_default_values',
     'assign_defaults_to_il_inputs',
     'store_exposure_fp',
     'find_exposure_fp',
-    'GROUP_ID_COLS',
+    'DAMAGE_GROUP_ID_COLS',
+    'HAZARD_GROUP_ID_COLS',
     'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
     'DEFAULT_RTREE_INDEX_PROPS',
@@ -31,21 +27,19 @@ __all__ = [
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'STATIC_DATA_FP',
-    'WRITE_CHUNKSIZE'
+    'WRITE_CHUNKSIZE',
+    'KTOOLS_ALLOC_IL_DEFAULT',
+    'KTOOLS_ALLOC_RI_DEFAULT',
 ]
 
-import os
-import io
 import glob
+import io
 import json
-
-import pandas as pd
+import os
 from collections import OrderedDict
-from itertools import chain
-from ods_tools import get_ods_fields
 
-from .fm import SUPPORTED_FM_LEVELS
 from .exceptions import OasisException
+from .fm import SUPPORTED_FM_LEVELS
 
 try:
     from json import JSONDecodeError
@@ -138,6 +132,7 @@ SUMMARY_OUTPUT = OrderedDict({
 # Path for storing static data/metadata files used in the package
 STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), '_data')
 
+
 # Default profiles that describe the financial terms in the OED acc. and loc.
 # (exposure) files, as well as how aggregation of FM input items is performed
 # in the different OED FM levels
@@ -229,49 +224,6 @@ def get_default_fm_aggregation_profile(path=False):
     return {int(k): v for k, v in get_default_json(src_fp=fp).items()} if not path else fp
 
 
-def get_loc_dtypes():
-    return pd.DataFrame(
-        get_ods_fields(pd)['Loc']).rename(mapper=MAPPING_FROM_ODS_SPEC
-                                          ).to_dict()
-
-
-def get_acc_dtypes():
-    return pd.DataFrame(
-        get_ods_fields(pd)['Acc']).rename(mapper=MAPPING_FROM_ODS_SPEC
-                                          ).to_dict()
-
-
-def get_scope_dtypes():
-    return pd.DataFrame(
-        get_ods_fields(pd)['ReinsScope']).rename(mapper=MAPPING_FROM_ODS_SPEC
-                                                 ).to_dict()
-
-
-def get_info_dtypes():
-    return pd.DataFrame(
-        get_ods_fields(pd)['ReinsInfo']).rename(mapper=MAPPING_FROM_ODS_SPEC
-                                                ).to_dict()
-
-
-def get_oed_default_values(terms):
-    """
-    Get defaults value of OED terms.
-
-    :param terms: list of OED terms
-    :type terms: list
-
-    :return: default values for OED terms
-    :rtype: dict
-    """
-    loc_defaults = {k.lower(): v['default_value'] for k, v in get_loc_dtypes().items() if k.lower() in terms}
-    acc_defaults = {k.lower(): v['default_value'] for k, v in get_acc_dtypes().items() if k.lower() in terms}
-    defaults = dict(
-        chain.from_iterable(d.items() for d in (loc_defaults, acc_defaults))
-    )
-
-    return defaults
-
-
 def assign_defaults_to_il_inputs(df):
     """
     Assign default values to IL inputs.
@@ -304,7 +256,8 @@ def assign_defaults_to_il_inputs(df):
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
 
-GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
+DAMAGE_GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
+HAZARD_GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
 
 CORRELATION_GROUP_ID = ['CorrelationGroup']
 

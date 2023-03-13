@@ -2,41 +2,38 @@
 This file is the entry point for the gul command for the package.
 
 """
-import sys
-import os
-from select import select
 import logging
+import os
+import sys
 from contextlib import ExitStack
-import pandas as pd
+from select import select
+
 import numpy as np
+import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 
-from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
-
-from oasislmf.pytools.getmodel.manager import get_damage_bins, Item
-
-from oasislmf.pytools.getmodel.common import oasis_float, Keys, Correlation
-
-from oasislmf.pytools.gul.common import (
-    MEAN_IDX, PIPE_CAPACITY, STD_DEV_IDX, TIV_IDX, CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX, NUM_IDX,
-    ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE,
-    gulSampleslevelRec_size, gulSampleslevelHeader_size, coverage_type, gul_header,
-)
-from oasislmf.pytools.gul.io import (
-    write_negative_sidx, write_sample_header,
-    write_sample_rec, read_getmodel_stream,
-)
-
-from oasislmf.pytools.gul.random import (
-    get_random_generator, compute_norm_cdf_lookup,
-    compute_norm_inv_cdf_lookup, get_corr_rval, generate_correlated_hash_vector
-)
-
-from oasislmf.pytools.gul.random import get_random_generator
-from oasislmf.pytools.gul.core import split_tiv_classic, split_tiv_multiplicative, get_gul, setmaxloss, compute_mean_loss
+from oasislmf.pytools.common import PIPE_CAPACITY
+from oasislmf.pytools.data_layer.oasis_files.correlations import (
+    Correlation, CorrelationsData)
+from oasislmf.pytools.getmodel.common import Keys, oasis_float
+from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
+from oasislmf.pytools.gul.common import (CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
+                                         ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
+                                         MEAN_IDX, NUM_IDX, STD_DEV_IDX,
+                                         TIV_IDX, coverage_type, gul_header,
+                                         gulSampleslevelHeader_size,
+                                         gulSampleslevelRec_size)
+from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
+                                       split_tiv_classic,
+                                       split_tiv_multiplicative)
+from oasislmf.pytools.gul.io import (read_getmodel_stream, write_negative_sidx,
+                                     write_sample_header, write_sample_rec)
+from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
+                                         compute_norm_inv_cdf_lookup,
+                                         generate_correlated_hash_vector,
+                                         get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
-
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +49,6 @@ def get_coverages(input_path, ignore_file_type=set()):
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
     input_files = set(os.listdir(input_path))
-    # TODO: store default filenames (e.g., coverages.bin) in a parameters file
 
     if "coverages.bin" in input_files and "bin" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.bin')
@@ -62,7 +58,7 @@ def get_coverages(input_path, ignore_file_type=set()):
     elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
         coverages_fname = os.path.join(input_path, 'coverages.csv')
         logger.debug(f"loading {coverages_fname}")
-        coverages = np.genfromtxt(coverages_fname, dtype=oasis_float, delimiter=",")
+        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)[:, 1]
 
     else:
         raise FileNotFoundError(f'coverages file not found at {input_path}')
@@ -90,7 +86,7 @@ def gul_get_items(input_path, ignore_file_type=set()):
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.genfromtxt(items_fname, dtype=Item, delimiter=",")
+        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
@@ -150,9 +146,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    # TODO: store static_path in a paraparameters file
     static_path = os.path.join(run_dir, 'static')
-    # TODO: store input_path in a paraparameters file
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -228,7 +222,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             Nperil_correlation_groups = len(data)
             logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
-            if Nperil_correlation_groups > 0 and any(data['correlation_value'] > 0):
+            if Nperil_correlation_groups > 0 and any(data['damage_correlation_value'] > 0):
                 do_correlation = True
             else:
                 logger.info("Correlated random number generation: switched OFF because 0 peril correlation groups were detected or "
@@ -238,9 +232,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             logger.info("Correlated random number generation: switched ON.")
 
             corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
-            corr_data_by_item_id[0] = (0, 0.)
+            corr_data_by_item_id[0] = (0, 0., 0., 0, 0.)
             corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(data['peril_correlation_group'])
-            corr_data_by_item_id[1:]['correlation_value'] = np.array(data['correlation_value'])
+            corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(data['damage_correlation_value'])
 
             logger.info(
                 f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
@@ -250,12 +244,12 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             # pre-compute lookup tables for the Gaussian cdf and inverse cdf
             # Notes:
-            #  - the size `arr_N` and `arr_N_cdf` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
-            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N and arr_N_cdf
+            #  - the size `arr_N` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
+            #  - the function `get_corr_rval` to compute the correlated numbers is not affected by arr_N.
             arr_min, arr_max, arr_N = 1e-16, 1 - 1e-16, 1000000
-            arr_min_cdf, arr_max_cdf, arr_N_cdf = -20., 20., 1000000
+            arr_min_cdf, arr_max_cdf = -20., 20.
             norm_inv_cdf = compute_norm_inv_cdf_lookup(arr_min, arr_max, arr_N)
-            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N_cdf)
+            norm_cdf = compute_norm_cdf_lookup(arr_min_cdf, arr_max_cdf, arr_N)
 
             # buffer to be re-used to store all the correlated random values
             z_unif = np.zeros(sample_size, dtype='float64')
@@ -264,7 +258,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
             arr_min, arr_max, arr_N = 0, 0, 0
-            arr_min_cdf, arr_max_cdf, arr_N_cdf = 0, 0, 0
+            arr_min_cdf, arr_max_cdf = 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
             z_unif = np.zeros(1, dtype='float64')
 
@@ -295,7 +289,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             last_processed_coverage_ids_idx = 0
 
             # adjust buff size so that the buffer fits the longest coverage
-            buff_size = PIPE_CAPACITY
+            buff_size = PIPE_CAPACITY * 2
             max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
             while buff_size < max_bytes_per_coverage:
                 buff_size *= 2
@@ -309,7 +303,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
-                    arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, z_unif, debug,
+                    arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf, z_unif, debug,
                     max_bytes_per_item, buff_size, int32_mv_write, cursor
                 )
 
@@ -330,14 +324,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
-                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf,
+                         arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf,
                          z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
     """Compute losses for an event.
 
     Args:
         event_id (int32): event id.
         coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
-        coverage_ids (numpy.array[: array of **uniques** coverage ids used in this event.
+        coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
         items_data (numpy.array[items_data_type]): items-related data.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
@@ -403,7 +397,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             if sample_size > 0:
                 if do_correlation:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
-                    rho = item_corr_data['correlation_value']
+                    rho = item_corr_data['damage_correlation_value']
 
                     if rho > 0:
                         peril_correlation_group = item_corr_data['peril_correlation_group']
@@ -411,7 +405,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                         get_corr_rval(
                             eps_ij[peril_correlation_group], rndms_base[rng_index],
                             rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                            arr_min_cdf, arr_max_cdf, arr_N_cdf, norm_cdf, sample_size, z_unif
+                            arr_min_cdf, arr_max_cdf, norm_cdf, sample_size, z_unif
                         )
                         rndms = z_unif
 

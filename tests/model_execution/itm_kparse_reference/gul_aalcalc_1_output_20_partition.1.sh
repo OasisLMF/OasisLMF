@@ -31,7 +31,7 @@ tee < fifo/gul_S1_summary_P2 work/gul_S1_summaryaalcalc/P2.bin > /dev/null & pid
 tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryaalcalc/P2.idx > /dev/null & pid2=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
-eve 2 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P2  &
+( eve 2 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P2  ) &  pid3=$!
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3
 

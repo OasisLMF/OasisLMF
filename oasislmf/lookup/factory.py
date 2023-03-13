@@ -18,7 +18,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from ..utils.data import get_json, get_location_df
+from ..utils.data import get_json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import import_from_string, get_custom_module, as_path
@@ -32,6 +32,7 @@ from queue import Empty, Full
 
 # add pickling support for traceback object
 import tblib.pickling_support
+
 tblib.pickling_support.install()
 
 
@@ -41,6 +42,7 @@ def with_error_queue(fct):
             return fct(error_queue, *args, **kwargs)
         except Exception:
             error_queue.put(sys.exc_info())
+
     return wrapped_fct
 
 
@@ -106,16 +108,16 @@ class KeyServerFactory(object):
 
     @classmethod
     def create(
-        cls,
-        model_keys_data_path=None,
-        model_version_file_path=None,
-        lookup_module_path=None,
-        lookup_config=None,
-        lookup_config_json=None,
-        lookup_config_fp=None,
-        complex_lookup_config_fp=None,
-        user_data_dir=None,
-        output_directory=None,
+            cls,
+            model_keys_data_path=None,
+            model_version_file_path=None,
+            lookup_module_path=None,
+            lookup_config=None,
+            lookup_config_json=None,
+            lookup_config_fp=None,
+            complex_lookup_config_fp=None,
+            user_data_dir=None,
+            output_directory=None,
     ):
         """
         Creates a keys lookup class instance for the given model and supplier -
@@ -292,7 +294,9 @@ class BasicKeyServer:
 
     def get_locations(self, location_fp):
         """load exposure data from location_fp and return the exposure dataframe"""
-        return get_location_df(location_fp)
+        raise NotImplementedError('oasislmf now use ods_tools to pass location to the KeyServer. '
+                                  'this method need to be implemented'
+                                  'if you want to provide you own loader from filepath')
 
     @staticmethod
     @with_error_queue
@@ -449,7 +453,7 @@ class BasicKeyServer:
                                     successes_fp=successes_fp,
                                     errors_fp=errors_fp,
                                     output_format=output_format,
-                                    keys_success_msg=keys_success_msg,)
+                                    keys_success_msg=keys_success_msg, )
 
     def generate_key_files_multiproc(self, loc_df, successes_fp, errors_fp, output_format, keys_success_msg,
                                      num_cores, num_partitions, **kwargs):
@@ -495,7 +499,7 @@ class BasicKeyServer:
                                         successes_fp=successes_fp,
                                         errors_fp=errors_fp,
                                         output_format=output_format,
-                                        keys_success_msg=keys_success_msg,)
+                                        keys_success_msg=keys_success_msg, )
         except Exception:
             error_queue.put(sys.exc_info())
         finally:
@@ -511,17 +515,17 @@ class BasicKeyServer:
 
     @oasis_log()
     def generate_key_files(
-        self,
-        location_fp,
-        successes_fp,
-        errors_fp=None,
-        output_format='oasis',
-        keys_success_msg=False,
-        multiproc_enabled=True,
-        multiproc_num_cores=-1,
-        multiproc_num_partitions=-1,
-        location_df=None,
-        **kwargs
+            self,
+            location_fp=None,
+            successes_fp=None,
+            errors_fp=None,
+            output_format='oasis',
+            keys_success_msg=False,
+            multiproc_enabled=True,
+            multiproc_num_cores=-1,
+            multiproc_num_partitions=-1,
+            location_df=None,
+            **kwargs
     ):
         """
         generate key files by calling:
@@ -535,7 +539,7 @@ class BasicKeyServer:
         if location_df is not None:
             locations = location_df
         else:
-            locations = self.get_locations(location_fp)
+            locations = self.get_locations(location_fp)  # need overwrite as not supported anymore we pass the df
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
             return self.generate_key_files_multiproc(locations,

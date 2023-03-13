@@ -38,7 +38,7 @@ tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 f
 tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryaalcalc/P2.idx work/gul_S1_summaryleccalc/P2.idx > /dev/null & pid5=$!
 summarycalc -m -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
-eve 2 2 | getmodel | gulcalc -S0 -L0 -r -c - > fifo/gul_P2  &
+( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -c - > fifo/gul_P2  ) &  pid6=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
 

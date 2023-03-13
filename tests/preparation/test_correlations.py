@@ -2,11 +2,12 @@
 This file tests the mapping of the correlation data between supported perils and correlation settings
 """
 import os
-from unittest import main, TestCase
+from unittest import TestCase, main
 
 import pandas as pd
 
-from oasislmf.preparation.correlations import map_data, get_correlation_input_items
+from oasislmf.preparation.correlations import (get_correlation_input_items,
+                                               map_data)
 from oasislmf.utils.data import get_model_settings
 
 META_PATH = os.path.realpath(__file__).replace("test_correlations.py", "meta_data/")
@@ -37,8 +38,20 @@ class TestMapData(TestCase):
 
 
 EXPECTED_MAPPED_DATA = [
-    {'id': 'WSS', 'desc': 'Single Peril: Storm Surge', 'peril_correlation_group': 1, 'correlation_value': '0.7'},
-    {'id': 'WTC', 'desc': 'Single Peril: Tropical Cyclone', 'peril_correlation_group': 2, 'correlation_value': '0.5'},
+    {
+        'id': 'WSS',
+        'desc': 'Single Peril: Storm Surge',
+        'peril_correlation_group': 1,
+        'damage_correlation_value': '0.7',
+        'hazard_correlation_value': '0.0',
+    },
+    {
+        'id': 'WTC',
+        'desc': 'Single Peril: Tropical Cyclone',
+        'peril_correlation_group': 2,
+        'damage_correlation_value': '0.5',
+        'hazard_correlation_value': '0.3',
+    },
 ]
 
 

@@ -29,8 +29,6 @@ if not os.path.exists(newpath):
     os.makedirs(newpath)
 
 cwd = os.getcwd()
-for name, group in split_location:
-    sub_dir = os.path.join(newpath, name)
 
 # loop through the groups and save to directories based on unique values
 for name, group in split_location:

@@ -1,13 +1,28 @@
+# Workflow to run the package unit tests on multiple python versions (CI)
+#
+#  inputs:
+#    ktools_branch: If set, build ktools from scratch and use output to build package
+#                   These new ktools binaries, will be used when testing the oasislmf
+#                   instead of the pinned ktools version
+
 name: Oasislmf Testing
 
 on:
   push:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - backports**
   workflow_dispatch:
     inputs:
       ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [BranchName]'
+        description: "Build Ktools before tests: [git ref]"
         required: false
-        default: "develop"
+
+      ods_branch:
+        description: "Git install ods_tools branch before tests: [git ref]"
+        required: false
 
 jobs:
   build:
@@ -16,17 +31,25 @@ jobs:
     with:
       ktools_branch: ${{ inputs.ktools_branch }}
 
+  ods_tools:
+    if: inputs.ods_branch != ''
+    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
+    secrets: inherit
+    with:
+      ods_branch: ${{ inputs.ods_branch }}         # Disable 'ods-tools' build
+      #ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
+
   unittest:
+    if: ${{ ! failure() || ! cancelled() }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, ods_tools]
     strategy:
       matrix:
         cfg:
-        - { python-version: '3.7', pkg-version: ""}
-        - { python-version: '3.8', pkg-version: ""}
-        - { python-version: '3.9', pkg-version: ""}
-        - { python-version: '3.10', pkg-version: ""}
-        - { python-version: '3.10', pkg-version: 'numba==0.55.1' }
+          - { python-version: "3.7", pkg-version: "", upload-cov: false }
+          - { python-version: "3.8", pkg-version: "", upload-cov: false }
+          - { python-version: "3.9", pkg-version: "", upload-cov: false }
+          - { python-version: "3.10", pkg-version: "", upload-cov: true }
 
     steps:
       - uses: actions/checkout@v3
@@ -50,14 +73,38 @@ jobs:
           python -m pip install --upgrade pip
           pip install pip-tools
 
+      - name: Set pip resolver flag
+        if: matrix.cfg.python-version == 3.7
+        run: |
+          echo "PIP_RESOLVER=--resolver=backtracking" >> $GITHUB_ENV
       - name: Pip Compile
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            pip-compile requirements.in -o requirements.txt
+            pip-compile requirements.in -o requirements.txt ${PIP_RESOLVER}
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt ${PIP_RESOLVER}
           fi
           pip install -r requirements.txt
-      - name: Run tox
-        run: tox -e py
+
+      - name: download ods_tools
+        if: needs.ods_tools.outputs.whl_filename != ''
+        uses: actions/download-artifact@v3
+        with:
+          name: bin_package
+          path: ${{ github.workspace }}/
+
+      - name: install ods_tools
+        if: needs.ods_tools.outputs.whl_filename != ''
+        run: |
+          pip uninstall ods_tools -y
+          pip install ${{ needs.ods_tools.outputs.whl_filename }}
+
+      - name: Run Pytest
+        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        if: matrix.cfg.upload-cov == true
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml

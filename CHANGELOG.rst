@@ -1,6 +1,84 @@
 OasisLMF Changelog
 ==================
 
+`1.27.0`_
+ ---------
+* [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
+* [#1154](https://github.com/OasisLMF/OasisLMF/pull/1154) - Update `.gitignore`
+* [#1157](https://github.com/OasisLMF/OasisLMF/pull/1157) - Fix fm visualizer tool
+* [#1160](https://github.com/OasisLMF/OasisLMF/pull/1160) - Don't write temp files during test
+* [#1198](https://github.com/OasisLMF/OasisLMF/pull/1198) - Fix/pep8-code-quality-pr-trigger
+* [#1165](https://github.com/OasisLMF/OasisLMF/pull/1165) - Hotfix/update piwind tests
+* [#1169](https://github.com/OasisLMF/OasisLMF/pull/1167) - Track code coverage
+* [#1188, #1126](https://github.com/OasisLMF/OasisLMF/pull/1168) - Implement weighted vulnerability feature in `gulmc`
+* [#1201](https://github.com/OasisLMF/OasisLMF/pull/1199) - Update/add necessary docstrings in `gulmc`
+* [#1169](https://github.com/OasisLMF/OasisLMF/pull/1170) - Track code coverage
+* [#908](https://github.com/OasisLMF/OasisLMF/pull/1171) - ensure that logging is sufficient to capture and report all common errors
+* [#1174](https://github.com/OasisLMF/OasisLMF/pull/1174) - Set pip-compile to backtracking and trim unused requirments
+* [#1175](https://github.com/OasisLMF/OasisLMF/pull/1175) - Fix drop na in expected data
+* [#1176](https://github.com/OasisLMF/OasisLMF/pull/1176) - Feature/ods tools migration test
+* [#1177](https://github.com/OasisLMF/OasisLMF/pull/1179) - The run_ktools.sh script does not check if all custom gulcalc processes completed successfully. 
+* [#1182](https://github.com/OasisLMF/OasisLMF/pull/1182) - Feature/ods tools migration piwind fix
+* [#1048](https://github.com/OasisLMF/OasisLMF/pull/1055) - set modelpy and gulpy as default runtime options
+* [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
+* [#1058](https://github.com/OasisLMF/OasisLMF/pull/1058) - Correlation map
+* [#1187](https://github.com/OasisLMF/OasisLMF/pull/1186) - `sklearn` is now deprecated in requirements files: use `scikit-learn` instead
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
+* [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
+* [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1191](https://github.com/OasisLMF/OasisLMF/pull/1194) - Github actions to manage new issues and PR's 
+* [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
+* [#1184](https://github.com/OasisLMF/OasisLMF/pull/1193) - Add `gulmc` option to the model runner
+* [#1068](https://github.com/OasisLMF/OasisLMF/pull/1069) - Implement correlated random number generation in gulpy
+* [#1192](https://github.com/OasisLMF/OasisLMF/pull/1192) - Track pid of gulcalc processes and wait on them in `run_ktools.sh`
+* [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
+* [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1074](https://github.com/OasisLMF/OasisLMF/pull/1074) - Added lower-case-cols and raise-error flags
+* [#1075](https://github.com/OasisLMF/OasisLMF/pull/1075) - setting model_custom_gulcalc disables gulpy
+* [#1076](https://github.com/OasisLMF/OasisLMF/pull/1076) - Set ktools to 3.9.2
+* [#992](https://github.com/OasisLMF/OasisLMF/pull/1077) - Peril Specific Runs
+* [#1049](https://github.com/OasisLMF/OasisLMF/pull/1078) - random number generator can be set to 0 at oasislmf command line
+* [#1066](https://github.com/OasisLMF/OasisLMF/pull/1079) - Gulpy failing in distributed runs 
+* [#1080](https://github.com/OasisLMF/OasisLMF/pull/1080) - add peril_filter to run settings spec
+* [#1200](https://github.com/OasisLMF/OasisLMF/pull/1200) - Update CI badges
+* [#1016](https://github.com/OasisLMF/OasisLMF/pull/1082) - Update package testing
+* [#1203](https://github.com/OasisLMF/OasisLMF/pull/1203) - Update Develop to be inline with master 
+* [#1085](https://github.com/OasisLMF/OasisLMF/pull/1085) - Disable all deadlines in utils/test_data.py
+* [#1090](https://github.com/OasisLMF/OasisLMF/pull/1090) - Request token refresh on HTTP error 403 - Forbidden
+* [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution 
+* [#1035](https://github.com/OasisLMF/OasisLMF/pull/1092) - No check of parquet output before running model
+* [#1093](https://github.com/OasisLMF/OasisLMF/pull/1093) - Fix call to write_summary_levels - missing IL options
+* [#1094](https://github.com/OasisLMF/OasisLMF/pull/1094) - Disable GroupID hashing for acceptance tests
+* [#1096](https://github.com/OasisLMF/OasisLMF/pull/1096) - Hashing investigation
+* [#1097](https://github.com/OasisLMF/OasisLMF/pull/1097) - Fix/pip compile
+* [#1099](https://github.com/OasisLMF/OasisLMF/pull/1098) - Implement multiplicative method for total loss computation
+* [#1100](https://github.com/OasisLMF/OasisLMF/pull/1100) - OED support for multi-currencies
+* [#1101](https://github.com/OasisLMF/OasisLMF/pull/1101) - Always create a correlations.bin, if missing model_settings file is b…
+* [#1102](https://github.com/OasisLMF/OasisLMF/pull/1102) - FM documentation update
+* [#1107](https://github.com/OasisLMF/OasisLMF/pull/1107) - Fix/678 logger
+* [#1110](https://github.com/OasisLMF/OasisLMF/pull/1110) - extent api commands with run-inputs/run-losses options
+* [#1108](https://github.com/OasisLMF/OasisLMF/pull/1111) - API client doesn't detect cancelled analysis
+* [#1105](https://github.com/OasisLMF/OasisLMF/pull/1112) - Add a 'strict' mode to fail runs if IL/RI is requested but files are missing 
+* [#1113](https://github.com/OasisLMF/OasisLMF/pull/1113) - Bugfix: out of bounds cdf
+* [#906](https://github.com/OasisLMF/OasisLMF/pull/1114) - include "classic" event rates and Metadata in ORD output for oasis outputs
+* [#1116](https://github.com/OasisLMF/OasisLMF/pull/1116) - Hide geopandas warning
+* [#1119](https://github.com/OasisLMF/OasisLMF/pull/1119) - use correct condpriority to fix cond class exclusion
+* [#1120](https://github.com/OasisLMF/OasisLMF/pull/1121) - GUL alloc rule range in MDK has not been updated to reflect addition of rule 3
+* [#1129](https://github.com/OasisLMF/OasisLMF/pull/1128) - Add contributing guidelines
+* [#1133](https://github.com/OasisLMF/OasisLMF/pull/1133) - Fix/package install error
+* [#1135](https://github.com/OasisLMF/OasisLMF/pull/1136) - gulpy appears to hang when sample size is large
+* [#1127](https://github.com/OasisLMF/OasisLMF/pull/1137) - Stochastic disaggregation 7 Full Monte Carlo
+* [#1139](https://github.com/OasisLMF/OasisLMF/pull/1139) - Hotfix/GitHub actions
+* [#1141](https://github.com/OasisLMF/OasisLMF/pull/1140) - `gulpy` produces zero losses for entire items for large number of samples
+* [#1144](https://github.com/OasisLMF/OasisLMF/pull/1144) - Release/1.27.0rc3
+* [#1132](https://github.com/OasisLMF/OasisLMF/pull/1146) - Make code PEP8 compliant
+* [#1148](https://github.com/OasisLMF/OasisLMF/pull/1148) - Remove auto-merge option
+* [#1150](https://github.com/OasisLMF/OasisLMF/pull/1149) - Model data in the `runs/lossess-xxx/static` directory are symbolic links
+.. _`1.27.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0...1.27.0
+
 `1.27.0rc3`_
  ---------
 * [#1120](https://github.com/OasisLMF/OasisLMF/pull/1121) - GUL alloc rule range in MDK has not been updated to reflect addition of rule 3

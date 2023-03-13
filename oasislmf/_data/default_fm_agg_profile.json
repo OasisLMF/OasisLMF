@@ -16,17 +16,17 @@
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
-                "field": "portnumber",
+                "field": "PortNumber",
                 "name": "Account portfolio num."
             },
             "AccNum": {
                 "src": "FM",
-                "field": "accnumber",
+                "field": "AccNumber",
                 "name": "Account num."
             },
             "LocNum": {
                 "src": "FM",
-                "field": "locnumber",
+                "field": "LocNumber",
                 "name": "Location number"
             },
             "IsBICoverage": {
@@ -42,17 +42,17 @@
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
-                "field": "portnumber",
+                "field": "PortNumber",
                 "name": "Account portfolio num."
             },
             "AccNum": {
                 "src": "FM",
-                "field": "accnumber",
+                "field": "AccNumber",
                 "name": "Account num."
             },
             "LocNum":  {
                 "src": "FM",
-                "field": "locnumber",
+                "field": "LocNumber",
                 "name": "Location num."
             }
         }
@@ -63,22 +63,22 @@
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
-                "field": "portnumber",
+                "field": "PortNumber",
                 "name": "Account portfolio num."
             },
             "AccNum": {
                 "src": "FM",
-                "field": "accnumber",
+                "field": "AccNumber",
                 "name": "Account num."
             },
             "CondTag":  {
                 "src": "FM",
-                "field": "condtag",
+                "field": "CondTag",
                 "name": "Cond tag."
             },
             "CondNum":  {
                 "src": "FM",
-                "field": "condnumber",
+                "field": "CondNumber",
                 "name": "Cond num."
             }
         }
@@ -89,12 +89,12 @@
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
-                "field": "portnumber",
+                "field": "PortNumber",
                 "name": "Account portfolio num."
             },
             "AccNum": {
                 "src": "FM",
-                "field": "accnumber",
+                "field": "AccNumber",
                 "name": "Account num."
             }
         }
@@ -105,12 +105,12 @@
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
-                "field": "portnumber",
+                "field": "PortNumber",
                 "name": "Account portfolio num."
             },
             "AccNum": {
                 "src": "FM",
-                "field": "accnumber",
+                "field": "AccNumber",
                 "name": "Account num."
             }
         }
@@ -121,12 +121,12 @@
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
-                "field": "portnumber",
+                "field": "PortNumber",
                 "name": "Account portfolio num."
             },
             "AccNum": {
                 "src": "FM",
-                "field": "accnumber",
+                "field": "AccNumber",
                 "name": "Account num."
             }
         },

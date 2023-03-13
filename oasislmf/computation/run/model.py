@@ -14,11 +14,10 @@ from ..hooks.pre_analysis import ExposurePreAnalysis
 from ...utils.exceptions import OasisException
 from ...utils.data import (
     get_analysis_settings,
-    get_model_settings,
+    get_model_settings, get_exposure_data,
 )
 
 from ...utils.path import empty_dir
-from ...utils.defaults import store_exposure_fp
 
 
 class RunModel(ComputationStep):
@@ -40,17 +39,17 @@ class RunModel(ComputationStep):
         ExposurePreAnalysis,
     ]
 
-    def pre_analysis_kwargs(self):
-        updated_inputs = {}
-        input_dir = self.kwargs['oasis_files_dir']
-
-        for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
-            if self.kwargs[input_name]:
-                updated_inputs[input_name] = os.path.join(
-                    input_dir,
-                    store_exposure_fp(self.kwargs[input_name], input_name)
-                )
-        return {**self.kwargs, **updated_inputs}
+    def get_exposure_data_config(self):
+        return {
+            'location': self.oed_location_csv,
+            'account': self.oed_accounts_csv,
+            'ri_info': self.oed_info_csv,
+            'ri_scope': self.oed_scope_csv,
+            'oed_schema_info': self.oed_schema_info,
+            'currency_conversion': self.currency_conversion_json,
+            'check_oed': self.check_oed,
+            'use_field': True
+        }
 
     def run(self):
 
@@ -62,7 +61,9 @@ class RunModel(ComputationStep):
         os.makedirs(os.path.join(self.model_run_dir, 'input'))
 
         self.kwargs['model_run_dir'] = self.model_run_dir
+        # TODO: input oasis_files_dir is actually not use in the code
         self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
+        self.oasis_files_dir = self.kwargs['oasis_files_dir']
 
         # Validate JSON files (Fail at entry point not after input generation)
         get_analysis_settings(self.analysis_settings_json)
@@ -82,9 +83,11 @@ class RunModel(ComputationStep):
                 '    reinsurance scope file path.'
             )
 
+        self.kwargs['exposure_data'] = get_exposure_data(self, add_internal_col=True)
+
         # Run chain
         if self.exposure_pre_analysis_module:
-            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateFiles, self.pre_analysis_kwargs()), (GenerateLosses, self.kwargs)]
+            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateFiles, self.kwargs), (GenerateLosses, self.kwargs)]
         else:
             cmds = [(GenerateFiles, self.kwargs), (GenerateLosses, self.kwargs)]
 

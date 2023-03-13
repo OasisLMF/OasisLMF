@@ -23,19 +23,16 @@ def create_target_directory(target_dir, label):
 
 
 def prepare_input_files_directory(
-    target_dir,
-    exposure_fp,
-    exposure_profile_fp=None,
-    keys_fp=None,
-    keys_errors_fp=None,
-    lookup_config_fp=None,
-    model_version_fp=None,
-    complex_lookup_config_fp=None,
-    accounts_fp=None,
-    accounts_profile_fp=None,
-    fm_aggregation_profile_fp=None,
-    ri_info_fp=None,
-    ri_scope_fp=None
+        target_dir,
+        exposure_data,
+        exposure_profile_fp=None,
+        keys_fp=None,
+        keys_errors_fp=None,
+        lookup_config_fp=None,
+        model_version_fp=None,
+        complex_lookup_config_fp=None,
+        accounts_profile_fp=None,
+        fm_aggregation_profile_fp=None,
 ):
     try:
         # Prepare the target directory and copy the source files, profiles and
@@ -55,13 +52,9 @@ def prepare_input_files_directory(
 
         # Copy and rename to default set in
         # oasislmf.utils.defaults.SOURCE_FILENAMES
-        paths_rename = (
-            (exposure_fp, "loc"),
-            (accounts_fp, "acc"),
-            (ri_info_fp, "info"),
-            (ri_scope_fp, "scope"),
+        paths_rename = [
             (complex_lookup_config_fp, "complex_lookup")
-        )
+        ]
 
         for fp, key in paths_rename:
             if fp:
@@ -74,5 +67,9 @@ def prepare_input_files_directory(
                 shutil.copy2(src, dst) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
     except (FileNotFoundError, IOError, OSError, shutil.Error, TypeError, ValueError) as e:
         raise OasisException("Exception raised in 'prepare_input_files_directory'", e)
+
+    # if exposure pre-analysis has run then the data are already copied in the input directory and cur_version_name is ''
+    if exposure_data.location.cur_version_name != '':
+        exposure_data.save(target_dir, version_name='', save_config=True)
 
     return target_dir
