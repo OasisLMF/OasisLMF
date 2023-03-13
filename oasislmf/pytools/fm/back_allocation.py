@@ -155,8 +155,6 @@ def back_alloc_a2(base_children_len, temp_children_queue, nodes_array, p,
         loss_indptr: index to loss pointer
         loss_val: loss values
 
-    Returns:
-
     """
     if base_children_len == 1:
         loss_in[:] = loss_out
