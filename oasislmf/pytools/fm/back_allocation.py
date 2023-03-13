@@ -8,7 +8,8 @@ def back_alloc_extra_a2(base_children_len, temp_children_queue, nodes_array, p,
                         loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                         extra, temp_node_extras, extras_indptr, extras_val):
     """
-    back allocation of loss and extra to the base children
+    back allocation of loss and extra to the base children,
+    The function modifies in-place array loss_in and items loss and extra in loss_val and extra val
     Args:
         base_children_len: number of base children
         temp_children_queue: array of base children
@@ -138,7 +139,7 @@ def back_alloc_a2(base_children_len, temp_children_queue, nodes_array, p,
                   node_val_len, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                   loss_in, loss_out, temp_node_loss, loss_indptr, loss_val):
     """
-    back allocation of loss to the base children. The function modifies in-place array xyz.
+    back allocation of loss to the base children. The function modifies in-place array loss_in and items loss in loss_val.
     Args:
         base_children_len: number of base children
         temp_children_queue: array of base children

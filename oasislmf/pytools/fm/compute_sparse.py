@@ -16,7 +16,7 @@ def get_base_children(node, children, nodes_array, temp_children_queue):
     fill up temp_children_queue with all the base children of node from index 0 and return the number of base children
     Args:
         node: top node
-        children: array of all the children for each node
+        children: array of all the children with loss value for each node
         nodes_array: array of information on all nodes
         temp_children_queue: empty array where we write base children.
 
@@ -95,6 +95,27 @@ def aggregate_children_extras(node, len_children, nodes_array, children, temp_ch
                               temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, all_sidx,
                               temp_node_loss, loss_indptr, loss_val,
                               temp_node_extras, extras_indptr, extras_val):
+    """
+    aggregate the loss and extra of the children of the node that is currently computed
+    Args:
+        node: node that we compute
+        len_children: number of children of the node
+        nodes_array: array of information on all nodes
+        children: array of all the children with loss value for each node
+        temp_children_queue: array storing all the base children of the node
+        compute_idx: single element named array containing all the pointer needed to tract the computation (compute_idx_dtype)
+        temp_node_sidx: dense array to store if sample id has value for this node
+        sidx_indexes: index of sidx for nodes
+        sidx_indptr: : index to sidx pointer
+        sidx_val: sidx values
+        all_sidx: list of all sidx in this computation
+        temp_node_loss: dense array storing the sum of children loss
+        loss_indptr: index to the loss pointer
+        loss_val: loss values
+        temp_node_extras: dense array storing the sum of children extra
+        extras_indptr: index to the extra pointer
+        extras_val: extra values
+    """
     sidx_created = False
     node_sidx_start = compute_idx['sidx_ptr_i']
     node_sidx_end = 0
@@ -170,6 +191,24 @@ def aggregate_children_extras(node, len_children, nodes_array, children, temp_ch
 def aggregate_children(node, len_children, nodes_array, children, temp_children_queue, compute_idx,
                        temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, all_sidx,
                        temp_node_loss, loss_indptr, loss_val):
+    """
+    aggregate the loss of the children of the node that is currently computed
+    Args:
+        node: node that we compute
+        len_children: number of children of the node
+        nodes_array: array of information on all nodes
+        children: array of all the children with loss value for each node
+        temp_children_queue: array storing all the base children of the node
+        compute_idx: single element named array containing all the pointer needed to tract the computation (compute_idx_dtype)
+        temp_node_sidx: dense array to store if sample id has value for this node
+        sidx_indexes: index of sidx for nodes
+        sidx_indptr: : index to sidx pointer
+        sidx_val: sidx values
+        all_sidx: list of all sidx in this computation
+        temp_node_loss: dense array storing the sum of children loss
+        loss_indptr: index to the loss pointer
+        loss_val: loss values
+    """
     sidx_created = False
     node_sidx_start = compute_idx['sidx_ptr_i']
     node_sidx_end = 0
@@ -226,6 +265,16 @@ def aggregate_children(node, len_children, nodes_array, children, temp_children_
 
 @njit(cache=True)
 def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes, compute_idx):
+    """
+    Set the parent node that needs to be computed at the next level
+    Args:
+        parent_id: id of the parent
+        child_id: id of the child
+        nodes_array: array of information on all nodes
+        children: array of all the children with loss value for each node
+        computes: array of node that need to be computed.
+        compute_idx: single element named array containing all the pointer needed to tract the computation (compute_idx_dtype)
+    """
     parent = nodes_array[parent_id]
     parent_children_len = children[parent['children']] + 1
     children[parent['children']] = parent_children_len
@@ -248,15 +297,31 @@ def compute_event(compute_info,
                   item_parent_i,
                   fm_profile,
                   stepped):
-    # len_array = computation_structure.len_array
-    # max_sidx_val = computation_structure.max_sidx_val
-    # sidx_indexes = computation_structure.sidx_indexes
-    # sidx_indptr = computation_structure.sidx_indptr
-    # sidx_val = computation_structure.sidx_val
-    # loss_indptr = computation_structure.loss_indptr
-    # loss_val = computation_structure.loss_val
-    # extras_indptr = computation_structure.extras_indptr
-    # extras_val = computation_structure.extras_val
+    """
+    compute an entire event, result losses are stored inplace in loss_val
+    Args:
+        compute_info: general information on the computation (financial_structure.compute_info_dtype)
+        net_loss: if true compute the net loss instead of the insured loss
+        nodes_array: array of information on all nodes
+        node_parents_array: array of node to parent node
+        node_profiles_array: array of profile for each node
+        len_array: length of array needed to store loss and extra as dence array
+        max_sidx_val: maximum sidx value
+        sidx_indptr: index to sidx pointer
+        sidx_indexes: index of sidx for nodes
+        sidx_val: sidx values
+        loss_indptr: index of loss for nodes
+        loss_val: loss values
+        extras_indptr: index of extra for nodes
+        extras_val: extra values
+        children: array of all the children with loss value for each node
+        computes: array of node that need to be computed. it is filled up as the computation carries on
+        compute_idx: single element named array containing all the pointer needed to tract the computation (compute_idx_dtype)
+        item_parent_i: each node may have multiple parent that are selected one after another. This array keeps track of which parent index to select
+        fm_profile: array of all the profiles
+        stepped: (True or None) determine if this computation contain stepped profile (using None instead of False to allow jit compilation)
+
+    """
     compute_idx['sidx_i'] = compute_idx['next_compute_i']
     compute_idx['sidx_ptr_i'] = compute_idx['loss_ptr_i'] = sidx_indptr[compute_idx['next_compute_i']]
     compute_idx['extras_ptr_i'] = 0
@@ -274,10 +339,10 @@ def compute_event(compute_info,
     # sparse array to loss after layer back alloc
     temp_node_loss_layer_ba = np.zeros((compute_info['max_layer'], len_array), dtype=np_oasis_float)
 
-    # temp_node_loss: dense array storing the sum of child loss, then the loss factor in child back alloc
+    # temp_node_loss: dense array storing the sum of children loss, then the loss factor in children back alloc
     temp_node_loss = np.zeros((compute_info['max_layer'], len_array), dtype=np.float64)
 
-    # temp_node_extras: dense array storing the sum of child extra, then the loss factor in child back alloc
+    # temp_node_extras: dense array storing the sum of children extra, then the loss factor in children back alloc
     temp_node_extras = np.zeros((compute_info['max_layer'], len_array, 3), dtype=np_oasis_float)
 
     # temp_node_extras_layer_merge: sparse array to store the merged extra of all layer
@@ -688,6 +753,13 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
 
 @njit(cache=True)
 def reset_variable(children, compute_idx, computes):
+    """
+    reset the per event array
+    Args:
+        children: array of all the children with loss value for each node
+        compute_idx: single element named array containing all the pointer needed to tract the computation (compute_idx_dtype)
+        computes: array of node to compute
+    """
     computes[:compute_idx['next_compute_i']].fill(0)
     children.fill(0)
     compute_idx['next_compute_i'] = 0
