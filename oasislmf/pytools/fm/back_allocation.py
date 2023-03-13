@@ -7,6 +7,28 @@ def back_alloc_extra_a2(base_children_len, temp_children_queue, nodes_array, p,
                         node_val_len, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                         loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
                         extra, temp_node_extras, extras_indptr, extras_val):
+    """
+    back allocation of loss and extra to the base children
+    Args:
+        base_children_len: number of base children
+        temp_children_queue: array of base children
+        nodes_array: array of all node info
+        p: profile index
+        node_val_len: number of actual values in sidx
+        node_sidx: sidx for this node
+        sidx_indptr: index to sidx pointer
+        sidx_indexes: index of sidx for nodes
+        sidx_val: sidx values
+        loss_in: loss before applying profile
+        loss_out: loss after applying profile
+        temp_node_loss: array to store loss factor
+        loss_indptr: index to loss pointer
+        loss_val: loss values
+        extra: extra after applying profile
+        temp_node_extras: extra after applying profile(dense)
+        extras_indptr: index to extra pointer
+        extras_val: extra values
+    """
     if base_children_len == 1:  # this is a base children, we only need to assign loss_in
         loss_in[:] = loss_out
     else:
@@ -115,6 +137,27 @@ def back_alloc_extra_a2(base_children_len, temp_children_queue, nodes_array, p,
 def back_alloc_a2(base_children_len, temp_children_queue, nodes_array, p,
                   node_val_len, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                   loss_in, loss_out, temp_node_loss, loss_indptr, loss_val):
+    """
+    back allocation of loss to the base children
+    Args:
+        base_children_len: number of base children
+        temp_children_queue: array of base children
+        nodes_array: array of all node info
+        p: profile index
+        node_val_len: number of actual values in sidx
+        node_sidx: sidx for this node
+        sidx_indptr: index to sidx pointer
+        sidx_indexes: index of sidx for nodes
+        sidx_val: sidx values
+        loss_in: loss before applying profile
+        loss_out: loss after applying profile
+        temp_node_loss: array to store loss factor
+        loss_indptr: index to loss pointer
+        loss_val: loss values
+
+    Returns:
+
+    """
     if base_children_len == 1:
         loss_in[:] = loss_out
     else:
@@ -144,6 +187,17 @@ def back_alloc_a2(base_children_len, temp_children_queue, nodes_array, p,
 def back_alloc_layer(layer_len, node_val_len, node_loss_indptr,
                      loss_in, loss_out, loss_indptr, loss_val,
                      temp_node_loss_layer_ba):
+    """
+    Args:
+        layer_len: number of layers in the node
+        node_val_len: number of actual values in sidx
+        node_loss_indptr: index of the loss pointer of the node
+        loss_in: loss before applying profile
+        loss_out: loss after applying profile
+        loss_indptr: index to loss pointer
+        loss_val: loss values
+        temp_node_loss_layer_ba: sparse array to loss after layer back alloc
+    """
     for i in range(node_val_len):
         if loss_out[i]:
             loss_factor = loss_out[i] / loss_in[i]
@@ -162,10 +216,24 @@ def back_alloc_layer_extra(layer_len, node_val_len, node_loss_indptr, node_extra
                            extras_indptr, extras_val,
                            temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
                            ):
-    # temp_node_extras is what went in, extra is what was transform in  calc_extra
-    # we now want in and out dense and separated, on 1 layer
-    # the purpose here is to get the ba values into new output?
+    """
 
+    Args:
+        layer_len: number of layers in the node
+        node_val_len: number of actual values in sidx
+        node_loss_indptr: index of the loss pointer of the node
+        node_extra_indptr: index of the extra pointer of the node
+        loss_in: loss before applying profile
+        loss_out: loss after applying profile
+        loss_indptr: index to loss pointer
+        loss_val: loss values
+        temp_node_loss_layer_ba: sparse array to loss after layer back alloc
+        extras_indptr: index to extra pointer
+        extras_val: extra values
+        temp_node_extras_layer_merge: node extra after profile
+        temp_node_extras_layer_merge_save: node extra before profile
+
+    """
     for i in range(node_val_len):
         deductible_delta = temp_node_extras_layer_merge[i, DEDUCTIBLE] - temp_node_extras_layer_merge_save[i, DEDUCTIBLE]
         if deductible_delta >= 0:  # deductible increase no loss reallocation, deductible and loss are allocated based on loss
