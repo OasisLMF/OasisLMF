@@ -33,8 +33,7 @@ jobs:
 
   ods_tools:
     if: inputs.ods_branch != ''
-    #uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
-    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@feature/split-package
+    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
     secrets: inherit
     with:
       ods_branch: ${{ inputs.ods_branch }}         # Disable 'ods-tools' build
