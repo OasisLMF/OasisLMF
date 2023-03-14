@@ -32,6 +32,7 @@ nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
                                          ('level_id', np_oasis_int),
                                          ('agg_id', np_oasis_int),
                                          ('layer_len', np_oasis_int),
+                                         ('cross_layer_profile', np_oasis_int),
                                          ('profile_len', np_oasis_int),
                                          ('profiles', np_oasis_int),
                                          ('loss', np_oasis_int),
@@ -434,6 +435,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     ##### programme ####
     # node_layers will contain the number of layer for each nodes
     node_layers = Dict.empty(node_type, np_oasis_int)
+    node_cross_layers = Dict.empty(node_type, np_oasis_int)
 
     # fill up node_layers with the number of policies for each node
     for programme in fm_programme:
@@ -479,7 +481,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 else:
                     child_to_parents[child_programme].insert(0, parent)
                 # child_to_parents[child_programme] = [parent]
-                node_layers[child_programme] = node_layers[parent]
+                if child_programme not in node_layers or node_layers[child_programme] < node_layers[parent]:
+                    node_layers[child_programme] = node_layers[parent]
+                elif node_layers[child_programme] > node_layers[parent]:  # cross layer node
+                    grand_parents = get_all_parent(child_to_parents, [parent], max_level)
+                    for grand_parent in grand_parents:
+                        if node_layers[grand_parent] < node_layers[child_programme]:
+                            node_cross_layers[grand_parent] = np_oasis_int(1)
+                            node_layers[parent] = node_layers[child_programme]
 
     # compute number of steps (steps), max size of each level node_level_start, max size of node to compute (compute_len)
     node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
@@ -517,6 +526,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
             # layers
             node['layer_len'] = node_layers[node_programme]
+            node['cross_layer_profile'] = 0  # set default to 0 change if it is a cross_layer_profile after
             node['loss'], loss_i = loss_i, loss_i + node['layer_len']
             if level == start_level:
                 node['net_loss'], loss_i = loss_i, loss_i + 1
@@ -544,7 +554,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             # profiles
             if node_programme in programme_node_to_layers:
                 profiles = programme_node_to_layers[node_programme]
-                node['profile_len'] = len(profiles)
+                if node_programme in node_cross_layers:
+                    node['profile_len'] = node['layer_len']
+                    node['cross_layer_profile'] = 1
+                else:
+                    node['profile_len'] = len(profiles)
                 node['profiles'] = profile_i
 
                 for layer_id, i_start, i_end in sorted(profiles):
