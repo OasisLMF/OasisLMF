@@ -12,9 +12,8 @@ from ..base import ComputationStep
 from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
-from ...utils.exceptions import OasisException
-from ...utils.data import get_exposure_data
 
+from ...utils.data import get_exposure_data
 from ...utils.path import empty_dir
 
 
