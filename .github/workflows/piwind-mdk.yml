@@ -33,7 +33,6 @@ on:
         required: false
         type: string
 
-
 jobs:
   PiWind:
     uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@develop
