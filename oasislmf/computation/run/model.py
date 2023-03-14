@@ -69,7 +69,6 @@ class RunModel(ComputationStep):
         if self.model_settings_json:
             ModelSettingSchema().validate_file(self.model_settings_json)
 
-
         # Check input exposure
         required_ri_paths = [self.oed_info_csv, self.oed_scope_csv]
         il = True if self.oed_accounts_csv else False
