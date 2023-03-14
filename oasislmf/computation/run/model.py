@@ -65,9 +65,10 @@ class RunModel(ComputationStep):
         self.oasis_files_dir = self.kwargs['oasis_files_dir']
 
         # Validate JSON files (Fail at entry point not after input generation)
-        AnalysisSettingSchema().get(self.analysis_settings_json)
+        AnalysisSettingSchema().validate_file(self.analysis_settings_json)
         if self.model_settings_json:
-            ModelSettingSchema().get(self.model_settings_json)
+            ModelSettingSchema().validate_file(self.model_settings_json)
+
 
         # Check input exposure
         required_ri_paths = [self.oed_info_csv, self.oed_scope_csv]
