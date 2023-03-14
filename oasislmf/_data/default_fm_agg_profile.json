@@ -136,5 +136,21 @@
                 "field": "step_id"
             }
         }
+    },
+    "13": {
+        "FMLevel": 13,
+        "FMLevelName": "AccAll",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            }
+        }
     }
 }

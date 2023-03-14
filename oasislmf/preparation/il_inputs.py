@@ -41,7 +41,8 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS,
                                COVERAGE_AGGREGATION_METHODS,
                                DEDUCTIBLE_AND_LIMIT_TYPES, STEP_TRIGGER_TYPES,
-                               SUPPORTED_FM_LEVELS)
+                               SUPPORTED_FM_LEVELS,
+                               FML_ACCALL)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
 from oasislmf.utils.profiles import (
@@ -73,6 +74,7 @@ profile_cols_map = {
     'limit': 'limit1',
     'share': 'share1'
 }
+cross_layer_level = {FML_ACCALL, }
 
 
 def set_calc_rule_ids(
@@ -1310,8 +1312,9 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'policytc_id']]
-        fm_policytc_df.drop_duplicates().to_csv(
+        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'policytc_id', 'orig_level_id']]
+        fm_policytc_df.loc[fm_policytc_df['orig_level_id'].isin(cross_layer_level), 'layer_id'] = 1  # remove layer for cross layer level
+        fm_policytc_df.drop(columns=['orig_level_id']).drop_duplicates().to_csv(
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_policytc_fp) else 'a'),

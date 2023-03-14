@@ -20,7 +20,6 @@ from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
                                                             FMSummaryXrefFile,
                                                             FMXrefFile,
                                                             FootprintBinFile,
-                                                            FootprintIdxFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
                                                             OccurrenceFile,
@@ -467,7 +466,6 @@ class GenerateDummyModelFiles(ComputationStep):
             FootprintBinFile(
                 **self.footprint_files_inputs, random_seed=self.random_seed
             ),
-            FootprintIdxFile(**self.footprint_files_inputs),
             DamageBinDictFile(self.num_damage_bins, self.static_dir),
             OccurrenceFile(
                 self.num_events, self.num_periods, self.random_seed,

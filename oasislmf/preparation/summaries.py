@@ -301,7 +301,6 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     chunksize = min(2 * 10 ** 5, max(len(sum_inputs_df), 1000))
 
     if is_fm_summary:
-        print('sum_inputs_df', sum_inputs_df.columns)
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
     else:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['gul_map_fn'])

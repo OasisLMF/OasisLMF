@@ -12,7 +12,6 @@ from ..base import ComputationStep
 from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
-
 from ...utils.exceptions import OasisException
 from ...utils.data import get_exposure_data
 
@@ -68,19 +67,6 @@ class RunModel(ComputationStep):
         AnalysisSettingSchema().validate_file(self.analysis_settings_json)
         if self.model_settings_json:
             ModelSettingSchema().validate_file(self.model_settings_json)
-
-        # Check input exposure
-        required_ri_paths = [self.oed_info_csv, self.oed_scope_csv]
-        il = True if self.oed_accounts_csv else False
-        ri = all(required_ri_paths) and il
-        if any(required_ri_paths) and not ri:
-            raise OasisException(
-                'RI option indicated by provision of some RI related assets, but other assets are missing. '
-                'To generate RI inputs you need to provide all of the assets required to generate direct '
-                'Oasis files (GUL + FM input files) plus all of the following assets: '
-                '    reinsurance info. file path, '
-                '    reinsurance scope file path.'
-            )
 
         self.kwargs['exposure_data'] = get_exposure_data(self, add_internal_col=True)
 

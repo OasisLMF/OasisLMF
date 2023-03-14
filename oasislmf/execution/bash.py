@@ -155,7 +155,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "$p*.log" | wc -l)
@@ -1249,7 +1249,7 @@ def get_getmodel_cov_cmd(
 
 def add_pid_to_shell_command(cmd, process_counter):
     """
-    Add a variable to the end of a command in order to track the ID of the process executing it. 
+    Add a variable to the end of a command in order to track the ID of the process executing it.
     Each time this function is called, the counter `process_counter` is incremented.
 
     Args:

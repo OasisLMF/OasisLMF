@@ -47,6 +47,8 @@ from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
                                            haz_cdf_type, items_MC_data_type)
 from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
                                           read_items)
+from oasislmf.pytools.utils import redirect_logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,7 @@ def gen_empty_vuln_cdf_lookup(list_size):
     return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
 
+@redirect_logging(exec_name='gulmc')
 def run(run_dir,
         ignore_file_type,
         sample_size,
@@ -529,7 +532,7 @@ def compute_event_losses(event_id,
         agg_vuln_to_vuln_idxs (dict[int, list[int]]): map between aggregate vulnerability id and the list of indices where the individual vulnerability_ids
           that compose it are stored in `vuln_array`.
         vuln_dict (Dict[int, int]): map between vulnerability_id and the index where the vulnerability function is stored in vuln_array.
-        areaperil_vuln_idx_to_weight (dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]): map between the areaperil id and the index where the vulnerability function 
+        areaperil_vuln_idx_to_weight (dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]): map between the areaperil id and the index where the vulnerability function
           is stored in `vuln_array` and the vulnerability weight.
         loss_threshold (float): threshold above which losses are printed to the output stream.
         losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.

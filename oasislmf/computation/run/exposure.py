@@ -89,8 +89,8 @@ class RunExposure(ComputationStep):
         exposure_data = get_exposure_data(self, add_internal_col=True)
         if not exposure_data.location or not exposure_data.account:
             raise OasisException(
-                f'No location/exposure found in source directory "{src_dir}" - '
-                'a file named `location.*` is expected'
+                f'Location and/or account missing in source directory "{src_dir}" - '
+                'files named `location.*` and `account.*` are expected'
             )
         il = bool(exposure_data.account)
         ril = all([exposure_data.ri_info, exposure_data.ri_scope, il])

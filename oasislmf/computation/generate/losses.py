@@ -165,7 +165,8 @@ class GenerateLossesBase(ComputationStep):
         self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
 
         raise OasisException(
-            'Ktools run Error: non-zero exit code or output detected on STDERR\n'
+            'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+            'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
             'Logs stored in: {}'.format(run_log_fp)
         )
 
@@ -675,7 +676,8 @@ class GenerateLosses(GenerateLossesDir):
                 self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
 
                 raise OasisException(
-                    'Ktools run Error: non-zero exit code or output detected on STDERR\n'
+                    'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+                    'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
 

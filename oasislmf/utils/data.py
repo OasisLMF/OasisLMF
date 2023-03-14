@@ -39,6 +39,7 @@ import warnings
 from datetime import datetime
 
 from ods_tools.oed import OedExposure
+from ods_tools.oed.common import OdsException
 
 try:
     from json import JSONDecodeError
@@ -742,11 +743,14 @@ def prepare_account_df(accounts_df):
     if step_policies_present:
         layers_cols += ['StepNumber']
         accounts_df['StepNumber'].fillna(0, inplace=True)
-    id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
-    id_df['layer_id'] = get_ids(id_df,
-                                layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
-                                ).astype('uint32')
-    accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+    if 'layer_id' not in accounts_df.columns:
+        id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
+        id_df['layer_id'] = get_ids(id_df,
+                                    layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
+                                    ).astype('uint32')
+        accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+    else:
+        accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
 
     return accounts_df
 
@@ -769,31 +773,34 @@ def prepare_reinsurance_df(ri_info, ri_scope):
 
 
 def get_exposure_data(computation_step, add_internal_col=False):
-    if 'exposure_data' in computation_step.kwargs:
-        exposure_data = computation_step.kwargs['exposure_data']
-    else:
-        if Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
-            exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
-        elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
-            exposure_data = OedExposure(**computation_step.get_exposure_data_config())
-        else:  # ExposureData info was not created, oed input file must have default name (location, account, ...)
-            exposure_data = OedExposure.from_dir(
-                computation_step.oasis_files_dir,
-                oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
-                currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
-                reporting_currency=getattr(computation_step, 'reporting_currency', None),
-                check_oed=computation_step.check_oed,
-                use_field=True)
+    try:
+        if 'exposure_data' in computation_step.kwargs:
+            exposure_data = computation_step.kwargs['exposure_data']
+        else:
+            if Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
+                exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
+            elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
+                exposure_data = OedExposure(**computation_step.get_exposure_data_config())
+            else:  # ExposureData info was not created, oed input file must have default name (location, account, ...)
+                exposure_data = OedExposure.from_dir(
+                    computation_step.oasis_files_dir,
+                    oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
+                    currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
+                    reporting_currency=getattr(computation_step, 'reporting_currency', None),
+                    check_oed=computation_step.check_oed,
+                    use_field=True)
 
-        if add_internal_col:
-            if exposure_data.location:
-                exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
-            if exposure_data.account:
-                exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
-            if exposure_data.ri_info and exposure_data.ri_scope:
-                exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
-                                                                                                           exposure_data.ri_scope.dataframe)
-    return exposure_data
+            if add_internal_col:
+                if exposure_data.location:
+                    exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+                if exposure_data.account:
+                    exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+                if exposure_data.ri_info and exposure_data.ri_scope:
+                    exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
+                                                                                                               exposure_data.ri_scope.dataframe)
+        return exposure_data
+    except OdsException as ods_error:
+        raise OasisException("Failed to load OED exposure files", ods_error)
 
 
 def reduce_df(df, cols=None):
