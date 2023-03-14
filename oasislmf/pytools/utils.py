@@ -11,9 +11,8 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     Decorator that redirects logging output to a file.
 
     Apply to the main run function of a python exec from the pytools directory.
-    Only errors will be send to STDERR all other logging is store in a filename
-
-    "<log_dir>/<exec_name>_<PID>.log"
+    Only errors will be send to STDERR, all other logging is stored in a file named:
+       "<log_dir>/<exec_name>_<PID>.log"
 
     Each log file is timestamped with start / finish times
         ❯ cat log/fmpy_112820.log
