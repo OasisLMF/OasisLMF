@@ -24,15 +24,17 @@ from subprocess import CalledProcessError, check_call
 
 import pandas as pd
 
+from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
+
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
                               prepare_run_inputs)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
-from ...utils.data import (fast_zip_dataframe_columns, get_analysis_settings,
+from ...utils.data import (fast_zip_dataframe_columns,
                            get_dataframe, get_exposure_data,
-                           get_model_settings, get_utctimestamp,
+                           get_utctimestamp,
                            merge_dataframes, set_dataframe_column_dtypes)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE,
                                KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
@@ -234,7 +236,7 @@ class GenerateLossesDir(GenerateLossesBase):
     def run(self):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
-        analysis_settings = get_analysis_settings(self.analysis_settings_json)
+        analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
@@ -314,7 +316,7 @@ class GenerateLossesDir(GenerateLossesBase):
             if not self.model_settings_json:
                 raise OasisException("'number_of_samples' not set in analysis_settings and no model_settings.json file provided for a default value.")
 
-            default_model_samples = get_model_settings(self.model_settings_json, key='model_default_samples')
+            default_model_samples = ModelSettingSchema().get(self.model_settings_json, key='model_default_samples')
             if default_model_samples == None:
                 raise OasisException(
                     "'number_of_samples' not set in analysis_settings and no default value 'model_default_samples' found in model_settings file.")
@@ -1017,7 +1019,7 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         self.logger.info('\nProcessing arguments - Creating Model & Test Oasis Files')
 
         self._validate_input_arguments()
-        self.analysis_settings = get_analysis_settings(
+        self.analysis_settings = AnalysisSettingSchema().get(
             self.analysis_settings_json
         )
         self._validate_analysis_settings()
