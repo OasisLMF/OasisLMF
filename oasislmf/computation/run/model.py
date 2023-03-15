@@ -5,17 +5,15 @@ __all__ = [
 import os
 from tqdm import tqdm
 
+from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
+
 from ..base import ComputationStep
 
 from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
 
-from ...utils.data import (
-    get_analysis_settings,
-    get_model_settings, get_exposure_data,
-)
-
+from ...utils.data import get_exposure_data
 from ...utils.path import empty_dir
 
 
@@ -65,9 +63,9 @@ class RunModel(ComputationStep):
         self.oasis_files_dir = self.kwargs['oasis_files_dir']
 
         # Validate JSON files (Fail at entry point not after input generation)
-        get_analysis_settings(self.analysis_settings_json)
+        AnalysisSettingSchema().validate_file(self.analysis_settings_json)
         if self.model_settings_json:
-            get_model_settings(self.model_settings_json)
+            ModelSettingSchema().validate_file(self.model_settings_json)
 
         self.kwargs['exposure_data'] = get_exposure_data(self, add_internal_col=True)
 

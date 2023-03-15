@@ -41,6 +41,7 @@ on:
         required: false
         type: string
 
+
 jobs:
   build:
     uses: ./.github/workflows/build.yml
@@ -49,16 +50,15 @@ jobs:
       ktools_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ktools_branch }}
 
   ods_tools:
-    if: inputs.ods_branch != ''
-    uses: OasisLMF/ODS_OpenExposureData/.github/workflows/build.yml@master
+    #if: inputs.ods_branch != ''
+    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
     secrets: inherit
     with:
-      ods_branch: inputs.ods_branch
-      #ods_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }}
 
   piwind:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@master
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@develop
     secrets: inherit
     needs: [build, ods_tools]
     with:
