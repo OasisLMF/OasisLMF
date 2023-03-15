@@ -1,6 +1,17 @@
 OasisLMF Changelog
 ==================
 
+`1.27.2`_
+ ---------
+* [#1220](https://github.com/OasisLMF/OasisLMF/pull/1220) - Fix mapping of `vuln_idx` to `vuln_i` and implement `eff_vuln_cdf` as a dynamic array to work with large footprints
+* [#1130](https://github.com/OasisLMF/OasisLMF/pull/1130) - Remove check for IL + RI files from the run model cmd
+* [#1232](https://github.com/OasisLMF/OasisLMF/pull/1232) - Moved Settings JSON validation to ods-tools
+* [#1233](https://github.com/OasisLMF/OasisLMF/pull/1234) - oasislmf exposure run reports missing location file when account missing
+* [#141](https://github.com/OasisLMF/OasisLMF/pull/1235) - Implement account level financial structures
+* [#1236](https://github.com/OasisLMF/OasisLMF/pull/1236) - Switch changelog builder from "build" repo to "OasisPlatform"
+* [#1156, #1180, #1151](https://github.com/OasisLMF/OasisLMF/pull/1181) - [gulmc] implement hazard correlation
+.. _`1.27.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.1...1.27.2
+
 `1.27.1`_
  ---------
 * [#1218](https://github.com/OasisLMF/OasisLMF/pull/1218) - Fix missing default collumn for RI
