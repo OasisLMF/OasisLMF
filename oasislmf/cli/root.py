@@ -1,18 +1,19 @@
-from ..utils.exceptions import OasisException
+import sys
 
+from ..utils.exceptions import OasisException
 from .admin import AdminCmd
+from .api import ApiCmd
+from .command import OasisBaseCommand
 from .config import ConfigCmd
 from .exposure import ExposureCmd
 from .model import ModelCmd
-from .command import OasisBaseCommand
 from .test import TestCmd
 from .version import VersionCmd
-from .api import ApiCmd
 
 
 class RootCmd(OasisBaseCommand):
     """
-    Tool for manageing oasislmf models
+    Tool for managing oasislmf models.
     """
     sub_commands = {
         'admin': AdminCmd,
@@ -46,3 +47,8 @@ class RootCmd(OasisBaseCommand):
             else:
                 self.logger.error(str(e))
             return 1
+
+
+def main():
+    """CLI entrypoint for running the whole RootCmd"""
+    sys.exit(RootCmd().run())

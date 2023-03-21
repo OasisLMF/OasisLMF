@@ -367,7 +367,7 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
-    scripts=['bin/oasislmf', 'bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
+    scripts=['bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
     entry_points={
         'console_scripts': [
             'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
@@ -382,6 +382,7 @@ setup(
             'gulpy=oasislmf.pytools.gulpy:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'modelpy=oasislmf.pytools.modelpy:main',
+            'oasislmf=oasislmf.cli.root:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
         ]
