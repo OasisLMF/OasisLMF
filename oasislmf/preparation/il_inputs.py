@@ -1052,7 +1052,6 @@ def get_il_input_items(
 
     fm_term_filters[SUPPORTED_FM_LEVELS['site pd']['id']] = site_pd_term_filter
 
-
     def policy_term_filter(level_name):
         def filter(level_df, ProfileElementName):
             coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS[level_name]['id']].get(
