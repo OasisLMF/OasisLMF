@@ -1,14 +1,14 @@
 import sys
 
-from ..utils.exceptions import OasisException
-from .admin import AdminCmd
-from .api import ApiCmd
-from .command import OasisBaseCommand
-from .config import ConfigCmd
-from .exposure import ExposureCmd
-from .model import ModelCmd
-from .test import TestCmd
-from .version import VersionCmd
+from oasislmf.cli.admin import AdminCmd
+from oasislmf.cli.api import ApiCmd
+from oasislmf.cli.command import OasisBaseCommand
+from oasislmf.cli.config import ConfigCmd
+from oasislmf.cli.exposure import ExposureCmd
+from oasislmf.cli.model import ModelCmd
+from oasislmf.cli.test import TestCmd
+from oasislmf.cli.version import VersionCmd
+from oasislmf.utils.exceptions import OasisException
 
 
 class RootCmd(OasisBaseCommand):
@@ -52,3 +52,7 @@ class RootCmd(OasisBaseCommand):
 def main():
     """CLI entrypoint for running the whole RootCmd"""
     sys.exit(RootCmd().run())
+
+
+if __name__ == '__main__':
+    main()
