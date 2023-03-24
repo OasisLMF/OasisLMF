@@ -76,5 +76,5 @@ pip install -r optional-package.in
 
 ## Tool Development
 
-We aim to build tools that automate such processes. We are currently developing the [water seller]()
-tool that automates the tasks. 
+We aim to build tools that automate such processes. We are currently developing the 
+[water seller](https://github.com/OasisLMF/water_seller) tool that automates the tasks. 
