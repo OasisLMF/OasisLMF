@@ -11,6 +11,16 @@ First we clone the [ktools](https://github.com/OasisLMF/ktools) repo with the fo
 git clone https://github.com/OasisLMF/ktools.git
 ```
 
+Before we run anything, we need to ensure that the following dependencies are installed:
+
+```bash
+brew install \
+    autoconf \
+    automake \
+    libtool \
+    zlib-ng
+```
+
 We then move into the ktools directory and run the following commands:
 
 ```bash
@@ -63,3 +73,8 @@ If we want to install the extras needed we can run the following command:
 ```bash
 pip install -r optional-package.in
 ```
+
+## Tool Development
+
+We aim to build tools that automate such processes. We are currently developing the [water seller]()
+tool that automates the tasks. 
