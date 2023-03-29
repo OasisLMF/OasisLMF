@@ -1052,15 +1052,18 @@ def get_il_input_items(
 
     fm_term_filters[SUPPORTED_FM_LEVELS['site pd']['id']] = site_pd_term_filter
 
-    def policy_coverage_term_filter(level_df, ProfileElementName):
-        coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS['policy coverage']['id']].get(
-            ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_types
-        if isinstance(coverage_type_ids, int):
-            return level_df['coverage_type_id'] == coverage_type_ids
-        else:
-            return level_df['coverage_type_id'].isin(coverage_type_ids)
+    def policy_term_filter(level_name):
+        def filter(level_df, ProfileElementName):
+            coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS[level_name]['id']].get(
+                ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_types
+            if isinstance(coverage_type_ids, int):
+                return level_df['coverage_type_id'] == coverage_type_ids
+            else:
+                return level_df['coverage_type_id'].isin(coverage_type_ids)
+        return filter
 
-    fm_term_filters[SUPPORTED_FM_LEVELS['policy coverage']['id']] = policy_coverage_term_filter
+    fm_term_filters[SUPPORTED_FM_LEVELS['policy coverage']['id']] = policy_term_filter('policy coverage')
+    fm_term_filters[SUPPORTED_FM_LEVELS['policy pd']['id']] = policy_term_filter('policy pd')
 
     # column_base_il_df contains for each items, the complete list of fm term necessary for each level
     # up until the top account level. We are now going to pivot it to get for each line a node with
