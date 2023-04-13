@@ -13,6 +13,7 @@ import pandas as pd
 
 try:  # needed for rtree
     from shapely.geometry import Point
+
     # Hide numerous warnings similar to:
     # > ...lib64/python3.8/site-packages/geopandas/_compat.py:112: UserWarning: The Shapely GEOS
     # > version (3.8.0-CAPI-1.13.1 ) is incompatible with the GEOS version PyGEOS was compiled with
@@ -31,15 +32,14 @@ try:  # needed for rtree
 except ImportError:
     Point = gdp = None
 
+import itertools
 import math
 import re
-import itertools
 
-from ..utils.exceptions import OasisException
-from ..utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
-from ..utils.peril import PERILS, PERIL_GROUPS
-
-from .base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.peril import PERIL_GROUPS, PERILS
+from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
@@ -207,7 +207,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                            if useful_col.lower() in lower_case_column_map}
 
         locations = locations.rename(columns=useful_cols_map)
-        locations = locations[locations.columns & useful_cols].drop_duplicates()
+        locations = locations[list(useful_cols.intersection(locations.columns))].drop_duplicates()
 
         # set default status and message
         locations['status'] = OASIS_KEYS_STATUS['success']['id']
