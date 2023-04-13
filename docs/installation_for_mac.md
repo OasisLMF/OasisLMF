@@ -21,18 +21,18 @@ brew install \
     zlib-ng
 ```
 
-We then move into the ktools directory and run the following commands:
+We then move into the ktools directory with `cd ktools` and run the following commands:
 
 ```bash
 ./autogen.sh
 ```
 
-We then confgirue the ktools with the following command:
+We then configure the ktools with the following command:
 
 ```bash
 ./configure --enable-osx --enable-o3 --prefix=<BIN_PATH>
 ```
-
+We could use something like ```$HOME/ktools/bin``` as the ```<BIN_PATH>```.
 We then run the checks and installation with the following command:
 
 ```bash
@@ -46,8 +46,8 @@ We then have to package our compiled binary files with the command below:
 tar -zcvf ../../<OS_PLATFORM>.tar.gz ./
 ```
 
-We then move back to the root directory and clone the [oasislmf](https://github.com/OasisLMF/OasisLMF), move into the
-oasislmf directory and run the following commands:
+We then move back to the root directory (`cd ..`) and clone the [oasislmf](https://github.com/OasisLMF/OasisLMF) 
+repository, move into the oasislmf directory and run the following commands:
 
 ```bash
 git clone https://github.com/OasisLMF/OasisLMF.git
