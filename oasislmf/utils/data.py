@@ -21,22 +21,19 @@ __all__ = [
     'print_dataframe',
     'PANDAS_BASIC_DTYPES',
     'PANDAS_DEFAULT_NULL_VALUES',
-    'reduce_df',
     'set_dataframe_column_dtypes',
     'RI_SCOPE_DEFAULTS',
     'RI_INFO_DEFAULTS'
 ]
 
-from pathlib import Path
-
 import builtins
 import io
-import os
 import json
+import os
 import re
 import warnings
-
 from datetime import datetime
+from pathlib import Path
 
 from ods_tools.oed import fill_empty, OedExposure, OdsException
 
@@ -45,17 +42,19 @@ try:
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
-from chardet.universaldetector import UniversalDetector
-from tabulate import tabulate
+import logging
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import pytz
+from chardet.universaldetector import UniversalDetector
+from tabulate import tabulate
 
-from .exceptions import OasisException
+from oasislmf.utils.defaults import SOURCE_IDX
+from oasislmf.utils.exceptions import OasisException
 
-from ..utils.defaults import SOURCE_IDX
+logger = logging.getLogger(__name__)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -780,13 +779,17 @@ def prepare_reinsurance_df(ri_info, ri_scope):
 def get_exposure_data(computation_step, add_internal_col=False):
     try:
         if 'exposure_data' in computation_step.kwargs:
+            logger.debug("Exposure data found in `exposure_data` key of computation step kwargs")
             exposure_data = computation_step.kwargs['exposure_data']
         else:
             if hasattr(computation_step, 'oasis_files_dir') and Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
+                logger.debug(f"Exposure data is read from {Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME)}")
                 exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
+                logger.debug("Exposure data is generated from `get_exposure_data_config` key of computation kwargs")
                 exposure_data = OedExposure(**computation_step.get_exposure_data_config())
-            else:  # ExposureData info was not created, oed input file must have default name (location, account, ...)
+            else:
+                logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
                 exposure_data = OedExposure.from_dir(
                     computation_step.oasis_files_dir,
                     oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
@@ -806,26 +809,6 @@ def get_exposure_data(computation_step, add_internal_col=False):
         return exposure_data
     except OdsException as ods_error:
         raise OasisException("Failed to load OED exposure files", ods_error)
-
-
-def reduce_df(df, cols=None):
-    """
-    A method to select columns in a dataframe
-
-    :param df: The dataframe to pretty-print
-    :type df: pd.DataFrame
-
-    :param cols: A list of columns
-    :type cols: list
-
-    :return: A reduced dataframe
-    :rtype: pd.DataFrame
-
-    """
-    if not cols:
-        return df
-    else:
-        return df[cols]
 
 
 def print_dataframe(
