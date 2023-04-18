@@ -318,8 +318,6 @@ def get_gul_input_items(
     terms_found = set()
     last_disagg_id = 1
     for (number_of_buildings, cov_type), cov_type_group in gul_inputs_df.groupby(by=['NumberOfBuildings', 'coverage_type_id'], sort=True):
-        tiv_col = tiv_terms[cov_type]
-
         # drop columns corresponding to other cov types
         cov_type_group.drop(
             columns=cols_by_cov_type[cov_type]['to_drop'],
@@ -416,7 +414,7 @@ def get_gul_input_items(
         gul_inputs_df
         [usecols]
         .sort_values("item_id")
-        .reindex(columns=list(gul_inputs_df))
+        .reindex(columns=list(usecols))
     )
 
     return gul_inputs_df
