@@ -280,9 +280,6 @@ def get_gul_input_items(
     gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)  # convert null T&C values to 0
     gul_inputs_df.query(positive_TIV_query, inplace=True)  # remove rows with TIV=null or TIV=0
 
-    # add column for disaggregated id
-    gul_inputs_df['disagg_id'] = 1
-
     # prepare column mappings for all coverage types
     cols_by_cov_type = {}
     for cov_type in gul_inputs_df.coverage_type_id.unique():
