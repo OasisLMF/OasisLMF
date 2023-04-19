@@ -362,11 +362,7 @@ def get_gul_input_items(
     gul_inputs_df['coverage_id'] = factorize_ndarray(gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
 
     # set default data types
-    dtypes = {
-        **{t: 'int32' for t in ['item_id', 'coverage_id']},
-        **{t: 'uint8' for t in terms_ints}  # TODO: this is already done before: can we drop it here?
-    }
-    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, {'item_id': 'int32', 'coverage_id': 'int32'})
 
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
