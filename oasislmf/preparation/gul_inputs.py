@@ -280,6 +280,9 @@ def get_gul_input_items(
     gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)  # convert null T&C values to 0
     gul_inputs_df.query(positive_TIV_query, inplace=True)  # remove rows with TIV=null or TIV=0
 
+    if gul_inputs_df.empty:
+        raise OasisException('Empty gul_inputs_df dataframe after dropping rows with zero tiv: please check the exposure input files')
+
     # prepare column mappings for all coverage types
     cols_by_cov_type = {}
     for cov_type in gul_inputs_df.coverage_type_id.unique():
@@ -349,12 +352,6 @@ def get_gul_input_items(
         **{'is_bi_coverage': 'bool'}
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
-
-    if gul_inputs_df.empty:
-        raise OasisException(
-            'Empry gul_inputs_df dataframe after dropping rows with zero for tiv, '
-            'please check the exposure input files'
-        )
 
     # set `item_id` and `coverage_id`
     gul_inputs_df['item_id'] = factorize_ndarray(
