@@ -342,8 +342,8 @@ def get_gul_input_items(
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
 
-        # TODO; if numberofbuildings==0: still add one entry
-        disagg_df = pd.concat([cov_type_group] * number_of_buildings, ignore_index=True)
+        # if NumberOfBuildings == 0: still add one entry
+        disagg_df = pd.concat([cov_type_group] * max(number_of_buildings, 1), ignore_index=True)
         disagg_df['disagg_id'] = np.arange(last_disagg_id, len(disagg_df) + last_disagg_id, 1)
         gul_inputs_reformatted_chunks.append(disagg_df)
         last_disagg_id += len(disagg_df)
