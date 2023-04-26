@@ -72,7 +72,7 @@ def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_gr
 
 @oasis_log
 def get_gul_input_items(
-    exposure_df,
+    location_df,
     keys_df,
     correlations=False,
     peril_correlation_group_df=None,
@@ -170,10 +170,20 @@ def get_gul_input_items(
     # zeros for TIVs for all coverage types, and replace any nulls in the
     # cond.num. and TIV columns with zeros
 
+    # add default values if missing
+    if 'IsAggregate' not in location_df.columns:
+        location_df['IsAggregate'] = 0
+        location_df['IsAggregate'].fillna(0, inplace=True)
+
+    # Make sure NumberOfBuildings is there and filled (not mandatory), otherwise assume NumberOfBuildings = 1
+    if 'NumberOfBuildings' not in location_df.columns:
+        location_df['NumberOfBuildings'] = 1
+        location_df['NumberOfBuildings'].fillna(1, inplace=True)
+
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
     exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num, 'NumberOfBuildings', 'IsAggregate'] + term_cols + tiv_cols
-    if SOURCE_IDX['loc'] in exposure_df:
+    if SOURCE_IDX['loc'] in location_df:
         exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
 
     # it is assumed that correlations are False for now, correlations for group ID hashing are assessed later on in
@@ -220,15 +230,15 @@ def get_gul_input_items(
     correlation_field = correlation_group_id[0]
     correlation_check = False
     if damage_group_id_cols == correlation_group_id:
-        if correlation_field in exposure_df.columns:
-            if exposure_df[correlation_field].astype('uint32').isnull().sum() == 0:
+        if correlation_field in location_df.columns:
+            if location_df[correlation_field].astype('uint32').isnull().sum() == 0:
                 correlation_check = True
 
     query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
-    exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
-    exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
+    location_df.loc[:, tiv_cols] = location_df.loc[:, tiv_cols].fillna(0.0)
+    location_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
-    gul_inputs_df = exposure_df[list(set(exposure_df_gul_inputs_cols).intersection(exposure_df.columns))]
+    gul_inputs_df = location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
     # Rename the main keys dataframe columns - this is due to the fact that the
@@ -332,6 +342,7 @@ def get_gul_input_items(
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
 
+        # TODO; if numberofbuildings==0: still add one entry
         disagg_df = pd.concat([cov_type_group] * number_of_buildings, ignore_index=True)
         disagg_df['disagg_id'] = np.arange(last_disagg_id, len(disagg_df) + last_disagg_id, 1)
         gul_inputs_reformatted_chunks.append(disagg_df)
@@ -394,7 +405,7 @@ def get_gul_input_items(
         ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
-        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status'] +
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'disagg_id', 'NumberOfBuildings', 'IsAggregate',] +  # disagg_id is needed for fm_summary_map
         (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
     )
 
