@@ -155,6 +155,23 @@ After adding packages to either `*.in` file:
 
 should be ran ensuring the development dependencies are kept up to date.
 
+
+### ods_tools
+OasisLMF uses the ods_tools package to read exposure files and the setting files
+The version compatible with each OasisLMF is manage in the requirement files.
+below is the summary:
+
+- OasisLMF 1.23.x or before => no ods_tools
+- OasisLMF 1.26.x => use ods_tools 2.3.2
+- OasisLMF 1.27.0 => use ods_tools 3.0.0 or later
+- OasisLMF 1.27.1 => use ods_tools 3.0.0 or later
+- OasisLMF 1.27.2 => use ods_tools 3.0.4 or later
+
+### pandas
+Pandas has released its major version number 2 breaking some of the compatibility with the 1st version
+Therefore, for all version of OasisLMF <= 1.27.2, the latest supported version for pandas is 1.5.3  
+Support for pandas 2, starts from version 1.27.3
+
 ## Testing
 
 To test the code style run:
