@@ -253,17 +253,17 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.replace(0, np.nan).dropna(how='any', axis=1).columns.to_list()
-    l_col_info = {k: v for k, v in exposure_data.get_input_fields('Loc').items()}
-    gul_avail = {k: l_col_info[k]["Type & Description"] if k in l_col_info else desc_non_oed
+    l_col_info = exposure_data.get_input_fields('Loc')
+    gul_avail = {k: l_col_info[k.lower()]["Type & Description"] if k.lower() in l_col_info else desc_non_oed
                  for k in set([c for c in l_col_list]).difference(int_excluded_cols)}
 
     # IL perspective (join of acc + loc col with no dups)
     il_avail = {}
     if accounts_df is not None:
         a_col_list = accounts_df.loc[:, ~accounts_df.isnull().all()].columns.to_list()
-        a_col_info = {k: v for k, v in exposure_data.get_input_fields('Acc').items()}
+        a_col_info = exposure_data.get_input_fields('Acc')
         a_avail = set([c for c in a_col_list])
-        il_avail = {k: a_col_info[k]["Type & Description"] if k in a_col_info else desc_non_oed
+        il_avail = {k: a_col_info[k.lower()]["Type & Description"] if k.lower() in a_col_info else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
 
     # Write JSON
