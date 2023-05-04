@@ -300,6 +300,14 @@ class API_datafiles(ApiEndpoint):
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
+class API_task_status(ApiEndpoint):
+
+    def __init__(self, session, url_endpoint):
+        super(API_analyses, self).__init__(session, url_endpoint)
+        self.output_log =  FileEndpoint(self.session, self.url_endpoint, 'output_log/')
+        self.error_log = FileEndpoint(self.session, self.url_endpoint, 'error_log/')
+
+
 class API_analyses(ApiEndpoint):
 
     def __init__(self, session, url_endpoint):
@@ -353,6 +361,9 @@ class API_analyses(ApiEndpoint):
     def run(self, ID):
         return self.session.post('{}{}/run/'.format(self.url_endpoint, ID), json={})
 
+    def generate_and_run(self, ID):
+        return self.session.post('{}{}/generate_and_run/'.format(self.url_endpoint, ID), json={})
+
     def cancel_analysis_run(self, ID):
         return self.session.post('{}{}/cancel_analysis_run/'.format(self.url_endpoint, ID), json={})
 
@@ -386,6 +397,7 @@ class APIClient(object):
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
         self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, api_ver))
         self.data_files = API_datafiles(self.api, '{}{}/data_files/'.format(self.api.url_base, api_ver))
+        self.task_status = API_task_status(self.api, '{}{}/analysis-task-statuses/'.format(self.api.url_base, api_ver))
 
     def oed_peril_codes(self):
         return self.api.get('{}oed_peril_codes/'.format(self.api.url_base))
