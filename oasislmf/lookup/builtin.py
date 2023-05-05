@@ -198,8 +198,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     def set_step_function(self, step_name, step_config, function_being_set=None):
         """
-        set the strategy as a function of the lookup object if it's not already done and return it.
-        if the strategy is composed of several child strategy, it will set the child strategy recursively.
+        set the step as a function of the lookup object if it's not already done and return it.
+        if the step is composed of several child steps, it will set the child steps recursively.
 
         Args:
             step_name (str): name of the strategy for this step
@@ -221,10 +221,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     function_being_set.add(step_name)
 
                 functions = []
-                for child_strategy_name in step_config["parameters"]['strategy']:
+                for child_step_name in step_config["parameters"]['strategy']:
                     child_fct = self.set_step_function(
-                        step_name=child_strategy_name,
-                        step_config=self.config['step_definition'][child_strategy_name],
+                        step_name=child_step_name,
+                        step_config=self.config['step_definition'][child_step_name],
                         function_being_set=function_being_set)
                     functions.append({'function': child_fct, 'columns': set(step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
@@ -234,7 +234,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return step_function
 
     def process_locations(self, locations):
-        # drop all unused columns and remove duplicate rows, find and rename usefull column
+        # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
         useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
 
