@@ -47,7 +47,6 @@ from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
                                            haz_cdf_type, items_MC_data_type)
 from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
                                           read_items)
-from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,6 @@ def gen_empty_vuln_cdf_lookup(list_size):
     return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
 
-@redirect_logging(exec_name='gulmc')
 def run(run_dir,
         ignore_file_type,
         sample_size,

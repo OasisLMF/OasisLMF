@@ -5,6 +5,11 @@ import logging
 import numpy as np
 import os
 
+logging.captureWarnings(True)
+# This option redirects messages from `warnings` to `logging`
+# Without this, importing numba JIT functions can raise NumbaDeprecationWarning
+# or NumbaPendingDeprecationWarning which are not caught (crashing the execution)
+
 
 def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     """
@@ -65,7 +70,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                     logger.addHandler(childFileHandler)
                     logger.setLevel(log_level)
                     logger.propagate = False
-                elif 'py' in lg_name: 
+                elif 'py' in lg_name:
                     logger.addHandler(childFileHandler)
                     logger.setLevel(log_level)
                     logger.propagate = False

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
+from .utils import redirect_logging # LOAD ORDER SENSITIVE -- should be imported before JIT funcs
 from .fm import manager, logger
-from .utils import redirect_logging
 
 import argparse
 import logging

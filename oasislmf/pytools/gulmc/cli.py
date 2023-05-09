@@ -3,17 +3,9 @@
 import argparse
 import logging
 
-
-logging.captureWarnings(True)
-#from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
-#import warnings
-#
-#warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
-#warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
-
+from oasislmf.pytools.utils import redirect_logging # LOAD ORDER SENSITIVE -- should be imported before JIT funcs 
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gulmc import logger, manager
-from oasislmf.pytools.utils import redirect_logging
 
 
 

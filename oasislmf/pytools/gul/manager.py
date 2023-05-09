@@ -34,7 +34,6 @@ from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          generate_correlated_hash_vector,
                                          get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
-from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +121,6 @@ def generate_item_map(items, coverages):
     return item_map
 
 
-@redirect_logging(exec_name='gulpy')
 def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debug,
         random_generator, peril_filter=[], file_in=None, file_out=None, ignore_correlation=False, **kwargs):
     """Execute the main gulpy worklow.

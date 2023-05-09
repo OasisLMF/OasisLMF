@@ -3,9 +3,9 @@
 import argparse
 import logging
 
+from .utils import redirect_logging # LOAD ORDER SENSITIVE -- should be imported before JIT funcs
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gul import manager, logger
-from .utils import redirect_logging
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',

@@ -8,7 +8,6 @@ from .stream_sparse import read_stream_header, EventWriterSparse, read_streams_s
 from .compute_sparse import compute_event as compute_event_sparse
 from .compute_sparse import init_variable as init_variable_sparse
 from .compute_sparse import reset_variable as reset_variable_sparse
-from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +20,6 @@ def run(create_financial_structure_files, **kwargs):
         return run_synchronous(**kwargs)
 
 
-@redirect_logging(exec_name='fmpy')
 def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_method, **kwargs):
     if allocation_rule == 3:
         allocation_rule = 2
