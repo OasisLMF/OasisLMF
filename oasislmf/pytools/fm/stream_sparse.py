@@ -20,7 +20,7 @@ number_size = 8
 nb_number = buff_size // number_size
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
     if remove_empty:
         if sidx_indptr[compute_idx['next_compute_i']] == sidx_indptr[compute_idx['next_compute_i'] - 1]:
@@ -34,7 +34,7 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
             sidx_indptr[compute_idx['next_compute_i']] += 1
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
     if ((sidx_indptr[compute_i - 1] == sidx_indptr[compute_i])
             or (sidx_val[sidx_indptr[compute_i] - 1] < sidx)):
@@ -85,7 +85,7 @@ def register_streams_in(selector_class, streams_in):
     return main_selector, stream_data
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, nodes_array,
                           sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                           computes, compute_idx):
@@ -235,7 +235,7 @@ def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx
         main_selector.close()
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
                sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                computes, compute_idx, output_array, i_layer, i_index, nb_values):
@@ -376,7 +376,7 @@ class EventWriterSparse:
             writable[0].write(self.mv[:cursor])
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def get_compute_end(computes, compute_idx):
     compute_start = compute_end = compute_idx['level_start_compute_i']
     while computes[compute_end]:
