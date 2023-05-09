@@ -447,6 +447,7 @@ def get_dataframe(
     sort_cols=None,
     sort_ascending=None,
     memory_map=False,
+    low_memory=False,
     encoding=None
 ):
     """
@@ -509,6 +510,11 @@ def get_dataframe(
                        for the pd.read_csv method
     :type memory_map: bool
 
+    :param low_memory: Internally process the file in chunks, resulting in lower memory use
+                       while parsing, but possibly mixed type inference.
+                       To ensure no mixed types either set False,
+    :type low_memory: bool
+
     :param encoding: Try to read CSV of JSON data with the given encoding type,
                      if 'None' will try to auto-detect on UnicodeDecodeError
     :type  encoding: str
@@ -549,13 +555,14 @@ def get_dataframe(
                 # Find flexible fields in loc file and set their data types to that of
                 # FlexiLocZZZ
                 if 'FlexiLocZZZ' in col_dtypes.keys():
-                    headers = list(pd.read_csv(src_fp, encoding=use_encoding).head(0))
+                    headers = list(pd.read_csv(src_fp, encoding=use_encoding, low_memory=low_memory).head(0))
                     for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
                         col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
                 df = pd.read_csv(
                     src_fp or src_buf,
                     float_precision=float_precision,
                     memory_map=memory_map,
+                    low_memory=low_memory,
                     keep_default_na=False,
                     na_values=na_values,
                     dtype=col_dtypes,
@@ -585,7 +592,8 @@ def get_dataframe(
                 float_precision=float_precision, empty_data_error_msg=empty_data_error_msg,
                 lowercase_cols=lowercase_cols, required_cols=required_cols, col_defaults=col_defaults,
                 non_na_cols=non_na_cols, col_dtypes=col_dtypes, sort_cols=sort_cols,
-                sort_ascending=sort_ascending, memory_map=memory_map, encoding=detected_encoding)
+                sort_ascending=sort_ascending, memory_map=memory_map, low_memory=low_memory,
+                encoding=detected_encoding)
         else:
             raise OasisException('Failed to load DataFrame due to Encoding error', e)
 
