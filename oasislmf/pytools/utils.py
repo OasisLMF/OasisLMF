@@ -4,14 +4,40 @@ This file contains general-purpose utilities.
 import logging
 import numpy as np
 import os
-
-logging.captureWarnings(True)
-# This option redirects messages from `warnings` to `logging`
-# Without this, importing numba JIT functions can raise NumbaDeprecationWarning
-# or NumbaPendingDeprecationWarning which are not caught (crashing the execution)
+import sys
 
 
-def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
+
+def setup_redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
+    """
+    This option redirects messages from `warnings` to `logging`
+    Without this, importing numba JIT functions can raise NumbaDeprecationWarning
+    or NumbaPendingDeprecationWarning which are not caught (crashing the execution)
+    """
+    logging.captureWarnings(True)
+
+    if not os.path.isdir(log_dir):
+        os.makedirs(log_dir)
+
+    # Set Error handler --> only for failues which should terminate execution 
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    error_handler = logging.StreamHandler(sys.stderr)
+    error_handler.setLevel(logging.ERROR)
+
+    # Set File handler --> All other log messages go here 'set from log_level' 
+    file_handler = logging.FileHandler(os.path.join(log_dir, f'{exec_name}_{os.getpid()}.log'))
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(formatter)
+
+    # Attach handlers
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(error_handler)
+
+
+
+def log_process_start():
     """
     Decorator that redirects logging output to a file.
 
@@ -40,58 +66,37 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     """
     def inner(func):
         def wrapper(*args, **kwargs):
-            if not os.path.isdir(log_dir):
-                os.makedirs(log_dir)
-
-            logging_config = logging.root.manager.loggerDict.keys()
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-            childFileHandler = logging.FileHandler(os.path.join(log_dir, f'{exec_name}_{os.getpid()}.log'))
-            childFileHandler.setLevel(log_level)
-            childFileHandler.setFormatter(formatter)
-
-            rootFileHandler = logging.FileHandler(os.path.join(log_dir, f'{exec_name}_{os.getpid()}.log'))
-            rootFileHandler.setLevel(logging.INFO)
-            rootFileHandler.setFormatter(formatter)
-
-            # https://docs.python.org/3/library/logging.html#logging.lastResort
-            # logging.lastResort.setLevel(logging.ERROR)
-
-            # Set all logger handlers to level ERROR
-            for lg_name in logging_config:
-                logger = logging.getLogger(lg_name)
-
-                # set all handlers to ERROR
-                for handler in logger.handlers:
-                    handler.setLevel(logging.ERROR)
-
-                # set children oasislmf loggers to 'log_level'
-                if 'oasislmf.' in lg_name:
-                    logger.addHandler(childFileHandler)
-                    logger.setLevel(log_level)
-                    logger.propagate = False
-                elif 'py' in lg_name:
-                    logger.addHandler(childFileHandler)
-                    logger.setLevel(log_level)
-                    logger.propagate = False
-                else:
-                    logger.setLevel(logging.ERROR)
+            #import ipdb; ipdb.set_trace()
+            #import logging_tree; logging_tree.printout()
+            
+            
+            #logging_config = logging.root.manager.loggerDict.keys()
+            #root_handlers = logging.getLogger().handlers
 
 
-            #warnings_logger = logging.getLogger("py.warnings")
-            #warnings_logger.addHandler(childFileHandler)
-            #warnings_logger.setLevel(log_level)
+            #
+
+            ## https://docs.python.org/3/library/logging.html#logging.lastResort
+            ## logging.lastResort.setLevel(logging.ERROR)
+
+            ## Set all logger handlers to level ERROR
+            #for lg_name in logging_config:
+            #    logger = logging.getLogger(lg_name)
+
+            #    # set all handlers to ERROR
+            #    for handler in logger.handlers:
+            #        handler.setLevel(logging.ERROR)
+            #    # set children oasislmf loggers to 'log_level'
+            #    if 'oasislmf.' in lg_name:
+            #        for handler in root_handlers:
+            #            logger.addHandler(handler)
+            #        logger.propagate = False
+            #        logger.setLevel(logging.INFO)
 
             # Set root oasislmf logger to INFO
             logger = logging.getLogger('oasislmf')
-            logger.setLevel(logging.INFO)
-            logger.addHandler(rootFileHandler)
-
-            ### Debug: print logging tree
-            #import ipdb; ipdb.set_trace()
-            #import logging_tree; logging_tree.printout()
-
             try:
+                #import ipdb; ipdb.set_trace()
                 logger.info(kwargs)
                 logger.info('starting process')
 

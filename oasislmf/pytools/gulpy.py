@@ -3,7 +3,9 @@
 import argparse
 import logging
 
-from .utils import redirect_logging # LOAD ORDER SENSITIVE -- should be imported before JIT funcs
+from oasislmf.pytools.utils import log_process_start, setup_redirect_logging
+setup_redirect_logging(exec_name='gulpy') # LOAD ORDER SENSITIVE -- should be called imported before JIT funcs 
+
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gul import manager, logger
 
@@ -35,7 +37,7 @@ parser.add_argument('--logging-level',
                     default=30, type=int)
 
 
-@redirect_logging(exec_name='gulpy')
+@log_process_start()
 def main():
     # parse arguments to variables
     # note: the long flag name (e.g., '--opt-one') is used as variable name (i.e, the `dest`).

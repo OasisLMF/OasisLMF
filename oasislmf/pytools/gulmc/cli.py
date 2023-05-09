@@ -3,7 +3,9 @@
 import argparse
 import logging
 
-from oasislmf.pytools.utils import redirect_logging # LOAD ORDER SENSITIVE -- should be imported before JIT funcs 
+from oasislmf.pytools.utils import log_process_start, setup_redirect_logging
+setup_redirect_logging(exec_name='gulmc') # LOAD ORDER SENSITIVE -- should be called imported before JIT funcs 
+
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gulmc import logger, manager
 
@@ -53,7 +55,7 @@ parser.add_argument('--random-generator',
 parser.add_argument('--run-dir', help='path to the run directory. Default: "."', default='.')
 
 
-@redirect_logging(exec_name='gulmc')
+@log_process_start()
 def main():
     # parse arguments to variables
     # note: the long flag name (e.g., '--opt-one') is used as variable name (i.e, the `dest`).

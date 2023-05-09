@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-from .utils import redirect_logging # LOAD ORDER SENSITIVE -- should be imported before JIT funcs
+from oasislmf.pytools.utils import log_process_start, setup_redirect_logging
+setup_redirect_logging(exec_name='fmpy') # LOAD ORDER SENSITIVE -- should be called imported before JIT funcs 
+
 from .fm import manager, logger
 
 import argparse
@@ -21,7 +23,7 @@ parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info
 parser.add_argument('-S', '--step-policies', help='not use, kept for backward compatibility with fmcalc', action='store_true')
 
 
-@redirect_logging(exec_name='fmpy')
+@log_process_start()
 def main():
     kwargs = vars(parser.parse_args())
 
@@ -32,7 +34,6 @@ def main():
     logger.addHandler(ch)
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
-
     manager.run(**kwargs)
 
 
