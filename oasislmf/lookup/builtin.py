@@ -401,20 +401,20 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         size_lat = math.ceil((lat_max - lat_min) / arc_size)
 
         if lat_reverse:
-            @nb.jit()
+            @nb.njit()
             def lat_id(lat):
                 return math.floor((lat_max - lat) / lat_cell_size)
         else:
-            @nb.jit()
+            @nb.njit()
             def lat_id(lat):
                 return math.floor((lat - lat_min) / lat_cell_size)
 
         if lon_reverse:
-            @nb.jit()
+            @nb.njit()
             def lon_id(lon):
                 return math.floor((lon_max - lon) / lon_cell_size)
         else:
-            @nb.jit()
+            @nb.njit()
             def lon_id(lon):
                 return math.floor((lon - lon_min) / lon_cell_size)
 

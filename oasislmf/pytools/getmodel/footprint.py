@@ -310,7 +310,7 @@ class FootprintParquet(Footprint):
         return np.array(outcome, dtype=Event)
 
 
-@nb.jit(cache=True)
+@nb.njit(cache=True)
 def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):
     """
     Creates a list of tuples from three np.arrays (all inputs must be the same length).
