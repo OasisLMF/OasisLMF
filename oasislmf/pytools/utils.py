@@ -65,17 +65,26 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                     logger.addHandler(childFileHandler)
                     logger.setLevel(log_level)
                     logger.propagate = False
+                elif 'py' in lg_name: 
+                    logger.addHandler(childFileHandler)
+                    logger.setLevel(log_level)
+                    logger.propagate = False
                 else:
                     logger.setLevel(logging.ERROR)
+
+
+            #warnings_logger = logging.getLogger("py.warnings")
+            #warnings_logger.addHandler(childFileHandler)
+            #warnings_logger.setLevel(log_level)
 
             # Set root oasislmf logger to INFO
             logger = logging.getLogger('oasislmf')
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
 
-            # # Debug: print logging tree
-            # import ipdb; ipdb.set_trace()
-            # import logging_tree; logging_tree.printout()
+            ### Debug: print logging tree
+            #import ipdb; ipdb.set_trace()
+            #import logging_tree; logging_tree.printout()
 
             try:
                 logger.info(kwargs)

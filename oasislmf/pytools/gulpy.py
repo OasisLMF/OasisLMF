@@ -5,6 +5,7 @@ import logging
 
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gul import manager, logger
+from .utils import redirect_logging
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
@@ -34,6 +35,7 @@ parser.add_argument('--logging-level',
                     default=30, type=int)
 
 
+@redirect_logging(exec_name='gulpy')
 def main():
     # parse arguments to variables
     # note: the long flag name (e.g., '--opt-one') is used as variable name (i.e, the `dest`).

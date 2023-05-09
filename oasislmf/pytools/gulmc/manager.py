@@ -123,6 +123,8 @@ def run(run_dir,
     """
     logger.info("starting gulmc")
 
+    logger.warning('This is an oasislmf warning message')
+
     static_path = os.path.join(run_dir, 'static')
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from .fm import manager, logger
+from .utils import redirect_logging
 
 import argparse
 import logging
@@ -20,6 +21,7 @@ parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info
 parser.add_argument('-S', '--step-policies', help='not use, kept for backward compatibility with fmcalc', action='store_true')
 
 
+@redirect_logging(exec_name='fmpy')
 def main():
     kwargs = vars(parser.parse_args())
 

@@ -3,8 +3,19 @@
 import argparse
 import logging
 
+
+logging.captureWarnings(True)
+#from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
+#import warnings
+#
+#warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+#warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
+
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gulmc import logger, manager
+from oasislmf.pytools.utils import redirect_logging
+
+
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',
@@ -50,6 +61,7 @@ parser.add_argument('--random-generator',
 parser.add_argument('--run-dir', help='path to the run directory. Default: "."', default='.')
 
 
+@redirect_logging(exec_name='gulmc')
 def main():
     # parse arguments to variables
     # note: the long flag name (e.g., '--opt-one') is used as variable name (i.e, the `dest`).
