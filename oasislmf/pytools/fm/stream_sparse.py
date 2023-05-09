@@ -11,7 +11,7 @@ from .stream import EventWriter, EventWriterOrderedOutput,nb_number, number_size
 remove_empty = False
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def reset_empty_items(loss_index, sidx_indptr, sidx_val, loss_val, computes):
     if remove_empty:
         if sidx_indptr[loss_index] == sidx_indptr[loss_index - 1]:
@@ -28,7 +28,7 @@ def reset_empty_items(loss_index, sidx_indptr, sidx_val, loss_val, computes):
         return loss_index
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def add_new_loss(sidx, loss, loss_index, sidx_indptr, sidx_val, loss_val):
     if ((sidx_indptr[loss_index - 1] == sidx_indptr[loss_index])
             or (sidx_val[sidx_indptr[loss_index] - 1] < sidx)):
@@ -44,7 +44,7 @@ def add_new_loss(sidx, loss, loss_index, sidx_indptr, sidx_val, loss_val):
     sidx_indptr[loss_index] += 1
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, loss_index, nodes_array,
                           sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                           computes):
@@ -193,7 +193,7 @@ def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx
 
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
                sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                computes, output_array, compute_i, i_layer, i_index, nb_values):
