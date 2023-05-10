@@ -105,5 +105,4 @@ def get_post_loss_amplification_factors(path):
             valid_buffer = 0
             cursor = 0
 
-
     return plafactors
