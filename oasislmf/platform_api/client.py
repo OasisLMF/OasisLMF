@@ -303,7 +303,7 @@ class API_datafiles(ApiEndpoint):
 class API_task_status(ApiEndpoint):
 
     def __init__(self, session, url_endpoint):
-        super(API_analyses, self).__init__(session, url_endpoint)
+        super(API_task_status, self).__init__(session, url_endpoint)
         self.output_log = FileEndpoint(self.session, self.url_endpoint, 'output_log/')
         self.error_log = FileEndpoint(self.session, self.url_endpoint, 'error_log/')
 
