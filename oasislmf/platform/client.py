@@ -11,9 +11,9 @@ import io
 import json
 import logging
 import os
-import sys
 import tarfile
 import time
+import pathlib
 
 import pandas as pd
 
@@ -23,7 +23,7 @@ from requests.exceptions import (
     HTTPError,
 )
 from .session import APISession
-
+from ..utils.exceptions import OasisException
 
 class ApiEndpoint(object):
     """
@@ -31,7 +31,7 @@ class ApiEndpoint(object):
     End points.
     """
     def __init__(self, session, url_endpoint, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.session = session
         self.url_endpoint = url_endpoint
 
@@ -61,7 +61,7 @@ class JsonEndpoint(object):
     Used for JSON data End points.
     """
     def __init__(self, session, url_endpoint, url_resource, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
         self.session = session
         self.url_endpoint = url_endpoint
         self.url_resource = url_resource
@@ -107,7 +107,7 @@ class FileEndpoint(object):
     File Resources Endpoint for Upload / Downloading
     """
     def __init__(self, session, url_endpoint, url_resource, logger=None):
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         self.session = session
         self.url_endpoint = url_endpoint
@@ -120,14 +120,28 @@ class FileEndpoint(object):
             self.url_resource
         )
 
-    def upload(self, ID, file_path, content_type='text/csv'):
+    def _set_content_type(self, file_path):
+        content_type_map = {
+            'parquet': 'application/octet-stream',
+            'pq': 'application/octet-stream',
+            'csv': 'text/csv',
+            'gz': 'application/gzip',
+            'zip': 'application/zip',
+            'bz2': 'application/x-bzip2',
+        }
+        file_ext = pathlib.Path(file_path).suffix[1:].lower()
+        return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
+
+
+    def upload(self, ID, file_path, content_type=None):
         try:
+            if not content_type:
+                content_type = self._set_content_type(file_path)
             r = self.session.upload(self._build_url(ID), file_path, content_type)
             return r
         except HTTPError as e:
             err_msg = 'File upload Failed: file: {},  url: {}:'.format(file_path, self._build_url(ID))
             self.session.unrecoverable_error(e, err_msg)
-            sys.exit(1)
 
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
@@ -204,6 +218,10 @@ class API_models(ApiEndpoint):
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
         self.versions = JsonEndpoint(self.session, self.url_endpoint, 'versions/')
 
+        # Platform 2.0 only (Check might be needed here)
+        self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
+        self.scaling_configuration = JsonEndpoint(self.session, self.url_endpoint, 'scaling_configuration/')
+
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
@@ -244,6 +262,7 @@ class API_portfolios(ApiEndpoint):
         self.location_file = FileEndpoint(self.session, self.url_endpoint, 'location_file/')
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
+        self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
 
     def create(self, name):
         data = {"name": name}
@@ -326,24 +345,36 @@ class API_analyses(ApiEndpoint):
     def generate(self, ID):
         return self.session.post('{}{}/generate_inputs/'.format(self.url_endpoint, ID), json={})
 
-    def generate_cancel(self, ID):
-        return self.session.post('{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID), json={})
-
     def run(self, ID):
         return self.session.post('{}{}/run/'.format(self.url_endpoint, ID), json={})
 
-    def run_cancel(self, ID):
+    def cancel_analysis_run(self, ID):
+        return self.session.post('{}{}/cancel_analysis_run/'.format(self.url_endpoint, ID), json={})
+
+    def cancel_generate_inputs(self, ID):
+        return self.session.post('{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID), json={})
+
+    def cancel(self, ID):
         return self.session.post('{}{}/cancel/'.format(self.url_endpoint, ID), json={})
+
+    def copy(self, ID):
+        return self.session.post('{}{}/copy/'.format(self.url_endpoint, ID), json={})
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+
+    def storage_links(self, ID):
+        return self.session.get('{}{}/storage_links'.format(self.url_endpoint, ID))
+
+    def sub_task_list(self, ID):
+        return self.session.get('{}{}/sub_task_list'.format(self.url_endpoint, ID))
 
 # --- API Main Client ------------------------------------------------------- #
 
 
 class APIClient(object):
-    def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None, **kwargs):
-        self.logger = logger or logging.getLogger()
+    def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
+        self.logger = logger or logging.getLogger(__name__)
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
@@ -353,6 +384,12 @@ class APIClient(object):
 
     def oed_peril_codes(self):
         return self.api.get('{}oed_peril_codes/'.format(self.api.url_base))
+
+    def server_info(self):
+        return self.api.get('{}server_info/'.format(self.api.url_base))
+
+    def healthcheck(self):
+        return self.api.get('{}healthcheck/'.format(self.api.url_base))
 
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
                       location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
@@ -390,7 +427,6 @@ class APIClient(object):
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
-            sys.exit(1)
 
     def upload_settings(self, analyses_id, settings):
         """
@@ -433,13 +469,12 @@ class APIClient(object):
             return analyses
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'create_analysis: failed')
-            sys.exit(1)
 
     def run_generate(self, analysis_id, poll_interval=5):
         """
         Generates the inputs for the analysis based on the portfolio.
         The analysis must have one of the following statuses, `NEW`, `INPUTS_GENERATION_ERROR`,
-        `INPUTS_GENERATION_CANCELED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
+        `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
 
@@ -455,13 +490,14 @@ class APIClient(object):
                     self.logger.info('Inputs Generation: Complete (id={})'.format(analysis_id))
                     return True
 
-                elif analysis['status'] in ['INPUTS_GENERATION_CANCELED']:
+                elif analysis['status'] in ['INPUTS_GENERATION_CANCELLED']:
                     self.logger.info('Input Generation: Cancelled (id={})'.format(analysis_id))
                     return False
 
                 elif analysis['status'] in ['INPUTS_GENERATION_ERROR']:
                     self.logger.info('Input Generation: Failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
+                    self.logger.error("\nServer logs:")
                     self.logger.error(error_trace)
                     return False
 
@@ -480,19 +516,21 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
-                    if 'sub_task_statuses' in analysis:
-                        with tqdm(total=len(analysis['sub_task_statuses']),
+                    if 'sub_task_list' in analysis:
+                        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
+                        with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Input Generation') as pbar:
 
                             completed = []
-                            while len(completed) < len(analysis['sub_task_statuses']):
+                            while len(completed) < len(sub_tasks_list):
+                                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                                 analysis = self.analyses.get(analysis_id).json()
-                                completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
+                                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
-                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'READY' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
@@ -507,11 +545,9 @@ class APIClient(object):
 
                 else:
                     err_msg = "Input Generation: Unknown State'{}'".format(analysis['status'])
-                    self.logger.error(err_msg)
-                    sys.exit(1)
+                    OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
-            sys.exit(1)
 
     def run_analysis(self, analysis_id, analysis_settings_fp=None, poll_interval=5):
         """
@@ -541,6 +577,7 @@ class APIClient(object):
                 elif analysis['status'] in ['RUN_ERROR']:
                     self.logger.error('Analysis Run: Failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.run_traceback_file.get(analysis_id).text
+                    self.logger.error("\nServer logs:")
                     self.logger.error(error_trace)
                     return False
 
@@ -559,19 +596,21 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    if 'sub_task_statuses' in analysis:
-                        with tqdm(total=len(analysis['sub_task_statuses']),
+                    if 'sub_task_list' in analysis:
+                        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
+                        with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Analysis Run') as pbar:
 
                             completed = []
-                            while len(completed) < len(analysis['sub_task_statuses']):
+                            while len(completed) < len(sub_tasks_list):
+                                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                                 analysis = self.analyses.get(analysis_id).json()
-                                completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
+                                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
-                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
@@ -588,7 +627,6 @@ class APIClient(object):
                     sys.exit(1)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
-            sys.exit(1)
 
     def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
         if not filename:
@@ -604,14 +642,13 @@ class APIClient(object):
         except HTTPError as e:
             err_msg = 'Analysis Download output: Failed (id={})'.format(analysis_id)
             self.api.unrecoverable_error(e, err_msg)
-            sys.exit(1)
 
     def cancel_generate(self, analysis_id):
         """
         Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
         """
         try:
-            self.analyses.generate_cancel(analysis_id)
+            self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:
@@ -624,7 +661,7 @@ class APIClient(object):
         statuses, `PENDING` or `STARTED`
         """
         try:
-            self.analyses.run_cancel(analysis_id)
+            self.analyses.cancel_analysis_run(analysis_id)
             self.logger.info('Cancelled analysis run: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:

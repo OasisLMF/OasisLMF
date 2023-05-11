@@ -19,7 +19,7 @@ from ..utils.exceptions import OasisException
 class APISession(Session):
     def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, request_interval=0.02, logger=None, **kwargs):
         super(APISession, self).__init__(**kwargs)
-        self.logger = logger or logging.getLogger()
+        self.logger = logger or logging.getLogger(__name__)
 
         # Extended class vars
         self.tkn_access = None
@@ -75,9 +75,9 @@ class APISession(Session):
     def unrecoverable_error(self, error, msg=None):
         err_r = error.response
         err_msg = 'api error: {}, url: {}, msg: {}'.format(err_r.status_code, err_r.url, err_r.text)
-        self.logger.error(err_msg)
         if msg:
             self.logger.error(msg)
+        raise OasisException(err_msg)
 
     # Connection Error Handlers
     def __recoverable(self, error, url, request, counter=1):
@@ -103,7 +103,7 @@ class APISession(Session):
             if http_err_code in [502, 503, 504]:
                 error = "HTTP {}".format(http_err_code)
                 return True
-            elif http_err_code in [401]:
+            elif http_err_code in [401, 403]:
                 if self.tkn_refresh is not None:
                     self.logger.debug(f"requesting refresh token")
                     self._refresh_token()
