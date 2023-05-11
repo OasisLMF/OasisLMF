@@ -6,7 +6,7 @@ fastparquet>=0.3.1
 msgpack
 numba>=0.55.1
 numexpr
-numpy<1.23,>=1.18
+numpy<1.24,>=1.18
 ods-tools>=3.0.4
 pandas>=1.0.3,!=1.1.0,!=1.1.1
 pytz
