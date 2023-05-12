@@ -9,6 +9,14 @@ OasisLMF Changelog
 * [#1251](https://github.com/OasisLMF/OasisLMF/pull/1254) - Error caused by pandas 2.0.0
 .. _`1.15.27`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.26...1.15.27
 
+`1.15.27`_
+ ---------
+* [#1278](https://github.com/OasisLMF/OasisLMF/pull/1278) - Fixes for newer versions of pandas and numpy
+* [#1260](https://github.com/OasisLMF/OasisLMF/pull/1260) - Use low_memory=False in get_dataframe
+* [#1267](https://github.com/OasisLMF/OasisLMF/pull/1269) - Numba 0.57 breaks fmpy
+* [#1251](https://github.com/OasisLMF/OasisLMF/pull/1254) - Error caused by pandas 2.0.0
+.. _`1.15.27`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.26...1.15.27
+
 .. _`1.15.26`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.24...1.15.26
 
 `1.15.24`_
