@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.26.7`_
+ ---------
+* [#1272](https://github.com/OasisLMF/OasisLMF/pull/1272) - Update numpy pin
+* [#1260](https://github.com/OasisLMF/OasisLMF/pull/1260) - Use low_memory=False in get_dataframe
+* [#1267](https://github.com/OasisLMF/OasisLMF/pull/1269) - Numba 0.57 breaks fmpy
+* [#1251](https://github.com/OasisLMF/OasisLMF/pull/1254) - Error caused by pandas 2.0.0
+.. _`1.26.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.6...1.26.7
+
 `1.26.6`_
  ---------
 * [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution 
