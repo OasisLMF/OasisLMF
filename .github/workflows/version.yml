@@ -1,0 +1,99 @@
+# Workflow to update the version tags in the oasislmf repo
+#
+#  inputs:
+#    ktools_version: Update the pinned ktools version stored in setup.py
+#                    Note: (without the "v") so for the ktools release v3.0.0, input '3.0.0'
+#
+#    oasislmf_version: Update the package version stored in __init__.py
+
+name: Oasislmf Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      ktools_version:
+        description: 'Update the ktools version [semvar]'
+        required: false
+        default: ""
+      oasislmf_version:
+        description: 'Update the package version [semvar]'
+        required: false
+        default: ""
+
+  workflow_call:
+    inputs:
+      ktools_version:
+        description: 'Update the ktools version'
+        required: false
+        default: ""
+        type: string
+      oasislmf_version:
+        description: 'Update the package version'
+        required: false
+        default: ""
+        type: string
+
+env:
+  ktools_file: 'setup.py'
+  ktools_regex: '^KTOOLS_VERSION'
+
+  oasislmf_file: 'oasislmf/__init__.py'
+  oasislmf_regex: '^__version__'
+
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Check input is valid semvar (Ktools)
+      if: inputs.ktools_version != ''
+      run: |
+        VALID=$(echo ${{ inputs.ktools_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
+        [[ "$VALID" -eq "1" ]] || exit 1
+
+    - name: Check input is valid semvar (Oasislmf)
+      if: inputs.oasislmf_version != ''
+      run: |
+        VALID=$(echo ${{ inputs.oasislmf_version }} | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
+        [[ "$VALID" -eq "1" ]] || exit 1
+
+    - name: Checkout
+      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # fetch the whole repo for complete history
+
+    - name: Setup github user
+      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
+      run: |
+        git config --global user.email ${{ env.GIT_EMAIL }}
+        git config --global user.name ${{ env.GIT_USERNAME }}
+        git config --global pull.ff only
+      env:
+        GIT_EMAIL: ${{ secrets.BUILD_GIT_EMAIL }}
+        GIT_USERNAME: ${{ secrets.BUILD_GIT_USERNAME }}
+
+    - name: Write ktools version
+      if: inputs.ktools_version != ''
+      run: |
+        CURRENT_VER=$(grep ${{ env.ktools_regex }} ${{ env.ktools_file }} | awk -F"'" '{print $2}')
+        sed -i 's|'$CURRENT_VER'|'${{ inputs.ktools_version }}'|g' ${{ env.ktools_file }}
+        git add ${{ env.ktools_file }}
+        # Only commit if something changed
+        [[ -z $(git status -s) ]] || git commit -m "Set Ktools to version ${{ inputs.ktools_version }}"
+
+    - name: Write oasislmf version
+      if: inputs.oasislmf_version != ''
+      run: |
+        CURRENT_VER=$(grep ${{ env.oasislmf_regex }} ${{ env.oasislmf_file }} | awk -F"'" '{print $2}')
+        sed -i 's|'$CURRENT_VER'|'${{ inputs.oasislmf_version }}'|g' ${{ env.oasislmf_file }}
+        git add ${{ env.oasislmf_file }}
+        # Only commit if something changed
+        [[ -z $(git status -s) ]] || git commit -m "Set oasislmf to version ${{ inputs.oasislmf_version }}"
+
+    - name: Push
+      if: inputs.ktools_version != '' ||  inputs.oasislmf_version != ''
+      run: git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}

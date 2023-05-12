@@ -1,0 +1,124 @@
+# Workflow to send slack notifications to a slack channel
+#    The repo needs to have the follow slack hook urls added as secrets
+#     https://api.slack.com/messaging/webhooks
+#
+#    SLACK_WEBHOOK_URL_OASIS: Post messages to the channel '#oasis-release' (workspace CoreOasis)
+#    SLACK_WEBHOOK_URL_MEMBERS: Post messages to the channel '#oasis-release' (workspace OasisMembers)
+#
+#    If one of these hooks is not set, the job won't fail, it should instead skip that channel.
+#    To add more channels, extend the job matrix
+
+name: Slack Message
+
+on:
+  workflow_call:
+    inputs:
+      heading:
+        description: 'Slack text block heading'
+        required: true
+        default: ""
+        type: string
+      title:
+        description: 'Title of build message'
+        required: true
+        default: ""
+        type: string
+      build_branch:
+        description: 'Branch which build ran on'
+        required: true
+        default: ""
+        type: string
+      run_url:
+        description: 'URL for Github actions run'
+        required: true
+        default: ""
+        type: string
+      run_id:
+        description: 'run ID of workflow run'
+        required: true
+        default: ""
+        type: string
+      run_status:
+        description: 'Status of run'
+        required: true
+        default: ""
+        type: string
+      run_date:
+        description: 'Date run was executed on'
+        required: true
+        default: ""
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      heading:
+        description: 'Slack text block heading'
+        required: true
+        default: ""
+      title:
+        description: 'Title of build message'
+        required: true
+        default: ""
+      build_branch:
+        description: 'Branch which build ran on'
+        required: true
+        default: ""
+      run_url:
+        description: 'URL for Github actions run'
+        required: true
+        default: ""
+      run_id:
+        description: 'run ID of workflow run'
+        required: true
+        default: ""
+      run_status:
+        description: 'Status of run'
+        required: true
+        default: ""
+      run_date:
+        description: 'Date run was executed on'
+        required: true
+        default: ""
+
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        channel: [oasis, members] #Array of slack channels
+        include:
+        - channel: oasis
+          webhook_secret: SLACK_WEBHOOK_URL_OASIS
+        - channel: members
+          webhook_secret: SLACK_WEBHOOK_URL_MEMBERS
+
+    steps:
+    - name: Send slack message
+      id: slack
+      uses: slackapi/slack-github-action@v1.23.0
+      with:
+        # For posting a rich message using Block Kit
+        payload: |
+          {
+            "text": "${{ inputs.heading }}",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "${{ inputs.title }}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": " *build branch:* ${{ inputs.build_branch }} \n *workflow run:* <${{ inputs.run_url }}| Build ${{ inputs.run_id }}>  \n *build result:* ${{ inputs.run_status }} \n *date:* ${{ inputs.run_date }}"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets[matrix.webhook_secret] }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

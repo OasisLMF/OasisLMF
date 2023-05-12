@@ -630,7 +630,7 @@ class ReinsuranceLayer(object):
         self.logger.debug('Creating risk level and filter level profile IDs:')
         self.logger.debug(f'{oed.REINS_TYPE_FAC} profiles...')
         ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'profile_id'] = pd.factorize(pd._lib.fast_zip([
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_FAC, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_FAC]['riskattachment'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_FAC]['risklimit'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_FAC]['cededpercent'].values,
@@ -645,7 +645,7 @@ class ReinsuranceLayer(object):
         # Per Risk profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_PER_RISK} profiles...')
         ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK, 'profile_id'] = pd.factorize(pd._lib.fast_zip([
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK]['riskattachment'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK]['risklimit'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_PER_RISK]['cededpercent'].values
@@ -658,7 +658,7 @@ class ReinsuranceLayer(object):
         # Quota Share profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_QUOTA_SHARE} profiles...')
         ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_QUOTA_SHARE, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_QUOTA_SHARE, 'profile_id'] = pd.factorize(pd._lib.fast_zip([
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_QUOTA_SHARE, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_QUOTA_SHARE]['risklimit'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_QUOTA_SHARE]['cededpercent'].values
         ]))[0] + 1 + fmprofiles_df['profile_id'].max()
@@ -670,7 +670,7 @@ class ReinsuranceLayer(object):
         # Surplus Share profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_SURPLUS_SHARE} profiles...')
         ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_SURPLUS_SHARE, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_SURPLUS_SHARE, 'profile_id'] = pd.factorize(pd._lib.fast_zip([
+        ri_df.loc[ri_df['reinstype'] == oed.REINS_TYPE_SURPLUS_SHARE, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_SURPLUS_SHARE]['riskattachment'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_SURPLUS_SHARE]['risklimit'].values,
             ri_df[ri_df['reinstype'] == oed.REINS_TYPE_SURPLUS_SHARE]['cededpercent_scope'].values
