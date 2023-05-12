@@ -55,7 +55,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('start_level', np_oasis_int),
                                           ('items_len', np_oasis_int),
                                           ('output_len', np_oasis_int),
-                                          ('stepped', np.bool),
+                                          ('stepped', bool),
                                          ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
                                            ('i_end', np_oasis_int),

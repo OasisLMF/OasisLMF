@@ -83,10 +83,10 @@ PANDAS_BASIC_DTYPES = {
     'float32': np.float32,
     'float64': np.float64,
     builtins.float: np.float64,
-    'bool': np.bool,
-    builtins.bool: np.bool,
-    'str': np.object,
-    builtins.str: np.object,
+    'bool': bool,
+    builtins.bool: bool,
+    'str': object,
+    builtins.str: object,
     'category': 'category'
 }
 
@@ -716,7 +716,7 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
         else:
             return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
     else:
-        return (df[usecols].groupby(group_by).cumcount()) + 1
+        return (df[usecols].groupby(group_by, dropna=False).cumcount()) + 1
 
 
 def get_json(src_fp):
