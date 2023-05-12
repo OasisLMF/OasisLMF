@@ -1,6 +1,38 @@
 OasisLMF Changelog
 ==================
 
+`1.27.3`_
+ ---------
+* [#1251](https://github.com/OasisLMF/OasisLMF/pull/1252) - Error caused by pandas 2.0.0
+* [#1253](https://github.com/OasisLMF/OasisLMF/pull/1256) - pandas 2.0.0 error using "oed_fields" in analysis settings 
+* [#1257](https://github.com/OasisLMF/OasisLMF/pull/1257) - Fix summary levels file
+* [#1260](https://github.com/OasisLMF/OasisLMF/pull/1260) - Use low_memory=False in get_dataframe
+* [#1259](https://github.com/OasisLMF/OasisLMF/pull/1262) - Duplicate summary_ids in outputs
+* [#1231](https://github.com/OasisLMF/OasisLMF/pull/1231) - Fix expecteted output with Extra TIV cols from ods-tools
+* [#1267](https://github.com/OasisLMF/OasisLMF/pull/1269) - Numba 0.57 breaks fmpy
+* [#1238](https://github.com/OasisLMF/OasisLMF/pull/1238) - Set oasislmf to version 1.27.2
+* [#1239](https://github.com/OasisLMF/OasisLMF/pull/1239) - Release/1.27.2
+* [#1272](https://github.com/OasisLMF/OasisLMF/pull/1272) - Update numpy pin
+* [#1245](https://github.com/OasisLMF/OasisLMF/pull/1242) - Add the possibility to have both policy coverage and policy PD
+* [#1277](https://github.com/OasisLMF/OasisLMF/pull/1277) - Fix invalid columns in FM tests
+.. _`1.27.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.2...1.27.3
+
+`1.27.3`_
+ ---------
+* [#1251](https://github.com/OasisLMF/OasisLMF/pull/1252) - Error caused by pandas 2.0.0
+* [#1253](https://github.com/OasisLMF/OasisLMF/pull/1256) - pandas 2.0.0 error using "oed_fields" in analysis settings 
+* [#1257](https://github.com/OasisLMF/OasisLMF/pull/1257) - Fix summary levels file
+* [#1260](https://github.com/OasisLMF/OasisLMF/pull/1260) - Use low_memory=False in get_dataframe
+* [#1259](https://github.com/OasisLMF/OasisLMF/pull/1262) - Duplicate summary_ids in outputs
+* [#1231](https://github.com/OasisLMF/OasisLMF/pull/1231) - Fix expecteted output with Extra TIV cols from ods-tools
+* [#1267](https://github.com/OasisLMF/OasisLMF/pull/1269) - Numba 0.57 breaks fmpy
+* [#1238](https://github.com/OasisLMF/OasisLMF/pull/1238) - Set oasislmf to version 1.27.2
+* [#1239](https://github.com/OasisLMF/OasisLMF/pull/1239) - Release/1.27.2
+* [#1272](https://github.com/OasisLMF/OasisLMF/pull/1272) - Update numpy pin
+* [#1245](https://github.com/OasisLMF/OasisLMF/pull/1242) - Add the possibility to have both policy coverage and policy PD
+* [#1277](https://github.com/OasisLMF/OasisLMF/pull/1277) - Fix invalid columns in FM tests
+.. _`1.27.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.2...1.27.3
+
 `1.27.2`_
  ---------
 * [#1220](https://github.com/OasisLMF/OasisLMF/pull/1220) - Fix mapping of `vuln_idx` to `vuln_i` and implement `eff_vuln_cdf` as a dynamic array to work with large footprints
