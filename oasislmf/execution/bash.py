@@ -511,7 +511,10 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                         cmd = summary_type
 
                     if process_id != 1:
-                        cmd += ' -s'
+                        if summary_type == 'pltcalc':
+                            cmd += ' -H'
+                        else:
+                            cmd += ' -s'
 
                     process_counter['pid_monitor_count'] += 1
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{summary_type}')
