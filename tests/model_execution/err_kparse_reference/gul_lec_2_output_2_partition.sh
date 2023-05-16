@@ -13,6 +13,10 @@ touch log/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 exit_handler(){
    exit_code=$?
+
+   # disable handler
+   trap - QUIT HUP INT KILL TERM ERR EXIT
+
    kill -9 $pid0 2> /dev/null
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
@@ -101,10 +105,10 @@ mkfifo fifo/gul_S2_pltcalc_P2
 ( pltcalc < fifo/gul_S2_pltcalc_P1 > work/kat/gul_S2_pltcalc_P1 ) 2>> log/stderror.err & pid6=$!
 ( eltcalc -s < fifo/gul_S1_eltcalc_P2 > work/kat/gul_S1_eltcalc_P2 ) 2>> log/stderror.err & pid7=$!
 ( summarycalctocsv -s < fifo/gul_S1_summarycalc_P2 > work/kat/gul_S1_summarycalc_P2 ) 2>> log/stderror.err & pid8=$!
-( pltcalc -s < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 ) 2>> log/stderror.err & pid9=$!
+( pltcalc -H < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 ) 2>> log/stderror.err & pid9=$!
 ( eltcalc -s < fifo/gul_S2_eltcalc_P2 > work/kat/gul_S2_eltcalc_P2 ) 2>> log/stderror.err & pid10=$!
 ( summarycalctocsv -s < fifo/gul_S2_summarycalc_P2 > work/kat/gul_S2_summarycalc_P2 ) 2>> log/stderror.err & pid11=$!
-( pltcalc -s < fifo/gul_S2_pltcalc_P2 > work/kat/gul_S2_pltcalc_P2 ) 2>> log/stderror.err & pid12=$!
+( pltcalc -H < fifo/gul_S2_pltcalc_P2 > work/kat/gul_S2_pltcalc_P2 ) 2>> log/stderror.err & pid12=$!
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 fifo/gul_S1_summarycalc_P1 fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid13=$!
 tee < fifo/gul_S2_summary_P1 fifo/gul_S2_eltcalc_P1 fifo/gul_S2_summarycalc_P1 fifo/gul_S2_pltcalc_P1 work/gul_S2_summaryaalcalc/P1.bin work/gul_S2_summaryleccalc/P1.bin > /dev/null & pid14=$!

@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.15.28`_
+ ---------
+* [#1273](https://github.com/OasisLMF/OasisLMF/pull/1273) - Release 1.15.27
+* [#1283](https://github.com/OasisLMF/OasisLMF/pull/1284) - 1.15.27 - Issue in bash script generation 
+* [#996](https://github.com/OasisLMF/OasisLMF/pull/997) - Intermittent bash exit handler failures
+.. _`1.15.28`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.27...1.15.28
+
 `1.15.27`_
  ---------
 * [#1278](https://github.com/OasisLMF/OasisLMF/pull/1278) - Fixes for newer versions of pandas and numpy
