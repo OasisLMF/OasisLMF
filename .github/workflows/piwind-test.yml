@@ -41,7 +41,6 @@ on:
         required: false
         type: string
 
-
 jobs:
   build:
     uses: ./.github/workflows/build.yml
