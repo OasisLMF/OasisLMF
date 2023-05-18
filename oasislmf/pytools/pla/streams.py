@@ -1,3 +1,4 @@
+from numba import njit
 import numpy as np
 
 from .common import (
@@ -8,6 +9,58 @@ from .common import (
     sidx_loss_dtype
 )
 
+
+@njit(cache=True, fastmath=True)
+def get_sidx_loss(cursor, factor, sidx_loss_in):
+    """
+    Get sample ID (sidx) and loss from input stream. Loss is returned after Post
+    Loss Amplification (PLA) factor is applied.
+
+    Args:
+        cursor (int): position in buffer
+        factor (float): PLA factor
+        sidx_loss_in (numpy.ndarray): array of sidx-loss pairs
+
+    Returns:
+        cursor (int): position in buffer
+        sidx (int): sample ID
+        loss (float): loss after PLA applied
+    """
+
+    sidx = sidx_loss_in[cursor]['sidx']
+    loss = sidx_loss_in[cursor]['loss'] * factor
+    cursor += 1
+    return cursor, sidx, loss
+
+@njit(cache=True)
+def get_event_item_ids_and_plafactor(
+    cursor, event_item_in, plafactors, items_amps
+):
+    """
+    Get event ID, item ID and Post Loss Amplification (PLA) factor from input
+    stream.
+
+    Args:
+        cursor (int): position in buffer
+        event_item_in (numpy.ndarray): array of event ID-item ID pairs
+        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary mapped
+            to event ID-item ID pair
+        items_amps (numpy.ndarray): array of amplification IDs, where index
+            corresponds to item ID
+
+    Returns:
+        cursor (int): position in buffer
+        event ID (int): event ID
+        item ID (int): item ID
+        factor (float): PLA factor
+    """
+    event_id = event_item_in[cursor]['event_id']
+    item_id = event_item_in[cursor]['item_id']
+
+    # loss factor defaults to 1.0 if missing (i.e. no change)
+    factor = plafactors.get((event_id, items_amps[item_id]), 1.0)
+    cursor += 1
+    return cursor, event_id, item_id, factor
 
 def read_and_write_streams(stream_in, stream_out, items_amps, plafactors):
     """
@@ -68,21 +121,17 @@ def read_and_write_streams(stream_in, stream_out, items_amps, plafactors):
         while cursor < valid_length:
 
             if sidx != 0:   # end of samples
-                sidx = sidx_loss_in[cursor]['sidx']
-                loss = sidx_loss_in[cursor]['loss'] * factor
+                cursor, sidx, loss = get_sidx_loss(cursor, factor, sidx_loss_in)
                 stream_out.write(np.int32(sidx).tobytes())
                 stream_out.write(np.float32(loss).tobytes())
-                cursor += 1
 
             else:
-                event_id = event_item_in[cursor]['event_id']
-                item_id = event_item_in[cursor]['item_id']
-                # loss factor defaults to 1.0 if missing (i.e. no change)
-                factor = plafactors.get((event_id, items_amps[item_id]), 1.0)
+                cursor, event_id, item_id, factor = get_event_item_ids_and_plafactor(
+                    cursor, event_item_in, plafactors, items_amps
+                )
+                sidx = -1
                 stream_out.write(np.int32(event_id).tobytes())
                 stream_out.write(np.int32(item_id).tobytes())
-                cursor += 1
-                sidx = -1
 
         valid_buffer = 0
         cursor = 0

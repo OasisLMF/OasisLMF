@@ -1,3 +1,6 @@
+from numba import njit
+from numba.core import types
+from numba.typed import Dict
 import numpy as np
 import os
 
@@ -28,7 +31,7 @@ def get_items_amplifications(path):
         path (str): path to itemsamplifications.bin file
 
     Returns:
-        items_amps (numpy array): array of amplification IDs, where index
+        items_amps (numpy.ndarray): array of amplification IDs, where index
             corresponds to item ID
     """
     # Assume item IDs start from 1 and are contiguous
@@ -40,6 +43,45 @@ def get_items_amplifications(path):
 
     return items_amps
 
+@njit(cache=True)
+def fill_post_loss_amplification_factors(
+    event_id, count, cursor, valid_length, event_count, amp_factor, plafactors
+):
+    """
+    Fill Post Loss Amplification (PLA) factors dictionary mapped to
+    event ID-item ID pair.
+
+    Args:
+        event_id (int): current event ID
+        count (int): number of remaning amplification IDs associated with
+            current event ID
+        cursor (int): position in buffer
+        valid_length (int): length of buffer in 8-bit chunks
+        event_count (numpy.ndarray): array of event ID-count pairs
+        amp_factor (numpy.ndarray): array of amplification ID-loss pairs
+        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary
+
+    Returns:
+        event_id (int): current event ID
+        count (int): number of remaining amplification IDs associated with
+            current event ID
+        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary
+    """
+    while cursor < valid_length:
+
+        if count == 0:
+            event_id = event_count[cursor]['event_id']
+            count = event_count[cursor]['count']
+            cursor += 1
+
+        else:
+            amplification_id = amp_factor[cursor]['amplification_id']
+            loss_factor = amp_factor[cursor]['factor']
+            plafactors[(event_id, amplification_id)] = loss_factor
+            cursor += 1
+            count -= 1
+
+    return event_id, count, plafactors
 
 def get_post_loss_amplification_factors(path):
     """
@@ -64,7 +106,9 @@ def get_post_loss_amplification_factors(path):
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
     """
-    plafactors = {}
+    plafactors = Dict.empty(
+        key_type=types.UniTuple(types.int64, 2), value_type=types.float64
+    )
 
     with open(os.path.join(path, LOSS_FACTORS_FILE_NAME), 'rb') as f:
         factors_buffer = memoryview(bytearray(BUFFER_SIZE))
@@ -79,6 +123,7 @@ def get_post_loss_amplification_factors(path):
         cursor = 0
         valid_buffer = 0
         count = 0
+        event_id = 0
         while True:
             len_read = f.readinto1(factors_buffer[valid_buffer:])
             valid_buffer += len_read
@@ -88,19 +133,10 @@ def get_post_loss_amplification_factors(path):
 
             valid_length = valid_buffer // DATA_SIZE
 
-            while cursor < valid_length:
-
-                if count == 0:
-                    event_id = event_count[cursor]['event_id']
-                    count = event_count[cursor]['count']
-                    cursor += 1
-
-                else:
-                    amplification_id = amp_factor[cursor]['amplification_id']
-                    loss_factor = amp_factor[cursor]['factor']
-                    plafactors[(event_id, amplification_id)] = loss_factor
-                    cursor += 1
-                    count -= 1
+            event_id, count, plafactors = fill_post_loss_amplification_factors(
+                event_id, count, cursor, valid_length, event_count, amp_factor,
+                plafactors
+            )
 
             valid_buffer = 0
             cursor = 0
