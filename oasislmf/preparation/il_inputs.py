@@ -25,6 +25,8 @@ from ast import literal_eval
 import numpy as np
 import pandas as pd
 
+from ods_tools.oed import fill_empty
+
 from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
 from oasislmf.utils.calc_rules import get_calc_rules, get_step_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -375,9 +377,9 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
     # set default cond_tag
     if cond_tag not in exposure_df.columns:
         exposure_df[cond_tag] = '0'
+        exposure_df[cond_tag] = exposure_df[cond_tag].astype('category')
     else:
-        fill_na_with_categoricals(exposure_df, {cond_tag: '0'})
-        exposure_df.loc[exposure_df[cond_tag] == '', cond_tag] = '0'
+        fill_empty(exposure_df, cond_tag, '0')
 
     # Identify BI TIV column
     bi_tiv_col = __get_bi_tiv_col_name(profile)
@@ -412,9 +414,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
                 df[col] = value
                 df[col] = df[col].astype('category')
             else:
-                if value not in df[col].cat.categories:
-                    df[col] = df[col].cat.add_categories(value)
-                df[col] = df[col].fillna(value)
+                fill_empty(df, col, value)
 
         add_default_value(accounts_df, cond_tag, '0')
         add_default_value(accounts_df, cond_num, '')
@@ -436,7 +436,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
 
         if 'CondPriority' not in accounts_df.columns:
             accounts_df['CondPriority'] = 1
-        accounts_df['CondPriority'].fillna(1, inplace=True)
+        fill_empty(accounts_df, ['CondPriority'], 1)
 
         # create a df all_cond_policy containing all the cond_tag for each policies
         policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=[cond_tag, 'CondPriority'])
@@ -1209,7 +1209,7 @@ def get_il_input_items(
     for col in il_inputs_df.columns:
         try:
             il_inputs_df[col].fillna(0, inplace=True)
-        except Exception:
+        except TypeError:
             pass
 
     # set top agg_id for later xref computation
