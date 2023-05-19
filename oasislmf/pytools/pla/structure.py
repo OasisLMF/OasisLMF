@@ -43,6 +43,7 @@ def get_items_amplifications(path):
 
     return items_amps
 
+
 @njit(cache=True)
 def fill_post_loss_amplification_factors(
     event_id, count, cursor, valid_length, event_count, amp_factor, plafactors
@@ -82,6 +83,7 @@ def fill_post_loss_amplification_factors(
             count -= 1
 
     return event_id, count, plafactors
+
 
 def get_post_loss_amplification_factors(path):
     """

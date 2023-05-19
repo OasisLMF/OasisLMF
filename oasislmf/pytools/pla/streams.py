@@ -32,6 +32,7 @@ def get_sidx_loss(cursor, factor, sidx_loss_in):
     cursor += 1
     return cursor, sidx, loss
 
+
 @njit(cache=True)
 def get_event_item_ids_and_plafactor(
     cursor, event_item_in, plafactors, items_amps
@@ -61,6 +62,7 @@ def get_event_item_ids_and_plafactor(
     factor = plafactors.get((event_id, items_amps[item_id]), 1.0)
     cursor += 1
     return cursor, event_id, item_id, factor
+
 
 def read_and_write_streams(stream_in, stream_out, items_amps, plafactors):
     """
