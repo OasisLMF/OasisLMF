@@ -31,7 +31,7 @@ from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
 from oasislmf.utils.calc_rules import get_calc_rules, get_step_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (factorize_array, factorize_ndarray,
-                                 fast_zip_arrays, fill_na_with_categoricals,
+                                 fast_zip_arrays,
                                  merge_check, merge_dataframes,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
