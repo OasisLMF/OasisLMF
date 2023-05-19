@@ -59,14 +59,21 @@ jobs:
           python-version: ${{ matrix.cfg.python-version }}
 
       - name: Download package
+        if: inputs.ktools_branch != ''
         uses: actions/download-artifact@v3
         with:
           name: oasislmf-bin-pkg_linux
           path: ${{ github.workspace }}/
 
-      - name: Install package
+      - name: Install Package (From Build)
+        if: inputs.ktools_branch != ''
         run: |
           pip install ${{ needs.build.outputs.linux_pkg_filename }}
+
+      - name: Install Oasislmf (From Repo)
+        if: inputs.ktools_branch == ''
+        run: |
+          pip install -e .
 
       - name: Install pip-tools
         run: |
