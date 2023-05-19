@@ -58,23 +58,6 @@ jobs:
         with:
           python-version: ${{ matrix.cfg.python-version }}
 
-      - name: Download package
-        if: inputs.ktools_branch != ''
-        uses: actions/download-artifact@v3
-        with:
-          name: oasislmf-bin-pkg_linux
-          path: ${{ github.workspace }}/
-
-      - name: Install Package (From Build)
-        if: inputs.ktools_branch != ''
-        run: |
-          pip install ${{ needs.build.outputs.linux_pkg_filename }}
-
-      - name: Install Oasislmf (From Repo)
-        if: inputs.ktools_branch == ''
-        run: |
-          pip install -e .
-
       - name: Install pip-tools
         run: |
           python -m pip install --upgrade pip
@@ -93,6 +76,26 @@ jobs:
             pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt ${PIP_RESOLVER}
           fi
           pip install -r requirements.txt
+
+      - name: Download package
+        if: inputs.ktools_branch != ''
+        uses: actions/download-artifact@v3
+        with:
+          name: oasislmf-bin-pkg_linux
+          path: ${{ github.workspace }}/
+
+      - name: Install Package (From Build)
+        if: inputs.ktools_branch != ''
+        run: |
+          pip install ${{ needs.build.outputs.linux_pkg_filename }}
+
+      - name: Install Oasislmf (From Repo)
+        if: inputs.ktools_branch == ''
+        run: |
+          pip install -v -e .
+
+      - name: DEBUG STEP
+        run: which eve 
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
