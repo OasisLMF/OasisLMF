@@ -95,7 +95,7 @@ jobs:
           pip install -v -e .
 
       - name: DEBUG STEP
-        run: which eve 
+        run: which eve
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
@@ -112,6 +112,8 @@ jobs:
 
       - name: Run Pytest
         run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
+        env:
+          NUMBA_DISABLE_JIT: 1
 
       - name: Upload coverage to Codecov
         if: matrix.cfg.upload-cov == true
