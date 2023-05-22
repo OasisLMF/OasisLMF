@@ -85,18 +85,15 @@ jobs:
           name: oasislmf-bin-pkg_linux
           path: ${{ github.workspace }}/
 
-      - name: Install Package (From Build)
-        if: inputs.ktools_branch != ''
+      - name: Install Package (From Package)
+        if: matrix.cfg.upload-cov != true
         run: |
           pip install ${{ needs.build.outputs.linux_pkg_filename }}
 
-      - name: Install Oasislmf (From Repo)
-        if: inputs.ktools_branch == ''
+      - name: Install Oasislmf (Editable mode)
+        if: matrix.cfg.upload-cov == true
         run: |
           pip install -v -e .
-
-      - name: DEBUG STEP
-        run: which eve
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
