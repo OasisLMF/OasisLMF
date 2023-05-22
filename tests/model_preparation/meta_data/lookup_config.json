@@ -1,0 +1,62 @@
+{
+    "model": {
+        "supplier_id": "OasisLMF",
+        "model_id": "PiWind",
+        "model_version": "0.0.0.1"
+    },
+    "builtin_lookup_type": "new_lookup",
+    "keys_data_path": "./",
+    "step_definition": {
+        "lat_long_peril": {
+            "type": "rtree",
+            "columns": ["latitude", "longitude"],
+            "parameters": {
+                "file_path": "%%KEYS_DATA_PATH%%/areaperil_dict.csv",
+                "file_type": "file",
+                "id_columns": ["area_peril_id"], 
+                "nearest_neighbor_min_distance": 3,
+                "area_peril_read_params": {"GEOM_POSSIBLE_NAMES": "geometry", "KEEP_GEOM_COLUMNS": "NO"}
+            }
+        },
+        "postcode_peril": {
+            "type": "merge",
+            "columns": ["PostalCode"],
+            "parameters": {"file_path": "%%KEYS_DATA_PATH%%/postcode_area_peril_dict.csv",
+                           "id_columns": ["area_peril_id"]
+                          }
+
+        },
+        "peril": {
+            "type": "combine",
+            "parameters": {
+                "strategy": [
+                    "lat_long_peril",
+                    "postcode_peril"
+                ],
+                "id_columns": ["area_peril_id"]
+            }
+        },
+        "split_loc_perils_covered":{
+            "type": "split_loc_perils_covered" ,
+            "columns": ["locperilscovered"],
+            "parameters": {
+                "model_perils_covered": ["WTC", "WSS"]
+            }
+        },
+        "create_coverage_type": {
+            "type": "simple_pivot",
+            "parameters": {
+                "pivots": [{"new_cols": {"coverage_type": 1}},
+                           {"new_cols": {"coverage_type": 3}}]
+            }
+        },
+        "vulnerability": {
+            "type": "merge",
+            "columns": ["peril_id", "coverage_type", "occupancycode"],
+            "parameters": {"file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
+                           "id_columns": ["vulnerability_id"]
+                          }
+        }
+    },
+    "strategy": ["split_loc_perils_covered", "peril", "create_coverage_type", "vulnerability"]
+}
