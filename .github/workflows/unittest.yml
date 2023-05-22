@@ -49,6 +49,7 @@ jobs:
           - { python-version: "3.7", pkg-version: "", upload-cov: false }
           - { python-version: "3.8", pkg-version: "", upload-cov: false }
           - { python-version: "3.9", pkg-version: "", upload-cov: false }
+          - { python-version: "3.10", pkg-version: "", upload-cov: false }
           - { python-version: "3.10", pkg-version: "", upload-cov: true }
 
     steps:
@@ -110,10 +111,15 @@ jobs:
           pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
-      - name: Run Pytest
+      - name: run pytest (JIT enabled)
+        if: matrix.cfg.upload-cov != true
         run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
+
+      - name: run pytest (JIT disabled)
+        if: matrix.cfg.upload-cov == true
+        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term --gul-rtol 1e-3 --gul-atol 1e-3
         env:
-          NUMBA_DISABLE_JIT: 1
+          numba_disable_jit: 1
 
       - name: Upload coverage to Codecov
         if: matrix.cfg.upload-cov == true
