@@ -400,7 +400,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return prepare
 
-    def build_rtree(self, file_path, file_type, id_columns, nearest_neighbor_min_distance=-1):
+    def build_rtree(self, file_path, file_type, id_columns, area_peril_read_params=None, nearest_neighbor_min_distance=-1):
         """
         Function Factory to associate location to area_peril based on the rtree method
 
@@ -432,7 +432,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
         if hasattr(gpd, f"read_{file_type}"):
-            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path))
+            if area_peril_read_params is None:
+                area_peril_read_params = {}
+            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **area_peril_read_params)
         else:
             raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
@@ -467,7 +469,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
                     gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
                     valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
-                    common_col = gdf_loc_na.columns & nearest_neighbor_df.columns
+                    common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
                     gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
                 gdf_loc = pd.concat([gdf_loc, null_gdf_loc])

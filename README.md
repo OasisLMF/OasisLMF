@@ -73,7 +73,7 @@ The reusable libraries are organised into several sub-packages, the most relevan
 
 Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency of the MDK we are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is version `1.3.3` (published 12/03/2019).
 
-Also for this release (and all future releases) a **minimum of Python 3.7 is required**.
+Also for this release (and all future releases) a **minimum of Python 3.8 is required**.
 
 
 ## Installation
@@ -169,7 +169,7 @@ below is the summary:
 
 ### pandas
 Pandas has released its major version number 2 breaking some of the compatibility with the 1st version
-Therefore, for all version of OasisLMF <= 1.27.2, the latest supported version for pandas is 1.5.3  
+Therefore, for all version of OasisLMF <= 1.27.2, the latest supported version for pandas is 1.5.3
 Support for pandas 2, starts from version 1.27.3
 
 ## Testing
