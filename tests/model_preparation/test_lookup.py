@@ -22,6 +22,7 @@ from tests.data import keys
 
 META_DATA_PATH = pathlib.Path(os.path.realpath(__file__)).parent.joinpath('meta_data')
 
+
 class OasisLookupFactoryCreate(TestCase):
 
     @staticmethod
