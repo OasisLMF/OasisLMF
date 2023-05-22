@@ -116,7 +116,7 @@ jobs:
         if: matrix.cfg.upload-cov == true
         run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term --gul-rtol 1e-3 --gul-atol 1e-3
         env:
-          numba_disable_jit: 1
+          NUMBA_DISABLE_JIT: 1
 
       - name: Upload coverage to Codecov
         if: matrix.cfg.upload-cov == true
