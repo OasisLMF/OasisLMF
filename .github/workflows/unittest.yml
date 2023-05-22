@@ -79,7 +79,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Download package
-        if: inputs.ktools_branch != ''
+        if: matrix.cfg.upload-cov != true
         uses: actions/download-artifact@v3
         with:
           name: oasislmf-bin-pkg_linux
