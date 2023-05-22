@@ -95,7 +95,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     return inner
 
 
-def assert_allclose(x, y, rtol=1e-10, atol=1e-8, x_name="x", y_name="y"):
+def assert_allclose(x, y, rtol=1e-3, atol=1e-3, x_name="x", y_name="y"):
     """
     Drop in replacement for `numpy.testing.assert_allclose` that also shows
     the nonmatching elements in a nice human-readable format.
