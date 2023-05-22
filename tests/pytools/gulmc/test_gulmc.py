@@ -34,15 +34,18 @@ def gulmc_generate_missing_expected(request):
     """Fixture to get the value of the `--gulmc-generate-missing-expected` command line argument."""
     return request.config.getoption('--gulmc-generate-missing-expected')
 
+
 @pytest.fixture
 def update_expected(request):
     """Fixture to get the value of the `--update-expected` command line argument."""
     return request.config.getoption('--update-expected')
 
+
 @pytest.fixture
 def gul_rtol(request):
     """Fixture to get the value of the `--gul-rtol` command line argument."""
     return request.config.getoption('--gul-rtol')
+
 
 @pytest.fixture
 def gul_atol(request):
@@ -63,8 +66,8 @@ def test_gulmc(test_model: Tuple[str, str],
                random_generator: int,
                effective_damageability: bool,
                gulmc_generate_missing_expected: bool,
-               update_expected: bool, 
-               gul_rtol: float, 
+               update_expected: bool,
+               gul_rtol: float,
                gul_atol: float):
     """Test gulmc functionality.
 
@@ -163,7 +166,7 @@ def test_gulmc(test_model: Tuple[str, str],
                 # to clean up temporary csv files before raising the final AssertionError
                 try:
                     # compare the `loss` columns
-                    assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol,  x_name='expected', y_name='test')
+                    assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
                 except AssertionError as e:
                     # remove temporary files
                     ref_out_bin_fname.with_suffix('.csv').unlink()
