@@ -1,10 +1,11 @@
 __all__ = [
     'APIClient',
     'ApiEndpoint',
+    'FileEndpoint',
+    'JsonEndpoint',
     'API_analyses',
     'API_models',
     'API_portfolios',
-    'FileEndpoint',
 ]
 
 import io
@@ -15,6 +16,8 @@ import sys
 import tarfile
 import time
 import pathlib
+
+from posixpath import join as urljoin
 
 import pandas as pd
 
@@ -36,27 +39,27 @@ class ApiEndpoint(object):
     def __init__(self, session, url_endpoint, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
-        self.url_endpoint = url_endpoint
+        self.url_endpoint = str(url_endpoint)
 
     def create(self, data):
         return self.session.post(self.url_endpoint, json=data)
 
     def get(self, ID=None):
         if ID:
-            return self.session.get('{}{}/'.format(self.url_endpoint, ID))
+            return self.session.get(urljoin(self.url_endpoint, f'{ID}/'))
         return self.session.get(self.url_endpoint)
 
     def delete(self, ID):
-        return self.session.delete('{}{}/'.format(self.url_endpoint, ID))
+        return self.session.delete(urljoin(self.url_endpoint, f'{ID}/'))
 
     def search(self, metadata={}):
         search_string = ""
         for key in metadata:
             if not search_string:
-                search_string = '?{}={}'.format(key, metadata[key])
+                search_string = f'?{key}={metadata[key]}'
             else:
-                search_string += '&{}={}'.format(key, metadata[key])
-        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
+                search_string += f'&{key}={metadata[key]}'
+        return self.session.get(f'{self.url_endpoint}{search_string}')
 
 
 class JsonEndpoint(object):
@@ -67,15 +70,11 @@ class JsonEndpoint(object):
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
-        self.url_endpoint = url_endpoint
-        self.url_resource = url_resource
+        self.url_endpoint = str(url_endpoint)
+        self.url_resource = str(url_resource)
 
     def _build_url(self, ID):
-        return '{}{}/{}'.format(
-            self.url_endpoint,
-            ID,
-            self.url_resource
-        )
+        return urljoin(self.url_endpoint, str(ID), self.url_resource)
 
     def get(self, ID):
         return self.session.get(self._build_url(ID))
@@ -88,10 +87,11 @@ class JsonEndpoint(object):
 
     def download(self, ID, file_path, overwrite=True):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
+        dir_fp = os.path.dirname(abs_fp)
 
         # Check and create base dir
-        if not os.path.exists(os.path.dirname(file_path)):
-            os.makedirs(os.path.dirname(file_path))
+        if not os.path.exists(dir_fp):
+            os.makedirs(dir_fp)
 
         # Check if file exists
         if os.path.exists(abs_fp) and not overwrite:
@@ -114,17 +114,12 @@ class FileEndpoint(object):
 
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
-
         self.session = session
-        self.url_endpoint = url_endpoint
-        self.url_resource = url_resource
+        self.url_endpoint = str(url_endpoint)
+        self.url_resource = str(url_resource)
 
     def _build_url(self, ID):
-        return '{}{}/{}'.format(
-            self.url_endpoint,
-            ID,
-            self.url_resource
-        )
+        return urljoin(self.url_endpoint, str(ID), self.url_resource)
 
     def _set_content_type(self, file_path):
         content_type_map = {
@@ -150,10 +145,11 @@ class FileEndpoint(object):
 
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
+        dir_fp = os.path.dirname(abs_fp)
 
         # Check and create base dir
-        if not os.path.exists(os.path.dirname(file_path)):
-            os.makedirs(os.path.dirname(file_path))
+        if not os.path.exists(dir_fp):
+            os.makedirs(dir_fp)
 
         # Check if file exists
         if os.path.exists(abs_fp) and not overwrite:
