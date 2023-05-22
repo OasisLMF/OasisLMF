@@ -785,7 +785,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
         if 'exposure_data' in computation_step.kwargs:
             exposure_data = computation_step.kwargs['exposure_data']
         else:
-            if Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
+            if hasattr(computation_step, 'oasis_files_dir') and Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
                 exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
                 exposure_data = OedExposure(**computation_step.get_exposure_data_config())
