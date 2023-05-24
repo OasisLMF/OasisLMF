@@ -49,6 +49,7 @@ jobs:
           - { python-version: "3.8", pkg-version: "", upload-cov: false }
           - { python-version: "3.9", pkg-version: "", upload-cov: false }
           - { python-version: "3.10", pkg-version: "", upload-cov: false }
+          - { python-version: "3.11", pkg-version: "", upload-cov: false }
           - { python-version: "3.11", pkg-version: "", upload-cov: true }
 
     steps:
@@ -57,16 +58,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.cfg.python-version }}
-
-      - name: Download package
-        uses: actions/download-artifact@v3
-        with:
-          name: oasislmf-bin-pkg_linux
-          path: ${{ github.workspace }}/
-
-      - name: Install package
-        run: |
-          pip install ${{ needs.build.outputs.linux_pkg_filename }}
 
       - name: Install pip-tools
         run: |
@@ -87,6 +78,23 @@ jobs:
           fi
           pip install -r requirements.txt
 
+      - name: Download package
+        if: matrix.cfg.upload-cov != true
+        uses: actions/download-artifact@v3
+        with:
+          name: oasislmf-bin-pkg_linux
+          path: ${{ github.workspace }}/
+
+      - name: Install Package (From Package)
+        if: matrix.cfg.upload-cov != true
+        run: |
+          pip install ${{ needs.build.outputs.linux_pkg_filename }}
+
+      - name: Install Oasislmf (Editable mode)
+        if: matrix.cfg.upload-cov == true
+        run: |
+          pip install -v -e .
+
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
         uses: actions/download-artifact@v3
@@ -100,8 +108,15 @@ jobs:
           pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
-      - name: Run Pytest
+      - name: run pytest (JIT enabled)
+        if: matrix.cfg.upload-cov != true
         run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
+
+      - name: run pytest (JIT disabled)
+        if: matrix.cfg.upload-cov == true
+        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term --gul-rtol 1e-3 --gul-atol 1e-3
+        env:
+          NUMBA_DISABLE_JIT: 1
 
       - name: Upload coverage to Codecov
         if: matrix.cfg.upload-cov == true

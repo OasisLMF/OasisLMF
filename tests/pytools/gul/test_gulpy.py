@@ -28,13 +28,25 @@ ignore_correlations = [True, False]
 random_generators = [0, 1]
 
 
+@pytest.fixture
+def gul_rtol(request):
+    """Fixture to get the value of the `--gul-rtol` command line argument."""
+    return request.config.getoption('--gul-rtol')
+
+
+@pytest.fixture
+def gul_atol(request):
+    """Fixture to get the value of the `--gul-atol` command line argument."""
+    return request.config.getoption('--gul-atol')
+
+
 @pytest.mark.parametrize("random_generator", random_generators, ids=lambda x: f"random_generator={x} ")
 @pytest.mark.parametrize("ignore_correlation", ignore_correlations, ids=lambda x: f"ignore_correlation={str(x):5} ")
 @pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
 @pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
 @pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
 def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, ignore_correlation: bool,
-               random_generator: int):
+               random_generator: int, gul_rtol: float, gul_atol: float):
 
     test_model_name, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
@@ -81,7 +93,7 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
 
             # compare the `loss` columns
-            assert_allclose(df_ref['loss'], df_test['loss'], x_name='expected', y_name='test')
+            assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
 
             # remove temporary files
             ref_out_bin_fname.with_suffix('.csv').unlink()
