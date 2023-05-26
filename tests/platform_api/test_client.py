@@ -35,6 +35,8 @@ from oasislmf.platform_api.client import (
 
 from oasislmf.platform_api.session import APISession
 from requests_toolbelt import MultipartEncoder
+from responses.registries import OrderedRegistry
+
 
 import responses
 import requests
@@ -408,8 +410,8 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(rsp.url, expected_url)
 
     @given(
-        ID=st.integers(min_value=1), 
-        data_object=st.text(), 
+        ID=st.integers(min_value=1),
+        data_object=st.text(),
         content_type=st.sampled_from([
             'application/octet-stream',
             'application/octet-stream',
@@ -425,7 +427,7 @@ class FileEndpointTests(unittest.TestCase):
     def test_post(self, ID, data_object, content_type):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         responses.post(url=expected_url)
-        
+
         rsp = self.api.post(ID, data_object, content_type)
         request = responses.calls[-1].request
         req_type, req_data, req_content_type = request.body.fields['file']
@@ -434,7 +436,7 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(req_type, 'data')
         self.assertEqual(req_data, data_object)
         self.assertEqual(req_content_type, content_type)
-        
+
     def test_post__failed(self):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, 2, self.url_resource)
         responses.post(url=expected_url, json={"error": "not found"}, status=404,)
@@ -453,12 +455,8 @@ class FileEndpointTests(unittest.TestCase):
         rsp = self.api.delete(ID)
 
         request = responses.calls[-1].request
-        self.assertTrue(request.url, expected_url) 
-        self.assertTrue(rsp.ok) 
-
-
-
-
+        self.assertTrue(request.url, expected_url)
+        self.assertTrue(rsp.ok)
 
     def test_get_dataframe__from_csv_data(self):
         ID = 123
@@ -496,7 +494,7 @@ class FileEndpointTests(unittest.TestCase):
         ID = 123
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         tar_fp = os.path.join(os.path.dirname(__file__), 'data', 'analysis_1_output.tar')
-        with open(tar_fp, mode='rb') as file: 
+        with open(tar_fp, mode='rb') as file:
             tar_data = file.read()
 
         responses.get(
@@ -507,7 +505,7 @@ class FileEndpointTests(unittest.TestCase):
 
         result = self.api.get_dataframe(ID)
         expected_files = [
-            'gul_S1_aalcalc.csv', 
+            'gul_S1_aalcalc.csv',
             'gul_S1_eltcalc.csv',
             'gul_S1_summary-info.csv',
             'gul_S1_melt.parquet',
@@ -518,7 +516,7 @@ class FileEndpointTests(unittest.TestCase):
             'gul_S1_selt.parquet',
             'gul_S1_splt.parquet'
         ]
-        
+
         for df in expected_files:
             self.assertTrue(isinstance(result[df], pd.DataFrame))
             self.assertTrue(len(result[df].index) > 0)
@@ -532,7 +530,7 @@ class FileEndpointTests(unittest.TestCase):
             body=self.parquet_data,
             content_type=content_type,
             stream=True)
- 
+
         with self.assertRaises(OasisException) as context:
             result = self.api.get_dataframe(ID)
 
@@ -592,19 +590,19 @@ class APIModelsTests(unittest.TestCase):
             'scaling_configuration',
         ]
         for endpoint in endpoint_list:
-           OasisAPI_obj = getattr(self.api, endpoint)
-           self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
-           self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
-           self.assertTrue(isinstance(OasisAPI_obj, (
-                ApiEndpoint, 
-                FileEndpoint, 
+            OasisAPI_obj = getattr(self.api, endpoint)
+            self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+            self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+            self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint,
+                FileEndpoint,
                 JsonEndpoint
             )))
 
     @given(
-        supplier_id=st.text(), 
-        model_id=st.text(), 
-        version_id=st.text(), 
+        supplier_id=st.text(),
+        model_id=st.text(),
+        version_id=st.text(),
         data_files=st.lists(st.integers() | st.text())
     )
     def test_model_create(self, supplier_id, model_id, version_id, data_files):
@@ -631,17 +629,16 @@ class APIModelsTests(unittest.TestCase):
         responses.post(url=expected_url, json=json_rsp)
         result = self.api.create(supplier_id, model_id, version_id, data_files)
         self.assertEqual(result.json(), json_rsp)
-        
+
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
 
-
     @given(
         ID=st.integers(min_value=1),
-        supplier_id=st.text(), 
-        model_id=st.text(), 
-        version_id=st.text(), 
+        supplier_id=st.text(),
+        model_id=st.text(),
+        version_id=st.text(),
         data_files=st.lists(st.integers() | st.text())
     )
     def test_model_update(self, ID, supplier_id, model_id, version_id, data_files):
@@ -668,7 +665,7 @@ class APIModelsTests(unittest.TestCase):
         responses.put(url=expected_url, json=json_rsp)
         result = self.api.update(ID, supplier_id, model_id, version_id, data_files)
         self.assertEqual(result.json(), json_rsp)
-        
+
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
@@ -704,15 +701,14 @@ class APIPortfoliosTests(unittest.TestCase):
             'storage_links',
         ]
         for endpoint in endpoint_list:
-           OasisAPI_obj = getattr(self.api, endpoint)
-           self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
-           self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
-           self.assertTrue(isinstance(OasisAPI_obj, (
-                ApiEndpoint, 
-                FileEndpoint, 
+            OasisAPI_obj = getattr(self.api, endpoint)
+            self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+            self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+            self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint,
+                FileEndpoint,
                 JsonEndpoint
             )))
-
 
     @given(st.text())
     def test_create(self, name):
@@ -720,25 +716,24 @@ class APIPortfoliosTests(unittest.TestCase):
         expected_url = self.url_endpoint
         expected_data = {"name": name}
         json_rsp = {
-              "id": ID,
-              "name": "string",
-              "created": "2023-05-26T06:48:52.524821Z",
-              "modified": "2023-05-26T06:48:52.524821Z",
-              "location_file": None,
-              "accounts_file": None,
-              "reinsurance_info_file": None,
-              "reinsurance_scope_file": None,
-              "storage_links": f"http://localhost:8000/v1/portfolios/{ID}/storage_links/"
+            "id": ID,
+            "name": "string",
+            "created": "2023-05-26T06:48:52.524821Z",
+            "modified": "2023-05-26T06:48:52.524821Z",
+            "location_file": None,
+            "accounts_file": None,
+            "reinsurance_info_file": None,
+            "reinsurance_scope_file": None,
+            "storage_links": f"http://localhost:8000/v1/portfolios/{ID}/storage_links/"
         }
 
         responses.post(url=expected_url, json=json_rsp)
         result = self.api.create(name)
         self.assertEqual(result.json(), json_rsp)
-        
+
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
-
 
     @given(st.integers(min_value=1), st.text())
     def test_update(self, ID, name):
@@ -779,7 +774,6 @@ class APIAnalysesTests(unittest.TestCase):
         responses.stop()
         responses.reset()
 
-
     def test_endpoint_setup(self):
         endpoint_list = [
             'lookup_errors_file',
@@ -795,12 +789,12 @@ class APIAnalysesTests(unittest.TestCase):
             'settings',
         ]
         for endpoint in endpoint_list:
-           OasisAPI_obj = getattr(self.api, endpoint)
-           self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
-           self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
-           self.assertTrue(isinstance(OasisAPI_obj, (
-                ApiEndpoint, 
-                FileEndpoint, 
+            OasisAPI_obj = getattr(self.api, endpoint)
+            self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+            self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+            self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint,
+                FileEndpoint,
                 JsonEndpoint
             )))
 
@@ -841,11 +835,10 @@ class APIAnalysesTests(unittest.TestCase):
         responses.post(url=expected_url, json=json_rsp)
         result = self.api.create(name, portfolio_id, model_id, data_files)
         self.assertEqual(result.json(), json_rsp)
-        
+
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
-
 
     @given(st.integers(min_value=1), st.text(), st.integers(min_value=1), st.integers(min_value=1), st.lists(st.integers() | st.text(), min_size=0, max_size=10))
     def test_update(self, ID, name, portfolio_id, model_id, data_files):
@@ -862,7 +855,6 @@ class APIAnalysesTests(unittest.TestCase):
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
-
 
     @given(st.integers(min_value=1))
     def test_status(self, ID):
@@ -940,277 +932,253 @@ class APIAnalysesTests(unittest.TestCase):
         self.assertTrue(result.ok)
 
 
-# ----------------- Working up to here ----------------------------------------#
+class APIClientTests(unittest.TestCase):
 
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.api_url = 'http://example.com/api'
+        self.api_ver = 'V1'
+        self.username = 'testUser'
+        self.password = 'testPass'
+        self.timeout = 0.1
+        self.logger = MagicMock(spec=logging.Logger)
 
+        responses.start()
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
 
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
 
+        self.client = APIClient(
+            api_url=self.api_url,
+            api_ver=self.api_ver,
+            username=self.username,
+            password=self.password,
+            timeout=self.timeout,
+            logger=self.logger
+        )
 
-#
-#
-#
-#
-#
-# V1
-#
-#
-# class APIClientTests(unittest.TestCase):
-# @classmethod
-# def setUpClass(cls):
-# cls.logger = logging.getLogger(__name__)
-# cls.api_url = 'http://localhost:8000'
-# cls.api_ver = 'V1'
-# cls.username = 'admin'
-# cls.password = 'password'
-# cls.timeout = 25
-##
-# def setUp(self):
-# self.api_session_mock = MagicMock()
-# self.api_models_mock = MagicMock()
-# self.api_portfolios_mock = MagicMock()
-# self.api_analyses_mock = MagicMock()
-# self.api_data_files_mock = MagicMock()
-##
-# self.api_session_mock.get.return_value = MagicMock()
-# self.api_session_mock.post.return_value = MagicMock()
-##
-# self.api_models_mock.create.return_value = MagicMock(json=MagicMock(return_value={'id': 1}))
-# self.api_portfolios_mock.create.return_value = MagicMock(json=MagicMock(return_value={'id': 2}))
-##
-# self.client = APIClient(
-# api_url=self.api_url,
-# api_ver=self.api_ver,
-# username=self.username,
-# password=self.password,
-# timeout=self.timeout,
-# logger=self.logger
-# )
-# self.client.api = self.api_session_mock
-# self.client.models = self.api_models_mock
-# self.client.portfolios = self.api_portfolios_mock
-# self.client.analyses = self.api_analyses_mock
-# self.client.data_files = self.api_data_files_mock
-##
-# @given(st.text())
-# def test_oed_peril_codes(self, response_text):
-# expected_url = '{}oed_peril_codes/'.format(self.api_url)
-##
-# self.api_session_mock.get.return_value.text = response_text
-##
-# result = self.client.oed_peril_codes()
-##
-# self.api_session_mock.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.api_session_mock.get.return_value.text)
-##
-# @given(st.text())
-# def test_server_info(self, response_text):
-# expected_url = '{}server_info/'.format(self.api_url)
-##
-# self.api_session_mock.get.return_value.text = response_text
-##
-# result = self.client.server_info()
-##
-# self.api_session_mock.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.api_session_mock.get.return_value.text)
-##
-# @given(st.text())
-# def test_healthcheck(self, response_text):
-# expected_url = '{}healthcheck/'.format(self.api_url)
-##
-# self.api_session_mock.get.return_value.text = response_text
-##
-# result = self.client.healthcheck()
-##
-# self.api_session_mock.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.api_session_mock.get.return_value.text)
-##
-#
-#
-#
-# V2
-#
-# class APIClientTests(unittest.TestCase):
-# @patch('your_module.APISession')
-# def setUp(self, MockAPISession):
-# self.api_url = 'http://localhost:8000'
-# self.api_ver = 'V1'
-# self.username = 'admin'
-# self.password = 'password'
-# self.timeout = 25
-# self.logger = MagicMock(spec=logging.Logger)
-##
-# self.api = MockAPISession.return_value
-# self.api.url_base = self.api_url
-##
-# self.client = APIClient(
-# api_url=self.api_url,
-# api_ver=self.api_ver,
-# username=self.username,
-# password=self.password,
-# timeout=self.timeout,
-# logger=self.logger
-# )
-##
-# def test_oed_peril_codes(self):
-# expected_url = '{}/oed_peril_codes/'.format(self.api.url_base)
-# self.api.get.return_value.ok = True
-##
-# result = self.client.oed_peril_codes()
-##
-# self.api.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.api.get.return_value)
-##
-# def test_server_info(self):
-# expected_url = '{}/server_info/'.format(self.api.url_base)
-# self.api.get.return_value.ok = True
-##
-# result = self.client.server_info()
-##
-# self.api.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.api.get.return_value)
-##
-# def test_healthcheck(self):
-# expected_url = '{}/healthcheck/'.format(self.api.url_base)
-# self.api.get.return_value.ok = True
-##
-# result = self.client.healthcheck()
-##
-# self.api.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.api.get.return_value)
-##
-# def test_upload_inputs_create_portfolio(self):
-# portfolio_name = 'Portfolio_01012021-120000'
-# location_fp = '/path/to/location_file.csv'
-# accounts_fp = '/path/to/accounts_file.csv'
-# ri_info_fp = '/path/to/ri_info_file.csv'
-# ri_scope_fp = '/path/to/ri_scope_file.csv'
-##
-# self.client.portfolios.create.return_value.json.return_value = {'id': 1}
-# self.client.portfolios.location_file.upload.return_value.ok = True
-# self.client.portfolios.accounts_file.upload.return_value.ok = True
-# self.client.portfolios.reinsurance_info_file.upload.return_value.ok = True
-# self.client.portfolios.reinsurance_scope_file.upload.return_value.ok = True
-##
-# result = self.client.upload_inputs(
-# portfolio_name=portfolio_name,
-# location_fp=location_fp,
-# accounts_fp=accounts_fp,
-# ri_info_fp=ri_info_fp,
-# ri_scope_fp=ri_scope_fp
-# )
-##
-# self.client.portfolios.create.assert_called_with(portfolio_name)
-# self.client.portfolios.location_file.upload.assert_called_with(1, location_fp)
-# self.client.portfolios.accounts_file.upload.assert_called_with(1, accounts_fp)
-# self.client.portfolios.reinsurance_info_file.upload.assert_called_with(1, ri_info_fp)
-# self.client.portfolios.reinsurance_scope_file.upload.assert_called_with(1, ri_scope_fp)
-# self.assertEqual(result, {'id': 1})
-#
-#
-# class APIClientTestCase(unittest.TestCase):
-# @patch('mymodule.api_client.APISession')
-# def test_init(self, mock_APISession):
-# Mock the APISession class
-# mock_api_session = Mock()
-# mock_APISession.return_value = mock_api_session
-##
-# Create an instance of APIClient
-# api_client = APIClient(api_url='http://localhost:8000', username='admin', password='password')
-##
-# Check that APISession is initialized with the correct arguments
-# mock_APISession.assert_called_once_with('http://localhost:8000', 'admin', 'password', timeout=25)
-##
-# Check that the APISession instance is assigned to the api attribute
-# self.assertEqual(api_client.api, mock_api_session)
-##
-# Additional assertions for other attributes if needed
-##
-# @given(text())
-# @patch('mymodule.api_client.APISession.post')
-# def test_create_model(self, model_data, mock_post):
-# Mock the APISession post method
-# mock_response = Mock()
-# mock_response.json.return_value = {'id': 1, 'name': 'Model 1'}
-# mock_post.return_value = mock_response
-##
-# Create an instance of APIClient
-# api_client = APIClient(api_url='http://localhost:8000', username='admin', password='password')
-##
-# Call the create_model method
-# model = api_client.create_model(model_data)
-##
-# Check that the post method is called with the correct arguments
-# mock_post.assert_called_once_with('/models/', json=model_data)
-##
-# Check that the returned model object has the correct attributes
-# self.assertEqual(model.id, 1)
-# self.assertEqual(model.name, 'Model 1')
-##
-# @patch('mymodule.api_client.APISession.get')
-# def test_get_model(self, mock_get):
-# Mock the APISession get method
-# mock_response = Mock()
-# mock_response.json.return_value = {'id': 1, 'name': 'Model 1'}
-# mock_get.return_value = mock_response
-##
-# Create an instance of APIClient
-# api_client = APIClient(api_url='http://localhost:8000', username='admin', password='password')
-##
-# Call the get_model method
-# model = api_client.get_model(1)
-##
-# Check that the get method is called with the correct arguments
-# mock_get.assert_called_once_with('/models/1/')
-##
-# Check that the returned model object has the correct attributes
-# self.assertEqual(model.id, 1)
-# self.assertEqual(model.name, 'Model 1')
-##
-# @patch('mymodule.api_client.APISession.put')
-# def test_update_model(self, mock_put):
-# Mock the APISession put method
-# mock_response = Mock()
-# mock_response.json.return_value = {'id': 1, 'name': 'Updated Model'}
-# mock_put.return_value = mock_response
-##
-# Create an instance of APIClient
-# api_client = APIClient(api_url='http://localhost:8000', username='admin', password='password')
-##
-# Call the update_model method
-# model = api_client.update_model(1, {'name': 'Updated Model'})
-##
-# Check that the put method is called with the correct arguments
-# mock_put.assert_called_once_with('/models/1/', json={'name': 'Updated Model'})
-##
-# Check that the returned model object has the correct attributes
-# self.assertEqual(model.id, 1)
-# self.assertEqual(model.name, 'Updated Model')
-##
-# @patch('mymodule.api_client.APISession.delete')
-# def test_delete_model(self, mock_delete):
-# Create an instance of APIClient
-# api_client = APIClient(api_url='http://localhost:8000', username='admin', password='password')
-##
-# Call the delete_model method
-# api_client.delete_model(1)
-##
-# Check that the delete method is called with the correct arguments
-# mock_delete.assert_called_once_with('/models/1/')
-##
-# @patch('mymodule.api_client.APISession.get')
-# def test_get_model_error(self, mock_get):
-# Mock the APISession get method to raise an HTTPError
-# mock_response = Mock()
-# mock_response.raise_for_status.side_effect = HTTPError('Not Found')
-# mock_get.return_value = mock_response
-##
-# Create an instance of APIClient
-# api_client = APIClient(api_url='http://localhost:8000', username='admin', password='password')
-##
-# Call the get_model method and check that it raises an exception
-# with self.assertRaises(HTTPError):
-# api_client.get_model(1)
-##
-# Check that the get method is called with the correct arguments
-# mock_get.assert_called_once_with('/models/1/')
-##
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
+
+    def test_endpoint_setup(self):
+        self.assertEqual(self.client.models.url_endpoint, f'{self.api_url}/{self.api_ver}/models/')
+        self.assertEqual(self.client.portfolios.url_endpoint, f'{self.api_url}/{self.api_ver}/portfolios/')
+        self.assertEqual(self.client.analyses.url_endpoint, f'{self.api_url}/{self.api_ver}/analyses/')
+        self.assertEqual(self.client.data_files.url_endpoint, f'{self.api_url}/{self.api_ver}/data_files/')
+
+        self.assertTrue(isinstance(self.client.models, API_models))
+        self.assertTrue(isinstance(self.client.portfolios, API_portfolios))
+        self.assertTrue(isinstance(self.client.analyses, API_analyses))
+        self.assertTrue(isinstance(self.client.data_files, API_datafiles))
+
+    def test_oed_peril_codes(self):
+        expected_url = '{}/oed_peril_codes/'.format(self.api_url)
+        responses.get(url=expected_url)
+        result = self.client.oed_peril_codes()
+        self.assertTrue(result.ok)
+
+    def test_server_info(self):
+        expected_url = '{}/server_info/'.format(self.api_url)
+        responses.get(url=expected_url)
+        result = self.client.server_info()
+        self.assertTrue(result.ok)
+
+    def test_healthcheck(self):
+        expected_url = '{}/healthcheck/'.format(self.api_url)
+        responses.get(url=expected_url)
+        result = self.client.healthcheck()
+        self.assertTrue(result.ok)
+
+    def test_upload_inputs__create_portfolio(self):
+        ID = 3
+        portfolio_name = 'Portfolio_01012021-120000'
+        location_fp = 'location_file.csv'
+        accounts_fp = 'accounts_file.csv'
+        ri_info_fp = 'ri_info_file.csv'
+        ri_scope_fp = 'ri_scope_file.csv'
+
+        # create fake data
+        with TemporaryDirectory() as d:
+            for exp_file in [location_fp, accounts_fp, ri_info_fp, ri_scope_fp]:
+                abs_fp = os.path.realpath(os.path.join(d, exp_file))
+                with open(abs_fp, 'wb') as file:
+                    file.write(f'Dummy data for {abs_fp}'.encode('ascii'))
+
+            # create fake responces
+            responses.post(url=self.client.portfolios.url_endpoint, json={'id': ID})
+            responses.post(url=self.client.portfolios.location_file._build_url(ID))
+            responses.post(url=self.client.portfolios.accounts_file._build_url(ID))
+            responses.post(url=self.client.portfolios.reinsurance_info_file._build_url(ID))
+            responses.post(url=self.client.portfolios.reinsurance_scope_file._build_url(ID))
+
+            result = self.client.upload_inputs(
+                portfolio_name=portfolio_name,
+                location_fp=os.path.join(d, location_fp),
+                accounts_fp=os.path.join(d, accounts_fp),
+                ri_info_fp=os.path.join(d, ri_info_fp),
+                ri_scope_fp=os.path.join(d, ri_scope_fp)
+            )
+            self.assertEqual(result, {'id': ID})
+
+    def test_upload_inputs__update_success(self):
+        ID = 3
+        location_fp = 'location_file.csv'
+
+        # create fake data
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, location_fp))
+            with open(abs_fp, 'wb') as file:
+                file.write(f'Dummy data for {abs_fp}'.encode('ascii'))
+
+            # create fake responces
+            responses.put(url=urljoin(self.client.portfolios.url_endpoint, f'{ID}/'), json={'id': ID})
+            responses.post(url=self.client.portfolios.location_file._build_url(ID))
+
+            result = self.client.upload_inputs(
+                portfolio_id=ID,
+                location_fp=os.path.join(d, location_fp),
+            )
+            self.assertEqual(result, {'id': ID})
+
+    def test_upload_inputs__update_failed(self):
+        ID = 3
+        location_fp = 'location_file.csv'
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, location_fp))
+            with open(abs_fp, 'wb') as file:
+                file.write(f'Dummy data for {abs_fp}'.encode('ascii'))
+
+            responses.put(url=urljoin(self.client.portfolios.url_endpoint, f'{ID}/'), json={"error": "not found"}, status=404)
+            responses.post(url=self.client.portfolios.location_file._build_url(ID))
+            with self.assertRaises(OasisException) as context:
+                result = self.client.upload_inputs(
+                    portfolio_id=ID,
+                    location_fp=os.path.join(d, location_fp),
+                )
+
+    def test_upload_settings__as_dict(self):
+        ID = 5
+        settings = {'run': 'options', 'model_settings': '...etc..'}
+        expected_url = self.client.analyses.settings._build_url(ID)
+        responses.post(url=expected_url)
+
+        self.client.upload_settings(ID, settings)
+        request = responses.calls[-1].request
+        self.assertEqual(json.loads(request.body), settings)
+
+    def test_upload_settings__as_file(self):
+        ID = 5
+        settings_fp = 'settings.json'
+        settings = {'run': 'options', 'model_settings': '...etc..'}
+        expected_url = self.client.analyses.settings._build_url(ID)
+        responses.post(url=expected_url)
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, settings_fp))
+            with open(abs_fp, 'w') as file:
+                json.dump(settings, file)
+            self.client.upload_settings(ID, abs_fp)
+
+        request = responses.calls[-1].request
+        self.assertEqual(json.loads(request.body), settings)
+
+    def test_upload_settings__invalid(self):
+        with self.assertRaises(TypeError) as context:
+            self.client.upload_settings(1, 1)
+
+    def test_create_analysis__success(self):
+        settings = {'run': 'options', 'model_settings': '...etc..'}
+        settings_fp = 'settings.json'
+
+        responses.post(url=self.client.analyses.url_endpoint, json={'id': 69})
+        settings_expected_url = self.client.analyses.settings._build_url(69)
+        responses.post(url=settings_expected_url)
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, settings_fp))
+            with open(abs_fp, 'w') as file:
+                json.dump(settings, file)
+
+            resp = self.client.create_analysis(
+                portfolio_id=42,
+                model_id=5,
+                analysis_name='my_analysis',
+                analysis_settings_fp=abs_fp
+            )
+
+    def test_create_analysis__invalid(self):
+        settings = {'run': 'options', 'model_settings': '...etc..'}
+        settings_fp = 'settings.json'
+
+        responses.post(url=self.client.analyses.url_endpoint,
+                       json={'bad request': 'Portfolio not found'}, status=400)
+        settings_expected_url = self.client.analyses.settings._build_url(69)
+        responses.post(url=settings_expected_url)
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, settings_fp))
+            with open(abs_fp, 'w') as file:
+                json.dump(settings, file)
+
+            with self.assertRaises(OasisException) as context:
+                resp = self.client.create_analysis(
+                    portfolio_id=42,
+                    model_id=5,
+                )
+
+    def run_generate__success(self):
+        pass
+
+    def run_generate__cancelled(self):
+        pass
+
+    def run_generate__exec_error(self):
+        pass
+
+    def run_generate__unknown_status(self):
+        pass
+
+    def run_generate__with_subtasks(self):
+        pass
+
+    def run_analysis__success(self):
+        pass
+
+    def run_analysis__cancelled(self):
+        pass
+
+    def run_analysis__exec_error(self):
+        pass
+
+    def run_analysis__unknown_status(self):
+        pass
+
+    def run_analysis__with_subtasks(self):
+        pass
+
+    def cancel_generate__success(self):
+        pass
+
+    def cancel_generate__error(self):
+        pass
+
+    def cancel_analysis__success(self):
+        pass
+
+    def cancel_analysis__error(self):
+        pass
+
+    def download_output__success(self):
+        pass
+
+    def download_output__error(self):
+        pass
+
+# @responses.activate(registry=OrderedRegistry)

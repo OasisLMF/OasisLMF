@@ -417,11 +417,6 @@ class APIClient(object):
                 portfolio = self.portfolios.create(portfolio_name)
                 portfolio_id = portfolio.json()['id']
 
-            # Check or create portfolio
-            if not portfolio.ok:
-                err_msg = "Failed to find matching `portfolio_id = {}`".format(portfolio_id)
-                self.logger.error(err_msg)
-
             # Upload exposure
             if location_fp:
                 self.portfolios.location_file.upload(portfolio_id, location_fp)
