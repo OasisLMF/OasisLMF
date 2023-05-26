@@ -1,21 +1,16 @@
 import os
-import sys
 import io
 import json
 import logging
 
 import pathlib
-import tarfile
 import pandas as pd
-from requests import HTTPError
 from requests.exceptions import HTTPError
 
-from datetime import datetime
-from io import StringIO
 from tempfile import TemporaryDirectory
 
 import unittest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -544,7 +539,7 @@ class FileEndpointTests(unittest.TestCase):
         expected_df = pd.read_csv(io.BytesIO(self.csv_data), encoding='utf8')
         request_resp_json = {
             "created": "2023-05-25T13:55:50.665455Z",
-            "file": f"5ab983f8f9144b8bbad582367b043c1f.csv",
+            "file": "5ab983f8f9144b8bbad582367b043c1f.csv",
             "filename": 'data'
         }
 
