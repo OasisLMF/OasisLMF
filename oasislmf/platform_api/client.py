@@ -372,13 +372,13 @@ class API_analyses(ApiEndpoint):
         return self.session.post('{}{}/copy/'.format(self.url_endpoint, ID), json={})
 
     def data_files(self, ID):
-        return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+        return self.session.get('{}{}/data_files/'.format(self.url_endpoint, ID))
 
     def storage_links(self, ID):
-        return self.session.get('{}{}/storage_links'.format(self.url_endpoint, ID))
+        return self.session.get('{}{}/storage_links/'.format(self.url_endpoint, ID))
 
     def sub_task_list(self, ID):
-        return self.session.get('{}{}/sub_task_list'.format(self.url_endpoint, ID))
+        return self.session.get('{}{}/sub_task_list/'.format(self.url_endpoint, ID))
 
 # --- API Main Client ------------------------------------------------------- #
 

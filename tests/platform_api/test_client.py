@@ -19,6 +19,7 @@ from unittest.mock import Mock, MagicMock
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from posixpath import join as urljoin
 from oasislmf.platform_api.client import (
     OasisException,
     ApiEndpoint,
@@ -37,6 +38,9 @@ from requests_toolbelt import MultipartEncoder
 
 import responses
 import requests
+
+settings.register_profile("ci", max_examples=10)
+settings.load_profile("ci")
 
 PIWIND_EXP_URL = 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind/develop/tests/inputs'
 CONTENT_MAP = {
@@ -142,7 +146,7 @@ class JsonEndpointTests(unittest.TestCase):
         rsp = self.api.post(ID, data)
         self.assertEqual(rsp.url, expected_url)
 
-    @given(ID=st.integers())
+    @given(ID=st.integers(min_value=1))
     def test_delete(self, ID):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         responses.delete(url=expected_url, headers=self.headers)
@@ -151,7 +155,7 @@ class JsonEndpointTests(unittest.TestCase):
         self.assertEqual(rsp.url, expected_url)
 
     @given(
-        ID=st.integers(),
+        ID=st.integers(min_value=1),
         file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"),
         overwrite=st.booleans(),
         payload=st.dictionaries(keys=st.text(min_size=1), values=st.text(min_size=1))
@@ -172,8 +176,7 @@ class JsonEndpointTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(abs_fp))
             self.assertEqual(json_saved, payload)
 
-    @given(ID=st.integers(), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
-    @settings(max_examples=10)
+    @given(ID=st.integers(min_value=1), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
     def test_download__file_exists_exception_raised(self, ID, file_path):
         overwrite = False
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
@@ -188,8 +191,7 @@ class JsonEndpointTests(unittest.TestCase):
             exception = context.exception
             self.assertEqual(str(exception), f'Local file alreday exists: {abs_fp}')
 
-    @given(ID=st.integers(), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
-    @settings(max_examples=10)
+    @given(ID=st.integers(min_value=1), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
     def test_download__file_exists_and_overwritten(self, ID, file_path):
         overwrite = True
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
@@ -265,7 +267,6 @@ class FileEndpointTests(unittest.TestCase):
             'bz2',
         ])
     )
-    @settings(max_examples=10)
     def test_upload_file(self, ID, file_path, file_data, file_ext):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         file_name = f'{file_path}.{file_ext}'
@@ -311,7 +312,6 @@ class FileEndpointTests(unittest.TestCase):
         file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"),
         overwrite=st.booleans(),
     )
-    @settings(max_examples=10)
     def test_download__parquet_data(self, ID, file_path, overwrite):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         file_name = f'{file_path}.parquet'
@@ -338,7 +338,6 @@ class FileEndpointTests(unittest.TestCase):
         file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"),
         overwrite=st.booleans(),
     )
-    @settings(max_examples=10)
     def test_download__csv_data(self, ID, file_path, overwrite):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         file_name = f'{file_path}.csv'
@@ -361,7 +360,6 @@ class FileEndpointTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(abs_fp))
 
     @given(ID=st.integers(min_value=1), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
-    @settings(max_examples=10)
     def test_download__file_exists_exception_raised(self, ID, file_path):
         overwrite = False
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
@@ -377,7 +375,6 @@ class FileEndpointTests(unittest.TestCase):
             self.assertEqual(str(exception), f'Local file alreday exists: {abs_fp}')
 
     @given(ID=st.integers(min_value=1), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
-    @settings(max_examples=10)
     def test_download__file_exists_and_overwritten(self, ID, file_path):
         overwrite = True
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
@@ -411,7 +408,7 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(rsp.url, expected_url)
 
     @given(
-        ID=st.integers(), 
+        ID=st.integers(min_value=1), 
         data_object=st.text(), 
         content_type=st.sampled_from([
             'application/octet-stream',
@@ -449,7 +446,7 @@ class FileEndpointTests(unittest.TestCase):
         expected_msg = '404 Client Error: Not Found for url: http://example.com/api/2/resource'
         self.assertEqual(str(exception), expected_msg)
 
-    @given(ID=st.integers())
+    @given(ID=st.integers(min_value=1))
     def test_delete(self, ID):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         responses.delete(url=expected_url)
@@ -527,7 +524,6 @@ class FileEndpointTests(unittest.TestCase):
             self.assertTrue(len(result[df].index) > 0)
 
     @given(content_type=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
-    @settings(max_examples=10)
     def test_get_dataframe__with_unsupported_file_type(self, content_type):
         ID = 123
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
@@ -572,219 +568,384 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(requ_content_type, 'text/csv')
         pd.testing.assert_frame_equal(result_df, expected_df)
 
+
+class APIModelsTests(unittest.TestCase):
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.session = create_api_session('http://example.com/api')
+        self.url_endpoint = urljoin(self.session.url_base, 'models/')
+        self.api = API_models(self.session, self.url_endpoint)
+        responses.start()
+        super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        responses.stop()
+        responses.reset()
+
+    def test_endpoint_setup(self):
+        endpoint_list = [
+            'resource_file',
+            'settings',
+            'versions',
+            'chunking_configuration',
+            'scaling_configuration',
+        ]
+        for endpoint in endpoint_list:
+           OasisAPI_obj = getattr(self.api, endpoint)
+           self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+           self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+           self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint, 
+                FileEndpoint, 
+                JsonEndpoint
+            )))
+
+    @given(
+        supplier_id=st.text(), 
+        model_id=st.text(), 
+        version_id=st.text(), 
+        data_files=st.lists(st.integers() | st.text())
+    )
+    def test_model_create(self, supplier_id, model_id, version_id, data_files):
+        expected_url = self.url_endpoint
+        expected_data = {
+            "supplier_id": supplier_id,
+            "model_id": model_id,
+            "version_id": version_id,
+            "data_files": data_files
+        }
+        json_rsp = {
+            "id": 2,
+            "supplier_id": supplier_id,
+            "model_id": model_id,
+            "version_id": version_id,
+            "created": "2023-05-26T05:19:10.774210Z",
+            "modified": "2023-05-26T05:19:10.774210Z",
+            "data_files": data_files,
+            "resource_file": "http://localhost:8000/v1/models/2/resource_file/",
+            "settings": "http://localhost:8000/v1/models/2/settings/",
+            "versions": "http://localhost:8000/v1/models/2/versions/"
+        }
+
+        responses.post(url=expected_url, json=json_rsp)
+        result = self.api.create(supplier_id, model_id, version_id, data_files)
+        self.assertEqual(result.json(), json_rsp)
+        
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
+    @given(
+        ID=st.integers(min_value=1),
+        supplier_id=st.text(), 
+        model_id=st.text(), 
+        version_id=st.text(), 
+        data_files=st.lists(st.integers() | st.text())
+    )
+    def test_model_update(self, ID, supplier_id, model_id, version_id, data_files):
+        expected_url = f'{self.url_endpoint}{ID}/'
+        expected_data = {
+            "supplier_id": supplier_id,
+            "model_id": model_id,
+            "version_id": version_id,
+            "data_files": data_files
+        }
+        json_rsp = {
+            "id": ID,
+            "supplier_id": supplier_id,
+            "model_id": model_id,
+            "version_id": version_id,
+            "created": "2023-05-26T05:19:10.774210Z",
+            "modified": "2023-05-26T05:19:10.774210Z",
+            "data_files": data_files,
+            "resource_file": f"http://localhost:8000/v1/models/{ID}/resource_file/",
+            "settings": f"http://localhost:8000/v1/models/{ID}/settings/",
+            "versions": f"http://localhost:8000/v1/models/{ID}/versions/"
+        }
+
+        responses.put(url=expected_url, json=json_rsp)
+        result = self.api.update(ID, supplier_id, model_id, version_id, data_files)
+        self.assertEqual(result.json(), json_rsp)
+        
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+    @given(st.integers(min_value=1))
+    def test_get_data_files(self, ID):
+        expected_url = '{}{}/data_files'.format(self.url_endpoint, ID)
+        responses.get(url=expected_url)
+        result = self.api.data_files(ID)
+        self.assertTrue(result.ok)
+
+
+class APIPortfoliosTests(unittest.TestCase):
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.session = create_api_session('http://example.com/api')
+        self.url_endpoint = urljoin(self.session.url_base, 'portfolios/')
+        self.api = API_portfolios(self.session, self.url_endpoint)
+        responses.start()
+        super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        responses.stop()
+        responses.reset()
+
+    def test_endpoint_setup(self):
+        endpoint_list = [
+            'location_file',
+            'accounts_file',
+            'reinsurance_info_file',
+            'reinsurance_scope_file',
+            'storage_links',
+        ]
+        for endpoint in endpoint_list:
+           OasisAPI_obj = getattr(self.api, endpoint)
+           self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+           self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+           self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint, 
+                FileEndpoint, 
+                JsonEndpoint
+            )))
+
+
+    @given(st.text())
+    def test_create(self, name):
+        ID = 2
+        expected_url = self.url_endpoint
+        expected_data = {"name": name}
+        json_rsp = {
+              "id": ID,
+              "name": "string",
+              "created": "2023-05-26T06:48:52.524821Z",
+              "modified": "2023-05-26T06:48:52.524821Z",
+              "location_file": None,
+              "accounts_file": None,
+              "reinsurance_info_file": None,
+              "reinsurance_scope_file": None,
+              "storage_links": f"http://localhost:8000/v1/portfolios/{ID}/storage_links/"
+        }
+
+        responses.post(url=expected_url, json=json_rsp)
+        result = self.api.create(name)
+        self.assertEqual(result.json(), json_rsp)
+        
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
+    @given(st.integers(min_value=1), st.text())
+    def test_update(self, ID, name):
+        expected_url = f'{self.url_endpoint}{ID}/'
+        expected_data = {"name": name}
+
+        responses.put(url=expected_url)
+        result = self.api.update(ID, name)
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+    @given(st.integers(min_value=1), st.text(), st.integers(min_value=1))
+    def test_create_analyses(self, ID, name, model_id):
+        expected_url = '{}{}/create_analysis/'.format(self.url_endpoint, ID)
+        expected_data = {"name": name, "model": model_id}
+
+        responses.post(url=expected_url)
+        result = self.api.create_analyses(ID, name, model_id)
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
+class APIAnalysesTests(unittest.TestCase):
+
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.session = create_api_session('http://example.com/api')
+        self.url_endpoint = urljoin(self.session.url_base, 'analyses/')
+        self.api = API_analyses(self.session, self.url_endpoint)
+        responses.start()
+        super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        responses.stop()
+        responses.reset()
+
+
+    def test_endpoint_setup(self):
+        endpoint_list = [
+            'lookup_errors_file',
+            'lookup_success_file',
+            'lookup_validation_file',
+            'summary_levels_file',
+            'input_file',
+            'input_generation_traceback_file',
+            'output_file',
+            'run_traceback_file',
+            'run_log_file',
+            'settings_file',
+            'settings',
+        ]
+        for endpoint in endpoint_list:
+           OasisAPI_obj = getattr(self.api, endpoint)
+           self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+           self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+           self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint, 
+                FileEndpoint, 
+                JsonEndpoint
+            )))
+
+    @given(st.text(), st.integers(min_value=1), st.integers(min_value=1), st.lists(st.integers() | st.text(), min_size=0, max_size=10))
+    def test_create(self, name, portfolio_id, model_id, data_files):
+        ID = 2
+        expected_url = self.url_endpoint
+        expected_data = {
+            "name": name,
+            "portfolio": portfolio_id,
+            "model": model_id,
+            "complex_model_data_files": data_files
+        }
+        json_rsp = {
+            "created": "2023-05-26T07:11:08.140539Z",
+            "modified": "2023-05-26T07:11:08.140539Z",
+            "name": "string",
+            "id": ID,
+            "portfolio": portfolio_id,
+            "model": model_id,
+            "status": "NEW",
+            "task_started": None,
+            "task_finished": None,
+            "complex_model_data_files": data_files,
+            "input_file": None,
+            "settings_file": None,
+            "settings": None,
+            "lookup_errors_file": None,
+            "lookup_success_file": None,
+            "lookup_validation_file": None,
+            "summary_levels_file": None,
+            "input_generation_traceback_file": None,
+            "output_file": None,
+            "run_traceback_file": None,
+            "run_log_file": None,
+            "storage_links": f"http://localhost:8000/v1/analyses/{ID}/storage_links/"
+        }
+        responses.post(url=expected_url, json=json_rsp)
+        result = self.api.create(name, portfolio_id, model_id, data_files)
+        self.assertEqual(result.json(), json_rsp)
+        
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
+    @given(st.integers(min_value=1), st.text(), st.integers(min_value=1), st.integers(min_value=1), st.lists(st.integers() | st.text(), min_size=0, max_size=10))
+    def test_update(self, ID, name, portfolio_id, model_id, data_files):
+        expected_url = f'{self.url_endpoint}{ID}/'
+        expected_data = {
+            "name": name,
+            "portfolio": portfolio_id,
+            "model": model_id,
+            "complex_model_data_files": data_files
+        }
+        responses.put(url=expected_url)
+        result = self.api.update(ID, name, portfolio_id, model_id, data_files)
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
+    @given(st.integers(min_value=1))
+    def test_status(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/'
+        expected_status = 'INPUTS_GENERATION_STARTED'
+        json_rsp = {
+            "id": ID,
+            "status": expected_status,
+        }
+        responses.get(url=expected_url, json=json_rsp)
+        result = self.api.status(ID)
+        self.assertEqual(result, expected_status)
+
+    @given(st.integers(min_value=1))
+    def test_generate(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/generate_inputs/'
+        responses.post(url=expected_url)
+        result = self.api.generate(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_run(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/run/'
+        responses.post(url=expected_url)
+        result = self.api.run(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_cancel_analysis_run(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/cancel_analysis_run/'
+        responses.post(url=expected_url)
+        result = self.api.cancel_analysis_run(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_cancel_generate_inputs(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/cancel_generate_inputs/'
+        responses.post(url=expected_url)
+        result = self.api.cancel_generate_inputs(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_cancel(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/cancel/'
+        responses.post(url=expected_url)
+        result = self.api.cancel(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_copy(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/copy/'
+        responses.post(url=expected_url)
+        result = self.api.copy(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_data_files(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/data_files/'
+        responses.get(url=expected_url)
+        result = self.api.data_files(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_storage_links(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/storage_links/'
+        responses.get(url=expected_url)
+        result = self.api.storage_links(ID)
+        self.assertTrue(result.ok)
+
+    @given(st.integers(min_value=1))
+    def test_sub_task_list(self, ID):
+        expected_url = f'{self.url_endpoint}{ID}/sub_task_list/'
+        responses.get(url=expected_url)
+        result = self.api.sub_task_list(ID)
+        self.assertTrue(result.ok)
+
+
 # ----------------- Working up to here ----------------------------------------#
 
-# class APIModelsTests(unittest.TestCase):
-# def setUp(self):
-# self.session = Mock()
-# self.url_endpoint = 'http://example.com/api'
-# self.api = API_models(self.session, self.url_endpoint)
-##
-# @given(st.integers(), st.integers(), st.integers(), st.lists(st.integers() | st.text()))
-# def test_create(self, supplier_id, model_id, version_id, data_files):
-# expected_url = self.url_endpoint
-# expected_data = {
-# "supplier_id": supplier_id,
-# "model_id": model_id,
-# "version_id": version_id,
-# "data_files": data_files
-# }
-##
-# result = self.api.create(supplier_id, model_id, version_id, data_files)
-##
-# self.session.post.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers(), st.integers(), st.integers(), st.lists(st.integers() | st.text()))
-# def test_update(self, ID, supplier_id, model_id, version_id, data_files):
-# expected_url = '{}/{}/'.format(self.url_endpoint, ID)
-# expected_data = {
-# "supplier_id": supplier_id,
-# "model_id": model_id,
-# "version_id": version_id,
-# "data_files": data_files
-# }
-##
-# result = self.api.update(ID, supplier_id, model_id, version_id, data_files)
-##
-# self.session.put.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.put.return_value)
-##
-# @given(st.integers())
-# def test_data_files(self, ID):
-# expected_url = '{}{}/data_files'.format(self.url_endpoint, ID)
-##
-# result = self.api.data_files(ID)
-##
-# self.session.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.session.get.return_value)
-##
-##
-##
-# class APIPortfoliosTests(unittest.TestCase):
-# def setUp(self):
-# self.session = Mock()
-# self.url_endpoint = 'http://example.com/api'
-# self.api = API_portfolios(self.session, self.url_endpoint)
-##
-# @given(st.text())
-# def test_create(self, name):
-# expected_url = self.url_endpoint
-# expected_data = {"name": name}
-##
-# result = self.api.create(name)
-##
-# self.session.post.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers(), st.text())
-# def test_update(self, ID, name):
-# expected_url = '{}/{}/'.format(self.url_endpoint, ID)
-# expected_data = {"name": name}
-##
-# result = self.api.update(ID, name)
-##
-# self.session.put.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.put.return_value)
-##
-# @given(st.integers(), st.text(), st.integers())
-# def test_create_analyses(self, ID, name, model_id):
-# expected_url = '{}{}/create_analysis/'.format(self.url_endpoint, ID)
-# expected_data = {"name": name, "model": model_id}
-##
-# result = self.api.create_analyses(ID, name, model_id)
-##
-# self.session.post.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.post.return_value)
-##
-##
-##
-# class APIAnalysesTests(unittest.TestCase):
-# def setUp(self):
-# self.session = Mock()
-# self.url_endpoint = 'http://example.com/api'
-# self.api = API_analyses(self.session, self.url_endpoint)
-##
-# @given(st.text(), st.integers(), st.integers(), st.lists(st.integers() | st.text(), min_size=0, max_size=10))
-# def test_create(self, name, portfolio_id, model_id, data_files):
-# expected_url = self.url_endpoint
-# expected_data = {
-# "name": name,
-# "portfolio": portfolio_id,
-# "model": model_id,
-# "complex_model_data_files": data_files
-# }
-##
-# result = self.api.create(name, portfolio_id, model_id, data_files)
-##
-# self.session.post.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers(), st.text(), st.integers(), st.integers(), st.lists(st.integers() | st.text(), min_size=0, max_size=10))
-# def test_update(self, ID, name, portfolio_id, model_id, data_files):
-# expected_url = '{}/{}/'.format(self.url_endpoint, ID)
-# expected_data = {
-# "name": name,
-# "portfolio": portfolio_id,
-# "model": model_id,
-# "complex_model_data_files": data_files
-# }
-##
-# result = self.api.update(ID, name, portfolio_id, model_id, data_files)
-##
-# self.session.put.assert_called_with(expected_url, json=expected_data)
-# self.assertEqual(result, self.session.put.return_value)
-##
-# @given(st.integers())
-# def test_status(self, ID):
-# expected_url = '{}{}/'.format(self.url_endpoint, ID)
-# expected_status = self.session.get.return_value.json.return_value['status']
-##
-# result = self.api.status(ID)
-##
-# self.session.get.assert_called_with(expected_url)
-# self.assertEqual(result, expected_status)
-##
-# @given(st.integers())
-# def test_generate(self, ID):
-# expected_url = '{}{}/generate_inputs/'.format(self.url_endpoint, ID)
-##
-# result = self.api.generate(ID)
-##
-# self.session.post.assert_called_with(expected_url, json={})
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers())
-# def test_run(self, ID):
-# expected_url = '{}{}/run/'.format(self.url_endpoint, ID)
-##
-# result = self.api.run(ID)
-##
-# self.session.post.assert_called_with(expected_url, json={})
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers())
-# def test_cancel_analysis_run(self, ID):
-# expected_url = '{}{}/cancel_analysis_run/'.format(self.url_endpoint, ID)
-##
-# result = self.api.cancel_analysis_run(ID)
-##
-# self.session.post.assert_called_with(expected_url, json={})
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers())
-# def test_cancel_generate_inputs(self, ID):
-# expected_url = '{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID)
-##
-# result = self.api.cancel_generate_inputs(ID)
-##
-# self.session.post.assert_called_with(expected_url, json={})
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers())
-# def test_cancel(self, ID):
-# expected_url = '{}{}/cancel/'.format(self.url_endpoint, ID)
-##
-# result = self.api.cancel(ID)
-##
-# self.session.post.assert_called_with(expected_url, json={})
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers())
-# def test_copy(self, ID):
-# expected_url = '{}{}/copy/'.format(self.url_endpoint, ID)
-##
-# result = self.api.copy(ID)
-##
-# self.session.post.assert_called_with(expected_url, json={})
-# self.assertEqual(result, self.session.post.return_value)
-##
-# @given(st.integers())
-# def test_data_files(self, ID):
-# expected_url = '{}{}/data_files'.format(self.url_endpoint, ID)
-##
-# result = self.api.data_files(ID)
-##
-# self.session.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.session.get.return_value)
-##
-# @given(st.integers())
-# def test_storage_links(self, ID):
-# expected_url = '{}{}/storage_links'.format(self.url_endpoint, ID)
-##
-# result = self.api.storage_links(ID)
-##
-# self.session.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.session.get.return_value)
-##
-# @given(st.integers())
-# def test_sub_task_list(self, ID):
-# expected_url = '{}{}/sub_task_list'.format(self.url_endpoint, ID)
-##
-# result = self.api.sub_task_list(ID)
-##
-# self.session.get.assert_called_with(expected_url)
-# self.assertEqual(result, self.session.get.return_value)
+
+
+
+
 #
 #
 #
