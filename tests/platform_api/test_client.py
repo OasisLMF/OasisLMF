@@ -117,10 +117,8 @@ class JsonEndpointTests(unittest.TestCase):
             'content-type': 'application/json',
         }
         responses.start()
-        super().setUp()
 
     def tearDown(self):
-        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -166,6 +164,28 @@ class JsonEndpointTests(unittest.TestCase):
 
         with TemporaryDirectory() as d:
             abs_fp = os.path.realpath(os.path.join(d, file_path))
+            rsp = self.api.download(ID, abs_fp, overwrite)
+
+            with open(abs_fp, mode='r') as f:
+                json_saved = json.load(f)
+
+            assert rsp.url == expected_url
+            assert rsp.json() == payload
+            self.assertTrue(os.path.isfile(abs_fp))
+            self.assertEqual(json_saved, payload)
+
+    @given(
+        ID=st.integers(min_value=1),
+        file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"),
+        overwrite=st.booleans(),
+        payload=st.dictionaries(keys=st.text(min_size=1), values=st.text(min_size=1))
+    )
+    def test_download__subdir_is_created(self, ID, file_path, overwrite, payload):
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        responses.get(url=expected_url, json=payload)
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, 'sub-dir', file_path))
             rsp = self.api.download(ID, abs_fp, overwrite)
 
             with open(abs_fp, mode='r') as f:
@@ -227,10 +247,8 @@ class FileEndpointTests(unittest.TestCase):
         self.parquet_data = requests.get(f'{PIWIND_EXP_URL}/SourceLocOEDPiWind10.parquet').content
         self.csv_data = requests.get(f'{PIWIND_EXP_URL}/SourceLocOEDPiWind10.csv').content
         responses.start()
-        super().setUp()
 
     def tearDown(self):
-        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -358,6 +376,33 @@ class FileEndpointTests(unittest.TestCase):
             assert rsp.url == expected_url
             assert saved_data == self.csv_data
             self.assertTrue(os.path.isfile(abs_fp))
+
+    @given(
+        ID=st.integers(min_value=1),
+        file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"),
+        overwrite=st.booleans(),
+    )
+    def test_download__subdir_is_created(self, ID, file_path, overwrite):
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        file_name = f'{file_path}.csv'
+
+        responses.get(
+            expected_url,
+            body=self.csv_data,
+            content_type=CONTENT_MAP['csv'],
+            stream=True
+        )
+
+        with TemporaryDirectory() as d:
+            abs_fp = os.path.realpath(os.path.join(d, 'sub-dir', file_name))
+            rsp = self.api.download(ID, abs_fp, overwrite)
+            with open(abs_fp, 'rb') as file:
+                saved_data = file.read()
+
+            assert rsp.url == expected_url
+            assert saved_data == self.csv_data
+            self.assertTrue(os.path.isfile(abs_fp))
+
 
     @given(ID=st.integers(min_value=1), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
     def test_download__file_exists_exception_raised(self, ID, file_path):
@@ -565,6 +610,72 @@ class FileEndpointTests(unittest.TestCase):
         pd.testing.assert_frame_equal(result_df, expected_df)
 
 
+class APIDatafilesTests(unittest.TestCase):
+
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.session = create_api_session('http://example.com/api')
+        self.url_endpoint = urljoin(self.session.url_base, 'data_files/')
+        self.api = API_datafiles(self.session, self.url_endpoint)
+        responses.start()
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
+
+    def test_endpoint_setup(self):
+        endpoint_list = ['content']
+        for endpoint in endpoint_list:
+            OasisAPI_obj = getattr(self.api, endpoint)
+            self.assertEqual(OasisAPI_obj.url_resource, f'{endpoint}/')
+            self.assertEqual(OasisAPI_obj.url_endpoint, self.url_endpoint)
+            self.assertTrue(isinstance(OasisAPI_obj, (
+                ApiEndpoint,
+                FileEndpoint,
+                JsonEndpoint
+            )))
+
+    @given(st.text(), st.text())
+    def test_create(self, file_description, file_category):
+        ID = 2
+        expected_url = self.url_endpoint
+        expected_data = {
+            "file_description": file_description,
+            "file_category": file_category,
+        }
+        json_rsp = {
+            "id": ID,
+            "file_description": file_description,
+            "file_category": file_category,
+            "created": "2023-05-26T11:43:26.820340Z",
+            "modified": "2023-05-26T11:43:26.820340Z",
+            "file": None,
+            "filename": None,
+            "stored": None,
+            "content_type": None
+        }
+
+        responses.post(url=expected_url, json=json_rsp)
+        result = self.api.create(file_description, file_category)
+        self.assertEqual(result.json(), json_rsp)
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+    @given(st.integers(min_value=1), st.text())
+    def test_update(self, ID, file_description):
+        expected_url = f'{self.url_endpoint}{ID}/'
+        expected_data = {"file_description": file_description}
+
+        responses.put(url=expected_url)
+        result = self.api.update(ID, file_description)
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers['content-type'], 'application/json')
+        self.assertEqual(json.loads(request.body), expected_data)
+
+
 class APIModelsTests(unittest.TestCase):
     def setUp(self):
         assert responses, 'responses package required to run'
@@ -572,10 +683,8 @@ class APIModelsTests(unittest.TestCase):
         self.url_endpoint = urljoin(self.session.url_base, 'models/')
         self.api = API_models(self.session, self.url_endpoint)
         responses.start()
-        super().setUp()
 
     def tearDown(self):
-        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -683,10 +792,8 @@ class APIPortfoliosTests(unittest.TestCase):
         self.url_endpoint = urljoin(self.session.url_base, 'portfolios/')
         self.api = API_portfolios(self.session, self.url_endpoint)
         responses.start()
-        super().setUp()
 
     def tearDown(self):
-        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -765,10 +872,8 @@ class APIAnalysesTests(unittest.TestCase):
         self.url_endpoint = urljoin(self.session.url_base, 'analyses/')
         self.api = API_analyses(self.session, self.url_endpoint)
         responses.start()
-        super().setUp()
 
     def tearDown(self):
-        super().tearDown()
         responses.stop()
         responses.reset()
 

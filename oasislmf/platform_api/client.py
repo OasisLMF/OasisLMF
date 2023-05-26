@@ -95,11 +95,8 @@ class JsonEndpoint(object):
 
         # Check if file exists
         if os.path.exists(abs_fp) and not overwrite:
-            if overwrite:
-                os.remove(abs_fp)
-            else:
-                error_message = 'Local file alreday exists: {}'.format(abs_fp)
-                raise IOError(error_message)
+            error_message = 'Local file alreday exists: {}'.format(abs_fp)
+            raise IOError(error_message)
 
         with io.open(abs_fp, 'w', encoding='utf-8') as f:
             r = self.get(ID)
@@ -134,14 +131,9 @@ class FileEndpoint(object):
         return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
 
     def upload(self, ID, file_path, content_type=None):
-        try:
-            if not content_type:
-                content_type = self._set_content_type(file_path)
-            r = self.session.upload(self._build_url(ID), file_path, content_type)
-            return r
-        except HTTPError as e:
-            err_msg = 'File upload Failed: file: {},  url: {}:'.format(file_path, self._build_url(ID))
-            self.session.unrecoverable_error(e, err_msg)
+        if not content_type:
+            content_type = self._set_content_type(file_path)
+        return self.session.upload(self._build_url(ID), file_path, content_type)
 
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
@@ -153,11 +145,8 @@ class FileEndpoint(object):
 
         # Check if file exists
         if os.path.exists(abs_fp) and not overwrite:
-            if overwrite:
-                os.remove(abs_fp)
-            else:
-                error_message = 'Local file alreday exists: {}'.format(abs_fp)
-                raise IOError(error_message)
+            error_message = 'Local file alreday exists: {}'.format(abs_fp)
+            raise IOError(error_message)
 
         with io.open(abs_fp, 'wb') as f:
             r = self.session.get(self._build_url(ID), stream=True)
@@ -237,31 +226,17 @@ class API_models(ApiEndpoint):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
     def create(self, supplier_id, model_id, version_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"supplier_id": supplier_id,
                 "model_id": model_id,
                 "version_id": version_id,
-                "data_files": df_ids}
+                "data_files": data_files}
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, supplier_id, model_id, version_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"supplier_id": supplier_id,
                 "model_id": model_id,
                 "version_id": version_id,
-                "data_files": df_ids}
+                "data_files": data_files}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
@@ -297,12 +272,17 @@ class API_datafiles(ApiEndpoint):
         super(API_datafiles, self).__init__(session, url_endpoint)
         self.content = FileEndpoint(self.session, self.url_endpoint, 'content/')
 
-    def create(self, file_description, linked_models=[]):
-        data = {"file_description": file_description}
+    def create(self, file_description, file_category=None):
+        data = { "file_description": file_description}
+        if file_category is not None:
+            data["file_category"] = file_category
+
         return self.session.post(self.url_endpoint, json=data)
 
-    def update(self, ID, file_description, linked_models=[]):
-        data = {"file_description": file_description}
+    def update(self, ID, file_description, file_category=None):
+        data = { "file_description": file_description}
+        if file_category is not None:
+            data["file_category"] = file_category
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
@@ -323,31 +303,17 @@ class API_analyses(ApiEndpoint):
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 
     def create(self, name, portfolio_id, model_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"name": name,
                 "portfolio": portfolio_id,
                 "model": model_id,
-                "complex_model_data_files": df_ids}
+                "complex_model_data_files": data_files}
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, name, portfolio_id, model_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"name": name,
                 "portfolio": portfolio_id,
                 "model": model_id,
-                "complex_model_data_files": df_ids}
+                "complex_model_data_files": data_files}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
     def status(self, ID):
