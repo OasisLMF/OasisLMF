@@ -36,8 +36,8 @@ from oasislmf.platform_api.client import (
 )
 
 
-settings.register_profile("ci", max_examples=10)
-settings.load_profile("ci")
+# settings.register_profile("ci", max_examples=10)
+# settings.load_profile("ci")
 
 PIWIND_EXP_URL = 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind/develop/tests/inputs'
 CONTENT_MAP = {
@@ -659,13 +659,16 @@ class APIDatafilesTests(unittest.TestCase):
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
 
-    @given(st.integers(min_value=1), st.text())
-    def test_update(self, ID, file_description):
+    @given(st.integers(min_value=1), st.text(), st.text())
+    def test_update(self, ID, file_description, file_category):
         expected_url = f'{self.url_endpoint}{ID}/'
-        expected_data = {"file_description": file_description}
+        expected_data = {
+            "file_description": file_description,
+            "file_category": file_category,
+        }
 
         responses.put(url=expected_url)
-        result = self.api.update(ID, file_description)
+        result = self.api.update(ID, file_description, file_category)
 
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
@@ -1245,7 +1248,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url, json={"id": ID, "status": "READY"})
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
-            self.assertEqual(result, True)
+            self.assertTrue(result)
             self.logger.info.assert_any_call(f'Inputs Generation: Starting (id={ID})')
             self.logger.info.assert_any_call(f'Input Generation: Queued (id={ID})')
             self.logger.info.assert_any_call(f'Input Generation: Executing (id={ID})')
@@ -1262,7 +1265,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
-            self.assertEqual(result, False)
+            self.assertFalse(result)
             self.logger.info.assert_any_call(f'Input Generation: Cancelled (id={ID})')
 
     def test_run_generate__exec_error(self):
@@ -1279,7 +1282,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(trace_url, body=trace_error_msg)
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
-            self.assertEqual(result, False)
+            self.assertFalse(result)
             self.logger.error.assert_called_with(trace_error_msg)
 
     def test_run_generate__http_error(self):
@@ -1294,7 +1297,7 @@ class APIClientTests(unittest.TestCase):
 
             with self.assertRaises(OasisException):
                 result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
-                self.assertEqual(result, False)
+                self.assertFalse(result)
 
     def test_run_generate__unknown_status(self):
         ID = 1
@@ -1308,7 +1311,7 @@ class APIClientTests(unittest.TestCase):
 
             with self.assertRaises(OasisException):
                 result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
-                self.assertEqual(result, False)
+                self.assertFalse(result)
 
     def test_run_generate__with_subtasks_success(self):
         ID = 1
@@ -1327,7 +1330,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "READY"})
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
-            self.assertEqual(result, True)
+            self.assertTrue(result)
 
     def test_run_generate__with_subtasks_cancelled(self):
         ID = 1
@@ -1346,7 +1349,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
-            self.assertEqual(result, False)
+            self.assertFalse(result)
 
     def test_run_analysis__success(self):
         ID = 1
@@ -1361,7 +1364,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
-            self.assertEqual(result, True)
+            self.assertTrue(result)
             self.logger.info.assert_any_call(f'Analysis Run: Starting (id={ID})')
             self.logger.info.assert_any_call(f'Analysis Run: Queued (id={ID})')
             self.logger.info.assert_any_call(f'Analysis Run: Executing (id={ID})')
@@ -1378,7 +1381,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
-            self.assertEqual(result, False)
+            self.assertFalse(result)
             self.logger.info.assert_any_call(f'Analysis Run: Cancelled (id={ID})')
 
     def test_run_analysis__exec_error(self):
@@ -1395,7 +1398,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(trace_url, body=trace_error_msg)
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
-            self.assertEqual(result, False)
+            self.assertFalse(result)
             self.logger.error.assert_called_with(trace_error_msg)
 
     def test_run_analysis__unknown_status(self):
@@ -1410,7 +1413,7 @@ class APIClientTests(unittest.TestCase):
 
             with self.assertRaises(OasisException):
                 result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
-                self.assertEqual(result, False)
+                self.assertFalse(result)
 
     def test_run_analysis__with_subtasks_success(self):
         ID = 1
@@ -1429,7 +1432,7 @@ class APIClientTests(unittest.TestCase):
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
-            self.assertEqual(result, True)
+            self.assertTrue(result)
 
     def test_run_analysis__with_subtasks_cancelled(self):
         ID = 1
@@ -1448,16 +1451,67 @@ class APIClientTests(unittest.TestCase):
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
-            self.assertEqual(result, False)
+            self.assertFalse(result)
 
-    # def test_cancel_generate__success(self):
+    def test_cancel_generate__success(self):
+        ID = 3
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_generate_inputs/'
+        responses.post(url=expected_url)
+        result = self.client.cancel_generate(ID)
+        self.assertTrue(result)
 
-    # def test_cancel_generate__error(self):
+    def test_cancel_generate__error(self):
+        ID = 3
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_generate_inputs/'
+        responses.post(url=expected_url, json={'Error': "not found"}, status=404)
+        with self.assertRaises(OasisException):
+            result = self.client.cancel_generate(ID)
+            self.assertFalse(result)
 
-    # def test_cancel_analysis__success(self):
+    def test_cancel_analysis__success(self):
+        ID = 66
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_analysis_run/'
+        responses.post(url=expected_url)
+        result = self.client.cancel_analysis(ID)
+        self.assertTrue(result)
 
-    # def test_cancel_analysis__error(self):
+    def test_cancel_analysis__error(self):
+        ID = 66
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_analysis_run/'
+        responses.post(url=expected_url, json={'Error': "not found"}, status=404)
+        with self.assertRaises(OasisException):
+            result = self.client.cancel_analysis(ID)
+            self.assertFalse(result)
 
-    # def test_download_output__success(self):
+    def test_download_output__success(self):
+        ID = 33
+        tar_fp = os.path.join(os.path.dirname(__file__), 'data', 'analysis_1_output.tar')
+        with open(tar_fp, mode='rb') as file:
+            tar_data = file.read()
 
-    # def test_download_output__error(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            expected_url_get = f'{self.client.analyses.url_endpoint}{ID}/output_file/'
+            rsps.get(
+                expected_url_get,
+                body=tar_data,
+                content_type=CONTENT_MAP['gz'],
+                stream=True)
+
+            expected_url_delete = f'{self.client.analyses.url_endpoint}{ID}/'
+            rsps.delete(expected_url_delete)
+
+            with TemporaryDirectory() as d:
+                tar_filename = 'test_outputs.tar'
+                abs_fp = os.path.realpath(os.path.join(d, tar_filename))
+                pathlib.Path(abs_fp).touch()
+                self.client.download_output(ID, download_path=d, filename=tar_filename, clean_up=True, overwrite=True)
+                self.assertTrue(os.path.isfile(abs_fp))
+
+    def test_download_output__error(self):
+        ID = 33
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            expected_url_get = f'{self.client.analyses.url_endpoint}{ID}/output_file/'
+            rsps.get(expected_url_get, json={'Error': 'Analysis not found'}, status=404)
+            with self.assertRaises(OasisException):
+                self.client.download_output(ID)

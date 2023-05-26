@@ -12,7 +12,6 @@ import io
 import json
 import logging
 import os
-import sys
 import tarfile
 import time
 import pathlib
@@ -600,7 +599,7 @@ class APIClient(object):
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
 
-    def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
+    def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:
             filename = 'analysis_{}_output'.format(analysis_id)
         try:
@@ -609,8 +608,6 @@ class APIClient(object):
             self.logger.info('Analysis Download output: filename={}, (id={})'.format(output_file, analysis_id))
             if clean_up:
                 self.analyses.delete(analysis_id)
-                self.analyses.output_file.delete(analysis_id)
-                self.analyses.input_file.delete(analysis_id)
         except HTTPError as e:
             err_msg = 'Analysis Download output: Failed (id={})'.format(analysis_id)
             self.api.unrecoverable_error(e, err_msg)
