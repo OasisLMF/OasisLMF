@@ -5,16 +5,24 @@ import logging
 
 import pathlib
 import pandas as pd
-from requests.exceptions import HTTPError
 
 from tempfile import TemporaryDirectory
 
 import unittest
 from unittest.mock import MagicMock
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from posixpath import join as urljoin
+
+import requests
+from requests.exceptions import HTTPError
+from requests_toolbelt import MultipartEncoder
+import responses
+from responses.registries import OrderedRegistry
+
+from oasislmf.platform_api.session import APISession
 from oasislmf.platform_api.client import (
     OasisException,
     ApiEndpoint,
@@ -28,13 +36,8 @@ from oasislmf.platform_api.client import (
 )
 
 
-from oasislmf.platform_api.session import APISession
-from requests_toolbelt import MultipartEncoder
-from responses.registries import OrderedRegistry
 
 
-import responses
-import requests
 
 settings.register_profile("ci", max_examples=10)
 settings.load_profile("ci")
@@ -1128,52 +1131,108 @@ class APIClientTests(unittest.TestCase):
                     model_id=5,
                 )
 
-    def run_generate__success(self):
-        pass
+    def test_run_generate__success(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
 
-    def run_generate__cancelled(self):
-        pass
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
-    def run_generate__exec_error(self):
-        pass
+            self.assertEqual(result, True)
+            self.logger.info.assert_any_call(f'Inputs Generation: Starting (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Queued (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Executing (id={ID})')
+            self.logger.info.assert_any_call(f'Inputs Generation: Complete (id={ID})')
 
-    def run_generate__unknown_status(self):
-        pass
 
-    def run_generate__with_subtasks(self):
-        pass
+    def test_run_generate__cancelled(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
 
-    def run_analysis__success(self):
-        pass
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
-    def run_analysis__cancelled(self):
-        pass
+            self.assertEqual(result, False)
+            self.logger.info.assert_any_call(f'Inputs Generation: Cancelled (id={ID})')
 
-    def run_analysis__exec_error(self):
-        pass
+    def test_run_generate__exec_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
+        trace_url = f'{expected_url}input_generation_traceback_file/'
+        trace_error_msg = 'run error logs'
 
-    def run_analysis__unknown_status(self):
-        pass
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_ERROR"})
+            rsps.get(trace_url, body=trace_error_msg)
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
-    def run_analysis__with_subtasks(self):
-        pass
+            self.assertEqual(result, False)
+            self.logger.error.assert_called_with(trace_error_msg)
 
-    def cancel_generate__success(self):
-        pass
 
-    def cancel_generate__error(self):
-        pass
+    def test_run_generate__http_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
 
-    def cancel_analysis__success(self):
-        pass
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"error": "Analysis not found"}, status=404)
 
-    def cancel_analysis__error(self):
-        pass
+            with self.assertRaises(OasisException):
+                result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
+                self.assertEqual(result, False)
 
-    def download_output__success(self):
-        pass
 
-    def download_output__error(self):
-        pass
+    def test_run_generate__unknown_status(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
 
-# @responses.activate(registry=OrderedRegistry)
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "SOME_NEW_STATUS"})
+
+            with self.assertRaises(OasisException):
+                result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
+                self.assertEqual(result, False)
+
+   # def test_run_generate__with_subtasks(self):
+
+   # def test_run_analysis__success(self):
+
+   # def test_run_analysis__cancelled(self):
+
+   # def test_run_analysis__exec_error(self):
+
+   # def test_run_analysis__unknown_status(self):
+
+   # def test_run_analysis__with_subtasks(self):
+
+   # def test_cancel_generate__success(self):
+
+   # def test_cancel_generate__error(self):
+
+   # def test_cancel_analysis__success(self):
+
+   # def test_cancel_analysis__error(self):
+
+   # def test_download_output__success(self):
+
+   # def test_download_output__error(self):
+

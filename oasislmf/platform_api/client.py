@@ -551,7 +551,7 @@ class APIClient(object):
 
                 else:
                     err_msg = "Input Generation: Unknown State'{}'".format(analysis['status'])
-                    OasisException(err_msg)
+                    raise OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
 
@@ -630,7 +630,7 @@ class APIClient(object):
                 else:
                     err_msg = "Execution status in Unknown State: '{}'".format(analysis['status'])
                     self.logger.error(err_msg)
-                    sys.exit(1)
+                    raise OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
 
