@@ -273,14 +273,14 @@ class API_datafiles(ApiEndpoint):
         self.content = FileEndpoint(self.session, self.url_endpoint, 'content/')
 
     def create(self, file_description, file_category=None):
-        data = { "file_description": file_description}
+        data = {"file_description": file_description}
         if file_category is not None:
             data["file_category"] = file_category
 
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, file_description, file_category=None):
-        data = { "file_description": file_description}
+        data = {"file_description": file_description}
         if file_category is not None:
             data["file_category"] = file_category
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)

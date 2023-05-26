@@ -36,9 +36,6 @@ from oasislmf.platform_api.client import (
 )
 
 
-
-
-
 settings.register_profile("ci", max_examples=10)
 settings.load_profile("ci")
 
@@ -402,7 +399,6 @@ class FileEndpointTests(unittest.TestCase):
             assert rsp.url == expected_url
             assert saved_data == self.csv_data
             self.assertTrue(os.path.isfile(abs_fp))
-
 
     @given(ID=st.integers(min_value=1), file_path=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
     def test_download__file_exists_exception_raised(self, ID, file_path):
@@ -1255,7 +1251,6 @@ class APIClientTests(unittest.TestCase):
             self.logger.info.assert_any_call(f'Input Generation: Executing (id={ID})')
             self.logger.info.assert_any_call(f'Inputs Generation: Complete (id={ID})')
 
-
     def test_run_generate__cancelled(self):
         ID = 1
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
@@ -1268,7 +1263,7 @@ class APIClientTests(unittest.TestCase):
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
 
             self.assertEqual(result, False)
-            self.logger.info.assert_any_call(f'Inputs Generation: Cancelled (id={ID})')
+            self.logger.info.assert_any_call(f'Input Generation: Cancelled (id={ID})')
 
     def test_run_generate__exec_error(self):
         ID = 1
@@ -1287,7 +1282,6 @@ class APIClientTests(unittest.TestCase):
             self.assertEqual(result, False)
             self.logger.error.assert_called_with(trace_error_msg)
 
-
     def test_run_generate__http_error(self):
         ID = 1
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
@@ -1301,7 +1295,6 @@ class APIClientTests(unittest.TestCase):
             with self.assertRaises(OasisException):
                 result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
                 self.assertEqual(result, False)
-
 
     def test_run_generate__unknown_status(self):
         ID = 1
@@ -1317,27 +1310,154 @@ class APIClientTests(unittest.TestCase):
                 result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
                 self.assertEqual(result, False)
 
-   # def test_run_generate__with_subtasks(self):
+    def test_run_generate__with_subtasks_success(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
 
-   # def test_run_analysis__success(self):
+        sub_task_data_fp = os.path.join(os.path.dirname(__file__), 'data', 'input_sub-tasks.json')
+        sub_task_url = f'{expected_url}sub_task_list/'
+        with open(sub_task_data_fp, mode='r') as f:
+            sub_task_data = json.load(f)
 
-   # def test_run_analysis__cancelled(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url"})
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(expected_url, json={"id": ID, "status": "READY"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
+            self.assertEqual(result, True)
 
-   # def test_run_analysis__exec_error(self):
+    def test_run_generate__with_subtasks_cancelled(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}generate_inputs/'
 
-   # def test_run_analysis__unknown_status(self):
+        sub_task_data_fp = os.path.join(os.path.dirname(__file__), 'data', 'input_sub-tasks.json')
+        sub_task_url = f'{expected_url}sub_task_list/'
+        with open(sub_task_data_fp, mode='r') as f:
+            sub_task_data = json.load(f)
 
-   # def test_run_analysis__with_subtasks(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url"})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url"})
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
+            result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
+            self.assertEqual(result, False)
 
-   # def test_cancel_generate__success(self):
+    def test_run_analysis__success(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
 
-   # def test_cancel_generate__error(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
-   # def test_cancel_analysis__success(self):
+            self.assertEqual(result, True)
+            self.logger.info.assert_any_call(f'Analysis Run: Starting (id={ID})')
+            self.logger.info.assert_any_call(f'Analysis Run: Queued (id={ID})')
+            self.logger.info.assert_any_call(f'Analysis Run: Executing (id={ID})')
+            self.logger.info.assert_any_call(f'Analysis Run: Complete (id={ID})')
 
-   # def test_cancel_analysis__error(self):
+    def test_run_analysis__cancelled(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
 
-   # def test_download_output__success(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
-   # def test_download_output__error(self):
+            self.assertEqual(result, False)
+            self.logger.info.assert_any_call(f'Analysis Run: Cancelled (id={ID})')
 
+    def test_run_analysis__exec_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+        trace_url = f'{expected_url}run_traceback_file/'
+        trace_error_msg = 'run error logs'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_ERROR"})
+            rsps.get(trace_url, body=trace_error_msg)
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
+
+            self.assertEqual(result, False)
+            self.logger.error.assert_called_with(trace_error_msg)
+
+    def test_run_analysis__unknown_status(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "SOME_NEW_STATUS"})
+
+            with self.assertRaises(OasisException):
+                result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
+                self.assertEqual(result, False)
+
+    def test_run_analysis__with_subtasks_success(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        sub_task_data_fp = os.path.join(os.path.dirname(__file__), 'data', 'losses_sub-tasks.json')
+        sub_task_url = f'{expected_url}sub_task_list/'
+        with open(sub_task_data_fp, mode='r') as f:
+            sub_task_data = json.load(f)
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url"})
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
+            self.assertEqual(result, True)
+
+    def test_run_analysis__with_subtasks_cancelled(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        sub_task_data_fp = os.path.join(os.path.dirname(__file__), 'data', 'losses_sub-tasks.json')
+        sub_task_url = f'{expected_url}sub_task_list/'
+        with open(sub_task_data_fp, mode='r') as f:
+            sub_task_data = json.load(f)
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url"})
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
+            self.assertEqual(result, False)
+
+    # def test_cancel_generate__success(self):
+
+    # def test_cancel_generate__error(self):
+
+    # def test_cancel_analysis__success(self):
+
+    # def test_cancel_analysis__error(self):
+
+    # def test_download_output__success(self):
+
+    # def test_download_output__error(self):
