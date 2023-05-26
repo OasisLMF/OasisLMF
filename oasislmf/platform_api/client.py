@@ -175,37 +175,47 @@ class FileEndpoint(object):
         either 'application/gzip': search and extract all csv
         or 'text/csv': return as dataframe
         '''
+        supported_content = [
+            'text/csv',
+            'application/gzip',
+            'application/octet-stream',
+        ]
         r = self.get(ID)
         file_type = r.headers['Content-Type']
-        if file_type not in ['text/csv', 'application/gzip']:
-            self.logger.info(f'Unsupported filetype for Dataframe conversion: {file_type}')
-        else:
+
+        if file_type not in supported_content:
+            raise OasisException(f'Unsupported filetype for Dataframe conversion: {file_type}')
+
+        if file_type == 'text/csv':
+            return pd.read_csv(io.StringIO(r.content.decode('utf-8')))
+
+        if file_type == 'application/octet-stream':
+            return pd.read_parquet(io.BytesIO(r.content))
+
+        if file_type == 'application/gzip':
             dataframes_list = {}
-            if file_type == 'text/csv':
-                dataframes_list[self.url_resource.strip('/')] = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
-            if file_type == 'application/gzip':
-                tar = tarfile.open(fileobj=io.BytesIO(r.content))
-                csv_files = [f for f in tar.getmembers() if '.csv' in f.name]
-                for member in csv_files:
-                    csv = tar.extractfile(member)
-                    dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
+            tar = tarfile.open(fileobj=io.BytesIO(r.content))
+
+            for member in [f for f in tar.getmembers() if '.csv' in f.name]:
+                csv = tar.extractfile(member)
+                dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
+
+            for member in [f for f in tar.getmembers() if '.parquet' in f.name]:
+                pq = tar.extractfile(member)
+                dataframes_list[os.path.basename(member.name)] = pd.read_parquet(pq)
             return dataframes_list
 
     def post(self, ID, data_object, content_type='application/json'):
         m = MultipartEncoder(fields={'file': ('data', data_object, content_type)})
-        r = self.session.post(
+        return self.session.post(
             self._build_url(ID),
             data=m,
             headers={'Content-Type': m.content_type}
         )
-        if not r.ok:
-            err_msg = 'Data_Object upload Failed'
-            self.logger.error(err_msg)
-        return r
 
     def post_dataframe(self, ID, data_frame):
         csv_buffer = io.StringIO()
-        data_frame.to_csv(csv_buffer)
+        data_frame.to_csv(csv_buffer, index=False)
         return self.post(ID, data_object=csv_buffer, content_type='text/csv')
 
     def delete(self, ID):

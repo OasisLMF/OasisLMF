@@ -161,9 +161,8 @@ class JsonEndpointTests(unittest.TestCase):
         responses.get(url=expected_url, json=payload)
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_path))
-            rsp = self.api.download(ID, file_path, overwrite)
+            rsp = self.api.download(ID, abs_fp, overwrite)
 
             with open(abs_fp, mode='r') as f:
                 json_saved = json.load(f)
@@ -181,12 +180,11 @@ class JsonEndpointTests(unittest.TestCase):
         responses.get(url=expected_url, json={'key': 'value'})
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_path))
             pathlib.Path(abs_fp).touch()
 
             with self.assertRaises(IOError) as context:
-                self.api.download(ID, file_path, overwrite)
+                self.api.download(ID, abs_fp, overwrite)
             exception = context.exception
             self.assertEqual(str(exception), f'Local file alreday exists: {abs_fp}')
 
@@ -198,12 +196,11 @@ class JsonEndpointTests(unittest.TestCase):
         responses.get(url=expected_url, json={'key': 'value'})
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_path))
             pathlib.Path(abs_fp).touch()
 
             if overwrite is True:
-                rsp = self.api.download(ID, file_path, overwrite)
+                rsp = self.api.download(ID, abs_fp, overwrite)
 
                 with open(abs_fp, mode='r') as f:
                     json_saved = json.load(f)
@@ -285,13 +282,13 @@ class FileEndpointTests(unittest.TestCase):
         )
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
-            with open(file_name, 'wb') as file:
+            abs_fp = os.path.realpath(os.path.join(d, file_name))
+            with open(abs_fp, 'wb') as file:
                 # Write the binary data to the file
                 file.write(file_data)
 
             # Fire Upload call
-            rsp = self.api.upload(ID, file_name, CONTENT_MAP[file_ext])
+            rsp = self.api.upload(ID, abs_fp, CONTENT_MAP[file_ext])
 
             # Load request data
             request = responses.calls[-1].request
@@ -327,10 +324,9 @@ class FileEndpointTests(unittest.TestCase):
         )
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_name))
-            rsp = self.api.download(ID, file_name, overwrite)
-            with open(file_name, 'rb') as file:
+            rsp = self.api.download(ID, abs_fp, overwrite)
+            with open(abs_fp, 'rb') as file:
                 saved_data = file.read()
 
             assert rsp.url == expected_url
@@ -355,10 +351,9 @@ class FileEndpointTests(unittest.TestCase):
         )
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_name))
-            rsp = self.api.download(ID, file_name, overwrite)
-            with open(file_name, 'rb') as file:
+            rsp = self.api.download(ID, abs_fp, overwrite)
+            with open(abs_fp, 'rb') as file:
                 saved_data = file.read()
 
             assert rsp.url == expected_url
@@ -373,12 +368,11 @@ class FileEndpointTests(unittest.TestCase):
         responses.get(url=expected_url, json={'key': 'value'})
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_path))
             pathlib.Path(abs_fp).touch()
 
             with self.assertRaises(IOError) as context:
-                self.api.download(ID, file_path, overwrite)
+                self.api.download(ID, abs_fp, overwrite)
             exception = context.exception
             self.assertEqual(str(exception), f'Local file alreday exists: {abs_fp}')
 
@@ -395,12 +389,11 @@ class FileEndpointTests(unittest.TestCase):
         )
 
         with TemporaryDirectory() as d:
-            os.chdir(d)
             abs_fp = os.path.realpath(os.path.join(d, file_path))
             pathlib.Path(abs_fp).touch()
 
             if overwrite is True:
-                rsp = self.api.download(ID, file_path, overwrite)
+                rsp = self.api.download(ID, abs_fp, overwrite)
 
             with open(abs_fp, 'rb') as file:
                 saved_data = file.read()
@@ -417,56 +410,169 @@ class FileEndpointTests(unittest.TestCase):
         rsp = self.api.get(ID)
         self.assertEqual(rsp.url, expected_url)
 
+    @given(
+        ID=st.integers(), 
+        data_object=st.text(), 
+        content_type=st.sampled_from([
+            'application/octet-stream',
+            'application/octet-stream',
+            'text/csv',
+            'application/gzip',
+            'application/zip',
+            'application/x-bzip2',
+            'qe3j3//da'
+            '',
+            None,
+        ])
+    )
+    def test_post(self, ID, data_object, content_type):
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        responses.post(url=expected_url)
+        
+        rsp = self.api.post(ID, data_object, content_type)
+        request = responses.calls[-1].request
+        req_type, req_data, req_content_type = request.body.fields['file']
+
+        self.assertEqual(rsp.url, expected_url)
+        self.assertEqual(req_type, 'data')
+        self.assertEqual(req_data, data_object)
+        self.assertEqual(req_content_type, content_type)
+        
+    def test_post__failed(self):
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, 2, self.url_resource)
+        responses.post(url=expected_url, json={"error": "not found"}, status=404,)
+
+        with self.assertRaises(HTTPError) as context:
+            rsp = self.api.post(2, b'some data', 'application/octet-stream')
+
+        exception = context.exception
+        expected_msg = '404 Client Error: Not Found for url: http://example.com/api/2/resource'
+        self.assertEqual(str(exception), expected_msg)
+
+    @given(ID=st.integers())
+    def test_delete(self, ID):
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        responses.delete(url=expected_url)
+        rsp = self.api.delete(ID)
+
+        request = responses.calls[-1].request
+        self.assertTrue(request.url, expected_url) 
+        self.assertTrue(rsp.ok) 
+
+
+
+
+
+    def test_get_dataframe__from_csv_data(self):
+        ID = 123
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        responses.get(
+            expected_url,
+            body=self.csv_data,
+            content_type=CONTENT_MAP['csv'],
+            stream=True
+        )
+        result_df = self.api.get_dataframe(ID)
+        expected_df = pd.read_csv(io.BytesIO(self.csv_data), encoding='utf8')
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.url, expected_url)
+        pd.testing.assert_frame_equal(result_df, expected_df)
+
+    def test_get_dataframe__from_parquet_data(self):
+        ID = 123
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        responses.get(
+            expected_url,
+            body=self.parquet_data,
+            content_type=CONTENT_MAP['pq'],
+            stream=True
+        )
+        result_df = self.api.get_dataframe(ID)
+        expected_df = pd.read_parquet(io.BytesIO(self.parquet_data))
+
+        request = responses.calls[-1].request
+        self.assertEqual(request.url, expected_url)
+        pd.testing.assert_frame_equal(result_df, expected_df)
+
+    def test_get_dataframe__from_tar_data(self):
+        ID = 123
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        tar_fp = os.path.join(os.path.dirname(__file__), 'data', 'analysis_1_output.tar')
+        with open(tar_fp, mode='rb') as file: 
+            tar_data = file.read()
+
+        responses.get(
+            expected_url,
+            body=tar_data,
+            content_type=CONTENT_MAP['gz'],
+            stream=True)
+
+        result = self.api.get_dataframe(ID)
+        expected_files = [
+            'gul_S1_aalcalc.csv', 
+            'gul_S1_eltcalc.csv',
+            'gul_S1_summary-info.csv',
+            'gul_S1_melt.parquet',
+            'gul_S1_mplt.parquet',
+            'gul_S1_palt.parquet',
+            'gul_S1_qelt.parquet',
+            'gul_S1_qplt.parquet',
+            'gul_S1_selt.parquet',
+            'gul_S1_splt.parquet'
+        ]
+        
+        for df in expected_files:
+            self.assertTrue(isinstance(result[df], pd.DataFrame))
+            self.assertTrue(len(result[df].index) > 0)
+
+    @given(content_type=st.from_regex(r"^[a-zA-Z0-9_-]+$"))
+    @settings(max_examples=10)
+    def test_get_dataframe__with_unsupported_file_type(self, content_type):
+        ID = 123
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        responses.get(
+            expected_url,
+            body=self.parquet_data,
+            content_type=content_type,
+            stream=True)
+ 
+        with self.assertRaises(OasisException) as context:
+            result = self.api.get_dataframe(ID)
+
+        exception = context.exception
+        expected_msg = f'Unsupported filetype for Dataframe conversion: {content_type}'
+        self.assertEqual(str(exception), expected_msg)
+
+    def test_post_dataframe(self):
+        ID = 1
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
+        expected_df = pd.read_csv(io.BytesIO(self.csv_data), encoding='utf8')
+        request_resp_json = {
+            "created": "2023-05-25T13:55:50.665455Z",
+            "file": f"5ab983f8f9144b8bbad582367b043c1f.csv",
+            "filename": 'data'
+        }
+
+        responses.post(
+            url=expected_url,
+            headers={'accept': 'text/csv'},
+            json=request_resp_json)
+
+        rsp = self.api.post_dataframe(ID, expected_df)
+        self.assertEqual(rsp.json(), request_resp_json)
+        self.assertEqual(rsp.url, expected_url)
+
+        request = responses.calls[-1].request
+        requ_type, requ_data, requ_content_type = request.body.fields['file']
+        requ_data.seek(0)
+        result_df = pd.read_csv(requ_data)
+
+        self.assertEqual(requ_type, 'data')
+        self.assertEqual(requ_content_type, 'text/csv')
+        pd.testing.assert_frame_equal(result_df, expected_df)
+
 # ----------------- Working up to here ----------------------------------------#
-
-#    def test_get_dataframe_with_supported_file_type(self):
-#        ID = 123
-#        response_mock = Mock()
-#        response_mock.headers = {'Content-Type': 'text/csv'}
-#        response_mock.content = b'col1,col2\nvalue1,value2\n'
-#        self.session.get.return_value = response_mock
-#
-#        result = self.api.get_dataframe(ID)
-#
-#        self.session.get.assert_called_with(self.api._build_url(ID))
-#        self.assertEqual(len(result), 1)
-#        self.assertTrue('resource' in result)
-#        expected_df = pd.DataFrame({'col1': ['value1'], 'col2': ['value2']})
-#        pd.testing.assert_frame_equal(result['resource'], expected_df)
-#
-#    def test_get_dataframe_with_unsupported_file_type(self):
-#        ID = 123
-#        response_mock = Mock()
-#        response_mock.headers = {'Content-Type': 'application/octet-stream'}
-#        self.session.get.return_value = response_mock
-#        self.logger_mock = Mock()
-#        self.api.logger = self.logger_mock
-#
-#        result = self.api.get_dataframe(ID)
-#
-#        self.session.get.assert_called_with(self.api._build_url(ID))
-#        self.logger_mock.info.assert_called_with('Unsupported filetype for Dataframe conversion: application/octet-stream')
-#        self.assertIsNone(result)
-#
-#    @given(ID=st.integers(), data_object=st.text(), content_type=st.text())
-#    def test_post(self, ID, data_object, content_type):
-#        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
-#        self.api.post(ID, data_object, content_type)
-#        self.session.post.assert_called_with(expected_url, data={'file': ('data', data_object, content_type)}, headers={'Content-Type': content_type})
-#
-#    @given(ID=st.integers(), data_frame=st.data_frames())
-#    def test_post_dataframe(self, ID, data_frame):
-#        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
-#        csv_buffer = data_frame.to_csv(index=False)
-#        self.api.post(ID, csv_buffer, 'text/csv')
-#        self.session.post.assert_called_with(expected_url, data={'file': ('data', csv_buffer, 'text/csv')}, headers={'Content-Type': 'text/csv'})
-#
-#    @given(ID=st.integers())
-#    def test_delete(self, ID):
-#        expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
-#        self.api.delete(ID)
-#        self.session.delete.assert_called_with(expected_url)
-
 
 # class APIModelsTests(unittest.TestCase):
 # def setUp(self):
