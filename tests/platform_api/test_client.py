@@ -1415,6 +1415,16 @@ class APIClientTests(unittest.TestCase):
                 result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
                 self.assertFalse(result)
 
+    def test_run_analysis__http_error(self):
+        ID = 1
+        expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        exec_url = f'{expected_url}run/'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(exec_url, json={"error": "Analysis ID not fount"}, status=404)
+            with self.assertRaises(OasisException):
+                self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
+
     def test_run_analysis__with_subtasks_success(self):
         ID = 1
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
@@ -1457,31 +1467,27 @@ class APIClientTests(unittest.TestCase):
         ID = 3
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_generate_inputs/'
         responses.post(url=expected_url)
-        result = self.client.cancel_generate(ID)
-        self.assertTrue(result)
+        self.client.cancel_generate(ID)
 
     def test_cancel_generate__error(self):
         ID = 3
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_generate_inputs/'
         responses.post(url=expected_url, json={'Error': "not found"}, status=404)
         with self.assertRaises(OasisException):
-            result = self.client.cancel_generate(ID)
-            self.assertFalse(result)
+            self.client.cancel_generate(ID)
 
     def test_cancel_analysis__success(self):
         ID = 66
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_analysis_run/'
         responses.post(url=expected_url)
-        result = self.client.cancel_analysis(ID)
-        self.assertTrue(result)
+        self.client.cancel_analysis(ID)
 
     def test_cancel_analysis__error(self):
         ID = 66
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/cancel_analysis_run/'
         responses.post(url=expected_url, json={'Error': "not found"}, status=404)
         with self.assertRaises(OasisException):
-            result = self.client.cancel_analysis(ID)
-            self.assertFalse(result)
+            self.client.cancel_analysis(ID)
 
     def test_download_output__success(self):
         ID = 33

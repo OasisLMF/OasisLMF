@@ -499,6 +499,7 @@ class APIClient(object):
                                 analysis = self.analyses.get(analysis_id).json()
                                 completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
+                                time.sleep(poll_interval)
 
                                 # Exit conditions
                                 if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
@@ -507,7 +508,6 @@ class APIClient(object):
                                     pbar.update(pbar.total - pbar.n)
                                     break
 
-                                time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
                         analysis = self.analyses.get(analysis_id).json()
@@ -579,6 +579,7 @@ class APIClient(object):
                                 analysis = self.analyses.get(analysis_id).json()
                                 completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
+                                time.sleep(poll_interval)
 
                                 # Exit conditions
                                 if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
@@ -586,7 +587,6 @@ class APIClient(object):
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
                                     break
-                                time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
                         analysis = self.analyses.get(analysis_id).json()
@@ -619,10 +619,8 @@ class APIClient(object):
         try:
             self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
-            return True
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'cancel_generate: Failed')
-            return False
 
     def cancel_analysis(self, analysis_id):
         """
@@ -632,7 +630,5 @@ class APIClient(object):
         try:
             self.analyses.cancel_analysis_run(analysis_id)
             self.logger.info('Cancelled analysis run: (Id={})'.format(analysis_id))
-            return True
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'cancel_analysis: Failed')
-            return False
