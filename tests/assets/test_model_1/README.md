@@ -29,7 +29,7 @@ convert `correlations.csv` to binary format, therefore `input/Makefile` does not
 
 `correlations.bin` can be created by executing the following Python code within the `input/` directory:
 ```py
-from oasislmf.pytools.data_layer.conversions.correlations import CorrelationsData
+from oasislmf.data_layer.conversions.correlations import CorrelationsData
 
 CorrelationsData.from_csv("correlations.csv").to_bin("correlations.bin")
 ```
