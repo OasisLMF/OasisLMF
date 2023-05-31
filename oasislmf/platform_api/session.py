@@ -68,7 +68,7 @@ class APISession(Session):
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return r
         except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
-            err_msg = 'Authentication Error: {}'.format(r.text)
+            err_msg = 'Authentication Error'
             raise OasisException(err_msg, e)
 
     def unrecoverable_error(self, error, msg=None):
@@ -76,7 +76,7 @@ class APISession(Session):
         err_msg = 'api error: {}, url: {}, msg: {}'.format(err_r.status_code, err_r.url, err_r.text)
         if msg:
             self.logger.error(msg)
-        raise OasisException(err_msg)
+        raise OasisException(err_msg, error)
 
     # Connection Error Handlers
     def __recoverable(self, error, url, request, counter=1):
@@ -117,7 +117,9 @@ class APISession(Session):
         """
         try:
             url = urljoin(self.url_base, 'healthcheck/')
-            return super(APISession, self).get(url)
+            r = super(APISession, self).get(url)
+            r.raise_for_status()
+            return r
         except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
             raise OasisException(err_msg, e)
@@ -197,7 +199,7 @@ class APISession(Session):
                 r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                if self.__recoverable(e, url, 'OPTIONS', counter):
+                if self.__recoverable(e, url, 'PUT', counter):
                     continue
                 else:
                     self.logger.debug(f'Unrecoverable error: {e}')
