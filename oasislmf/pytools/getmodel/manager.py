@@ -17,7 +17,7 @@ import pyarrow.parquet as pq
 from numba.typed import Dict
 
 from oasislmf.pytools.common import PIPE_CAPACITY
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+from oasislmf.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint

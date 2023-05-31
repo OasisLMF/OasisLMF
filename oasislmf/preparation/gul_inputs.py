@@ -13,7 +13,7 @@ from collections import OrderedDict
 
 import pandas as pd
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
+from oasislmf.data_layer.oasis_files.correlations import CorrelationsData
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import factorize_ndarray, merge_dataframes, set_dataframe_column_dtypes
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DAMAGE_GROUP_ID_COLS,

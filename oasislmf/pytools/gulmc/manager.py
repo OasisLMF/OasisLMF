@@ -17,8 +17,8 @@ from numba.types import int64 as nb_int64
 
 from oasislmf.pytools.common import (PIPE_CAPACITY, nb_areaperil_int,
                                      oasis_float)
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.data_layer.oasis_files.correlations import (
+from oasislmf.data_layer.footprint_layer import FootprintLayerClient
+from oasislmf.data_layer.oasis_files.correlations import (
     Correlation, read_correlations)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns

@@ -5,7 +5,7 @@ import logging
 from logging import NullHandler
 
 from oasislmf import __version__ as oasis_version
-from oasislmf.pytools.data_layer.conversions.correlations import \
+from oasislmf.data_layer.conversions.correlations import \
     convert_csv_to_bin
 
 logger = logging.getLogger(__name__)

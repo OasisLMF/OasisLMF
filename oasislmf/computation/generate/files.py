@@ -41,7 +41,7 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
                                             write_exposure_summary,
                                             write_mapping_file,
                                             write_summary_levels)
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
+from oasislmf.data_layer.oasis_files.correlations import \
     CorrelationsData
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json,
