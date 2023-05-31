@@ -173,11 +173,13 @@ def get_gul_input_items(
     # add default values if missing
     if 'IsAggregate' not in location_df.columns:
         location_df['IsAggregate'] = 0
+    else:
         location_df['IsAggregate'].fillna(0, inplace=True)
 
     # Make sure NumberOfBuildings is there and filled (not mandatory), otherwise assume NumberOfBuildings = 1
     if 'NumberOfBuildings' not in location_df.columns:
         location_df['NumberOfBuildings'] = 1
+    else:
         location_df['NumberOfBuildings'].fillna(1, inplace=True)
 
     # Select only the columns required. This reduces memory use significantly for portfolios
