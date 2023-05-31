@@ -409,7 +409,7 @@ def get_gul_input_items(
         (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
     )
 
-    usecols = list(set(usecols) & set(gul_inputs_df.columns))
+    usecols = [col for col in usecols if col in gul_inputs_df]
 
     gul_inputs_df = (
         gul_inputs_df
