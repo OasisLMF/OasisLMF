@@ -38,8 +38,7 @@ import warnings
 
 from datetime import datetime
 
-from ods_tools.oed import OedExposure
-from ods_tools.oed.common import OdsException
+from ods_tools.oed import fill_empty, OedExposure, OdsException
 
 try:
     from json import JSONDecodeError
@@ -764,9 +763,7 @@ def prepare_account_df(accounts_df):
 
 
 def prepare_reinsurance_df(ri_info, ri_scope):
-    if 'SEL' not in ri_info['RiskLevel'].cat.categories:
-        ri_info['RiskLevel'] = ri_info['RiskLevel'].cat.add_categories(['SEL'])
-    ri_info['RiskLevel'] = ri_info['RiskLevel'].fillna('SEL')
+    fill_empty(ri_info, 'RiskLevel', 'SEL')
 
     # add default column if not present in the RI files
     fill_na_with_categoricals(ri_info, RI_INFO_DEFAULTS)
