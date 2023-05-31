@@ -1354,15 +1354,18 @@ class APIClientTests(unittest.TestCase):
     def test_run_analysis__success(self):
         ID = 1
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
+        expected_settings = {'model_settings': ".. settings here .."}
+        expected_settings_url = self.client.analyses.settings._build_url(ID)
         exec_url = f'{expected_url}run/'
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            rsps.post(expected_settings_url)
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
-            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
+            result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1, analysis_settings_fp=expected_settings)
 
             self.assertTrue(result)
             self.logger.info.assert_any_call(f'Analysis Run: Starting (id={ID})')
