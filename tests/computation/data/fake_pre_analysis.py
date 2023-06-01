@@ -2,6 +2,7 @@ class ExposurePreAnalysis:
     """
     Fake exposure pre-analysis module.
     """
+
     def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
         self.exposure_data = exposure_data
         self.exposure_pre_analysis_setting = exposure_pre_analysis_setting

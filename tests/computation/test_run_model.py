@@ -12,7 +12,8 @@ import oasislmf
 from oasislmf.manager import OasisManager
 
 from collections import ChainMap
-from .data.common import * 
+from .data.common import *
+
 
 class TestRunModel(unittest.TestCase):
 
@@ -40,14 +41,14 @@ class TestRunModel(unittest.TestCase):
 
     @staticmethod
     def called_args(mock_obj):
-        return {k:v for k,v in mock_obj.call_args.kwargs.items()  if isinstance(v, (str, int))}
+        return {k: v for k, v in mock_obj.call_args.kwargs.items() if isinstance(v, (str, int))}
 
     @classmethod
     def setUpClass(cls):
         cls.manager = OasisManager()
         # Args
         cls.default_args = cls.manager._params_run_model()
-        #cls.blank_args = {k:None for k,v in cls.default_args.items()}
+        # cls.blank_args = {k:None for k,v in cls.default_args.items()}
 
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
@@ -64,15 +65,13 @@ class TestRunModel(unittest.TestCase):
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
             'analysis_settings_json': self.tmp_files['analysis_settings_json'].name,
             'keys_data_csv': self.tmp_files['keys_data_csv'].name,
-            'model_data_dir':  self.tmp_dirs['model_data_dir'].name
+            'model_data_dir': self.tmp_dirs['model_data_dir'].name
         }
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_files.get('keys_data_csv'), MIN_KEYS)
-
-
 
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([
@@ -90,23 +89,22 @@ class TestRunModel(unittest.TestCase):
 
         call_args = self.min_args
         with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
-             patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
+                patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
             self.manager.run_model(**call_args)
 
         files_called_kwargs = self.called_args(files_mock)
         losses_called_kwargs = self.called_args(losses_mock)
         expected_called_kwargs = self.combine_args([call_args,
-            {
-                'model_run_dir': run_dir,
-                'oasis_files_dir': os.path.join(run_dir, 'input')
-            }
-        ])
+                                                    {
+                                                        'model_run_dir': run_dir,
+                                                        'oasis_files_dir': os.path.join(run_dir, 'input')
+                                                    }
+                                                    ])
 
         files_mock.assert_called_once()
         losses_mock.assert_called_once()
         self.assertEqual(files_called_kwargs, expected_called_kwargs)
         self.assertEqual(losses_called_kwargs, expected_called_kwargs)
-
 
     def test_model_run__with_pre_analysis(self):
         pre_mock = MagicMock()
@@ -131,24 +129,23 @@ class TestRunModel(unittest.TestCase):
         }])
 
         with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
-             patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
+                patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
             self.manager.run_model(**call_args)
 
         exposure_data = files_mock.call_args.kwargs['exposure_data']
         self.assertEqual(exposure_data.location.dataframe['LocNumber'][0], 'test_loc_1')
         self.assertEqual(exposure_data.account.dataframe['AccNumber'][0], 'test_acc_1')
-        
+
         files_called_kwargs = self.called_args(files_mock)
         losses_called_kwargs = self.called_args(losses_mock)
         expected_called_kwargs = self.combine_args([call_args,
-            {
-                'model_run_dir': run_dir,
-                'oasis_files_dir': os.path.join(run_dir, 'input')
-            }
-        ])
+                                                    {
+                                                        'model_run_dir': run_dir,
+                                                        'oasis_files_dir': os.path.join(run_dir, 'input')
+                                                    }
+                                                    ])
 
         files_mock.assert_called_once()
         losses_mock.assert_called_once()
         self.assertEqual(files_called_kwargs, expected_called_kwargs)
         self.assertEqual(losses_called_kwargs, expected_called_kwargs)
-

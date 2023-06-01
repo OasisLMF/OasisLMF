@@ -28,9 +28,9 @@ MIN_RUN_SETTINGS = {
 
 MIN_MODEL_SETTINGS = {
     "version": "3",
-    "model_settings":{},
-    "lookup_settings":{},
-    "model_default_samples" :10
+    "model_settings": {},
+    "lookup_settings": {},
+    "model_default_samples": 10
 }
 
 
