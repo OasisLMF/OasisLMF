@@ -1,5 +1,6 @@
 import json
 import io
+import os
 
 import unittest
 from unittest import mock
@@ -66,17 +67,21 @@ class TestRunModel(unittest.TestCase):
         with open(tmpfile.name, mode='w') as f:
             f.write(data)
 
-    
     @staticmethod
     def combine_args(dict_list):
         return dict(ChainMap(*dict_list))
 
+    @staticmethod
+    def called_args(mock_obj):
+        return {k:v for k,v in mock_obj.call_args.kwargs.items()  if isinstance(v, (str, int))}
 
     @classmethod
     def setUpClass(cls):
         cls.manager = OasisManager()
         # Args
         cls.default_args = cls.manager._params_run_model()
+        #cls.blank_args = {k:None for k,v in cls.default_args.items()}
+
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
         cls.gen_loss_args = cls.manager._params_generate_losses()
@@ -110,20 +115,28 @@ class TestRunModel(unittest.TestCase):
 
     def test_args__min_required(self):
         files_mock = MagicMock()
-        #files_mock._get_output_dir.return_value = self.tmp_dirs.get('model_run_dir').name 
-
-
         losses_mock = MagicMock()
-        losses_mock._get_output_dir.return_value = self.tmp_dirs.get('model_run_dir').name
+        run_dir = self.tmp_dirs.get('model_run_dir').name
+        losses_mock._get_output_dir.return_value = run_dir
 
         with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
              patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
             self.manager.run_model(**self.min_args)
 
-        expected_call_files = self.combine_args([self.gen_files_args, self.min_args])
-        expected_call_losses = self.combine_args([self.gen_loss_args, self.min_args])
-        files_mock.assert_called_once_with(expected_call_files)
-        losses_mock.assert_called_once_with(expected_call_losses_
+        files_called_kwargs = self.called_args(files_mock)
+        losses_called_kwargs = self.called_args(losses_mock)
+        expected_called_kwargs = self.combine_args([self.min_args,
+            {
+                'model_run_dir': run_dir,
+                'oasis_files_dir': os.path.join(run_dir, 'input')
+            }    
+        ])    
+            
+        files_mock.assert_called_once()
+        losses_mock.assert_called_once()
+        self.assertEqual(files_called_kwargs, expected_called_kwargs)
+        self.assertEqual(losses_called_kwargs, expected_called_kwargs)
+        
         
 
 #    def test_ktools_args(self):
