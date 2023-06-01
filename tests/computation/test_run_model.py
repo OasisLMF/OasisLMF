@@ -1,58 +1,28 @@
-import json
-import io
-import os
-
 import unittest
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+import os
 
 import oasislmf
 from oasislmf.manager import OasisManager
 
-from collections import ChainMap
 from .data.common import *
+from .test_computation import ComputationChecker
 
 
-class TestRunModel(unittest.TestCase):
-
-    @staticmethod
-    def create_tmp_files(file_list):
-        return {f: NamedTemporaryFile() for f in file_list}
-
-    @staticmethod
-    def create_tmp_dirs(dirs_list):
-        return {d: TemporaryDirectory() for d in dirs_list}
-
-    @staticmethod
-    def write_json(tmpfile, data):
-        with open(tmpfile.name, mode='w') as f:
-            f.write(json.dumps(data))
-
-    @staticmethod
-    def write_str(tmpfile, data):
-        with open(tmpfile.name, mode='w') as f:
-            f.write(data)
-
-    @staticmethod
-    def combine_args(dict_list):
-        return dict(ChainMap(*dict_list))
-
-    @staticmethod
-    def called_args(mock_obj):
-        return {k: v for k, v in mock_obj.call_args.kwargs.items() if isinstance(v, (str, int))}
+class TestRunModel(ComputationChecker):
 
     @classmethod
     def setUpClass(cls):
         cls.manager = OasisManager()
+
         # Args
         cls.default_args = cls.manager._params_run_model()
-        # cls.blank_args = {k:None for k,v in cls.default_args.items()}
-
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
         cls.gen_loss_args = cls.manager._params_generate_losses()
+
         # Tempfiles
         cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args.keys() if 'dir' in a])
         cls.tmp_files = cls.create_tmp_files(

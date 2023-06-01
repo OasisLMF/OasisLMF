@@ -9,7 +9,6 @@ __all__ = [
     'FAKE_PRE_ANALYSIS_MODULE',
 ]
 
-
 from os import path
 
 MIN_RUN_SETTINGS = {
@@ -53,6 +52,5 @@ MIN_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDat
 MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
 1,1,A11111,,,10002082047,,,,,,0.1,2.0.0
 """
-
 
 FAKE_PRE_ANALYSIS_MODULE = path.join(path.dirname(__file__), 'fake_pre_analysis.py')
