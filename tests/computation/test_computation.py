@@ -11,6 +11,7 @@ from collections import ChainMap
 import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
+
 class ComputationChecker(unittest.TestCase):
 
     @staticmethod
@@ -40,9 +41,4 @@ class ComputationChecker(unittest.TestCase):
         return {k: v for k, v in mock_obj.call_args.kwargs.items() if isinstance(v, (str, int))}
 
 
-
-
-#class TestComputation(unittest.TestCase):
-
-
-    
+# class TestComputation(unittest.TestCase):

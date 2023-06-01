@@ -11,8 +11,6 @@ from .data.common import *
 from .test_computation import ComputationChecker
 
 
-
-
 class TestGenerateFiles(ComputationChecker):
 
     @classmethod
@@ -41,14 +39,12 @@ class TestGenerateFiles(ComputationChecker):
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_files.get('keys_data_csv'), MIN_KEYS)
 
-
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([
             self.pre_hook_args,
             self.gen_files_args,
         ])
         self.assertEqual(expt_combined_args, self.default_args)
-        
 
     def test_generate__without_pre_analysis(self):
         files_mock = MagicMock()
@@ -56,7 +52,7 @@ class TestGenerateFiles(ComputationChecker):
         files_mock._get_output_dir.return_value = files_dir
 
         call_args = self.min_args
-        with patch.object(oasislmf.computation.run.generate_files, 'GenerateFiles', files_mock): 
+        with patch.object(oasislmf.computation.run.generate_files, 'GenerateFiles', files_mock):
             self.manager.generate_oasis_files(**call_args)
 
         files_called_kwargs = self.called_args(files_mock)
@@ -65,12 +61,11 @@ class TestGenerateFiles(ComputationChecker):
         files_mock.assert_called_once()
         self.assertEqual(files_called_kwargs, expected_called_kwargs)
 
-
     def test_generate__with_pre_analysis(self):
         pre_mock = MagicMock()
         files_mock = MagicMock()
         files_dir_obj = self.tmp_dirs.get('oasis_files_dir')
-        files_dir_obj.cleanup() # delete file to check if its created 
+        files_dir_obj.cleanup()  # delete file to check if its created
 
         model_settings = self.tmp_files.get('model_settings_json').name
         account = self.tmp_files.get('oed_accounts_csv').name
@@ -88,7 +83,7 @@ class TestGenerateFiles(ComputationChecker):
             "exposure_pre_analysis_setting_json": self.tmp_files.get('exposure_pre_analysis_setting_json').name
         }])
 
-        with patch.object(oasislmf.computation.run.generate_files, 'GenerateFiles', files_mock): 
+        with patch.object(oasislmf.computation.run.generate_files, 'GenerateFiles', files_mock):
             self.manager.generate_oasis_files(**call_args)
 
         exposure_data = files_mock.call_args.kwargs['exposure_data']
