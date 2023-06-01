@@ -10,6 +10,7 @@ import warnings
 import numba as nb
 import numpy as np
 import pandas as pd
+from ods_tools.oed import fill_empty
 
 try:  # needed for rtree
     from shapely.geometry import Point
@@ -390,7 +391,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     if column_name not in locations.columns:
                         locations[column_name] = preparations["default"]
                     else:
-                        locations.fillna(preparations["default"])
+                        fill_empty(locations, column_name, preparations["default"])
                 if 'max' in preparations:
                     locations.loc[locations[column_name] > preparations['max'], column_name] = preparations['max']
                 if 'min' in preparations:
