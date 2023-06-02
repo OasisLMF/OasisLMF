@@ -228,6 +228,9 @@ class PlatformRunInputs(PlatformBase):
                     self.analysis_id, e))
                 sys.exit(1)
         else:
+            if not self.portfolio_id or self.oed_location_csv:
+                raise OasisException('Error: Either select a "portfolio_id" or a location file is required.')
+
             # If not given an analsis then we need to select a model + portfolio
             # when no model is selected prompt user for choice of installed models
             if not self.model_id:
@@ -262,8 +265,6 @@ class PlatformRunInputs(PlatformBase):
                     ri_scope_fp=self.oed_scope_csv,
                 )
                 portfolio_id = portfolio['id']
-            else:
-                raise OasisException('Error: Either select a "portfolio_id" or Input exposure files to run.')
             analysis = self.server.create_analysis(
                 portfolio_id=portfolio_id,
                 model_id=model_id,
