@@ -1,6 +1,5 @@
 import unittest
 from unittest.mock import MagicMock, patch, Mock
-import pytest
 
 import os
 
@@ -45,10 +44,6 @@ class TestPlatformList(ComputationChecker):
     def tearDown(self):
         responses.stop()
         responses.reset()
-
-    @pytest.fixture(autouse=True)
-    def logging_fixtures(self, caplog):
-        self._caplog = caplog
 
     def test_list_all(self):
         called_args = self.min_args
@@ -309,12 +304,142 @@ class TestPlatformRunInputs(ComputationChecker):
         mock_cancel_analysis.assert_called_with(ID)
         mock_cancel_generate.assert_called_with(ID)
 
-    #def test_inputs__given_portfolio_id__model_is_autoselected(self):
-    #def test_inputs__given_portfolio_id__model_is_picked(self):
-    #def test_inputs__given_portfolio_id__model_selection_is_cancelled(self):
-    #def test_inputs__given_portfolio_id__model_is_missing(self):
-    #def test_inputs__given_portfolio_id__model_is_invalid(self):
-    #def test_inputs__given_portfolio_id__portfolio_is_invalid(self):
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    def test_inputs__given_portfolio_id__model_is_autoselected(self, mock_run_generate, mock_create_analysis):
+        model_id = 3
+        port_id = 2
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/models/', json=[{'id': model_id}])
+            rsps.get(url=f'{self.api_url}/V1/portfolios/', json=[{'id': port_id}])
+            self.manager.platform_run_inputs(portfolio_id=port_id, **exposure_files)
+            mock_run_generate.assert_called_once_with(1)
+            mock_create_analysis.assert_called_once_with(portfolio_id=port_id, model_id=model_id, analysis_settings_fp=None)
+
+
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    @patch('oasislmf.computation.run.platform.PlatformRunInputs.select_id')
+    def test_inputs__given_portfolio_id__model_is_selected(self, mock_select, mock_run_generate, mock_create_analysis):
+        model_id = 2
+        port_id = 4
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+        mock_select.return_value = model_id
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/V1/portfolios/', json=[{'id': port_id}])
+            self.manager.platform_run_inputs(
+                portfolio_id=port_id, 
+                analysis_settings_json=setting_file,
+                **exposure_files
+            )
+            mock_run_generate.assert_called_once_with(1)
+            mock_create_analysis.assert_called_once_with(portfolio_id=port_id, model_id=model_id, analysis_settings_fp=setting_file)
+
+    @patch('oasislmf.computation.run.platform.apiclient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.apiclient.run_generate', return_value=True)
+    @patch('builtins.input',  side_effect=KeyboardInterrupt('Test'))
+    def test_inputs__given_portfolio_id__model_selection_is_cancelled(self, mock_input, mock_run_generate, mock_create_analysis):
+        model_id = 2
+        port_id = 4
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_run_inputs(
+                    portfolio_id=port_id, 
+                    analysis_settings_json=setting_file,
+                    **exposure_files
+                )
+            mock_run_generate.assert_not_called()
+            mock_create_analysis.assert_not_called()
+            self.assertEqual(str(context.exception), ' Model selection cancelled')
+
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    @patch('builtins.input',  side_effect=['q24dsa', '1.000', ValueError('bad value'), KeyboardInterrupt('break')])
+    def test_inputs__given_portfolio_id__model_select_is_invalid(self, mock_input, mock_run_generate, mock_create_analysis):
+        model_id = 2
+        port_id = 4
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+
+        with self._caplog.at_level(logging.INFO):
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+                rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+                with self.assertRaises(OasisException) as context:
+                    self.manager.platform_run_inputs(
+                        portfolio_id=port_id, 
+                        analysis_settings_json=setting_file,
+                        **exposure_files
+                    )
+                mock_run_generate.assert_not_called()
+                mock_create_analysis.assert_not_called()
+                self.assertEqual(str(context.exception), ' Model selection cancelled')
+
+            expected_error_log = "Not a valid id from: ['1', '2'] - ctrl-c to exit"
+            self.assertEqual(self._caplog.messages[3], expected_error_log)           
+            self.assertEqual(self._caplog.messages[4], expected_error_log)           
+            self.assertEqual(self._caplog.messages[5], 'Invalid Response: 1.000')           
+
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    def test_inputs__given_portfolio_id__model_is_missing(self, mock_run_generate, mock_create_analysis):
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+        port_id = 9001
+
+        with self._caplog.at_level(logging.INFO):
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.get(url=f'{self.api_url}/V1/models/', json=[])
+                with self.assertRaises(OasisException) as context:
+                    self.manager.platform_run_inputs(
+                        portfolio_id=port_id, 
+                        analysis_settings_json=setting_file,
+                        **exposure_files
+                    )
+                mock_run_generate.assert_not_called()
+                mock_create_analysis.assert_not_called()
+                self.assertEqual(str(context.exception), f'No models found in API: {self.api_url}')
+
+
+    
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    def test_inputs__given_portfolio_id__portfolio_is_missing(self, mock_run_generate, mock_create_analysis):
+        model_id = 2
+        port_id = 4
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+
+        with self._caplog.at_level(logging.INFO):
+            with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+                self.add_connection_startup(rsps)
+                rsps.get(url=f'{self.api_url}/V1/portfolios/', json=RETURN_PORT)
+                with self.assertRaises(OasisException) as context:
+                    self.manager.platform_run_inputs(
+                        portfolio_id=port_id, 
+                        model_id=model_id,
+                        analysis_settings_json=setting_file,
+                        **exposure_files
+                    )
+                mock_run_generate.assert_not_called()
+                mock_create_analysis.assert_not_called()
+                self.assertEqual(str(context.exception), f'Portfolio "{port_id}" not found in API: {self.api_url}')
+
 
 
 #class TestPlatformRunLosses(ComputationChecker):

@@ -10,7 +10,7 @@ import os
 from collections import ChainMap
 import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-
+import pytest
 
 class ComputationChecker(unittest.TestCase):
 
@@ -39,6 +39,10 @@ class ComputationChecker(unittest.TestCase):
     @staticmethod
     def called_args(mock_obj):
         return {k: v for k, v in mock_obj.call_args.kwargs.items() if isinstance(v, (str, int))}
+
+    @pytest.fixture(autouse=True)
+    def logging_fixtures(self, caplog):
+        self._caplog = caplog
 
 
 # class TestComputation(unittest.TestCase):

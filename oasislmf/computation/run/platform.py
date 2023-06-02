@@ -127,7 +127,7 @@ class PlatformBase(ComputationStep):
                 self.logger.info('Invalid Response: {}'.format(value))
                 continue
             except KeyboardInterrupt:
-                exit(1)
+                return -1 
 
             if str(value) not in valid_ids:
                 self.logger.info(f'Not a valid id from: {valid_ids} - ctrl-c to exit')
@@ -212,7 +212,7 @@ class PlatformRunInputs(PlatformBase):
 
 
         # Create Portfolio and Ananlysis, then run
-        if not self.portfolio_id or self.oed_location_csv:
+        if (not self.portfolio_id) and (not self.oed_location_csv):
             raise OasisException('Error: Either select a "portfolio_id" or a location file is required.')
 
         # when no model is selected prompt user for choice
@@ -227,12 +227,14 @@ class PlatformRunInputs(PlatformBase):
             if model_count > 1:
                 models_table = self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
                 self.model_id = self.select_id('models', models_table['id'])
+            if self.model_id < 0:
+                raise OasisException(' Model selection cancelled')
 
         # Select or create a portfilo
         if self.portfolio_id:
             portfolios = self.server.portfolios.get().json()
             if self.portfolio_id not in [p['id'] for p in portfolios]:
-                raise OasisException(f'Run Error: Invalid selected value "{self.portfolio_id}" for portfolio_id:')
+                raise OasisException(f'Portfolio "{self.portfolio_id}" not found in API: {self.server_url}')
 
         elif self.oed_location_csv:
             portfolio = self.server.upload_inputs(
