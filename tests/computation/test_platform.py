@@ -5,6 +5,7 @@ import os
 
 import logging
 
+import oasislmf
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
 
@@ -15,6 +16,11 @@ from .test_computation import ComputationChecker
 import responses
 from responses.registries import OrderedRegistry
 from responses.matchers import json_params_matcher
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+# from hypothesis import provisional as pv
+import string
 
 
 class TestPlatformList(ComputationChecker):
@@ -334,8 +340,8 @@ class TestPlatformRunInputs(ComputationChecker):
             mock_run_generate.assert_called_once_with(1)
             mock_create_analysis.assert_called_once_with(portfolio_id=port_id, model_id=model_id, analysis_settings_fp=setting_file)
 
-    @patch('oasislmf.computation.run.platform.apiclient.create_analysis', return_value={'id': 1})
-    @patch('oasislmf.computation.run.platform.apiclient.run_generate', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
     @patch('builtins.input', side_effect=KeyboardInterrupt('Test'))
     def test_inputs__given_portfolio_id__model_selection_is_cancelled(self, mock_input, mock_run_generate, mock_create_analysis):
         model_id = 2
@@ -431,9 +437,129 @@ class TestPlatformRunInputs(ComputationChecker):
                 self.assertEqual(str(context.exception), f'Portfolio "{port_id}" not found in API: {self.api_url}')
 
 
-# class TestPlatformRunLosses(ComputationChecker):
+class TestPlatformRunLosses(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+        cls.default_args = cls.manager._params_platform_run_losses()
+        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args if 'dir' in a])
+        cls.tmp_files = cls.create_tmp_files([a for a in cls.default_args if 'json' in a])
 
-# class TestPlatformRun(ComputationChecker):
+    def setUp(self):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
+
+    @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.download_output', return_value=True)
+    def test_run_analysis__only_analysis_id(self, mock_download_output, mock_run_analysis):
+        analysis_id = 4
+
+        self.manager.platform_run_losses(analysis_id=analysis_id)
+        mock_run_analysis.assert_called_once_with(analysis_id, None)
+        mock_download_output.assert_called_once_with(analysis_id, './')
+
+    @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.download_output', return_value=True)
+    def test_run_analysis__all_options_set(self, mock_download_output, mock_run_analysis):
+        analysis_id = 4
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+        output_dir = self.tmp_dirs.get('output_dir').name
+
+        self.manager.platform_run_losses(
+            analysis_id=analysis_id,
+            analysis_settings_json=setting_file,
+            output_dir=output_dir
+        )
+        mock_run_analysis.assert_called_once_with(analysis_id, setting_file)
+        mock_download_output.assert_called_once_with(analysis_id, output_dir)
+
+
+class TestPlatformRun(ComputationChecker):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+
+        # Args
+        cls.default_args = cls.manager._params_platform_run()
+        cls.gen_files_args = cls.manager._params_platform_run_inputs()
+        cls.gen_loss_args = cls.manager._params_platform_run_losses()
+
+        # Tempfiles
+        cls.api_url = 'http://localhost:8000'
+        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args.keys() if 'dir' in a])
+        cls.tmp_files = cls.create_tmp_files(
+            [a for a in cls.default_args.keys() if 'csv' in a] +
+            [a for a in cls.default_args.keys() if 'json' in a]
+        )
+
+    def test_args__default_combine(self):
+        expt_combined_args = self.combine_args([
+            self.gen_files_args,
+            self.gen_loss_args,
+        ])
+        self.assertEqual(expt_combined_args, self.default_args)
+
+    @settings(deadline=None, max_examples=10)
+    @given(
+        server_version=st.text(alphabet=string.ascii_letters) | st.none(),
+        # server_url=st.text(alphabet=string.ascii_letters),
+        model_id=st.integers(min_value=1) | st.none(),
+        portfolio_id=st.integers(min_value=1) | st.none(),
+        analysis_id=st.integers(min_value=1) | st.none(),
+        analysis_settings_json=st.booleans(),
+        server_login_json=st.booleans(),
+        oed_location_csv=st.booleans(),
+        oed_accounts_csv=st.booleans(),
+        oed_info_csv=st.booleans(),
+        oed_scope_csv=st.booleans(),
+        output_dir=st.booleans(),
+    )
+    def test_args__passed_correctly(self,
+                                    server_login_json,
+                                    # server_url,
+                                    server_version,
+                                    model_id,
+                                    portfolio_id,
+                                    analysis_id,
+                                    analysis_settings_json,
+                                    oed_location_csv,
+                                    oed_accounts_csv,
+                                    oed_info_csv,
+                                    oed_scope_csv,
+                                    output_dir):
+
+        # Extract funcution kwargs into dict, and replace booleans with temp file paths
+        call_args = {k: v for k, v in locals().items() if k in self.default_args}
+        call_args['server_url'] = self.api_url
+        for k, v in self.combine_args([self.tmp_files, self.tmp_dirs]).items():
+            if call_args[k] is True:
+                call_args[k] = v.name
+            else:
+                call_args[k] = None
+
+        run_mock = Mock()
+        # run_mock.run.side_effect = lambda *args, **kwargs: 23
+        analysis_id_reutrn = analysis_id if analysis_id else 42
+        run_mock.run.side_effect = lambda *args, **kwargs: analysis_id_reutrn
+        plat_files_mock = Mock()
+        plat_losses_mock = Mock()
+
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+        with patch.object(oasislmf.computation.run.platform, 'PlatformRunInputs', plat_files_mock), \
+                patch.object(oasislmf.computation.run.platform, 'PlatformRunLosses', plat_losses_mock):
+            plat_files_mock.return_value = run_mock
+            self.manager.platform_run(**call_args)
+
+        plat_files_mock.assert_called_once_with(**call_args)
+        call_args['analysis_id'] = analysis_id_reutrn
+        plat_losses_mock.assert_called_once_with(**call_args)
 
 
 # class TestPlatformDelete(ComputationChecker):
