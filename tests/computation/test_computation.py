@@ -12,6 +12,7 @@ import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 import pytest
 
+
 class ComputationChecker(unittest.TestCase):
 
     @staticmethod

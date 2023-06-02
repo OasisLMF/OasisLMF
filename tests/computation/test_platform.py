@@ -9,7 +9,7 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
 
 from .data.common import *
-from .data.platform_returns import * 
+from .data.platform_returns import *
 from .test_computation import ComputationChecker
 
 import responses
@@ -59,13 +59,12 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_analyses, json=RETURN_ANALYSIS)
                 self.manager.platform_list(**called_args)
 
-            self.assertEqual(self._caplog.messages[2], MODELS_TABLE)           
-            self.assertEqual(self._caplog.messages[4], PORT_TABLE)           
-            self.assertEqual(self._caplog.messages[6], ANAL_TABLE)           
-
+            self.assertEqual(self._caplog.messages[2], MODELS_TABLE)
+            self.assertEqual(self._caplog.messages[4], PORT_TABLE)
+            self.assertEqual(self._caplog.messages[6], ANAL_TABLE)
 
     def test_list_models__success(self):
-        called_args = self.combine_args([self.min_args, {'models': [1,2]}])
+        called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
         url_1 = f'{self.api_url}/V1/models/1/'
         url_2 = f'{self.api_url}/V1/models/2/'
 
@@ -79,7 +78,7 @@ class TestPlatformList(ComputationChecker):
                 self.assertIn('Model (id=2):', self._caplog.messages[2])
 
     def test_list_models__logs_error(self):
-        called_args = self.combine_args([self.min_args, {'models': [1,2]}])
+        called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
         url_1 = f'{self.api_url}/V1/models/1/'
         url_2 = f'{self.api_url}/V1/models/2/'
 
@@ -93,7 +92,7 @@ class TestPlatformList(ComputationChecker):
                 self.assertIn('{"error": "model not found"}', self._caplog.messages[2])
 
     def test_list_portfolios__success(self):
-        called_args = self.combine_args([self.min_args, {'portfolios': [1,2]}])
+        called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
         url_1 = f'{self.api_url}/V1/portfolios/1/'
         url_2 = f'{self.api_url}/V1/portfolios/2/'
 
@@ -107,7 +106,7 @@ class TestPlatformList(ComputationChecker):
                 self.assertIn('Portfolio (id=2):', self._caplog.messages[2])
 
     def test_list_portfolios__logs_error(self):
-        called_args = self.combine_args([self.min_args, {'portfolios': [1,2]}])
+        called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
         url_1 = f'{self.api_url}/V1/portfolios/1/'
         url_2 = f'{self.api_url}/V1/portfolios/2/'
 
@@ -146,9 +145,6 @@ class TestPlatformList(ComputationChecker):
                 self.assertIn('{"error": "analysis not found"}', self._caplog.messages[2])
 
 
-
-
-
 class TestPlatformRunInputs(ComputationChecker):
     @classmethod
     def setUpClass(cls):
@@ -184,7 +180,6 @@ class TestPlatformRunInputs(ComputationChecker):
         responses.stop()
         responses.reset()
 
-
     def test_run_inputs__no_data_given__error_is_raised(self):
         responses.get(
             url=f'http://localhost:8000/healthcheck/',
@@ -196,12 +191,11 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertEqual(str(context.exception), 'Error: Either select a "portfolio_id" or a location file is required.')    
-
+        self.assertEqual(str(context.exception), 'Error: Either select a "portfolio_id" or a location file is required.')
 
     @patch('builtins.input', side_effect=['AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__enter_password__unauthorized(self, mock_password,  mock_username):
+    def test_run_inputs__enter_password__unauthorized(self, mock_password, mock_username):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -212,10 +206,9 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertIn(f'HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))    
+        self.assertIn(f'HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
         mock_username.assert_called_once_with('Username: ')
         mock_password.assert_called_once_with('Password: ')
-
 
     @patch('builtins.input', side_effect=['AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
@@ -284,7 +277,7 @@ class TestPlatformRunInputs(ComputationChecker):
             rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'NEW'})
             rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
             self.manager.platform_run_inputs(analysis_id=ID)
-            
+
     @patch('oasislmf.computation.run.platform.APIClient.cancel_generate', return_value=True)
     @patch('oasislmf.computation.run.platform.APIClient.cancel_analysis', return_value=True)
     def test_run_inputs__given_analysis_id__cancel_is_called(self, mock_cancel_analysis, mock_cancel_generate):
@@ -318,7 +311,6 @@ class TestPlatformRunInputs(ComputationChecker):
             mock_run_generate.assert_called_once_with(1)
             mock_create_analysis.assert_called_once_with(portfolio_id=port_id, model_id=model_id, analysis_settings_fp=None)
 
-
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
     @patch('oasislmf.computation.run.platform.PlatformRunInputs.select_id')
@@ -335,7 +327,7 @@ class TestPlatformRunInputs(ComputationChecker):
             rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
             rsps.get(url=f'{self.api_url}/V1/portfolios/', json=[{'id': port_id}])
             self.manager.platform_run_inputs(
-                portfolio_id=port_id, 
+                portfolio_id=port_id,
                 analysis_settings_json=setting_file,
                 **exposure_files
             )
@@ -344,7 +336,7 @@ class TestPlatformRunInputs(ComputationChecker):
 
     @patch('oasislmf.computation.run.platform.apiclient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.apiclient.run_generate', return_value=True)
-    @patch('builtins.input',  side_effect=KeyboardInterrupt('Test'))
+    @patch('builtins.input', side_effect=KeyboardInterrupt('Test'))
     def test_inputs__given_portfolio_id__model_selection_is_cancelled(self, mock_input, mock_run_generate, mock_create_analysis):
         model_id = 2
         port_id = 4
@@ -357,7 +349,7 @@ class TestPlatformRunInputs(ComputationChecker):
             rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
             with self.assertRaises(OasisException) as context:
                 self.manager.platform_run_inputs(
-                    portfolio_id=port_id, 
+                    portfolio_id=port_id,
                     analysis_settings_json=setting_file,
                     **exposure_files
                 )
@@ -367,7 +359,7 @@ class TestPlatformRunInputs(ComputationChecker):
 
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
-    @patch('builtins.input',  side_effect=['q24dsa', '1.000', ValueError('bad value'), KeyboardInterrupt('break')])
+    @patch('builtins.input', side_effect=['q24dsa', '1.000', ValueError('bad value'), KeyboardInterrupt('break')])
     def test_inputs__given_portfolio_id__model_select_is_invalid(self, mock_input, mock_run_generate, mock_create_analysis):
         model_id = 2
         port_id = 4
@@ -381,7 +373,7 @@ class TestPlatformRunInputs(ComputationChecker):
                 rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
                 with self.assertRaises(OasisException) as context:
                     self.manager.platform_run_inputs(
-                        portfolio_id=port_id, 
+                        portfolio_id=port_id,
                         analysis_settings_json=setting_file,
                         **exposure_files
                     )
@@ -390,9 +382,9 @@ class TestPlatformRunInputs(ComputationChecker):
                 self.assertEqual(str(context.exception), ' Model selection cancelled')
 
             expected_error_log = "Not a valid id from: ['1', '2'] - ctrl-c to exit"
-            self.assertEqual(self._caplog.messages[3], expected_error_log)           
-            self.assertEqual(self._caplog.messages[4], expected_error_log)           
-            self.assertEqual(self._caplog.messages[5], 'Invalid Response: 1.000')           
+            self.assertEqual(self._caplog.messages[3], expected_error_log)
+            self.assertEqual(self._caplog.messages[4], expected_error_log)
+            self.assertEqual(self._caplog.messages[5], 'Invalid Response: 1.000')
 
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
@@ -407,7 +399,7 @@ class TestPlatformRunInputs(ComputationChecker):
                 rsps.get(url=f'{self.api_url}/V1/models/', json=[])
                 with self.assertRaises(OasisException) as context:
                     self.manager.platform_run_inputs(
-                        portfolio_id=port_id, 
+                        portfolio_id=port_id,
                         analysis_settings_json=setting_file,
                         **exposure_files
                     )
@@ -415,8 +407,6 @@ class TestPlatformRunInputs(ComputationChecker):
                 mock_create_analysis.assert_not_called()
                 self.assertEqual(str(context.exception), f'No models found in API: {self.api_url}')
 
-
-    
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
     def test_inputs__given_portfolio_id__portfolio_is_missing(self, mock_run_generate, mock_create_analysis):
@@ -431,7 +421,7 @@ class TestPlatformRunInputs(ComputationChecker):
                 rsps.get(url=f'{self.api_url}/V1/portfolios/', json=RETURN_PORT)
                 with self.assertRaises(OasisException) as context:
                     self.manager.platform_run_inputs(
-                        portfolio_id=port_id, 
+                        portfolio_id=port_id,
                         model_id=model_id,
                         analysis_settings_json=setting_file,
                         **exposure_files
@@ -441,11 +431,10 @@ class TestPlatformRunInputs(ComputationChecker):
                 self.assertEqual(str(context.exception), f'Portfolio "{port_id}" not found in API: {self.api_url}')
 
 
+# class TestPlatformRunLosses(ComputationChecker):
 
-#class TestPlatformRunLosses(ComputationChecker):
-
-#class TestPlatformRun(ComputationChecker):
+# class TestPlatformRun(ComputationChecker):
 
 
-#class TestPlatformDelete(ComputationChecker):
-#class TestPlatformGet(ComputationChecker):
+# class TestPlatformDelete(ComputationChecker):
+# class TestPlatformGet(ComputationChecker):

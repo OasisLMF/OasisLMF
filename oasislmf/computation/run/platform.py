@@ -127,7 +127,7 @@ class PlatformBase(ComputationStep):
                 self.logger.info('Invalid Response: {}'.format(value))
                 continue
             except KeyboardInterrupt:
-                return -1 
+                return -1
 
             if str(value) not in valid_ids:
                 self.logger.info(f'Not a valid id from: {valid_ids} - ctrl-c to exit')
@@ -209,7 +209,6 @@ class PlatformRunInputs(PlatformBase):
                 return self.analysis_id
             except HTTPError as e:
                 raise OasisException(f'Error running analysis ({elf.analysis_id}) - {e}')
-
 
         # Create Portfolio and Ananlysis, then run
         if (not self.portfolio_id) and (not self.oed_location_csv):
