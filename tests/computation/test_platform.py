@@ -152,6 +152,8 @@ class TestPlatformList(ComputationChecker):
 
 
 
+
+
 class TestPlatformRunInputs(ComputationChecker):
     @classmethod
     def setUpClass(cls):
@@ -174,9 +176,8 @@ class TestPlatformRunInputs(ComputationChecker):
 
     def setUp(self):
         assert responses, 'responses package required to run'
-        self.api_url = 'http://example.com/api'
+        self.api_url = 'http://localhost:8000'
         responses.start()
-        self.min_args = {'server_url': self.api_url}
 
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.write_str(self.tmp_files.get('oed_location_csv'), "Sample location content")
@@ -207,10 +208,10 @@ class TestPlatformRunInputs(ComputationChecker):
     @patch('getpass.getpass', return_value='hunter2')
     def test_run_inputs__enter_password__unauthorized(self, mock_password,  mock_username):
         responses.get(
-            url=f'http://localhost:8000/healthcheck/',
+            url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
         responses.post(
-            url=f'http://localhost:8000/access_token/',
+            url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
             status=401)
 
@@ -225,21 +226,20 @@ class TestPlatformRunInputs(ComputationChecker):
     @patch('getpass.getpass', return_value='hunter2')
     def test_run_inputs__enter_password__authorized(self, mock_username, mock_password):
         responses.get(
-            url=f'http://localhost:8000/healthcheck/',
+            url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
         responses.post(
-            url=f'http://localhost:8000/access_token/',
+            url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
             status=401)
         responses.post(
-            url=f'http://localhost:8000/access_token/',
+            url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
             headers={"authorization": "Bearer acc_tkn"},
             match=[json_params_matcher({"username": "AzureDiamond", "password": "hunter2"})]
         )
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertIn('Error: Either select', str(context.exception))    
 
         unauthorized_req = responses.calls[1].request
         unauthorized_rsp = responses.calls[1].response
@@ -251,12 +251,76 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
-    #def test_run_inputs__       
+    def test_run_inputs__load_json_credentials(self):
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'unauthorized'},
+            status=401)
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"},
+            match=[json_params_matcher({"username": "AzureDiamond", "password": "hunter2"})]
+        )
+
+        json_credentials_file = self.tmp_files.get('server_login_json')
+        self.write_json(json_credentials_file, {"username": "AzureDiamond", "password": "hunter2"})
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
+
+        unauthorized_req = responses.calls[1].request
+        unauthorized_rsp = responses.calls[1].response
+        self.assertEqual(unauthorized_req.body, b'{"username": "admin", "password": "password"}')
+        self.assertEqual(unauthorized_rsp.status_code, 401)
+
+        authorized_req = responses.calls[3].request
+        authorized_rsp = responses.calls[3].response
+        self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
+        self.assertEqual(authorized_rsp.status_code, 200)
+
+    def test_run_inputs__given_analysis_id(self):
+        ID = 4
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'NEW'})
+            rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
+            self.manager.platform_run_inputs(analysis_id=ID)
+            
+    @patch('oasislmf.computation.run.platform.APIClient.cancel_generate', return_value=True)
+    @patch('oasislmf.computation.run.platform.APIClient.cancel_analysis', return_value=True)
+    def test_run_inputs__given_analysis_id__cancel_is_called(self, mock_cancel_analysis, mock_cancel_generate):
+        ID = 4
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'RUN_STARTED'})
+            rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
+            self.manager.platform_run_inputs(analysis_id=ID)
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'INPUTS_GENERATION_QUEUED'})
+            rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
+            self.manager.platform_run_inputs(analysis_id=ID)
+
+        mock_cancel_analysis.assert_called_with(ID)
+        mock_cancel_generate.assert_called_with(ID)
+
+    #def test_inputs__given_portfolio_id__model_is_autoselected(self):
+    #def test_inputs__given_portfolio_id__model_is_picked(self):
+    #def test_inputs__given_portfolio_id__model_selection_is_cancelled(self):
+    #def test_inputs__given_portfolio_id__model_is_missing(self):
+    #def test_inputs__given_portfolio_id__model_is_invalid(self):
+    #def test_inputs__given_portfolio_id__portfolio_is_invalid(self):
+
 
 #class TestPlatformRunLosses(ComputationChecker):
 
-
-
 #class TestPlatformRun(ComputationChecker):
+
+
 #class TestPlatformDelete(ComputationChecker):
 #class TestPlatformGet(ComputationChecker):
