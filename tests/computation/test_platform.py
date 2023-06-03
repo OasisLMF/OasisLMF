@@ -447,6 +447,19 @@ class TestPlatformRunLosses(ComputationChecker):
 
     def setUp(self):
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
+        self.api_url = 'http://localhost:8000'
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+        responses.start()
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
 
     @patch('oasislmf.computation.run.platform.APIClient.run_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.download_output', return_value=True)
@@ -491,6 +504,22 @@ class TestPlatformRun(ComputationChecker):
             [a for a in cls.default_args.keys() if 'csv' in a] +
             [a for a in cls.default_args.keys() if 'json' in a]
         )
+
+    def setUp(self):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
+        self.api_url = 'http://localhost:8000'
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+        responses.start()
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
 
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([
