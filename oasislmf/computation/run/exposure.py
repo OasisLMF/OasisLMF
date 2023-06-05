@@ -45,12 +45,16 @@ class RunExposure(ComputationStep):
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'flag': '-A', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['item', 'loc', 'pol', 'acc', 'port'],
+        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['peril_item', 'item', 'loc', 'pol', 'acc', 'port'],
          'default': 'item'},
         {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
          'help': 'Set the number of subperils returned by deterministic key generator'},
         {'name': 'coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
          'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'use_peril_covered', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'use perils in LocPerilCovered instead of num_subperils'},
+        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
+         'help': 'List of peril covered by the model, only available with use_peril_covered set to True'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -107,6 +111,8 @@ class RunExposure(ComputationStep):
             num_subperils=self.num_subperils,
             supported_oed_coverage_types=self.coverage_types,
             exposure_data=exposure_data,
+            use_peril_covered = self.use_peril_covered,
+            model_perils_covered = self.model_perils_covered,
         ).run()
 
         # 2. Start Oasis files generation
@@ -190,6 +196,10 @@ class RunExposure(ComputationStep):
             summary_cols = [
                 'output_id', portfolio_num, acc_num, loc_num, policy_num,
                 'coverage_type_id']
+        elif self.output_level == 'peril_item':
+            summary_cols = [
+                'output_id', portfolio_num, acc_num, loc_num, policy_num,
+                'coverage_type_id', 'peril_id']
 
         if include_loss_factor:
             group_by_cols = summary_cols + ['loss_factor_idx']

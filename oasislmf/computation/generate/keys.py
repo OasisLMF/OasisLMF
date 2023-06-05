@@ -147,6 +147,10 @@ class GenerateKeysDeterministic(KeyComputationStep):
          'help': 'Set the number of subperils returned by deterministic key generator'},
         {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
          'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'use_peril_covered', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'use perils in LocPerilCovered instead of num_subperils'},
+        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
+         'help': 'List of peril covered by the model, only available with use_peril_covered set to True'}
     ]
 
     def _get_output_dir(self):
@@ -160,12 +164,13 @@ class GenerateKeysDeterministic(KeyComputationStep):
         keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
-        config = {'builtin_lookup_type': 'deterministic',
+        config = {'builtin_lookup_type': 'peril_covered_deterministic' if self.use_peril_covered else 'deterministic',
                   'model': {"supplier_id": "OasisLMF",
                             "model_id": "Deterministic",
                             "model_version": "1"},
                   'num_subperils': self.num_subperils,
-                  'supported_oed_coverage_types': self.supported_oed_coverage_types}
+                  'supported_oed_coverage_types': self.supported_oed_coverage_types,
+                  'model_perils_covered': self.model_perils_covered}
 
         model_info, lookup = KeyServerFactory.create(
             lookup_config=config,

@@ -24,7 +24,7 @@ from ..utils.log import oasis_log
 from ..utils.path import import_from_string, get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
-from .builtin import DeterministicLookup
+from .builtin import DeterministicLookup, PerilCoveredDeterministicLookup
 from .builtin import Lookup as NewLookup
 
 from multiprocessing import cpu_count, Queue, Process
@@ -241,6 +241,8 @@ class BasicKeyServer:
         else:  # built-in lookup
             if self.config.get('builtin_lookup_type') == 'deterministic':
                 lookup_cls = DeterministicLookup
+            elif self.config.get('builtin_lookup_type') == 'peril_covered_deterministic':
+                lookup_cls = PerilCoveredDeterministicLookup
             elif self.config.get('builtin_lookup_type') == 'new_lookup':
                 lookup_cls = NewLookup
             else:
