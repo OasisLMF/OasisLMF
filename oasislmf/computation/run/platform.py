@@ -77,10 +77,6 @@ class PlatformBase(ComputationStep):
                     username=credentials['username'],
                     password=credentials['password'],
                 )
-            else:
-                self.logger.info('API Connection error to "{}"'.format(self.server_url))
-                self.logger.debug(e)
-                raise e
 
     def tabulate_json(self, json_data, items):
         table_data = dict()
