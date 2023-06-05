@@ -111,8 +111,8 @@ class RunExposure(ComputationStep):
             num_subperils=self.num_subperils,
             supported_oed_coverage_types=self.coverage_types,
             exposure_data=exposure_data,
-            use_peril_covered = self.use_peril_covered,
-            model_perils_covered = self.model_perils_covered,
+            use_peril_covered=self.use_peril_covered,
+            model_perils_covered=self.model_perils_covered,
         ).run()
 
         # 2. Start Oasis files generation

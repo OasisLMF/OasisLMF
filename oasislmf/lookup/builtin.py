@@ -148,14 +148,15 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         split_df.name = 'peril_group_id'
         keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
 
-        coverage_df = pd.DataFrame({'coverage_type':self.config['supported_oed_coverage_types']}, dtype='Int32')
+        coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.sort_values('loc_id').merge(coverage_df, how="cross")
         success_df = keys_df['peril_id'].isin(model_perils_covered)
         success_df_len = keys_df[success_df].shape[0]
         keys_df.loc[success_df, 'area_peril_id'] = np.arange(1, success_df_len + 1)
         keys_df.loc[success_df, 'vulnerability_id'] = np.arange(1, success_df_len + 1)
         keys_df.loc[success_df, 'status'] = OASIS_KEYS_STATUS['success']['id']
-        keys_df.loc[~keys_df['peril_id'].isin(model_perils_covered), ['status', 'message']] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
+        keys_df.loc[~keys_df['peril_id'].isin(model_perils_covered), ['status', 'message']
+                    ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
 
         keys_df[['area_peril_id', 'vulnerability_id']] = keys_df[['area_peril_id', 'vulnerability_id']].astype('Int32')
 
