@@ -77,12 +77,8 @@ class PlatformBase(ComputationStep):
                     username=credentials['username'],
                     password=credentials['password'],
                 )
-            elif isinstance(e.original_exception, ConnectionError):
-                self.logger.info('API Connection error to "{}"'.format(self.server_url))
-                self.logger.debug(e)
-                raise e
             else:
-                self.logger.error('Unhandled error:')
+                self.logger.info('API Connection error to "{}"'.format(self.server_url))
                 self.logger.debug(e)
                 raise e
 
@@ -210,7 +206,7 @@ class PlatformRunInputs(PlatformBase):
                 self.server.run_generate(self.analysis_id)
                 return self.analysis_id
             except HTTPError as e:
-                raise OasisException(f'Error running analysis ({elf.analysis_id}) - {e}')
+                raise OasisException(f'Error running analysis ({self.analysis_id}) - {e}')
 
         # Create Portfolio and Ananlysis, then run
         if (not self.portfolio_id) and (not self.oed_location_csv):

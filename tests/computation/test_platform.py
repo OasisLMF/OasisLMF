@@ -188,10 +188,10 @@ class TestPlatformRunInputs(ComputationChecker):
 
     def test_run_inputs__no_data_given__error_is_raised(self):
         responses.get(
-            url=f'http://localhost:8000/healthcheck/',
+            url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
         responses.post(
-            url=f'http://localhost:8000/access_token/',
+            url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
             headers={"authorization": "Bearer acc_tkn"})
 
@@ -215,6 +215,22 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertIn(f'HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
         mock_username.assert_called_once_with('Username: ')
         mock_password.assert_called_once_with('Password: ')
+
+    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('getpass.getpass', return_value='hunter2')
+    def test_run_inputs__auth_failed__error_is_raised(self, mock_password, mock_username):
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'Error': 'server failed'},
+            status=500)
+        with self.assertRaises(OasisException) as context:
+            self.manager.platform_run_inputs()
+        self.assertEqual(str(context.exception),
+            f'Authentication Error, HTTPError: 500 Server Error: Internal Server Error for url: {self.api_url}/access_token/')
+
 
     @patch('builtins.input', side_effect=['AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
@@ -284,6 +300,17 @@ class TestPlatformRunInputs(ComputationChecker):
             rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
             self.manager.platform_run_inputs(analysis_id=ID)
 
+    def test_run_inputs__given_analysis_id__server_error__exception_raised(self):
+        ID = 4
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'error': 'server failed'}, status=500)
+
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_run_inputs(analysis_id=ID)
+            self.assertEqual(str(context.exception),
+            f'Error running analysis ({ID}) - 500 Server Error: Internal Server Error for url: {self.api_url}/V1/analyses/{ID}/')    
+
     @patch('oasislmf.computation.run.platform.APIClient.cancel_generate', return_value=True)
     @patch('oasislmf.computation.run.platform.APIClient.cancel_analysis', return_value=True)
     def test_run_inputs__given_analysis_id__cancel_is_called(self, mock_cancel_analysis, mock_cancel_generate):
@@ -319,13 +346,13 @@ class TestPlatformRunInputs(ComputationChecker):
 
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
-    @patch('oasislmf.computation.run.platform.PlatformRunInputs.select_id')
-    def test_inputs__given_portfolio_id__model_is_selected(self, mock_select, mock_run_generate, mock_create_analysis):
+    @patch('builtins.input')
+    def test_inputs__given_portfolio_id__model_is_selected(self, mock_input, mock_run_generate, mock_create_analysis):
         model_id = 2
         port_id = 4
         exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
         setting_file = self.tmp_files.get('analysis_settings_json').name
-        mock_select.return_value = model_id
+        mock_input.return_value = model_id
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
@@ -435,6 +462,38 @@ class TestPlatformRunInputs(ComputationChecker):
                 mock_run_generate.assert_not_called()
                 mock_create_analysis.assert_not_called()
                 self.assertEqual(str(context.exception), f'Portfolio "{port_id}" not found in API: {self.api_url}')
+
+    @patch('oasislmf.computation.run.platform.APIClient.upload_inputs', return_value={'id': 4})
+    @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
+    @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
+    def test_inputs__given_model_id__portfolio_is_created(self, mock_run_generate, mock_create_analysis, mock_upload_inputs):
+        model_id = 2
+        port_id = 4
+        analysis_id = 1
+        exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
+        setting_file = self.tmp_files.get('analysis_settings_json').name
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+
+            self.manager.platform_run_inputs(
+                model_id=model_id,
+                analysis_settings_json=setting_file,
+                **exposure_files
+            )
+            mock_run_generate.assert_called_once_with(analysis_id)
+            mock_create_analysis.assert_called_once_with(
+                portfolio_id=port_id,
+                model_id=model_id, 
+                analysis_settings_fp=setting_file,
+            )
+            mock_upload_inputs.assert_called_once_with(
+                portfolio_id=None,
+                location_fp=exposure_files['oed_location_csv'], 
+                accounts_fp=exposure_files['oed_accounts_csv'], 
+                ri_info_fp=exposure_files['oed_info_csv'], 
+                ri_scope_fp=exposure_files['oed_scope_csv']
+            )    
 
 
 class TestPlatformRunLosses(ComputationChecker):
