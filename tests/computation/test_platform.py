@@ -229,8 +229,7 @@ class TestPlatformRunInputs(ComputationChecker):
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
         self.assertEqual(str(context.exception),
-            f'Authentication Error, HTTPError: 500 Server Error: Internal Server Error for url: {self.api_url}/access_token/')
-
+                         f'Authentication Error, HTTPError: 500 Server Error: Internal Server Error for url: {self.api_url}/access_token/')
 
     @patch('builtins.input', side_effect=['AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
@@ -309,7 +308,7 @@ class TestPlatformRunInputs(ComputationChecker):
             with self.assertRaises(OasisException) as context:
                 self.manager.platform_run_inputs(analysis_id=ID)
             self.assertEqual(str(context.exception),
-            f'Error running analysis ({ID}) - 500 Server Error: Internal Server Error for url: {self.api_url}/V1/analyses/{ID}/')    
+                             f'Error running analysis ({ID}) - 500 Server Error: Internal Server Error for url: {self.api_url}/V1/analyses/{ID}/')
 
     @patch('oasislmf.computation.run.platform.APIClient.cancel_generate', return_value=True)
     @patch('oasislmf.computation.run.platform.APIClient.cancel_analysis', return_value=True)
@@ -484,16 +483,16 @@ class TestPlatformRunInputs(ComputationChecker):
             mock_run_generate.assert_called_once_with(analysis_id)
             mock_create_analysis.assert_called_once_with(
                 portfolio_id=port_id,
-                model_id=model_id, 
+                model_id=model_id,
                 analysis_settings_fp=setting_file,
             )
             mock_upload_inputs.assert_called_once_with(
                 portfolio_id=None,
-                location_fp=exposure_files['oed_location_csv'], 
-                accounts_fp=exposure_files['oed_accounts_csv'], 
-                ri_info_fp=exposure_files['oed_info_csv'], 
+                location_fp=exposure_files['oed_location_csv'],
+                accounts_fp=exposure_files['oed_accounts_csv'],
+                ri_info_fp=exposure_files['oed_info_csv'],
                 ri_scope_fp=exposure_files['oed_scope_csv']
-            )    
+            )
 
 
 class TestPlatformRunLosses(ComputationChecker):
@@ -650,5 +649,74 @@ class TestPlatformRun(ComputationChecker):
         plat_losses_mock.assert_called_once_with(**call_args)
 
 
-# class TestPlatformDelete(ComputationChecker):
+class TestPlatformDelete(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.min_args = {'server_url': self.api_url}
+
+    def test_delete__no_input_given__exception_raised(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_delete()
+            self.assertIn('Select item(s) to delete, list of either:', str(context.exception))
+
+    def test_delete__non_int_given__exception_raised(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            bad_data = ['FOOBAR', 3.14159265359]
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_delete(models=bad_data)
+
+            self.assertEqual(str(context.exception),
+                             f"Invalid input, 'models', must be a list of type Int, not {bad_data}")
+
+    def test_delete__some_id_are_missing__log_issue_but_dont_fail(self):
+        model_list = [1, 4, 6]
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.delete(url=f'{self.api_url}/V1/models/1/')
+            rsps.delete(url=f'{self.api_url}/V1/models/4/', status=404)
+            rsps.delete(url=f'{self.api_url}/V1/models/6/')
+
+            with self._caplog.at_level(logging.INFO):
+                self.manager.platform_delete(models=model_list)
+                expected_err_log = f'Delete error models_id=4 - 404 Client Error: Not Found for url: {self.api_url}/V1/models/4/'
+                self.assertEqual(self._caplog.messages[1], 'Deleted models_id=1')
+                self.assertEqual(self._caplog.messages[2], expected_err_log)
+                self.assertEqual(self._caplog.messages[3], 'Deleted models_id=6')
+
+    @given(
+        models=st.lists(st.integers(min_value=1), min_size=1),
+        portfolios=st.lists(st.integers(min_value=1), min_size=1),
+        analyses=st.lists(st.integers(min_value=1), min_size=1),
+    )
+    def test_delete__data_is_ok__endpoints_are_called(self, models, portfolios, analyses):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+
+            for id in models:
+                rsps.delete(url=f'{self.api_url}/V1/models/{id}/')
+            for id in portfolios:
+                rsps.delete(url=f'{self.api_url}/V1/portfolios/{id}/')
+            for id in analyses:
+                rsps.delete(url=f'{self.api_url}/V1/analyses/{id}/')
+            self.manager.platform_delete(models=models, portfolios=portfolios, analyses=analyses)
+
+
 # class TestPlatformGet(ComputationChecker):

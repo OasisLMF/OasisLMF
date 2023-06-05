@@ -289,6 +289,9 @@ class PlatformDelete(PlatformBase):
     ]
 
     def delete_list(self, attr, id_list):
+        if not all(isinstance(ID, int) for ID in id_list):
+            raise OasisException(f"Invalid input, '{attr}', must be a list of type Int, not {id_list}")
+
         api_endpoint = getattr(self.server, attr)
         for Id in id_list:
             try:
