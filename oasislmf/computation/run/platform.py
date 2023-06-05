@@ -351,7 +351,6 @@ class PlatformGet(PlatformBase):
 
     def download(self, collection, req_files, chuck_size=1024):
         collection_obj = getattr(self.server, collection)
-
         for File in req_files:
             resource = getattr(collection_obj, File)
             for ID in req_files[File]:

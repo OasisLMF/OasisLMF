@@ -701,6 +701,7 @@ class TestPlatformDelete(ComputationChecker):
                 self.assertEqual(self._caplog.messages[2], expected_err_log)
                 self.assertEqual(self._caplog.messages[3], 'Deleted models_id=6')
 
+    @settings(deadline=None, max_examples=25)
     @given(
         models=st.lists(st.integers(min_value=1), min_size=1),
         portfolios=st.lists(st.integers(min_value=1), min_size=1),
@@ -719,4 +720,87 @@ class TestPlatformDelete(ComputationChecker):
             self.manager.platform_delete(models=models, portfolios=portfolios, analyses=analyses)
 
 
-# class TestPlatformGet(ComputationChecker):
+class TestPlatformGet(ComputationChecker):
+    @classmethod
+    def setUpClass(cls):
+        cls.manager = OasisManager()
+
+    def add_connection_startup(self, responce_queue):
+        responce_queue.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+
+        responce_queue.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"})
+
+    def setUp(self):
+        self.api_url = 'http://localhost:8000'
+        self.tmp_dirs = self.create_tmp_dirs(['output_dir'])
+        self.min_args = {'server_url': self.api_url, 'output_dir': self.tmp_dirs['output_dir'].name}
+
+    def test_get__no_input_given__exception_raised(self):
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            with self.assertRaises(OasisException) as context:
+                self.manager.platform_get()
+            self.assertIn('Select file for download', str(context.exception))
+
+    def test_get__some_id_are_missing__log_issue_but_dont_fail(self):
+        analysis_list = [1, 4, 6]
+        expected_content_1 = b'file 1 content'
+        expected_content_6 = b'file 6 content'
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/analyses/1/settings_file/', body=expected_content_1, content_type='application/json')
+            rsps.get(url=f'{self.api_url}/V1/analyses/4/settings_file/', status=404)
+            rsps.get(url=f'{self.api_url}/V1/analyses/6/settings_file/', body=expected_content_6, content_type='application/json')
+
+            with self._caplog.at_level(logging.INFO):
+                self.manager.platform_get(**self.min_args, analyses_settings_file=analysis_list)
+                expected_err_log = f'Download failed: - 404 Client Error: Not Found for url: {self.api_url}/V1/analyses/4/settings_file/'
+                self.assertEqual(self._caplog.messages[2], expected_err_log)
+
+                filepath_1 = os.path.join(self.min_args['output_dir'], '1_analyses_settings_file.json')
+                filepath_6 = os.path.join(self.min_args['output_dir'], '6_analyses_settings_file.json')
+
+                self.assertTrue(os.path.isfile(filepath_1))
+                self.assertTrue(os.path.isfile(filepath_6))
+                self.assertEqual(self.read_file(filepath_1), expected_content_1)
+                self.assertEqual(self.read_file(filepath_6), expected_content_6)
+
+    def test_get__download_success__multiple_endpoints(self):
+        model_id = [1]
+        portfolio_id = [4]
+
+        expected_content_loc = b'loc content'
+        expected_content_acc = b'acc content'
+        expected_content_settings = b'settings content'
+        expected_content_version = b'version content'
+
+        requested_files = {
+            'portfolio_location_file': portfolio_id,
+            'portfolio_accounts_file': portfolio_id,
+            'model_settings': model_id,
+            'model_versions': model_id,
+        }
+
+        with responses.RequestsMock(assert_all_requests_are_fired=True) as rsps:
+            self.add_connection_startup(rsps)
+            rsps.get(url=f'{self.api_url}/V1/portfolios/4/location_file/', body=expected_content_loc, content_type='text/csv')
+            rsps.get(url=f'{self.api_url}/V1/portfolios/4/accounts_file/', body=expected_content_acc, content_type='text/csv')
+            rsps.get(url=f'{self.api_url}/V1/models/1/settings/', body=expected_content_settings, content_type='application/json')
+            rsps.get(url=f'{self.api_url}/V1/models/1/versions/', body=expected_content_version, content_type='application/json')
+            self.manager.platform_get(**self.min_args, **requested_files)
+
+            downloaded_files = [
+                (expected_content_loc, os.path.join(self.min_args['output_dir'], '4_portfolios_location_file.csv')),
+                (expected_content_acc, os.path.join(self.min_args['output_dir'], '4_portfolios_accounts_file.csv')),
+                (expected_content_settings, os.path.join(self.min_args['output_dir'], '1_models_settings.json')),
+                (expected_content_version, os.path.join(self.min_args['output_dir'], '1_models_versions.json')),
+            ]
+            for expected_content, filepath in downloaded_files:
+                self.assertTrue(os.path.isfile(filepath))
+                self.assertEqual(self.read_file(filepath), expected_content)

@@ -34,6 +34,11 @@ class ComputationChecker(unittest.TestCase):
             f.write(data)
 
     @staticmethod
+    def read_file(filepath):
+        with open(filepath, mode='rb') as f:
+            return f.read()
+
+    @staticmethod
     def combine_args(dict_list):
         return dict(ChainMap(*dict_list))
 
