@@ -15,7 +15,7 @@ import json
 from tabulate import tabulate
 from mimetypes import guess_extension
 
-from requests.exceptions import HTTPError, ConnectionError
+from requests.exceptions import HTTPError
 
 from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException
