@@ -24,6 +24,10 @@ class ComputationChecker(unittest.TestCase):
         return {d: TemporaryDirectory() for d in dirs_list}
 
     @staticmethod
+    def tmp_dir():
+        return TemporaryDirectory()
+
+    @staticmethod
     def write_json(tmpfile, data):
         with open(tmpfile.name, mode='w') as f:
             f.write(json.dumps(data))

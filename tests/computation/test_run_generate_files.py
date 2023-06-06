@@ -96,3 +96,6 @@ class TestGenerateFiles(ComputationChecker):
         files_mock.assert_called_once()
         self.assertEqual(files_called_kwargs, expected_called_kwargs)
         self.assertTrue(os.path.isdir(files_dir_obj.name))
+
+    def test_generate__return_vaules(self):
+        pass

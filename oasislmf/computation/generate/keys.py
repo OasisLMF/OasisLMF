@@ -158,6 +158,7 @@ class GenerateKeysDeterministic(KeyComputationStep):
     def run(self):
         output_dir = self._get_output_dir()
         keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
+        os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
         config = {'builtin_lookup_type': 'deterministic',

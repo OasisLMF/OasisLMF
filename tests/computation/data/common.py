@@ -7,6 +7,8 @@ __all__ = [
     'MIN_INF',
     'MIN_SCP',
     'FAKE_PRE_ANALYSIS_MODULE',
+    'EXPECTED_KEYS',
+    'EXPECTED_ERROR',
 ]
 
 from os import path
@@ -52,5 +54,8 @@ MIN_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDat
 MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
 1,1,A11111,,,10002082047,,,,,,0.1,2.0.0
 """
+
+EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n1,WSS,1,1000,8\n1,WTC,1,500,2\n1,WSS,3,1000,11\n1,WTC,3,500,5\n'
+EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,WEC,1,noreturn,unsuported peril_id\n1,WEC,3,noreturn,unsuported peril_id\n'
 
 FAKE_PRE_ANALYSIS_MODULE = path.join(path.dirname(__file__), 'fake_pre_analysis.py')
