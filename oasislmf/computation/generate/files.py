@@ -140,6 +140,8 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
+
+        self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
 
@@ -151,7 +153,7 @@ class GenerateFiles(ComputationStep):
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
         target_dir = prepare_input_files_directory(
-            self._get_output_dir(),
+            target_dir=self.oasis_files_dir,
             exposure_data=exposure_data,
             exposure_profile_fp=self.profile_loc_json,
             keys_fp=self.keys_data_csv,

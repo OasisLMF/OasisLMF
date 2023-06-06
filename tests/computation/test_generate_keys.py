@@ -16,7 +16,7 @@ TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
 
 
-class TestRunModel(ComputationChecker):
+class TestGenKeys(ComputationChecker):
 
     @classmethod
     def setUpClass(cls):

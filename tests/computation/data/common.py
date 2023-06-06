@@ -7,11 +7,13 @@ __all__ = [
     'MIN_INF',
     'MIN_SCP',
     'FAKE_PRE_ANALYSIS_MODULE',
+    'FAKE_IL_ITEMS_RETURN',
     'EXPECTED_KEYS',
     'EXPECTED_ERROR',
 ]
 
 from os import path
+import pandas as pd
 
 MIN_RUN_SETTINGS = {
     "model_supplier_id": "M-sup",
@@ -58,4 +60,6 @@ MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,Cedan
 EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n1,WSS,1,1000,8\n1,WTC,1,500,2\n1,WSS,3,1000,11\n1,WTC,3,500,5\n'
 EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,WEC,1,noreturn,unsuported peril_id\n1,WEC,3,noreturn,unsuported peril_id\n'
 
+
+FAKE_IL_ITEMS_RETURN = pd.read_csv(path.join(path.dirname(__file__), 'il_inputs_df_return.csv'))
 FAKE_PRE_ANALYSIS_MODULE = path.join(path.dirname(__file__), 'fake_pre_analysis.py')
