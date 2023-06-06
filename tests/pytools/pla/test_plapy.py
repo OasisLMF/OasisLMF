@@ -3,6 +3,7 @@ from mock import patch
 import numpy as np
 import os
 from pathlib import Path
+import pytest
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
@@ -16,6 +17,7 @@ from oasislmf.pytools.pla.common import (
     LOSS_FACTORS_FILE_NAME
 )
 from oasislmf.pytools.pla.manager import run
+from oasislmf.pytools.pla.structure import get_items_amplifications
 
 
 # Reduce BUFFER_SIZE to ensure that loop in
@@ -23,6 +25,32 @@ from oasislmf.pytools.pla.manager import run
 @patch('oasislmf.pytools.pla.common.BUFFER_SIZE', 24)
 @patch('oasislmf.pytools.pla.common.N_PAIRS', 24 // DATA_SIZE)
 class TestPostLossAmplification(TestCase):
+
+    def write_items_amplifications_file(
+        self, n_items, itemsamps_file, formula
+    ):
+        """
+        Class method to write items amplifications files, which are used in the
+        tests.
+
+        Args:
+            itemsamps_file (str): items amplications file name
+            n_items (int): number of unique item IDs
+            formula (str): expression to evaluate when filling file
+        """
+        write_buffer = memoryview(bytearray(n_items * DATA_SIZE))
+        item_amp_dtype = np.dtype([
+            ('item_id', 'i4'), ('amplification_id', 'i4')
+        ])
+        event_item = np.ndarray(
+            n_items, buffer=write_buffer, dtype=item_amp_dtype
+        )
+        it = np.nditer(event_item, op_flags=['writeonly'], flags=['c_index'])
+        for row in it:
+            row[...] = (eval('it.index' + formula), eval('it.index' + formula))
+        with open(itemsamps_file, 'wb') as f:
+            f.write(np.int32(0).tobytes())   # Empty header
+            f.write(write_buffer[:])
 
     def write_gul_files(self, n_pairs, it, gul_file):
         """
@@ -77,19 +105,9 @@ class TestPostLossAmplification(TestCase):
         itemsamps_file = os.path.join(
             self.input_dir, ITEMS_AMPLIFICATIONS_FILE_NAME
         )
-        write_buffer = memoryview(bytearray(n_items * DATA_SIZE))
-        item_amp_dtype = np.dtype([
-            ('item_id', 'i4'), ('aamplification_id', 'i4')
-        ])
-        event_item = np.ndarray(
-            n_items, buffer=write_buffer, dtype=item_amp_dtype
+        self.write_items_amplifications_file(
+            n_items * DATA_SIZE, itemsamps_file, formula='+ 1'
         )
-        it = np.nditer(event_item, op_flags=['writeonly'], flags=['c_index'])
-        for row in it:
-            row[...] = (it.index + 1, it.index + 1)
-        with open(itemsamps_file, 'wb') as f:
-            f.write(np.int32(0).tobytes())   # Empty header
-            f.write(write_buffer[:])
 
         # Write loss factors file
         self.static_dir = Path('./static')
@@ -174,3 +192,36 @@ class TestPostLossAmplification(TestCase):
         ))
 
         pla_out.close()
+
+    def test_structure__get_items_amplifications__first_item_id_not_1(self):
+        """
+        Test pla.structure.get_items_amplifications() raises SystemExit if the
+        first item ID is not 1.
+        """
+        # Write items amplifications file with first item ID = 2
+        itemsamps_file = os.path.join('.', ITEMS_AMPLIFICATIONS_FILE_NAME)
+        self.write_items_amplifications_file(2, itemsamps_file, formula='+ 2')
+
+        with pytest.raises(SystemExit) as e:
+            get_items_amplifications('.')
+        os.remove(itemsamps_file)
+        assert e.type == SystemExit
+        assert e.value.code == 1
+
+    def test_structure__get_items_amplfications__non_contiguous_item_ids(self):
+        """
+        Test pla.structure.get_items_amplifications() raises SystemExit if the
+        item IDs are not contiguous.
+        """
+        # Write items amplfications file where difference between item IDs is
+        # not 1
+        itemsamps_file = os.path.join('.', ITEMS_AMPLIFICATIONS_FILE_NAME)
+        self.write_items_amplifications_file(
+            4, itemsamps_file, formula='* 2 + 1'
+        )
+
+        with pytest.raises(SystemExit) as e:
+            get_items_amplifications('.')
+        os.remove(itemsamps_file)
+        assert e.type == SystemExit
+        assert e.value.code == 1

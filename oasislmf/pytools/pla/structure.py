@@ -1,3 +1,4 @@
+import logging
 from numba import njit
 from numba.core import types
 from numba.typed import Dict
@@ -14,6 +15,8 @@ from .common import (
     ITEMS_AMPLIFICATIONS_FILE_NAME,
     LOSS_FACTORS_FILE_NAME
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_items_amplifications(path):
@@ -34,12 +37,21 @@ def get_items_amplifications(path):
         items_amps (numpy.ndarray): array of amplification IDs, where index
             corresponds to item ID
     """
-    # Assume item IDs start from 1 and are contiguous
     items_amps = np.fromfile(
         os.path.join(path, ITEMS_AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
         offset=FILE_HEADER_SIZE
-    )[1::2]
-    items_amps = np.concatenate((np.array([0]), items_amps))
+    )
+
+    # Check item IDs start from 1 and are contiguous
+    if items_amps[0] != 1:
+        logger.error(f'First item ID is {items_amps[0]}. Expected 1.')
+        raise SystemExit(1)
+    items_amps = items_amps.reshape(len(items_amps) // 2, 2)
+    if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
+        logger.error(f'Item IDs in {os.path.join(path, ITEMS_AMPLIFICATIONS_FILE_NAME)} are not contiguous')
+        raise SystemExit(1)
+
+    items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
 
     return items_amps
 
