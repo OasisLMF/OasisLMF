@@ -564,12 +564,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         self._prepare_run_directory()
         self._get_model_file_objects()
         self._get_gul_file_objects()
-
-        il = True  # Assume that FM files should be generated too
-        if il is True:
-            self._get_fm_file_objects()
-        else:
-            self.fm_files = []
+        self._get_fm_file_objects()
 
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:
