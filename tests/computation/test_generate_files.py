@@ -1,5 +1,6 @@
 import pathlib
 import os
+import logging
 
 from unittest import mock
 from unittest.mock import patch, Mock, ANY
@@ -170,11 +171,14 @@ class TestGenFiles(ComputationChecker):
             expected_err_msg = f'Currency Convertion needs to be specified in order to convert term to reporting currency {CURRENCY}'
             self.assertIn(expected_err_msg, str(context.exception))
 
-    def test_files__model_settings_given__group_fields_are_missing(self):
+    def test_files__model_settings_given__group_fields_are_missing__warning_logged(self):
         model_settings_file = self.tmp_files.get('model_settings_json').name
         with self.tmp_dir() as t_dir:
-            call_args = {**self.ri_args, 'model_settings_json': model_settings_file}
-            file_gen_return = self.manager.generate_files(**call_args)
+            with self._caplog.at_level(logging.WARN):
+                call_args = {**self.ri_args, 'model_settings_json': model_settings_file}
+                file_gen_return = self.manager.generate_files(**call_args)
+                self.assertIn('WARNING: Failed to load "damage_group_fields"', self._caplog.messages[0])
+                self.assertIn('WARNING: Failed to load "hazard_group_fields"', self._caplog.messages[1])
 
     def test_files__model_settings_given__group_fields_are_set(self):
         model_settings_file = self.tmp_files.get('model_settings_json')
