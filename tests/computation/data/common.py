@@ -1,5 +1,7 @@
 __all__ = [
     'MIN_RUN_SETTINGS',
+    'IL_RUN_SETTINGS',
+    'RI_RUN_SETTINGS',
     'MIN_MODEL_SETTINGS',
     'MIN_KEYS',
     'MIN_KEYS_ERR',
@@ -31,6 +33,56 @@ MIN_RUN_SETTINGS = {
         }
     ]
 }
+
+IL_RUN_SETTINGS = {
+    "model_supplier_id": "M-sup",
+    "model_name_id": 'M-name',
+    "model_settings": {},
+    "number_of_samples": 1,
+    "gul_output": True,
+    "gul_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ],
+    "il_output": True,
+    "il_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ]
+}
+
+RI_RUN_SETTINGS = {
+    "model_supplier_id": "M-sup",
+    "model_name_id": 'M-name',
+    "model_settings": {},
+    "number_of_samples": 1,
+    "gul_output": True,
+    "gul_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ],
+    "il_output": True,
+    "il_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ],
+    "ri_output": True,
+    "ri_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ]
+}
+
 
 MIN_MODEL_SETTINGS = {
     "version": "3",
