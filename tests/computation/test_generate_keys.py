@@ -4,7 +4,7 @@ import os
 from unittest import mock
 from unittest.mock import patch, Mock
 
-
+from ods_tools.oed.common import OdsException
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
@@ -42,6 +42,7 @@ class TestGenKeys(ComputationChecker):
             'keys_errors_csv': self.tmp_files['keys_errors_csv'].name,
         }
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
+        self.write_json(self.tmp_files.get('lookup_complex_config_json'), MIN_RUN_SETTINGS)
 
     def test_keys__check_return(self):
         expected_return = (self.min_args_output_set['keys_data_csv'], 4, self.min_args_output_set['keys_errors_csv'], 2)
@@ -52,6 +53,24 @@ class TestGenKeys(ComputationChecker):
         self.assertEqual(keys_csv_data, EXPECTED_KEYS)
         self.assertEqual(error_csv_data, EXPECTED_ERROR)
         self.assertEqual(keys_return, expected_return)
+
+    def test_keys__lookup_complex_config_json__is_valid(self):
+        lookup_complex_config_file = self.tmp_files['lookup_complex_config_json'] 
+        call_args = {
+            **self.min_args_output_set,
+            'lookup_complex_config_json': lookup_complex_config_file.name}
+        keys_return = self.manager.generate_keys(**call_args)
+
+    def test_keys__lookup_complex_config_json__is_invalid(self):
+        lookup_complex_config_file = self.tmp_files['lookup_complex_config_json'] 
+        self.write_json(lookup_complex_config_file, {})
+        call_args = {
+            **self.min_args_output_set,
+            'lookup_complex_config_json': lookup_complex_config_file.name}
+        with self.assertRaises(OdsException) as context:
+            keys_return = self.manager.generate_keys(**call_args)
+        expected_err_msg = f'JSON Validation error'
+        self.assertIn(expected_err_msg, str(context.exception))
 
     def test_keys__missing_lookup__execption_raised(self):
         with self.assertRaises(OasisException) as context:
