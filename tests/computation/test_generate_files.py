@@ -98,13 +98,10 @@ class TestGenFiles(ComputationChecker):
                 self.assertTrue(os.path.isfile(filepath))
                 self.assertTrue(os.path.getsize(filepath) > 0)
 
-    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
-    def test_files__check_return__ri_args(self, mock_output_dir):
+    def test_files__check_return__ri_args__given_output_dir(self):
         with self.tmp_dir() as t_dir:
-            expected_run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
-            mock_output_dir.return_value = expected_run_dir
-            file_gen_return = self.manager.generate_files(**self.ri_args)
-
+            expected_run_dir = t_dir
+            file_gen_return = self.manager.generate_files(**{**self.ri_args, 'oasis_files_dir': t_dir})
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
                 'coverages': f'{expected_run_dir}/coverages.csv',
