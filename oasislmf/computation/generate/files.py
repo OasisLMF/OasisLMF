@@ -233,15 +233,8 @@ class GenerateFiles(ComputationStep):
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
-            try:
-                model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
-            except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
-
-            try:
-                model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
-            except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
+            model_damage_group_fields = model_settings.get("data_settings", {}).get("damage_group_fields", [])
+            model_hazard_group_fields = model_settings.get("data_settings", {}).get("hazard_group_fields", [])
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
         if model_damage_group_fields and not self.kwargs.get('group_id_cols'):
@@ -312,9 +305,9 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            exposure_data.location.dataframe,
-            gul_inputs_df,
-            exposure_data.account.dataframe,
+            exposure_df=exposure_data.location.dataframe,
+            gul_inputs_df=gul_inputs_df,
+            accounts_df=exposure_data.account.dataframe,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
@@ -383,6 +376,8 @@ class GenerateDummyModelFiles(ComputationStep):
 
     # Command line options
     step_params = [
+        {'name': 'target_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+         'help': 'Path to the directory in which to generate the Model files'},
         {'name': 'num_vulnerabilities', 'flag': '-v', 'required': True, 'type': int, 'help': 'Number of vulnerabilities'},
         {'name': 'num_intensity_bins', 'flag': '-i', 'required': True, 'type': int, 'help': 'Number of intensity bins'},
         {'name': 'num_damage_bins', 'flag': '-d', 'required': True, 'type': int, 'help': 'Number of damage bins'},
@@ -420,9 +415,11 @@ class GenerateDummyModelFiles(ComputationStep):
 
     def _create_target_directory(self, label):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        target_dir = os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+        if not self.target_dir:
+            self.target_dir = os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+
         self.target_dir = create_target_directory(
-            target_dir, 'target test model files directory'
+            self.target_dir, 'target test model files directory'
         )
 
     def _prepare_run_directory(self):

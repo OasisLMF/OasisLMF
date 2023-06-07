@@ -2,6 +2,7 @@ __all__ = [
     'MIN_RUN_SETTINGS',
     'MIN_MODEL_SETTINGS',
     'MIN_KEYS',
+    'MIN_KEYS_ERR',
     'MIN_LOC',
     'MIN_ACC',
     'MIN_INF',
@@ -10,6 +11,8 @@ __all__ = [
     'FAKE_IL_ITEMS_RETURN',
     'EXPECTED_KEYS',
     'EXPECTED_ERROR',
+    'GROUP_FIELDS_MODEL_SETTINGS',
+    'OLD_GROUP_FIELDS_MODEL_SETTINGS',
 ]
 
 from os import path
@@ -36,12 +39,35 @@ MIN_MODEL_SETTINGS = {
     "model_default_samples": 10
 }
 
+GROUP_FIELDS_MODEL_SETTINGS = {
+    "version": "3",
+    "model_settings": {},
+    "lookup_settings": {},
+    "model_default_samples": 10,
+    "data_settings": {
+        "damage_group_fields": ["PortNumber", "AccNumber", "LocNumber"],
+        "hazard_group_fields": ["PortNumber", "AccNumber", "LocNumber"]
+    }
+}
+
+OLD_GROUP_FIELDS_MODEL_SETTINGS = {
+    "version": "3",
+    "model_settings": {},
+    "lookup_settings": {},
+    "model_default_samples": 10,
+    "data_settings": {
+        "group_fields": ["PortNumber", "AccNumber", "LocNumber"],
+    }
+}
 
 MIN_KEYS = """LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 1,WSS,1,154,8
 1,WTC,1,54,2
 1,WSS,3,154,11
 1,WTC,3,54,5
+"""
+
+MIN_KEYS_ERR = """LocID,PerilID,CoverageTypeID,Status,Message
 """
 
 MIN_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latitude,Longitude,StreetAddress,PostalCode,OccupancyCode,ConstructionCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
