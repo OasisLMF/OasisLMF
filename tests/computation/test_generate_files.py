@@ -253,6 +253,14 @@ class TestGenDummyModelFiles(ComputationChecker):
                 self.assertTrue(os.path.isfile(filepath))
                 self.assertTrue(os.path.getsize(filepath) > 0)
 
+    def test_gen_model__num_randoms_set__file_created(self):
+        with self.tmp_dir() as t_dir:
+            call_args = {**self.min_args, 'target_dir': t_dir, 'num_randoms': 10}
+            self.manager.generate_dummy_model_files(**call_args)
+            expected_file = os.path.join(t_dir, 'static', 'random.bin')
+            self.assertTrue(os.path.isfile(expected_file))
+            self.assertTrue(os.path.getsize(expected_file) > 0)
+
     def test_validate__vulnerability_sparseness__exception_raised(self):
         with self.tmp_dir() as t_dir:
             with self.assertRaises(OasisException) as context:
