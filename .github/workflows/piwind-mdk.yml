@@ -40,4 +40,4 @@ jobs:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'backports/3.0.x' || inputs.ods_branch }}

@@ -54,7 +54,7 @@ jobs:
     uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'backports/3.0.x' ||  inputs.ods_branch }}
 
   piwind:
     if: ${{ ! failure() || ! cancelled() }}
