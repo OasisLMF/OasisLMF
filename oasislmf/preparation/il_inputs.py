@@ -34,23 +34,19 @@ from oasislmf.utils.data import (factorize_array, factorize_ndarray,
                                  fast_zip_arrays,
                                  merge_check, merge_dataframes,
                                  set_dataframe_column_dtypes)
-from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
-                                     assign_defaults_to_il_inputs,
-                                     get_default_accounts_profile,
-                                     get_default_exposure_profile,
+from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, assign_defaults_to_il_inputs,
+                                     get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS,
-                               COVERAGE_AGGREGATION_METHODS,
-                               DEDUCTIBLE_AND_LIMIT_TYPES, STEP_TRIGGER_TYPES,
-                               SUPPORTED_FM_LEVELS,
-                               FML_ACCALL)
+from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
+                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
+                               SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
-from oasislmf.utils.profiles import (
-    get_default_step_policies_profile, get_fm_terms_oed_columns,
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group, get_oed_hierarchy)
+from oasislmf.utils.profiles import (get_default_step_policies_profile, get_fm_terms_oed_columns,
+                                     get_grouped_fm_profile_by_level_and_term_group,
+                                     get_grouped_fm_terms_by_level_and_term_group,
+                                     get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -788,7 +784,7 @@ def __process_standard_level_df(column_base_il_df,
         column_base_il_df[term].fillna(0, inplace=True)
         column_base_il_df['has_terms'] |= column_base_il_df[term].astype(bool)
     agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-
+    # TODO: in principle I could just use site_id generated in the disaggregation instead of the three fields now defined in level 2 and 3 of default_fm_agg_provile
     level_df_with_term = column_base_il_df[column_base_il_df['has_terms']]
     il_df_no_term = column_base_il_df[~column_base_il_df['has_terms']]
 
