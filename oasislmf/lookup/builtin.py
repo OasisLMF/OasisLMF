@@ -196,11 +196,47 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     """
     interface_version = "1"
 
+    def set_step_function(self, step_name, step_config, function_being_set=None):
+        """
+        set the step as a function of the lookup object if it's not already done and return it.
+        if the step is composed of several child steps, it will set the child steps recursively.
+
+        Args:
+            step_name (str): name of the strategy for this step
+            step_config (dict): config of the strategy for this step
+            function_being_set (set, None): set of all the strategy that are parent of this step
+
+        Returns:
+            function: function corresponding this step
+        """
+        if hasattr(self, step_name):
+            step_function = getattr(self, step_name)
+        else:
+            if step_config['type'] == 'combine':  # we need to build the child function
+                if function_being_set is None:  # make sure we catch cyclic strategy definition
+                    function_being_set = {step_name}
+                elif step_name in function_being_set:
+                    raise OasisException(f"lookup config has a cyclic strategy definition {function_being_set} then {step_name} again")
+                else:
+                    function_being_set.add(step_name)
+
+                functions = []
+                for child_step_name in step_config["parameters"]['strategy']:
+                    child_fct = self.set_step_function(
+                        step_name=child_step_name,
+                        step_config=self.config['step_definition'][child_step_name],
+                        function_being_set=function_being_set)
+                    functions.append({'function': child_fct, 'columns': set(step_config.get("columns", []))})
+                step_config['parameters']['strategy'] = functions
+
+            step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
+            setattr(self, step_name, step_function)
+        return step_function
+
     def process_locations(self, locations):
-        # drop all unused columns and remove duplicate rows, find and rename usefull column
+        # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
-        step_configs = (self.config['step_definition'][step_name] for step_name in self.config["strategy"])
-        useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in step_configs), []))
+        useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
 
         useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
                            for useful_col in useful_cols
@@ -220,11 +256,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if not needed_column.issubset(locations.columns):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
-            if hasattr(self, step_name):
-                step_function = getattr(self, step_name)
-            else:
-                step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
-                setattr(self, step_name, step_function)
+            step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
 
         locations = locations[key_columns]
@@ -243,6 +275,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return locations
 
     def to_abs_filepath(self, filepath):
+        """
+        replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
+        Args:
+            filepath (str): filepath with potentially a placeholder
+
+        Returns:
+            str: filepath where placeholder are replace their actual value.
+        """
         placeholder_keys = set(re.findall(r'%%(.+?)%%', filepath))
         for placeholder_key in placeholder_keys:
             filepath = filepath.replace(f'%%{placeholder_key}%%', self.config[placeholder_key.lower()])
@@ -256,9 +296,42 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         this function replace the nan value with the OASIS_UNKNOWN_ID and reset the column type to int
         """
         for col in id_columns:
-            df.loc[df[col].isna(), col] = OASIS_UNKNOWN_ID
+            if col not in df:
+                df[col] = OASIS_UNKNOWN_ID
+            else:
+                df.loc[df[col].isna(), col] = OASIS_UNKNOWN_ID
             df[col] = df[col].astype(np.int64)
         return df
+
+    @staticmethod
+    def build_combine(id_columns, strategy):
+        """
+        build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
+        for example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
+        and one using postcode.
+        each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after the precedent strategy
+
+        Args:
+            id_columns (list): columns that will be checked to determine if a strategy has succeeded
+            strategy (list): list of strategy to apply
+
+        Returns:
+            function: function combining all strategies
+        """
+        def fct(locations):
+            result = []
+            for child_strategy in strategy:
+                if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
+                    continue
+                locations = child_strategy['function'](locations)
+                is_valid = (locations[id_columns] != OASIS_UNKNOWN_ID).any(axis=1)
+                result.append(locations[is_valid])
+
+                locations = locations[~is_valid].drop(columns=id_columns)
+            result.append(locations)
+            return Lookup.set_id_columns(pd.concat(result), id_columns)
+
+        return fct
 
     @staticmethod
     def build_split_loc_perils_covered(model_perils_covered=None):
@@ -327,7 +400,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return prepare
 
-    def build_rtree(self, file_path, file_type, id_columns, nearest_neighbor_min_distance=-1):
+    def build_rtree(self, file_path, file_type, id_columns, area_peril_read_params=None, nearest_neighbor_min_distance=-1):
         """
         Function Factory to associate location to area_peril based on the rtree method
 
@@ -359,7 +432,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
         if hasattr(gpd, f"read_{file_type}"):
-            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path))
+            if area_peril_read_params is None:
+                area_peril_read_params = {}
+            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **area_peril_read_params)
         else:
             raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
@@ -394,7 +469,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
                     gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
                     valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
-                    common_col = gdf_loc_na.columns & nearest_neighbor_df.columns
+                    common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
                     gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
                 gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
@@ -473,8 +548,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
         df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
-        def merge(locations):
-            locations = locations.merge(df_to_merge, how='left')
+        def merge(locations: pd.DataFrame):
+            rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
+            locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
+
             self.set_id_columns(locations, id_columns)
             return locations
         return merge

@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.27.4`_
+ ---------
+* [#1282](https://github.com/OasisLMF/OasisLMF/pull/1282) - Adding tarfile member sanitization to extractall()
+* [#1288](https://github.com/OasisLMF/OasisLMF/pull/1287) - Support for pandas 2
+* [#1221](https://github.com/OasisLMF/OasisLMF/pull/1265) - Enable simple way to specify hierarchal key lookup in lookup_config.json
+* [#1301](https://github.com/OasisLMF/OasisLMF/pull/1301) - Pin ods-tools to less than 3.1.x
+* [#1302](https://github.com/OasisLMF/OasisLMF/pull/1302) - Set ktools to 3.9.8
+* [#1274](https://github.com/OasisLMF/OasisLMF/pull/1274) - Release 1.27.3
+.. _`1.27.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.3...1.27.4
+
 `1.27.3`_
  ---------
 * [#1251](https://github.com/OasisLMF/OasisLMF/pull/1252) - Error caused by pandas 2.0.0
