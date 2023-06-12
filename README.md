@@ -34,6 +34,7 @@ Starting from 2023, we will transition to a yearly release cycle for our stable 
 
 ### Monthly Updates
 Every month, we will provide updates to the latest stable version. These updates will include new compatible features and bug fixes, ensuring that our software remains up-to-date and reliable.
+
 During the monthly update, if any bug fixes are required, they will also be applied to the older stable versions. This approach guarantees that all stable versions receive necessary bug fixes, while maintaining a consistent output numbers for that stable version.
 
 ## Features
