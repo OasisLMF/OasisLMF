@@ -1,5 +1,6 @@
 from oasislmf.execution.runner import run as oasislmf_run
 
+
 def run(analysis_settings,
         number_of_processes,
         filename,
@@ -14,7 +15,7 @@ def run(analysis_settings,
         num_fm_per_lb=None,
         fifo_tmp_dir=True,
         custom_gulcalc_cmd=None,
-    ):
+        ):
 
     oasislmf_run(analysis_settings,
                  number_of_processes=number_of_processes,

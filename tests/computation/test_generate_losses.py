@@ -7,6 +7,9 @@ import shutil
 from unittest import mock
 from unittest.mock import patch, Mock, ANY
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from ods_tools.oed.common import OdsException
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.path import setcwd
@@ -136,50 +139,108 @@ class TestGenLosses(ComputationChecker):
         }
         self.manager.generate_losses(**call_args)
 
+    def test_losses__chucked_workflow(self):
+        num_chunks = 5
+        self.manager.generate_files(**self.args_gen_files_ri)
+        run_settings = self.tmp_files.get('analysis_settings_json')
+        self.write_json(run_settings, RI_RUN_SETTINGS)
+        run_dir = self.tmp_dirs.get('model_run_dir').name
+        call_args = {
+            **self.min_args,
+            'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+            'model_run_dir': run_dir,
+            'max_process_id': num_chunks,
+        }
+        run_settings_return = self.manager.generate_losses_dir(**call_args)
+        main_work_dir = os.path.join(run_dir, 'work')
+
+        for i in range(1, num_chunks + 1):
+            chunk_args = {
+                **call_args,
+                'process_number': i
+            }
+            self.manager.generate_losses_partial(**chunk_args)
+            chunk_bash_path = os.path.join(run_dir, f'{i}.run_analysis.sh')
+            chunk_work_dir = os.path.join(run_dir, f'{i}.work')
+
+            self.assertTrue(os.path.isfile(chunk_bash_path))
+            self.assertTrue(len(os.listdir(chunk_work_dir)) > 0)
+
+            # should probably be checked and called from inside tested func
+            # called to merge chunk work into main work dir
+            merge_dirs(chunk_work_dir, main_work_dir)
+
+        self.manager.generate_losses_output(**call_args)
 
     @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_ruuner(self, mock_run_func):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
         call_args = {
             **self.min_args,
             'model_package_dir': FAKE_MODEL_RUNNER,
-        }    
+        }
         self.manager.generate_losses(**call_args)
         mock_run_func.assert_called_once()
 
     @patch('oasislmf.execution.runner.run')
-    def test_losses__supplier_model_ruuner(self, mock_run_func):
+    def test_losses__supplier_model_ruuner_old(self, mock_run_func):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
         call_args = {
             **self.min_args,
             'model_package_dir': FAKE_MODEL_RUNNER__OLD,
-        }    
+        }
         self.manager.generate_losses(**call_args)
         mock_run_func.assert_called_once()
 
-    def test_losses__ktools_alloc_set_vaild(self):
-        pass
-    def test_losses__ktools_alloc_set_invalid(self):
-        pass
+    @given(
+        gul_alloc=st.sampled_from([None, 99]),
+        il_alloc=st.sampled_from([None, 99]),
+        ri_alloc=st.sampled_from([None, 99]),
+        event_shuffle=st.sampled_from([None, 99]),
+        gulpy_random_generator=st.sampled_from([None, 99])
+    )
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__ktools_alloc_set_invaild(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gulpy_random_generator):
+        if any([gul_alloc, il_alloc, ri_alloc, event_shuffle, gulpy_random_generator]):
+            call_args = {
+                **self.min_args,
+                'ktools_alloc_rule_gul': gul_alloc,
+                'ktools_alloc_rule_il': il_alloc,
+                'ktools_alloc_rule_ri': ri_alloc,
+                'ktools_event_shuffle': event_shuffle,
+                'gulpy_random_generator': gulpy_random_generator
+            }
+            with self.assertRaises(OasisException) as context:
+                self.manager.generate_losses(**call_args)
+            self.assertIn('Not within valid ranges', str(context.exception))
+            mock_run_func.assert_not_called()
 
-    def test_losses__ri_layers__alt_load_path(self):
-        pass
     def test_losses__bash_error__expection_raised(self):
         pass
+
     def test_losses__parquet_output__supported(self):
         pass
+
     def test_losses__parquet_output__unsupported(self):
         pass
+
     def test_losses__il_files_missing__expection_raised(self):
         pass
+
     def test_losses__il_files_missing__output_skipped(self):
         pass
+
     def test_losses__no_output__exception_raised(self):
         pass
+
     def test_losses__no_samples_set__expection_raised(self):
         pass
+
     def test_losses__samples_set__in_analysis_settings(self):
         pass
+
     def test_losses__samples_set__in_model_settings(self):
         pass
 
@@ -201,7 +262,3 @@ class TestGenLosses(ComputationChecker):
    #     pass
    # def test_losses__(self):
    #     pass
-   # def test_losses__(self):
-   #     pass
-
-        

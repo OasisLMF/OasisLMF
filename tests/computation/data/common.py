@@ -17,10 +17,24 @@ __all__ = [
     'EXPECTED_ERROR',
     'GROUP_FIELDS_MODEL_SETTINGS',
     'OLD_GROUP_FIELDS_MODEL_SETTINGS',
+    'merge_dirs',
 ]
 
-from os import path
+import os
+import shutil
+from pathlib import Path
 import pandas as pd
+
+
+def merge_dirs(src_root, dst_root):
+    for root, dirs, files in os.walk(src_root):
+        for f in files:
+            src = os.path.join(root, f)
+            rel_dst = os.path.relpath(src, src_root)
+            abs_dst = os.path.join(dst_root, rel_dst)
+            Path(abs_dst).parent.mkdir(exist_ok=True, parents=True)
+            shutil.copy(os.path.join(root, f), abs_dst)
+
 
 MIN_RUN_SETTINGS = {
     "model_supplier_id": "M-sup",
@@ -141,9 +155,8 @@ EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n1,WS
 EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,WEC,1,noreturn,unsuported peril_id\n1,WEC,3,noreturn,unsuported peril_id\n'
 
 
-FAKE_IL_ITEMS_RETURN = pd.read_csv(path.join(path.dirname(__file__), 'il_inputs_df_return.csv'))
-FAKE_PRE_ANALYSIS_MODULE = path.join(path.dirname(__file__), 'fake_pre_analysis.py')
+FAKE_IL_ITEMS_RETURN = pd.read_csv(os.path.join(os.path.dirname(__file__), 'il_inputs_df_return.csv'))
+FAKE_PRE_ANALYSIS_MODULE = os.path.join(os.path.dirname(__file__), 'fake_pre_analysis.py')
 
-FAKE_MODEL_RUNNER = path.join(path.dirname(__file__), 'fake_model_runner')
-FAKE_MODEL_RUNNER__OLD = path.join(path.dirname(__file__), 'fake_model_runner__old')
-
+FAKE_MODEL_RUNNER = os.path.join(os.path.dirname(__file__), 'fake_model_runner')
+FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_runner__old')

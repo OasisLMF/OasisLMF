@@ -55,14 +55,14 @@ class TestGenKeys(ComputationChecker):
         self.assertEqual(keys_return, expected_return)
 
     def test_keys__lookup_complex_config_json__is_valid(self):
-        lookup_complex_config_file = self.tmp_files['lookup_complex_config_json'] 
+        lookup_complex_config_file = self.tmp_files['lookup_complex_config_json']
         call_args = {
             **self.min_args_output_set,
             'lookup_complex_config_json': lookup_complex_config_file.name}
         keys_return = self.manager.generate_keys(**call_args)
 
     def test_keys__lookup_complex_config_json__is_invalid(self):
-        lookup_complex_config_file = self.tmp_files['lookup_complex_config_json'] 
+        lookup_complex_config_file = self.tmp_files['lookup_complex_config_json']
         self.write_json(lookup_complex_config_file, {})
         call_args = {
             **self.min_args_output_set,
