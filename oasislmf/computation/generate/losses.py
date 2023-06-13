@@ -62,9 +62,6 @@ class GenerateLossesBase(ComputationStep):
     intended as a common inherited class
     """
 
-    def run(self):
-        raise NotImplementedError()
-
     def _get_output_dir(self):
         """
         Set the model run directory to '<cwd>/runs/losses-<timestamp>' if not set
@@ -652,9 +649,7 @@ class GenerateLosses(GenerateLossesDir):
                         stderr_guard=not self.ktools_disable_guard,
                         gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
-                        custom_gulcalc_cmd=self.model_custom_gulcalc,
-                        custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
-                        custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
+                        custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
 
             except CalledProcessError as e:

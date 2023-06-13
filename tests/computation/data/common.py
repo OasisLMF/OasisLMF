@@ -11,6 +11,8 @@ __all__ = [
     'MIN_SCP',
     'FAKE_PRE_ANALYSIS_MODULE',
     'FAKE_IL_ITEMS_RETURN',
+    'FAKE_MODEL_RUNNER',
+    'FAKE_MODEL_RUNNER__OLD',
     'EXPECTED_KEYS',
     'EXPECTED_ERROR',
     'GROUP_FIELDS_MODEL_SETTINGS',
@@ -141,3 +143,7 @@ EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,WEC,1,noreturn
 
 FAKE_IL_ITEMS_RETURN = pd.read_csv(path.join(path.dirname(__file__), 'il_inputs_df_return.csv'))
 FAKE_PRE_ANALYSIS_MODULE = path.join(path.dirname(__file__), 'fake_pre_analysis.py')
+
+FAKE_MODEL_RUNNER = path.join(path.dirname(__file__), 'fake_model_runner')
+FAKE_MODEL_RUNNER__OLD = path.join(path.dirname(__file__), 'fake_model_runner__old')
+

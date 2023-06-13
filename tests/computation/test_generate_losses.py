@@ -135,3 +135,73 @@ class TestGenLosses(ComputationChecker):
             'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
         }
         self.manager.generate_losses(**call_args)
+
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__supplier_model_ruuner(self, mock_run_func):
+        self.manager.generate_files(**self.args_gen_files_gul)
+        call_args = {
+            **self.min_args,
+            'model_package_dir': FAKE_MODEL_RUNNER,
+        }    
+        self.manager.generate_losses(**call_args)
+        mock_run_func.assert_called_once()
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__supplier_model_ruuner(self, mock_run_func):
+        self.manager.generate_files(**self.args_gen_files_gul)
+        call_args = {
+            **self.min_args,
+            'model_package_dir': FAKE_MODEL_RUNNER__OLD,
+        }    
+        self.manager.generate_losses(**call_args)
+        mock_run_func.assert_called_once()
+
+    def test_losses__ktools_alloc_set_vaild(self):
+        pass
+    def test_losses__ktools_alloc_set_invalid(self):
+        pass
+
+    def test_losses__ri_layers__alt_load_path(self):
+        pass
+    def test_losses__bash_error__expection_raised(self):
+        pass
+    def test_losses__parquet_output__supported(self):
+        pass
+    def test_losses__parquet_output__unsupported(self):
+        pass
+    def test_losses__il_files_missing__expection_raised(self):
+        pass
+    def test_losses__il_files_missing__output_skipped(self):
+        pass
+    def test_losses__no_output__exception_raised(self):
+        pass
+    def test_losses__no_samples_set__expection_raised(self):
+        pass
+    def test_losses__samples_set__in_analysis_settings(self):
+        pass
+    def test_losses__samples_set__in_model_settings(self):
+        pass
+
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+   # def test_losses__(self):
+   #     pass
+
+        
