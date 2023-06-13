@@ -3,6 +3,7 @@ __all__ = [
     'IL_RUN_SETTINGS',
     'RI_RUN_SETTINGS',
     'MIN_MODEL_SETTINGS',
+    'INVALID_RUN_SETTINGS',
     'MIN_KEYS',
     'MIN_KEYS_ERR',
     'MIN_LOC',
@@ -34,6 +35,24 @@ def merge_dirs(src_root, dst_root):
             abs_dst = os.path.join(dst_root, rel_dst)
             Path(abs_dst).parent.mkdir(exist_ok=True, parents=True)
             shutil.copy(os.path.join(root, f), abs_dst)
+
+
+INVALID_RUN_SETTINGS = {
+    "model_supplier_id": "M-sup",
+    "model_name_id": 'M-name',
+    "model_settings": {
+        "event_set": "NOT-FOUND",
+        "event_occurrence_id": "NOT-FOUND"
+    },
+    "number_of_samples": 1,
+    "gul_output": True,
+    "gul_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ]
+}
 
 
 MIN_RUN_SETTINGS = {

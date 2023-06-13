@@ -58,9 +58,6 @@ class TestGenLosses(ComputationChecker):
         cls.write_str(cls.tmp_oasis_files.get('keys_data_csv'), MIN_KEYS)
         cls.write_str(cls.tmp_oasis_files.get('keys_errors_csv'), MIN_KEYS_ERR)
 
-        # Write minimum data for gen losses
-        cls.write_json(cls.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
-
         # Args for generating sample data
         cls.args_gen_files_gul = {
             'lookup_config_json': LOOKUP_CONFIG,
@@ -116,6 +113,7 @@ class TestGenLosses(ComputationChecker):
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_losses__run_gul(self):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
         self.manager.generate_losses(**self.min_args)
 
@@ -217,30 +215,118 @@ class TestGenLosses(ComputationChecker):
             self.assertIn('Not within valid ranges', str(context.exception))
             mock_run_func.assert_not_called()
 
-    def test_losses__bash_error__expection_raised(self):
-        pass
+    def test_losses__custom_gul_not_found__expection_raised(self):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
 
+        call_args = {
+            **self.min_args,
+            'model_custom_gulcalc': 'dude_wheres_my_gulcalc?',
+        }
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses(**call_args)
+        self.assertIn('Run error: Custom Gulcalc command', str(context.exception))
+
+    def test_losses__invalid_events__expection_raised(self):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), INVALID_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses(**self.min_args)
+        self.assertIn('Could not find events data file:', str(context.exception))
+
+    @patch('oasislmf.execution.bash.get_modelcmd')
+    def test_losses__bash_error__expection_raised__all(self, mock_inject_bash_error):
+        mock_inject_bash_error.return_value = 'exit 1'
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        call_args = {
+            **self.min_args,
+            'verbose': True,
+        }
+        with self._caplog.at_level(logging.INFO):
+            with self.assertRaises(OasisException) as context:
+                self.manager.generate_losses(**call_args)
+            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'   
+            self.assertIn(expected_error, str(context.exception))
+        self.assertIn('BASH_TRACE:', self._caplog.text)    
+        self.assertIn('KTOOLS_STDERR:', self._caplog.text)    
+        self.assertIn('STDOUT:', self._caplog.text)    
+
+    @patch('oasislmf.execution.bash.get_modelcmd')
+    def test_losses__bash_error__expection_raised__single_chunk(self, mock_inject_bash_error):
+        mock_inject_bash_error.return_value = 'exit 1'
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        call_args = {
+            **self.min_args,
+            'verbose': True,
+            'max_process_id': 250,
+            'process_number': 1
+        }
+        with self._caplog.at_level(logging.INFO):
+            with self.assertRaises(OasisException) as context:
+                self.manager.generate_losses_partial(**call_args)
+            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'   
+            self.assertIn(expected_error, str(context.exception))
+        self.assertIn('BASH_TRACE:', self._caplog.text)    
+        self.assertIn('KTOOLS_STDERR:', self._caplog.text)    
+        self.assertIn('STDOUT:', self._caplog.text)    
+
+    #@patch('oasislmf.execution.bash.do_kats')
+    #def test_losses__bash_error__expection_raised__outputs(self, mock_inject_bash_error):
+    #    self.manager.generate_files(**self.args_gen_files_ri)
+    #    run_settings = self.tmp_files.get('analysis_settings_json')
+    #    self.write_json(run_settings, RI_RUN_SETTINGS)
+    #    run_dir = self.tmp_dirs.get('model_run_dir').name
+    #    call_args = {
+    #        **self.min_args,
+    #        'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+    #        'model_run_dir': run_dir,
+    #        'max_process_id': 1,
+    #    }
+    #    run_settings_return = self.manager.generate_losses_dir(**call_args)
+    #    main_work_dir = os.path.join(run_dir, 'work')
+
+    #    chunk_args = {
+    #        **call_args,
+    #        'process_number': 1
+    #    }
+    #    self.manager.generate_losses_partial(**chunk_args)
+
+    #    # should probably be checked and called from inside tested func
+    #    # called to merge chunk work into main work dir
+    #    #merge_dirs(chunk_work_dir, main_work_dir)
+
+    #    self.manager.generate_losses_output(**call_args)
+
+
+
+    # Patch return of parquet check func 
     def test_losses__parquet_output__supported(self):
         pass
-
     def test_losses__parquet_output__unsupported(self):
         pass
 
+    # Pass incorrect run settings vs generated files 
     def test_losses__il_files_missing__expection_raised(self):
         pass
-
     def test_losses__il_files_missing__output_skipped(self):
         pass
 
-    def test_losses__no_output__exception_raised(self):
+    # pass settings file without outputs selected 
+    def test_losses__no_output_defined__exception_raised(self):
+        pass
+    # pass settings file with all outputs false 
+    def test_losses__no_output_enabled__exception_raised(self):
         pass
 
+
+    # tests for default sample selection 
     def test_losses__no_samples_set__expection_raised(self):
         pass
-
     def test_losses__samples_set__in_analysis_settings(self):
         pass
-
     def test_losses__samples_set__in_model_settings(self):
         pass
 
