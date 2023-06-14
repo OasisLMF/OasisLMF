@@ -103,7 +103,8 @@ class TestGenLosses(ComputationChecker):
         self.min_args = {
             'analysis_settings_json': self.tmp_files.get('analysis_settings_json').name,
             'oasis_files_dir': self.args_gen_files_gul['oasis_files_dir'],
-            'model_data_dir': self.model_data_dir
+            'model_data_dir': self.model_data_dir, 
+            'model_run_dir': self.tmp_dirs.get('model_run_dir').name,
         }
 
     def test_losses__no_input__exception_raised(self):
@@ -146,7 +147,6 @@ class TestGenLosses(ComputationChecker):
         call_args = {
             **self.min_args,
             'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
-            'model_run_dir': run_dir,
             'max_process_id': num_chunks,
         }
         run_settings_return = self.manager.generate_losses_dir(**call_args)
@@ -243,15 +243,17 @@ class TestGenLosses(ComputationChecker):
         call_args = {
             **self.min_args,
             'verbose': True,
+            'model_custom_gulcalc': 'gulmc',
         }
         with self._caplog.at_level(logging.INFO):
             with self.assertRaises(OasisException) as context:
                 self.manager.generate_losses(**call_args)
-            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'   
+            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
-        self.assertIn('BASH_TRACE:', self._caplog.text)    
-        self.assertIn('KTOOLS_STDERR:', self._caplog.text)    
-        self.assertIn('STDOUT:', self._caplog.text)    
+        self.assertIn('BASH_TRACE:', self._caplog.text)
+        self.assertIn('KTOOLS_STDERR:', self._caplog.text)
+        self.assertIn('GUL_STDERR', self._caplog.text)
+        self.assertIn('STDOUT:', self._caplog.text)
 
     @patch('oasislmf.execution.bash.get_modelcmd')
     def test_losses__bash_error__expection_raised__single_chunk(self, mock_inject_bash_error):
@@ -262,67 +264,84 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'verbose': True,
             'max_process_id': 250,
+            'model_custom_gulcalc': 'gulmc',
             'process_number': 1
         }
         with self._caplog.at_level(logging.INFO):
             with self.assertRaises(OasisException) as context:
                 self.manager.generate_losses_partial(**call_args)
-            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'   
+            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
-        self.assertIn('BASH_TRACE:', self._caplog.text)    
-        self.assertIn('KTOOLS_STDERR:', self._caplog.text)    
-        self.assertIn('STDOUT:', self._caplog.text)    
+        self.assertIn('BASH_TRACE:', self._caplog.text)
+        self.assertIn('KTOOLS_STDERR:', self._caplog.text)
+        self.assertIn('GUL_STDERR', self._caplog.text)
+        self.assertIn('STDOUT:', self._caplog.text)
 
-    #@patch('oasislmf.execution.bash.do_kats')
-    #def test_losses__bash_error__expection_raised__outputs(self, mock_inject_bash_error):
-    #    self.manager.generate_files(**self.args_gen_files_ri)
-    #    run_settings = self.tmp_files.get('analysis_settings_json')
-    #    self.write_json(run_settings, RI_RUN_SETTINGS)
-    #    run_dir = self.tmp_dirs.get('model_run_dir').name
-    #    call_args = {
-    #        **self.min_args,
-    #        'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
-    #        'model_run_dir': run_dir,
-    #        'max_process_id': 1,
-    #    }
-    #    run_settings_return = self.manager.generate_losses_dir(**call_args)
-    #    main_work_dir = os.path.join(run_dir, 'work')
+    def test_losses__bash_error__expection_raised__outputs(self):
+        self.manager.generate_files(**self.args_gen_files_ri)
+        run_settings = self.tmp_files.get('analysis_settings_json')
+        self.write_json(run_settings, RI_AAL_SETTINGS)
+        run_dir = self.tmp_dirs.get('model_run_dir').name
+        call_args = {
+            **self.min_args,
+            'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+            'verbose': True,
+            'max_process_id': 1,
+        }
+        run_settings_return = self.manager.generate_losses_dir(**call_args)
+        main_work_dir = os.path.join(run_dir, 'work')
 
-    #    chunk_args = {
-    #        **call_args,
-    #        'process_number': 1
-    #    }
-    #    self.manager.generate_losses_partial(**chunk_args)
-
-    #    # should probably be checked and called from inside tested func
-    #    # called to merge chunk work into main work dir
-    #    #merge_dirs(chunk_work_dir, main_work_dir)
-
-    #    self.manager.generate_losses_output(**call_args)
+        chunk_args = {
+            **call_args,
+            'process_number': 1
+        }
+        self.manager.generate_losses_partial(**chunk_args)
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses_output(**call_args)
+        expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+        self.assertIn(expected_error, str(context.exception))
 
 
 
-    # Patch return of parquet check func 
+    # Patch return of parquet check func
     def test_losses__parquet_output__supported(self):
-        pass
+        self.write_json(self.tmp_files.get('analysis_settings_json'), PARQUET_GUL_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        call_args = {
+            **self.min_args,
+            'verbose': True,
+        }    
+        import ipdb; ipdb.set_trace()
+        ret = self.manager.generate_losses(**call_args)
+
     def test_losses__parquet_output__unsupported(self):
         pass
 
-    # Pass incorrect run settings vs generated files 
+    # Pass incorrect run settings vs generated files
     def test_losses__il_files_missing__expection_raised(self):
-        pass
+        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        call_args = {
+            **self.min_args,
+            'check_missing_inputs': True,
+        }
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses(**call_args)
+        expected_error = "[\'IL\', \'RI\'] are enabled in the analysis_settings without the generated input files"
+        self.assertIn(expected_error, str(context.exception))
+
     def test_losses__il_files_missing__output_skipped(self):
-        pass
+        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
 
-    # pass settings file without outputs selected 
-    def test_losses__no_output_defined__exception_raised(self):
-        pass
-    # pass settings file with all outputs false 
-    def test_losses__no_output_enabled__exception_raised(self):
-        pass
+        with self._caplog.at_level(logging.WARN):
+            self.manager.generate_losses(**self.min_args)
+        expected_warning = "[\'IL\', \'RI\'] are enabled in the analysis_settings without the generated input files"
+        self.assertIn(expected_warning, self._caplog.text)
 
-
-    # tests for default sample selection 
+    # tests for default sample selection
     def test_losses__no_samples_set__expection_raised(self):
         pass
     def test_losses__samples_set__in_analysis_settings(self):
