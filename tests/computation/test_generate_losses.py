@@ -99,12 +99,10 @@ class TestGenLosses(ComputationChecker):
         shutil.rmtree(pathlib.Path(cls.model_data_dir).joinpath('input'))
 
     def setUp(self):
-        # set base args
         self.min_args = {
             'analysis_settings_json': self.tmp_files.get('analysis_settings_json').name,
             'oasis_files_dir': self.args_gen_files_gul['oasis_files_dir'],
-            'model_data_dir': self.model_data_dir, 
-            'model_run_dir': self.tmp_dirs.get('model_run_dir').name,
+            'model_data_dir': self.model_data_dir,
         }
 
     def test_losses__no_input__exception_raised(self):
@@ -143,32 +141,34 @@ class TestGenLosses(ComputationChecker):
         self.manager.generate_files(**self.args_gen_files_ri)
         run_settings = self.tmp_files.get('analysis_settings_json')
         self.write_json(run_settings, RI_RUN_SETTINGS)
-        run_dir = self.tmp_dirs.get('model_run_dir').name
-        call_args = {
-            **self.min_args,
-            'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
-            'max_process_id': num_chunks,
-        }
-        run_settings_return = self.manager.generate_losses_dir(**call_args)
-        main_work_dir = os.path.join(run_dir, 'work')
 
-        for i in range(1, num_chunks + 1):
-            chunk_args = {
-                **call_args,
-                'process_number': i
+        with self.tmp_dir() as model_run_dir:
+            call_args = {
+                **self.min_args,
+                'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                'max_process_id': num_chunks,
+                'model_run_dir': model_run_dir,
             }
-            self.manager.generate_losses_partial(**chunk_args)
-            chunk_bash_path = os.path.join(run_dir, f'{i}.run_analysis.sh')
-            chunk_work_dir = os.path.join(run_dir, f'{i}.work')
+            run_settings_return = self.manager.generate_losses_dir(**call_args)
+            main_work_dir = os.path.join(model_run_dir, 'work')
 
-            self.assertTrue(os.path.isfile(chunk_bash_path))
-            self.assertTrue(len(os.listdir(chunk_work_dir)) > 0)
+            for i in range(1, num_chunks + 1):
+                chunk_args = {
+                    **call_args,
+                    'process_number': i
+                }
+                self.manager.generate_losses_partial(**chunk_args)
+                chunk_bash_path = os.path.join(model_run_dir, f'{i}.run_analysis.sh')
+                chunk_work_dir = os.path.join(model_run_dir, f'{i}.work')
 
-            # should probably be checked and called from inside tested func
-            # called to merge chunk work into main work dir
-            merge_dirs(chunk_work_dir, main_work_dir)
+                self.assertTrue(os.path.isfile(chunk_bash_path))
+                self.assertTrue(len(os.listdir(chunk_work_dir)) > 0)
 
-        self.manager.generate_losses_output(**call_args)
+                # should probably be checked and called from inside tested func
+                # called to merge chunk work into main work dir
+                merge_dirs(chunk_work_dir, main_work_dir)
+
+            self.manager.generate_losses_output(**call_args)
 
     @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_ruuner(self, mock_run_func):
@@ -228,12 +228,13 @@ class TestGenLosses(ComputationChecker):
         self.assertIn('Run error: Custom Gulcalc command', str(context.exception))
 
     def test_losses__invalid_events__expection_raised(self):
-        self.write_json(self.tmp_files.get('analysis_settings_json'), INVALID_RUN_SETTINGS)
-        self.manager.generate_files(**self.args_gen_files_gul)
-
-        with self.assertRaises(OasisException) as context:
-            self.manager.generate_losses(**self.min_args)
-        self.assertIn('Could not find events data file:', str(context.exception))
+        with self.tmp_dir() as model_run_dir:
+            self.write_json(self.tmp_files.get('analysis_settings_json'), INVALID_RUN_SETTINGS)
+            self.manager.generate_files(**self.args_gen_files_gul)
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'model_run_dir': model_run_dir}
+                self.manager.generate_losses(**call_args)
+            self.assertIn('Could not find events data file:', str(context.exception))
 
     @patch('oasislmf.execution.bash.get_modelcmd')
     def test_losses__bash_error__expection_raised__all(self, mock_inject_bash_error):
@@ -287,6 +288,7 @@ class TestGenLosses(ComputationChecker):
             'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
             'verbose': True,
             'max_process_id': 1,
+            'model_run_dir': run_dir
         }
         run_settings_return = self.manager.generate_losses_dir(**call_args)
         main_work_dir = os.path.join(run_dir, 'work')
@@ -301,24 +303,35 @@ class TestGenLosses(ComputationChecker):
         expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
         self.assertIn(expected_error, str(context.exception))
 
-
-
-    # Patch return of parquet check func
-    def test_losses__parquet_output__supported(self):
+    @patch('oasislmf.execution.runner.run')
+    @patch('oasislmf.computation.generate.losses.subprocess.run')
+    def test_losses__parquet_output__supported(self, mock_subprocess, mock_runner):
         self.write_json(self.tmp_files.get('analysis_settings_json'), PARQUET_GUL_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
 
-        call_args = {
-            **self.min_args,
-            'verbose': True,
-        }    
-        import ipdb; ipdb.set_trace()
-        ret = self.manager.generate_losses(**call_args)
+        mock_check_parquet = Mock()
+        mock_check_parquet.stderr.decode.return_value = 'Parquet output enabled'
+        mock_subprocess.return_value = mock_check_parquet
 
-    def test_losses__parquet_output__unsupported(self):
-        pass
+        self.manager.generate_losses(**self.min_args)
+        mock_runner.assert_called_once()
 
-    # Pass incorrect run settings vs generated files
+    @patch('oasislmf.execution.runner.run')
+    @patch('oasislmf.computation.generate.losses.subprocess.run')
+    def test_losses__parquet_output__unsupported(self, mock_subprocess, mock_runner):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), PARQUET_GUL_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        mock_check_parquet = Mock()
+        mock_check_parquet.stderr.decode.return_value = 'Parquet output disabled'
+        mock_subprocess.return_value = mock_check_parquet
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses(**self.min_args)
+        expected_error = 'Parquet output format requested but not supported by ktools components.'
+        self.assertIn(expected_error, str(context.exception))
+        mock_runner.assert_not_called()
+
     def test_losses__il_files_missing__expection_raised(self):
         self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
@@ -341,29 +354,32 @@ class TestGenLosses(ComputationChecker):
         expected_warning = "[\'IL\', \'RI\'] are enabled in the analysis_settings without the generated input files"
         self.assertIn(expected_warning, self._caplog.text)
 
-    # tests for default sample selection
     def test_losses__no_samples_set__expection_raised(self):
-        pass
-    def test_losses__samples_set__in_analysis_settings(self):
-        pass
-    def test_losses__samples_set__in_model_settings(self):
-        pass
+        NO_SAMPLES_SETTINGS = MIN_RUN_SETTINGS.copy()
+        NO_SAMPLES_SETTINGS.pop('number_of_samples')
 
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
-   # def test_losses__(self):
-   #     pass
+        self.write_json(self.tmp_files.get('analysis_settings_json'), NO_SAMPLES_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses(**self.min_args)
+        expected_error = "'number_of_samples' not set in analysis_settings and no model_settings.json file provided"
+        self.assertIn(expected_error, str(context.exception))
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__samples_set__in_model_settings(self, mock_runner):
+        expected_samples = 250
+        MODEL_SETTINGS = MIN_MODEL_SETTINGS.copy()
+        MODEL_SETTINGS['model_default_samples'] = expected_samples
+
+        NO_SAMPLES_SETTINGS = MIN_RUN_SETTINGS.copy()
+        NO_SAMPLES_SETTINGS.pop('number_of_samples')
+
+        self.write_json(self.tmp_files.get('model_settings_json'), MODEL_SETTINGS)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), NO_SAMPLES_SETTINGS)
+
+        call_args = {**self.min_args, 'model_settings_json': self.tmp_files.get('model_settings_json').name}
+        self.manager.generate_files(**self.args_gen_files_gul)
+        self.manager.generate_losses(**call_args)
+
+        called_settings = mock_runner.call_args.args[0]
+        self.assertEqual(expected_samples, called_settings['number_of_samples'])
