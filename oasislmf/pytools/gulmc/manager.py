@@ -946,7 +946,7 @@ def compute_event_losses(event_id,
                             # absolute vulnerability function
                             if damage_bins['bin_from'][vuln_bin_idx] > 1:
                                 gul /= tiv
-                                
+
                             losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
         # write the losses to the output memoryview
