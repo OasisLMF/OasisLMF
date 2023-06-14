@@ -728,8 +728,10 @@ class GenerateLossesDeterministic(ComputationStep):
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
+        coverage_id_count = items['coverage_id'].value_counts().reset_index()
+        coverage_id_count.columns = ['coverage_id', 'count']  # support for pandas < 2.x
+        items = items.merge(coverage_id_count, how='left')
 
-        items = items.merge(items['coverage_id'].value_counts().reset_index(), how='left')
         items['tiv'] = items['tiv'] / items['count']
         items.drop(columns=['count'], inplace=True)
         # Change order of stream depending on rule type
