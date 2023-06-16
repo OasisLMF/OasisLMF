@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.23.18`_
+ ---------
+* [#1276](https://github.com/OasisLMF/OasisLMF/pull/1276) - Release 1.23.17
+* [#1310](https://github.com/OasisLMF/OasisLMF/pull/1310) - log wrapper, check log level before running input log
+.. _`1.23.18`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.17...1.23.18
+
 `1.23.17`_
  ---------
 * [#1278](https://github.com/OasisLMF/OasisLMF/pull/1278) - Fixes for newer versions of pandas and numpy
