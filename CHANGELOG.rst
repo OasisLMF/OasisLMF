@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.27.5`_
+ ---------
+* [#1214](https://github.com/OasisLMF/OasisLMF/pull/1305) - Undefined behaviour when no successes are passed to write_oasis_keys_file
+* [#1306](https://github.com/OasisLMF/OasisLMF/pull/1306) - lookup: remove extra column after failed combine step
+* [#1310](https://github.com/OasisLMF/OasisLMF/pull/1310) - log wrapper, check log level before running input log
+.. _`1.27.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.4...1.27.5
+
 `1.27.4`_
  ---------
 * [#1282](https://github.com/OasisLMF/OasisLMF/pull/1282) - Adding tarfile member sanitization to extractall()
