@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.26.8`_
+ ---------
+* [#1275](https://github.com/OasisLMF/OasisLMF/pull/1275) - Release 1.26.7
+* [#1310](https://github.com/OasisLMF/OasisLMF/pull/1310) - log wrapper, check log level before running input log
+.. _`1.26.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.7...1.26.8
+
 `1.26.7`_
  ---------
 * [#1272](https://github.com/OasisLMF/OasisLMF/pull/1272) - Update numpy pin
