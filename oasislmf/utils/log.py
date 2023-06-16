@@ -96,16 +96,17 @@ def oasis_log(*args, **kwargs):
             args_name = getargspec(func)[0]
             args_dict = dict(zip(args_name, args))
 
-            for key, value in args_dict.items():
-                if key == "self":
-                    continue
-                logger.debug("    {} == {}".format(key, value))
+            if logger.level <= logging.DEBUG:
+                for key, value in args_dict.items():
+                    if key == "self":
+                        continue
+                    logger.debug("    {} == {}".format(key, value))
 
-            if len(args) > len(args_name):
-                for i in range(len(args_name), len(args)):
-                    logger.debug("    {}".format(args[i]))
-            for key, value in kwargs.items():
-                logger.debug("    {} == {}".format(key, value))
+                if len(args) > len(args_name):
+                    for i in range(len(args_name), len(args)):
+                        logger.debug("    {}".format(args[i]))
+                for key, value in kwargs.items():
+                    logger.debug("    {} == {}".format(key, value))
 
             start = time.time()
             result = func(*args, **kwargs)

@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.29`_
+ ---------
+* [#1285](https://github.com/OasisLMF/OasisLMF/pull/1285) - Release 1.15.28
+* [#1310](https://github.com/OasisLMF/OasisLMF/pull/1310) - log wrapper, check log level before running input log
+.. _`1.15.29`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.28...1.15.29
+
 `1.15.28`_
  ---------
 * [#1273](https://github.com/OasisLMF/OasisLMF/pull/1273) - Release 1.15.27
