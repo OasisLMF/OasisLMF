@@ -17,6 +17,7 @@ from oasislmf.utils.log import (
 
 class MockLogger(object):
     def __init__(self):
+        self.level = logging.DEBUG
         self.debug = Mock()
         self.info = Mock()
 
