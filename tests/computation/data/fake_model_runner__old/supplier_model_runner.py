@@ -1,3 +1,9 @@
+"""
+This file mimics the older format for overriding the default model runner. 
+
+Its now obsolete, however there is a compatibility fallback in the code which 
+loading this module aims to test.
+"""
 from oasislmf.execution.runner import run as oasislmf_run
 
 
