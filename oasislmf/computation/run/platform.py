@@ -116,14 +116,14 @@ class PlatformBase(ComputationStep):
     def select_id(self, msg, valid_ids):
         while True:
             try:
-                value = input(f'Select {msg} ID: ')
+                value = str(input(f'Select {msg} ID: '))
             except ValueError:
                 self.logger.info('Invalid Response: {}'.format(value))
                 continue
             except KeyboardInterrupt:
                 return -1
 
-            if str(value) not in valid_ids:
+            if value not in valid_ids:
                 self.logger.info(f'Not a valid id from: {valid_ids} - ctrl-c to exit')
                 continue
             else:
