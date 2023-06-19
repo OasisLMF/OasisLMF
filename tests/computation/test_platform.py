@@ -413,9 +413,9 @@ class TestPlatformRunInputs(ComputationChecker):
                 mock_create_analysis.assert_not_called()
                 self.assertEqual(str(context.exception), ' Model selection cancelled')
 
-            expected_error_log = "Not a valid id from: ['1', '2'] - ctrl-c to exit"
-            self.assertEqual(self._caplog.messages[3], expected_error_log)
-            self.assertEqual(self._caplog.messages[4], expected_error_log)
+            expected_error_log = "not among the valid ids: ['1', '2'] - ctrl-c to exit"
+            self.assertIn(expected_error_log, self._caplog.messages[3])
+            self.assertIn(expected_error_log, self._caplog.messages[4])
             self.assertEqual(self._caplog.messages[5], 'Invalid Response: 1.000')
 
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
