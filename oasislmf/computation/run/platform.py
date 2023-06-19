@@ -124,7 +124,7 @@ class PlatformBase(ComputationStep):
                 return -1
 
             if value not in valid_ids:
-                self.logger.info(f'Not a valid id from: {valid_ids} - ctrl-c to exit')
+                self.logger.info(f'id {value} not among the valid ids: {valid_ids} - ctrl-c to exit')
                 continue
             else:
                 break
