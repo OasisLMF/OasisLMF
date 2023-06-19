@@ -53,4 +53,3 @@ class ComputationChecker(unittest.TestCase):
     @pytest.fixture(autouse=True)
     def logging_fixtures(self, caplog):
         self._caplog = caplog
-
