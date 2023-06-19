@@ -234,11 +234,11 @@ class GenerateFiles(ComputationStep):
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
             try:
-                model_damage_group_fields = model_settings.get("data_settings").get("damage_group_fields")
+                model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn(f'WARNING: Failed to load "damage_group_fields", file: {self.model_settings_json}, error: {e}')
             try:
-                model_hazard_group_fields = model_settings.get("data_settings").get("hazard_group_fields")
+                model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
 
