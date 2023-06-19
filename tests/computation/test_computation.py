@@ -54,5 +54,3 @@ class ComputationChecker(unittest.TestCase):
     def logging_fixtures(self, caplog):
         self._caplog = caplog
 
-
-# class TestComputation(unittest.TestCase):
