@@ -22,7 +22,8 @@ from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 

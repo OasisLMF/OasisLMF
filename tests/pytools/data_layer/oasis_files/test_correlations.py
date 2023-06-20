@@ -4,7 +4,8 @@ This file tests the loading, saving, and conversions for correlations data to an
 import os
 from unittest import TestCase, main
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData

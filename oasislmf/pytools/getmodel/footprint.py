@@ -10,7 +10,8 @@ from typing import Dict, List, Union
 from zlib import decompress
 
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 import pyarrow.parquet as pq
 import numba as nb
 

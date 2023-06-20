@@ -4,7 +4,8 @@ This file tests the mapping of the correlation data between supported perils and
 import os
 from unittest import TestCase, main
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from oasislmf.preparation.correlations import (get_correlation_input_items,
                                                map_data)

@@ -2,7 +2,8 @@
 
 import argparse
 from pathlib import Path
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 from oasislmf.pytools.utils import assert_allclose
 
 parser = argparse.ArgumentParser(

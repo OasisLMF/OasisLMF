@@ -18,7 +18,8 @@ import pathlib
 
 from posixpath import join as urljoin
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from tqdm import tqdm
 from requests_toolbelt import MultipartEncoder

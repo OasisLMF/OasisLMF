@@ -26,7 +26,8 @@ import shutil
 import shutilwhich
 import subprocess
 import tarfile
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from itertools import chain
 

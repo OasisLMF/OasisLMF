@@ -8,7 +8,8 @@ from select import select
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 from numba import njit
 from numba.typed import Dict, List
 from numba.types import Tuple as nb_Tuple

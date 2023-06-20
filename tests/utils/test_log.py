@@ -1,4 +1,5 @@
 import logging
+import tempfile
 from logging.handlers import RotatingFileHandler
 import os.path
 from random import random
@@ -107,8 +108,8 @@ class OasisLog(TestCase):
 class ReadLogConfig(TestCase):
     @given(sampled_from([logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]))
     def test_log_config_is_loaded___logger_is_updated(self, level):
-        log_file_path = os.path.abspath(os.path.join("tmp", "log_file.txt"))
-        with patch('logging.root', logging.RootLogger(logging.NOTSET)):
+        with tempfile.NamedTemporaryFile() as log_file, patch('logging.root', logging.RootLogger(logging.NOTSET)):
+            log_file_path = log_file.name
             read_log_config({
                 'LOG_FILE': log_file_path,
                 'LOG_LEVEL': level,
@@ -133,8 +134,8 @@ class SetRotatingLogger(TestCase):
         level=sampled_from([logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG])
     )
     def test_rotating_log_config_is_loaded___logger_is_set(self, level):
-        log_file_path = os.path.abspath(os.path.join("tmp", "log_file.txt"))
-        with patch('logging.root', logging.RootLogger(logging.NOTSET)):
+        with tempfile.NamedTemporaryFile() as log_file, patch('logging.root', logging.RootLogger(logging.NOTSET)):
+            log_file_path = log_file.name
             set_rotating_logger(log_file_path=log_file_path, log_level=level, max_file_size=100, max_backups=10)
 
             logger = logging.getLogger('oasislmf')

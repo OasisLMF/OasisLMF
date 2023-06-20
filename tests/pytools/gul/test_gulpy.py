@@ -9,7 +9,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 import pytest
 
 from oasislmf.pytools.utils import assert_allclose

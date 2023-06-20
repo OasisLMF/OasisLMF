@@ -10,7 +10,8 @@ import shutil
 from collections import namedtuple
 
 import numbers
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log

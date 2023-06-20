@@ -23,6 +23,8 @@ from subprocess import (
     run,
 )
 
+from oasislmf.utils.path import setcwd
+
 
 class MdkModelRunException(Exception):
     pass
@@ -122,20 +124,17 @@ def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisL
     if os.path.exists(repo_target):
         shutil.rmtree(repo_target)
 
-    os.chdir(target)
+    with setcwd(target):
+        repo_url = (
+            'git+ssh://git@github.com/{}/{}'.format(user_or_org_name, repo_name) if transfer_protocol == 'ssh'
+            else 'https://github.com/{}/{}'.format(user_or_org_name, repo_name)
+        )
 
-    repo_url = (
-        'git+ssh://git@github.com/{}/{}'.format(user_or_org_name, repo_name) if transfer_protocol == 'ssh'
-        else 'https://github.com/{}/{}'.format(user_or_org_name, repo_name)
-    )
+        options_str = '-b {} --single-branch'.format(repo_branch)
 
-    options_str = '-b {} --single-branch'.format(repo_branch)
+        cmd_str = 'git clone {} {}'.format(options_str, repo_url)
 
-    cmd_str = 'git clone {} {}'.format(options_str, repo_url)
-
-    run(cmd_str.split(), check=True)
-
-    os.chdir(home)
+        run(cmd_str.split(), check=True)
 
 
 def apply_model_run_mode(model_run_mode, model_mdk_config_fp, as_dict=False):

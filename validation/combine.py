@@ -2,11 +2,14 @@
 
 import re
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 import os
 import json
 
 import argparse
+
+from oasislmf.utils.path import setcwd
 
 parser = argparse.ArgumentParser()
 
@@ -17,34 +20,33 @@ params = parser.parse_args()
 subdir = params.subdirectory
 
 
-os.chdir(subdir)
+with setcwd(subdir):
+    cwd = os.getcwd()
+    units_dir = 'units'
 
-cwd = os.getcwd()
-units_dir = 'units'
+    # get directories
+    with open(os.path.join(units_dir, 'units.txt'), "r") as txt_file:
+        fms = txt_file.read().split('\n')
 
-# get directories
-with open(os.path.join(units_dir, 'units.txt'), "r") as txt_file:
-    fms = txt_file.read().split('\n')
+    dirs = [fm for fm in fms if fm]
+    print(dirs)
 
-dirs = [fm for fm in fms if fm]
-print(dirs)
+    # combine dataframes
+    df_loc = []
+    df_acc = []
 
-# combine dataframes
-df_loc = []
-df_acc = []
+    # add each fm files
+    for fm_next in dirs:
+        loc_filepath = os.path.join(units_dir, fm_next, 'location.csv')
+        df_loc_tmp = pd.read_csv(loc_filepath)
+        df_loc_tmp['FlexiLocUnit'] = fm_next
+        df_loc.append(df_loc_tmp)
 
-# add each fm files
-for fm_next in dirs:
-    loc_filepath = os.path.join(units_dir, fm_next, 'location.csv')
-    df_loc_tmp = pd.read_csv(loc_filepath)
-    df_loc_tmp['FlexiLocUnit'] = fm_next
-    df_loc.append(df_loc_tmp)
+        acc_filepath = os.path.join(units_dir, fm_next, 'account.csv')
+        df_acc_tmp = pd.read_csv(acc_filepath)
+        df_acc_tmp['FlexiAccUnit'] = fm_next
+        # concat files
+        df_acc.append(df_acc_tmp)
 
-    acc_filepath = os.path.join(units_dir, fm_next, 'account.csv')
-    df_acc_tmp = pd.read_csv(acc_filepath)
-    df_acc_tmp['FlexiAccUnit'] = fm_next
-    # concat files
-    df_acc.append(df_acc_tmp)
-
-pd.concat(df_loc).to_csv('location_concat.csv', index=False)
-pd.concat(df_acc).to_csv('account_concat.csv', index=False)
+    pd.concat(df_loc).to_csv('location_concat.csv', index=False)
+    pd.concat(df_acc).to_csv('account_concat.csv', index=False)

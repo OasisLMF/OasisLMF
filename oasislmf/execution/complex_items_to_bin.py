@@ -6,7 +6,8 @@ import struct
 import sys
 
 import msgpack
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 
 def items_to_bin(source, output) -> None:

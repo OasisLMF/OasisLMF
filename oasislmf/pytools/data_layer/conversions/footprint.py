@@ -2,7 +2,8 @@ import json
 import os
 from contextlib import ExitStack
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 

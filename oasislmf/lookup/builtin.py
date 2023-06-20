@@ -9,7 +9,8 @@ import warnings
 
 import numba as nb
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 from ods_tools.oed import fill_empty
 
 try:  # needed for rtree
@@ -362,7 +363,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing LocPerilsCovered column in location')
 
-            split_df = locations[loc_perils_covered_column].str.split(';').apply(pd.Series, 1).stack()
+            split_df = locations[loc_perils_covered_column].astype(str).str.split(';').apply(pd.Series, 1).stack()
             split_df.index = split_df.index.droplevel(-1)
             split_df.name = 'peril_group_id'
 

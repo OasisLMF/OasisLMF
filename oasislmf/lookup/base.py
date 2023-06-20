@@ -13,7 +13,8 @@ import json
 import os
 import types
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from ..utils.path import as_path
 from ..utils.exceptions import OasisException

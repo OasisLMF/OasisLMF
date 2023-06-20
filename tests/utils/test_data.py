@@ -9,13 +9,13 @@ from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 import pytest
 import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
                                    integers, just, lists, sampled_from, text)
-from pandas.testing import assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure, OedSchema
 
@@ -148,7 +148,7 @@ class TestFastZipArrays(TestCase):
 
 def dataframes_are_identical(df1, df2):
     try:
-        assert_frame_equal(df1, df2)
+        pd.testing.assert_frame_equal(df1, df2)
     except AssertionError:
         return False
 
@@ -187,7 +187,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -217,7 +217,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -252,7 +252,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -288,7 +288,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -345,7 +345,7 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -385,7 +385,7 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -493,7 +493,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -531,7 +531,7 @@ class TestGetDataframe(TestCase):
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -562,7 +562,7 @@ class TestGetDataframe(TestCase):
             expected = df.dropna(subset=non_na_cols, axis=0)
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -595,7 +595,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -626,7 +626,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -658,7 +658,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -693,7 +693,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -729,7 +729,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -773,7 +773,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -818,7 +818,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -927,7 +927,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -962,7 +962,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1002,7 +1002,7 @@ class TestGetDataframe(TestCase):
                 lowercase_cols=False
             )
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1075,7 +1075,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1118,7 +1118,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1149,7 +1149,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1184,7 +1184,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1228,7 +1228,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False, required_cols=required, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 

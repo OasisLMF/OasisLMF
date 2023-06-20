@@ -1,7 +1,7 @@
 import unittest
 
-import pandas as pd
-from pandas.testing import assert_frame_equal
+# import pandas as pd
+from lot3.df_engine import pd
 
 from oasislmf.preparation import reinsurance_layer
 
@@ -3081,15 +3081,15 @@ class TestReinsurance(unittest.TestCase):
         for i in range(len(ri_inputs_1)):
             self.assertEqual(ri_inputs_1[i].risk_level, ri_inputs_2[i].risk_level)
             self.assertEqual(ri_inputs_1[i].inuring_priority, ri_inputs_2[i].inuring_priority)
-            assert_frame_equal(
+            pd.testing.assert_frame_equal(
                 ri_inputs_1[i].ri_inputs.fm_policytc,
                 ri_inputs_2[i].ri_inputs.fm_policytc,
                 check_index_type=False)
-            assert_frame_equal(
+            pd.testing.assert_frame_equal(
                 ri_inputs_1[i].ri_inputs.fm_profile,
                 ri_inputs_2[i].ri_inputs.fm_profile,
                 check_index_type=False)
-            assert_frame_equal(
+            pd.testing.assert_frame_equal(
                 ri_inputs_1[i].ri_inputs.fm_programme,
                 ri_inputs_2[i].ri_inputs.fm_programme,
                 check_index_type=False)

@@ -27,7 +27,8 @@ from itertools import chain
 from chainmap import ChainMap
 from collections import OrderedDict
 
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from hypothesis.strategies import (
     fixed_dictionaries,

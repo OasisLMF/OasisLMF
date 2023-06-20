@@ -5,7 +5,8 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import hypothesis.strategies as st
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 from hypothesis import HealthCheck, given, settings
 from hypothesis.strategies import integers, just
 from ods_tools.oed import OedExposure

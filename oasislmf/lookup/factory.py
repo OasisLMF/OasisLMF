@@ -16,7 +16,8 @@ from contextlib import ExitStack
 
 import math
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from ..utils.data import get_json
 from ..utils.exceptions import OasisException

@@ -7,7 +7,8 @@ from typing import Optional
 
 import numba as nb
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from oasislmf.pytools.common import oasis_float
 

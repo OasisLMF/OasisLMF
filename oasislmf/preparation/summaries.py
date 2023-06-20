@@ -15,7 +15,8 @@ import json
 import os
 
 import numpy as np
-import pandas as pd
+# import pandas as pd
+from lot3.df_engine import pd
 
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
