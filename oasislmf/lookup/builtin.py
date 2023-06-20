@@ -451,9 +451,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
             null_gdf_loc = locations[null_gdf]
             if not null_gdf_loc.empty:
-                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf])
+                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf], columns=locations.columns)
             else:
-                gdf_loc = gpd.GeoDataFrame(locations)
+                gdf_loc = gpd.GeoDataFrame(locations, columns=locations.columns)
 
             gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
                                                     axis=1,
