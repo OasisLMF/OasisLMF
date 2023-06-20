@@ -5,6 +5,7 @@ __all__ = [
 
 import os
 
+from ods_tools.oed.setting_schema import AnalysisSettingSchema
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
@@ -100,6 +101,8 @@ class GenerateKeys(KeyComputationStep):
 
         output_dir = self._get_output_dir()
         output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
+        if self.lookup_complex_config_json:
+            AnalysisSettingSchema().validate_file(self.lookup_complex_config_json)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
@@ -158,6 +161,7 @@ class GenerateKeysDeterministic(KeyComputationStep):
     def run(self):
         output_dir = self._get_output_dir()
         keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
+        os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
         config = {'builtin_lookup_type': 'deterministic',
