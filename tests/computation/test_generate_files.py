@@ -1,6 +1,7 @@
 import pathlib
 import os
 import logging
+import responses
 
 from unittest import mock
 from unittest.mock import patch, Mock, ANY
@@ -135,12 +136,15 @@ class TestGenFiles(ComputationChecker):
                 called_fm_agg = mock_get_il_items.call_args.kwargs['fm_aggregation_profile']
                 self.assertEqual(called_fm_agg, expected_fm_agg_profile)
 
+    @responses.activate
     @patch('oasislmf.computation.generate.files.get_il_input_items')
     def test_files__reporting_currency__is_set_valid(self, mock_get_il_items):
         currency_config = {
             "currency_conversion_type": "FxCurrencyRates",
             "datetime": "2018-10-10"
         }
+
+        responses.get(url='https://theforexapi.com/api/2018-10-10?base=GBP&symbols=JPY&rtype=fpy', json={'rates': {"JPY": 180.4}})
         mock_get_il_items.return_value = FAKE_IL_ITEMS_RETURN
         currency_config_file = self.tmp_files.get('currency_conversion_json')
         self.write_json(currency_config_file, currency_config)
