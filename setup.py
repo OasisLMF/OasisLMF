@@ -370,6 +370,7 @@ setup(
     scripts=['bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
     entry_points={
         'console_scripts': [
+            # Data utils
             'complex_itemtobin=oasislmf.data_layer.complex_items_to_bin:main',
             'complex_itemtocsv=oasislmf.data_layer.complex_items_to_csv:main',
             "convertbintoparquet=oasislmf.data_layer.conversions.footprint:main",
@@ -377,9 +378,10 @@ setup(
             "correlationtocsv=oasislmf.data_layer.correlationtocsv:main",
             'dfcompare=oasislmf.data_layer.dfcompare:main',
             'footprintconvpy=oasislmf.data_layer.footprintconv:footprintconvpy',
-            'load_balancer=oasislmf.data_layer.load_balancer:main',
             "servedata=oasislmf.data_layer.footprint_layer:main",
             'vulntoparquet=oasislmf.data_layer.vulnerability:main',
+            # Streaming tools
+            'load_balancer=oasislmf.pytools.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
             'gulmc=oasislmf.pytools.gulmc.cli:main',
             'gulpy=oasislmf.pytools.gulpy:main',
