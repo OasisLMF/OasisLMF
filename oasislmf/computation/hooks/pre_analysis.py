@@ -44,7 +44,7 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Path to the directory in which to generate the Oasis files'},
 
                    {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
-                   {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True,
+                   {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,
                     'help': 'Analysis settings JSON file path'},
                    ]
 
@@ -66,6 +66,7 @@ class ExposurePreAnalysis(ComputationStep):
         import exposure_pre_analysis_module and call the run method
         """
         exposure_data = get_exposure_data(self, add_internal_col=True)
+        kwargs = dict()
 
         # If given a value for 'oasis_files_dir' then use that directly
         if self.oasis_files_dir:
@@ -75,7 +76,10 @@ class ExposurePreAnalysis(ComputationStep):
             pathlib.Path(input_dir).mkdir(parents=True, exist_ok=True)
 
         exposure_data.save(path=input_dir, version_name='raw', save_config=True)
-        kwargs = {'exposure_data': exposure_data}
+        kwargs['exposure_data'] = exposure_data
+        kwargs['input_dir'] = input_dir
+        kwargs['model_data_dir'] = self.model_data_dir
+        kwargs['analysis_settings_json'] = self.analysis_settings_json
 
         if self.exposure_pre_analysis_setting_json:
             with open(self.exposure_pre_analysis_setting_json) as exposure_pre_analysis_setting_file:
