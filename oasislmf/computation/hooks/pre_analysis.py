@@ -42,6 +42,10 @@ class ExposurePreAnalysis(ComputationStep):
                    {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
                    {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
                     'help': 'Path to the directory in which to generate the Oasis files'},
+
+                   {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
+                   {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True,
+                    'help': 'Analysis settings JSON file path'},
                    ]
 
     run_dir_key = 'pre-analysis'
