@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Oasis Loss Modelling Framework (oasislmf)!
+Oasis Loss Modelling Framework (oasislmf)! HELLO
 ==========================================
 
 The repository provides a Python toolkit for building, running and

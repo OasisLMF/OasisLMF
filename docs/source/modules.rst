@@ -1,5 +1,5 @@
 =================
-Api Documentation
+API Documentation
 =================
 
 ``oasislmf.api_client``
@@ -42,15 +42,16 @@ Api Documentation
 .. toctree::
    api/keys/lookup
 
-``oasislmf.model_execution``
+``oasislmf.model_execution`` SSS
 ----------------------------
 
-.. automodule:: oasislmf.model_execution
+.. automodule:: oasislmf.execution
 
 .. toctree::
-   api/model_execution/bin
-   api/model_execution/conf
-   api/model_execution/files
+   api/execution/bash
+   api/execution/bin
+   api/execution/conf
+   api/execution/files
 
 ``oasislmf.models``
 -------------------
