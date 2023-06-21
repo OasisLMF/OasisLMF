@@ -140,6 +140,8 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
+
+        self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
 
@@ -151,7 +153,7 @@ class GenerateFiles(ComputationStep):
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
         target_dir = prepare_input_files_directory(
-            self._get_output_dir(),
+            target_dir=self.oasis_files_dir,
             exposure_data=exposure_data,
             exposure_profile_fp=self.profile_loc_json,
             keys_fp=self.keys_data_csv,
@@ -234,12 +236,11 @@ class GenerateFiles(ComputationStep):
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
-
+                self.logger.warn(f'WARNING: Failed to load "damage_group_fields", file: {self.model_settings_json}, error: {e}')
             try:
                 model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
+                self.logger.warn(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
         if model_damage_group_fields and not self.kwargs.get('group_id_cols'):
@@ -310,9 +311,9 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            exposure_data.location.dataframe,
-            gul_inputs_df,
-            exposure_data.account.dataframe,
+            exposure_df=exposure_data.location.dataframe,
+            gul_inputs_df=gul_inputs_df,
+            accounts_df=exposure_data.account.dataframe,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
@@ -381,6 +382,8 @@ class GenerateDummyModelFiles(ComputationStep):
 
     # Command line options
     step_params = [
+        {'name': 'target_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+         'help': 'Path to the directory in which to generate the Model files'},
         {'name': 'num_vulnerabilities', 'flag': '-v', 'required': True, 'type': int, 'help': 'Number of vulnerabilities'},
         {'name': 'num_intensity_bins', 'flag': '-i', 'required': True, 'type': int, 'help': 'Number of intensity bins'},
         {'name': 'num_damage_bins', 'flag': '-d', 'required': True, 'type': int, 'help': 'Number of damage bins'},
@@ -418,9 +421,11 @@ class GenerateDummyModelFiles(ComputationStep):
 
     def _create_target_directory(self, label):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        target_dir = os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+        if not self.target_dir:
+            self.target_dir = os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+
         self.target_dir = create_target_directory(
-            target_dir, 'target test model files directory'
+            self.target_dir, 'target test model files directory'
         )
 
     def _prepare_run_directory(self):
@@ -559,12 +564,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         self._prepare_run_directory()
         self._get_model_file_objects()
         self._get_gul_file_objects()
-
-        il = True  # Assume that FM files should be generated too
-        if il is True:
-            self._get_fm_file_objects()
-        else:
-            self.fm_files = []
+        self._get_fm_file_objects()
 
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:

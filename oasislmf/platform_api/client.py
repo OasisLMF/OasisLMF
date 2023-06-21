@@ -1,20 +1,22 @@
 __all__ = [
     'APIClient',
     'ApiEndpoint',
+    'FileEndpoint',
+    'JsonEndpoint',
     'API_analyses',
     'API_models',
     'API_portfolios',
-    'FileEndpoint',
 ]
 
 import io
 import json
 import logging
 import os
-import sys
 import tarfile
 import time
 import pathlib
+
+from posixpath import join as urljoin
 
 import pandas as pd
 
@@ -36,27 +38,27 @@ class ApiEndpoint(object):
     def __init__(self, session, url_endpoint, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
-        self.url_endpoint = url_endpoint
+        self.url_endpoint = str(url_endpoint)
 
     def create(self, data):
         return self.session.post(self.url_endpoint, json=data)
 
     def get(self, ID=None):
         if ID:
-            return self.session.get('{}{}/'.format(self.url_endpoint, ID))
+            return self.session.get(urljoin(self.url_endpoint, f'{ID}/'))
         return self.session.get(self.url_endpoint)
 
     def delete(self, ID):
-        return self.session.delete('{}{}/'.format(self.url_endpoint, ID))
+        return self.session.delete(urljoin(self.url_endpoint, f'{ID}/'))
 
     def search(self, metadata={}):
         search_string = ""
         for key in metadata:
             if not search_string:
-                search_string = '?{}={}'.format(key, metadata[key])
+                search_string = f'?{key}={metadata[key]}'
             else:
-                search_string += '&{}={}'.format(key, metadata[key])
-        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
+                search_string += f'&{key}={metadata[key]}'
+        return self.session.get(f'{self.url_endpoint}{search_string}')
 
 
 class JsonEndpoint(object):
@@ -67,15 +69,11 @@ class JsonEndpoint(object):
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
-        self.url_endpoint = url_endpoint
-        self.url_resource = url_resource
+        self.url_endpoint = str(url_endpoint)
+        self.url_resource = str(url_resource)
 
     def _build_url(self, ID):
-        return '{}{}/{}'.format(
-            self.url_endpoint,
-            ID,
-            self.url_resource
-        )
+        return urljoin(self.url_endpoint, str(ID), self.url_resource)
 
     def get(self, ID):
         return self.session.get(self._build_url(ID))
@@ -88,18 +86,16 @@ class JsonEndpoint(object):
 
     def download(self, ID, file_path, overwrite=True):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
+        dir_fp = os.path.dirname(abs_fp)
 
         # Check and create base dir
-        if not os.path.exists(os.path.dirname(file_path)):
-            os.makedirs(os.path.dirname(file_path))
+        if not os.path.exists(dir_fp):
+            os.makedirs(dir_fp)
 
         # Check if file exists
         if os.path.exists(abs_fp) and not overwrite:
-            if overwrite:
-                os.remove(abs_fp)
-            else:
-                error_message = 'Local file alreday exists: {}'.format(abs_fp)
-                raise IOError(error_message)
+            error_message = 'Local file alreday exists: {}'.format(abs_fp)
+            raise IOError(error_message)
 
         with io.open(abs_fp, 'w', encoding='utf-8') as f:
             r = self.get(ID)
@@ -114,17 +110,12 @@ class FileEndpoint(object):
 
     def __init__(self, session, url_endpoint, url_resource, logger=None):
         self.logger = logger or logging.getLogger(__name__)
-
         self.session = session
-        self.url_endpoint = url_endpoint
-        self.url_resource = url_resource
+        self.url_endpoint = str(url_endpoint)
+        self.url_resource = str(url_resource)
 
     def _build_url(self, ID):
-        return '{}{}/{}'.format(
-            self.url_endpoint,
-            ID,
-            self.url_resource
-        )
+        return urljoin(self.url_endpoint, str(ID), self.url_resource)
 
     def _set_content_type(self, file_path):
         content_type_map = {
@@ -139,29 +130,22 @@ class FileEndpoint(object):
         return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
 
     def upload(self, ID, file_path, content_type=None):
-        try:
-            if not content_type:
-                content_type = self._set_content_type(file_path)
-            r = self.session.upload(self._build_url(ID), file_path, content_type)
-            return r
-        except HTTPError as e:
-            err_msg = 'File upload Failed: file: {},  url: {}:'.format(file_path, self._build_url(ID))
-            self.session.unrecoverable_error(e, err_msg)
+        if not content_type:
+            content_type = self._set_content_type(file_path)
+        return self.session.upload(self._build_url(ID), file_path, content_type)
 
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
+        dir_fp = os.path.dirname(abs_fp)
 
         # Check and create base dir
-        if not os.path.exists(os.path.dirname(file_path)):
-            os.makedirs(os.path.dirname(file_path))
+        if not os.path.exists(dir_fp):
+            os.makedirs(dir_fp)
 
         # Check if file exists
         if os.path.exists(abs_fp) and not overwrite:
-            if overwrite:
-                os.remove(abs_fp)
-            else:
-                error_message = 'Local file alreday exists: {}'.format(abs_fp)
-                raise IOError(error_message)
+            error_message = 'Local file alreday exists: {}'.format(abs_fp)
+            raise IOError(error_message)
 
         with io.open(abs_fp, 'wb') as f:
             r = self.session.get(self._build_url(ID), stream=True)
@@ -179,37 +163,47 @@ class FileEndpoint(object):
         either 'application/gzip': search and extract all csv
         or 'text/csv': return as dataframe
         '''
+        supported_content = [
+            'text/csv',
+            'application/gzip',
+            'application/octet-stream',
+        ]
         r = self.get(ID)
         file_type = r.headers['Content-Type']
-        if file_type not in ['text/csv', 'application/gzip']:
-            self.logger.info(f'Unsupported filetype for Dataframe conversion: {file_type}')
-        else:
+
+        if file_type not in supported_content:
+            raise OasisException(f'Unsupported filetype for Dataframe conversion: {file_type}')
+
+        if file_type == 'text/csv':
+            return pd.read_csv(io.StringIO(r.content.decode('utf-8')))
+
+        if file_type == 'application/octet-stream':
+            return pd.read_parquet(io.BytesIO(r.content))
+
+        if file_type == 'application/gzip':
             dataframes_list = {}
-            if file_type == 'text/csv':
-                dataframes_list[self.url_resource.strip('/')] = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
-            if file_type == 'application/gzip':
-                tar = tarfile.open(fileobj=io.BytesIO(r.content))
-                csv_files = [f for f in tar.getmembers() if '.csv' in f.name]
-                for member in csv_files:
-                    csv = tar.extractfile(member)
-                    dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
+            tar = tarfile.open(fileobj=io.BytesIO(r.content))
+
+            for member in [f for f in tar.getmembers() if '.csv' in f.name]:
+                csv = tar.extractfile(member)
+                dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
+
+            for member in [f for f in tar.getmembers() if '.parquet' in f.name]:
+                pq = tar.extractfile(member)
+                dataframes_list[os.path.basename(member.name)] = pd.read_parquet(pq)
             return dataframes_list
 
     def post(self, ID, data_object, content_type='application/json'):
         m = MultipartEncoder(fields={'file': ('data', data_object, content_type)})
-        r = self.session.post(
+        return self.session.post(
             self._build_url(ID),
             data=m,
             headers={'Content-Type': m.content_type}
         )
-        if not r.ok:
-            err_msg = 'Data_Object upload Failed'
-            self.logger.error(err_msg)
-        return r
 
     def post_dataframe(self, ID, data_frame):
         csv_buffer = io.StringIO()
-        data_frame.to_csv(csv_buffer)
+        data_frame.to_csv(csv_buffer, index=False)
         return self.post(ID, data_object=csv_buffer, content_type='text/csv')
 
     def delete(self, ID):
@@ -231,31 +225,17 @@ class API_models(ApiEndpoint):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
     def create(self, supplier_id, model_id, version_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"supplier_id": supplier_id,
                 "model_id": model_id,
                 "version_id": version_id,
-                "data_files": df_ids}
+                "data_files": data_files}
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, supplier_id, model_id, version_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"supplier_id": supplier_id,
                 "model_id": model_id,
                 "version_id": version_id,
-                "data_files": df_ids}
+                "data_files": data_files}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
@@ -291,12 +271,17 @@ class API_datafiles(ApiEndpoint):
         super(API_datafiles, self).__init__(session, url_endpoint)
         self.content = FileEndpoint(self.session, self.url_endpoint, 'content/')
 
-    def create(self, file_description, linked_models=[]):
+    def create(self, file_description, file_category=None):
         data = {"file_description": file_description}
+        if file_category is not None:
+            data["file_category"] = file_category
+
         return self.session.post(self.url_endpoint, json=data)
 
-    def update(self, ID, file_description, linked_models=[]):
+    def update(self, ID, file_description, file_category=None):
         data = {"file_description": file_description}
+        if file_category is not None:
+            data["file_category"] = file_category
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
@@ -317,31 +302,17 @@ class API_analyses(ApiEndpoint):
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 
     def create(self, name, portfolio_id, model_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"name": name,
                 "portfolio": portfolio_id,
                 "model": model_id,
-                "complex_model_data_files": df_ids}
+                "complex_model_data_files": data_files}
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, name, portfolio_id, model_id, data_files=[]):
-        if isinstance(data_files, list):
-            df_ids = data_files
-        elif isinstance(data_files, (int, str)):
-            df_ids = [data_files]
-        else:
-            self.logger.warn('data_files, must be of type list(), int() or str()')
-
         data = {"name": name,
                 "portfolio": portfolio_id,
                 "model": model_id,
-                "complex_model_data_files": df_ids}
+                "complex_model_data_files": data_files}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
     def status(self, ID):
@@ -366,13 +337,13 @@ class API_analyses(ApiEndpoint):
         return self.session.post('{}{}/copy/'.format(self.url_endpoint, ID), json={})
 
     def data_files(self, ID):
-        return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+        return self.session.get('{}{}/data_files/'.format(self.url_endpoint, ID))
 
     def storage_links(self, ID):
-        return self.session.get('{}{}/storage_links'.format(self.url_endpoint, ID))
+        return self.session.get('{}{}/storage_links/'.format(self.url_endpoint, ID))
 
     def sub_task_list(self, ID):
-        return self.session.get('{}{}/sub_task_list'.format(self.url_endpoint, ID))
+        return self.session.get('{}{}/sub_task_list/'.format(self.url_endpoint, ID))
 
 # --- API Main Client ------------------------------------------------------- #
 
@@ -410,11 +381,6 @@ class APIClient(object):
                 self.logger.info('Creating portfolio')
                 portfolio = self.portfolios.create(portfolio_name)
                 portfolio_id = portfolio.json()['id']
-
-            # Check or create portfolio
-            if not portfolio.ok:
-                err_msg = "Failed to find matching `portfolio_id = {}`".format(portfolio_id)
-                self.logger.error(err_msg)
 
             # Upload exposure
             if location_fp:
@@ -533,6 +499,7 @@ class APIClient(object):
                                 analysis = self.analyses.get(analysis_id).json()
                                 completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
+                                time.sleep(poll_interval)
 
                                 # Exit conditions
                                 if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
@@ -541,7 +508,6 @@ class APIClient(object):
                                     pbar.update(pbar.total - pbar.n)
                                     break
 
-                                time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
                         analysis = self.analyses.get(analysis_id).json()
@@ -550,7 +516,7 @@ class APIClient(object):
 
                 else:
                     err_msg = "Input Generation: Unknown State'{}'".format(analysis['status'])
-                    OasisException(err_msg)
+                    raise OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
 
@@ -613,6 +579,7 @@ class APIClient(object):
                                 analysis = self.analyses.get(analysis_id).json()
                                 completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
+                                time.sleep(poll_interval)
 
                                 # Exit conditions
                                 if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
@@ -620,7 +587,6 @@ class APIClient(object):
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
                                     break
-                                time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
                         analysis = self.analyses.get(analysis_id).json()
@@ -629,11 +595,11 @@ class APIClient(object):
                 else:
                     err_msg = "Execution status in Unknown State: '{}'".format(analysis['status'])
                     self.logger.error(err_msg)
-                    sys.exit(1)
+                    raise OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
 
-    def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
+    def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:
             filename = 'analysis_{}_output'.format(analysis_id)
         try:
@@ -642,8 +608,6 @@ class APIClient(object):
             self.logger.info('Analysis Download output: filename={}, (id={})'.format(output_file, analysis_id))
             if clean_up:
                 self.analyses.delete(analysis_id)
-                self.analyses.output_file.delete(analysis_id)
-                self.analyses.input_file.delete(analysis_id)
         except HTTPError as e:
             err_msg = 'Analysis Download output: Failed (id={})'.format(analysis_id)
             self.api.unrecoverable_error(e, err_msg)
@@ -655,10 +619,8 @@ class APIClient(object):
         try:
             self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
-            return True
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'cancel_generate: Failed')
-            return False
 
     def cancel_analysis(self, analysis_id):
         """
@@ -668,7 +630,5 @@ class APIClient(object):
         try:
             self.analyses.cancel_analysis_run(analysis_id)
             self.logger.info('Cancelled analysis run: (Id={})'.format(analysis_id))
-            return True
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'cancel_analysis: Failed')
-            return False
