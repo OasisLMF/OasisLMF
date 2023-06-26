@@ -1,14 +1,14 @@
-=================================
+====
 Command Line Interface (oasislmf)
-=================================
+====
 
 The package comes with a command line interface for creating, testing and managing models.
 The tool is split into several namespaces that group similar commands. For a full list of
 namespaces use ``oasislmf --help``, and ``oasislmf <namespace> --help`` for a full list of
 commands available in each namespace.
 
-bin
-===
+**bin**
+=======
 
 ``oasislmf bin build``
 ----------------------
@@ -28,45 +28,56 @@ bin
 .. autocli:: oasislmf.cmd.bin.CleanCmd
    :noindex:
 
-config
-======
+**config**
+==========
 
-.. autocli:: oasislmf.cmd.config.ConfigCmd
+
+``oasislmf model config``
+---
+
+.. autocli:: oasislmf.cli.config.ConfigCmd
    :noindex:
 
-model
-=====
+**model**
+=========
+
+``oasislmf model generate-exposure-pre-analysis``
+=================================================
+.. autocli:: oasislmf.cli.model.GenerateExposurePreAnalysisCmd
+   :noindex:
 
 ``oasislmf model generate-keys``
 ================================
-
-
-.. autocli:: oasislmf.cmd.model.GenerateKeysCmd
-   :noindex:
-
-``oasislmf model generate-losses``
-==================================
-
-
-.. autocli:: oasislmf.cmd.model.GenerateLossesCmd
+.. autocli:: oasislmf.cli.model.GenerateKeysCmd
    :noindex:
 
 ``oasislmf model generate-oasis-files``
 =======================================
+.. autocli:: oasislmf.cli.model.GenerateOasisFilesCmd
+   :noindex:
 
+``oasislmf model generate-losses``
+==================================
+.. autocli:: oasislmf.cli.model.GenerateLossesCmd
+   :noindex:
 
-.. autocli:: oasislmf.cmd.model.GenerateOasisFilesCmd
+``oasislmf model generate-losses-chunk``
+========================================
+.. autocli:: oasislmf.cli.model.GenerateLossesPartialCmd
+   :noindex:
+
+``oasislmf model generate-losses-output``
+=========================================
+.. autocli:: oasislmf.cli.model.GenerateLossesOutputCmd
    :noindex:
 
 ``oasislmf model run``
 ======================
-
-
-.. autocli:: oasislmf.cmd.model.RunCmd
+.. autocli:: oasislmf.cli.model.RunCmd
    :noindex:
 
-test
-====
+**test**
+========
 
 ``oasislmf test gen-model-tester-dockerfile``
 ---------------------------------------------
@@ -85,3 +96,5 @@ version
 
 .. autocli:: oasislmf.cmd.version.VersionCmd
    :noindex:
+
+
