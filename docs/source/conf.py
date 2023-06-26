@@ -32,7 +32,9 @@
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 import os
+import subprocess
 import sys
+
 from sphinx.ext import autodoc
 
 ROOT_PATH = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
@@ -46,8 +48,18 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages'
+    'sphinx.ext.githubpages',
+    'sphinx_multiversion'
 ]
+
+current_branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD'.split(' ')).decode().rstrip('\n')
+
+# smv_branch_whitelist = r'^.*$'                # iclude all branches
+smv_branch_whitelist = r'^(master|develop|{})$'.format(current_branch)   # include master, develop, and the current branch
+# smv_branch_whitelist = r'^({})$'.format(current_branch)                # current branch only
+# smv_tag_whitelist = r'^v\d+\.\d+$'            # include tags like "v2.1"
+# smv_tag_whitelist = r'^1\.27\.2$'             # include just tag "1.27.2"
+smv_tag_whitelist = r'^1\.200\.2$'              # include just tag "1.200", which doesn't exist. Equivalent to blacklisting all tags.
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -80,7 +92,7 @@ release = __version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -110,7 +122,7 @@ html_theme = 'alabaster'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# html_static_path = ['_static']
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -124,6 +136,7 @@ html_sidebars = {
         'relations.html',  # needs 'show_related': True theme option to display
         'searchbox.html',
         'donate.html',
+        'versioning.html'
     ]
 }
 
@@ -207,7 +220,7 @@ epub_exclude_files = ['search.html']
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
 
 class CliDocumenter(autodoc.ClassDocumenter):
