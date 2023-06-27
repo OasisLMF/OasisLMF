@@ -58,8 +58,8 @@ current_branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD'.split
 smv_branch_whitelist = r'^(master|develop|{})$'.format(current_branch)   # include master, develop, and the current branch
 # smv_branch_whitelist = r'^({})$'.format(current_branch)                # current branch only
 # smv_tag_whitelist = r'^v\d+\.\d+$'            # include tags like "v2.1"
-# smv_tag_whitelist = r'^1\.27\.2$'             # include just tag "1.27.2"
-smv_tag_whitelist = r'^1\.200\.2$'              # include just tag "1.200", which doesn't exist. Equivalent to blacklisting all tags.
+smv_tag_whitelist = r'^1\.27\.2$'             # include just tag "1.27.2"
+# smv_tag_whitelist = r'^1\.200\.2$'              # include just tag "1.200", which doesn't exist. Equivalent to blacklisting all tags.
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -111,13 +111,18 @@ todo_include_todos = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'furo'
+html_static_path = ['_static']
+html_logo = 'OASIS_LMF_COLOUR.png'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'logo_only': True,
+    'display_version': False,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -129,16 +134,17 @@ html_theme = 'alabaster'
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-        'donate.html',
-        'versioning.html'
-    ]
-}
+# html_sidebars = {
+#     '**': [
+#         'about.html',
+#         'navigation.html',
+#         'relations.html',  # needs 'show_related': True theme option to display
+#         'searchbox.html',
+#         'donate.html',
+#         # located at /_templates
+#         'versioning.html',
+#     ]
+# }
 
 
 # -- Options for HTMLHelp output ------------------------------------------

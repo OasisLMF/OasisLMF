@@ -24,7 +24,7 @@ in this process. It includes:
    can be found by running ``oasiscli --help``
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    installation
