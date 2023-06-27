@@ -205,12 +205,31 @@ class BasicKeyServer:
         ('vulnerability_id', 'VulnerabilityID'),
     ])
 
+    key_success_with_amplification_heading_row = OrderedDict([
+        ('loc_id', 'LocID'),
+        ('peril_id', 'PerilID'),
+        ('coverage_type', 'CoverageTypeID'),
+        ('area_peril_id', 'AreaPerilID'),
+        ('vulnerability_id', 'VulnerabilityID'),
+        ('amplification_id', 'AmplificationID')
+    ])
+
     key_success_with_message_heading_row = OrderedDict([
         ('loc_id', 'LocID'),
         ('peril_id', 'PerilID'),
         ('coverage_type', 'CoverageTypeID'),
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID'),
+        ('message', 'Message')
+    ])
+
+    key_success_with_amplification_and_message_heading_row = OrderedDict([
+        ('loc_id', 'LocID'),
+        ('peril_id', 'PerilID'),
+        ('coverage_type', 'CoverageTypeID'),
+        ('area_peril_id', 'AreaPerilID'),
+        ('vulnerability_id', 'VulnerabilityID'),
+        ('amplification_id', 'AmplificationID'),
         ('message', 'Message')
     ])
 
@@ -366,8 +385,12 @@ class BasicKeyServer:
         if 'model_data' in keys:
             return self.model_data_heading_row
         elif keys_success_msg:
+            if 'amplification_id' in keys:
+                return self.key_success_with_amplification_and_message_heading_row
             return self.key_success_with_message_heading_row
         else:
+            if 'amplification_id' in keys:
+                return self.key_success_with_amplification_heading_row
             return self.key_success_heading_row
 
     def write_json_keys_file(self, results, keys_success_msg, successes_fp, errors_fp):
@@ -402,6 +425,7 @@ class BasicKeyServer:
                 success_df = result[success]
                 if success_heading_row is None:
                     success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
+                breakpoint()
                 if not success_df.empty:
                     success_df[success_heading_row.keys()].rename(columns=success_heading_row
                                                                   ).to_csv(successes_file, index=False, header=not i)
