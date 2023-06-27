@@ -13,7 +13,7 @@ from oasislmf.pytools.pla.common import (
     sidx_loss_dtype,
     event_count_dtype,
     amp_factor_dtype,
-    ITEMS_AMPLIFICATIONS_FILE_NAME,
+    AMPLIFICATIONS_FILE_NAME,
     LOSS_FACTORS_FILE_NAME
 )
 from oasislmf.pytools.pla.manager import run
@@ -103,7 +103,7 @@ class TestPostLossAmplification(TestCase):
         self.input_dir = Path('./input')
         self.input_dir.mkdir()
         itemsamps_file = os.path.join(
-            self.input_dir, ITEMS_AMPLIFICATIONS_FILE_NAME
+            self.input_dir, AMPLIFICATIONS_FILE_NAME
         )
         self.write_items_amplifications_file(
             n_items * DATA_SIZE, itemsamps_file, formula='+ 1'
@@ -199,7 +199,7 @@ class TestPostLossAmplification(TestCase):
         first item ID is not 1.
         """
         # Write items amplifications file with first item ID = 2
-        itemsamps_file = os.path.join('.', ITEMS_AMPLIFICATIONS_FILE_NAME)
+        itemsamps_file = os.path.join('.', AMPLIFICATIONS_FILE_NAME)
         self.write_items_amplifications_file(2, itemsamps_file, formula='+ 2')
 
         with pytest.raises(SystemExit) as e:
@@ -215,7 +215,7 @@ class TestPostLossAmplification(TestCase):
         """
         # Write items amplfications file where difference between item IDs is
         # not 1
-        itemsamps_file = os.path.join('.', ITEMS_AMPLIFICATIONS_FILE_NAME)
+        itemsamps_file = os.path.join('.', AMPLIFICATIONS_FILE_NAME)
         self.write_items_amplifications_file(
             4, itemsamps_file, formula='* 2 + 1'
         )

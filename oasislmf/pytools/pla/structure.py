@@ -12,7 +12,7 @@ from .common import (
     FILE_HEADER_SIZE,
     event_count_dtype,
     amp_factor_dtype,
-    ITEMS_AMPLIFICATIONS_FILE_NAME,
+    AMPLIFICATIONS_FILE_NAME,
     LOSS_FACTORS_FILE_NAME
 )
 
@@ -38,7 +38,7 @@ def get_items_amplifications(path):
             corresponds to item ID
     """
     items_amps = np.fromfile(
-        os.path.join(path, ITEMS_AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
+        os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
         offset=FILE_HEADER_SIZE
     )
 
@@ -48,7 +48,7 @@ def get_items_amplifications(path):
         raise SystemExit(1)
     items_amps = items_amps.reshape(len(items_amps) // 2, 2)
     if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
-        logger.error(f'Item IDs in {os.path.join(path, ITEMS_AMPLIFICATIONS_FILE_NAME)} are not contiguous')
+        logger.error(f'Item IDs in {os.path.join(path, AMPLIFICATIONS_FILE_NAME)} are not contiguous')
         raise SystemExit(1)
 
     items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
