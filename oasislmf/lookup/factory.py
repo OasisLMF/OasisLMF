@@ -425,7 +425,6 @@ class BasicKeyServer:
                 success_df = result[success]
                 if success_heading_row is None:
                     success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
-                breakpoint()
                 if not success_df.empty:
                     success_df[success_heading_row.keys()].rename(columns=success_heading_row
                                                                   ).to_csv(successes_file, index=False, header=not i)
