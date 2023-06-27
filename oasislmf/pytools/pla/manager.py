@@ -17,7 +17,7 @@ def run(run_dir, file_in, file_out, input_path, static_path):
         run_dir (str): the directory of where the process is running
         file_in (str): file name of input stream
         file_out (str): file name of output streak
-        input_path (str): path to itemsamplifications.bin
+        input_path (str): path to amplifications.bin
         static_path (Str): path to lossfactors.bin
 
     Returns:

@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--file-in', help='name of the input file')
 parser.add_argument('-o', '--file-out', help='name of the output file')
 parser.add_argument(
-    '-P', '--input-path', help='path to itemsamplifications.bin',
+    '-P', '--input-path', help='path to amplifications.bin',
     default='input'
 )
 parser.add_argument(

@@ -21,17 +21,17 @@ logger = logging.getLogger(__name__)
 
 def get_items_amplifications(path):
     """
-    Get array of amplification IDs from itemsamplifications.bin, where index
+    Get array of amplification IDs from amplifications.bin, where index
     corresponds to item ID.
 
-    itemsamplifications.bin is binary file with layout:
+    amplifications.bin is binary file with layout:
         reserved header (4-byte int),
         item ID 1 (4-byte int), amplification ID a_1 (4-byte int),
         ...
         item ID n (4-byte int), amplification ID a_n (4-byte int)
 
     Args:
-        path (str): path to itemsamplifications.bin file
+        path (str): path to amplifications.bin file
 
     Returns:
         items_amps (numpy.ndarray): array of amplification IDs, where index
