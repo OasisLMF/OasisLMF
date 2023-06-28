@@ -98,6 +98,7 @@ class ExposurePreAnalysis(ComputationStep):
 
         exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
         # regenerate ids
+        exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
         exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
 
         modified_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
