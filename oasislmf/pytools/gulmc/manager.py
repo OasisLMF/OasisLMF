@@ -672,7 +672,7 @@ def compute_event_losses(event_id,
 
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                tiv,
+                tiv if damage_bins[eff_damag_cdf_Ndamage_bins - 1]['bin_to'] <= 1 else 1.0,
                 eff_damag_cdf,
                 damage_bins['interpolation'],
                 eff_damag_cdf_Ndamage_bins,
