@@ -750,6 +750,8 @@ def compute_event_losses(event_id,
                             vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                         # compute ground-up losses
+                        # for relative vulnerability functions, gul are scaled by tiv
+                        # for absolute vulnerability functions, gul are absolute values
                         gul = get_gul(
                             damage_bins['bin_from'][vuln_bin_idx],
                             damage_bins['bin_to'][vuln_bin_idx],
@@ -757,12 +759,8 @@ def compute_event_losses(event_id,
                             vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
                             vuln_cdf[vuln_bin_idx],
                             vuln_rval,
-                            tiv
+                            tiv if damage_bins[vuln_bin_idx]['bin_to'] <= 1 else 1.0,
                         )
-
-                        # absolute vulnerability function
-                        if damage_bins['bin_to'][vuln_bin_idx] > 1:
-                            gul /= tiv
 
                         losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
@@ -859,6 +857,8 @@ def compute_event_losses(event_id,
                                 vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                             # compute ground-up losses
+                            # for relative vulnerability functions, gul are scaled by tiv
+                            # for absolute vulnerability functions, gul are absolute values
                             gul = get_gul(
                                 damage_bins['bin_from'][vuln_bin_idx],
                                 damage_bins['bin_to'][vuln_bin_idx],
@@ -866,12 +866,9 @@ def compute_event_losses(event_id,
                                 vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
                                 vuln_cdf[vuln_bin_idx],
                                 vuln_rval,
-                                tiv
-                            )
+                                tiv if damage_bins[vuln_bin_idx]['bin_to'] <= 1 else 1.0,
 
-                            # absolute vulnerability function
-                            if damage_bins['bin_to'][vuln_bin_idx] > 1:
-                                gul /= tiv
+                            )
 
                             losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
@@ -933,6 +930,8 @@ def compute_event_losses(event_id,
                                 vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                             # compute ground-up losses
+                            # for relative vulnerability functions, gul are scaled by tiv
+                            # for absolute vulnerability functions, gul are absolute values
                             gul = get_gul(
                                 damage_bins['bin_from'][vuln_bin_idx],
                                 damage_bins['bin_to'][vuln_bin_idx],
@@ -940,12 +939,8 @@ def compute_event_losses(event_id,
                                 vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
                                 vuln_cdf[vuln_bin_idx],
                                 vuln_rval,
-                                tiv
+                                tiv if damage_bins[vuln_bin_idx]['bin_to'] <= 1 else 1.0,
                             )
-
-                            # absolute vulnerability function
-                            if damage_bins['bin_to'][vuln_bin_idx] > 1:
-                                gul /= tiv
 
                             losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
 
