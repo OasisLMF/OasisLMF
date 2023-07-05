@@ -621,14 +621,12 @@ class ReinsuranceLayer(object):
         ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_FAC, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['RiskAttachment'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['RiskLimit'].values,
-            ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['CededPercent'].values,
-            ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['PlacedPercent'].values
+            ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['CededPercent'].values
         ]))[0] + 1 + fmprofiles_df['profile_id'].max()
         fmprofiles_df = self._get_profiles(
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC],
             fmprofiles_df=fmprofiles_df, attachment="row['RiskAttachment']",
-            limit="row['RiskLimit']", ceded="row['CededPercent']",
-            placement="row['PlacedPercent']"
+            limit="row['RiskLimit']", ceded="row['CededPercent']"
         )
         # Per Risk profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_PER_RISK} profiles...')
@@ -783,7 +781,6 @@ class ReinsuranceLayer(object):
         # OccLimit / Placed Percent
         occlimit_df = self.ri_info_df.copy()
         occlimit_df = occlimit_df.merge(ri_df[occlimit_df.columns.to_list() + ['layer_id']], how='left').drop_duplicates()
-        occlimit_df = occlimit_df[occlimit_df['ReinsType'] != oed.REINS_TYPE_FAC]
         occlimit_df['level_id'] = self._get_risk_level_id() + 1
         occlimit_df = occlimit_df.reset_index(drop=True)
         occlimit_df['profile_id'] = occlimit_df.index + 1 + ri_df['profile_id'].max()
@@ -805,7 +802,13 @@ class ReinsuranceLayer(object):
             limit="row['OccLimit']", ceded="row['CededPercent']",
             placement="row['PlacedPercent']"
         )
-
+        # Fac profile IDs
+        fmprofiles_df = self._get_profiles(
+            ri_df_=occlimit_df[occlimit_df['ReinsType'] == oed.REINS_TYPE_FAC],
+            fmprofiles_df=fmprofiles_df, attachment="row['OccAttachment']",
+            limit="row['OccLimit']",
+            placement="row['PlacedPercent']"
+        )
         # Programme level profile IDs
         profile_map_df.loc[
             profile_map_df['level_id'] == 4, 'profile_id'
