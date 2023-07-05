@@ -11,12 +11,11 @@ import getpass
 import io
 import os
 import json
-import sys
 
 from tabulate import tabulate
 from mimetypes import guess_extension
 
-from requests.exceptions import HTTPError, ConnectionError
+from requests.exceptions import HTTPError
 
 from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException
@@ -50,21 +49,12 @@ class PlatformBase(ComputationStep):
         if isinstance(login_arg, str):
             with io.open(login_arg, encoding='utf-8') as f:
                 return json.load(f)
-        elif isinstance(login_arg, dict):
-            if {'password', 'username'} <= {k for k in login_arg.keys()}:
-                return login_arg
-        else:
-            self.logger.info('API Login:')
 
-        try:
-            api_login = {}
-            api_login['username'] = input('Username: ')
-            api_login['password'] = getpass.getpass('Password: ')
-            return api_login
-        except KeyboardInterrupt as e:
-            self.logger.error('\nFailed to get API login details:')
-            self.logger.error(e)
-            sys.exit(1)
+        self.logger.info('API Login:')
+        api_login = {}
+        api_login['username'] = input('Username: ')
+        api_login['password'] = getpass.getpass('Password: ')
+        return api_login
 
     def open_connection(self):
         try:
@@ -87,14 +77,6 @@ class PlatformBase(ComputationStep):
                     username=credentials['username'],
                     password=credentials['password'],
                 )
-            elif isinstance(e.original_exception, ConnectionError):
-                self.logger.info('API Connection error to "{}"'.format(self.server_url))
-                self.logger.debug(e)
-                sys.exit(1)
-            else:
-                self.logger.error('Unhandled error:')
-                self.logger.debug(e)
-                sys.exit(1)
 
     def tabulate_json(self, json_data, items):
         table_data = dict()
@@ -126,7 +108,6 @@ class PlatformBase(ComputationStep):
 
     def print_endpoint(self, attr, items):
         endpoint_obj = getattr(self.server, attr)
-
         self.logger.info(f'\nAvailable {attr}:')
         data = self.tabulate_json(endpoint_obj.get().json(), items)
         self.logger.info(tabulate(data, headers=items, tablefmt='psql'))
@@ -135,24 +116,19 @@ class PlatformBase(ComputationStep):
     def select_id(self, msg, valid_ids):
         while True:
             try:
-                value = int(input(f'Select {msg} ID: '))
+                value = str(input(f'Select {msg} ID: '))
             except ValueError:
                 self.logger.info('Invalid Response: {}'.format(value))
                 continue
             except KeyboardInterrupt:
-                exit(1)
+                return -1
 
-            if (value < 0) or (str(value) not in valid_ids):
-                self.logger.info('Not a valid id from: {}'.format(valid_ids))
+            if value not in valid_ids:
+                self.logger.info(f'id {value} not among the valid ids: {valid_ids} - ctrl-c to exit')
                 continue
             else:
                 break
-        return value
-
-    def run(self):
-        """ Add the logic for platform API interaction here
-        """
-        raise NotImplementedError('Methode run must be implemented, this class handles base server connection')
+        return int(value)
 
 
 class PlatformList(PlatformBase):
@@ -215,7 +191,7 @@ class PlatformRunInputs(PlatformBase):
     ]
 
     def run(self):
-        # select or create portfolio / analysis
+        # Run Input geneneration from ID
         if self.analysis_id:
             try:
                 status = self.server.analyses.status(self.analysis_id)
@@ -223,53 +199,51 @@ class PlatformRunInputs(PlatformBase):
                     self.server.cancel_analysis(self.analysis_id)
                 elif status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
                     self.server.cancel_generate(self.analysis_id)
+                self.server.run_generate(self.analysis_id)
+                return self.analysis_id
             except HTTPError as e:
-                self.logger.error('Error running analysis ({}) - {}'.format(
-                    self.analysis_id, e))
-                sys.exit(1)
-        else:
-            # If not given an analsis then we need to select a model + portfolio
-            # when no model is selected prompt user for choice of installed models
-            if not self.model_id:
-                models = self.server.models.get().json()
+                raise OasisException(f'Error running analysis ({self.analysis_id}) - {e}')
 
-                if len(models) > 1:
-                    models_table = self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
-                    model_id = self.select_id('models', models_table['id'])
-                elif len(models) == 1:
-                    model_id = models[0]['id']
-                else:
-                    raise OasisException(
-                        'No models found in API: {}'.format(self.server_url)
-                    )
-            else:
-                model_id = self.model_id
+        # Create Portfolio and Ananlysis, then run
+        if (not self.portfolio_id) and (not self.oed_location_csv):
+            raise OasisException('Error: Either select a "portfolio_id" or a location file is required.')
 
-            # Select or create a portfilo
-            if self.portfolio_id:
-                portfolios = self.server.portfolios.get().json()
-                valid_portfolios = self.tabulate_json(portfolios, ['id'])
-                portfolio_id = self.portfolio_id
-                if str(self.portfolio_id) not in valid_portfolios['id']:
-                    raise OasisException(f'Run Error: Invalid selected value "{self.portfolio_id}" for portfolio_id:')
+        # when no model is selected prompt user for choice
+        if not self.model_id:
+            models = self.server.models.get().json()
+            model_count = len(models)
 
-            elif self.oed_location_csv:
-                portfolio = self.server.upload_inputs(
-                    portfolio_id=None,
-                    location_fp=self.oed_location_csv,
-                    accounts_fp=self.oed_accounts_csv,
-                    ri_info_fp=self.oed_info_csv,
-                    ri_scope_fp=self.oed_scope_csv,
-                )
-                portfolio_id = portfolio['id']
-            else:
-                raise OasisException('Error: Either select a "portfolio_id" or Input exposure files to run.')
-            analysis = self.server.create_analysis(
-                portfolio_id=portfolio_id,
-                model_id=model_id,
-                analysis_settings_fp=self.analysis_settings_json,
+            if model_count < 1:
+                raise OasisException(f'No models found in API: {self.server_url}')
+            if model_count == 1:
+                self.model_id = models[0]['id']
+            if model_count > 1:
+                models_table = self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
+                self.model_id = self.select_id('models', models_table['id'])
+            if self.model_id < 0:
+                raise OasisException(' Model selection cancelled')
+
+        # Select or create a portfilo
+        if self.portfolio_id:
+            portfolios = self.server.portfolios.get().json()
+            if self.portfolio_id not in [p['id'] for p in portfolios]:
+                raise OasisException(f'Portfolio "{self.portfolio_id}" not found in API: {self.server_url}')
+
+        elif self.oed_location_csv:
+            portfolio = self.server.upload_inputs(
+                portfolio_id=None,
+                location_fp=self.oed_location_csv,
+                accounts_fp=self.oed_accounts_csv,
+                ri_info_fp=self.oed_info_csv,
+                ri_scope_fp=self.oed_scope_csv,
             )
-            self.analysis_id = analysis['id']
+            self.portfolio_id = portfolio['id']
+        analysis = self.server.create_analysis(
+            portfolio_id=self.portfolio_id,
+            model_id=self.model_id,
+            analysis_settings_fp=self.analysis_settings_json,
+        )
+        self.analysis_id = analysis['id']
 
         # Execure run
         self.server.run_generate(self.analysis_id)
@@ -311,6 +285,9 @@ class PlatformDelete(PlatformBase):
     ]
 
     def delete_list(self, attr, id_list):
+        if not all(isinstance(ID, int) for ID in id_list):
+            raise OasisException(f"Invalid input, '{attr}', must be a list of type Int, not {id_list}")
+
         api_endpoint = getattr(self.server, attr)
         for Id in id_list:
             try:
@@ -370,7 +347,6 @@ class PlatformGet(PlatformBase):
 
     def download(self, collection, req_files, chuck_size=1024):
         collection_obj = getattr(self.server, collection)
-
         for File in req_files:
             resource = getattr(collection_obj, File)
             for ID in req_files[File]:
