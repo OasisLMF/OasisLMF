@@ -42,6 +42,9 @@ class ExposurePreAnalysis(ComputationStep):
                    {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
                    {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
                     'help': 'Path to the directory in which to generate the Oasis files'},
+                   {'name': 'location', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+                   {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
+                   {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
                    ]
 
     run_dir_key = 'pre-analysis'
@@ -54,7 +57,10 @@ class ExposurePreAnalysis(ComputationStep):
             'ri_scope': self.oed_scope_csv,
             'oed_schema_info': self.oed_schema_info,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'location_numbers': self.location,
+            'portfolio_numbers': self.portfolio,
+            'account_numbers': self.account,
         }
 
     def run(self):
