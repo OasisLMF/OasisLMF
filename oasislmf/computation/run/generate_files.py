@@ -42,6 +42,7 @@ class GenerateOasisFiles(ComputationStep):
             'location_numbers': self.location,
             'portfolio_numbers': self.portfolio,
             'account_numbers': self.account,
+            'base_df_engine': self.base_df_engine,
         }
 
     def run(self):
