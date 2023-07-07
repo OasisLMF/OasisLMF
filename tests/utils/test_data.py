@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import pytz
-from hypothesis import example, given, settings
+from hypothesis import example, given, settings, reproduce_failure
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
                                    integers, just, lists, sampled_from, text)
 from pandas.testing import assert_frame_equal as pd_assert_frame_equal
@@ -45,7 +45,6 @@ def assert_frame_equal(result, expected):
             expected[string_col] = expected[string_col].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
 
     pd_assert_frame_equal(result, expected)
-
 
 
 class TestFactorizeArrays(TestCase):
