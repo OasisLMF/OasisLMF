@@ -15,7 +15,7 @@ import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
                                    integers, just, lists, sampled_from, text)
-from pandas.testing import pd_assert_frame_equal
+from pandas.testing import assert_frame_equal as pd_assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure, OedSchema
 
@@ -43,6 +43,7 @@ def assert_frame_equal(result, expected):
     for string_col in ['STR_COL', 'str_col']:
         if string_col in expected.columns:
             expected[string_col] = expected[string_col].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
+
     pd_assert_frame_equal(result, expected)
 
 
@@ -1106,13 +1107,13 @@ class TestGetDataframe(TestCase):
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
             expected = df.dropna(subset=non_na_cols, axis=0)
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
-
             assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
