@@ -36,12 +36,12 @@ df_acc = []
 # add each fm files
 for fm_next in dirs:
     loc_filepath = os.path.join(units_dir, fm_next, 'location.csv')
-    df_loc_tmp = pd.read_csv(loc_filepath)
+    df_loc_tmp = pd.read_csv(loc_filepath, dtype=str, keep_default_na=False)
     df_loc_tmp['FlexiLocUnit'] = fm_next
     df_loc.append(df_loc_tmp)
 
     acc_filepath = os.path.join(units_dir, fm_next, 'account.csv')
-    df_acc_tmp = pd.read_csv(acc_filepath)
+    df_acc_tmp = pd.read_csv(acc_filepath, dtype=str, keep_default_na=False)
     df_acc_tmp['FlexiAccUnit'] = fm_next
     # concat files
     df_acc.append(df_acc_tmp)
