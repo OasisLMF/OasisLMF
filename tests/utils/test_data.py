@@ -15,7 +15,7 @@ import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
                                    integers, just, lists, sampled_from, text)
-from pandas.testing import assert_frame_equal
+from pandas.testing import pd_assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure, OedSchema
 
@@ -34,6 +34,17 @@ def arrays_are_identical(expected, result):
         raise
 
     return True
+
+
+def assert_frame_equal(result, expected):
+    """ Override expected NaN values in expected string columns
+        this is to prevent 'NaN' != NaN
+    """
+    for string_col in ['STR_COL', 'str_col']:
+        if string_col in expected.columns:
+            expected[string_col] = expected[string_col].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
+    pd_assert_frame_equal(result, expected)
+
 
 
 class TestFactorizeArrays(TestCase):
@@ -146,15 +157,6 @@ class TestFastZipArrays(TestCase):
         self.assertTrue(arrays_are_identical(zipped, result))
 
 
-def dataframes_are_identical(df1, df2):
-    try:
-        assert_frame_equal(df1, df2)
-    except AssertionError:
-        return False
-
-    return True
-
-
 class TestGetDataframe(TestCase):
 
     def test_get_dataframe__no_src_fp_or_buf_or_data_provided__oasis_exception_is_raised(self):
@@ -180,13 +182,10 @@ class TestGetDataframe(TestCase):
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
-
             result = get_dataframe(src_fp=fp.name)
-
             assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
@@ -521,7 +520,6 @@ class TestGetDataframe(TestCase):
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
@@ -555,7 +553,6 @@ class TestGetDataframe(TestCase):
             data[-2]['str_col'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'str_col']
@@ -586,7 +583,6 @@ class TestGetDataframe(TestCase):
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
@@ -1110,7 +1106,6 @@ class TestGetDataframe(TestCase):
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
