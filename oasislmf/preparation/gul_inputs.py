@@ -328,7 +328,6 @@ def get_gul_input_items(
     #  - set the IL terms (and BI coverage boolean) in each group and update the corresponding frame section in the GUL inputs table
     gul_inputs_reformatted_chunks = []
     terms_found = set()
-    last_disagg_id = 1
     for (number_of_buildings, cov_type), cov_type_group in gul_inputs_df.groupby(by=['NumberOfBuildings', 'coverage_type_id'], sort=True):
         # drop columns corresponding to other cov types
         cov_type_group.drop(
@@ -348,10 +347,11 @@ def get_gul_input_items(
         cov_type_group['tiv'] /= max(number_of_buildings, 1)
 
         # if NumberOfBuildings == 0: still add one entry
-        disagg_df = pd.concat([cov_type_group] * max(number_of_buildings, 1))
-        disagg_df['disagg_id'] = np.arange(last_disagg_id, len(disagg_df) + last_disagg_id, 1)
-        gul_inputs_reformatted_chunks.append(disagg_df)
-        last_disagg_id += len(disagg_df)
+        disagg_df_chunk = []
+        for building_id in range(1, max(number_of_buildings, 1) + 1):
+            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
+
+        gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
 
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
@@ -369,7 +369,9 @@ def get_gul_input_items(
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
-    # set `item_id` and `coverage_id`
+    # set 'disagg_id', `item_id` and `coverage_id`
+    gul_inputs_df['disagg_id'] = factorize_ndarray(
+        gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id', 'building_id']].values, col_idxs=range(4))[0]
     gul_inputs_df['item_id'] = factorize_ndarray(
         gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id', 'disagg_id']].values, col_idxs=range(4))[0]
     gul_inputs_df['coverage_id'] = factorize_ndarray(gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
@@ -419,6 +421,7 @@ def get_gul_input_items(
     gul_inputs_df = (
         gul_inputs_df
         [usecols]
+        .drop_duplicates(subset='item_id')
         .sort_values("item_id")
         .reindex(columns=list(usecols))
     )
