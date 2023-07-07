@@ -11,7 +11,6 @@ import sys
 import warnings
 from collections import OrderedDict
 
-import numpy as np
 import pandas as pd
 
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
