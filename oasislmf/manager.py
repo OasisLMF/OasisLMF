@@ -16,8 +16,6 @@ from oasislmf.computation.generate.losses import (GenerateLosses,
                                                   GenerateLossesOutput,
                                                   GenerateLossesPartial)
 from oasislmf.computation.helper.autocomplete import HelperTabComplete
-from oasislmf.computation.helper.cookiecutter import (CreateComplexModelRepo,
-                                                      CreateModelRepo)
 from oasislmf.computation.hooks.pre_analysis import ExposurePreAnalysis
 from oasislmf.computation.run.exposure import RunExposure, RunFmTest
 from oasislmf.computation.run.generate_files import GenerateOasisFiles
@@ -56,8 +54,6 @@ class OasisManager(object):
         PlatformDelete,
         PlatformGet,
         HelperTabComplete,
-        CreateModelRepo,
-        CreateComplexModelRepo,
     ]
     computations_params = {}
 

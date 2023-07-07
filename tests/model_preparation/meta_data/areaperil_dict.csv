@@ -1,0 +1,4 @@
+peril_id,area_peril_id,geometry
+WSS,101,"POLYGON ((-1 -1, -1 1, 1 1, 1 -1, -1 -1))"
+WTC,1,"POLYGON ((-1 -1, -1 1, 1 1, 1 -1, -1 -1))"
+

@@ -38,8 +38,7 @@ import warnings
 
 from datetime import datetime
 
-from ods_tools.oed import OedExposure
-from ods_tools.oed.common import OdsException
+from ods_tools.oed import fill_empty, OedExposure, OdsException
 
 try:
     from json import JSONDecodeError
@@ -307,6 +306,7 @@ def get_dataframe(
         sort_cols=None,
         sort_ascending=None,
         memory_map=False,
+        low_memory=False,
         encoding=None
 ):
     """
@@ -369,6 +369,11 @@ def get_dataframe(
                        for the pd.read_csv method
     :type memory_map: bool
 
+    :param low_memory: Internally process the file in chunks, resulting in lower memory use
+                       while parsing, but possibly mixed type inference.
+                       To ensure no mixed types either set False,
+    :type low_memory: bool
+
     :param encoding: Try to read CSV of JSON data with the given encoding type,
                      if 'None' will try to auto-detect on UnicodeDecodeError
     :type  encoding: str
@@ -409,13 +414,14 @@ def get_dataframe(
                 # Find flexible fields in loc file and set their data types to that of
                 # FlexiLocZZZ
                 if 'FlexiLocZZZ' in col_dtypes.keys():
-                    headers = list(pd.read_csv(src_fp, encoding=use_encoding).head(0))
+                    headers = list(pd.read_csv(src_fp, encoding=use_encoding, low_memory=low_memory).head(0))
                     for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
                         col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
                 df = pd.read_csv(
                     src_fp or src_buf,
                     float_precision=float_precision,
                     memory_map=memory_map,
+                    low_memory=low_memory,
                     keep_default_na=False,
                     na_values=na_values,
                     dtype=col_dtypes,
@@ -445,7 +451,8 @@ def get_dataframe(
                 float_precision=float_precision, empty_data_error_msg=empty_data_error_msg,
                 lowercase_cols=lowercase_cols, required_cols=required_cols, col_defaults=col_defaults,
                 non_na_cols=non_na_cols, col_dtypes=col_dtypes, sort_cols=sort_cols,
-                sort_ascending=sort_ascending, memory_map=memory_map, encoding=detected_encoding)
+                sort_ascending=sort_ascending, memory_map=memory_map, low_memory=low_memory,
+                encoding=detected_encoding)
         else:
             raise OasisException('Failed to load DataFrame due to Encoding error', e)
 
@@ -756,9 +763,7 @@ def prepare_account_df(accounts_df):
 
 
 def prepare_reinsurance_df(ri_info, ri_scope):
-    if 'SEL' not in ri_info['RiskLevel'].cat.categories:
-        ri_info['RiskLevel'] = ri_info['RiskLevel'].cat.add_categories(['SEL'])
-    ri_info['RiskLevel'] = ri_info['RiskLevel'].fillna('SEL')
+    fill_empty(ri_info, 'RiskLevel', 'SEL')
 
     # add default column if not present in the RI files
     fill_na_with_categoricals(ri_info, RI_INFO_DEFAULTS)
@@ -777,7 +782,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
         if 'exposure_data' in computation_step.kwargs:
             exposure_data = computation_step.kwargs['exposure_data']
         else:
-            if Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
+            if hasattr(computation_step, 'oasis_files_dir') and Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
                 exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
                 exposure_data = OedExposure(**computation_step.get_exposure_data_config())
