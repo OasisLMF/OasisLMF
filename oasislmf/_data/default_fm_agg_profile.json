@@ -33,6 +33,11 @@
                 "src": "FM",
                 "field": "is_bi_coverage",
                 "name": "Is BI coverage?"
+            },
+            "risk_id": {
+                "src": "builtin",
+                "field": "risk_id",
+                "name": "risk id"
             }
         }
     },
@@ -54,6 +59,11 @@
                 "src": "FM",
                 "field": "LocNumber",
                 "name": "Location num."
+            },
+            "risk_id": {
+                "src": "builtin",
+                "field": "risk_id",
+                "name": "risk id"
             }
         }
     },

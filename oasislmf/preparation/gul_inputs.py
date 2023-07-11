@@ -369,11 +369,9 @@ def get_gul_input_items(
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
     # set 'disagg_id', `item_id` and `coverage_id`
-    gul_inputs_df['disagg_id'] = factorize_ndarray(
-        gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id', 'building_id']].values, col_idxs=range(4))[0]
     gul_inputs_df['item_id'] = factorize_ndarray(
-        gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id', 'disagg_id']].values, col_idxs=range(4))[0]
-    gul_inputs_df['coverage_id'] = factorize_ndarray(gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
+        gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id', 'building_id']].values, col_idxs=range(4))[0]
+    gul_inputs_df['coverage_id'] = factorize_ndarray(gul_inputs_df.loc[:, ['loc_id', 'building_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
 
     # set default data types
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, {'item_id': 'int32', 'coverage_id': 'int32'})
@@ -411,7 +409,7 @@ def get_gul_input_items(
         ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
-        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'disagg_id', 'NumberOfBuildings', 'IsAggregate',] +  # disagg_id is needed for fm_summary_map
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate',] +  # disagg_id is needed for fm_summary_map
         (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
     )
 

@@ -74,6 +74,7 @@ profile_cols_map = {
 }
 cross_layer_level = {FML_ACCALL, }
 
+risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit'}
 
 def set_calc_rule_ids(
         il_inputs_calc_rules_df,
@@ -784,7 +785,7 @@ def __process_standard_level_df(column_base_il_df,
         column_base_il_df[term].fillna(0, inplace=True)
         column_base_il_df['has_terms'] |= column_base_il_df[term].astype(bool)
     agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-    # TODO: in principle I could just use site_id generated in the disaggregation instead of the three fields now defined in level 2 and 3 of default_fm_agg_provile
+
     level_df_with_term = column_base_il_df[column_base_il_df['has_terms']]
     il_df_no_term = column_base_il_df[~column_base_il_df['has_terms']]
 
@@ -813,6 +814,15 @@ def __process_standard_level_df(column_base_il_df,
     else:
         for ProfileElementName, fm_term in level_terms.items():
             level_df_with_term[fm_term] = level_df_with_term[ProfileElementName]
+
+    if 'risk_id' in agg_key:
+        for term in risk_disaggregation_term.intersection(set(level_terms.values())):
+            if f'{term[:3]}_code' in level_df_with_term.columns:
+                code_filter = level_df_with_term[f'{term[:3]}_code'] == 0
+                level_df_with_term.loc[code_filter, term] /= level_df_with_term.loc[code_filter, 'NumberOfRisks']
+            else:
+                level_df_with_term[term] /= level_df_with_term['NumberOfRisks']
+
     level_df_with_term['orig_level_id'] = level_id
 
     sub_agg_key = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
@@ -1132,6 +1142,10 @@ def get_il_input_items(
     agg_keys = set()
     for level_id in fm_aggregation_profile:
         agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
+
+    column_base_il_df[['risk_id', 'NumberOfRisks']] = column_base_il_df[['building_id', 'NumberOfBuildings']]
+    column_base_il_df.loc[column_base_il_df['IsAggregate'] == 1, ['risk_id', 'NumberOfRisks']] = 1, 1
+    column_base_il_df.loc[column_base_il_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
     level_cols = set(useful_cols).union(agg_keys)
     present_cols = [col for col in column_base_il_df.columns if col in set(useful_cols).union(agg_keys)]
