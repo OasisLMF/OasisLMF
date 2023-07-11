@@ -409,7 +409,8 @@ def get_gul_input_items(
         ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
-        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate',] +  # disagg_id is needed for fm_summary_map
+        # disagg_id is needed for fm_summary_map
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', ] +
         (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
     )
 

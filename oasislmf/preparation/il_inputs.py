@@ -76,6 +76,7 @@ cross_layer_level = {FML_ACCALL, }
 
 risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit'}
 
+
 def set_calc_rule_ids(
         il_inputs_calc_rules_df,
         terms,
