@@ -741,6 +741,23 @@ def __get_level_terms(column_base_il_df, column_mapper):
     return level_terms
 
 
+def __split_fm_terms_by_risk(df):
+    """
+    adjust the financial term to the number of risks
+    for example deductible is split into each individul building risk
+
+    Args:
+         df (DataFrame): the DataFrame an FM level
+    """
+
+    for term in risk_disaggregation_term.intersection(set(df.columns)):
+        if f'{term[:3]}_code' in df.columns:
+            code_filter = df[f'{term[:3]}_code'] == 0
+            df.loc[code_filter, term] /= df.loc[code_filter, 'NumberOfRisks']
+        else:
+            df[term] /= df['NumberOfRisks']
+
+
 def __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key):
     """drop duplicated row base on the agg_key, sub_agg_key and layer_id"""
     sub_level_layer_needed = level_df['agg_id'].isin(prev_level_df.loc[prev_level_df["layer_id"] == 2]['to_agg_id'])
@@ -817,12 +834,7 @@ def __process_standard_level_df(column_base_il_df,
             level_df_with_term[fm_term] = level_df_with_term[ProfileElementName]
 
     if 'risk_id' in agg_key:
-        for term in risk_disaggregation_term.intersection(set(level_terms.values())):
-            if f'{term[:3]}_code' in level_df_with_term.columns:
-                code_filter = level_df_with_term[f'{term[:3]}_code'] == 0
-                level_df_with_term.loc[code_filter, term] /= level_df_with_term.loc[code_filter, 'NumberOfRisks']
-            else:
-                level_df_with_term[term] /= level_df_with_term['NumberOfRisks']
+        __split_fm_terms_by_risk(level_df_with_term)
 
     level_df_with_term['orig_level_id'] = level_id
 
@@ -1075,7 +1087,7 @@ def get_il_input_items(
     # column_base_il_df contains for each items, the complete list of fm term necessary for each level
     # up until the top account level. We are now going to pivot it to get for each line a node with
     # agg_id, parrent_agg_id, level, layer and all the fm term interpretable as a generic policy
-    useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv']
+    useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
                              + get_useful_summary_cols(oed_hierarchy))
                          - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
 
@@ -1165,6 +1177,7 @@ def get_il_input_items(
     prev_level_df = column_base_il_df[list(set(present_cols + coverage_level_term))]
     prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
+    __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = prev_level_df['coverage_id']
     prev_level_df['level_id'] = 1
     prev_level_df['orig_level_id'] = level_id
