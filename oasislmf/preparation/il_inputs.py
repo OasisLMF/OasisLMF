@@ -1145,7 +1145,7 @@ def get_il_input_items(
         agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
 
     column_base_il_df[['risk_id', 'NumberOfRisks']] = column_base_il_df[['building_id', 'NumberOfBuildings']]
-    column_base_il_df.loc[column_base_il_df['IsAggregate'] == 1, ['risk_id', 'NumberOfRisks']] = 1, 1
+    column_base_il_df.loc[column_base_il_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
     column_base_il_df.loc[column_base_il_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
     level_cols = set(useful_cols).union(agg_keys)
