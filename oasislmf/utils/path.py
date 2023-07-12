@@ -152,10 +152,12 @@ def get_custom_module(custom_module_path, label):
 
 @contextmanager
 def setcwd(path):
-    pwd = os.getcwd()
-    os.chdir(str(path))
-    yield path
-    os.chdir(pwd)
+    orig_path = os.getcwd()
+    try:
+        os.chdir(str(path))
+        yield path
+    finally:
+        os.chdir(orig_path)
 
 
 if __name__ == '__main__':
