@@ -1999,15 +1999,19 @@ def create_bash_analysis(
             'peril_filter': peril_filter,
         }
 
+        # Establish whether items to amplifications map file is present
+        pla = os.path.isfile(
+            os.path.join(os.getcwd(), 'input/amplifications.bin')
+        )
+
         # GUL coverage & item stream (Older)
         gul_fifo_name = get_fifo_name(fifo_queue_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
         if gul_item_stream:
+            getmodel_args['coverage_output'] = ''
+            getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
+            getmodel_args['item_output'] = getmodel_args['item_output'] + ' | plapy' * pla
             if need_summary_fifo_for_gul:
-                getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '{} | tee {}'.format('-' * (not gulpy and not gulmc), gul_fifo_name)
-            else:
-                getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
+                getmodel_args['item_output'] = '{} | tee {}'.format(getmodel_args['item_output'], gul_fifo_name)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
             if need_summary_fifo_for_gul:
@@ -2056,6 +2060,7 @@ def create_bash_analysis(
 
         getmodel_args.update(custom_args)
         getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
+
         if num_lb:  # print main_cmd_gul_stream, get_gul_stream_cmds will be updated after by the main lb block
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS

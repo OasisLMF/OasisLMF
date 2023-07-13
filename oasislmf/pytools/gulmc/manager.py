@@ -15,40 +15,31 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.pytools.common import (PIPE_CAPACITY, nb_areaperil_int,
-                                     oasis_float)
+from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.data_layer.oasis_files.correlations import (
-    Correlation, read_correlations)
+from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
-from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
-                                         compute_norm_inv_cdf_lookup,
-                                         generate_correlated_hash_vector,
-                                         generate_hash, generate_hash_hazard,
-                                         get_corr_rval, get_random_generator)
+from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
+                                         generate_correlated_hash_vector, generate_hash,
+                                         generate_hash_hazard, get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     map_agg_vuln_ids_to_agg_vuln_idxs,
     map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
-    process_aggregate_vulnerability, process_vulnerability_weights,
-    read_aggregate_vulnerability, read_vulnerability_weights)
+    process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
+    read_vulnerability_weights)
 from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
-                                           AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
-                                           CHANCE_OF_LOSS_IDX, MAX_LOSS_IDX,
-                                           MEAN_IDX, NP_BASE_ARRAY_SIZE,
-                                           NUM_IDX, STD_DEV_IDX, TIV_IDX, Item,
-                                           Keys, NormInversionParameters,
-                                           coverage_type, gul_header,
-                                           gulSampleslevelHeader_size,
-                                           gulSampleslevelRec_size,
+                                           AREAPERIL_TO_EFF_VULN_VALUE_TYPE, CHANCE_OF_LOSS_IDX,
+                                           MAX_LOSS_IDX, MEAN_IDX, NP_BASE_ARRAY_SIZE, NUM_IDX,
+                                           STD_DEV_IDX, TIV_IDX, Item, Keys,
+                                           NormInversionParameters, coverage_type, gul_header,
+                                           gulSampleslevelHeader_size, gulSampleslevelRec_size,
                                            haz_cdf_type, items_MC_data_type)
-from oasislmf.pytools.gulmc.items import (generate_item_map, process_items,
-                                          read_items)
+from oasislmf.pytools.gulmc.items import generate_item_map, process_items, read_items
 from oasislmf.pytools.utils import redirect_logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -679,9 +670,13 @@ def compute_event_losses(event_id,
                 eff_damag_vuln_cdf_i, eff_damag_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]
                 eff_damag_cdf = eff_vuln_cdf[eff_damag_vuln_cdf_i:eff_damag_vuln_cdf_i + eff_damag_cdf_Ndamage_bins]
 
+            # for relative vulnerability functions, gul are fraction of the tiv
+            # for absolute vulnerability functions, gul are absolute values
+            computation_tiv = tiv if damage_bins[eff_damag_cdf_Ndamage_bins - 1]['bin_to'] <= 1 else 1.0
+
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                tiv,
+                computation_tiv,
                 eff_damag_cdf,
                 damage_bins['interpolation'],
                 eff_damag_cdf_Ndamage_bins,
@@ -766,7 +761,7 @@ def compute_event_losses(event_id,
                             vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
                             vuln_cdf[vuln_bin_idx],
                             vuln_rval,
-                            tiv
+                            computation_tiv,
                         )
 
                         losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
@@ -871,7 +866,8 @@ def compute_event_losses(event_id,
                                 vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
                                 vuln_cdf[vuln_bin_idx],
                                 vuln_rval,
-                                tiv
+                                computation_tiv,
+
                             )
 
                             losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
@@ -934,6 +930,8 @@ def compute_event_losses(event_id,
                                 vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins)
 
                             # compute ground-up losses
+                            # for relative vulnerability functions, gul are scaled by tiv
+                            # for absolute vulnerability functions, gul are absolute values
                             gul = get_gul(
                                 damage_bins['bin_from'][vuln_bin_idx],
                                 damage_bins['bin_to'][vuln_bin_idx],
@@ -941,7 +939,7 @@ def compute_event_losses(event_id,
                                 vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
                                 vuln_cdf[vuln_bin_idx],
                                 vuln_rval,
-                                tiv
+                                computation_tiv,
                             )
 
                             losses[sample_idx, item_j] = gul * (gul >= loss_threshold)

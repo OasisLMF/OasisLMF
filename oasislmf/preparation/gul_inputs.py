@@ -1,5 +1,6 @@
 __all__ = [
     'get_gul_input_items',
+    'write_amplifications_file',
     'write_coverages_file',
     'write_gul_input_files',
     'write_items_file',
@@ -252,6 +253,7 @@ def get_gul_input_items(
             'coveragetypeid': 'coverage_type_id',
             'areaperilid': 'areaperil_id',
             'vulnerabilityid': 'vulnerability_id',
+            'amplificationid': 'amplification_id',
             'modeldata': 'model_data'
         },
         inplace=True,
@@ -401,12 +403,15 @@ def get_gul_input_items(
             gul_inputs_df.rename(columns=hazard_group_id_cols_map)[sorted(list(hazard_group_id_cols_map.values()))], index=False).to_numpy() >> 33
     ).astype('uint32')
 
-    # select only the required columns
-    # the output order matches test output expectations
+    # Select only required columns
+    # Order here matches test output expectations
+    keyscols = ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id']
+    if 'amplification_id' in gul_inputs_df.columns:
+        keyscols += ['amplification_id']
     usecols = (
         ['loc_id', portfolio_num, acc_num, loc_num] +
         ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
-        ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
+        keyscols +
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
         # disagg_id is needed for fm_summary_map
@@ -451,6 +456,35 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
         )
     except (IOError, OSError) as e:
         raise OasisException("Exception raised in 'write_complex_items_file'", e)
+
+
+@oasis_log
+def write_amplifications_file(gul_inputs_df, amplifications_fp, chunksize=100000):
+    """
+    Writes an amplifications file. This is the mapping between item IDs and
+    amplifications IDs.
+
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param amplifications_fp: amplifications file path
+    :type amplifications_fp: str
+
+    :return: amplifications file path
+    :rtype: str
+    """
+    try:
+        gul_inputs_df.loc[:, ['item_id', 'amplification_id']].drop_duplicates().to_csv(
+            path_or_buf=amplifications_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(amplifications_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException("Exception raise in 'write_amplifications_file'", e)
+
+    return amplifications_fp
 
 
 @oasis_log
@@ -563,8 +597,12 @@ def write_gul_input_files(
     # name from the files prefixes dict, which is used for writing the
     # GUl input files
     if 'model_data' not in gul_inputs_df:
-        if oasis_files_prefixes.get('complex_items'):
-            oasis_files_prefixes.pop('complex_items')
+        oasis_files_prefixes.pop('complex_items', None)
+
+    # If no amplification IDs then remove corresponding file name from files
+    # prefixes dict
+    if 'amplification_id' not in gul_inputs_df:
+        oasis_files_prefixes.pop('amplifications', None)
 
     # A dict of GUL input file names and file paths
     gul_input_files = {
