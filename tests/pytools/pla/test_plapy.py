@@ -101,7 +101,7 @@ class TestPostLossAmplification(TestCase):
 
         # Write items amplfications file
         self.input_dir = Path('./input')
-        self.input_dir.mkdir()
+        self.input_dir.mkdir(exist_ok=True)
         itemsamps_file = os.path.join(
             self.input_dir, AMPLIFICATIONS_FILE_NAME
         )
@@ -111,7 +111,7 @@ class TestPostLossAmplification(TestCase):
 
         # Write loss factors file
         self.static_dir = Path('./static')
-        self.static_dir.mkdir()
+        self.static_dir.mkdir(exist_ok=True)
         lossfactors_file = os.path.join(self.static_dir, LOSS_FACTORS_FILE_NAME)
         n_amplifications = 2
         factors = np.array([[1.1, 1.2], [1.0, 0.8]])
