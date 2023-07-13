@@ -108,7 +108,7 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, b
         if unique_peril_correlation_groups[unique_peril_index] == i:
             correlated_hashes[i] = (
                 base_seed +
-                (unique_peril_correlation_groups[unique_peril_indexs] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
+                (unique_peril_correlation_groups[unique_peril_index] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
                 (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
             ) % HASH_MOD_CODE
             unique_peril_index += 1
