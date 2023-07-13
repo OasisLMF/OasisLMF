@@ -1178,7 +1178,7 @@ def get_il_input_items(
     prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
     __split_fm_terms_by_risk(prev_level_df)
-    prev_level_df['agg_id'] = prev_level_df['coverage_id']
+    prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     prev_level_df['level_id'] = 1
     prev_level_df['orig_level_id'] = level_id
     prev_level_df['layer_id'] = 1
