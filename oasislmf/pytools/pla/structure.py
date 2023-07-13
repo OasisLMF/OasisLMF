@@ -132,14 +132,14 @@ def get_post_loss_amplification_factors(path):
         amp_factor = np.ndarray(
             N_PAIRS, buffer=factors_buffer, dtype=amp_factor_dtype
         )
-        f.readinto1(factors_buffer[:FILE_HEADER_SIZE])   # Ignore first 4 bytes
+        f.readinto(factors_buffer[:FILE_HEADER_SIZE])   # Ignore first 4 bytes
 
         cursor = 0
         valid_buffer = 0
         count = 0
         event_id = 0
         while True:
-            len_read = f.readinto1(factors_buffer[valid_buffer:])
+            len_read = f.readinto(factors_buffer[valid_buffer:])
             valid_buffer += len_read
 
             if len_read == 0:
