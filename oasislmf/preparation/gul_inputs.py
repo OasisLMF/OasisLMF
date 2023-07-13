@@ -567,14 +567,12 @@ def write_gul_input_files(
     # name from the files prefixes dict, which is used for writing the
     # GUl input files
     if 'model_data' not in gul_inputs_df:
-        if oasis_files_prefixes.get('complex_items'):
-            oasis_files_prefixes.pop('complex_items')
+        oasis_files_prefixes.pop('complex_items', None)
 
     # If no amplification IDs then remove corresponding file name from files
     # prefixes dict
     if 'amplification_id' not in gul_inputs_df:
-        if oasis_files_prefixes.get('amplifications'):
-            oasis_files_prefixes.pop('amplifications')
+        oasis_files_prefixes.pop('amplifications', None)
 
     # A dict of GUL input file names and file paths
     gul_input_files = {
