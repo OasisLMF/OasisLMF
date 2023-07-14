@@ -6,7 +6,8 @@ from unittest import TestCase, main
 
 import pandas as pd
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
+from oasislmf.pytools.data_layer.oasis_files.correlations import \
+    CorrelationsData
 
 
 class TestCorrelations(TestCase):

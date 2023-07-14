@@ -30,9 +30,27 @@ effective_damageabilities = [True, False]
 
 
 @pytest.fixture
-def generate_expected(request):
-    """Fixture to get the value of the `--generate-expected` command line argument."""
-    return request.config.getoption('--generate-expected')
+def gulmc_generate_missing_expected(request):
+    """Fixture to get the value of the `--gulmc-generate-missing-expected` command line argument."""
+    return request.config.getoption('--gulmc-generate-missing-expected')
+
+
+@pytest.fixture
+def update_expected(request):
+    """Fixture to get the value of the `--update-expected` command line argument."""
+    return request.config.getoption('--update-expected')
+
+
+@pytest.fixture
+def gul_rtol(request):
+    """Fixture to get the value of the `--gul-rtol` command line argument."""
+    return request.config.getoption('--gul-rtol')
+
+
+@pytest.fixture
+def gul_atol(request):
+    """Fixture to get the value of the `--gul-atol` command line argument."""
+    return request.config.getoption('--gul-atol')
 
 
 @pytest.mark.parametrize("effective_damageability", effective_damageabilities, ids=lambda x: f"effective_damageability={str(x):5} ")
@@ -47,7 +65,10 @@ def test_gulmc(test_model: Tuple[str, str],
                ignore_correlation: bool,
                random_generator: int,
                effective_damageability: bool,
-               generate_expected: bool):
+               gulmc_generate_missing_expected: bool,
+               update_expected: bool,
+               gul_rtol: float,
+               gul_atol: float):
     """Test gulmc functionality.
 
     Args:
@@ -57,14 +78,20 @@ def test_gulmc(test_model: Tuple[str, str],
         ignore_correlation (bool): if True, ignore peril correlation groups.
         random_generator (int): random generator (0: Mersenne-Twister, 1: Latin Hypercube).
         effective_damageability (bool): if True, draw loss samples from the effective damageability.
-        generate_expected (bool): If True, produce the expected outputs and store them in the expected/ directory.
+        gulmc_generate_missing_expected (bool): If True, produce the expected outputs and store them in the expected/ directory.
             If False, run the test.
+        gulmc_generate_missing_expected (bool): If True, overwrite the expected outputs even if they exist already.
 
     Notes:
         For more information on the definitions of gulmc parameters, refer to gulmc documentation.
         To produce the expected outputs, run:
         ```
-            pytest --generate-expected tests/pytools/gulmc/test_gulmc.py`
+            pytest --gulmc-generate-missing-expected tests/pytools/gulmc/test_gulmc.py
+        ```
+        By default, the above command only produces the expected outputs that are missing in the /assets/ directory.
+        To overwrite the expected results:
+        ```
+            pytest --gulmc-generate-missing-expected --update-expected tests/pytools/gulmc/test_gulmc.py
         ```
     """
     test_model_name, test_model_dir_str = test_model
@@ -85,24 +112,21 @@ def test_gulmc(test_model: Tuple[str, str],
         # run gulmc
         test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}')
 
-        if generate_expected:
-            # generate the expected results
-
-            if not ref_out_bin_fname.with_suffix('.bin').exists():
-                # generate the expected results only if they don't exist yet
-                run_gulmc(
-                    run_dir=tmp_result_dir,
-                    ignore_file_type=set(),
-                    file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                    file_out=ref_out_bin_fname.with_suffix('.bin'),
-                    sample_size=sample_size,
-                    loss_threshold=0.,
-                    alloc_rule=alloc_rule,
-                    debug=0,
-                    random_generator=random_generator,
-                    ignore_correlation=ignore_correlation,
-                    effective_damageability=effective_damageability,
-                )
+        if (gulmc_generate_missing_expected and not ref_out_bin_fname.with_suffix('.bin').exists()) or update_expected:
+            # generate the expected results only if they don't exist yet or if update_expected is True
+            run_gulmc(
+                run_dir=tmp_result_dir,
+                ignore_file_type=set(),
+                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+                file_out=ref_out_bin_fname.with_suffix('.bin'),
+                sample_size=sample_size,
+                loss_threshold=0.,
+                alloc_rule=alloc_rule,
+                debug=0,
+                random_generator=random_generator,
+                ignore_correlation=ignore_correlation,
+                effective_damageability=effective_damageability,
+            )
 
         else:
             # run the test case
@@ -138,12 +162,16 @@ def test_gulmc(test_model: Tuple[str, str],
                 df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
                 df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
 
-                # compare the `loss` columns
-                assert_allclose(df_ref['loss'], df_test['loss'], x_name='expected', y_name='test')
-
-                # remove temporary files
-                ref_out_bin_fname.with_suffix('.csv').unlink()
-                test_out_bin_fname.with_suffix('.csv').unlink()
+                # the files differ, therefore `assert_allclose` will surely throw an AssertionError, which we catch
+                # to clean up temporary csv files before raising the final AssertionError
+                try:
+                    # compare the `loss` columns
+                    assert_allclose(df_ref['loss'], df_test['loss'], rtol=gul_rtol, atol=gul_atol, x_name='expected', y_name='test')
+                except AssertionError as e:
+                    # remove temporary files
+                    ref_out_bin_fname.with_suffix('.csv').unlink()
+                    test_out_bin_fname.with_suffix('.csv').unlink()
+                    raise AssertionError(e)
 
             finally:
                 # remove temporary files

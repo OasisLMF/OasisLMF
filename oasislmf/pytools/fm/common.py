@@ -23,6 +23,7 @@ def almost_equal(a, b):
 null_index = np_oasis_int(-1)
 need_tiv_policy = (4, 6, 18, 27, 28, 29, 30, 31, 32, 37)
 need_extras = (7, 8, 10, 11, 13, 19, 26, 27, 35, 36)
+EXTRA_VALUES = 3
 
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
@@ -81,4 +82,16 @@ items_dtype = np.dtype([('item_id', 'i4'),
                         ('vulnerability_id', 'i4'),
                         ('group_id', 'i4')])
 
-EXTRA_VALUES = 3
+compute_idx_dtype = np.dtype([
+    ('level_start_compute_i', int),
+    ('next_compute_i', int),
+    ('compute_i', int),
+    ('sidx_i', int),
+    ('sidx_ptr_i', int),
+    ('loss_ptr_i', int),
+    ('extras_ptr_i', int),
+])
+
+DEDUCTIBLE = 0
+OVERLIMIT = 1
+UNDERLIMIT = 2

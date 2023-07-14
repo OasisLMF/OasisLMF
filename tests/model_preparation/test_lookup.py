@@ -1,30 +1,28 @@
 import io
 import json
+import filecmp
 import os
+import pathlib
 import string
-
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import pandas as pd
-import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis.strategies import just, sampled_from, text
 
-from tempfile import TemporaryDirectory
-from hypothesis import (
-    given,
-    HealthCheck,
-    settings,
-)
-from hypothesis.strategies import (
-    just,
-    sampled_from,
-    text,
-)
-
-from oasislmf.lookup.factory import KeyServerFactory, BasicKeyServer
+from oasislmf.lookup.factory import BasicKeyServer, KeyServerFactory
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 
+from oasislmf.computation.generate.keys import GenerateKeys
+
 from tests.data import keys
+
+
+META_DATA_PATH = pathlib.Path(os.path.realpath(__file__)).parent.joinpath('meta_data')
+settings.register_profile("no_deadline", deadline=None)
+settings.load_profile("no_deadline")
 
 
 class OasisLookupFactoryCreate(TestCase):
@@ -318,3 +316,16 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
 
             self.assertEqual(nonsuccesses_count, len(nonsuccesses))
             self.assertEqual(written_nonsuccesses, nonsuccesses)
+
+
+class GenerateKeysWithBuiltinLookup(TestCase):
+    def test_built_in_lookup_step(self):
+        with TemporaryDirectory() as d:
+            generate_keys = GenerateKeys(
+                oed_location_csv=pathlib.Path(META_DATA_PATH, 'location.csv'),
+                lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config.json'),
+                keys_data_csv=str(pathlib.Path(d, 'keys.csv'))
+            )
+            generate_keys.run()
+            assert filecmp.cmp(pathlib.Path(d, 'keys.csv'), pathlib.Path(META_DATA_PATH, 'keys.csv'), shallow=False)
+            assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'), pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)

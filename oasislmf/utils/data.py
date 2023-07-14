@@ -5,8 +5,6 @@ __all__ = [
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
     'fill_na_with_categoricals',
-    'get_analysis_settings',
-    'get_model_settings',
     'get_dataframe',
     'get_exposure_data',
     'get_dtypes_and_required_cols',
@@ -15,8 +13,6 @@ __all__ = [
     'prepare_location_df',
     'prepare_account_df',
     'prepare_reinsurance_df',
-    'get_analysis_schema_fp',
-    'get_model_schema_fp',
     'get_timestamp',
     'get_utctimestamp',
     'detect_encoding',
@@ -25,41 +21,40 @@ __all__ = [
     'print_dataframe',
     'PANDAS_BASIC_DTYPES',
     'PANDAS_DEFAULT_NULL_VALUES',
-    'reduce_df',
-    'set_dataframe_column_dtypes'
+    'set_dataframe_column_dtypes',
+    'RI_SCOPE_DEFAULTS',
+    'RI_INFO_DEFAULTS'
 ]
-
-from pathlib import Path
 
 import builtins
 import io
-import os
 import json
-import jsonschema
+import os
 import re
 import warnings
-import logging
-
 from datetime import datetime
+from pathlib import Path
 
-from ods_tools.oed import OedExposure
+from ods_tools.oed import fill_empty, OedExposure, OdsException
 
 try:
     from json import JSONDecodeError
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
-from chardet.universaldetector import UniversalDetector
-from tabulate import tabulate
+import logging
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import pytz
+from chardet.universaldetector import UniversalDetector
+from tabulate import tabulate
 
-from .exceptions import OasisException
+from oasislmf.utils.defaults import SOURCE_IDX
+from oasislmf.utils.exceptions import OasisException
 
-from ..utils.defaults import SOURCE_IDX
+logger = logging.getLogger(__name__)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -108,6 +103,29 @@ PANDAS_DEFAULT_NULL_VALUES = {
 
 # Load schema json dir
 SCHEMA_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), 'schema')
+
+RI_INFO_DEFAULTS = {
+    'CededPercent': 1.0,
+    'RiskLimit': 0.0,
+    'RiskAttachment': 0.0,
+    'OccLimit': 0.0,
+    'OccAttachment': 0.0,
+    'TreatyShare': 1.0
+}
+
+RI_SCOPE_DEFAULTS = {
+    'PortNumber': '',
+    'AccNumber': '',
+    'PolNumber': '',
+    'LocGroup': '',
+    'LocNumber': '',
+    'CedantName': '',
+    'ProducerName': '',
+    'LOB': '',
+    'CountryCode': '',
+    'ReinsTag': '',
+    'CededPercent': 1.0
+}
 
 
 def factorize_array(arr, sort_opt=False):
@@ -230,181 +248,6 @@ def fast_zip_dataframe_columns(df, cols):
     return fast_zip_arrays(*(df[col].values for col in cols))
 
 
-def get_model_schema_fp():
-    return os.path.join(SCHEMA_DATA_FP, 'model_settings.json')
-
-
-def get_analysis_schema_fp():
-    return os.path.join(SCHEMA_DATA_FP, 'analysis_settings.json')
-
-
-def validate_json(json_data, json_schema):
-    """
-    Wapper function around jsonschema to Validate json data vs a given schema
-
-    :param json_data: JSON data for validation
-    :type  json_data: dict
-
-    :param json_schema: JSON schema to check against
-    :type  json_schema: dict
-
-    :return: returns valid status as boolean and a dictonary of error messages
-    :rtype: (boolean, dict)
-
-    Example error output:
-    ---------------------
-    {
-        "model_settings-event_occurrence_id": [
-            "Additional properties are not allowed ('names' was unexpected)",
-            "'name' is a required property"
-        ],
-        "lookup_settings-supported_perils-0": [
-            "Additional properties are not allowed ('i' was unexpected)",
-            "'id' is a required property"
-        ],
-        "lookup_settings-supported_perils-1-id": [
-            "'TC' is too short"
-        ]
-    }
-    """
-    validator = jsonschema.Draft4Validator(json_schema)
-    validation_errors = [e for e in validator.iter_errors(json_data)]
-
-    exception_msgs = {}
-    is_valid = validator.is_valid(json_data)
-
-    if validation_errors:
-        for err in validation_errors:
-            if err.path:
-                field = '-'.join([str(e) for e in err.path])
-            elif err.schema_path:
-                field = '-'.join([str(e) for e in err.schema_path])
-            else:
-                field = 'error'
-
-            if field in exception_msgs:
-                exception_msgs[field].append(err.message)
-            else:
-                exception_msgs[field] = [err.message]
-
-    return is_valid, exception_msgs
-
-
-def analysis_settings_compatibility(analysis_settings_data):
-    """
-    NOTE: when ready to depricate these older names this fucntion should be remoived
-
-    Check for an older version of the analysis_settings JSON
-
-    Warn the user of the schema change and update the following keys
-        * `module_supplier_id` -> `model_supplier_id`
-        * `model_version_id` -> `model_name_id`
-
-    :param analysis_settings_data: JSON data from an analysis_settings file
-    :type  analysis_settings_data: dict
-
-    :return: updated analysis_ settings
-    :rtype: dict
-    """
-    compatibility_profile = {
-        "module_supplier_id": {
-            "from_ver": "1.23.0",
-            "updated_to": "model_supplier_id"
-        },
-        "model_version_id": {
-            "from_ver": "1.23.0",
-            "updated_to": "model_name_id"
-        },
-    }
-    obsolete_keys = set(compatibility_profile) & set(analysis_settings_data)
-    if obsolete_keys:
-        logger = logging.getLogger(__name__)
-        logger.warning('WARNING: Deprecated key(s) in analysis_settings JSON')
-        for key in obsolete_keys:
-            # warn user
-            logger.warning('   {} : {}'.format(
-                key,
-                compatibility_profile[key],
-            ))
-            # Update settings, if newer key not found
-            updated_key = compatibility_profile[key]['updated_to']
-            if updated_key not in analysis_settings_data:
-                analysis_settings_data[updated_key] = analysis_settings_data[key]
-            del analysis_settings_data[key]
-
-        logger.warning('   These keys have been automatically updated, but should be fixed in the original file.\n')
-    return analysis_settings_data
-
-
-def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
-    """
-    Get analysis settings from file.
-
-    :param model_settings_fp: file path for model settings file
-    :type model_settings_fp: str
-
-    :param key: return contents of `key` from json
-    :type  key: Str
-
-    :param validate: When true run json Schema validation
-    :type  validate: Boolean
-
-    :return: model settings
-    :rtype: dict
-    """
-    try:
-        with io.open(analysis_settings_fp) as f:
-            raw_settings_json = json.load(f)
-            analysis_settings = analysis_settings_compatibility(raw_settings_json)
-
-            if validate:
-                schema = get_json(get_analysis_schema_fp())
-                valid, error_messages = validate_json(analysis_settings, schema)
-                if not valid:
-                    raise OasisException("\nJSON Validation error in 'analysis_settings.json': {}".format(
-                        json.dumps(error_messages, indent=4)
-                    ))
-
-    except (IOError, TypeError, ValueError):
-        raise OasisException('Invalid Analysis settings file or file path: {}'.format(analysis_settings_fp))
-
-    return analysis_settings if not key else analysis_settings.get(key)
-
-
-def get_model_settings(model_settings_fp, key=None, validate=True):
-    """
-    Get model settings from file.
-
-    :param model_settings_fp: file path for model settings file
-    :type model_settings_fp: str
-
-    :param key: return contents of `key` from json
-    :type  key: Str
-
-    :param validate: When true run json Schema validation
-    :type  validate: Boolean
-
-    :return: model settings
-    :rtype: dict
-    """
-    try:
-        with io.open(model_settings_fp) as f:
-            model_settings = json.load(f)
-
-            if validate:
-                schema = get_json(get_model_schema_fp())
-                valid, error_messages = validate_json(model_settings, schema)
-                if not valid:
-                    raise OasisException("\nJSON Validation error in 'model_settings.json': {}".format(
-                        json.dumps(error_messages, indent=4)
-                    ))
-
-    except (IOError, TypeError, ValueError):
-        raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
-
-    return model_settings if not key else model_settings.get(key)
-
-
 def establish_correlations(model_settings: dict) -> bool:
     """
     Checks the model settings to see if correlations are present.
@@ -462,6 +305,7 @@ def get_dataframe(
         sort_cols=None,
         sort_ascending=None,
         memory_map=False,
+        low_memory=False,
         encoding=None
 ):
     """
@@ -524,6 +368,11 @@ def get_dataframe(
                        for the pd.read_csv method
     :type memory_map: bool
 
+    :param low_memory: Internally process the file in chunks, resulting in lower memory use
+                       while parsing, but possibly mixed type inference.
+                       To ensure no mixed types either set False,
+    :type low_memory: bool
+
     :param encoding: Try to read CSV of JSON data with the given encoding type,
                      if 'None' will try to auto-detect on UnicodeDecodeError
     :type  encoding: str
@@ -564,13 +413,14 @@ def get_dataframe(
                 # Find flexible fields in loc file and set their data types to that of
                 # FlexiLocZZZ
                 if 'FlexiLocZZZ' in col_dtypes.keys():
-                    headers = list(pd.read_csv(src_fp, encoding=use_encoding).head(0))
+                    headers = list(pd.read_csv(src_fp, encoding=use_encoding, low_memory=low_memory).head(0))
                     for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
                         col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
                 df = pd.read_csv(
                     src_fp or src_buf,
                     float_precision=float_precision,
                     memory_map=memory_map,
+                    low_memory=low_memory,
                     keep_default_na=False,
                     na_values=na_values,
                     dtype=col_dtypes,
@@ -600,7 +450,8 @@ def get_dataframe(
                 float_precision=float_precision, empty_data_error_msg=empty_data_error_msg,
                 lowercase_cols=lowercase_cols, required_cols=required_cols, col_defaults=col_defaults,
                 non_na_cols=non_na_cols, col_dtypes=col_dtypes, sort_cols=sort_cols,
-                sort_ascending=sort_ascending, memory_map=memory_map, encoding=detected_encoding)
+                sort_ascending=sort_ascending, memory_map=memory_map, low_memory=low_memory,
+                encoding=detected_encoding)
         else:
             raise OasisException('Failed to load DataFrame due to Encoding error', e)
 
@@ -898,68 +749,66 @@ def prepare_account_df(accounts_df):
     if step_policies_present:
         layers_cols += ['StepNumber']
         accounts_df['StepNumber'].fillna(0, inplace=True)
-    id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
-    id_df['layer_id'] = get_ids(id_df,
-                                layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
-                                ).astype('uint32')
-    accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+    if 'layer_id' not in accounts_df.columns:
+        id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
+        id_df['layer_id'] = get_ids(id_df,
+                                    layers_cols + ['PolNumber', 'LayerNumber'], group_by=layers_cols,
+                                    ).astype('uint32')
+        accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
+    else:
+        accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
 
     return accounts_df
 
 
 def prepare_reinsurance_df(ri_info, ri_scope):
-    if 'SEL' not in ri_info['RiskLevel'].cat.categories:
-        ri_info['RiskLevel'] = ri_info['RiskLevel'].cat.add_categories(['SEL'])
-    ri_info['RiskLevel'] = ri_info['RiskLevel'].fillna('SEL')
+    fill_empty(ri_info, 'RiskLevel', 'SEL')
+
+    # add default column if not present in the RI files
+    fill_na_with_categoricals(ri_info, RI_INFO_DEFAULTS)
+    for column in set(RI_INFO_DEFAULTS).difference(ri_info.columns):
+        ri_info[column] = RI_INFO_DEFAULTS[column]
+
+    fill_na_with_categoricals(ri_scope, RI_SCOPE_DEFAULTS)
+    for column in set(RI_SCOPE_DEFAULTS).difference(ri_scope.columns):
+        ri_scope[column] = RI_SCOPE_DEFAULTS[column]
 
     return ri_info, ri_scope
 
 
 def get_exposure_data(computation_step, add_internal_col=False):
-    if 'exposure_data' in computation_step.kwargs:
-        exposure_data = computation_step.kwargs['exposure_data']
-    else:
-        if Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
-            exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
-        elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
-            exposure_data = OedExposure(**computation_step.get_exposure_data_config())
-        else:  # ExposureData info was not created, oed input file must have default name (location, account, ...)
-            exposure_data = OedExposure.from_dir(
-                computation_step.oasis_files_dir,
-                currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
-                reporting_currency=getattr(computation_step, 'reporting_currency', None),
-                check_oed=computation_step.check_oed,
-                use_field=True)
+    try:
+        if 'exposure_data' in computation_step.kwargs:
+            logger.debug("Exposure data found in `exposure_data` key of computation step kwargs")
+            exposure_data = computation_step.kwargs['exposure_data']
+        else:
+            if hasattr(computation_step, 'oasis_files_dir') and Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
+                logger.debug(f"Exposure data is read from {Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME)}")
+                exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
+            elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
+                logger.debug("Exposure data is generated from `get_exposure_data_config` key of computation kwargs")
+                exposure_data = OedExposure(**computation_step.get_exposure_data_config())
+            else:
+                logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
+                exposure_data = OedExposure.from_dir(
+                    computation_step.oasis_files_dir,
+                    oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
+                    currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
+                    reporting_currency=getattr(computation_step, 'reporting_currency', None),
+                    check_oed=computation_step.check_oed,
+                    use_field=True)
 
-        if add_internal_col:
-            if exposure_data.location:
-                exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
-            if exposure_data.account:
-                exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
-            if exposure_data.ri_info and exposure_data.ri_scope:
-                exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
-                                                                                                           exposure_data.ri_scope.dataframe)
-    return exposure_data
-
-
-def reduce_df(df, cols=None):
-    """
-    A method to select columns in a dataframe
-
-    :param df: The dataframe to pretty-print
-    :type df: pd.DataFrame
-
-    :param cols: A list of columns
-    :type cols: list
-
-    :return: A reduced dataframe
-    :rtype: pd.DataFrame
-
-    """
-    if not cols:
-        return df
-    else:
-        return df[cols]
+            if add_internal_col:
+                if exposure_data.location:
+                    exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+                if exposure_data.account:
+                    exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+                if exposure_data.ri_info and exposure_data.ri_scope:
+                    exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
+                                                                                                               exposure_data.ri_scope.dataframe)
+        return exposure_data
+    except OdsException as ods_error:
+        raise OasisException("Failed to load OED exposure files", ods_error)
 
 
 def print_dataframe(

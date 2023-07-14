@@ -5,6 +5,7 @@ __all__ = [
 
 import os
 
+from ods_tools.oed.setting_schema import AnalysisSettingSchema
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
@@ -18,6 +19,7 @@ class KeyComputationStep(ComputationStep):
     def get_exposure_data_config(self):
         return {
             'location': self.oed_location_csv,
+            'oed_schema_info': self.oed_schema_info,
             'check_oed': self.check_oed,
             'use_field': True
         }
@@ -59,6 +61,7 @@ class GenerateKeys(KeyComputationStep):
 
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
         {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
@@ -98,6 +101,8 @@ class GenerateKeys(KeyComputationStep):
 
         output_dir = self._get_output_dir()
         output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
+        if self.lookup_complex_config_json:
+            AnalysisSettingSchema().validate_file(self.lookup_complex_config_json)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
@@ -138,6 +143,7 @@ class GenerateKeys(KeyComputationStep):
 class GenerateKeysDeterministic(KeyComputationStep):
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
         {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
@@ -155,6 +161,7 @@ class GenerateKeysDeterministic(KeyComputationStep):
     def run(self):
         output_dir = self._get_output_dir()
         keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
+        os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
         config = {'builtin_lookup_type': 'deterministic',

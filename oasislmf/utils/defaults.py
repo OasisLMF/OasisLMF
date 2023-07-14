@@ -10,7 +10,8 @@ __all__ = [
     'assign_defaults_to_il_inputs',
     'store_exposure_fp',
     'find_exposure_fp',
-    'GROUP_ID_COLS',
+    'DAMAGE_GROUP_ID_COLS',
+    'HAZARD_GROUP_ID_COLS',
     'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
     'DEFAULT_RTREE_INDEX_PROPS',
@@ -31,15 +32,14 @@ __all__ = [
     'KTOOLS_ALLOC_RI_DEFAULT',
 ]
 
-import os
-import io
 import glob
+import io
 import json
-
+import os
 from collections import OrderedDict
 
-from .fm import SUPPORTED_FM_LEVELS
 from .exceptions import OasisException
+from .fm import SUPPORTED_FM_LEVELS
 
 try:
     from json import JSONDecodeError
@@ -256,7 +256,8 @@ def assign_defaults_to_il_inputs(df):
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
 
-GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
+DAMAGE_GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
+HAZARD_GROUP_ID_COLS = ["PortNumber", "AccNumber", "LocNumber"]
 
 CORRELATION_GROUP_ID = ['CorrelationGroup']
 
@@ -266,6 +267,7 @@ OASIS_FILES_PREFIXES = OrderedDict({
         'complex_items': 'complex_items',
         'items': 'items',
         'coverages': 'coverages',
+        'amplifications': 'amplifications',
     },
     'il': {
         'fm_policytc': 'fm_policytc',

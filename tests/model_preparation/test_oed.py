@@ -1,9 +1,7 @@
 import os
 import unittest
 
-from oasislmf.preparation import (
-    oed
-)
+from oasislmf.preparation import oed
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 input_dir = os.path.join(cwd, 'examples')

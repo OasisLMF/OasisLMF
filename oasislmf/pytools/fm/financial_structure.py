@@ -5,16 +5,21 @@ __all__ = [
     'load_static',
 ]
 
-from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, need_tiv_policy, need_extras, null_index
-from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,\
-    fm_profile_csv_col_map, fm_xref_dtype, fm_xref_csv_col_map, items_dtype, allowed_allocation_rule
+import logging
+import os
 
-from numba import njit, types, from_dtype
-from numba.typed import List, Dict
 import numpy as np
 import pandas as pd
-import os
-import logging
+from numba import from_dtype, njit, types
+from numba.typed import Dict, List
+
+from .common import (allowed_allocation_rule, almost_equal, fm_policytc_dtype,
+                     fm_profile_csv_col_map, fm_profile_dtype,
+                     fm_profile_step_dtype, fm_programme_dtype,
+                     fm_xref_csv_col_map, fm_xref_dtype, items_dtype,
+                     nb_oasis_int, need_extras, need_tiv_policy,
+                     np_oasis_float, np_oasis_int, null_index)
+
 logger = logging.getLogger(__name__)
 
 # temp dictionary types
@@ -27,6 +32,7 @@ nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
                                          ('level_id', np_oasis_int),
                                          ('agg_id', np_oasis_int),
                                          ('layer_len', np_oasis_int),
+                                         ('cross_layer_profile', np_oasis_int),
                                          ('profile_len', np_oasis_int),
                                          ('profiles', np_oasis_int),
                                          ('loss', np_oasis_int),
@@ -52,7 +58,7 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('start_level', np_oasis_int),
                                           ('items_len', np_oasis_int),
                                           ('output_len', np_oasis_int),
-                                          ('stepped', np.bool),
+                                          ('stepped', np.bool_),
                                           ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
                                            ('i_end', np_oasis_int),
@@ -429,6 +435,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     ##### programme ####
     # node_layers will contain the number of layer for each nodes
     node_layers = Dict.empty(node_type, np_oasis_int)
+    node_cross_layers = Dict.empty(node_type, np_oasis_int)
 
     # fill up node_layers with the number of policies for each node
     for programme in fm_programme:
@@ -474,7 +481,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 else:
                     child_to_parents[child_programme].insert(0, parent)
                 # child_to_parents[child_programme] = [parent]
-                node_layers[child_programme] = node_layers[parent]
+                if child_programme not in node_layers or node_layers[child_programme] < node_layers[parent]:
+                    node_layers[child_programme] = node_layers[parent]
+                elif node_layers[child_programme] > node_layers[parent]:  # cross layer node
+                    grand_parents = get_all_parent(child_to_parents, [parent], max_level)
+                    for grand_parent in grand_parents:
+                        if node_layers[grand_parent] < node_layers[child_programme]:
+                            node_cross_layers[grand_parent] = np_oasis_int(1)
+                            node_layers[parent] = node_layers[child_programme]
 
     # compute number of steps (steps), max size of each level node_level_start, max size of node to compute (compute_len)
     node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
@@ -512,6 +526,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
             # layers
             node['layer_len'] = node_layers[node_programme]
+            node['cross_layer_profile'] = 0  # set default to 0 change if it is a cross_layer_profile after
             node['loss'], loss_i = loss_i, loss_i + node['layer_len']
             if level == start_level:
                 node['net_loss'], loss_i = loss_i, loss_i + 1
@@ -539,7 +554,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             # profiles
             if node_programme in programme_node_to_layers:
                 profiles = programme_node_to_layers[node_programme]
-                node['profile_len'] = len(profiles)
+                if node_programme in node_cross_layers:
+                    node['profile_len'] = node['layer_len']
+                    node['cross_layer_profile'] = 1
+                else:
+                    node['profile_len'] = len(profiles)
                 node['profiles'] = profile_i
 
                 for layer_id, i_start, i_end in sorted(profiles):

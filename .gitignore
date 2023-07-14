@@ -56,6 +56,7 @@ coverage.xml
 .pytest_cache
 validation/runs
 tmp/
+*.npy
 
 # Translations
 *.mo

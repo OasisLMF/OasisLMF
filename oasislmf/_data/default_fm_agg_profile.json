@@ -33,6 +33,11 @@
                 "src": "FM",
                 "field": "is_bi_coverage",
                 "name": "Is BI coverage?"
+            },
+            "risk_id": {
+                "src": "builtin",
+                "field": "risk_id",
+                "name": "risk id"
             }
         }
     },
@@ -54,6 +59,11 @@
                 "src": "FM",
                 "field": "LocNumber",
                 "name": "Location num."
+            },
+            "risk_id": {
+                "src": "builtin",
+                "field": "risk_id",
+                "name": "risk id"
             }
         }
     },
@@ -86,6 +96,22 @@
     "7": {
         "FMLevel": 7,
         "FMLevelName": "PolCoverage",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            }
+        }
+    },
+    "8": {
+        "FMLevel": 8,
+        "FMLevelName": "PolPD",
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
@@ -134,6 +160,22 @@
             "step_id": {
                 "name": "Step id",
                 "field": "step_id"
+            }
+        }
+    },
+    "13": {
+        "FMLevel": 13,
+        "FMLevelName": "AccAll",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
             }
         }
     }

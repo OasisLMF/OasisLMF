@@ -7,20 +7,21 @@ TODO: use selector and select for output
 import atexit
 import logging
 import os
-
-import pandas as pd
 import sys
 from contextlib import ExitStack
 
 import numba as nb
-from numba.typed import Dict
 import numpy as np
+import pandas as pd
 import pyarrow.parquet as pq
-from oasislmf.pytools.common import PIPE_CAPACITY
+from numba.typed import Dict
 
+from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import areaperil_int, oasis_float, Index_type, Keys
+from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
+                                              oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
+from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +82,13 @@ VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
 vuln_offset = 4
 
 
-@nb.jit(cache=True)
+@nb.njit(cache=True)
 def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
     int32_mv[cursor] = areaperil_id.view('i4')
     return cursor + 1
 
 
-@nb.jit(cache=True)
+@nb.njit(cache=True)
 def load_areaperil_id_u8(int32_mv, cursor, areaperil_id):
     int32_mv[cursor: cursor + 1] = areaperil_id.view('i4')
     return cursor + 2
@@ -101,7 +102,7 @@ else:
     raise Exception(f"AREAPERIL_TYPE {areaperil_int} is not implemented chose u4 or u8")
 
 
-@nb.jit(cache=True)
+@nb.njit(cache=True)
 def load_items(items, valid_area_peril_id):
     """
     Processes the Items loaded from the file extracting meta data around the vulnerability data.
@@ -245,7 +246,7 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     return vuln_array
 
 
-@nb.jit()
+@nb.njit()
 def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
     Updates the indexes of the vulnerability IDs (usually used in loading vulnerability data from parquet file).
@@ -371,7 +372,7 @@ def get_damage_bins(static_path, ignore_file_type=set()):
         raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
 
-@nb.jit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     """
     Calculate the probability of an event happening and then causing damage.
@@ -394,7 +395,7 @@ def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     return p
 
 
-@nb.jit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def do_result(vulns_id, vuln_array, mean_damage_bins,
               int32_mv, num_damage_bins,
               intensities_min, intensities_max, intensities,
@@ -536,6 +537,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
+@redirect_logging(exec_name='modelpy')
 def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
     """
     Runs the main process of the getmodel process.

@@ -14,33 +14,28 @@
 The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses at all these levels.
 
 
-## Releases and maintenance
-Releases are published on a monthly cadence which tracks our team's development cycle. The planned fixes, enhancements and features can be seen on the [project development board](https://github.com/orgs/OasisLMF/projects/37) before each release.
+## Versioning and Updates
 
-> Note: From April 2022 and on the oasis release cycle is changing, the monthly published versions are switching to become 'pre-release' builds and the Long term support releases (currently 1.15.x and 1.23.x) will be the new 'standard oasis releases' for production use.
+### Current Stable Versions 
 
-In practice, this is a shift in release labels which should better align with the intended use cases. Monthly builds are viewed as intermediate releases for testing new features, while the standard releases (marked by an increase in the minor version number 1.27.0 -> 1.28.0)
-are stable builds.
+* `1.15.x` [backports/1.15.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.15.x) From Feb 2021
+* `1.23.x` [backports/1.23.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.23.x) From Dec 2021
+* `1.26.x` [backports/1.26.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.26.x) From Jun 2022
+* `1.27.x` [backports/1.27.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.27.x) From Jan 2023
+* `1.28.x` (Up comming) July 2023
 
-#### Example of the updated Release tags
-    (Current latest version) `1.25.1`
+### Release Schedule
+**Until end of 2023**
+Until the year 2023, we will be following a six-month release cycle for our stable versions. During each six-month period, we will release a new stable version with added features. These updates will adhere to the Semantic Versioning (semver) format and will increment the minor version number.
+That version of oaisislmf is then 'frozen' into a branch matching the new version number, so on release 1.28.0 the code base is copied to a branch `backports/1.28.x` where backported features and fixes are applied. 
 
-   * April 8th - `1.26.0rc1` (Intermediate Monthly)
-   * May 5th - `1.26.0rc2` (Intermediate Monthly)
-   * June 2nd - `1.26.0rc3` (Intermediate Monthly)
-   * July 7th - `1.26.0` (Oasis Release for production),
-   * August 4th - `1.26.1` (Backported fixes for production),
-   * August 4th - `1.27.0rc1` (Intermediate Monthly),
+**After 2023**
+Starting from 2023, we will transition to a yearly release cycle for our stable versions. Each year, we will release a new stable version with additional features.
 
-#### Release Cycle (Intermediate Monthly)
-Release candidates are published on the first Thursday of each month, and tagged as `<version>rc<candidate-version>` and can be installed using `pip install oasislmf --pre`
+### Monthly Updates
+Every month, we will provide updates to the latest stable version. These updates will include new compatible features and bug fixes, ensuring that our software remains up-to-date and reliable.
 
-#### Release Cycle (Production Builds)
-The 'Standard release' which will replace the LTS tags will work in the same way. These are stable versions of oasis intended for production use which will be published on a 6 monthly cycle (approximately).
-Oasis will backport stability fixes and security updates from the Monthly builds which are released alongside the `intermediate monthly` builds. Backport branches  will still keep the format `backports/<major>.<minor>.x`.
-
-> Note: Backported fixes to the existing `LTS` release will continue to be tagged in the same way until the next main oasis release is published as `1.27.0`
-
+During the monthly update, if any bug fixes are required, they will also be applied to the older stable versions. This approach guarantees that all stable versions receive necessary bug fixes, while maintaining a consistent output numbers for that stable version.
 
 ## Features
 
@@ -73,7 +68,7 @@ The reusable libraries are organised into several sub-packages, the most relevan
 
 Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency of the MDK we are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is version `1.3.3` (published 12/03/2019).
 
-Also for this release (and all future releases) a **minimum of Python 3.7 is required**.
+Also for this release (and all future releases) a **minimum of Python 3.8 is required**.
 
 
 ## Installation
@@ -154,6 +149,23 @@ After adding packages to either `*.in` file:
     pip-compile && pip-sync
 
 should be ran ensuring the development dependencies are kept up to date.
+
+
+### ods_tools
+OasisLMF uses the ods_tools package to read exposure files and the setting files
+The version compatible with each OasisLMF is manage in the requirement files.
+below is the summary:
+
+- OasisLMF 1.23.x or before => no ods_tools
+- OasisLMF 1.26.x => use ods_tools 2.3.2
+- OasisLMF 1.27.0 => use ods_tools 3.0.0 or later
+- OasisLMF 1.27.1 => use ods_tools 3.0.0 or later
+- OasisLMF 1.27.2 => use ods_tools 3.0.4 or later
+
+### pandas
+Pandas has released its major version number 2 breaking some of the compatibility with the 1st version
+Therefore, for all version of OasisLMF <= 1.27.2, the latest supported version for pandas is 1.5.3
+Support for pandas 2, starts from version 1.27.3
 
 ## Testing
 

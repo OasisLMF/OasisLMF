@@ -18,8 +18,8 @@ subdir = params.subdirectory
 
 os.chdir(subdir)
 
-locationfile = pd.read_csv('location.csv')
-accountfile = pd.read_csv('account.csv')
+locationfile = pd.read_csv('location.csv', dtype=str, keep_default_na=False)
+accountfile = pd.read_csv('account.csv', dtype=str, keep_default_na=False)
 
 split_location = locationfile.groupby('FlexiLocUnit')
 split_account = accountfile.groupby('FlexiAccUnit')
@@ -29,8 +29,6 @@ if not os.path.exists(newpath):
     os.makedirs(newpath)
 
 cwd = os.getcwd()
-for name, group in split_location:
-    sub_dir = os.path.join(newpath, name)
 
 # loop through the groups and save to directories based on unique values
 for name, group in split_location:

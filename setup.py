@@ -1,30 +1,29 @@
 import glob
-import os
 import io
+import os
+import platform
 import re
 import shutil
 import sys
-import platform
 import tarfile
 from contextlib import contextmanager
-from distutils.log import INFO, WARN, ERROR
+from distutils.log import ERROR, INFO, WARN
 from distutils.spawn import find_executable
-from platform import machine, system
 from tempfile import mkdtemp
 from time import sleep
 
-from setuptools import find_packages, setup, Command
-from setuptools.command.install import install
+from setuptools import Command, find_packages, setup
 from setuptools.command.develop import develop
+from setuptools.command.install import install
 
 try:
     from urllib import request as urlrequest
     from urllib.error import URLError
 except ImportError:
-    from urllib2 import urlopen, URLError
+    from urllib2 import URLError
 
 
-KTOOLS_VERSION = '3.9.6'
+KTOOLS_VERSION = '3.10.0'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -368,24 +367,25 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
-    scripts=['bin/oasislmf', 'bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
+    scripts=['bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
     entry_points={
         'console_scripts': [
             'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
-            'dfcompare=oasislmf.pytools.dfcompare:main',
-            'load_balancer=oasislmf.execution.load_balancer:main',
-            'fmpy=oasislmf.pytools.fmpy:main',
-            'modelpy=oasislmf.pytools.modelpy:main',
-            'cdftocsvpy=oasislmf.pytools.cdftocsv:main',
-            'gulpy=oasislmf.pytools.gulpy:main',
-            'gulmc=oasislmf.pytools.gulmc.cli:main',
-            'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
-            'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
-            "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
             "convertbintoparquet=oasislmf.pytools.data_layer.conversions.footprint:main",
-            "cortocsv=oasislmf.pytools.data_layer.conversions.correlations:convert_bin_to_csv_main",
-            "cortobin=oasislmf.pytools.data_layer.conversions.correlations:convert_csv_to_bin_main"
+            "correlationtobin=oasislmf.pytools.correlationtobin:main",
+            "correlationtocsv=oasislmf.pytools.correlationtocsv:main",
+            'dfcompare=oasislmf.pytools.dfcompare:main',
+            'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
+            'fmpy=oasislmf.pytools.fmpy:main',
+            'gulmc=oasislmf.pytools.gulmc.cli:main',
+            'gulpy=oasislmf.pytools.gulpy:main',
+            'load_balancer=oasislmf.execution.load_balancer:main',
+            'modelpy=oasislmf.pytools.modelpy:main',
+            'oasislmf=oasislmf.cli.root:main',
+            'plapy=oasislmf.pytools.plapy:main',
+            "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
+            'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
         ]
     },
     license='BSD 3-Clause',

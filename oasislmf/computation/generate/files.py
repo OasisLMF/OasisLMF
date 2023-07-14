@@ -10,72 +10,53 @@ import os
 from pathlib import Path
 from typing import List
 
-from .keys import GenerateKeys
-from ..base import ComputationStep
-
-from ...preparation.dir_inputs import (
-    create_target_directory,
-    prepare_input_files_directory
-)
-from ...preparation.reinsurance_layer import write_files_for_reinsurance
-from ...utils.exceptions import OasisException
-from ...utils.inputs import str2bool
-
-from ...utils.data import (
-    get_model_settings,
-    prepare_location_df,
-    prepare_account_df,
-    prepare_reinsurance_df,
-    get_dataframe,
-    get_json,
-    get_utctimestamp, get_exposure_data,
-)
-from ...utils.defaults import (
-    get_default_accounts_profile,
-    get_default_exposure_profile,
-    get_default_fm_aggregation_profile,
-    GROUP_ID_COLS,
-    OASIS_FILES_PREFIXES,
-    WRITE_CHUNKSIZE,
-)
-from ...preparation.gul_inputs import (
-    get_gul_input_items,
-    write_gul_input_files,
-)
-from ...preparation.il_inputs import (
-    get_il_input_items,
-    get_oed_hierarchy,
-    write_il_input_files,
-)
-from ...preparation.summaries import (
-    get_summary_mapping,
-    merge_oed_to_mapping,
-    write_mapping_file,
-    write_exposure_summary,
-    write_summary_levels,
-)
-
-from ..data.dummy_model.generate import (
-    VulnerabilityFile,
-    EventsFile,
-    FootprintBinFile,
-    FootprintIdxFile,
-    DamageBinDictFile,
-    OccurrenceFile,
-    RandomFile,
-    CoveragesFile,
-    ItemsFile,
-    FMProgrammeFile,
-    FMPolicyTCFile,
-    FMProfileFile,
-    FMXrefFile,
-    GULSummaryXrefFile,
-    FMSummaryXrefFile
-)
+from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
+                                                            DamageBinDictFile,
+                                                            EventsFile,
+                                                            FMPolicyTCFile,
+                                                            FMProfileFile,
+                                                            FMProgrammeFile,
+                                                            FMSummaryXrefFile,
+                                                            FMXrefFile,
+                                                            FootprintBinFile,
+                                                            GULSummaryXrefFile,
+                                                            ItemsFile,
+                                                            OccurrenceFile,
+                                                            RandomFile,
+                                                            VulnerabilityFile)
+from oasislmf.computation.generate.keys import GenerateKeys
 from oasislmf.preparation.correlations import map_data
-from oasislmf.preparation.gul_inputs import process_group_id_cols
-from oasislmf.utils.data import establish_correlations
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
+from oasislmf.preparation.dir_inputs import (create_target_directory,
+                                             prepare_input_files_directory)
+from oasislmf.preparation.gul_inputs import (get_gul_input_items,
+                                             process_group_id_cols,
+                                             write_gul_input_files)
+from oasislmf.preparation.il_inputs import (get_il_input_items,
+                                            get_oed_hierarchy,
+                                            write_il_input_files)
+from oasislmf.preparation.reinsurance_layer import write_files_for_reinsurance
+from oasislmf.preparation.summaries import (get_summary_mapping,
+                                            merge_oed_to_mapping,
+                                            write_exposure_summary,
+                                            write_mapping_file,
+                                            write_summary_levels)
+from oasislmf.pytools.data_layer.oasis_files.correlations import \
+    CorrelationsData
+from oasislmf.utils.data import (establish_correlations, get_dataframe,
+                                 get_exposure_data, get_json,
+                                 get_utctimestamp,
+                                 prepare_account_df, prepare_location_df,
+                                 prepare_reinsurance_df)
+from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
+                                     HAZARD_GROUP_ID_COLS,
+                                     OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
+                                     get_default_accounts_profile,
+                                     get_default_exposure_profile,
+                                     get_default_fm_aggregation_profile)
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.inputs import str2bool
+from ods_tools.oed.setting_schema import ModelSettingSchema
 
 
 class GenerateFiles(ComputationStep):
@@ -102,6 +83,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
         {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
@@ -111,10 +93,10 @@ class GenerateFiles(ComputationStep):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables creation of an exposure summary report'},
-        {'name': 'group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
+        {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
+        {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable lookup multiprocessing'},
-        {"name": "hashed_group_id", 'type': str2bool, 'const': False, 'nargs': '?', 'default': True, 'help': "Hashes the group_id in the items.bin"},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -140,6 +122,7 @@ class GenerateFiles(ComputationStep):
             'account': self.oed_accounts_csv,
             'ri_info': self.oed_info_csv,
             'ri_scope': self.oed_scope_csv,
+            'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
             'use_field': True
@@ -157,6 +140,8 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
+
+        self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
 
@@ -168,7 +153,7 @@ class GenerateFiles(ComputationStep):
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
         target_dir = prepare_input_files_directory(
-            self._get_output_dir(),
+            target_dir=self.oasis_files_dir,
             exposure_data=exposure_data,
             exposure_profile_fp=self.profile_loc_json,
             keys_fp=self.keys_data_csv,
@@ -240,28 +225,44 @@ class GenerateFiles(ComputationStep):
         # ************************************************
 
         # Columns from loc file to assign group_id
-        model_group_fields = None
+        model_damage_group_fields = []
+        model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
 
         if self.model_settings_json is not None:
-            model_settings = get_model_settings(self.model_settings_json)
+            model_settings = ModelSettingSchema().get(self.model_settings_json)
             correlations = establish_correlations(model_settings=model_settings)
             try:
-                model_group_fields = model_settings["data_settings"].get("group_fields")
+                model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
             except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
+                self.logger.warn(f'WARNING: Failed to load "damage_group_fields", file: {self.model_settings_json}, error: {e}')
+            try:
+                model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
+            except (KeyError, AttributeError, OasisException) as e:
+                self.logger.warn(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
-        if model_group_fields and not self.kwargs.get('group_id_cols'):
-            group_id_cols = model_group_fields
+        if model_damage_group_fields and not self.kwargs.get('group_id_cols'):
+            damage_group_id_cols = model_damage_group_fields
         # otherwise load group cols from args
         else:
-            group_id_cols = self.group_id_cols
+            damage_group_id_cols = self.damage_group_id_cols
 
-        group_id_cols: List[str] = process_group_id_cols(group_id_cols=group_id_cols,
-                                                         exposure_df_columns=location_df,
-                                                         has_correlation_groups=correlations)
+        # load hazard group columns from model_settings.json if not set in kwargs (CLI)
+        if model_hazard_group_fields and not self.kwargs.get('hazard_group_id_cols'):
+            hazard_group_id_cols = model_hazard_group_fields
+        # otherwise load group cols from args
+        else:
+            hazard_group_id_cols = self.hazard_group_id_cols
+
+        damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
+                                                                exposure_df_columns=location_df,
+                                                                has_correlation_groups=correlations)
+
+        hazard_group_id_cols: List[str] = process_group_id_cols(group_id_cols=hazard_group_id_cols,
+                                                                exposure_df_columns=location_df,
+                                                                has_correlation_groups=correlations)
 
         gul_inputs_df = get_gul_input_items(
             location_df,
@@ -269,8 +270,8 @@ class GenerateFiles(ComputationStep):
             peril_correlation_group_df=map_data(data=model_settings),
             correlations=correlations,
             exposure_profile=location_profile,
-            group_id_cols=group_id_cols,
-            hashed_group_id=self.hashed_group_id
+            damage_group_id_cols=damage_group_id_cols,
+            hazard_group_id_cols=hazard_group_id_cols,
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -310,9 +311,9 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            exposure_data.location.dataframe,
-            gul_inputs_df,
-            exposure_data.account.dataframe,
+            exposure_df=exposure_data.location.dataframe,
+            gul_inputs_df=gul_inputs_df,
+            accounts_df=exposure_data.account.dataframe,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
@@ -381,6 +382,8 @@ class GenerateDummyModelFiles(ComputationStep):
 
     # Command line options
     step_params = [
+        {'name': 'target_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+         'help': 'Path to the directory in which to generate the Model files'},
         {'name': 'num_vulnerabilities', 'flag': '-v', 'required': True, 'type': int, 'help': 'Number of vulnerabilities'},
         {'name': 'num_intensity_bins', 'flag': '-i', 'required': True, 'type': int, 'help': 'Number of intensity bins'},
         {'name': 'num_damage_bins', 'flag': '-d', 'required': True, 'type': int, 'help': 'Number of damage bins'},
@@ -418,9 +421,11 @@ class GenerateDummyModelFiles(ComputationStep):
 
     def _create_target_directory(self, label):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        target_dir = os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+        if not self.target_dir:
+            self.target_dir = os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+
         self.target_dir = create_target_directory(
-            target_dir, 'target test model files directory'
+            self.target_dir, 'target test model files directory'
         )
 
     def _prepare_run_directory(self):
@@ -466,7 +471,6 @@ class GenerateDummyModelFiles(ComputationStep):
             FootprintBinFile(
                 **self.footprint_files_inputs, random_seed=self.random_seed
             ),
-            FootprintIdxFile(**self.footprint_files_inputs),
             DamageBinDictFile(self.num_damage_bins, self.static_dir),
             OccurrenceFile(
                 self.num_events, self.num_periods, self.random_seed,
@@ -560,12 +564,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         self._prepare_run_directory()
         self._get_model_file_objects()
         self._get_gul_file_objects()
-
-        il = True  # Assume that FM files should be generated too
-        if il is True:
-            self._get_fm_file_objects()
-        else:
-            self.fm_files = []
+        self._get_fm_file_objects()
 
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:

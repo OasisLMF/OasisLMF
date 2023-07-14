@@ -38,6 +38,20 @@ from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
 
+MAP_SUMMARY_DTYPES = {
+    'loc_id': 'int',
+    SOURCE_IDX['loc']: 'int',
+    SOURCE_IDX['acc']: 'int',
+    'item_id': 'int',
+    'layer_id': 'int',
+    'coverage_id': 'int',
+    'peril_id': 'category',
+    'agg_id': 'int',
+    'output_id': 'int',
+    'coverage_type_id': 'int',
+    'tiv': 'float'
+}
+
 
 def get_useful_summary_cols(oed_hierarchy):
     return [
@@ -185,7 +199,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
-    summary_group_df = summary_map_df.loc[:, set(mapped_cols).union(tiv_cols)]
+    summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
 
     # Search Loc / Acc files and merge in remaing
     if unmapped_cols is not []:
@@ -253,17 +267,17 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.replace(0, np.nan).dropna(how='any', axis=1).columns.to_list()
-    l_col_info = {k: v for k, v in exposure_data.get_input_fields('Loc').items()}
-    gul_avail = {k: l_col_info[k]["Type & Description"] if k in l_col_info else desc_non_oed
+    l_col_info = exposure_data.get_input_fields('Loc')
+    gul_avail = {k: l_col_info[k.lower()]["Type & Description"] if k.lower() in l_col_info else desc_non_oed
                  for k in set([c for c in l_col_list]).difference(int_excluded_cols)}
 
     # IL perspective (join of acc + loc col with no dups)
     il_avail = {}
     if accounts_df is not None:
         a_col_list = accounts_df.loc[:, ~accounts_df.isnull().all()].columns.to_list()
-        a_col_info = {k: v for k, v in exposure_data.get_input_fields('Acc').items()}
+        a_col_info = exposure_data.get_input_fields('Acc')
         a_avail = set([c for c in a_col_list])
-        il_avail = {k: a_col_info[k]["Type & Description"] if k in a_col_info else desc_non_oed
+        il_avail = {k: a_col_info[k.lower()]["Type & Description"] if k.lower() in a_col_info else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
 
     # Write JSON
@@ -301,7 +315,6 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     chunksize = min(2 * 10 ** 5, max(len(sum_inputs_df), 1000))
 
     if is_fm_summary:
-        print('sum_inputs_df', sum_inputs_df.columns)
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
     else:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['gul_map_fn'])
@@ -449,7 +462,6 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     :return summary_desc: dictionary of dataFrames listing what summary_ids map to
     :rtype: dictionary
     """
-
     summaryxref_df = pd.DataFrame()
     summary_desc = {}
 
@@ -551,8 +563,12 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
-            empty_data_error_msg='No summary map file found.'
+            lowercase_cols=False,
+            col_dtypes=MAP_SUMMARY_DTYPES,
+            empty_data_error_msg='No summary map file found.',
         )
+        il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
+
         if gul_summaries:
             gul_map_df = il_map_df
             gul_map_df['item_id'] = gul_map_df['agg_id']
@@ -561,7 +577,11 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
         gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
         gul_map_df = get_dataframe(
             src_fp=gul_map_fp,
-            empty_data_error_msg='No summary map file found.')
+            lowercase_cols=False,
+            col_dtypes=MAP_SUMMARY_DTYPES,
+            empty_data_error_msg='No summary map file found.',
+        )
+        gul_map_df = gul_map_df[list(set(gul_map_df).intersection(MAP_SUMMARY_DTYPES))]
 
     if gul_summaries:
         # Load GUL summary map
@@ -586,8 +606,11 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
-            empty_data_error_msg='No summary map file found.'
+            lowercase_cols=False,
+            col_dtypes=MAP_SUMMARY_DTYPES,
+            empty_data_error_msg='No summary map file found.',
         )
+        il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
 
         il_summaryxref_df, il_summary_desc = get_summary_xref_df(
             il_map_df,
@@ -609,13 +632,15 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
         summary_ri_fp = os.path.join(
             model_run_fp, os.path.basename(ri_layers[max_layer]['directory']))
 
-        ri_summaryxref_df = pd.DataFrame()
         if ('il_summaries' not in analysis_settings) or (not il_summaries):
             il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
             il_map_df = get_dataframe(
                 src_fp=il_map_fp,
-                empty_data_error_msg='No summary map file found.'
+                lowercase_cols=False,
+                col_dtypes=MAP_SUMMARY_DTYPES,
+                empty_data_error_msg='No summary map file found.',
             )
+            il_map_df = il_map_df[list(set(il_map_df).intersection(MAP_SUMMARY_DTYPES))]
 
         ri_summaryxref_df, ri_summary_desc = get_summary_xref_df(
             il_map_df,

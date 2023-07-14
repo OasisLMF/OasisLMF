@@ -20,51 +20,33 @@ import itertools
 import os
 import sys
 import warnings
-
-import pandas as pd
-import numpy as np
-
 from ast import literal_eval
 
-from ..utils.calc_rules import (
-    get_calc_rules,
-    get_step_calc_rules
-)
-from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ..utils.data import (
-    factorize_array,
-    factorize_ndarray,
-    fast_zip_arrays,
-    merge_check,
-    merge_dataframes,
-    set_dataframe_column_dtypes,
-    fill_na_with_categoricals,
-)
-from ..utils.defaults import (
-    assign_defaults_to_il_inputs,
-    get_default_accounts_profile,
-    get_default_exposure_profile,
-    get_default_fm_aggregation_profile,
-    OASIS_FILES_PREFIXES,
-)
-from ..utils.exceptions import OasisException
-from ..utils.fm import (
-    DEDUCTIBLE_AND_LIMIT_TYPES,
-    SUPPORTED_FM_LEVELS,
-    STEP_TRIGGER_TYPES,
-    COVERAGE_AGGREGATION_METHODS,
-    CALCRULE_ASSIGNMENT_METHODS,
-)
-from ..utils.log import oasis_log
-from ..utils.path import as_path
-from ..utils.profiles import (
-    get_fm_terms_oed_columns,
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy,
-    get_default_step_policies_profile,
-)
-from .summaries import get_useful_summary_cols, get_xref_df
+import numpy as np
+import pandas as pd
+
+from ods_tools.oed import fill_empty
+
+from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
+from oasislmf.utils.calc_rules import get_calc_rules, get_step_calc_rules
+from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
+from oasislmf.utils.data import (factorize_array, factorize_ndarray,
+                                 fast_zip_arrays,
+                                 merge_check, merge_dataframes,
+                                 set_dataframe_column_dtypes)
+from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, assign_defaults_to_il_inputs,
+                                     get_default_accounts_profile, get_default_exposure_profile,
+                                     get_default_fm_aggregation_profile)
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
+                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
+                               SUPPORTED_FM_LEVELS)
+from oasislmf.utils.log import oasis_log
+from oasislmf.utils.path import as_path
+from oasislmf.utils.profiles import (get_default_step_policies_profile, get_fm_terms_oed_columns,
+                                     get_grouped_fm_profile_by_level_and_term_group,
+                                     get_grouped_fm_terms_by_level_and_term_group,
+                                     get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -90,6 +72,9 @@ profile_cols_map = {
     'limit': 'limit1',
     'share': 'share1'
 }
+cross_layer_level = {FML_ACCALL, }
+
+risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit'}
 
 
 def set_calc_rule_ids(
@@ -390,9 +375,9 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
     # set default cond_tag
     if cond_tag not in exposure_df.columns:
         exposure_df[cond_tag] = '0'
+        exposure_df[cond_tag] = exposure_df[cond_tag].astype('category')
     else:
-        fill_na_with_categoricals(exposure_df, {cond_tag: '0'})
-        exposure_df.loc[exposure_df[cond_tag] == '', cond_tag] = '0'
+        fill_empty(exposure_df, cond_tag, '0')
 
     # Identify BI TIV column
     bi_tiv_col = __get_bi_tiv_col_name(profile)
@@ -427,9 +412,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
                 df[col] = value
                 df[col] = df[col].astype('category')
             else:
-                if value not in df[col].cat.categories:
-                    df[col] = df[col].cat.add_categories(value)
-                df[col] = df[col].fillna(value)
+                fill_empty(df, col, value)
 
         add_default_value(accounts_df, cond_tag, '0')
         add_default_value(accounts_df, cond_num, '')
@@ -451,7 +434,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
 
         if 'CondPriority' not in accounts_df.columns:
             accounts_df['CondPriority'] = 1
-        accounts_df['CondPriority'].fillna(1, inplace=True)
+        fill_empty(accounts_df, ['CondPriority'], 1)
 
         # create a df all_cond_policy containing all the cond_tag for each policies
         policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=[cond_tag, 'CondPriority'])
@@ -476,7 +459,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
         null_cond[level_term_cols] = 0
         null_cond.drop_duplicates(subset=[portfolio_num, acc_num, cond_tag, 'layer_id'], inplace=True)
         if cond_class in null_cond.columns:
-            filter_cond = (null_cond[cond_class] == 1)
+            filter_cond = (null_cond['PolCondClass'] == 1)
             if filter_cond.any():
                 null_cond.loc[filter_cond, cond_num] = 'FullFilter'
                 null_cond.loc[filter_cond, 'CondDed6All'] = 1
@@ -758,6 +741,23 @@ def __get_level_terms(column_base_il_df, column_mapper):
     return level_terms
 
 
+def __split_fm_terms_by_risk(df):
+    """
+    adjust the financial term to the number of risks
+    for example deductible is split into each individul building risk
+
+    Args:
+         df (DataFrame): the DataFrame an FM level
+    """
+
+    for term in risk_disaggregation_term.intersection(set(df.columns)):
+        if f'{term[:3]}_code' in df.columns:
+            code_filter = df[f'{term[:3]}_code'] == 0
+            df.loc[code_filter, term] /= df.loc[code_filter, 'NumberOfRisks']
+        else:
+            df[term] /= df['NumberOfRisks']
+
+
 def __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key):
     """drop duplicated row base on the agg_key, sub_agg_key and layer_id"""
     sub_level_layer_needed = level_df['agg_id'].isin(prev_level_df.loc[prev_level_df["layer_id"] == 2]['to_agg_id'])
@@ -832,6 +832,10 @@ def __process_standard_level_df(column_base_il_df,
     else:
         for ProfileElementName, fm_term in level_terms.items():
             level_df_with_term[fm_term] = level_df_with_term[ProfileElementName]
+
+    if 'risk_id' in agg_key:
+        __split_fm_terms_by_risk(level_df_with_term)
+
     level_df_with_term['orig_level_id'] = level_id
 
     sub_agg_key = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
@@ -1067,20 +1071,23 @@ def get_il_input_items(
 
     fm_term_filters[SUPPORTED_FM_LEVELS['site pd']['id']] = site_pd_term_filter
 
-    def policy_coverage_term_filter(level_df, ProfileElementName):
-        coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS['policy coverage']['id']].get(
-            ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_types
-        if isinstance(coverage_type_ids, int):
-            return level_df['coverage_type_id'] == coverage_type_ids
-        else:
-            return level_df['coverage_type_id'].isin(coverage_type_ids)
+    def policy_term_filter(level_name):
+        def filter(level_df, ProfileElementName):
+            coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS[level_name]['id']].get(
+                ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_types
+            if isinstance(coverage_type_ids, int):
+                return level_df['coverage_type_id'] == coverage_type_ids
+            else:
+                return level_df['coverage_type_id'].isin(coverage_type_ids)
+        return filter
 
-    fm_term_filters[SUPPORTED_FM_LEVELS['policy coverage']['id']] = policy_coverage_term_filter
+    fm_term_filters[SUPPORTED_FM_LEVELS['policy coverage']['id']] = policy_term_filter('policy coverage')
+    fm_term_filters[SUPPORTED_FM_LEVELS['policy pd']['id']] = policy_term_filter('policy pd')
 
     # column_base_il_df contains for each items, the complete list of fm term necessary for each level
     # up until the top account level. We are now going to pivot it to get for each line a node with
     # agg_id, parrent_agg_id, level, layer and all the fm term interpretable as a generic policy
-    useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv']
+    useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
                              + get_useful_summary_cols(oed_hierarchy))
                          - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
 
@@ -1149,6 +1156,10 @@ def get_il_input_items(
     for level_id in fm_aggregation_profile:
         agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
 
+    column_base_il_df[['risk_id', 'NumberOfRisks']] = column_base_il_df[['building_id', 'NumberOfBuildings']]
+    column_base_il_df.loc[column_base_il_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    column_base_il_df.loc[column_base_il_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+
     level_cols = set(useful_cols).union(agg_keys)
     present_cols = [col for col in column_base_il_df.columns if col in set(useful_cols).union(agg_keys)]
 
@@ -1166,7 +1177,8 @@ def get_il_input_items(
     prev_level_df = column_base_il_df[list(set(present_cols + coverage_level_term))]
     prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
-    prev_level_df['agg_id'] = prev_level_df['coverage_id']
+    __split_fm_terms_by_risk(prev_level_df)
+    prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     prev_level_df['level_id'] = 1
     prev_level_df['orig_level_id'] = level_id
     prev_level_df['layer_id'] = 1
@@ -1221,7 +1233,7 @@ def get_il_input_items(
     for col in il_inputs_df.columns:
         try:
             il_inputs_df[col].fillna(0, inplace=True)
-        except Exception:
+        except (TypeError, ValueError):
             pass
 
     # set top agg_id for later xref computation
@@ -1327,8 +1339,9 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'policytc_id']]
-        fm_policytc_df.drop_duplicates().to_csv(
+        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'policytc_id', 'orig_level_id']]
+        fm_policytc_df.loc[fm_policytc_df['orig_level_id'].isin(cross_layer_level), 'layer_id'] = 1  # remove layer for cross layer level
+        fm_policytc_df.drop(columns=['orig_level_id']).drop_duplicates().to_csv(
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_policytc_fp) else 'a'),

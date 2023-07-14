@@ -7,8 +7,9 @@ import math
 import os
 
 from collections import namedtuple
+from ods_tools.oed import fill_empty
 
-from ..utils.data import get_dataframe
+from ..utils.data import get_dataframe, RI_INFO_DEFAULTS, RI_SCOPE_DEFAULTS
 
 
 # TODO - add validator
@@ -185,7 +186,7 @@ def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
         # Treat empty Risk Level as portfolio level scope.
         # Also need nan, as this is produced when
         # a single row with empty Risk Level is loaded.
-        ri_info_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace=True)
+        fill_empty(ri_info_df, 'RiskLevel', REINS_RISK_LEVEL_PORTFOLIO)
     else:
         print("Both reinsurance files must exist: {} {}".format(
             oed_ri_info_file, oed_ri_scope_file))
@@ -304,31 +305,8 @@ RI_INFO_REQUIRED_COLS = [
     'ReinsCurrency'
 ]
 
-RI_INFO_DEFAULTS = {
-    'CededPercent': 1.0,
-    'RiskLimit': 0.0,
-    'RiskAttachment': 0.0,
-    'OccLimit': 0.0,
-    'OccAttachment': 0.0,
-    'TreatyShare': 1.0
-}
-
 RI_SCOPE_REQUIRED_COLS = {
     'ReinsNumber',
-}
-
-RI_SCOPE_DEFAULTS = {
-    'PortNumber': '',
-    'AccNumber': '',
-    'PolNumber': '',
-    'LocGroup': '',
-    'LocNumber': '',
-    'CedantName': '',
-    'ProducerName': '',
-    'LOB': '',
-    'CountryCode': '',
-    'ReinsTag': '',
-    'CededPercent': 1.0
 }
 
 RI_INFO_DTYPES = {

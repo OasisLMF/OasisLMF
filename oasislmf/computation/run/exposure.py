@@ -3,34 +3,28 @@ __all__ = [
     'RunFmTest',
 ]
 
-import tempfile
-import os
 import csv
+import os
 import shutil
-
+import tempfile
 from itertools import chain
+
 import pandas as pd
 
-from ..base import ComputationStep
-from ..generate.keys import GenerateKeysDeterministic
-from ..generate.files import GenerateFiles
-from ..generate.losses import GenerateLossesDeterministic
-
-from ...preparation.il_inputs import get_oed_hierarchy
-from ...utils.exceptions import OasisException
-
-from ...utils.data import (
-    get_dataframe,
-    print_dataframe, get_exposure_data,
-)
-from ...utils.inputs import str2bool
-from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ...utils.defaults import (
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    KTOOLS_ALLOC_FM_MAX,
-    OASIS_FILES_PREFIXES,
-)
+from oasislmf.computation.base import ComputationStep
+from oasislmf.computation.generate.files import GenerateFiles
+from oasislmf.computation.generate.keys import GenerateKeysDeterministic
+from oasislmf.computation.generate.losses import GenerateLossesDeterministic
+from oasislmf.preparation.il_inputs import get_oed_hierarchy
+from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
+from oasislmf.utils.data import (get_dataframe, get_exposure_data,
+                                 print_dataframe)
+from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
+                                     KTOOLS_ALLOC_IL_DEFAULT,
+                                     KTOOLS_ALLOC_RI_DEFAULT,
+                                     OASIS_FILES_PREFIXES)
+from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.inputs import str2bool
 
 
 class RunExposure(ComputationStep):
@@ -44,6 +38,7 @@ class RunExposure(ComputationStep):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'output_file', 'flag': '-f', 'is_path': True, 'pre_exist': False, 'help': '', 'type': str},
         {'name': 'loss_factor', 'flag': '-l', 'type': float, 'nargs': '+', 'help': '', 'default': [1.0]},
+        {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
         {'name': 'ktools_alloc_rule_il', 'flag': '-a', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
@@ -62,7 +57,6 @@ class RunExposure(ComputationStep):
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'stream_type', 'flag': '-t', 'default': 2, 'type': int,
          'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
-        {"name": "hashed_group_id", "default": True, "type": str2bool, "const": False, 'nargs': '?', "help": "Hashes the group_id in the items.bin"},
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
@@ -95,8 +89,8 @@ class RunExposure(ComputationStep):
         exposure_data = get_exposure_data(self, add_internal_col=True)
         if not exposure_data.location or not exposure_data.account:
             raise OasisException(
-                f'No location/exposure found in source directory "{src_dir}" - '
-                'a file named `location.*` is expected'
+                f'Location and/or account missing in source directory "{src_dir}" - '
+                'files named `location.*` and `account.*` are expected'
             )
         il = bool(exposure_data.account)
         ril = all([exposure_data.ri_info, exposure_data.ri_scope, il])
@@ -120,7 +114,6 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_csv=keys_fp,
-            hashed_group_id=self.hashed_group_id,
         ).run()
 
         # 3. Run Deterministic Losses
@@ -319,7 +312,6 @@ class RunFmTest(ComputationStep):
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
-        {'name': 'hashed_group_id', 'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
     ]
 
@@ -417,7 +409,6 @@ class RunFmTest(ComputationStep):
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
-            hashed_group_id=self.hashed_group_id,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
