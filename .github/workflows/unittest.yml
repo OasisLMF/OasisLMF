@@ -11,17 +11,12 @@ on:
   push:
   pull_request:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
   workflow_dispatch:
     inputs:
       ktools_branch:
         description: "Build Ktools before tests: [git ref]"
-        required: false
-
-      ods_branch:
-        description: "Git install ods_tools branch before tests: [git ref]"
         required: false
 
 jobs:
@@ -31,18 +26,10 @@ jobs:
     with:
       ktools_branch: ${{ inputs.ktools_branch }}
 
-  ods_tools:
-    #if: inputs.ods_branch != ''
-    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
-    secrets: inherit
-    with:
-      #ods_branch: ${{ inputs.ods_branch }}         # Disable 'ods-tools' build
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
-
   unittest:
     if: ${{ ! failure() || ! cancelled() }}
     runs-on: ubuntu-latest
-    needs: [build, ods_tools]
+    needs: [build]
     strategy:
       matrix:
         cfg:
@@ -86,19 +73,6 @@ jobs:
             pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt ${PIP_RESOLVER}
           fi
           pip install -r requirements.txt
-
-      - name: download ods_tools
-        if: needs.ods_tools.outputs.whl_filename != ''
-        uses: actions/download-artifact@v3
-        with:
-          name: bin_package
-          path: ${{ github.workspace }}/
-
-      - name: install ods_tools
-        if: needs.ods_tools.outputs.whl_filename != ''
-        run: |
-          pip uninstall ods_tools -y
-          pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
       - name: Run Pytest
         run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term

@@ -78,9 +78,9 @@ jobs:
     steps:
     # --- Pre Publish checks --- #
     - name: check branchname is valid for release
-      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'backports/') }}
+      if: ${{ !startsWith(github.ref_name , 'release/') && !startsWith(github.ref_name, 'stable/') }}
       run: |
-        echo "Releases must be trigged on branchs 'release/x.x.x' or 'backports/x.x.x' "
+        echo "Releases must be trigged on branchs 'release/x.x.x' or 'stable/x.x.x' "
         exit 1
 
     - name: Check tag is valid for release
@@ -157,7 +157,7 @@ jobs:
 
     - name: Setup Changelog builder
       run: |
-        BRANCH='develop'
+        BRANCH='main'
         BASE_URL="https://raw.githubusercontent.com/OasisLMF/OasisPlatform/$BRANCH/scripts"
         pip install -r $BASE_URL/requirments-changelog.txt
         wget $BASE_URL/update-changelog.py
