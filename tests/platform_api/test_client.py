@@ -39,7 +39,7 @@ from oasislmf.platform_api.client import (
 settings.register_profile("ci", max_examples=50, deadline=None)
 settings.load_profile("ci")
 
-PIWIND_EXP_URL = 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind/develop/tests/inputs'
+PIWIND_EXP_URL = 'https://raw.githubusercontent.com/OasisLMF/OasisPiWind/main/tests/inputs'
 CONTENT_MAP = {
     'parquet': 'application/octet-stream',
     'pq': 'application/octet-stream',
