@@ -9,21 +9,19 @@ name: PiWind MDK
 on:
   push:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
   pull_request:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
 
   workflow_dispatch:
     inputs:
       piwind_branch:
         description: 'Branch to run PiWind from'
         required: true
-        default: develop
+        default: main
       mdk_run_type:
         description: 'Loss modes to test, options are one of "[gul, il, ri]"'
         required: true
@@ -35,4 +33,4 @@ jobs:
     with:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'backports/1.23.x' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/1.23.x' || inputs.piwind_branch }}

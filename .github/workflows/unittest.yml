@@ -11,9 +11,8 @@ on:
   push:
   pull_request:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
   workflow_dispatch:
     inputs:
       ktools_branch:
