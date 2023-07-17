@@ -2,11 +2,11 @@
 
 [![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases)
 [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)
-[![FM Testing Tool](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OasisLMF/OasisLMF/blob/develop/fm_testing_tool/FmTesting.ipynb)
+[![FM Testing Tool](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OasisLMF/OasisLMF/blob/main/fm_testing_tool/FmTesting.ipynb)
 
-[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=develop&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
-[![PiWind output check](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml/badge.svg?branch=develop&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml)
-[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=develop&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
+[![PiWind output check](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
 
 
 
