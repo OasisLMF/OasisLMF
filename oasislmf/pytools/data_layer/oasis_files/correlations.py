@@ -7,8 +7,7 @@ from typing import Optional
 
 import numba as nb
 import numpy as np
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from oasislmf.pytools.common import oasis_float
 
@@ -86,7 +85,7 @@ class CorrelationsData:
 
         Returns: None
         """
-        data = np.array([r.base_object for r in self.data.itertuples(index=False)], dtype=Correlation)
+        data = np.array([r for r in self.data.itertuples(index=False)], dtype=Correlation)
         data.tofile(file_path)
 
 

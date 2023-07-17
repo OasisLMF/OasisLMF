@@ -22,8 +22,7 @@ from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
@@ -35,7 +34,7 @@ from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...utils.data import (fast_zip_dataframe_columns,
                            get_dataframe, get_exposure_data,
-                           get_utctimestamp,
+                           get_utctimestamp, get_json,
                            merge_dataframes, set_dataframe_column_dtypes)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE,
                                KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
@@ -62,9 +61,6 @@ class GenerateLossesBase(ComputationStep):
     Includes methods useful across all GenerateLoss functions
     intended as a common inherited class
     """
-
-    def run(self):
-        raise NotImplementedError()
 
     def _get_output_dir(self):
         """
@@ -125,12 +121,7 @@ class GenerateLossesBase(ComputationStep):
         """
         ri_layers = 0
         if analysis_settings.get('ri_output', False):
-            try:
-                with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                    ri_layers = len(json.load(f))
-            except IOError:
-                with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                    ri_layers = len(json.load(f))
+            ri_layers = len(get_json(os.path.join(model_run_fp, 'ri_layers.json')))
         return ri_layers
 
     def _get_peril_filter(self, analysis_settings):
@@ -261,7 +252,7 @@ class GenerateLossesDir(GenerateLossesBase):
             if self.check_missing_inputs:
                 raise OasisException(missing_input_files)
             else:
-                warnings.warn(missing_input_files)
+                self.logger.warn(missing_input_files)
 
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
@@ -653,9 +644,7 @@ class GenerateLosses(GenerateLossesDir):
                         stderr_guard=not self.ktools_disable_guard,
                         gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
-                        custom_gulcalc_cmd=self.model_custom_gulcalc,
-                        custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
-                        custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
+                        custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
 
             except CalledProcessError as e:

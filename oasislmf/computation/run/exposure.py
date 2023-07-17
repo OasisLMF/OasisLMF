@@ -9,8 +9,7 @@ import shutil
 import tempfile
 from itertools import chain
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from oasislmf.computation.base import ComputationStep
 from oasislmf.computation.generate.files import GenerateFiles

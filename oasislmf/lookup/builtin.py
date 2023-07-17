@@ -9,8 +9,7 @@ import warnings
 
 import numba as nb
 import numpy as np
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 from ods_tools.oed import fill_empty
 
 try:  # needed for rtree
@@ -321,6 +320,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             function: function combining all strategies
         """
         def fct(locations):
+            initial_columns = locations.columns
             result = []
             for child_strategy in strategy:
                 if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
@@ -329,7 +329,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 is_valid = (locations[id_columns] != OASIS_UNKNOWN_ID).any(axis=1)
                 result.append(locations[is_valid])
 
-                locations = locations[~is_valid].drop(columns=id_columns)
+                locations = locations[~is_valid][initial_columns]
             result.append(locations)
             return Lookup.set_id_columns(pd.concat(result), id_columns)
 

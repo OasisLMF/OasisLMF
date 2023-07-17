@@ -10,7 +10,7 @@ from tqdm import tqdm
 from ..base import ComputationStep
 from ..generate.files import GenerateFiles
 from ..hooks.pre_analysis import ExposurePreAnalysis
-from ...utils.defaults import store_exposure_fp
+from ...utils.data import get_exposure_data
 
 
 class GenerateOasisFiles(ComputationStep):
@@ -29,17 +29,21 @@ class GenerateOasisFiles(ComputationStep):
         ExposurePreAnalysis,
     ]
 
-    def pre_analysis_kwargs(self):
-        updated_inputs = {}
-        input_dir = self.kwargs['oasis_files_dir']
-
-        for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
-            if self.kwargs[input_name]:
-                updated_inputs[input_name] = os.path.join(
-                    input_dir,
-                    store_exposure_fp(self.kwargs[input_name], input_name)
-                )
-        return {**self.kwargs, **updated_inputs}
+    def get_exposure_data_config(self):
+        return {
+            'location': self.oed_location_csv,
+            'account': self.oed_accounts_csv,
+            'ri_info': self.oed_info_csv,
+            'ri_scope': self.oed_scope_csv,
+            'oed_schema_info': self.oed_schema_info,
+            'currency_conversion': self.currency_conversion_json,
+            'check_oed': self.check_oed,
+            'use_field': True,
+            'location_numbers': self.location,
+            'portfolio_numbers': self.portfolio,
+            'account_numbers': self.account,
+            'base_df_engine': self.base_df_engine,
+        }
 
     def run(self):
         # setup input dir
@@ -50,10 +54,12 @@ class GenerateOasisFiles(ComputationStep):
         if not os.path.exists(self.oasis_files_dir):
             os.makedirs(self.oasis_files_dir)
 
-        # Run chain
         self.kwargs['oasis_files_dir'] = self.oasis_files_dir
+        self.kwargs['exposure_data'] = get_exposure_data(self, add_internal_col=True)
+
+        # Run chain
         if self.exposure_pre_analysis_module:
-            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateFiles, self.pre_analysis_kwargs())]
+            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateFiles, self.kwargs)]
         else:
             cmds = [(GenerateFiles, self.kwargs)]
 

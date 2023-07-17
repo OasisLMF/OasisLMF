@@ -10,8 +10,7 @@ import string
 from collections import Counter
 from functools import partial
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
                               EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,

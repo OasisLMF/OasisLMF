@@ -7,8 +7,7 @@ import string
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 from hypothesis import HealthCheck, given, settings
 from hypothesis.strategies import just, sampled_from, text
 

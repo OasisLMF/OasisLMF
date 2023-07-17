@@ -2,8 +2,7 @@
 
 import argparse
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 parser = argparse.ArgumentParser(
     usage='use "%(prog)s --help" for more information',

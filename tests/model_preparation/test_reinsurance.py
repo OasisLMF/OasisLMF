@@ -1,7 +1,6 @@
 import unittest
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from oasislmf.preparation import reinsurance_layer
 

@@ -9,8 +9,7 @@ import logging
 import os
 
 import numpy as np
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 from numba import from_dtype, njit, types
 from numba.typed import Dict, List
 

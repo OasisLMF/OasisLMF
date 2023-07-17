@@ -9,8 +9,7 @@ from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import numpy as np
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 import pytest
 import pytz
 from hypothesis import example, given, settings

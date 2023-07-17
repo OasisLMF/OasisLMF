@@ -50,7 +50,7 @@ from tabulate import tabulate
 from typing import List, Optional
 
 import numpy as np
-from lot3.df_engine import pd
+import pandas as pd
 import pytz
 
 from .exceptions import OasisException

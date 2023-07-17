@@ -1,7 +1,6 @@
 # Note that only the currently used fields are shown unless show_all is set to True.
 import os
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 import anytree
 from anytree.search import find
 from anytree.exporter import DotExporter

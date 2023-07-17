@@ -4,8 +4,7 @@ import json
 import logging
 
 import pathlib
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from tempfile import TemporaryDirectory
 

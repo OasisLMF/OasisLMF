@@ -16,8 +16,7 @@ from contextlib import ExitStack
 
 import math
 import numpy as np
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 from ..utils.data import get_json
 from ..utils.exceptions import OasisException
@@ -403,9 +402,10 @@ class BasicKeyServer:
                 success_df = result[success]
                 if success_heading_row is None:
                     success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
-                success_df[success_heading_row.keys()].rename(columns=success_heading_row
-                                                              ).to_csv(successes_file, index=False, header=not i)
-                successes_count += success_df.shape[0]
+                if not success_df.empty:
+                    success_df[success_heading_row.keys()].rename(columns=success_heading_row
+                                                                  ).to_csv(successes_file, index=False, header=not i)
+                    successes_count += success_df.shape[0]
                 if errors_file:
                     errors_df = result[~success]
                     if 'message' not in errors_df.columns:

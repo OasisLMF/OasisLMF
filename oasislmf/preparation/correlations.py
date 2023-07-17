@@ -4,8 +4,7 @@ obtained from the model_settings.
 """
 from typing import Optional
 
-# import pandas as pd
-from lot3.df_engine import pd
+import pandas as pd
 
 
 def map_data(data: Optional[dict]) -> Optional[pd.DataFrame]:
