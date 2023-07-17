@@ -26,10 +26,6 @@ on:
         description: 'Loss modes to test, options are one of "[gul, il, ri]"'
         required: true
         default: ri
-      ods_branch:
-        description: 'Build ods_tools package before test [git ref]'
-        required: false
-        type: string
 
 jobs:
   PiWind:
@@ -37,5 +33,4 @@ jobs:
     with:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/1.15.x' || inputs.piwind_branch }}
