@@ -9,21 +9,19 @@ name: PiWind MDK
 on:
   push:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
   pull_request:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
 
   workflow_dispatch:
     inputs:
       piwind_branch:
         description: 'Branch to run PiWind from'
         required: true
-        default: develop
+        default: main
       mdk_run_type:
         description: 'Loss modes to test, options are one of "[gul, il, ri]"'
         required: true
@@ -35,9 +33,9 @@ on:
 
 jobs:
   PiWind:
-    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@develop
+    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@main
     with:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.ods_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/1.28.x' || inputs.piwind_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/3.1.x' || inputs.ods_branch }}
