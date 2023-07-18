@@ -16,6 +16,7 @@ __all__ = [
 ]
 
 import copy
+import gc
 import itertools
 import os
 import sys
@@ -842,6 +843,7 @@ def __process_standard_level_df(column_base_il_df,
                    if v['field'] in level_df_with_term.columns]
 
     level_df_with_term['agg_id'] = factorize_ndarray(level_df_with_term.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
+
     level_df_with_term['prev_agg_id'] = factorize_ndarray(level_df_with_term.loc[:, prev_agg_key].values, col_idxs=range(len(prev_agg_key)))[0]
 
     # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
@@ -1042,10 +1044,10 @@ def get_il_input_items(
 
     # get column name to fm term
     fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile, lowercase=False)
-    gul_inputs_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
+    column_base_il_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
     bi_tiv_col = 'BITIV'
 
-    column_base_il_df = __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
+    column_base_il_df = __merge_gul_and_account(column_base_il_df, accounts_df, fm_terms, oed_hierarchy)
 
     # Profile dict are base on key that correspond to the fm term name.
     # this prevent multiple file column to point to the same fm term
@@ -1227,6 +1229,9 @@ def get_il_input_items(
         il_inputs_df_list.append(prev_level_df)
         prev_level_df = level_df
 
+    del column_base_il_df
+    gc.collect()
+
     prev_level_df['to_agg_id'] = 0
     il_inputs_df_list.append(prev_level_df)
     il_inputs_df = pd.concat(il_inputs_df_list)
@@ -1235,6 +1240,10 @@ def get_il_input_items(
             il_inputs_df[col].fillna(0, inplace=True)
         except (TypeError, ValueError):
             pass
+
+    del prev_level_df
+    del il_inputs_df_list
+    gc.collect()
 
     # set top agg_id for later xref computation
     il_inputs_df['top_agg_id'] = factorize_ndarray(il_inputs_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
