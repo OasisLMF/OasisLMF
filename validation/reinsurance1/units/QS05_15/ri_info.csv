@@ -1,2 +1,2 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
-15,OO1,CAD,0.2,0,0,0,0,1,1,QS,T05 QS Acc,ACC,2.0.0
+15,AA1,CAD,0.2,0,0,0,0,1,1,QS,T05 QS Acc,ACC,2.0.0

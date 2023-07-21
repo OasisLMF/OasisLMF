@@ -11,11 +11,15 @@ import argparse
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-dir", "--subdirectory", help="enter subdirectory name")
+parser.add_argument("--suffix", help="suffix to add to the name of the files")
 
 params = parser.parse_args()
 
 subdir = params.subdirectory
+suffix = params.suffix
 
+if suffix is None:
+    suffix = '_concat'
 
 os.chdir(subdir)
 
@@ -56,9 +60,9 @@ for fm_next in dirs:
         df_ri_info.append(df_ri_info_tmp)
         df_ri_scope.append(df_ri_scope_tmp)
 
-pd.concat(df_loc).to_csv('location_concat.csv', index=False)
-pd.concat(df_acc).to_csv('account_concat.csv', index=False)
+pd.concat(df_loc).to_csv(f'location{suffix}.csv', index=False)
+pd.concat(df_acc).to_csv(f'account{suffix}.csv', index=False)
 
 if df_ri_info and df_ri_scope:
-    pd.concat(df_ri_info).to_csv('ri_info_concat.csv', index=False)
-    pd.concat(df_ri_scope).to_csv('ri_scope_concat.csv', index=False)
+    pd.concat(df_ri_info).to_csv(f'ri_info{suffix}.csv', index=False)
+    pd.concat(df_ri_scope).to_csv(f'ri_scope{suffix}.csv', index=False)

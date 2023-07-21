@@ -1,2 +1,2 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
-77,OO1,CAD,1,1000000,1000000,0,0,0.2,1,PR,T24 PR Loc,LOC,2.0.0
+77,AA1,CAD,1,1000000,1000000,0,0,0.2,1,PR,T24 PR Loc,LOC,2.0.0
