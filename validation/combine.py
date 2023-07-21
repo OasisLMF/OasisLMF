@@ -32,6 +32,8 @@ print(dirs)
 # combine dataframes
 df_loc = []
 df_acc = []
+df_ri_info = []
+df_ri_scope = []
 
 # add each fm files
 for fm_next in dirs:
@@ -46,5 +48,17 @@ for fm_next in dirs:
     # concat files
     df_acc.append(df_acc_tmp)
 
+    ri_info_filepath = os.path.join(units_dir, fm_next, 'ri_info.csv')
+    ri_scope_filepath = os.path.join(units_dir, fm_next, 'ri_scope.csv')
+    if os.path.isfile(ri_info_filepath) and os.path.isfile(ri_scope_filepath):
+        df_ri_info_tmp = pd.read_csv(ri_info_filepath, dtype=str, keep_default_na=False)
+        df_ri_scope_tmp = pd.read_csv(ri_scope_filepath, dtype=str, keep_default_na=False)
+        df_ri_info.append(df_ri_info_tmp)
+        df_ri_scope.append(df_ri_scope_tmp)
+
 pd.concat(df_loc).to_csv('location_concat.csv', index=False)
 pd.concat(df_acc).to_csv('account_concat.csv', index=False)
+
+if df_ri_info and df_ri_scope:
+    pd.concat(df_ri_info).to_csv('ri_info_concat.csv', index=False)
+    pd.concat(df_ri_scope).to_csv('ri_scope_concat.csv', index=False)
