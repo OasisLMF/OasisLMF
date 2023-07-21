@@ -1,2 +1,2 @@
-ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
-6,OO1,CAD,1.0000,1000000.00,.00,.00,.00,1.0000,1,SS,T02 SS Acc
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
+6,OO1,CAD,1,1000000,0,0,0,1,1,SS,T02 SS Acc,ACC,2.0.0
