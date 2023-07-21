@@ -26,7 +26,6 @@ if os.path.isfile('ri_info.csv') and os.path.isfile('ri_scope.csv'):
     ri_scope_file = pd.read_csv('ri_scope.csv', dtype=str, keep_default_na=False)
 else:
     ri_scope_file = None
-    
 
 split_location = location_file.groupby('FlexiLocUnit')
 split_account = account_file.groupby('FlexiAccUnit')
