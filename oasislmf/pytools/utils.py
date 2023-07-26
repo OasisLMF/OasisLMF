@@ -69,8 +69,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
-            child_stream = open(os.path.join(log_dir, log_file), mode='a')
-            childFileHandler = logging.StreamHandler(child_stream)
+            childFileHandler = logging.FileHandler(os.path.join(log_dir, log_file))
             childFileHandler.setLevel(log_level)
             childFileHandler.setFormatter(formatter)
 
@@ -78,8 +77,6 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             rootFileHandler.setLevel(logging.INFO)
             rootFileHandler.setFormatter(formatter)
 
-            # https://docs.python.org/3/library/logging.html#logging.lastResort
-            # logging.lastResort.setLevel(logging.ERROR)
             # Set all logger handlers to level ERROR
             for lg_name in logging_config:
                 logging_set_handlers(lg_name, childFileHandler, log_level)
@@ -88,12 +85,14 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             logger = logging.getLogger('oasislmf')
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
+
             # # Debug: print logging tree
             # import ipdb; ipdb.set_trace()
             # import logging_tree; logging_tree.printout()
             try:
                 logger.info(kwargs)
                 logger.info('starting process')
+
                 # Run the wrapped function
                 retval = func(*args, **kwargs)
                 logger.info('finishing process')
@@ -105,7 +104,6 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                 for lg_name in logging_config:
                     logging_reset_handlers(lg_name)
                 logger.removeHandler(rootFileHandler)
-                child_stream.close()
                 logging.shutdown()
         return wrapper
     return inner
