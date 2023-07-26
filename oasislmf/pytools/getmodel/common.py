@@ -6,6 +6,11 @@ import numpy as np
 
 from oasislmf.pytools.common import areaperil_int, oasis_float
 
+# names of footprint file format classes in order of priority
+footprint_file_formats = [
+    'FootprintParquet', 'FootprintBinZ', 'FootprintBin', 'FootprintCsv'
+]
+
 # filenames
 footprint_filename = 'footprint.bin'
 footprint_index_filename = 'footprint.idx'
