@@ -1,10 +1,10 @@
-import contextlib
 import filecmp
 from mock import patch
 import numpy as np
 import os
+from pathlib import Path
 import pytest
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 from oasislmf.pytools.pla.common import (
@@ -95,15 +95,13 @@ class TestPostLossAmplification(TestCase):
         Set up and write items amplifications, loss factors, input Ground Up
         Loss (GUL) and expected Post Loss Amplification (PLA) files for tests.
         """
+
         n_events = 2
         n_items = 2
 
         # Write items amplfications file
-        self.stack = contextlib.ExitStack()
-        self.tmp_dir = self.stack.enter_context(TemporaryDirectory())
-        os.chdir(self.tmp_dir)
-        self.input_dir = 'input'
-        os.makedirs(self.input_dir, exist_ok=True)
+        self.input_dir = Path('./input')
+        self.input_dir.mkdir(exist_ok=True)
         itemsamps_file = os.path.join(
             self.input_dir, AMPLIFICATIONS_FILE_NAME
         )
@@ -112,8 +110,8 @@ class TestPostLossAmplification(TestCase):
         )
 
         # Write loss factors file
-        self.static_dir = 'static'
-        os.makedirs(self.static_dir, exist_ok=True)
+        self.static_dir = Path('./static')
+        self.static_dir.mkdir(exist_ok=True)
         lossfactors_file = os.path.join(self.static_dir, LOSS_FACTORS_FILE_NAME)
         n_amplifications = 2
         factors = np.array([[1.1, 1.2], [1.0, 0.8]])
@@ -168,7 +166,14 @@ class TestPostLossAmplification(TestCase):
         Delete items amplifications, loss factors, input Ground Up Loss (GUL)
         and expected Post Loss Amplification (PLA) files.
         """
-        super().tearDown()
+        for f in self.input_dir.iterdir():
+            f.unlink()
+        self.input_dir.rmdir()
+
+        for f in self.static_dir.iterdir():
+            f.unlink()
+        self.static_dir.rmdir()
+
         self.gul_in.close()
         self.ctrl_pla_out.close()
 
