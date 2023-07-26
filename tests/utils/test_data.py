@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 import pytz
 from hypothesis import example, given, settings
+# from hypothesis import reproduce_failure
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
                                    integers, just, lists, sampled_from, text)
 from pandas.testing import assert_frame_equal as pd_assert_frame_equal
@@ -1342,7 +1343,8 @@ class TestOedDataTypes(TestCase):
     def setUp(self):
         # Set vaild types
         self.valid_str_types = (
-            str
+            str,
+            pd.Categorical,
         )
         self.valid_int_types = (
             int,
@@ -1575,6 +1577,7 @@ class TestOedDataTypes(TestCase):
             "Payroll": sampled_from([np.nan, str(1), int(1), float(1)]),
         })
     )
+    # @reproduce_failure('6.82.0', b'AXicY2AYTgAAAM4AAQ==')
     def test_location_dtypes_loaded_correctly(self, data):
         df = pd.DataFrame(data, index=[0])
         oed_exposure = OedExposure(**{'location': df, 'use_field': True})
@@ -1585,6 +1588,7 @@ class TestOedDataTypes(TestCase):
 
         for col in df_result.columns:
             if col in loc_expected_dtypes:
+                #import ipdb; ipdb.set_trace()
                 dtype_expected = loc_expected_dtypes[col]['pd_dtype']
                 dtype_found = type(df_result[col][0])
                 print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
