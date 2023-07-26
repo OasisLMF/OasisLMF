@@ -7,8 +7,9 @@ from .structure import (
     get_items_amplifications,
     get_post_loss_amplification_factors
 )
+from oasislmf.pytools.utils import redirect_logging
 
-
+@redirect_logging(exec_name='plapy')
 def run(run_dir, file_in, file_out, input_path, static_path):
     """
     Execeute the main Post Loss Amplification workflow.

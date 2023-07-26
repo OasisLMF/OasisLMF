@@ -4,6 +4,33 @@ This file contains general-purpose utilities.
 import logging
 import numpy as np
 import os
+import uuid
+
+
+def logging_set_handlers(logger_name, handler, log_level):
+    logger = logging.getLogger(logger_name)
+    # set all handlers to ERROR
+    for handler in logger.handlers:
+        handler.setLevel(logging.ERROR)
+    # set children oasislmf loggers to 'log_level'
+    if 'oasislmf.' in logger_name:
+        logger.addHandler(handler)
+        logger.setLevel(log_level)
+        logger.propagate = False
+    else:
+        logger.setLevel(logging.ERROR)
+
+def logging_reset_handlers(logger_name):
+    logger = logging.getLogger(logger_name)
+    # revert all handlers to NOTSET
+    for handler in logger.handlers:
+        handler.setLevel(logging.NOTSET)
+        logger.propagate = True
+    # Remove added handlers
+    if 'oasislmf.' in logger_name:
+        logger.handlers.clear()
+    else:
+        logger.setLevel(logging.NOTSET)
 
 
 def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
@@ -37,50 +64,35 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
         def wrapper(*args, **kwargs):
             if not os.path.isdir(log_dir):
                 os.makedirs(log_dir)
-
             logging_config = logging.root.manager.loggerDict.keys()
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
-            childFileHandler = logging.FileHandler(os.path.join(log_dir, f'{exec_name}_{os.getpid()}.log'))
+            child_stream = open(os.path.join(log_dir, log_file), mode='a')
+            childFileHandler = logging.StreamHandler(child_stream)
             childFileHandler.setLevel(log_level)
             childFileHandler.setFormatter(formatter)
 
-            rootFileHandler = logging.FileHandler(os.path.join(log_dir, f'{exec_name}_{os.getpid()}.log'))
+            rootFileHandler = logging.FileHandler(os.path.join(log_dir, log_file))
             rootFileHandler.setLevel(logging.INFO)
             rootFileHandler.setFormatter(formatter)
 
             # https://docs.python.org/3/library/logging.html#logging.lastResort
             # logging.lastResort.setLevel(logging.ERROR)
-
             # Set all logger handlers to level ERROR
             for lg_name in logging_config:
-                logger = logging.getLogger(lg_name)
-
-                # set all handlers to ERROR
-                for handler in logger.handlers:
-                    handler.setLevel(logging.ERROR)
-
-                # set children oasislmf loggers to 'log_level'
-                if 'oasislmf.' in lg_name:
-                    logger.addHandler(childFileHandler)
-                    logger.setLevel(log_level)
-                    logger.propagate = False
-                else:
-                    logger.setLevel(logging.ERROR)
+                logging_set_handlers(lg_name, childFileHandler, log_level)
 
             # Set root oasislmf logger to INFO
             logger = logging.getLogger('oasislmf')
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
-
             # # Debug: print logging tree
             # import ipdb; ipdb.set_trace()
             # import logging_tree; logging_tree.printout()
-
             try:
                 logger.info(kwargs)
                 logger.info('starting process')
-
                 # Run the wrapped function
                 retval = func(*args, **kwargs)
                 logger.info('finishing process')
@@ -89,11 +101,13 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                 logger.exception(err)
                 raise err
             finally:
-                logger.handlers.clear()
+                for lg_name in logging_config:
+                    logging_reset_handlers(lg_name)
+                logger.removeHandler(rootFileHandler)
+                child_stream.close()
                 logging.shutdown()
         return wrapper
     return inner
-
 
 def assert_allclose(x, y, rtol=1e-10, atol=1e-8, x_name="x", y_name="y"):
     """
