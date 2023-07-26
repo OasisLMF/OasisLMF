@@ -193,7 +193,7 @@ class Genbash(TestCase):
         if self.fifo_tmp_dir:
             # Create temp Ref file
             ref_template = reference_filename
-            ref_tmp_file = NamedTemporaryFile("w+", delete=False)
+            ref_tmp_file = NamedTemporaryFile("w+", delete=False, prefix='bash')
             with io.open(output_filename, 'r') as f:
                 for line in f:
                     if '/tmp/' in line:

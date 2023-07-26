@@ -24,7 +24,7 @@ class UnifiedDiff(TestCase):
             unified_diff('first', 'second')
 
     def test_two_files_are_the_same___result_is_empty(self):
-        f = NamedTemporaryFile(mode='w', delete=False)
+        f = NamedTemporaryFile(mode='w', delete=False, prefix='diff')
         try:
             f.write('content')
             f.close()
@@ -36,8 +36,8 @@ class UnifiedDiff(TestCase):
             os.remove(f.name)
 
     def test_two_files_are_different___result_is_list_of_differences(self):
-        first = NamedTemporaryFile(mode='w', delete=False)
-        second = NamedTemporaryFile(mode='w', delete=False)
+        first = NamedTemporaryFile(mode='w', delete=False, prefix='diff')
+        second = NamedTemporaryFile(mode='w', delete=False, prefix='diff')
         try:
             first.writelines([
                 'HEADING\n',
@@ -76,8 +76,8 @@ class UnifiedDiff(TestCase):
             os.remove(second.name)
 
     def test_two_files_are_different_as_string_is_true___result_is_concatenated_list_of_differences(self):
-        first = NamedTemporaryFile(mode='w', delete=False)
-        second = NamedTemporaryFile(mode='w', delete=False)
+        first = NamedTemporaryFile(mode='w', delete=False, prefix='diff')
+        second = NamedTemporaryFile(mode='w', delete=False, prefix='diff')
         try:
             first.writelines([
                 'HEADING\n',
