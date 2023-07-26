@@ -20,6 +20,7 @@ def logging_set_handlers(logger_name, handler, log_level):
     else:
         logger.setLevel(logging.ERROR)
 
+
 def logging_reset_handlers(logger_name):
     logger = logging.getLogger(logger_name)
     # revert all handlers to NOTSET
@@ -108,6 +109,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                 logging.shutdown()
         return wrapper
     return inner
+
 
 def assert_allclose(x, y, rtol=1e-10, atol=1e-8, x_name="x", y_name="y"):
     """

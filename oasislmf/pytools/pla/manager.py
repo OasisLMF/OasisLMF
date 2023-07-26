@@ -9,6 +9,7 @@ from .structure import (
 )
 from oasislmf.pytools.utils import redirect_logging
 
+
 @redirect_logging(exec_name='plapy')
 def run(run_dir, file_in, file_out, input_path, static_path):
     """
