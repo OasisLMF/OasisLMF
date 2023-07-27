@@ -919,7 +919,7 @@ class SetFootprintSet(TestCase):
                 if fp_format == 'parquet':
                     continue
                 for filename in fp_filename:
-                    assert os.path.exists(os.path.join(d, 'static', filename)) == False
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
 
     def test_symbolic_links_to_binz_files(self):
         """
@@ -944,7 +944,7 @@ class SetFootprintSet(TestCase):
                 if fp_format == 'binz':
                     continue
                 for filename in fp_filename:
-                    assert os.path.exists(os.path.join(d, 'static', filename)) == False
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
 
     def test_symbolic_links_to_bin_files(self):
         """
@@ -969,7 +969,7 @@ class SetFootprintSet(TestCase):
                 if fp_format == 'bin':
                     continue
                 for filename in fp_filename:
-                    assert os.path.exists(os.path.join(d, 'static', filename)) == False
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
 
     def test_symbolic_link_to_csv_file(self):
         """
@@ -991,7 +991,7 @@ class SetFootprintSet(TestCase):
                 if fp_format == 'csv':
                     continue
                 for filename in fp_filename:
-                    assert os.path.exists(os.path.join(d, 'static', filename)) == False
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
 
     def test_no_valid_symbolic_links_raises_exception(self):
         """
