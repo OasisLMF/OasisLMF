@@ -11,7 +11,8 @@ __all__ = [
     'create_binary_tar_file',
     'csv_to_bin',
     'prepare_run_directory',
-    'prepare_run_inputs'
+    'prepare_run_inputs',
+    'set_footprint_set'
 ]
 
 
@@ -37,6 +38,12 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
+from oasislmf.pytools.getmodel.common import footprint_file_formats
+from oasislmf.pytools.getmodel.footprint import (
+    FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv
+)
+
+logger = logging.getLogger(__name__)
 
 
 @oasis_log
@@ -390,6 +397,40 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
 
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
+
+
+@oasis_log
+def set_footprint_set(setting_val, run_dir):
+    """
+    Create symbolic link to footprint file set that will be used for output
+    calculation.
+
+    :param setting_val: identifier for footprint set
+    :type setting_val: string
+
+    :param run_dir: model run directory
+    :type run_dir: string
+    """
+    priorities = [eval(footprint_class) for footprint_class in footprint_file_formats]
+    setting_val = str(setting_val)
+
+    for footprint_class in priorities:
+        for filename in footprint_class.footprint_filenames:
+            stem, extension = filename.split('.', 1)
+            footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
+            footprint_target_fp = os.path.join(run_dir, 'static', filename)
+            if not os.path.isfile(footprint_fp):
+                # 'compatibility' - Fallback name formatting to keep existing conversion
+                setting_val_old = setting_val.replace(' ', '_').lower()
+                footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}.{extension}')
+                if not os.path.isfile(footprint_fp):
+                    logger.debug(f'{footprint_fp} not found, moving on to next footprint class')
+                    break
+            os.symlink(footprint_fp, footprint_target_fp)
+        else:
+            return
+
+    raise OasisException(f'Could not find footprint data files with identifier {setting_val}')
 
 
 @oasis_log
