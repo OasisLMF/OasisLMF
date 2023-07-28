@@ -3,10 +3,8 @@ __all__ = [
     'ComputationChecker',
 ]
 
-from os import path
+import contextlib
 import json
-import io
-import os
 from collections import ChainMap
 import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
@@ -14,10 +12,16 @@ import pytest
 
 
 class ComputationChecker(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stack = contextlib.ExitStack()
 
-    @staticmethod
-    def create_tmp_files(file_list):
-        return {f: NamedTemporaryFile() for f in file_list}
+    def create_tmp_files(self, file_list):
+        return {f: self.stack.enter_context(NamedTemporaryFile(prefix=self.__class__.__name__)) for f in file_list}
+
+    def tearDown(self):
+        super().tearDown()
+        self.stack.close()
 
     @staticmethod
     def create_tmp_dirs(dirs_list):
