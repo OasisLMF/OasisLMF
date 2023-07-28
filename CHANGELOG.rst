@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.28.1rc1`_
+ ---------
+* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
+* [#1324](https://github.com/OasisLMF/OasisLMF/pull/1324) - Release/1.28.0
+* [#1349](https://github.com/OasisLMF/OasisLMF/pull/1349) - Fix removal of handlers to logger + give logfiles unique names
+* [#1334](https://github.com/OasisLMF/OasisLMF/pull/1334) - Update CI - 1.28
+.. _`1.28.1rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.0...1.28.1rc1
+
 `1.28.0`_
  ---------
 * [#1280](https://github.com/OasisLMF/OasisLMF/pull/1280) - Drop py3.7 in testing and add py3.11
