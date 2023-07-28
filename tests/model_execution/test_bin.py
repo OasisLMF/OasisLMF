@@ -508,7 +508,7 @@ class PrepareRunDirectory(TestCase):
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'a_file.csv')))
 
     def test_analysis_settings_file_is_supplied___file_is_copied_into_run_dir(self):
-        analysis_settings_fp = NamedTemporaryFile('w', delete=False)
+        analysis_settings_fp = NamedTemporaryFile('w', delete=False, prefix='bin')
         try:
             with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
                 analysis_settings_fp.write('{"analysis_settings": "analysis_settings"}')

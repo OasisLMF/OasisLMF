@@ -23,14 +23,14 @@ class TestRunModel(ComputationChecker):
         cls.gen_files_args = cls.manager._params_generate_files()
         cls.gen_loss_args = cls.manager._params_generate_losses()
 
+    def setUp(self):
         # Tempfiles
-        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args.keys() if 'dir' in a])
-        cls.tmp_files = cls.create_tmp_files(
-            [a for a in cls.default_args.keys() if 'csv' in a] +
-            [a for a in cls.default_args.keys() if 'json' in a]
+        self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
+        self.tmp_files = self.create_tmp_files(
+            [a for a in self.default_args.keys() if 'csv' in a] +
+            [a for a in self.default_args.keys() if 'json' in a]
         )
 
-    def setUp(self):
         self.min_args = {
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
             'analysis_settings_json': self.tmp_files['analysis_settings_json'].name,
