@@ -39,9 +39,9 @@ from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
 from oasislmf.pytools.getmodel.common import footprint_file_formats
-from oasislmf.pytools.getmodel.footprint import (
-    FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv
-)
+from oasislmf.pytools.getmodel.footprint import (   # noqa: F401
+    FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv   # noqa: F401
+)   # noqa: F401
 
 logger = logging.getLogger(__name__)
 
