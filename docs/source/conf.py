@@ -34,6 +34,7 @@
 import os
 import subprocess
 import sys
+import datetime
 
 from sphinx.ext import autodoc
 
@@ -74,9 +75,11 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'OasisLMF'
-copyright = '2018, Oasis Loss Modelling Framework'
-author = 'Oasis Loss Modelling Framework'
+project = u'Oasis LMF'
+author = u'Oasis LMF'
+year_now = datetime.date.today().year
+# copyright = u'2023, Oasis LMF'
+copyright = str(year_now) + ' Oasis LMF'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -100,7 +103,7 @@ language = 'en'
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = 'friendly'
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
@@ -111,13 +114,37 @@ todo_include_todos = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'furo'
+html_title = "Oasis LMF Documentation"
 
+html_css_files = [
+    'https://fonts.googleapis.com/css?family=Raleway',
+]
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    "footer_icons": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/OasisLMF",
+            "html": """
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
+                </svg>
+            """,
+            "class": "",
+        },
+    ],
+
+    "light_css_variables": {
+        "color-brand-primary": " #862633",
+        "color-brand-content": "#d22630",
+        "font-stack": "Raleway, sans-serif",
+        "font-stack--monospace": "Courier, monospace",
+    }
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -129,16 +156,16 @@ html_theme = 'alabaster'
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-        'donate.html',
-        'versioning.html'
-    ]
-}
+# html_sidebars = {
+#     '**': [
+#         'about.html',
+#         'navigation.html',
+#         'relations.html',  # needs 'show_related': True theme option to display
+#         'searchbox.html',
+#         'donate.html',
+#         'versioning.html'
+#     ]
+# }
 
 
 # -- Options for HTMLHelp output ------------------------------------------
