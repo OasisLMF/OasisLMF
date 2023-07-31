@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Oasis Loss Modelling Framework (oasislmf)!
-==========================================
+Oasis Loss Modelling Framework
+==============================
 
 The repository provides a Python toolkit for building, running and
 testing Oasis models end-to-end, including performing individual steps
@@ -23,9 +23,23 @@ in this process. It includes:
 -  a command line interface for creating and testing models. App options
    can be found by running ``oasiscli --help``
 
+.. mdinclude:: ../README.md
+
+
+test
+
 .. toctree::
-   :maxdepth: 1
-   :caption: Contents:
+   :titlesonly:
+   :caption: Use Cases:
+
+   model-developer
+   model-users
+   installing-deploying-Oasis
+   support
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Sections:
 
    installation
    sphinx
@@ -34,7 +48,7 @@ in this process. It includes:
    modules
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
