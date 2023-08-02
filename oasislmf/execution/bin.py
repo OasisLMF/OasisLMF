@@ -38,10 +38,10 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
-from oasislmf.pytools.getmodel.common import footprint_file_formats
-from oasislmf.pytools.getmodel.footprint import (   # noqa: F401
-    FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv   # noqa: F401
-)   # noqa: F401
+from oasislmf.pytools.getmodel.common import fp_format_priorities
+from oasislmf.pytools.getmodel.footprint import (
+    FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv
+)
 
 logger = logging.getLogger(__name__)
 
@@ -411,7 +411,11 @@ def set_footprint_set(setting_val, run_dir):
     :param run_dir: model run directory
     :type run_dir: string
     """
-    priorities = [eval(footprint_class) for footprint_class in footprint_file_formats]
+    format_to_class = {
+        'parquet': FootprintParquet, 'binZ': FootprintBinZ,
+        'bin': FootprintBin, 'csv': FootprintCsv
+    }
+    priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
     setting_val = str(setting_val)
 
     for footprint_class in priorities:

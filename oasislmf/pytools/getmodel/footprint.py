@@ -17,7 +17,7 @@ import numba as nb
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
-                     footprint_file_formats)
+                     fp_format_priorities)
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,11 @@ class Footprint:
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
-        priorities = [eval(footprint_class) for footprint_class in footprint_file_formats]
+        format_to_class = {
+            'parquet': FootprintParquet, 'binZ': FootprintBinZ,
+            'bin': FootprintBin, 'csv': FootprintCsv
+        }
+        priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
 
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
