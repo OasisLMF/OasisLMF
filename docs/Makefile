@@ -3,7 +3,8 @@
 
 # You can set these variables from the command line.
 SPHINXOPTS    = -vv
-SPHINXBUILD   = sphinx-multiversion
+# SPHINXBUILD   = sphinx-multiversion
+SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = OasisLMF
 SOURCEDIR     = source
 BUILDDIR      = build
@@ -14,7 +15,13 @@ help:
 
 .PHONY: help Makefile
 
+
+# Catch-all target: route all unknown targets to Sphinx using the "make mode" option.
+# works with sphinx-multiversion
+# %: Makefile
+# 	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)"
+
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
 %: Makefile
-	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)"
+	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)

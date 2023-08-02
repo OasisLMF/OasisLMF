@@ -3,6 +3,7 @@
 
 configparser>=3.5.0
 coverage
+furo
 hypothesis
 mock
 pip-tools>=2.0.2
