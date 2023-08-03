@@ -51,7 +51,6 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'autoapi.extension',
-    'sphinx.ext.inheritance_diagram'
 ]
 
 
@@ -62,10 +61,9 @@ autoapi_options = [
     # "inherited-members",  # errors
     "undoc-members",
     "show-inheritance",
-    "show-inheritance-diagram",
     "show-module-summary",
 ]
-# autoapi_keep_files = False
+autoapi_keep_files = False
 
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']

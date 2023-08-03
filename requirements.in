@@ -10,6 +10,6 @@ pip-tools>=2.0.2
 pytest
 pytest-cov
 pytest-ignore-flaky
-sphinx-multiversion
+sphinx-autoapi
 tox
 responses
