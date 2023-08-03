@@ -158,5 +158,10 @@
         "from_ver": "1.17.0",
         "deleted": false,
         "updated_to": "oed_accounts_csv"
+    },
+    "lookup_complex_config_json":{
+        "from_ver": "1.28.2",
+        "deleted": false,
+        "updated_to": "analysis_settings_json"
     }
 }
