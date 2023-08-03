@@ -24,15 +24,16 @@ class TestGenFiles(ComputationChecker):
     def setUpClass(cls):
         cls.manager = OasisManager()
         cls.default_args = cls.manager._params_generate_files()
-        # Tempfiles
-        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args.keys() if 'dir' in a])
-        cls.tmp_files = cls.create_tmp_files(
-            [a for a in cls.default_args.keys() if 'csv' in a] +
-            [a for a in cls.default_args.keys() if 'path' in a] +
-            [a for a in cls.default_args.keys() if 'json' in a]
-        )
 
     def setUp(self):
+        # Tempfiles
+        self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
+        self.tmp_files = self.create_tmp_files(
+            [a for a in self.default_args.keys() if 'csv' in a] +
+            [a for a in self.default_args.keys() if 'path' in a] +
+            [a for a in self.default_args.keys() if 'json' in a]
+        )
+
         self.min_args = {
             'lookup_config_json': LOOKUP_CONFIG,
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
