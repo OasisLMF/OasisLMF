@@ -139,7 +139,7 @@ class OasisLookupInterface:  # pragma: no cover
         supplier=None,
         model_name=None,
         model_version=None,
-        complex_lookup_config_fp=None,
+        analysis_settings_fp=None,
         output_directory=None
     ):
         """
@@ -153,7 +153,7 @@ class OasisLookupInterface:  # pragma: no cover
         self.supplier = supplier
         self.model_name = model_name
         self.model_version = model_version
-        self.complex_lookup_config_fp = complex_lookup_config_fp
+        self.analysis_settings_fp = analysis_settings_fp
         self.output_directory = output_directory
         self.UNKNOWN_ID = -1
 

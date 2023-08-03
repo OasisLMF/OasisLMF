@@ -60,7 +60,7 @@ SOURCE_FILENAMES = OrderedDict({
     'profile_loc_json': 'profile_location.json',
     'keys_data_csv': 'keys.csv',
     'model_version_csv': 'model_version.csv',
-    'lookup_complex_config_json': 'lookup_complex.json',
+    'analysis_settings_fp': 'analysis_settings.json',
     'profile_acc_json': 'profile_account.json',
     'profile_fm_agg_json': 'profile_fm_agg.json',
 })

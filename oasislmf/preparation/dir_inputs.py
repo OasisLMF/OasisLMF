@@ -30,7 +30,7 @@ def prepare_input_files_directory(
         keys_errors_fp=None,
         lookup_config_fp=None,
         model_version_fp=None,
-        complex_lookup_config_fp=None,
+        analysis_settings_fp=None,
         accounts_profile_fp=None,
         fm_aggregation_profile_fp=None,
 ):
@@ -49,18 +49,6 @@ def prepare_input_files_directory(
                 keys_fp, keys_errors_fp
             ) if p
         ]
-
-        # Copy and rename to default set in
-        # oasislmf.utils.defaults.SOURCE_FILENAMES
-        paths_rename = [
-            (complex_lookup_config_fp, "complex_lookup")
-        ]
-
-        for fp, key in paths_rename:
-            if fp:
-                # check if exposure pre-analysis has run:
-                if not os.path.exists(os.path.join(target_dir, f'epa_{store_exposure_fp(fp, key)}')):
-                    paths.append((fp, os.path.join(target_dir, store_exposure_fp(fp, key))))
 
         for src, dst in paths:
             if src and os.path.exists(src):

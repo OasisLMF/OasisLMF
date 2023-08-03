@@ -73,7 +73,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'lookup_config_json', 'flag': '-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
         {'name': 'lookup_data_dir', 'flag': '-k', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
-        {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
+        {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
         {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
         {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
@@ -160,7 +160,7 @@ class GenerateFiles(ComputationStep):
             keys_errors_fp=self.keys_errors_csv,
             lookup_config_fp=self.lookup_config_json,
             model_version_fp=self.model_version_csv,
-            complex_lookup_config_fp=self.lookup_complex_config_json,
+            analysis_settings_fp=self.analysis_settings_json,
             accounts_profile_fp=self.profile_acc_json,
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
         )

@@ -57,7 +57,7 @@ class KeyServerFactory(object):
     The factory now return a KeyServer object and not a KeyLookup.
     The parameter to pass has also been simplified
     usage of all the below parameter are now deprecated
-      - complex_lookup_config_fp => pass the path to your complex lookup config directly in lookup_config_fg
+      - analysis_settings_fp => pass the path to your complex lookup config directly in lookup_config_fg
       - lookup_module_path => set as key 'lookup_module_path' in the lookup config
       - model_keys_data_path => set as key 'keys_data_path' in the lookup config
       - model_version_file_path => set the model information ('supplier_id', 'model_id', 'model_version') directly
@@ -82,17 +82,17 @@ class KeyServerFactory(object):
 
     @classmethod
     def update_deprecated_args(cls, config_dir, config,
-                               complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
-        if (complex_lookup_config_fp
+                               analysis_settings_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
+        if (analysis_settings_fp
                 or model_keys_data_path
                 or model_version_file_path
                 or lookup_module_path):
-            warnings.warn('usage of complex_lookup_config_fp, model_keys_data_path, '
+            warnings.warn('usage of analysis_settings_fp, model_keys_data_path, '
                           'model_version_file_path and lookup_module_path is now deprecated'
                           'those variables now need to be set in lookup config see (key server documentation)')
 
-        if complex_lookup_config_fp:
-            config_dir, config = cls.get_config(complex_lookup_config_fp)
+        if analysis_settings_fp:
+            config_dir, config = cls.get_config(analysis_settings_fp)
 
         if model_keys_data_path:
             config['keys_data_path'] = as_path(model_keys_data_path, 'model_keys_data_path', preexists=True)
@@ -114,7 +114,7 @@ class KeyServerFactory(object):
             lookup_config=None,
             lookup_config_json=None,
             lookup_config_fp=None,
-            complex_lookup_config_fp=None,
+            analysis_settings_fp=None,
             user_data_dir=None,
             output_directory=None,
     ):
@@ -139,14 +139,14 @@ class KeyServerFactory(object):
 
         if not config:
             config_dir, config = cls.update_deprecated_args(config_dir, config,
-                                                            complex_lookup_config_fp, model_keys_data_path,
+                                                            analysis_settings_fp, model_keys_data_path,
                                                             model_version_file_path, lookup_module_path)
-        else:  # reproduce lookup_config overwrite complex_lookup_config_fp
-            if complex_lookup_config_fp:
-                complex_config_dir, complex_config = cls.get_config(complex_lookup_config_fp)
+        else:  # reproduce lookup_config overwrite analysis_settings_fp
+            if analysis_settings_fp:
+                complex_config_dir, complex_config = cls.get_config(analysis_settings_fp)
                 config['complex_config_dir'] = complex_config_dir
                 config['complex_config'] = complex_config
-            complex_lookup_config_fp = None
+            analysis_settings_fp = None
 
         if config.get('key_server_module_path'):
             _KeyServer_module = get_custom_module(config.get('key_server_module_path'), 'key_server_module_path')
@@ -162,8 +162,8 @@ class KeyServerFactory(object):
         else:
             raise OasisException(f"KeyServer interface version {_KeyServer.interface_version} not implemented")
 
-        if complex_lookup_config_fp:
-            key_server.complex_lookup_config_fp = complex_lookup_config_fp
+        if analysis_settings_fp:
+            key_server.analysis_settings_fp = analysis_settings_fp
 
         return config['model'], key_server
 
@@ -298,7 +298,7 @@ class BasicKeyServer:
                     supplier=config['model']['supplier_id'],
                     model_name=config['model']['model_id'],
                     model_version=config['model']['model_version'],
-                    complex_lookup_config_fp=config_dir,
+                    analysis_settings_fp=config_dir,
                     output_directory=output_dir
                 )
             else:
@@ -307,7 +307,7 @@ class BasicKeyServer:
                     supplier=config['model']['supplier_id'],
                     model_name=config['model']['model_id'],
                     model_version=config['model']['model_version'],
-                    complex_lookup_config_fp=config_dir,
+                    analysis_settings_fp=config_dir,
                     user_data_dir=user_data_dir,
                     output_directory=output_dir
                 )
@@ -454,8 +454,8 @@ class BasicKeyServer:
             return successes_fp, successes_count
 
     def generate_key_files_singleproc(self, loc_df, successes_fp, errors_fp, output_format, keys_success_msg, **kwargs):
-        if getattr(self, 'complex_lookup_config_fp', None):  # backward compatibility 1.15 hack
-            config_dir = getattr(self, 'complex_lookup_config_fp', None)
+        if getattr(self, 'analysis_settings_fp', None):  # backward compatibility 1.15 hack
+            config_dir = getattr(self, 'analysis_settings_fp', None)
         else:
             config_dir = self.config_dir
         lookup = self.create_lookup(self.lookup_cls, self.config, config_dir, self.user_data_dir, self.output_dir,
@@ -491,8 +491,8 @@ class BasicKeyServer:
         location_row is of type <class 'pandas.core.series.Series'>
 
         """
-        if getattr(self, 'complex_lookup_config_fp', None):  # backward compatibility 1.15 hack
-            config_dir = getattr(self, 'complex_lookup_config_fp', None)
+        if getattr(self, 'analysis_settings_fp', None):  # backward compatibility 1.15 hack
+            config_dir = getattr(self, 'analysis_settings_fp', None)
         else:
             config_dir = self.config_dir
 

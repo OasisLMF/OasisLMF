@@ -69,7 +69,7 @@ class GenerateKeys(KeyComputationStep):
         {'name': 'lookup_config_json', 'flag': '-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
         {'name': 'lookup_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
-        {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
+        {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
         {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
         {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
@@ -101,8 +101,8 @@ class GenerateKeys(KeyComputationStep):
 
         output_dir = self._get_output_dir()
         output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
-        if self.lookup_complex_config_json:
-            AnalysisSettingSchema().validate_file(self.lookup_complex_config_json)
+        if self.analysis_settings_json:
+            AnalysisSettingSchema().validate_file(self.analysis_settings_json)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
@@ -110,14 +110,14 @@ class GenerateKeys(KeyComputationStep):
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
         os.makedirs(os.path.dirname(keys_errors_fp), exist_ok=True)
-        keys_success_msg = True if self.lookup_complex_config_json else False
+        keys_success_msg = True if self.analysis_settings_json else False
 
         model_info, key_server = KeyServerFactory.create(
             lookup_config_fp=self.lookup_config_json,
             model_keys_data_path=self.lookup_data_dir,
             model_version_file_path=self.model_version_csv,
             lookup_module_path=self.lookup_module_path,
-            complex_lookup_config_fp=self.lookup_complex_config_json,
+            analysis_settings_fp=self.analysis_settings_json,
             user_data_dir=self.user_data_dir,
             output_directory=output_dir
         )
