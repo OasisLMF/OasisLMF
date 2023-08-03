@@ -5,6 +5,10 @@ on:
     branches:    
       - main
 
+
+# Allows you to run this workflow manually from the Actions tab
+workflow_dispatch:
+
 permissions:
   contents: write
 
@@ -25,7 +29,8 @@ jobs:
              pip install pip-tools
              pip-compile requirements.in
       - name: Install required packages
-        run: | 
+        run: |
+            sudo apt install graphviz
             pip install -r requirements.txt
             pip install furo
       - name: Build

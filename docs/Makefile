@@ -1,9 +1,7 @@
 # Minimal makefile for Sphinx documentation
-#
 
-# You can set these variables from the command line.
+# Set default values. One can set these variables from the command line.
 SPHINXOPTS    = -vv
-# SPHINXBUILD   = sphinx-multiversion
 SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = OasisLMF
 SOURCEDIR     = source

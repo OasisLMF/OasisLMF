@@ -28,13 +28,13 @@
 #
 # needs_sphinx = '1.0'
 
+import datetime
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 import os
 import subprocess
 import sys
-import datetime
 
 from sphinx.ext import autodoc
 
@@ -50,20 +50,25 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
-    'sphinx_multiversion'
+    'autoapi.extension',
+    'sphinx.ext.inheritance_diagram'
 ]
 
-current_branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD'.split(' ')).decode().rstrip('\n')
 
-# smv_branch_whitelist = r'^.*$'                # iclude all branches
-smv_branch_whitelist = r'^(master|develop|{})$'.format(current_branch)   # include master, develop, and the current branch
-# smv_branch_whitelist = r'^({})$'.format(current_branch)                # current branch only
-# smv_tag_whitelist = r'^v\d+\.\d+$'            # include tags like "v2.1"
-# smv_tag_whitelist = r'^1\.27\.2$'             # include just tag "1.27.2"
-smv_tag_whitelist = r'^1\.200\.2$'              # include just tag "1.200", which doesn't exist. Equivalent to blacklisting all tags.
+# API Generation
+autoapi_dirs = ['../../oasislmf']
+autoapi_options = [
+    "members",
+    # "inherited-members",  # errors
+    "undoc-members",
+    "show-inheritance",
+    "show-inheritance-diagram",
+    "show-module-summary",
+]
+# autoapi_keep_files = False
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+# templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -78,7 +83,6 @@ master_doc = 'index'
 project = u'Oasis LMF'
 author = u'Oasis LMF'
 year_now = datetime.date.today().year
-# copyright = u'2023, Oasis LMF'
 copyright = str(year_now) + ' Oasis LMF'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -253,10 +257,10 @@ intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 class CliDocumenter(autodoc.ClassDocumenter):
     objtype = "cli"
 
-    #do not indent the content
+    # do not indent the content
     content_indent = ""
 
-    #do not add a header to the docstring
+    # do not add a header to the docstring
     def add_directive_header(self, sig):
         pass
 
