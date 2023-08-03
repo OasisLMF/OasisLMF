@@ -5,7 +5,7 @@ Requirements
 ---
 Install the following packages in your local Python environment:
 ```
-pip install sphinx sphinx-multiversion 
+pip install sphinx sphinx-autoapi 
 
 ```
 Also, make sure to have `ods_tools` installed from the development branch in order to include the latest features:
@@ -14,39 +14,25 @@ pip install git+https://git@github.com/OasisLMF/ODS_Tools
 ```
 
 Context
----
-The documentation is set up to use `sphinx-multiversion`, which is a wrapper around `sphinx-build`
-that automatically builds documentation for all release tags and branches whitelisted in `conf.py` settings
-(see variables starting with `smv_`). This is useful as it automatically populates a **Version** tab in the bottom-left of the docs webpages to navigate through different versions of the documentation.
+-------
+The documentation is set up to use `sphinx-autoapi`, which is a wrapper around `sphinx-build`
+that builds documentation for the entire `oasislmf` package, automatically navigating through the
+modules and sub-modules recursively.
 
-To build the multi-version documentation:
+To build the `oasislmf` documentation, run, from the repository root directory:
 ```sh
-cd docs
-sphinx-multiversion source build/html
+./docs/build.sh
 ```
-where `source/` is the directory containing all the documentation and `build/html/` is the target directory where the rendered documentation is to be stored. For each version of the documentation, there will be a directory inside the target directory, containing the rendered documentation.
+The HTML documentation will be created in `docs/build/html/`.
 
-For example, to produce the documentation for the `master` and `develop` branches, we set `smv_branch_whitelist = r'^(master|develop)'` in `conf.py`. Then, we run `sphinx-multiversion source build/html`. This will produce the following directories:
-```sh
-build
-└── html
-    ├── develop
-    └── master
-```
+By opening `docs/build/html/index.html` with a browser, it will be possible to navigate the documentation locally.
 
-By opening, say, `build/html/develop/index.html`, it will be possible to navigate to the documentation of the `master` branch by using the links in the **Version** tab.
 
-Important note
----
-`sphinx-multiversion` produces documentation by running a `git checkout` of the desired release tags and branches, whitelisted in `conf.py` as shown above. Therefore, when working locally, all changes to the docs will not be reflected in the documentation produced by `sphinx-multiversion` until they are committed.
-
-When developing the docs locally, it is thus faster to use `sphinx-build` which will produce the documentation using the files currently checked out, including the latest, uncommitted, changes:
-```sh
-cd docs
-sphinx-build source build/html
-```
-
-[WORK IN PROGRESS] Upon committing and pushing the docs to the GitHub repository, the documentation will be built and deployed using `sphinx-multiversion` using a GitHub action.
+Automation
+----------
+Upon committing and pushing the docs to the GitHub repository, the documentation will be:
+ - built for all PRs targeting `main`, with the HTML documentation being stored as a downloadable artifact (a `github-pages.zip` file);
+ - built and deployed to GitHub pages (i.e., stored in the `gh-pages` branch of the repository) for all push commits on the `main` branch.
 
 
 
