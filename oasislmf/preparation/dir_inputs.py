@@ -11,7 +11,6 @@ from pathlib import Path
 
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
-from ..utils.defaults import store_exposure_fp
 
 
 def create_target_directory(target_dir, label):
