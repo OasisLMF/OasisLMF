@@ -25,11 +25,11 @@ on:
   workflow_dispatch:
     inputs:
       platform_1_version:
-        description: 'OasisPlatform Version to test using [docker tag]'
+        description: 'OasisPlatform 1 - Version to test [docker tag]'
         required: true
         default: latest
       platform_2_version:
-        description: 'OasisPlatform Version to test using [docker tag]'
+        description: 'OasisPlatform 2 - Version to test [docker tag]'
         required: true
         default: latest
       piwind_branch:
