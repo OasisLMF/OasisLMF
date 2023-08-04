@@ -1285,17 +1285,9 @@ def get_il_input_items(
 
     # Set the calc. rule IDs
     if step_policies_present:
-        il_inputs_df.loc[
-            ~(il_inputs_df['StepTriggerType'] > 0), 'calcrule_id'
-        ] = get_calc_rule_ids(
-            il_inputs_df[~(il_inputs_df['StepTriggerType'] > 0)]
-        )
-
-        il_inputs_df.loc[
-            il_inputs_df['StepTriggerType'] > 0, 'calcrule_id'
-        ] = get_step_calc_rule_ids(
-            il_inputs_df[il_inputs_df['StepTriggerType'] > 0],
-        )
+        step_filter = (il_inputs_df['StepTriggerType'] > 0) & ~il_inputs_df['is_bi_coverage']
+        il_inputs_df.loc[~step_filter, 'calcrule_id'] = get_calc_rule_ids(il_inputs_df[~step_filter])
+        il_inputs_df.loc[step_filter, 'calcrule_id'] = get_step_calc_rule_ids(il_inputs_df[step_filter])
     else:
         il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
