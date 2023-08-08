@@ -267,6 +267,7 @@ OASIS_FILES_PREFIXES = OrderedDict({
         'complex_items': 'complex_items',
         'items': 'items',
         'coverages': 'coverages',
+        'amplifications': 'amplifications',
     },
     'il': {
         'fm_policytc': 'fm_policytc',

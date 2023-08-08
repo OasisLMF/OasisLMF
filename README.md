@@ -2,11 +2,11 @@
 
 [![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases)
 [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)
-[![FM Testing Tool](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OasisLMF/OasisLMF/blob/develop/fm_testing_tool/FmTesting.ipynb)
+[![FM Testing Tool](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OasisLMF/OasisLMF/blob/main/fm_testing_tool/FmTesting.ipynb)
 
-[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=develop&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
-[![PiWind output check](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml/badge.svg?branch=develop&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml)
-[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=develop&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+[![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
+[![PiWind output check](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
 
 
 
@@ -18,16 +18,16 @@ The `oasislmf` Python package, loosely called the *model development kit (MDK)* 
 
 ### Current Stable Versions 
 
-* `1.15.x` [backports/1.15.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.15.x) From Feb 2021
-* `1.23.x` [backports/1.23.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.23.x) From Dec 2021
-* `1.26.x` [backports/1.26.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.26.x) From Jun 2022
-* `1.27.x` [backports/1.27.x](https://github.com/OasisLMF/OasisLMF/tree/backports/1.27.x) From Jan 2023
+* `1.15.x` [stable/1.15.x](https://github.com/OasisLMF/OasisLMF/tree/stable/1.15.x) From Feb 2021
+* `1.23.x` [stable/1.23.x](https://github.com/OasisLMF/OasisLMF/tree/stable/1.23.x) From Dec 2021
+* `1.26.x` [stable/1.26.x](https://github.com/OasisLMF/OasisLMF/tree/stable/1.26.x) From Jun 2022
+* `1.27.x` [stable/1.27.x](https://github.com/OasisLMF/OasisLMF/tree/stable/1.27.x) From Jan 2023
 * `1.28.x` (Up comming) July 2023
 
 ### Release Schedule
 **Until end of 2023**
 Until the year 2023, we will be following a six-month release cycle for our stable versions. During each six-month period, we will release a new stable version with added features. These updates will adhere to the Semantic Versioning (semver) format and will increment the minor version number.
-That version of oaisislmf is then 'frozen' into a branch matching the new version number, so on release 1.28.0 the code base is copied to a branch `backports/1.28.x` where backported features and fixes are applied. 
+That version of oaisislmf is then 'frozen' into a branch matching the new version number, so on release 1.28.0 the code base is copied to a branch `stable/1.28.x` where backported features and fixes are applied. 
 
 **After 2023**
 Starting from 2023, we will transition to a yearly release cycle for our stable versions. Each year, we will release a new stable version with additional features.
