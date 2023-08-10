@@ -43,7 +43,7 @@ def get_items_amplifications(path):
             offset=FILE_HEADER_SIZE
         )
     except FileNotFoundError:
-        logger.error(f'amplifications.bin not found')
+        logger.error('amplifications.bin not found')
         raise SystemExit(1)
 
     # Check item IDs start from 1 and are contiguous
