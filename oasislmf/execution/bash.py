@@ -1494,6 +1494,25 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
         yield lb_main_cmd
 
 
+def get_pla_cmd(pla, secondary_factor):
+    """
+    Determine whether Post Loss Amplification should be implemented and issue
+    plapy command.
+
+    Args:
+        pla (bool): flag to apply post loss amplification
+        secondary_factor (float): secondary factor to apply to post loss
+          amplification
+
+    Returns:
+        pla_cmd (str): post loss amplification command
+    """
+    pla_cmd = ' | plapy' * pla
+    if secondary_factor != 1 and pla:
+        pla_cmd += f' -f {secondary_factor}'
+    return pla_cmd
+
+
 def bash_params(
     analysis_settings,
     max_process_id=-1,
@@ -2009,7 +2028,9 @@ def create_bash_analysis(
         if gul_item_stream:
             getmodel_args['coverage_output'] = ''
             getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
-            getmodel_args['item_output'] = getmodel_args['item_output'] + ' | plapy' * pla
+            getmodel_args['item_output'] = getmodel_args['item_output'] + get_pla_cmd(
+                analysis_settings.get('pla', False), analysis_settings.get('pla_secondary_factor', 1)
+            )
             if need_summary_fifo_for_gul:
                 getmodel_args['item_output'] = '{} | tee {}'.format(getmodel_args['item_output'], gul_fifo_name)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)

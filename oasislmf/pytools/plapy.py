@@ -6,6 +6,11 @@ import argparse
 import logging
 
 parser = argparse.ArgumentParser()
+parser.add_argument(
+    '-f', '--secondary-factor',
+    help='optional secondary factor within range [0, 1]', default=1.0,
+    type=float
+)
 parser.add_argument('-i', '--file-in', help='name of the input file')
 parser.add_argument('-o', '--file-out', help='name of the output file')
 parser.add_argument(
@@ -37,6 +42,10 @@ def main():
     logger.addHandler(ch)
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
+
+    if kwargs['secondary_factor'] < 0.0 or kwargs['secondary_factor'] > 1.0:
+        logger.error(f'Secondary factor {kwargs["secondary_factor"]} must lie within range [0, 1]')
+        SystemExit(1)
 
     manager.run(**kwargs)
 

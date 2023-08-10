@@ -208,7 +208,7 @@ class TestPostLossAmplification(TestCase):
         assert e.type == SystemExit
         assert e.value.code == 1
 
-    def test_structure__get_items_amplfications__non_contiguous_item_ids(self):
+    def test_structure__get_items_amplifications__non_contiguous_item_ids(self):
         """
         Test pla.structure.get_items_amplifications() raises SystemExit if the
         item IDs are not contiguous.
@@ -225,3 +225,13 @@ class TestPostLossAmplification(TestCase):
         os.remove(itemsamps_file)
         assert e.type == SystemExit
         assert e.value.code == 1
+
+    def test_structure__get_items_amplifications__no_amplifications_file(self):
+        """
+        Test pla.structure.get_items_amplifications() raises SystemExit if the
+        amplifications.bin file does not exist.
+        """
+        with pytest.raises(SystemExit) as e:
+            get_items_amplifications('.')
+        assert e.type = SystemExit
+        assert e.value_code == 1

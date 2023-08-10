@@ -37,10 +37,14 @@ def get_items_amplifications(path):
         items_amps (numpy.ndarray): array of amplification IDs, where index
             corresponds to item ID
     """
-    items_amps = np.fromfile(
-        os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
+    try:
+        items_amps = np.fromfile(
+            os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
         offset=FILE_HEADER_SIZE
-    )
+        )
+    except FileNotFoundError:
+        logger.error(f'amplifications.bin not found')
+        raise SystemExit(1)
 
     # Check item IDs start from 1 and are contiguous
     if items_amps[0] != 1:
@@ -97,7 +101,7 @@ def fill_post_loss_amplification_factors(
     return event_id, count, plafactors
 
 
-def get_post_loss_amplification_factors(path):
+def get_post_loss_amplification_factors(path, secondary_factor):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
 
@@ -116,6 +120,8 @@ def get_post_loss_amplification_factors(path):
 
     Args:
         path (str): path to lossfactors.bin file
+        secondary_factor (float): secondary factor to apply to post loss
+          amplification
 
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
@@ -146,6 +152,7 @@ def get_post_loss_amplification_factors(path):
                 break
 
             valid_length = valid_buffer // DATA_SIZE
+            amp_factor[:, 1] = 1 + (amp_factor[:, 1] - 1) * secondary_factor
 
             event_id, count, plafactors = fill_post_loss_amplification_factors(
                 event_id, count, cursor, valid_length, event_count, amp_factor,
