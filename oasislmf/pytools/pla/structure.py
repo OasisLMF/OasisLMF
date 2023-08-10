@@ -40,7 +40,7 @@ def get_items_amplifications(path):
     try:
         items_amps = np.fromfile(
             os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
-        offset=FILE_HEADER_SIZE
+            offset=FILE_HEADER_SIZE
         )
     except FileNotFoundError:
         logger.error(f'amplifications.bin not found')
