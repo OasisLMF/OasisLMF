@@ -47,7 +47,7 @@ class ExposurePreAnalysis(ComputationStep):
                    {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
                    {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
                    {'name': 'base_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader', 'help': 'The default dataframe reading engine to use when loading files'},
-                   {'name': 'exposure_df_engine', 'type': str, 'default': None, 'help': 'The dataframe reading engine to use when loading exposure files'},
+                   {'name': 'exposure_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader', 'help': 'The dataframe reading engine to use when loading exposure files'},
                    {'name': 'model_df_engine', 'type': str, 'default': None, 'help': 'The dataframe reading engine to use when loading model files'},
                    {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
                    {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,

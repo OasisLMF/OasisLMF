@@ -240,7 +240,7 @@ class FootprintBinZ(Footprint):
     footprint_filenames = [zfootprint_filename, zfootprint_index_filename]
 
     def __enter__(self):
-        zfootprint_file = self.stack.enter_context(self.storage.open(zfootprint_filename), 'rb')
+        zfootprint_file = self.stack.enter_context(self.storage.open(zfootprint_filename, 'rb'))
         self.zfootprint = mmap.mmap(zfootprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.size]), dtype=FootprintHeader)

@@ -15,6 +15,7 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
@@ -115,6 +116,10 @@ def run(run_dir,
     logger.info("starting gulmc")
 
     static_path = os.path.join(run_dir, 'static')
+    model_storage = LocalStorageConnector(
+        media_root=os.path.join(run_dir, 'static'),
+        cache_dir=None,
+    )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -151,7 +156,7 @@ def run(run_dir,
             valid_area_peril_id = None
 
         logger.debug('import damage bins')
-        damage_bins = get_damage_bins(static_path, ignore_file_type)
+        damage_bins = get_damage_bins(model_storage, ignore_file_type)
 
         logger.debug('import coverages')
         # coverages are numbered from 1, therefore we skip element 0 in `coverages`
@@ -161,12 +166,14 @@ def run(run_dir,
 
         # prepare for stochastic disaggregation
         logger.debug('import aggregate vulnerability definitions and vulnerability weights')
-        aggregate_vulnerability = read_aggregate_vulnerability(static_path, ignore_file_type)
-        aggregate_weights = read_vulnerability_weights(static_path, ignore_file_type)
+        aggregate_vulnerability = read_aggregate_vulnerability(model_storage, ignore_file_type)
+        aggregate_weights = read_vulnerability_weights(model_storage, ignore_file_type)
         agg_vuln_to_vuln_id = process_aggregate_vulnerability(aggregate_vulnerability)
 
         if aggregate_vulnerability is not None and aggregate_weights is None:
-            raise FileNotFoundError(f'Vulnerability weights file not found at {static_path}')
+            raise FileNotFoundError(
+                f"Vulnerability weights file not found at {model_storage.get_storage_url('', print_safe=True)[1]}"
+            )
 
         # create map of weights by (areaperil_id, vuln_id)
         areaperil_vuln_id_to_weight = process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id)
@@ -216,7 +223,7 @@ def run(run_dir,
             areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
@@ -224,7 +231,7 @@ def run(run_dir,
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('import vulnerabilities')
-        vuln_array, _, _ = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, _, _ = get_vulns(model_storage, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # set up streams
