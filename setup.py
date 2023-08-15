@@ -23,7 +23,7 @@ except ImportError:
     from urllib2 import URLError
 
 
-KTOOLS_VERSION = '3.9.6'
+KTOOLS_VERSION = '3.10.0'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -383,6 +383,7 @@ setup(
             'load_balancer=oasislmf.execution.load_balancer:main',
             'modelpy=oasislmf.pytools.modelpy:main',
             'oasislmf=oasislmf.cli.root:main',
+            'plapy=oasislmf.pytools.plapy:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
         ]

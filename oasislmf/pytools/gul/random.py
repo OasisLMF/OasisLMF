@@ -98,16 +98,22 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, b
     Returns:
         List[int64]: hashes
     """
-    Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
-    correlated_hashes = np.empty(Nperil_correlation_groups + 1, dtype='int64')
+    Nperil_correlation_groups = np.max(unique_peril_correlation_groups)
+    correlated_hashes = np.zeros(Nperil_correlation_groups + 1, dtype='int64')
     correlated_hashes[0] = 0
 
+    unique_peril_index = 0
+    unique_peril_len = unique_peril_correlation_groups.shape[0]
     for i in range(1, Nperil_correlation_groups + 1):
-        correlated_hashes[i] = (
-            base_seed +
-            (unique_peril_correlation_groups[i - 1] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
-            (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
-        ) % HASH_MOD_CODE
+        if unique_peril_correlation_groups[unique_peril_index] == i:
+            correlated_hashes[i] = (
+                base_seed +
+                (unique_peril_correlation_groups[unique_peril_index] * PERIL_CORRELATION_GROUP_HASH) % HASH_MOD_CODE +
+                (event_id * EVENT_ID_HASH_CODE) % HASH_MOD_CODE
+            ) % HASH_MOD_CODE
+            unique_peril_index += 1
+            if unique_peril_index == unique_peril_len:
+                break
 
     return correlated_hashes
 

@@ -27,7 +27,8 @@ from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSche
 
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
-from ...execution.bin import csv_to_bin, prepare_run_directory, prepare_run_inputs
+from ...execution.bin import (csv_to_bin, prepare_run_directory,
+                              prepare_run_inputs, set_footprint_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...utils.data import (fast_zip_dataframe_columns, get_dataframe, get_exposure_data, get_json,
@@ -310,6 +311,9 @@ class GenerateLossesDir(GenerateLossesBase):
             analysis_settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
+        if footprint_set_val:
+            set_footprint_set(footprint_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:

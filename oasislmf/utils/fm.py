@@ -14,7 +14,6 @@ from collections import OrderedDict
 
 from .coverages import SUPPORTED_COVERAGE_TYPES
 
-
 DED_CODE_REG = 0
 DED_CODE_ANAGG = 1
 DED_CODE_FRDED = 2
