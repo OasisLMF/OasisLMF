@@ -181,6 +181,8 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True,
          'help': 'Analysis settings JSON file path'},
+        {'name': 'model_storage_json', 'is_path': True, 'pre_exist': True, 'required': False,
+         'help': 'Model data storage settings JSON file path'},
         {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': False, 'required': False,
          'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
@@ -268,6 +270,7 @@ class GenerateLossesDir(GenerateLossesBase):
             user_data_dir=self.user_data_dir,
             ri=ri,
             copy_model_data=self.copy_model_data,
+            model_storage_config_fp=self.model_storage_json,
         )
 
         exposure_data = get_exposure_data(self, add_internal_col=True)

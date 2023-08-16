@@ -5,6 +5,7 @@ TODO: use selector and select for output
 
 """
 import atexit
+import json
 import logging
 import os
 import sys
@@ -18,6 +19,7 @@ from numba.typed import Dict
 
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.config import get_storage_from_config
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
@@ -294,7 +296,7 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
     """
     input_files = set(storage.listdir())
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('vulnerability_dataset', print_safe=True)[1]}")
+        logger.debug(f"loading {storage.get_storage_url('vulnerability_dataset', encode_params=False)[1]}")
         _, file_url = storage.get_storage_url('vulnerability_dataset')
         parquet_handle = pq.ParquetDataset(file_url, use_legacy_dataset=False,
                                            filters=[("vulnerability_id", "in", list(vuln_dict))],
@@ -311,12 +313,12 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
 
     else:
         if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
-            logger.debug(f"loading {storage.get_storage_url('vulnerability.bin', print_safe=True)[1]}")
+            logger.debug(f"loading {storage.get_storage_url('vulnerability.bin', encode_params=False)[1]}")
             with storage.open("vulnerability.bin", 'rb') as f:
                 header = np.frombuffer(f.read(8), 'i4')
                 num_damage_bins = header[0]
             if "vulnerability.idx" in input_files:
-                logger.debug(f"loading {storage.get_storage_url('vulnerability.idx', print_safe=True)[1]}")
+                logger.debug(f"loading {storage.get_storage_url('vulnerability.idx', encode_params=False)[1]}")
                 with storage.open("vulnerability.bin") as f:
                     vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=4, mode='r')
 
@@ -331,13 +333,13 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
                 vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
-            logger.debug(f"loading {storage.get_storage_url('vulnerability.csv', print_safe=True)[1]}")
+            logger.debug(f"loading {storage.get_storage_url('vulnerability.csv', encode_params=False)[1]}")
             with storage.open("vulnerability.csv") as f:
                 vuln_csv = np.loadtxt(f, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
             vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
-            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', print_safe=True)[1]}")
+            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
         vulns_id = create_vulns_id(vuln_dict)
 
@@ -369,15 +371,15 @@ def get_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
     """
     input_files = set(storage.listdir())
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', print_safe=True)[1]}")
+        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.bin") as f:
             return np.fromfile(f, dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', print_safe=True)[1]}")
+        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
             return np.loadtxt(f, dtype=damagebindictionaryCsv, skiprows=1, delimiter=',', ndmin=1)
     else:
-        raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', print_safe=True)[1]}")
+        raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -560,10 +562,9 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
     Returns: None
     """
-    static_path = os.path.join(run_dir, 'static')
-    model_storage = LocalStorageConnector(
-        media_root=os.path.join(run_dir, 'static'),
-        cache_dir=None,
+    model_storage = get_storage_from_config(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, 'static'),
     )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)

@@ -56,6 +56,7 @@ def prepare_run_directory(
     user_data_dir=None,
     ri=False,
     copy_model_data=False,
+    model_storage_config_fp=None
 ):
     """
     Ensures that the model run directory has the correct folder structure in
@@ -129,8 +130,12 @@ def prepare_run_directory(
     :param inputs_archive: path to a tar file containing input files
     :type inputs_archive: str
 
-    :param: user_data_dir: path to a directory containing additional user-supplied model data
+    :param user_data_dir: path to a directory containing additional user-supplied model data
     :type user_data_dir: str
+
+    :param model_storage_config_fp: path to the model storage configuration, if not present
+        the model data will be copied to the static directory
+    :type model_storage_config_fp: str
     """
     try:
         for subdir in ['fifo', 'output', 'static', 'work']:
@@ -177,24 +182,27 @@ def prepare_run_directory(
         dst = os.path.join(run_dir, 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
-        model_data_dst_fp = os.path.join(run_dir, 'static')
+        if not model_storage_config_fp:
+            model_data_dst_fp = os.path.join(run_dir, 'static')
 
-        try:
-            for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
-                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
+            try:
+                for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
+                    destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
-                if os.name == 'nt' or copy_model_data:
-                    shutil.copy(sourcefile, destfile)
+                    if os.name == 'nt' or copy_model_data:
+                        shutil.copy(sourcefile, destfile)
+                    else:
+                        os.symlink(sourcefile, destfile)
+            except OSError as e:
+                if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                    raise e
                 else:
-                    os.symlink(sourcefile, destfile)
-        except OSError as e:
-            if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
-                raise e
-            else:
-                # If the link already exists, check files are different replace it
-                if os.readlink(destfile) != os.path.abspath(sourcefile):
-                    os.symlink(sourcefile, destfile + ".tmp")
-                    os.replace(destfile + ".tmp", destfile)
+                    # If the link already exists, check files are different replace it
+                    if os.readlink(destfile) != os.path.abspath(sourcefile):
+                        os.symlink(sourcefile, destfile + ".tmp")
+                        os.replace(destfile + ".tmp", destfile)
+        else:
+            shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
 
         if user_data_dir and os.path.exists(user_data_dir):
             for sourcefile in glob.glob(os.path.join(user_data_dir, '*')):

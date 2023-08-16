@@ -6,6 +6,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 
@@ -19,7 +20,11 @@ def convert_bin_to_parquet(static_path: str) -> None:
     Returns: None
     """
     with ExitStack() as stack:
-        footprint_obj = stack.enter_context(Footprint.load(static_path=static_path,
+        storage = LocalStorageConnector(
+            media_root=static_path,
+            cache_dir=None,
+        )
+        footprint_obj = stack.enter_context(Footprint.load(storage,
                                                            ignore_file_type={'z', 'csv', 'parquet'}))
         index_data = footprint_obj.footprint_index
 
@@ -38,7 +43,7 @@ def convert_bin_to_parquet(static_path: str) -> None:
                 partition_cols=['event_id'],
                 compression="BROTLI"
             )
-        with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
+        with storage.open(f'footprint_parquet_meta.json', 'w') as outfile:
             json.dump(meta_data, outfile)
 
 

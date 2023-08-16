@@ -14,6 +14,7 @@ from numba import njit
 from numba.typed import Dict, List
 
 from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.config import get_storage_from_config
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import (
     Correlation, CorrelationsData)
@@ -149,10 +150,9 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    static_path = os.path.join(run_dir, 'static')
-    model_storage = LocalStorageConnector(
-        media_root=os.path.join(run_dir, 'static'),
-        cache_dir=None,
+    model_storage = get_storage_from_config(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, 'static'),
     )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)

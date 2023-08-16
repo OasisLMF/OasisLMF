@@ -1499,6 +1499,7 @@ def bash_params(
     max_process_id=-1,
     number_of_processes=-1,
     num_reinsurance_iterations=0,
+    model_storage_json=None,
     fifo_tmp_dir=True,
     gul_alloc_rule=None,
     il_alloc_rule=None,
@@ -1558,6 +1559,10 @@ def bash_params(
     bash_params['process_number'] = process_number
     bash_params['remove_working_files'] = remove_working_files
     bash_params['model_run_dir'] = model_run_dir
+
+    if model_storage_json:
+        bash_params['model_storage_json'] = model_storage_json
+
     bash_params['gul_threshold'] = analysis_settings.get('gul_threshold', 0)
     bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")

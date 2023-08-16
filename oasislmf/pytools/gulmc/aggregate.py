@@ -62,18 +62,18 @@ def read_aggregate_vulnerability(storage: BaseStorageConnector, ignore_file_type
     input_files = set(storage.listdir())
 
     if "aggregate_vulnerability.bin" in input_files and "bin" not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('aggregate_vulnerability.bin', print_safe=True)}")
+        logger.debug(f"loading {storage.get_storage_url('aggregate_vulnerability.bin', encode_params=False)}")
         with storage.open('aggregate_vulnerability.bin') as f:
             aggregate_vulnerability = np.memmap(f, dtype=AggregateVulnerability, mode='r')
 
     elif "aggregate_vulnerability.csv" in input_files and "csv" not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('aggregate_vulnerability.csv', print_safe=True)}")
+        logger.debug(f"loading {storage.get_storage_url('aggregate_vulnerability.csv', encode_params=False)}")
         with storage.open('aggregate_vulnerability.csv') as f:
             aggregate_vulnerability = np.loadtxt(f, dtype=AggregateVulnerability, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         aggregate_vulnerability = None
-        logging.warning(f"Aggregate vulnerability table not found at {storage.get_storage_url('', print_safe=True)[0]}. Continuing without aggregate vulnerability definitions.")
+        logging.warning(f"Aggregate vulnerability table not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without aggregate vulnerability definitions.")
 
     return aggregate_vulnerability
 
@@ -91,18 +91,18 @@ def read_vulnerability_weights(storage: BaseStorageConnector, ignore_file_type=s
     input_files = set(storage.listdir())
 
     if "weights.bin" in input_files and "bin" not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('weights.bin', print_safe=True)}")
+        logger.debug(f"loading {storage.get_storage_url('weights.bin', encode_params=False)}")
         with storage.open("weights.bin") as f:
             aggregate_weights = np.memmap(f, dtype=VulnerabilityWeight, mode='r')
 
     elif "weights.csv" in input_files and "csv" not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('weights.csv', print_safe=True)}")
+        logger.debug(f"loading {storage.get_storage_url('weights.csv', encode_params=False)}")
         with storage.open("weights.csv") as f:
             aggregate_weights = np.loadtxt(f, dtype=VulnerabilityWeight, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         aggregate_weights = None
-        logging.warning(f"Vulnerability weights not found at {storage.get_storage_url('', print_safe=True)[0]}. Continuing without vulnerability weights definitions.")
+        logging.warning(f"Vulnerability weights not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without vulnerability weights definitions.")
 
     return aggregate_weights
 

@@ -129,7 +129,7 @@ class Footprint:
             filepath=filepath,
             engine=self.df_engine
         ))
-        df_reader_config["engine"]["options"]["connection"] = self.storage.get_fsspec_storage_options()
+        df_reader_config["engine"]["options"]["storage"] = self.storage
 
         return get_df_reader(df_reader_config, **kwargs)
 
