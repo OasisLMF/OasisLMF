@@ -106,9 +106,6 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     return closest_points
 
 
-key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
-
-
 class DeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
 
@@ -260,7 +257,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
 
-        global key_columns
+        key_columns = [
+            'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
+            'vulnerability_id', 'status', 'message'
+        ]
         if 'amplification_id' in locations.columns:
             key_columns += ['amplification_id']
         locations = locations[key_columns]

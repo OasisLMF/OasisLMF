@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tarfile
 
-from itertools import chain
+from itertools import chain, islice
 from tempfile import TemporaryDirectory
 from copy import copy, deepcopy
 from tempfile import NamedTemporaryFile
@@ -32,6 +32,7 @@ from oasislmf.model_execution.bin import (
     csv_to_bin,
     prepare_run_directory,
     prepare_run_inputs,
+    set_footprint_set
 )
 from oasislmf.utils.exceptions import OasisException
 
@@ -508,7 +509,7 @@ class PrepareRunDirectory(TestCase):
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'a_file.csv')))
 
     def test_analysis_settings_file_is_supplied___file_is_copied_into_run_dir(self):
-        analysis_settings_fp = NamedTemporaryFile('w', delete=False)
+        analysis_settings_fp = NamedTemporaryFile('w', delete=False, prefix='bin')
         try:
             with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
                 analysis_settings_fp.write('{"analysis_settings": "analysis_settings"}')
@@ -854,6 +855,152 @@ class PrepareRunInputs(TestCase):
 
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
+
+
+class SetFootprintSet(TestCase):
+
+    def setUp(self):
+        """
+        Declare identifier for footprint file set, footprint file names and
+        symbolic link names for tests.
+        """
+        self.setting_val = 'f'
+        self.parquet_format, self.zip_bin_format, self.bin_format, self.csv_format = range(4)
+
+        # Ordered by priority, i.e. parquet files take priority over all others
+        self.fp_filenames = {
+            'parquet': ['footprint.parquet', 'footprint_parquet_meta.json'],
+            'binz': ['footprint.bin.z', 'footprint.idx.z'],
+            'bin': ['footprint.bin', 'footprint.idx'],
+            'csv': ['footprint.csv']
+        }
+        self.fp_set_filenames = {}
+        for fp_format, fp_filenames in self.fp_filenames.items():
+            self.fp_set_filenames[fp_format] = []
+            for filename in fp_filenames:
+                stem, extension = filename.split('.', 1)
+                self.fp_set_filenames[fp_format].append(f'{stem}_{self.setting_val}.{extension}')
+
+    def make_fake_footprint_files(self, d, priority_level):
+        """
+        Write footprint files to directory.
+
+        Args:
+            d (str): directory name
+            priority_level (int): file format being tested - formats with higher
+                priority (closer to 1) include those of lower priority
+        """
+        os.mkdir(os.path.join(d, 'static'))
+        for fp_format, fp_filename in islice(self.fp_filenames.items(), priority_level, None):
+            for filename in fp_filename:
+                stem, extension = filename.split('.', 1)
+                Path(os.path.join(d, 'static', f'{stem}_{self.setting_val}.{extension}')).touch()
+
+    def test_symbolic_links_to_parquet_files(self):
+        """
+        Test symbolic links pointing to footprint files in parquet format are
+        created. Also test links to zipped binary, binary and csv formatted
+        footprint files are not created.
+        """
+        with TemporaryDirectory() as d:
+            self.make_fake_footprint_files(d, self.parquet_format)
+
+            set_footprint_set(self.setting_val, d)
+
+            for fp_filename, fp_set_filename in zip(
+                self.fp_filenames['parquet'], self.fp_set_filenames['parquet']
+            ):
+                self.assertEqual(
+                    os.readlink(os.path.join(d, 'static', fp_filename)),
+                    os.path.join(d, 'static', fp_set_filename)
+                )
+
+            for fp_format, fp_filename in self.fp_filenames.items():
+                if fp_format == 'parquet':
+                    continue
+                for filename in fp_filename:
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
+
+    def test_symbolic_links_to_binz_files(self):
+        """
+        Test symbolic links pointing to footprint files in zipped binary format
+        are created. Also test links to parquet, binary and csv formatted
+        footprint files are not created.
+        """
+        with TemporaryDirectory() as d:
+            self.make_fake_footprint_files(d, self.zip_bin_format)
+
+            set_footprint_set(self.setting_val, d)
+
+            for fp_filename, fp_set_filename in zip(
+                self.fp_filenames['binz'], self.fp_set_filenames['binz']
+            ):
+                self.assertEqual(
+                    os.readlink(os.path.join(d, 'static', fp_filename)),
+                    os.path.join(d, 'static', fp_set_filename)
+                )
+
+            for fp_format, fp_filename in self.fp_filenames.items():
+                if fp_format == 'binz':
+                    continue
+                for filename in fp_filename:
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
+
+    def test_symbolic_links_to_bin_files(self):
+        """
+        Test symbolic links pointing to footprint files in binary format are
+        created. Also test links to parquet, zipped binary and csv formatted
+        footprint files are not created.
+        """
+        with TemporaryDirectory() as d:
+            self.make_fake_footprint_files(d, self.bin_format)
+
+            set_footprint_set(self.setting_val, d)
+
+            for fp_filename, fp_set_filename in zip(
+                self.fp_filenames['bin'], self.fp_set_filenames['bin']
+            ):
+                self.assertEqual(
+                    os.readlink(os.path.join(d, 'static', fp_filename)),
+                    os.path.join(d, 'static', fp_set_filename)
+                )
+
+            for fp_format, fp_filename in self.fp_filenames.items():
+                if fp_format == 'bin':
+                    continue
+                for filename in fp_filename:
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
+
+    def test_symbolic_link_to_csv_file(self):
+        """
+        Test symbolic link pointing to footprint file in csv format is created.
+        Also test links to parquet, zipped binary and binary formatted footprint
+        files are not created.
+        """
+        with TemporaryDirectory() as d:
+            self.make_fake_footprint_files(d, self.csv_format)
+
+            set_footprint_set(self.setting_val, d)
+
+            self.assertEqual(
+                os.readlink(os.path.join(d, 'static', self.fp_filenames['csv'][0])),
+                os.path.join(d, 'static', self.fp_set_filenames['csv'][0])
+            )
+
+            for fp_format, fp_filename in self.fp_filenames.items():
+                if fp_format == 'csv':
+                    continue
+                for filename in fp_filename:
+                    assert os.path.exists(os.path.join(d, 'static', filename)) is False
+
+    def test_no_valid_symbolic_links_raises_exception(self):
+        """
+        Test exception is raised should there be no valid footprint file format
+        available.
+        """
+        with TemporaryDirectory() as d:
+            with self.assertRaises(OasisException):
+                set_footprint_set(self.setting_val, d)
 
 
 class CleanBinDirectory(TestCase):

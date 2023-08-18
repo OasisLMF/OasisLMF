@@ -15,19 +15,21 @@ name: PiWind output check
 on:
   push:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
   pull_request:
     branches:
-      - master
-      - develop
-      - backports**
+      - main
+      - stable**
 
   workflow_dispatch:
     inputs:
-      platform_version:
-        description: 'OasisPlatform Version to test using [docker tag]'
+      platform_1_version:
+        description: 'OasisPlatform 1 - Version to test [docker tag]'
+        required: true
+        default: latest
+      platform_2_version:
+        description: 'OasisPlatform 2 - Version to test [docker tag]'
         required: true
         default: latest
       piwind_branch:
@@ -51,19 +53,34 @@ jobs:
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
-    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@develop
+    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' ||  inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' ||  inputs.ods_branch }}
 
-  piwind:
+  platform1:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@develop
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'develop' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
-      platform_version: ${{ github.event_name != 'workflow_dispatch' && 'latest' ||  inputs.platform_version }}
+      platform_version: ${{ github.event_name != 'workflow_dispatch' && 'latest' ||  inputs.platform_1_version }}
+      storage_suffix: '_platform1'
+
+  platform2:
+    if: ${{ ! failure() || ! cancelled() }}
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
+    secrets: inherit
+    needs: [build, ods_tools]
+    with:
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
+      oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
+      oasislmf_branch: ''
+      ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
+      platform_version: ${{ github.event_name != 'workflow_dispatch' && '2.2.0' ||  inputs.platform_2_version }}
+      pytest_opts: "--docker-compose=./docker/plat2.docker-compose.yml "
+      storage_suffix: '_platform2'
