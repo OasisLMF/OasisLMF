@@ -124,7 +124,8 @@ def prepare_run_directory(
     :param analysis_settings_fp: analysis settings JSON file path
     :type analysis_settings_fp: str
 
-    :param model_data_fp: model data source path
+    :param model_data_fp: model data source path, if this is a file it will be loaded as a
+        custom storage class
     :type model_data_fp: str
 
     :param inputs_archive: path to a tar file containing input files
@@ -182,26 +183,26 @@ def prepare_run_directory(
         dst = os.path.join(run_dir, 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
-        if not model_storage_config_fp:
-            model_data_dst_fp = os.path.join(run_dir, 'static')
+        model_data_dst_fp = os.path.join(run_dir, 'static')
 
-            try:
-                for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
-                    destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
+        try:
+            for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
+                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
-                    if os.name == 'nt' or copy_model_data:
-                        shutil.copy(sourcefile, destfile)
-                    else:
-                        os.symlink(sourcefile, destfile)
-            except OSError as e:
-                if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
-                    raise e
+                if os.name == 'nt' or copy_model_data:
+                    shutil.copy(sourcefile, destfile)
                 else:
-                    # If the link already exists, check files are different replace it
-                    if os.readlink(destfile) != os.path.abspath(sourcefile):
-                        os.symlink(sourcefile, destfile + ".tmp")
-                        os.replace(destfile + ".tmp", destfile)
-        else:
+                    os.symlink(sourcefile, destfile)
+        except OSError as e:
+            if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                raise e
+            else:
+                # If the link already exists, check files are different replace it
+                if os.readlink(destfile) != os.path.abspath(sourcefile):
+                    os.symlink(sourcefile, destfile + ".tmp")
+                    os.replace(destfile + ".tmp", destfile)
+
+        if model_storage_config_fp:
             shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
 
         if user_data_dir and os.path.exists(user_data_dir):

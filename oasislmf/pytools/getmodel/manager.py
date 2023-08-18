@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 from numba.typed import Dict
+from pyarrow.fs import FSSpecHandler
 
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
@@ -297,8 +298,8 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
     input_files = set(storage.listdir())
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('vulnerability_dataset', encode_params=False)[1]}")
-        _, file_url = storage.get_storage_url('vulnerability_dataset')
-        parquet_handle = pq.ParquetDataset(file_url, use_legacy_dataset=False,
+        _, file_url = storage.get_storage_url('vulnerability_dataset', encode_params=False)
+        parquet_handle = pq.ParquetDataset(file_url, filesystem=FSSpecHandler(storage.fs), use_legacy_dataset=False,
                                            filters=[("vulnerability_id", "in", list(vuln_dict))],
                                            memory_map=True)
         vuln_table = parquet_handle.read()
@@ -568,6 +569,8 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
     )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
+    if not model_storage.supports_bin_files:
+        ignore_file_type |= {"bin", "binZ"}
 
     if data_server:
         logger.debug("data server active")

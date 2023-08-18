@@ -1,6 +1,7 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
+import io
 import json
 import logging
 import mmap
@@ -94,6 +95,9 @@ class Footprint:
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
+        if not storage.supports_bin_files:
+            ignore_file_type = {*ignore_file_type, "bin", "binZ"}
+
         format_to_class = {
             'parquet': FootprintParquet, 'binZ': FootprintBinZ,
             'bin': FootprintBin, 'csv': FootprintCsv
@@ -133,6 +137,21 @@ class Footprint:
 
         return get_df_reader(df_reader_config, **kwargs)
 
+    @staticmethod
+    def prepare_df_data(data_frame: pd.DataFrame) -> np.array:
+        """
+        Reads footprint data from a parquet file.
+
+        Returns: (np.array) footprint data loaded from the parquet file
+        """
+        areaperil_id = data_frame["areaperil_id"].to_numpy()
+        intensity_bin_id = data_frame["intensity_bin_id"].to_numpy()
+        probability = data_frame["probability"].to_numpy()
+
+        buffer = np.empty(len(areaperil_id), dtype=Event)
+        outcome = stitch_data(areaperil_id, intensity_bin_id, probability, buffer)
+        return np.array(outcome, dtype=Event)
+
 
 class FootprintCsv(Footprint):
     """
@@ -147,11 +166,11 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
-        reader = self.get_df_reader("footprint.csv", dtype=EventCSV, delimiter=",", skiprows=1, ndmin=1)
+        self.reader = self.get_df_reader("footprint.csv", dtype=EventCSV)
 
-        self.num_intensity_bins = reader.query(lambda df: df['intensity_bin_id'].max())
+        self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())
 
-        self.has_intensity_uncertainty = reader.query(
+        self.has_intensity_uncertainty = self.reader.query(
             lambda df: df.groupby(['event_id', 'areaperil_id']).size().max() > 1
         )
 
@@ -159,7 +178,8 @@ class FootprintCsv(Footprint):
             footprint_index_df = df.groupby('event_id', as_index=False).size()
             footprint_index_df['offset'] = footprint_index_df['size'].cumsum() - footprint_index_df['size']
             footprint_index_df.set_index('event_id', inplace=True)
-        self.footprint_index = reader.query(_fn).to_dict('index')
+            return footprint_index_df
+        self.footprint_index = self.reader.query(_fn).to_dict('index')
 
         return self
 
@@ -176,9 +196,7 @@ class FootprintCsv(Footprint):
         if event_info is None:
             return
         else:
-            reader = self.get_df_reader("footprint.csv", dtype=EventCSV, delimiter=",", skiprows=1, ndmin=1)
-            reader.filter(lambda df: df["event_id"] == event_id)
-            return reader.as_pandas()
+            return self.prepare_df_data(self.reader.filter(lambda df: df[df["event_id"] == event_id]).as_pandas())
 
 
 class FootprintBin(Footprint):
@@ -309,28 +327,11 @@ class FootprintParquet(Footprint):
         # except OSError:
         #     return None
 
-        reader = self.get_df_reader("footprint.parquet", filters=[
-            lambda df: df["event_id"] == event_id
-        ])
+        reader = self.get_df_reader("footprint.parquet").filter(lambda df: df[df["event_id"] == event_id])
 
         df = reader.as_pandas()
-        numpy_data = self.prepare_data(data_frame=df)
+        numpy_data = self.prepare_df_data(data_frame=df)
         return numpy_data
-
-    @staticmethod
-    def prepare_data(data_frame: pd.DataFrame) -> np.array:
-        """
-        Reads footprint data from a parquet file.
-
-        Returns: (np.array) footprint data loaded from the parquet file
-        """
-        areaperil_id = data_frame["areaperil_id"].to_numpy()
-        intensity_bin_id = data_frame["intensity_bin_id"].to_numpy()
-        probability = data_frame["probability"].to_numpy()
-
-        buffer = np.empty(len(areaperil_id), dtype=Event)
-        outcome = stitch_data(areaperil_id, intensity_bin_id, probability, buffer)
-        return np.array(outcome, dtype=Event)
 
 
 @nb.njit(cache=True)

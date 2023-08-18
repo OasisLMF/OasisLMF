@@ -123,6 +123,8 @@ def run(run_dir,
     )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
+    if not model_storage.supports_bin_files:
+        ignore_file_type |= {"bin", "binZ"}
 
     if alloc_rule not in [0, 1, 2, 3]:
         raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")

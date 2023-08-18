@@ -12,6 +12,7 @@ from typing import Optional, Set, Tuple, List
 
 import numpy as np
 
+from lot3.filestore.backends.storage_manager import BaseStorageConnector
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 # configuring process meta data
@@ -55,17 +56,16 @@ class FootprintLayer:
         total_served (int): the total number of processes that have ever registered through the server's lifetime
     """
 
-    def __init__(self, static_path: str, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
+    def __init__(self, storage: BaseStorageConnector, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
         """
         The constructor for the FootprintLayer class.
 
         Args:
-            static_path: (str) path to the static file to load the data
             ignore_file_type: (Set[str]) collection of file types to ignore when loading
             total_expected: (int) the total number of reliant processes expected
 
         """
-        self.static_path: str = static_path
+        self.storage = storage
         self.ignore_file_type: Set[str] = ignore_file_type
         self.file_data: Optional[Footprint] = None
         self.socket: Optional[socket.socket] = None
@@ -146,7 +146,7 @@ class FootprintLayer:
         self._establish_shutdown_procedure()
 
         with ExitStack() as stack:
-            footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
+            footprint_obj = stack.enter_context(Footprint.load(self.storage,
                                                                ignore_file_type=self.ignore_file_type))
             self.file_data = footprint_obj
             while True:
