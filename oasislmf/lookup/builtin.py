@@ -33,7 +33,6 @@ try:  # needed for rtree
 except ImportError:
     Point = gdp = None
 
-import itertools
 import math
 import re
 
