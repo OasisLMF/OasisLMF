@@ -286,13 +286,22 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
 
+        key_columns = [
+            'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
+            'vulnerability_id', 'status', 'message'
+        ]
+        if 'amplification_id' in locations.columns:
+            key_columns += ['amplification_id']
         locations = locations[key_columns]
 
         # check all ids are of the good type
-        self.set_id_columns(locations, ['coverage_type', 'area_peril_id', 'vulnerability_id'])
+        id_cols = ['coverage_type', 'area_peril_id', 'vulnerability_id']
+        if 'amplification_id' in locations.columns:
+            id_cols += ['amplification_id']
+        self.set_id_columns(locations, id_cols)
         # check all success location have all ids set correctly
         success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]
-        for id_col in ['coverage_type', 'area_peril_id', 'vulnerability_id']:
+        for id_col in id_cols:
             unknown_ids = success_locations[id_col] == OASIS_UNKNOWN_ID
             fail_locations = success_locations.loc[unknown_ids].index
             locations.loc[fail_locations, ['status', 'message']] = OASIS_KEYS_STATUS['fail'][

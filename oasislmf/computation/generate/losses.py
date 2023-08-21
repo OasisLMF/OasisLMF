@@ -29,7 +29,7 @@ from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSche
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
-                              prepare_run_inputs)
+                              prepare_run_inputs, set_footprint_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...utils.data import (fast_zip_dataframe_columns,
@@ -317,6 +317,9 @@ class GenerateLossesDir(GenerateLossesBase):
             analysis_settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
+        if footprint_set_val:
+            set_footprint_set(footprint_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:
@@ -580,7 +583,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
-        {'name': 'peril_filter', 'default': [], 'nargs':'+', 'help': 'Peril specific run'},
+        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
     ]

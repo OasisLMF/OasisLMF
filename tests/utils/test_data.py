@@ -15,7 +15,7 @@ import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
                                    integers, just, lists, sampled_from, text)
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal as pd_assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure, OedSchema
 
@@ -34,6 +34,17 @@ def arrays_are_identical(expected, result):
         raise
 
     return True
+
+
+def assert_frame_equal(result, expected):
+    """ Override expected NaN values in expected string columns
+        this is to prevent 'NaN' != NaN
+    """
+    for string_col in ['STR_COL', 'str_col']:
+        if string_col in expected.columns:
+            expected[string_col] = expected[string_col].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
+
+    pd_assert_frame_equal(result, expected)
 
 
 class TestFactorizeArrays(TestCase):
@@ -146,15 +157,6 @@ class TestFastZipArrays(TestCase):
         self.assertTrue(arrays_are_identical(zipped, result))
 
 
-def dataframes_are_identical(df1, df2):
-    try:
-        assert_frame_equal(df1, df2)
-    except AssertionError:
-        return False
-
-    return True
-
-
 class TestGetDataframe(TestCase):
 
     def test_get_dataframe__no_src_fp_or_buf_or_data_provided__oasis_exception_is_raised(self):
@@ -176,17 +178,14 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__use_default_options(self, data):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
-
             result = get_dataframe(src_fp=fp.name)
-
             assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
@@ -206,7 +205,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__use_default_options(self, data):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -240,7 +239,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file__set_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             for col, dtype in dtypes.items():
@@ -275,7 +274,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             for col, dtype in dtypes.items():
@@ -295,7 +294,7 @@ class TestGetDataframe(TestCase):
     @settings(max_examples=10, deadline=None)
     @given(empty_data_err_msg=text(min_size=1, max_size=10, alphabet=string.ascii_lowercase))
     def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(self, empty_data_err_msg):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame()
             df.to_csv(path_or_buf=fp)
@@ -332,7 +331,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -371,7 +370,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -411,7 +410,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -447,7 +446,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -481,7 +480,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -517,11 +516,10 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             expected = df.copy(deep=True)
@@ -549,13 +547,12 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile('w', delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data[-1]['int_col'] = np.nan
             data[-2]['str_col'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['str_col'] = df['str_col'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'str_col']
@@ -580,13 +577,12 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data[-1]['int_col'] = np.nan
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            df['STR_COL'] = df['STR_COL'].map(lambda x: np.nan if x in PANDAS_DEFAULT_NULL_VALUES else x)
             fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
@@ -614,7 +610,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
@@ -645,7 +641,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
@@ -677,7 +673,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data = [
                 {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k ==
@@ -712,7 +708,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
@@ -761,7 +757,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -805,7 +801,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -850,7 +846,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -890,7 +886,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -917,7 +913,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_columns___set_lowercase_cols_option_to_false_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -950,7 +946,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_columns__set_lowercase_col_option_to_false_and_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             for col, dtype in dtypes.items():
@@ -988,7 +984,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -1028,7 +1024,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -1063,7 +1059,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
@@ -1104,7 +1100,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_lowercase_cols_option_to_false_and_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data[-1]['int_col'] = np.nan
             data[-2]['STR_COL'] = np.nan
@@ -1117,7 +1113,6 @@ class TestGetDataframe(TestCase):
             expected = df.dropna(subset=non_na_cols, axis=0)
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
-
             assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
@@ -1137,7 +1132,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
@@ -1168,7 +1163,7 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
@@ -1216,7 +1211,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -1260,7 +1255,7 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
-        fp = NamedTemporaryFile("w", delete=False)
+        fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             df = pd.DataFrame(data)
             df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
@@ -1303,7 +1298,7 @@ class TestGetJson(TestCase):
     )
     def test_get_json__with_nesting_depth_of_1(self, data):
         expected = copy.deepcopy(data)
-        f1 = NamedTemporaryFile("w", delete=False)
+        f1 = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
             f1.write(json.dumps(expected, indent=4, sort_keys=True))
             f1.close()
@@ -1347,7 +1342,8 @@ class TestOedDataTypes(TestCase):
     def setUp(self):
         # Set vaild types
         self.valid_str_types = (
-            str
+            str,
+            pd.Categorical,
         )
         self.valid_int_types = (
             int,
