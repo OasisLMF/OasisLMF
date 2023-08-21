@@ -45,16 +45,13 @@ class RunExposure(ComputationStep):
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'flag': '-A', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['peril_item', 'item', 'loc', 'pol', 'acc', 'port'],
+        {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['item', 'loc', 'pol', 'acc', 'port'],
          'default': 'item'},
-        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
-         'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'extra_summary_cols', 'nargs': '+', 'help': 'extra column to include in the summary', 'default': []},
         {'name': 'coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
          'help': 'Select List of supported coverage_types [1, .. ,4]'},
-        {'name': 'use_peril_covered', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
-         'help': 'use perils in LocPerilCovered instead of num_subperils'},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
-         'help': 'List of peril covered by the model, only available with use_peril_covered set to True'},
+         'help': 'List of peril covered by the model'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -108,10 +105,8 @@ class RunExposure(ComputationStep):
         keys_fp = os.path.join(run_dir, 'keys.csv')
         GenerateKeysDeterministic(
             keys_data_csv=keys_fp,
-            num_subperils=self.num_subperils,
             supported_oed_coverage_types=self.coverage_types,
             exposure_data=exposure_data,
-            use_peril_covered=self.use_peril_covered,
             model_perils_covered=self.model_perils_covered,
         ).run()
 
@@ -129,7 +124,6 @@ class RunExposure(ComputationStep):
             output_dir=os.path.join(run_dir, 'output'),
             include_loss_factor=include_loss_factor,
             loss_factor=self.loss_factor,
-            num_subperils=self.num_subperils,
             net_ri=self.net_ri,
             ktools_alloc_rule_il=self.ktools_alloc_rule_il,
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
@@ -200,6 +194,8 @@ class RunExposure(ComputationStep):
             summary_cols = [
                 'output_id', portfolio_num, acc_num, loc_num, policy_num,
                 'coverage_type_id', 'peril_id']
+
+        summary_cols += self.extra_summary_cols
 
         if include_loss_factor:
             group_by_cols = summary_cols + ['loss_factor_idx']
@@ -313,8 +309,6 @@ class RunFmTest(ComputationStep):
         {'name': 'test_case_dir', 'flag': '-t', 'default': os.getcwd(), 'is_path': True, 'pre_exist': True,
          'help': 'Test directory - should contain test directories containing OED files and expected results'},
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
-        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
-         'help': 'Set the number of subperils returned by deterministic key generator'},
         {'name': 'test_tolerance', 'type': float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001',
          'default': 1e-4},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
@@ -415,7 +409,6 @@ class RunFmTest(ComputationStep):
             output_level=output_level,
             output_file=output_file,
             include_loss_factor=include_loss_factor,
-            num_subperils=self.num_subperils,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
