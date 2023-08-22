@@ -329,7 +329,7 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
                 vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                                 num_damage_bins, num_intensity_bins)
             else:
-                with storage.open("vulnerability.bin") as f:
+                with storage.with_fileno("vulnerability.bin") as f:
                     vulns_bin = np.memmap(f, dtype=Vulnerability, offset=4, mode='r')
                 vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
@@ -373,7 +373,7 @@ def get_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
     input_files = set(storage.listdir())
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
-        with storage.open("damage_bin_dict.bin") as f:
+        with storage.with_fileno("damage_bin_dict.bin") as f:
             return np.fromfile(f, dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
@@ -569,8 +569,6 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
     )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
-    if not model_storage.supports_bin_files:
-        ignore_file_type |= {"bin", "binZ"}
 
     if data_server:
         logger.debug("data server active")

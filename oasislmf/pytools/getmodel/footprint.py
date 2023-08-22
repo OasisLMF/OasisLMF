@@ -95,12 +95,9 @@ class Footprint:
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
-        if not storage.supports_bin_files:
-            ignore_file_type = {*ignore_file_type, "bin", "binZ"}
-
         format_to_class = {
-            'parquet': FootprintParquet, 'binZ': FootprintBinZ,
-            'bin': FootprintBin, 'csv': FootprintCsv
+            'parquet': FootprintParquet, 'csv': FootprintCsv,
+            'binZ': FootprintBinZ, 'bin': FootprintBin,
         }
         priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
 
@@ -212,13 +209,13 @@ class FootprintBin(Footprint):
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
     def __enter__(self):
-        footprint_file = self.stack.enter_context(self.storage.open(footprint_filename, 'rb'))
+        footprint_file = self.stack.enter_context(self.storage.with_fileno(footprint_filename))
         self.footprint = mmap.mmap(footprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
         footprint_header = np.frombuffer(bytearray(self.footprint[:FootprintHeader.size]), dtype=FootprintHeader)
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
 
-        f = self.stack.enter_context(self.storage.open(footprint_index_filename))
+        f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
         footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
 
         self.footprint_index = pd.DataFrame(
@@ -258,7 +255,7 @@ class FootprintBinZ(Footprint):
     footprint_filenames = [zfootprint_filename, zfootprint_index_filename]
 
     def __enter__(self):
-        zfootprint_file = self.stack.enter_context(self.storage.open(zfootprint_filename, 'rb'))
+        zfootprint_file = self.stack.enter_context(self.storage.with_fileno(zfootprint_filename))
         self.zfootprint = mmap.mmap(zfootprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.size]), dtype=FootprintHeader)
@@ -270,7 +267,7 @@ class FootprintBinZ(Footprint):
         else:
             self.index_dtype = EventIndexBin
 
-        f = self.stack.enter_context(self.storage.open(zfootprint_index_filename))
+        f = self.stack.enter_context(self.storage.with_fileno(zfootprint_index_filename))
         zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
         self.footprint_index = pd.DataFrame(zfootprint_mmap, columns=zfootprint_mmap.dtype.names).set_index('event_id').to_dict('index')
         return self
