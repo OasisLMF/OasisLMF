@@ -24,6 +24,7 @@ from subprocess import CalledProcessError, check_call
 
 import pandas as pd
 
+from lot3.filestore.config import get_storage_from_config
 from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
 from ...execution import bash, runner
@@ -232,6 +233,11 @@ class GenerateLossesDir(GenerateLossesBase):
         model_run_fp = self._get_output_dir()
         analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
 
+        model_storage = get_storage_from_config(
+            self.model_storage_json,
+            os.path.join(self.model_run_dir, "static")
+        )
+
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
             'fm_profile.csv',
@@ -319,7 +325,7 @@ class GenerateLossesDir(GenerateLossesBase):
             self.logger.info(f"Loaded samples from model_settings file: 'model_default_samples = {default_model_samples}'")
             analysis_settings['number_of_samples'] = default_model_samples
 
-        prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri)
         footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
         if footprint_set_val:
             set_footprint_set(footprint_set_val, model_run_fp)

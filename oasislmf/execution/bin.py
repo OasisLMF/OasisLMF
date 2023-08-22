@@ -33,6 +33,7 @@ from itertools import chain
 
 from pathlib import Path
 
+from lot3.filestore.backends.storage_manager import BaseStorageConnector
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
@@ -185,22 +186,23 @@ def prepare_run_directory(
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
 
-        try:
-            for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
-                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
+        if not model_storage_config_fp:
+            try:
+                for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
+                    destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
-                if os.name == 'nt' or copy_model_data:
-                    shutil.copy(sourcefile, destfile)
+                    if os.name == 'nt' or copy_model_data:
+                        shutil.copy(sourcefile, destfile)
+                    else:
+                        os.symlink(sourcefile, destfile)
+            except OSError as e:
+                if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                    raise e
                 else:
-                    os.symlink(sourcefile, destfile)
-        except OSError as e:
-            if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
-                raise e
-            else:
-                # If the link already exists, check files are different replace it
-                if os.readlink(destfile) != os.path.abspath(sourcefile):
-                    os.symlink(sourcefile, destfile + ".tmp")
-                    os.replace(destfile + ".tmp", destfile)
+                    # If the link already exists, check files are different replace it
+                    if os.readlink(destfile) != os.path.abspath(sourcefile):
+                        os.symlink(sourcefile, destfile + ".tmp")
+                        os.replace(destfile + ".tmp", destfile)
 
         if model_storage_config_fp:
             shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
@@ -280,25 +282,37 @@ def _load_default_quantile_bin(run_dir):
                          )
 
 
-def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False, extension='bin'):
+def _prepare_input_bin(run_dir, bin_name, model_settings, storage: BaseStorageConnector, setting_key=None, ri=False, extension='bin'):
     bin_fp = os.path.join(run_dir, 'input', '{}.{}'.format(bin_name, extension))
     if not os.path.exists(bin_fp):
         setting_val = model_settings.get(setting_key)
 
         if not setting_val:
-            model_data_bin_fp = os.path.join(run_dir, 'static', '{}.{}'.format(bin_name, extension))
+            targets = [
+                f"{bin_name}.{extension}",
+            ]
         else:
-            # 'verbatim' -  Try setting value as given
-            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, str(setting_val), extension))
-            if not os.path.isfile(model_data_bin_fp):
-                # 'compatibility' - Fallback name formatting to keep existing conversion
-                setting_val = str(setting_val).replace(' ', '_').lower()
-                model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, setting_val, extension))
+            targets = [
+                f"{bin_name}_{str(setting_val)}.{extension}",
+                f"{bin_name}_{str(setting_val).replace(' ', '_').lower()}.{extension}"
+            ]
 
-        if not os.path.exists(model_data_bin_fp):
-            raise OasisException('Could not find {} data file: {}'.format(bin_name, model_data_bin_fp))
+        for fname in targets:
+            if storage.isfile(fname):
+                storage.get(fname, bin_fp)
 
-        shutil.copyfile(model_data_bin_fp, bin_fp)
+        # if not setting_val:
+        #     model_data_bin_fp = os.path.join(run_dir, 'static', '{}.{}'.format(bin_name, extension))
+        # else:
+        #     # 'verbatim' -  Try setting value as given
+        #     model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, str(setting_val), extension))
+        #     if not os.path.isfile(model_data_bin_fp):
+        #         # 'compatibility' - Fallback name formatting to keep existing conversion
+        #         setting_val = str(setting_val).replace(' ', '_').lower()
+        #         model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, setting_val, extension))
+
+        if not os.path.exists(bin_fp):
+            raise OasisException('Could not find {} data file: {}'.format(bin_name, targets))
 
 
 def _calc_selected(analysis_settings, calc_type_list):
@@ -348,7 +362,7 @@ def _leccalc_selected(analysis_settings):
 
 
 @oasis_log
-def prepare_run_inputs(analysis_settings, run_dir, ri=False):
+def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorageConnector, ri=False):
     """
     Sets up binary files in the model inputs directory.
 
@@ -366,11 +380,11 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
             _create_events_bin(run_dir, analysis_settings.get('event_ids'))
         else:
             # copy selected event set from static
-            _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
+            _prepare_input_bin(run_dir, 'events', model_settings, model_storage, setting_key='event_set', ri=ri)
 
         # Prepare event_rates.csv
         if os.path.exists(os.path.join(run_dir, 'static', 'event_rates.csv')) or model_settings.get('event_rates_set'):
-            _prepare_input_bin(run_dir, 'event_rates', model_settings, setting_key='event_rates_set', ri=ri, extension='csv')
+            _prepare_input_bin(run_dir, 'event_rates', model_settings, model_storage, setting_key='event_rates_set', ri=ri, extension='csv')
 
         # Prepare quantile.bin
         if analysis_settings.get('quantiles'):
@@ -379,7 +393,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         elif _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
             # 2. copy quantile file from model data
             if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
-                _prepare_input_bin(run_dir, 'quantile', model_settings, ri=ri)
+                _prepare_input_bin(run_dir, 'quantile', model_settings, model_storage, ri=ri)
             else:
                 # 3. Create quantile file from package `_data/quantile.csv`
                 _load_default_quantile_bin(run_dir)
@@ -391,18 +405,18 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
                 _create_return_period_bin(run_dir, analysis_settings.get('return_periods'))
             else:
                 # copy return periods from static
-                _prepare_input_bin(run_dir, 'returnperiods', model_settings)
+                _prepare_input_bin(run_dir, 'returnperiods', model_settings, model_storage)
 
-            _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
+            _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
         elif _calc_selected(analysis_settings, [
             'pltcalc', 'aalcalc', 'alt_period', 'elt_moment', 'elt_quantile',
             'elt_sample', 'plt_moment', 'plt_quantile', 'plt_sample'
         ]):
-            _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
+            _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
 
         # Prepare periods.bin
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
-            _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
+            _prepare_input_bin(run_dir, 'periods', model_settings, model_storage, ri=ri)
 
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
