@@ -383,7 +383,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorageCon
             _prepare_input_bin(run_dir, 'events', model_settings, model_storage, setting_key='event_set', ri=ri)
 
         # Prepare event_rates.csv
-        if os.path.exists(os.path.join(run_dir, 'static', 'event_rates.csv')) or model_settings.get('event_rates_set'):
+        if model_storage.exists('event_rates.csv') or model_settings.get('event_rates_set'):
             _prepare_input_bin(run_dir, 'event_rates', model_settings, model_storage, setting_key='event_rates_set', ri=ri, extension='csv')
 
         # Prepare quantile.bin
@@ -392,7 +392,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorageCon
             _create_quantile_bin(run_dir, analysis_settings.get('quantiles'))
         elif _calc_selected(analysis_settings, ['plt_quantile', 'elt_quantile']):
             # 2. copy quantile file from model data
-            if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
+            if model_storage.exists('quantile.bin'):
                 _prepare_input_bin(run_dir, 'quantile', model_settings, model_storage, ri=ri)
             else:
                 # 3. Create quantile file from package `_data/quantile.csv`
@@ -415,7 +415,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorageCon
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
 
         # Prepare periods.bin
-        if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
+        if model_storage.exists('periods.bin'):
             _prepare_input_bin(run_dir, 'periods', model_settings, model_storage, ri=ri)
 
     except (OSError, IOError) as e:
