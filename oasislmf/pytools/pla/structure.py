@@ -62,7 +62,8 @@ def get_items_amplifications(path):
 
 @njit(cache=True)
 def fill_post_loss_amplification_factors(
-    event_id, count, cursor, valid_length, event_count, amp_factor, plafactors
+    event_id, count, cursor, valid_length, event_count, amp_factor, plafactors,
+    secondary_factor
 ):
     """
     Fill Post Loss Amplification (PLA) factors dictionary mapped to
@@ -77,6 +78,8 @@ def fill_post_loss_amplification_factors(
         event_count (numpy.ndarray): array of event ID-count pairs
         amp_factor (numpy.ndarray): array of amplification ID-loss pairs
         plafactors (numba.typed.typeddict.Dict): PLA factors dictionary
+        secondary_factor (float): secondary factor to apply to post loss
+          amplification
 
     Returns:
         event_id (int): current event ID
@@ -93,7 +96,7 @@ def fill_post_loss_amplification_factors(
 
         else:
             amplification_id = amp_factor[cursor]['amplification_id']
-            loss_factor = amp_factor[cursor]['factor']
+            loss_factor = 1 + (amp_factor[cursor]['factor'] - 1) * secondary_factor
             plafactors[(event_id, amplification_id)] = loss_factor
             cursor += 1
             count -= 1
@@ -152,11 +155,10 @@ def get_post_loss_amplification_factors(path, secondary_factor):
                 break
 
             valid_length = valid_buffer // DATA_SIZE
-            amp_factor[:, 1] = 1 + (amp_factor[:, 1] - 1) * secondary_factor
 
             event_id, count, plafactors = fill_post_loss_amplification_factors(
                 event_id, count, cursor, valid_length, event_count, amp_factor,
-                plafactors
+                plafactors, secondary_factor
             )
 
             valid_buffer = 0
