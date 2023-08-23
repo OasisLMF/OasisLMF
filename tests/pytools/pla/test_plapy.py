@@ -233,5 +233,5 @@ class TestPostLossAmplification(TestCase):
         """
         with pytest.raises(SystemExit) as e:
             get_items_amplifications('.')
-        assert e.type = SystemExit
-        assert e.value_code == 1
+        assert e.type == SystemExit
+        assert e.value.code == 1
