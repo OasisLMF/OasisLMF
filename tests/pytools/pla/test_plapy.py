@@ -184,7 +184,7 @@ class TestPostLossAmplification(TestCase):
         pla_out = NamedTemporaryFile(prefix='pla')
         run(
             run_dir='.', file_in=self.gul_in.name, file_out=pla_out.name,
-            input_path='input', static_path='static'
+            input_path='input', static_path='static', secondary_factor=1
         )
 
         self.assertTrue(filecmp.cmp(
