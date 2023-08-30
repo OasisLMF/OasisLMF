@@ -365,6 +365,21 @@ class TestGenLosses(ComputationChecker):
         expected_error = "'number_of_samples' not set in analysis_settings and no model_settings.json file provided"
         self.assertIn(expected_error, str(context.exception))
 
+    def test_losses__pla_set__bin_missing__expection_raised(self):
+        PLA_SETTINGS = MIN_RUN_SETTINGS.copy()
+        PLA_SETTINGS['pla'] = True
+        PLA_SETTINGS['pla_secondary_factor'] = 0.5
+
+        self.write_json(self.tmp_files.get('analysis_settings_json'), PLA_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        with self.assertRaises(OasisException) as context:
+            self.manager.generate_losses(**self.min_args)
+        expected_error = "Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output."
+        self.assertIn(expected_error, str(context.exception))
+
+#    def test_losses__pla_set__bin_missing__expection_raised(self):
+
+
     @patch('oasislmf.execution.runner.run')
     def test_losses__samples_set__in_model_settings(self, mock_runner):
         expected_samples = 250
