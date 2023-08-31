@@ -156,15 +156,6 @@ class TestFastZipArrays(TestCase):
         self.assertTrue(arrays_are_identical(zipped, result))
 
 
-def dataframes_are_identical(df1, df2):
-    try:
-        pd.testing.assert_frame_equal(df1, df2)
-    except AssertionError:
-        return False
-
-    return True
-
-
 class TestGetDataframe(TestCase):
 
     def test_get_dataframe__no_src_fp_or_buf_or_data_provided__oasis_exception_is_raised(self):
