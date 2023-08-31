@@ -20,7 +20,7 @@ from pyarrow.fs import FSSpecHandler
 
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
-from lot3.filestore.config import get_storage_from_config
+from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
@@ -563,7 +563,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
     Returns: None
     """
-    model_storage = get_storage_from_config(
+    model_storage = get_storage_from_config_path(
         os.path.join(run_dir, 'model_storage.json'),
         os.path.join(run_dir, 'static'),
     )

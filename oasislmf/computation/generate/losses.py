@@ -24,7 +24,7 @@ from subprocess import CalledProcessError, check_call
 
 import pandas as pd
 
-from lot3.filestore.config import get_storage_from_config
+from lot3.filestore.config import get_storage_from_config_path
 from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 
 from ...execution import bash, runner
@@ -228,9 +228,9 @@ class GenerateLossesDir(GenerateLossesBase):
         model_run_fp = self._get_output_dir()
         analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
 
-        model_storage = get_storage_from_config(
+        model_storage = get_storage_from_config_path(
             self.model_storage_json,
-            os.path.join(self.model_run_dir, "static")
+            os.path.join(self.model_run_dir, "static"),
         )
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
