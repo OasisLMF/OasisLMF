@@ -18,8 +18,8 @@ params = parser.parse_args()
 subdir = params.subdirectory
 
 with setcwd(subdir):
-    locationfile = pd.read_csv('location.csv')
-    accountfile = pd.read_csv('account.csv')
+    locationfile = pd.read_csv('location.csv', dtype=str, keep_default_na=False)
+    accountfile = pd.read_csv('account.csv', dtype=str, keep_default_na=False)
 
     split_location = locationfile.groupby('FlexiLocUnit')
     split_account = accountfile.groupby('FlexiAccUnit')

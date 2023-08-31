@@ -29,7 +29,6 @@ class TestPlatformList(ComputationChecker):
     def setUpClass(cls):
         cls.manager = OasisManager()
         cls.default_args = cls.manager._params_platform_list()
-        cls.tmp_files = cls.create_tmp_files([a for a in cls.default_args.keys() if 'json' in a])
 
     def add_connection_startup(self, responce_queue):
         responce_queue.get(
@@ -42,12 +41,14 @@ class TestPlatformList(ComputationChecker):
             headers={"authorization": "Bearer acc_tkn"})
 
     def setUp(self):
+        self.tmp_files = self.create_tmp_files([a for a in self.default_args.keys() if 'json' in a])
         assert responses, 'responses package required to run'
         self.api_url = 'http://example.com/api'
         responses.start()
         self.min_args = {'server_url': self.api_url}
 
     def tearDown(self):
+        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -156,10 +157,6 @@ class TestPlatformRunInputs(ComputationChecker):
     def setUpClass(cls):
         cls.manager = OasisManager()
         cls.default_args = cls.manager._params_platform_run_inputs()
-        cls.tmp_files = cls.create_tmp_files(
-            [a for a in cls.default_args.keys() if 'csv' in a] +
-            [a for a in cls.default_args.keys() if 'json' in a]
-        )
 
     def add_connection_startup(self, responce_queue=None):
         responce_queue.get(
@@ -172,6 +169,10 @@ class TestPlatformRunInputs(ComputationChecker):
             headers={"authorization": "Bearer acc_tkn"})
 
     def setUp(self):
+        self.tmp_files = self.create_tmp_files(
+            [a for a in self.default_args.keys() if 'csv' in a] +
+            [a for a in self.default_args.keys() if 'json' in a]
+        )
         assert responses, 'responses package required to run'
         self.api_url = 'http://localhost:8000'
         responses.start()
@@ -183,6 +184,7 @@ class TestPlatformRunInputs(ComputationChecker):
         self.write_str(self.tmp_files.get('oed_scope_csv'), "Sample scope content")
 
     def tearDown(self):
+        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -500,10 +502,10 @@ class TestPlatformRunLosses(ComputationChecker):
     def setUpClass(cls):
         cls.manager = OasisManager()
         cls.default_args = cls.manager._params_platform_run_losses()
-        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args if 'dir' in a])
-        cls.tmp_files = cls.create_tmp_files([a for a in cls.default_args if 'json' in a])
 
     def setUp(self):
+        self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args if 'dir' in a])
+        self.tmp_files = self.create_tmp_files([a for a in self.default_args if 'json' in a])
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.api_url = 'http://localhost:8000'
         responses.get(
@@ -516,6 +518,7 @@ class TestPlatformRunLosses(ComputationChecker):
         responses.start()
 
     def tearDown(self):
+        super().tearDown()
         responses.stop()
         responses.reset()
 
@@ -557,13 +560,13 @@ class TestPlatformRun(ComputationChecker):
 
         # Tempfiles
         cls.api_url = 'http://localhost:8000'
-        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args.keys() if 'dir' in a])
-        cls.tmp_files = cls.create_tmp_files(
-            [a for a in cls.default_args.keys() if 'csv' in a] +
-            [a for a in cls.default_args.keys() if 'json' in a]
-        )
 
     def setUp(self):
+        self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
+        self.tmp_files = self.create_tmp_files(
+            [a for a in self.default_args.keys() if 'csv' in a] +
+            [a for a in self.default_args.keys() if 'json' in a]
+        )
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.api_url = 'http://localhost:8000'
         responses.get(
@@ -576,6 +579,7 @@ class TestPlatformRun(ComputationChecker):
         responses.start()
 
     def tearDown(self):
+        super().tearDown()
         responses.stop()
         responses.reset()
 

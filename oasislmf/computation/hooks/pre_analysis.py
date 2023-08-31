@@ -4,9 +4,10 @@ __all__ = [
 
 import json
 import pathlib
+from ods_tools.oed import UnknownColumnSaveOption
 
 from ..base import ComputationStep
-from ...utils.data import get_exposure_data
+from ...utils.data import get_exposure_data, prepare_location_df
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
@@ -46,6 +47,9 @@ class ExposurePreAnalysis(ComputationStep):
                    {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
                    {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
                    {'name': 'base_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader', 'help': 'The default dataframe reading engine to use when loading files'},
+                   {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
+                   {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,
+                    'help': 'Analysis settings JSON file path'},
                    ]
 
     run_dir_key = 'pre-analysis'
@@ -70,6 +74,7 @@ class ExposurePreAnalysis(ComputationStep):
         import exposure_pre_analysis_module and call the run method
         """
         exposure_data = get_exposure_data(self, add_internal_col=True)
+        kwargs = dict()
 
         # If given a value for 'oasis_files_dir' then use that directly
         if self.oasis_files_dir:
@@ -78,8 +83,13 @@ class ExposurePreAnalysis(ComputationStep):
             input_dir = self.get_default_run_dir()
             pathlib.Path(input_dir).mkdir(parents=True, exist_ok=True)
 
-        exposure_data.save(path=input_dir, version_name='raw', save_config=True)
-        kwargs = {'exposure_data': exposure_data}
+        ids_option = {'loc_id': UnknownColumnSaveOption.DELETE,
+                      'loc_idx': UnknownColumnSaveOption.DELETE}
+        exposure_data.save(path=input_dir, version_name='raw', save_config=True, unknown_columns=ids_option)
+        kwargs['exposure_data'] = exposure_data
+        kwargs['input_dir'] = input_dir
+        kwargs['model_data_dir'] = self.model_data_dir
+        kwargs['analysis_settings_json'] = self.analysis_settings_json
 
         if self.exposure_pre_analysis_setting_json:
             with open(self.exposure_pre_analysis_setting_json) as exposure_pre_analysis_setting_file:
@@ -101,7 +111,11 @@ class ExposurePreAnalysis(ComputationStep):
         print(_class(**kwargs))
         _class_return = _class(**kwargs).run()
 
-        exposure_data.save(path=input_dir, version_name='', save_config=True)
+        exposure_data.save(path=input_dir, version_name='', save_config=True, unknown_columns=ids_option)
+        # regenerate ids
+        exposure_data.location.dataframe = exposure_data.location.dataframe.drop(columns=['loc_id', 'loc_idx'])
+        exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+
         modified_files = {oed_source.oed_name: str(oed_source.current_source['filepath']) for oed_source in exposure_data.get_oed_sources()}
         self.logger.info('\nPre-analysis modified files: {}'.format(
             json.dumps(modified_files, indent=4)))

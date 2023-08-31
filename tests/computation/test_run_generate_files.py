@@ -22,14 +22,13 @@ class TestGenerateFiles(ComputationChecker):
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
 
-        # Tempfiles
-        cls.tmp_dirs = cls.create_tmp_dirs([a for a in cls.default_args.keys() if 'dir' in a])
-        cls.tmp_files = cls.create_tmp_files(
-            [a for a in cls.default_args.keys() if 'csv' in a] +
-            [a for a in cls.default_args.keys() if 'json' in a]
-        )
-
     def setUp(self):
+        # Tempfiles
+        self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
+        self.tmp_files = self.create_tmp_files(
+            [a for a in self.default_args.keys() if 'csv' in a] +
+            [a for a in self.default_args.keys() if 'json' in a]
+        )
         self.min_args = {
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
             'keys_data_csv': self.tmp_files['keys_data_csv'].name,

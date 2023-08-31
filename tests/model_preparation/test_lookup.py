@@ -21,6 +21,8 @@ from tests.data import keys
 
 
 META_DATA_PATH = pathlib.Path(os.path.realpath(__file__)).parent.joinpath('meta_data')
+settings.register_profile("no_deadline", deadline=None)
+settings.load_profile("no_deadline")
 
 
 class OasisLookupFactoryCreate(TestCase):
