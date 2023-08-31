@@ -25,7 +25,7 @@ options:
                         filename of output stream (ground up losses).
   -L LOSS_THRESHOLD     Loss treshold. Default: 1e-6
   -S SAMPLE_SIZE        Sample size. Default: 0
-  -V, --version         show program's version number and exit
+  -V, --version         show program version number and exit
   --effective-damageability
                         if passed true, the effective damageability is used to draw loss samples instead of full MC. Default: False
   --ignore-correlation  if passed true, peril correlation groups (if defined) are ignored for the generation of correlated samples. Default: False
