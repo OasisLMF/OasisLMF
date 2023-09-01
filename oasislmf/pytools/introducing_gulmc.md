@@ -70,8 +70,8 @@ eve 1 1 | gulmc -S1000 -a1 -o output.bin
 ### On the usage of `modelpy` and `eve` with `gulmc`
 Due to internal refactoring, `gulmc` now incorporates the functionality performed by `modelpy`, therefore `modelpy` should not be used in a pipe with `gulmc`:
 ```bash
-eve 1 1 | modelpy | gulpy -S1000 -a1 -o output.bin        # wrong usage, won't work
-eve 1 1 | gulpy -S1000 -a1 -o output.bin                  # correct usage
+eve 1 1 | modelpy | gulmc -S1000 -a1 -o output.bin        # wrong usage, won't work
+eve 1 1 | gulmc -S1000 -a1 -o output.bin                  # correct usage
 ```
 > **Note:** both `gulpy` and `gulmc` can read the events stream from binary file, i.e., without the need of `eve`, with:
 > ```bash
@@ -86,7 +86,7 @@ event_id,areaperil_id,intensity_bin_id,probability
 1,4,1,1
 [...]
 ```
-then `gulpy` and `gulmc` produce the same outputs. However, if the hazard intensity has a probability distribution, e.g.:
+Then `gulpy` and `gulmc` produce the same outputs. However, if the hazard intensity has a probability distribution, e.g.:
 ```csv
 event_id,areaperil_id,intensity_bin_id,probability
 1,4,1,2.0000000298e-01
@@ -94,7 +94,7 @@ event_id,areaperil_id,intensity_bin_id,probability
 1,4,3,2.0000000298e-01
 [...]
 ```
-then, by default, `gulmc` runs the full Monte Carlo sampling of the hazard intensity, and then of damage. In order to reproduce the same results that `gulpy` produces can be achieved by using the `--effective-damageability` flag:
+Then, by default, `gulmc` runs the full Monte Carlo sampling of the hazard intensity, and then of damage. In order to reproduce the same results that `gulpy` produces can be achieved by using the `--effective-damageability` flag:
 ```bash
 eve 1 1 | gulmc -S1000 -a1 -o output.bin --effective-damageability
 ```
@@ -209,7 +209,7 @@ Likewise, the `data_settings` entries are renamed from `group_fields` to `damage
 
 ### Correlations updated schema 
 The schema has been updated as follows in order to support correlation parameters:
-- if `correlation_settings` is not present, `damage_correlation_value` and `hazard_correlation_value` are assumed zero. peril correlation groups (if defined in supported perils) are ignored. No errors are raised. Example of valid model settings:
+- If `correlation_settings` is not present, `damage_correlation_value` and `hazard_correlation_value` are assumed zero. peril correlation groups (if defined in supported perils) are ignored. No errors are raised. Example of valid model settings:
   ```json
     "lookup_settings":{
         "supported_perils":[
@@ -220,7 +220,7 @@ The schema has been updated as follows in order to support correlation parameter
         ]
     },
   ```
-- if `correlation_settings` is present, it needs to contain , `damage_correlation_value` and `hazard_correlation_value` for each `peril_correlation_group` entry.  
+- If `correlation_settings` is present, it needs to contain , `damage_correlation_value` and `hazard_correlation_value` for each `peril_correlation_group` entry.  
   Example of a valid model settings:
   ```json
     "lookup_settings":{
