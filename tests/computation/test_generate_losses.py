@@ -379,7 +379,6 @@ class TestGenLosses(ComputationChecker):
 
 #    def test_losses__pla_set__bin_missing__expection_raised(self):
 
-
     @patch('oasislmf.execution.runner.run')
     def test_losses__samples_set__in_model_settings(self, mock_runner):
         expected_samples = 250
