@@ -88,6 +88,12 @@ jobs:
         run: |
           pip install ${{ needs.build.outputs.linux_pkg_filename }}
 
+      # Temp build step
+      - name: Install LOT3 package
+        run: |
+          pip install pyspark dask
+          pip install -v git+https://git@github.com/OasisLMF/OasisPlatformLot3.git@feature/lot3-model-data#egg=lot3
+
       - name: Install Oasislmf (Editable mode)
         if: matrix.cfg.upload-cov == true
         run: |
