@@ -1,7 +1,6 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
-import io
 import json
 import logging
 import mmap
@@ -12,7 +11,6 @@ from zlib import decompress
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import numba as nb
 
 from lot3.df_reader.config import clean_config, InputReaderConfig, get_df_reader
@@ -119,7 +117,7 @@ class Footprint:
                     message="footprint.parquet needs to be partitioned in order to work, please see: "
                             "oasislmf.pytools.data_layer.conversions.footprint => convert_bin_to_parquet"
                 )
-            raise OasisFootPrintError(message=f"no valid footprint found")
+            raise OasisFootPrintError(message="no valid footprint found")
 
     def get_event(self, event_id):
         raise NotImplementedError()

@@ -5,7 +5,6 @@ TODO: use selector and select for output
 
 """
 import atexit
-import json
 import logging
 import os
 import sys
@@ -18,7 +17,6 @@ import pyarrow.parquet as pq
 from numba.typed import Dict
 from pyarrow.fs import FSSpecHandler
 
-from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
 from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY

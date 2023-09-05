@@ -49,15 +49,11 @@ with setcwd(subdir):
 
     # Function to sort fm string in Ascedning order
 
-
     def ascedning(text):
         return int(text) if text.isdigit() else text
 
-
     def natural_keys(text):
-
         return [ascedning(c) for c in re.split(r'(\d+)', text)]
-
 
     names.sort(key=natural_keys)
     # print(names)

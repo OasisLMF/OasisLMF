@@ -3,7 +3,6 @@ This file contains specific functionality needed for aggregate vulnerabilities.
 
 """
 import logging
-import os
 
 import numba as nb
 import numpy as np
@@ -73,7 +72,8 @@ def read_aggregate_vulnerability(storage: BaseStorageConnector, ignore_file_type
 
     else:
         aggregate_vulnerability = None
-        logging.warning(f"Aggregate vulnerability table not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without aggregate vulnerability definitions.")
+        logging.warning(
+            f"Aggregate vulnerability table not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without aggregate vulnerability definitions.")
 
     return aggregate_vulnerability
 
@@ -102,7 +102,8 @@ def read_vulnerability_weights(storage: BaseStorageConnector, ignore_file_type=s
 
     else:
         aggregate_weights = None
-        logging.warning(f"Vulnerability weights not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without vulnerability weights definitions.")
+        logging.warning(
+            f"Vulnerability weights not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without vulnerability weights definitions.")
 
     return aggregate_weights
 

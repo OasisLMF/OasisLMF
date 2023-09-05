@@ -13,7 +13,6 @@ import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 
-from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import (

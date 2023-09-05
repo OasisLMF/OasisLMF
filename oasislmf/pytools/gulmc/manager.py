@@ -1,5 +1,4 @@
 import atexit
-import json
 import logging
 import os
 import sys
@@ -16,7 +15,6 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient

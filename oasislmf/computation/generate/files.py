@@ -111,8 +111,10 @@ class GenerateFiles(ComputationStep):
         {'name': 'location', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
         {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
         {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
-        {'name': 'base_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader', 'help': 'The default dataframe reading engine to use when loading files'},
-        {'name': 'exposure_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader', 'help': 'The dataframe reading engine to use when loading exposure files'},
+        {'name': 'base_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader',
+         'help': 'The default dataframe reading engine to use when loading files'},
+        {'name': 'exposure_df_engine', 'type': str, 'default': 'lot3.df_reader.reader.OasisPandasReader',
+         'help': 'The dataframe reading engine to use when loading exposure files'},
     ]
 
     def _get_output_dir(self):
