@@ -92,6 +92,7 @@ jobs:
       - name: Install LOT3 package
         run: |
           pip install pyspark dask
+          apt-get install protobuf-compiler
           pip install -v git+https://git@github.com/OasisLMF/OasisPlatformLot3.git@feature/lot3-model-data#egg=lot3
 
       - name: Install Oasislmf (Editable mode)
