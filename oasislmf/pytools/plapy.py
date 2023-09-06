@@ -8,7 +8,12 @@ import logging
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '-f', '--secondary-factor',
-    help='optional secondary factor within range [0, 1]', default=1.0,
+    help='optional relative secondary factor within range [0, 1]', default=1.0,
+    type=float
+)
+parser.add_argument(
+    '-F', '--uniform-factor',
+    help='optional uniform post loss amplification factor', default=0.0,
     type=float
 )
 parser.add_argument('-i', '--file-in', help='name of the input file')
@@ -46,6 +51,15 @@ def main():
     if kwargs['secondary_factor'] < 0.0 or kwargs['secondary_factor'] > 1.0:
         logger.error(f'Secondary factor {kwargs["secondary_factor"]} must lie within range [0, 1]')
         SystemExit(1)
+
+    if kwargs['uniform_factor'] < 0.0:
+        logger.error(f'Uniform factor {kwargs["uniform_factor"]} must be positive value')
+        SystemExit(1)
+
+    if kwargs['secondary_factor'] < 1.0 and kwargs['uniform_factor'] > 0.0:
+        logger.warning('Relative secondary and uniform factors are incompatible')
+        logger.info('Ignoring relative secondary factor')
+        kwargs['secondary_factor'] = 1.0
 
     manager.run(**kwargs)
 

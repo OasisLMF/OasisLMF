@@ -104,9 +104,13 @@ def fill_post_loss_amplification_factors(
     return event_id, count, plafactors
 
 
-def get_post_loss_amplification_factors(path, secondary_factor):
+def get_post_loss_amplification_factors(
+    path, secondary_factor, uniform_factor
+):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
+    Returns empty dictionary if uniform factor to apply across all losses has
+    been given.
 
     lossfactors.bin is binary file with layout:
         reserved header (4-byte int),
@@ -125,6 +129,7 @@ def get_post_loss_amplification_factors(path, secondary_factor):
         path (str): path to lossfactors.bin file
         secondary_factor (float): secondary factor to apply to post loss
           amplification
+        uniform_factor (float): uniform factor to apply across all losses
 
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
@@ -132,6 +137,8 @@ def get_post_loss_amplification_factors(path, secondary_factor):
     plafactors = Dict.empty(
         key_type=types.UniTuple(types.int64, 2), value_type=types.float64
     )
+    if uniform_factor > 0.0:
+        return plafactors
 
     with open(os.path.join(path, LOSS_FACTORS_FILE_NAME), 'rb') as f:
         factors_buffer = memoryview(bytearray(BUFFER_SIZE))
