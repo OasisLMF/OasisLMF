@@ -1,6 +1,7 @@
 from contextlib import ExitStack
 import os
 import sys
+import logging
 
 from .streams import read_and_write_streams
 from .structure import (
@@ -9,6 +10,8 @@ from .structure import (
 )
 from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.utils import redirect_logging
+
+logger = logging.getLogger(__name__)
 
 
 @redirect_logging(exec_name='plapy')

@@ -4,34 +4,37 @@ This file contains general-purpose utilities.
 import logging
 import numpy as np
 import os
+import sys
 import uuid
 
 
-def logging_set_handlers(logger_name, handler, log_level):
-    logger = logging.getLogger(logger_name)
-    # set all handlers to ERROR
-    for handler in logger.handlers:
-        handler.setLevel(logging.ERROR)
-    # set children oasislmf loggers to 'log_level'
-    if 'oasislmf.' in logger_name:
-        logger.addHandler(handler)
-        logger.setLevel(log_level)
-        logger.propagate = False
-    else:
-        logger.setLevel(logging.ERROR)
+def logging_set_handlers(logging_config, handler, log_level):
+    for logger_name in logging_config:
+        logger = logging.getLogger(logger_name)
+        # set all handlers to ERROR
+        for handler in logger.handlers:
+            handler.setLevel(logging.ERROR)
+        # set children oasislmf loggers to 'log_level'
+        if 'oasislmf.' in logger_name:
+            logger.addHandler(handler)
+            logger.setLevel(log_level)
+            logger.propagate = False
+        else:
+            logger.setLevel(logging.ERROR)
 
 
-def logging_reset_handlers(logger_name):
-    logger = logging.getLogger(logger_name)
-    # revert all handlers to NOTSET
-    for handler in logger.handlers:
-        handler.setLevel(logging.NOTSET)
-        logger.propagate = True
-    # Remove added handlers
-    if 'oasislmf.' in logger_name:
-        logger.handlers.clear()
-    else:
-        logger.setLevel(logging.NOTSET)
+def logging_reset_handlers(logging_config):
+    for logger_name in logging_config:
+        logger = logging.getLogger(logger_name)
+        # revert all handlers to NOTSET
+        for handler in logger.handlers:
+            handler.setLevel(logging.NOTSET)
+            logger.propagate = True
+        # Remove added handlers
+        if 'oasislmf.' in logger_name:
+            logger.handlers.clear()
+        else:
+            logger.setLevel(logging.NOTSET)
 
 
 def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
@@ -65,6 +68,8 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
         def wrapper(*args, **kwargs):
             if not os.path.isdir(log_dir):
                 os.makedirs(log_dir)
+
+            logging.captureWarnings(True)
             logging_config = logging.root.manager.loggerDict.keys()
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
@@ -77,33 +82,39 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             rootFileHandler.setLevel(logging.INFO)
             rootFileHandler.setFormatter(formatter)
 
-            # Set all logger handlers to level ERROR
-            for lg_name in logging_config:
-                logging_set_handlers(lg_name, childFileHandler, log_level)
+            rootStreamHandler = logging.StreamHandler(sys.stderr)
+            rootStreamHandler.setLevel(logging.ERROR)
+            rootStreamHandler.setFormatter(formatter)
 
-            # Set root oasislmf logger to INFO
-            logger = logging.getLogger('oasislmf')
+            # Set all logger handlers to level ERROR
+            # logging_set_handlers(logging_config, childFileHandler, log_level)
+
+            # Set root logger to INFO
+            logger = logging.getLogger()
+            stored_handlers = logger.handlers
+            logger.handlers.clear()
+
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
+            logger.addHandler(rootStreamHandler)
 
-            # # Debug: print logging tree
-            # import ipdb; ipdb.set_trace()
-            # import logging_tree; logging_tree.printout()
             try:
-                logger.info(kwargs)
-                logger.info('starting process')
-
                 # Run the wrapped function
-                retval = func(*args, **kwargs)
-                logger.info('finishing process')
-                return retval
+                logger.info(kwargs)
+                logger.info(f'starting process - {exec_name}')
+                return func(*args, **kwargs)
             except Exception as err:
                 logger.exception(err)
                 raise err
             finally:
-                for lg_name in logging_config:
-                    logging_reset_handlers(lg_name)
-                logger.removeHandler(rootFileHandler)
+                # Debug: write logging tree
+                # import logging_tree
+                # with open(f'{log_file}-tree', 'w') as f:
+                #     f.write(logging_tree.format.build_description())
+
+                logger.info(f'finishing process - {exec_name}')
+                # logging_reset_handlers(logging_config)
+                logger.handlers = stored_handlers
                 logging.shutdown()
         return wrapper
     return inner
