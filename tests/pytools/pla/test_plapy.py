@@ -172,6 +172,22 @@ class TestPostLossAmplification(TestCase):
         self.write_gul_files(n_pairs, it, self.second_pla_out)
         self.second_pla_out.seek(0)
 
+        # Write expected output PLA file with large secondary factor
+        # Negative losses should not be possible
+        self.large_second_pla_out = NamedTemporaryFile(prefix='largesecond')
+        self.large_second_factor = 6
+        large_second_factors = np.clip(
+            1 + (factors - 1) * self.large_second_factor, 0.0, None
+        )
+        large_second_losses = np.reshape(
+            large_second_factors, (2, 2, 1)
+        ) * losses
+        it = np.nditer(
+            large_second_losses, op_flags=['readonly'], flags=['multi_index']
+        )
+        self.write_gul_files(n_pairs, it, self.large_second_pla_out)
+        self.large_second_pla_out.seek(0)
+
         # Write expected output PLA file with uniform factor
         self.uni_pla_out = NamedTemporaryFile(prefix='uni')
         self.uni_factor = 1.25   # Uniform PLA factor
@@ -196,6 +212,7 @@ class TestPostLossAmplification(TestCase):
         self.gul_in.close()
         self.ctrl_pla_out.close()
         self.second_pla_out.close()
+        self.large_second_pla_out.close()
         self.uni_pla_out.close()
 
     def test_run_plapy(self):
@@ -231,6 +248,25 @@ class TestPostLossAmplification(TestCase):
         ))
 
         second_out.close()
+
+    def test_run_plapy__no_negative_losses(self):
+        """
+        Test plapy functionality if secondary factor is very large which should
+        not lead to negative losses in the case of post loss reductions.
+        """
+        large_second_out = NamedTemporaryFile(prefix='plalargesecond')
+        run(
+            run_dir='.', file_in=self.gul_in.name,
+            file_out=large_second_out.name, input_path='input',
+            static_path='static', secondary_factor=self.large_second_factor,
+            uniform_factor=0
+        )
+
+        self.assertTrue(filecmp.cmp(
+            self.large_second_pla_out.name, large_second_out.name, shallow=False
+        ))
+
+        large_second_out.close()
 
     def test_run_plapy__uniform_factor_provided(self):
         """

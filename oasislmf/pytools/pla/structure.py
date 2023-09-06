@@ -96,7 +96,9 @@ def fill_post_loss_amplification_factors(
 
         else:
             amplification_id = amp_factor[cursor]['amplification_id']
-            loss_factor = 1 + (amp_factor[cursor]['factor'] - 1) * secondary_factor
+            loss_factor = max(
+                1 + (amp_factor[cursor]['factor'] - 1) * secondary_factor, 0.0
+            )   # Losses cannot be negative
             plafactors[(event_id, amplification_id)] = loss_factor
             cursor += 1
             count -= 1
