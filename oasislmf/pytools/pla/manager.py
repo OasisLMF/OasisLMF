@@ -7,6 +7,7 @@ from .structure import (
     get_items_amplifications,
     get_post_loss_amplification_factors
 )
+from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.utils import redirect_logging
 
 
@@ -26,10 +27,13 @@ def run(run_dir, file_in, file_out, input_path, static_path):
         0 (int): if no errors occurred
     """
     input_path = os.path.join(run_dir, input_path)
-    static_path = os.path.join(run_dir, static_path)
+    model_storage = get_storage_from_config_path(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, static_path),
+    )
 
     items_amps = get_items_amplifications(input_path)
-    plafactors = get_post_loss_amplification_factors(static_path)
+    plafactors = get_post_loss_amplification_factors(model_storage)
 
     with ExitStack() as stack:
         if file_in is None:
