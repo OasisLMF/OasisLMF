@@ -8,33 +8,33 @@ import sys
 import uuid
 
 
-def logging_set_handlers(logging_config, handler, log_level):
-    for logger_name in logging_config:
-        logger = logging.getLogger(logger_name)
-        # set all handlers to ERROR
-        for handler in logger.handlers:
-            handler.setLevel(logging.ERROR)
-        # set children oasislmf loggers to 'log_level'
-        if 'oasislmf.' in logger_name:
-            logger.addHandler(handler)
-            logger.setLevel(log_level)
-            logger.propagate = False
-        else:
-            logger.setLevel(logging.ERROR)
-
-
-def logging_reset_handlers(logging_config):
-    for logger_name in logging_config:
-        logger = logging.getLogger(logger_name)
-        # revert all handlers to NOTSET
-        for handler in logger.handlers:
-            handler.setLevel(logging.NOTSET)
-            logger.propagate = True
-        # Remove added handlers
-        if 'oasislmf.' in logger_name:
-            logger.handlers.clear()
-        else:
-            logger.setLevel(logging.NOTSET)
+# def logging_set_handlers(logging_config, handler, log_level):
+#     for logger_name in logging_config:
+#         logger = logging.getLogger(logger_name)
+#         # set all handlers to ERROR
+#         for handler in logger.handlers:
+#             handler.setLevel(logging.ERROR)
+#         # set children oasislmf loggers to 'log_level'
+#         if 'oasislmf.' in logger_name:
+#             logger.addHandler(handler)
+#             logger.setLevel(log_level)
+#             logger.propagate = False
+#         else:
+#             logger.setLevel(logging.ERROR)
+#
+#
+# def logging_reset_handlers(logging_config):
+#     for logger_name in logging_config:
+#         logger = logging.getLogger(logger_name)
+#         # revert all handlers to NOTSET
+#         for handler in logger.handlers:
+#             handler.setLevel(logging.NOTSET)
+#             logger.propagate = True
+#         # Remove added handlers
+#         if 'oasislmf.' in logger_name:
+#             logger.handlers.clear()
+#         else:
+#             logger.setLevel(logging.NOTSET)
 
 
 def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):

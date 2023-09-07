@@ -98,7 +98,6 @@ def fill_post_loss_amplification_factors(
     return event_id, count, plafactors
 
 
-#def get_post_loss_amplification_factors(path):
 def get_post_loss_amplification_factors(storage: BaseStorageConnector, ignore_file_type=set()):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
@@ -126,7 +125,6 @@ def get_post_loss_amplification_factors(storage: BaseStorageConnector, ignore_fi
     plafactors = Dict.empty(
         key_type=types.UniTuple(types.int64, 2), value_type=types.float64
     )
-
 
     input_files = set(storage.listdir())
     if LOSS_FACTORS_FILE_NAME in input_files and 'bin' not in ignore_file_type:
