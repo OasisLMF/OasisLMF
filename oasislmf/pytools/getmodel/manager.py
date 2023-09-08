@@ -50,6 +50,7 @@ damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
 damagebindictionaryCsv = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                                  ('bin_from', oasis_float),
                                                  ('bin_to', oasis_float),
+                                                 ('interval_type', np.int32),
                                                  ('interpolation', oasis_float)]))
 
 EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
@@ -369,6 +370,7 @@ def get_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
     Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
     """
     input_files = set(storage.listdir())
+
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
         with storage.with_fileno("damage_bin_dict.bin") as f:
