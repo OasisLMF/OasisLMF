@@ -4,6 +4,7 @@ from contextlib import ExitStack
 
 import pandas as pd
 import pyarrow as pa
+import pyarrow.parquet as pq
 
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 from oasislmf.pytools.getmodel.footprint import Footprint
@@ -20,7 +21,7 @@ def convert_bin_to_parquet(static_path: str) -> None:
     """
     with ExitStack() as stack:
         storage = LocalStorageConnector(
-            media_root=static_path,
+            root_dir=static_path,
             cache_dir=None,
         )
         footprint_obj = stack.enter_context(Footprint.load(storage,
