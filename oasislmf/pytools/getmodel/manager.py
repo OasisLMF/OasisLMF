@@ -47,12 +47,6 @@ damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('interval_type', np.int32),
                                               ]))
 
-damagebindictionaryCsv = nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                                 ('bin_from', oasis_float),
-                                                 ('bin_to', oasis_float),
-                                                 ('interval_type', np.int32),
-                                                 ('interpolation', oasis_float)]))
-
 EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
                                    ('areaperil_id', areaperil_int),
                                    ('intensity_bin_id', np.int32),
@@ -354,7 +348,7 @@ def get_mean_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
         storage: (BaseStorageConnector) the storage conector for ftching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
     """
     return get_damage_bins(storage, ignore_file_type)['interpolation']
 
@@ -367,7 +361,7 @@ def get_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
         storage: (BaseStorageConnector) the storage conector for ftching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
     """
     input_files = set(storage.listdir())
 
@@ -378,7 +372,7 @@ def get_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
-            return np.loadtxt(f, dtype=damagebindictionaryCsv, skiprows=1, delimiter=',', ndmin=1)
+            return np.loadtxt(f, dtype=damagebindictionary, skiprows=1, delimiter=',', ndmin=1)
     else:
         raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
