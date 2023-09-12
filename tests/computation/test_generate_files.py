@@ -276,7 +276,7 @@ class TestGenDummyModelFiles(ComputationChecker):
             with self.assertRaises(OasisException) as context:
                 call_args = {**self.min_args, 'target_dir': t_dir, 'intensity_sparseness': 2.0}
                 self.manager.generate_dummy_model_files(**call_args)
-        expected_err_msg = 'Invlid value for --intensity-sparseness'
+        expected_err_msg = 'Invalid value for --intensity-sparseness'
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_validate__areaperils_per_event__exception_raised(self):
