@@ -287,6 +287,30 @@ class TestGenDummyModelFiles(ComputationChecker):
         expected_err_msg = 'Number of areaperils per event exceeds total number of areaperils'
         self.assertIn(expected_err_msg, str(context.exception))
 
+    def test_validate__num_amplifications__exception_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'target_dir': t_dir, 'num_amplifications': -1}
+                self.manager.generate_dummy_model_files(**call_args)
+        expected_err_msg = 'Invalid value for --num-amplifications'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_validate__max_and_min_pla_factors__exception_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'target_dir': t_dir, 'min_pla_factor': 2.0, 'max_pla_factor': 1.0}
+                self.manager.generate_dummy_model_files(**call_args)
+        expected_err_msg = 'Value for --max-pla-factor must be greater than that for --min-pla-factor'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_validate__min_pla_factor__exception_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'target_dir': t_dir, 'min_pla_factor': -1.0}
+                self.manager.generate_dummy_model_files(**call_args)
+        expected_err_msg = 'Invalid value for --min-pla-factor'
+        self.assertIn(expected_err_msg, str(context.exception))
+
     def test_validate__random_seed__exception_raised(self):
         with self.tmp_dir() as t_dir:
             with self.assertRaises(OasisException) as context:
