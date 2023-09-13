@@ -114,7 +114,7 @@ class TestPostLossAmplification(TestCase):
         self.static_dir.mkdir(exist_ok=True)
         lossfactors_file = os.path.join(self.static_dir, LOSS_FACTORS_FILE_NAME)
         n_amplifications = 2
-        factors = np.array([[1.1, 1.2], [1.0, 0.8]])
+        factors = np.array([[1.125, 1.25], [1.0, 0.75]])
         n_pairs = n_events + sum(len(event) for event in factors)
         write_buffer = memoryview(bytearray(n_pairs * DATA_SIZE))
         event_count = np.ndarray(
@@ -161,6 +161,41 @@ class TestPostLossAmplification(TestCase):
         self.write_gul_files(n_pairs, it, self.ctrl_pla_out)
         self.ctrl_pla_out.seek(0)
 
+        # Write expected output PLA file with secondary factor
+        self.second_pla_out = NamedTemporaryFile(prefix='second')
+        self.second_factor = 2   # Secondary PLA factor
+        second_factors = 1 + (factors - 1) * self.second_factor
+        second_losses = np.reshape(second_factors, (2, 2, 1)) * losses
+        it = np.nditer(
+            second_losses, op_flags=['readonly'], flags=['multi_index']
+        )
+        self.write_gul_files(n_pairs, it, self.second_pla_out)
+        self.second_pla_out.seek(0)
+
+        # Write expected output PLA file with large secondary factor
+        # Negative losses should not be possible
+        self.large_second_pla_out = NamedTemporaryFile(prefix='largesecond')
+        self.large_second_factor = 6
+        large_second_factors = np.clip(
+            1 + (factors - 1) * self.large_second_factor, 0.0, None
+        )
+        large_second_losses = np.reshape(
+            large_second_factors, (2, 2, 1)
+        ) * losses
+        it = np.nditer(
+            large_second_losses, op_flags=['readonly'], flags=['multi_index']
+        )
+        self.write_gul_files(n_pairs, it, self.large_second_pla_out)
+        self.large_second_pla_out.seek(0)
+
+        # Write expected output PLA file with uniform factor
+        self.uni_pla_out = NamedTemporaryFile(prefix='uni')
+        self.uni_factor = 1.25   # Uniform PLA factor
+        uni_losses = losses * self.uni_factor
+        it = np.nditer(uni_losses, op_flags=['readonly'], flags=['multi_index'])
+        self.write_gul_files(n_pairs, it, self.uni_pla_out)
+        self.uni_pla_out.seek(0)
+
     def tearDown(self):
         """
         Delete items amplifications, loss factors, input Ground Up Loss (GUL)
@@ -176,6 +211,9 @@ class TestPostLossAmplification(TestCase):
 
         self.gul_in.close()
         self.ctrl_pla_out.close()
+        self.second_pla_out.close()
+        self.large_second_pla_out.close()
+        self.uni_pla_out.close()
 
     def test_run_plapy(self):
         """
@@ -184,7 +222,8 @@ class TestPostLossAmplification(TestCase):
         pla_out = NamedTemporaryFile(prefix='pla')
         run(
             run_dir='.', file_in=self.gul_in.name, file_out=pla_out.name,
-            input_path='input', static_path='static', secondary_factor=1
+            input_path='input', static_path='static', secondary_factor=1,
+            uniform_factor=0
         )
 
         self.assertTrue(filecmp.cmp(
@@ -192,6 +231,77 @@ class TestPostLossAmplification(TestCase):
         ))
 
         pla_out.close()
+
+    def test_run_plapy__secondary_factor_provided(self):
+        """
+        Test plapy functionality if secondary factor provided.
+        """
+        second_out = NamedTemporaryFile(prefix='plasecond')
+        run(
+            run_dir='.', file_in=self.gul_in.name, file_out=second_out.name,
+            input_path='input', static_path='static',
+            secondary_factor=self.second_factor, uniform_factor=0
+        )
+
+        self.assertTrue(filecmp.cmp(
+            self.second_pla_out.name, second_out.name, shallow=False
+        ))
+
+        second_out.close()
+
+    def test_run_plapy__no_negative_losses(self):
+        """
+        Test plapy functionality if secondary factor is very large which should
+        not lead to negative losses in the case of post loss reductions.
+        """
+        large_second_out = NamedTemporaryFile(prefix='plalargesecond')
+        run(
+            run_dir='.', file_in=self.gul_in.name,
+            file_out=large_second_out.name, input_path='input',
+            static_path='static', secondary_factor=self.large_second_factor,
+            uniform_factor=0
+        )
+
+        self.assertTrue(filecmp.cmp(
+            self.large_second_pla_out.name, large_second_out.name, shallow=False
+        ))
+
+        large_second_out.close()
+
+    def test_run_plapy__uniform_factor_provided(self):
+        """
+        Test plapy functionality if uniform factor provided.
+        """
+        uni_out = NamedTemporaryFile(prefix='plauni')
+        run(
+            run_dir='.', file_in=self.gul_in.name, file_out=uni_out.name,
+            input_path='input', static_path='static', secondary_factor=1,
+            uniform_factor=self.uni_factor
+        )
+
+        self.assertTrue(filecmp.cmp(
+            self.uni_pla_out.name, uni_out.name, shallow=False
+        ))
+
+        uni_out.close()
+
+    def test_run_plapy__secondary_and_uniform_factors_provided(self):
+        """
+        Test plapy functionality if secondary and uniform factors are provided.
+        """
+        second_uni_out = NamedTemporaryFile(prefix='plaseconduni')
+        run(
+            run_dir='.', file_in=self.gul_in.name, file_out=second_uni_out.name,
+            input_path='input', static_path='static',
+            secondary_factor=self.second_factor, uniform_factor=self.uni_factor
+        )
+
+        # Secondary factor should be ignored
+        self.assertTrue(filecmp.cmp(
+            self.uni_pla_out.name, second_uni_out.name, shallow=False
+        ))
+
+        second_uni_out.close()
 
     def test_structure__get_items_amplifications__first_item_id_not_1(self):
         """
