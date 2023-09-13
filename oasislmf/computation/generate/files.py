@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import List
 
 from oasislmf.computation.base import ComputationStep
-from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
+from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
+                                                            CoveragesFile,
                                                             DamageBinDictFile,
                                                             EventsFile,
                                                             FMPolicyTCFile,
@@ -22,6 +23,7 @@ from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
                                                             FootprintBinFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
+                                                            LossFactorsFile,
                                                             OccurrenceFile,
                                                             RandomFile,
                                                             VulnerabilityFile)
