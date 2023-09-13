@@ -73,7 +73,8 @@ class TestGenFiles(ComputationChecker):
 
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
-                'coverages': f'{expected_run_dir}/coverages.csv'
+                'coverages': f'{expected_run_dir}/coverages.csv',
+                'amplifications': f'{expected_run_dir}/amplifications.csv'
             }
             self.assertEqual(file_gen_return, expected_return)
             for _, filepath in expected_return.items():
@@ -90,6 +91,7 @@ class TestGenFiles(ComputationChecker):
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
                 'coverages': f'{expected_run_dir}/coverages.csv',
+                'amplifications': f'{expected_run_dir}/amplifications.csv',
                 'fm_policytc': f'{expected_run_dir}/fm_policytc.csv',
                 'fm_profile': f'{expected_run_dir}/fm_profile.csv',
                 'fm_programme': f'{expected_run_dir}/fm_programme.csv',
@@ -107,6 +109,7 @@ class TestGenFiles(ComputationChecker):
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
                 'coverages': f'{expected_run_dir}/coverages.csv',
+                'amplifications': f'{expected_run_dir}/amplifications.csv',
                 'fm_policytc': f'{expected_run_dir}/fm_policytc.csv',
                 'fm_profile': f'{expected_run_dir}/fm_profile.csv',
                 'fm_programme': f'{expected_run_dir}/fm_programme.csv',
@@ -189,15 +192,12 @@ class TestGenFiles(ComputationChecker):
             call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
             file_gen_return = self.manager.generate_files(**call_args)
 
-    def test_files__model_settings_given__group_fields_are_invalid(self):
+    def test_files__model_settings_given__old_group_fields_are_valid(self):
         model_settings_file = self.tmp_files.get('model_settings_json')
         self.write_json(model_settings_file, OLD_GROUP_FIELDS_MODEL_SETTINGS)
         with self.tmp_dir() as t_dir:
-            with self.assertRaises(OdsException) as context:
-                call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
-                file_gen_return = self.manager.generate_files(**call_args)
-            expected_err_msg = f'Additional properties are not allowed'
-            self.assertIn(expected_err_msg, str(context.exception))
+            call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
+            file_gen_return = self.manager.generate_files(**call_args)
 
     def test_files__keys_csv__is_given(self):
         keys_file = self.tmp_files.get('keys_data_csv').name
