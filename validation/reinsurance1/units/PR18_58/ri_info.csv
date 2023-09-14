@@ -1,2 +1,2 @@
-ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
-58,OO1,CAD,.2000,1000000.00,.00,1500000.00,.00,1.0000,1,PR,T18 PR Loc
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
+58,AA1,CAD,0.2,1000000,0,1500000,0,1,1,PR,T18 PR Loc,LOC,2.0.0

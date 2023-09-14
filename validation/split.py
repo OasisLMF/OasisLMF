@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+
 import numpy as np
 import pandas as pd
 import os
@@ -18,11 +19,16 @@ subdir = params.subdirectory
 
 os.chdir(subdir)
 
-locationfile = pd.read_csv('location.csv', dtype=str, keep_default_na=False)
-accountfile = pd.read_csv('account.csv', dtype=str, keep_default_na=False)
+location_file = pd.read_csv('location.csv', dtype=str, keep_default_na=False)
+account_file = pd.read_csv('account.csv', dtype=str, keep_default_na=False)
+if os.path.isfile('ri_info.csv') and os.path.isfile('ri_scope.csv'):
+    ri_info_file = pd.read_csv('ri_info.csv', dtype=str, keep_default_na=False)
+    ri_scope_file = pd.read_csv('ri_scope.csv', dtype=str, keep_default_na=False)
+else:
+    ri_scope_file = None
 
-split_location = locationfile.groupby('FlexiLocUnit')
-split_account = accountfile.groupby('FlexiAccUnit')
+split_location = location_file.groupby('FlexiLocUnit')
+split_account = account_file.groupby('FlexiAccUnit')
 
 newpath = 'units'
 if not os.path.exists(newpath):
@@ -36,7 +42,17 @@ for name, group in split_location:
     if not os.path.exists(sub_dir):
         os.mkdir(sub_dir)
     group = group.drop(['FlexiLocUnit'], axis=1)
+
     group.to_csv(sub_dir + "/location.csv", index=0)
+
+    if ri_scope_file is not None:
+        ri_scope = ri_scope_file[(ri_scope_file['PortNumber'].isin(np.unique(group['PortNumber'])))
+                                 & (ri_scope_file['AccNumber'].isin(list(np.unique(group['AccNumber'])) + ['']))]
+        ri_info = ri_info_file[ri_info_file['ReinsNumber'].isin(np.unique(ri_scope['ReinsNumber']))]
+        if not ri_scope.empty:
+            ri_scope.to_csv(sub_dir + "/ri_scope.csv", index=0)
+            ri_info.to_csv(sub_dir + "/ri_info.csv", index=0)
+
 
 for name, group in split_account:
     sub_dir = os.path.join(newpath, name)
