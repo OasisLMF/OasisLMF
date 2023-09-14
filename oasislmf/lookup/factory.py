@@ -83,7 +83,6 @@ class KeyServerFactory(object):
     @classmethod
     def update_deprecated_args(cls, config_dir, config,
                                complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
-
         if (complex_lookup_config_fp
                 or model_keys_data_path
                 or model_version_file_path
@@ -143,6 +142,10 @@ class KeyServerFactory(object):
                                                             complex_lookup_config_fp, model_keys_data_path,
                                                             model_version_file_path, lookup_module_path)
         else:  # reproduce lookup_config overwrite complex_lookup_config_fp
+            if complex_lookup_config_fp:
+                complex_config_dir, complex_config = cls.get_config(complex_lookup_config_fp)
+                config['complex_config_dir'] = complex_config_dir
+                config['complex_config'] = complex_config
             complex_lookup_config_fp = None
 
         if config.get('key_server_module_path'):
