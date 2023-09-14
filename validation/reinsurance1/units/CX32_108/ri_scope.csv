@@ -1,4 +1,4 @@
-ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
-108,OEDTest,CX32_08,,,CX32_08_1,,,,,,,
-108,OEDTest,CX32_08,,,CX32_08_2,,,,,,,
-108,OEDTest,CX32_09,,,,,,,,,,
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
+108,OEDTest,CX32_08,,,CX32_08_1,,,,,,,2.0.0
+108,OEDTest,CX32_08,,,CX32_08_2,,,,,,,2.0.0
+108,OEDTest,CX32_09,,,,,,,,,,2.0.0
