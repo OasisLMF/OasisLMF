@@ -39,9 +39,9 @@ def test_create_output_file(tmp_path):
 
     post_processed_output_dir = tmp_path / 'postprocessed_output'  # default path
 
-    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix()}
+    kwargs = {'post_analysis_module_path': (tmp_path / 'post_analysis_simple.py').as_posix()}
 
-    write_simple_post_analysis_module(kwargs['post_analysis_module'])
+    write_simple_post_analysis_module(kwargs['post_analysis_module_path'])
 
     OasisManager().post_analysis(**kwargs)
 
@@ -49,18 +49,19 @@ def test_create_output_file(tmp_path):
     assert (post_processed_output_dir / 'gul_S1_aalcalc.csv').read_text() == "999"
 
 
-def test_create_output_file_non_default_paths(tmp_path):
+def test_create_output_file_non_defaults(tmp_path):
     raw_output_dir = tmp_path / 'raw_output'  # non-default name
     raw_output_dir.mkdir(parents=True, exist_ok=True)
     (raw_output_dir / 'gul_S1_aalcalc.csv').write_text("999")  # Create one output file.
 
     post_processed_output_dir = tmp_path / 'processed_output'  # non-default name
 
-    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix(),
+    kwargs = {'post_analysis_module_path': (tmp_path / 'post_analysis_simple.py').as_posix(),
               'raw_output_dir': raw_output_dir.as_posix(),
-              'post_processed_output_dir': post_processed_output_dir.as_posix()}
+              'post_processed_output_dir': post_processed_output_dir.as_posix(),
+              'post_analysis_class_name': 'MyClass'}
 
-    write_simple_post_analysis_module(kwargs['post_analysis_module'])
+    write_simple_post_analysis_module(kwargs['post_analysis_module_path'], class_name='MyClass')
 
     OasisManager().post_analysis(**kwargs)
 

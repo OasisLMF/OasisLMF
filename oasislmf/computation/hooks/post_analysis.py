@@ -13,7 +13,7 @@ class PostAnalysis(ComputationStep):
     """
     """
     step_params = [
-        {'name': 'post_analysis_module', 'required': True, 'is_path': True, 'pre_exist': True,
+        {'name': 'post_analysis_module_path', 'required': True, 'is_path': True, 'pre_exist': True,
          'help': 'Post-Analysis module path'},
         {'name': 'post_analysis_class_name', 'default': 'PostAnalysis',
          'help': 'Name of the class to use for the post_analysis'},
@@ -26,7 +26,7 @@ class PostAnalysis(ComputationStep):
     run_dir_key = 'post-analysis'
 
     def run(self):
-        _module = get_custom_module(self.post_analysis_module, 'Post-Analysis module path')
+        _module = get_custom_module(self.post_analysis_module_path, 'Post-Analysis module path')
         kwargs = dict()
 
         kwargs['raw_output_dir'] = self.raw_output_dir
