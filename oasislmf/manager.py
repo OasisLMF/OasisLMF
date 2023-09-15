@@ -17,6 +17,7 @@ from oasislmf.computation.generate.losses import (GenerateLosses,
                                                   GenerateLossesPartial)
 from oasislmf.computation.helper.autocomplete import HelperTabComplete
 from oasislmf.computation.hooks.pre_analysis import ExposurePreAnalysis
+from oasislmf.computation.hooks.post_analysis import PostAnalysis
 from oasislmf.computation.run.exposure import RunExposure, RunFmTest
 from oasislmf.computation.run.generate_files import GenerateOasisFiles
 from oasislmf.computation.run.model import RunModel
@@ -45,6 +46,7 @@ class OasisManager(object):
         GenerateDummyModelFiles,
         GenerateDummyOasisFiles,
         RunModel,
+        PostAnalysis,
         RunExposure,
         RunFmTest,
         PlatformList,
