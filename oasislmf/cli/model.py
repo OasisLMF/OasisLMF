@@ -76,6 +76,17 @@ class RunCmd(OasisComputationCommand):
     computation_name = 'RunModel'
 
 
+class RunPostAnalysisCmd(OasisComputationCommand):
+    """
+    Run the output postprocessing step.
+
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PostAnalysis'
+
+
 class ModelCmd(OasisBaseCommand):
     """
     Model subcommands::
@@ -93,5 +104,6 @@ class ModelCmd(OasisBaseCommand):
         'generate-losses': GenerateLossesCmd,
         'generate-losses-chunk': GenerateLossesPartialCmd,
         'generate-losses-output': GenerateLossesOutputCmd,
-        'run': RunCmd
+        'run': RunCmd,
+        'run-postanalysis': RunPostAnalysisCmd,
     }
