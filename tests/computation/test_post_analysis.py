@@ -26,20 +26,16 @@ class {class_name}:
 ''')
 
 
-@pytest.fixture(autouse=True)
-def change_test_dir(tmp_path, monkeypatch):
-    """Run tests in a temp directory to mimic the behaviour of model runs."""  # TODO Confirm this???
-    monkeypatch.chdir(tmp_path)
-
-
 def test_create_output_file(tmp_path):
-    raw_output_dir = tmp_path / 'output'  # default path
+    model_run_dir = tmp_path
+    raw_output_dir = model_run_dir / 'output'
     raw_output_dir.mkdir(parents=True, exist_ok=True)
     (raw_output_dir / 'gul_S1_aalcalc.csv').write_text("999")  # Create one output file.
 
-    post_processed_output_dir = tmp_path / 'postprocessed_output'  # default path
+    post_processed_output_dir = raw_output_dir / 'postprocessed'
 
-    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix()}
+    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix(),
+              'model_run_dir': tmp_path.as_posix()}
 
     write_simple_post_analysis_module(kwargs['post_analysis_module'])
 
@@ -50,15 +46,15 @@ def test_create_output_file(tmp_path):
 
 
 def test_create_output_file_non_defaults(tmp_path):
-    raw_output_dir = tmp_path / 'raw_output'  # non-default name
+    model_run_dir = tmp_path
+    raw_output_dir = model_run_dir / 'output'
     raw_output_dir.mkdir(parents=True, exist_ok=True)
     (raw_output_dir / 'gul_S1_aalcalc.csv').write_text("999")  # Create one output file.
 
-    post_processed_output_dir = tmp_path / 'processed_output'  # non-default name
+    post_processed_output_dir = raw_output_dir / 'postprocessed'
 
     kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix(),
-              'raw_output_dir': raw_output_dir.as_posix(),
-              'post_processed_output_dir': post_processed_output_dir.as_posix(),
+              'model_run_dir': tmp_path.as_posix(),
               'post_analysis_class_name': 'MyClass'}
 
     write_simple_post_analysis_module(kwargs['post_analysis_module'], class_name='MyClass')

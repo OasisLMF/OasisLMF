@@ -2,6 +2,7 @@ __all__ = [
     'PostAnalysis'
 ]
 
+import os
 from pathlib import Path
 
 from ..base import ComputationStep
@@ -17,10 +18,8 @@ class PostAnalysis(ComputationStep):
          'help': 'Post-Analysis module path'},
         {'name': 'post_analysis_class_name', 'default': 'PostAnalysis',
          'help': 'Name of the class to use for the post_analysis'},
-        {'name': 'raw_output_dir', 'default': 'output', 'is_path': True, 'pre_exist': True,
-         'help': 'path to oasis output directory'},
-        {'name': 'post_processed_output_dir', 'default': 'postprocessed_output', 'is_path': True,
-         'pre_exist': False, 'help': 'path to post-processed output directory'},
+        {'name': 'model_run_dir', 'is_path': True, 'pre_exist': False,
+         'help': 'Model run directory path'},
     ]
 
     run_dir_key = 'post-analysis'
@@ -29,10 +28,12 @@ class PostAnalysis(ComputationStep):
         _module = get_custom_module(self.post_analysis_module, 'Post-Analysis module path')
         kwargs = dict()
 
-        kwargs['raw_output_dir'] = self.raw_output_dir
-        kwargs['post_processed_output_dir'] = self.post_processed_output_dir
+        raw_output_dir = os.path.join(self.model_run_dir, "output")
+        kwargs['raw_output_dir'] = raw_output_dir
+        post_processed_output_dir = os.path.join(raw_output_dir, "postprocessed")
+        kwargs['post_processed_output_dir'] = post_processed_output_dir
 
-        Path(self.post_processed_output_dir).mkdir()
+        Path(post_processed_output_dir).mkdir()
 
         try:
             _class = getattr(_module, self.post_analysis_class_name)
