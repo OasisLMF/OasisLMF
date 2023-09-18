@@ -335,8 +335,11 @@ class TestGenDummyOasisFiles(ComputationChecker):
             'num_events',
             'num_areaperils',
             'num_periods',
+            'num_amplifications',
         ]
         self.min_args = {k: 10 for k in self.required_args}
+        self.min_args['min_pla_factor'] = 0.2
+        self.min_args['max_pla_factor'] = 0.6
         self.min_args['num_locations'] = 10000
         self.min_args['coverages_per_location'] = 4
         self.min_args['num_layers'] = 5

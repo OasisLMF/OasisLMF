@@ -556,7 +556,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         if self.num_amplifications > 0:
             self.gul_files += [
                 AmplificationsFile(
-                    self.num_locations, self.coverages_per_locations,
+                    self.num_locations, self.coverages_per_location,
                     self.num_amplifications, self.random_seed, self.input_dir
                 )
             ]
