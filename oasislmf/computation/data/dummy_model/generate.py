@@ -1,6 +1,7 @@
 __all__ = [
     'VulnerabilityFile',
     'EventsFile',
+    'LossFactorsFile',
     'FootprintBinFile',
     'FootprintIdxFile',
     'DamageBinDictFile',
@@ -8,6 +9,7 @@ __all__ = [
     'RandomFile',
     'CoveragesFile',
     'ItemsFile',
+    'AmplificationsFile',
     'FMProgrammeFile',
     'FMPolicyTCFile',
     'FMProfileFile',
@@ -215,6 +217,81 @@ class EventsFile(ModelFile):
             event (int): event ID.
         """
         return (tuple([event]) for event in range(1, self.num_events + 1))
+
+
+class LossFactorsFile(ModelFile):
+    """
+    Generate data for Loss Factors dummy model file.
+
+    This file maps post loss amplification/reduction loss factors to
+    event ID-amplification ID pairs.
+
+    Attributes:
+        generate_data: Geenrate Loss Factors dummy model file data.
+        write_file: Write data to Loss Factors dummy model file in binary
+          format.
+    """
+
+    def __init__(
+        self, num_events, num_amplifications, min_pla_factor, max_pla_factor,
+        random_seed, directory
+    ):
+        """
+        Initialise LossFactorsFile class.
+
+        Args:
+            num_events (int): number of events.
+            num_amplifications (int): number of amplification IDs.
+            min_pla_factor (float): minimum post loss amplification/reduction
+              factor.
+            max_pla_factor (float): maximum post loss amplification/reduction
+              factor.
+            random_seed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
+        """
+        self.num_events = num_events
+        self.num_amplifications = num_amplifications
+        self.min_pla_factor = min_pla_factor
+        self.delta_pla_factor = max_pla_factor - min_pla_factor
+        self.random_seed = random_seed
+        self.file_name = os.path.join(directory, 'lossfactors.bin')
+        self.start_stats = [
+            {
+                'desc': 'Reserved for future use', 'value': 0, 'dtype': 'i'
+            }
+        ]
+        self.dtypes = OrderedDict([
+            ('event_id', 'i'), ('amplification_id', 'i'), ('factor', 'f')
+        ])
+
+    def generate_data(self):
+        """
+        Generate Loss Factors dummy model file data.
+
+        Yields:
+            event (int): event ID
+            amplification (int): amplification ID
+            factor (float): post loss amplification/reduction factor
+        """
+        super().seed_rng()
+        for event in range(self.num_events):
+            for amplification in range(self.num_amplifications):
+                factor = np.random.random() * self.delta_pla_factor + self.min_pla_factor
+                factor = np.round(factor, decimals=2)
+                if factor == 1.0:
+                    continue   # Default loss factor = 1.0
+                yield event + 1, amplification + 1, factor
+
+    def write_file(self):
+        """
+        Write data to output Loss Factors file in binary format.
+
+        Checks number of amplifications are greater than 0 before calling base
+        class method.
+        """
+        if not self.num_amplifications:
+            return
+        super().write_file()
 
 
 class FootprintIdxFile(ModelFile):
@@ -743,6 +820,68 @@ class ItemsFile(ModelFile):
                 # Assume 1-1 mapping between item and coverage IDs
                 # Assume group ID mapped to location
                 yield item, item, areaperils[coverage], vulnerabilities[coverage], location + 1
+
+
+class AmplificationsFile(ModelFile):
+    """
+    Generate data for Amplifications dummy model Oasis file.
+
+    This file maps exposure items to amplification IDs.
+
+    Attributes:
+        generate_data: Generate Amplifications dummy model Oasis file data.
+        write_file: Write data to Amplifications dummy model Oasis file in
+          binary format.
+    """
+
+    def __init__(
+        self, num_locations, coverages_per_location, num_amplifications,
+        random_seed, directory
+    ):
+        """
+        Initialise AmplificationsFile class.
+
+        Args:
+            num_locations (int): number of locations.
+            coverages_per_location (int): number of coverage types per location.
+            num_amplifications (int): number of amplifications.
+            random_ssed (float): random seed for random number generator.
+            directory (str): dummy model file destination.
+        """
+        self.num_items = coverages_per_location * num_locations
+        self.num_amplifications = num_amplifications
+        self.random_seed = random_seed
+        self.file_name = os.path.join(directory, 'amplifications.bin')
+        self.start_stats = [
+            {
+                'desc': 'Reserved for fuiure use', 'value': 0, 'dtype': 'i'
+            }
+        ]
+        self.dtypes = OrderedDict([('item_id', 'i'), ('amplification_id', 'i')])
+
+    def generate_data(self):
+        """
+        Generate Amplifications dummy model Oasis file data.
+
+        Yields:
+            item (int): item ID
+            amplification (int): amplification ID
+        """
+        super().seed_rng()
+        for item in range(self.num_items):
+            amplification = np.random.randint(1, self.num_amplifications + 1)
+            yield item + 1, amplification
+
+    def write_file(self):
+        """
+        Write data to output Amplifications file in binary format.
+
+        Checks number of amplifications are greater than 0 before calling base
+        class method.
+        """
+        if not self.num_amplifications:
+            return
+        super().write_file()
 
 
 class FMFile(ModelFile):

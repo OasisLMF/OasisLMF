@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import List
 
 from oasislmf.computation.base import ComputationStep
-from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
+from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
+                                                            CoveragesFile,
                                                             DamageBinDictFile,
                                                             EventsFile,
                                                             FMPolicyTCFile,
@@ -22,6 +23,7 @@ from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
                                                             FootprintBinFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
+                                                            LossFactorsFile,
                                                             OccurrenceFile,
                                                             RandomFile,
                                                             VulnerabilityFile)
@@ -554,7 +556,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         if self.num_amplifications > 0:
             self.gul_files += [
                 AmplificationsFile(
-                    self.num_locations, self.coverages_per_locations,
+                    self.num_locations, self.coverages_per_location,
                     self.num_amplifications, self.random_seed, self.input_dir
                 )
             ]
