@@ -1,6 +1,20 @@
 OasisLMF Changelog
 ==================
 
+`1.28.2`_
+ ---------
+* [#1344](https://github.com/OasisLMF/OasisLMF/pull/1344) - Release/1.28.1 (staging) 
+* [#1326](https://github.com/OasisLMF/OasisLMF/pull/1345) - Update the the `KeyLookupInterface` class to have access to the `lookup_complex_config_json`
+* [#140](https://github.com/OasisLMF/OasisLMF/pull/1346) - Implement OED peril fields
+* [#1322](https://github.com/OasisLMF/OasisLMF/pull/1351) - Step policies: Allow BI ground up loss through to gross losses
+* [#1249](https://github.com/OasisLMF/OasisLMF/pull/1320) - Discuss documentation strategy
+* [#1293](https://github.com/OasisLMF/OasisLMF/pull/1352) - Multiple footprint file options
+* [#1357](https://github.com/OasisLMF/OasisLMF/pull/1357) - fix permissions for docs deploy
+* [#1360](https://github.com/OasisLMF/OasisLMF/pull/1360) - Add docs about gulmc
+* [#1347](https://github.com/OasisLMF/OasisLMF/pull/1369) - Add runtime user supplied secondary factor option to plapy
+* [#1340](https://github.com/OasisLMF/OasisLMF/pull/1340) - collect_unused_df in il preparation
+.. _`1.28.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.1...1.28.2
+
 `1.28.1`_
  ---------
 * [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
