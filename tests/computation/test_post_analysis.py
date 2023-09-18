@@ -12,17 +12,17 @@ class {class_name}:
     """
     Example of custom module called by oasislmf/model_preparation/PostAnalysis.py
     """
-    def __init__(self, raw_output_dir, post_processed_output_dir, **kwargs):
-        self.raw_output_dir = raw_output_dir
-        self.post_processed_output_dir = post_processed_output_dir
+    def __init__(self, output_dir, **kwargs):
+        self.output_dir = output_dir
 
     def run(self):
+        post_processed_output_dir = Path(self.output_dir) / "postprocessed"
+
         # Copy all outputs to new directory.
-        shutil.copytree(self.raw_output_dir, self.post_processed_output_dir, dirs_exist_ok=True)
+        shutil.copytree(self.output_dir, post_processed_output_dir, dirs_exist_ok=True)
 
         # Create an extra file.
-        new_file_path = Path(self.post_processed_output_dir) / "my_file.txt"
-        new_file_path.write_text("Sample Data for Testing")
+        (post_processed_output_dir / "my_file.txt").write_text("Sample Data for Testing")
 ''')
 
 
