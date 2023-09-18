@@ -3,7 +3,6 @@ __all__ = [
 ]
 
 import os
-from pathlib import Path
 
 from ..base import ComputationStep
 from ...utils.path import get_custom_module
@@ -11,7 +10,10 @@ from ...utils.exceptions import OasisException
 
 
 class PostAnalysis(ComputationStep):
-    """
+    """Computation step that is called after loss calculations.
+
+    It passes the output directory to a customisable function that might modify or add to the
+    standard output files.
     """
     step_params = [
         {'name': 'post_analysis_module', 'required': True, 'is_path': True, 'pre_exist': True,
@@ -25,16 +27,10 @@ class PostAnalysis(ComputationStep):
     run_dir_key = 'post-analysis'
 
     def run(self):
+        output_dir = os.path.join(self.model_run_dir, "output")
+        kwargs = {'output_dir': output_dir}
+
         _module = get_custom_module(self.post_analysis_module, 'Post-Analysis module path')
-        kwargs = dict()
-
-        raw_output_dir = os.path.join(self.model_run_dir, "output")
-        kwargs['raw_output_dir'] = raw_output_dir
-        post_processed_output_dir = os.path.join(raw_output_dir, "postprocessed")
-        kwargs['post_processed_output_dir'] = post_processed_output_dir
-
-        Path(post_processed_output_dir).mkdir()
-
         try:
             _class = getattr(_module, self.post_analysis_class_name)
         except AttributeError as e:
