@@ -85,6 +85,7 @@ class TestGenLosses(ComputationChecker):
             'num_events',
             'num_areaperils',
             'num_periods',
+            'num_amplifications'
         ]
         self.args_model_data = {k: 10 for k in self.required_args_model_data}
 
@@ -113,6 +114,15 @@ class TestGenLosses(ComputationChecker):
 
     def test_losses__run_gul(self):
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        self.manager.generate_losses(**self.min_args)
+
+    def test_losses__run_gul_with_pla(self):
+        PLA_SETTINGS = MIN_RUN_SETTINGS.copy()
+        PLA_SETTINGS['pla'] = True
+        PLA_SETTINGS['pla_secondary_factor'] = 0.5
+
+        self.write_json(self.tmp_files.get('analysis_settings_json'), PLA_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
         self.manager.generate_losses(**self.min_args)
 

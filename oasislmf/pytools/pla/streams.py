@@ -38,7 +38,8 @@ def read_and_write_sidx_loss(cursor, factor, sidx_loss_in, sidx_loss_out):
 
 @njit(cache=True)
 def read_and_write_event_item_ids_and_plafactor(
-    cursor, event_item_in, event_item_out, plafactors, items_amps
+    cursor, event_item_in, event_item_out, plafactors, items_amps,
+    default_factor
 ):
     """
     Read event ID, item ID and Post Loss Amplification (PLA) factor from input
@@ -49,9 +50,11 @@ def read_and_write_event_item_ids_and_plafactor(
         event_item_in (numpy.ndarray): input array of event ID-item ID pairs
         event_item_out (numpy.ndarray): output array of event ID-item ID pairs
         plafactors (numba.typed.typeddict.Dict): PLA factors dictionary mapped
-            to event ID-item ID pair
+          to event ID-item ID pair
         items_amps (numpy.ndarray): array of amplification IDs, where index
-            corresponds to item ID
+          corresponds to item ID
+        default_factor (float): post loss reduction/amplification factor to be
+          used if loss factor not found in plafactors
 
     Returns:
         cursor (int): position in buffer
@@ -66,7 +69,7 @@ def read_and_write_event_item_ids_and_plafactor(
     sidx = -1
 
     # loss factor defaults to 1.0 if missing (i.e. no change)
-    factor = plafactors.get((event_id, items_amps[item_id]), 1.0)
+    factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
 
     return cursor, sidx, factor
 
@@ -74,7 +77,7 @@ def read_and_write_event_item_ids_and_plafactor(
 @njit(cache=True)
 def read_and_write_buffers(
     cursor, valid_length, sidx, factor, sidx_loss_in, sidx_loss_out,
-    event_item_in, event_item_out, plafactors, items_amps
+    event_item_in, event_item_out, plafactors, items_amps, default_factor
 ):
     """
     Cycle through data in input buffer. Call functions to extract event IDs,
@@ -91,9 +94,11 @@ def read_and_write_buffers(
         event_item_in (numpy.ndarray): input array of event ID-item ID pairs
         event_item_out (numpy.ndarray): output array of event ID-item ID pairs
         plafactors (numba.typed.typeddict.Dict): PLA factors dictionary mapped
-            to event ID-item ID pair
+          to event ID-item ID pair
         items_amps (numpy.ndarray): array of amplification IDs, where index
-            corresponds to item ID
+          corresponds to item ID
+        default_factor (float): post loss reduction/amplification factor to be
+          used if loss factor not found in plafactors
 
     Returns:
         cursor (int): position in buffer
@@ -109,13 +114,16 @@ def read_and_write_buffers(
 
         else:
             cursor, sidx, factor = read_and_write_event_item_ids_and_plafactor(
-                cursor, event_item_in, event_item_out, plafactors, items_amps
+                cursor, event_item_in, event_item_out, plafactors, items_amps,
+                default_factor
             )
 
     return cursor, sidx, factor
 
 
-def read_and_write_streams(stream_in, stream_out, items_amps, plafactors):
+def read_and_write_streams(
+    stream_in, stream_out, items_amps, plafactors, default_factor
+):
     """
     Read input stream from gulpy or gulcalc, determine amplification ID from
     item ID, determine loss factor from event ID and amplification ID pair,
@@ -142,9 +150,11 @@ def read_and_write_streams(stream_in, stream_out, items_amps, plafactors):
         stream_in (buffer): input stream
         stream_out (buffer): output stream
         items_amps (numpy array): amplification IDs where indexes correspond to
-            item IDs
+          item IDs
         plafactors (dict): event ID and amplification ID pairs mapped to loss
-            factors
+          factors
+        default_factor (float): post loss reduction/amplification factor to be
+          used if loss factor not found in plafactors
     """
     # Read and write 8-byte (two 4-byte integers) header
     stream_type_and_max_sidx_val = stream_in.read(8)
@@ -181,7 +191,8 @@ def read_and_write_streams(stream_in, stream_out, items_amps, plafactors):
 
         cursor, sidx, factor = read_and_write_buffers(
             cursor, valid_length, sidx, factor, sidx_loss_in, sidx_loss_out,
-            event_item_in, event_item_out, plafactors, items_amps
+            event_item_in, event_item_out, plafactors, items_amps,
+            default_factor
         )
 
         stream_out.write(write_buffer[:cursor * DATA_SIZE])
