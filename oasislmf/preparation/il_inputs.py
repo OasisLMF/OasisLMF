@@ -1515,7 +1515,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
 def write_il_input_files(
         il_inputs_df,
         target_dir,
-        oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il']),
+        oasis_files_prefixes=OASIS_FILES_PREFIXES['il'],
         chunksize=(2 * 10 ** 5)
 ):
     """
@@ -1546,6 +1546,7 @@ def write_il_input_files(
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
+    oasis_files_prefixes = copy.deepcopy(oasis_files_prefixes)
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the IL inputs frame size
