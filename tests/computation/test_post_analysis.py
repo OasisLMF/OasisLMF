@@ -39,9 +39,9 @@ def test_create_output_file(tmp_path):
 
     post_processed_output_dir = tmp_path / 'postprocessed_output'  # default path
 
-    kwargs = {'post_analysis_module_path': (tmp_path / 'post_analysis_simple.py').as_posix()}
+    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix()}
 
-    write_simple_post_analysis_module(kwargs['post_analysis_module_path'])
+    write_simple_post_analysis_module(kwargs['post_analysis_module'])
 
     OasisManager().post_analysis(**kwargs)
 
@@ -56,12 +56,12 @@ def test_create_output_file_non_defaults(tmp_path):
 
     post_processed_output_dir = tmp_path / 'processed_output'  # non-default name
 
-    kwargs = {'post_analysis_module_path': (tmp_path / 'post_analysis_simple.py').as_posix(),
+    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix(),
               'raw_output_dir': raw_output_dir.as_posix(),
               'post_processed_output_dir': post_processed_output_dir.as_posix(),
               'post_analysis_class_name': 'MyClass'}
 
-    write_simple_post_analysis_module(kwargs['post_analysis_module_path'], class_name='MyClass')
+    write_simple_post_analysis_module(kwargs['post_analysis_module'], class_name='MyClass')
 
     OasisManager().post_analysis(**kwargs)
 
