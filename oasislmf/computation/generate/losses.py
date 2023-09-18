@@ -23,28 +23,22 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
 import pandas as pd
-
-from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
+from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
-                              prepare_run_inputs)
+                              prepare_run_inputs, set_footprint_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
-from ...utils.data import (fast_zip_dataframe_columns,
-                           get_dataframe, get_exposure_data,
-                           get_utctimestamp, get_json,
-                           merge_dataframes, set_dataframe_column_dtypes)
-from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE,
-                               KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
-                               KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
+from ...utils.data import (fast_zip_dataframe_columns, get_dataframe, get_exposure_data, get_json,
+                           get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes)
+from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
+                               KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
                                KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
-                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG,
-                               KTOOLS_GUL_LEGACY_STREAM,
+                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG, KTOOLS_GUL_LEGACY_STREAM,
                                KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_NUM_PROCESSES,
-                               KTOOLS_STD_DEV_SAMPLE_IDX,
-                               KTOOLS_TIV_SAMPLE_IDX)
+                               KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...utils.path import setcwd
@@ -317,6 +311,9 @@ class GenerateLossesDir(GenerateLossesBase):
             analysis_settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
+        if footprint_set_val:
+            set_footprint_set(footprint_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:
@@ -580,7 +577,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
-        {'name': 'peril_filter', 'default': [], 'nargs':'+', 'help': 'Peril specific run'},
+        {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
     ]

@@ -237,6 +237,9 @@ def get_gul_input_items(
                 correlation_check = True
 
     query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
+    for tiv_col in tiv_cols:
+        if tiv_col not in location_df.columns:
+            location_df[tiv_col] = 0
     location_df.loc[:, tiv_cols] = location_df.loc[:, tiv_cols].fillna(0.0)
     location_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
@@ -549,7 +552,7 @@ def write_gul_input_files(
     target_dir,
     correlations_df,
     output_dir,
-    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
+    oasis_files_prefixes=OASIS_FILES_PREFIXES['gul'],
     chunksize=(2 * 10 ** 5),
 ):
     """
@@ -580,6 +583,7 @@ def write_gul_input_files(
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
+    oasis_files_prefixes = copy.deepcopy(oasis_files_prefixes)
 
     if correlations_df is None:
         correlations_df = pd.DataFrame(columns=CorrelationsData.COLUMNS)

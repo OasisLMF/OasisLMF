@@ -37,10 +37,14 @@ def get_items_amplifications(path):
         items_amps (numpy.ndarray): array of amplification IDs, where index
             corresponds to item ID
     """
-    items_amps = np.fromfile(
-        os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
-        offset=FILE_HEADER_SIZE
-    )
+    try:
+        items_amps = np.fromfile(
+            os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
+            offset=FILE_HEADER_SIZE
+        )
+    except FileNotFoundError:
+        logger.error('amplifications.bin not found')
+        raise SystemExit(1)
 
     # Check item IDs start from 1 and are contiguous
     if items_amps[0] != 1:
@@ -58,7 +62,8 @@ def get_items_amplifications(path):
 
 @njit(cache=True)
 def fill_post_loss_amplification_factors(
-    event_id, count, cursor, valid_length, event_count, amp_factor, plafactors
+    event_id, count, cursor, valid_length, event_count, amp_factor, plafactors,
+    secondary_factor
 ):
     """
     Fill Post Loss Amplification (PLA) factors dictionary mapped to
@@ -73,6 +78,8 @@ def fill_post_loss_amplification_factors(
         event_count (numpy.ndarray): array of event ID-count pairs
         amp_factor (numpy.ndarray): array of amplification ID-loss pairs
         plafactors (numba.typed.typeddict.Dict): PLA factors dictionary
+        secondary_factor (float): secondary factor to apply to post loss
+          amplification
 
     Returns:
         event_id (int): current event ID
@@ -89,7 +96,9 @@ def fill_post_loss_amplification_factors(
 
         else:
             amplification_id = amp_factor[cursor]['amplification_id']
-            loss_factor = amp_factor[cursor]['factor']
+            loss_factor = max(
+                1 + (amp_factor[cursor]['factor'] - 1) * secondary_factor, 0.0
+            )   # Losses cannot be negative
             plafactors[(event_id, amplification_id)] = loss_factor
             cursor += 1
             count -= 1
@@ -97,9 +106,13 @@ def fill_post_loss_amplification_factors(
     return event_id, count, plafactors
 
 
-def get_post_loss_amplification_factors(path):
+def get_post_loss_amplification_factors(
+    path, secondary_factor, uniform_factor
+):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
+    Returns empty dictionary if uniform factor to apply across all losses has
+    been given.
 
     lossfactors.bin is binary file with layout:
         reserved header (4-byte int),
@@ -116,6 +129,9 @@ def get_post_loss_amplification_factors(path):
 
     Args:
         path (str): path to lossfactors.bin file
+        secondary_factor (float): secondary factor to apply to post loss
+          amplification
+        uniform_factor (float): uniform factor to apply across all losses
 
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
@@ -123,6 +139,8 @@ def get_post_loss_amplification_factors(path):
     plafactors = Dict.empty(
         key_type=types.UniTuple(types.int64, 2), value_type=types.float64
     )
+    if uniform_factor > 0.0:
+        return plafactors
 
     with open(os.path.join(path, LOSS_FACTORS_FILE_NAME), 'rb') as f:
         factors_buffer = memoryview(bytearray(BUFFER_SIZE))
@@ -149,7 +167,7 @@ def get_post_loss_amplification_factors(path):
 
             event_id, count, plafactors = fill_post_loss_amplification_factors(
                 event_id, count, cursor, valid_length, event_count, amp_factor,
-                plafactors
+                plafactors, secondary_factor
             )
 
             valid_buffer = 0

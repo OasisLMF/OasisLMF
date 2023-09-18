@@ -1,0 +1,36 @@
+name: Build Docs
+on:
+  pull_request:
+    # build docs for all PRs targeting main
+    branches:    
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Compile package requirements.txt
+        run: |
+             pip install pip-tools
+             pip-compile requirements.in
+      - name: Install required packages
+        run: |
+            pip install -r requirements.txt
+            pip install furo
+      - name: Build
+        run: ./docs/build.sh
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './docs/build/html/'
