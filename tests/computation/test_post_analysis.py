@@ -1,6 +1,9 @@
 import json
+
 import pytest
+
 from oasislmf.manager import OasisManager
+from oasislmf.utils.exceptions import OasisException
 
 
 def write_simple_post_analysis_module(module_path, class_name='PostAnalysis'):
@@ -71,6 +74,22 @@ def test_postanalysis_non_defaults(tmp_path):
 
     assert (post_processed_output_dir / 'my_file.txt').read_text() == "Sample Data for Testing"
     assert (post_processed_output_dir / 'gul_S1_aalcalc.csv').read_text() == "999"
+
+
+def test_postanalysis_wrong_module_name(tmp_path):
+    model_run_dir = tmp_path
+    raw_output_dir = model_run_dir / 'output'
+    raw_output_dir.mkdir(parents=True, exist_ok=True)
+    (raw_output_dir / 'gul_S1_aalcalc.csv').write_text("999")  # Create one output file.
+
+    kwargs = {'post_analysis_module': (tmp_path / 'post_analysis_simple.py').as_posix(),
+              'model_run_dir': tmp_path.as_posix(),
+              'post_analysis_class_name': 'IncorrectClassName'}
+
+    write_simple_post_analysis_module(kwargs['post_analysis_module'])
+
+    with pytest.raises(OasisException, match="Class IncorrectClassName is not defined in module*"):
+        OasisManager().post_analysis(**kwargs)
 
 
 def test_postanalysis_with_settings(tmp_path):
