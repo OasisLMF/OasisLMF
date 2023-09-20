@@ -24,14 +24,19 @@ class PostAnalysis(ComputationStep):
          'help': 'Model run directory path'},
         {'name': 'analysis_settings_json', 'is_path': True, 'pre_exist': True,
          'help': 'Analysis settings JSON file path'},
+        {'name': 'model_data_dir', 'is_path': True, 'pre_exist': True,
+         'help': 'Model data directory path'},
     ]
 
     run_dir_key = 'post-analysis'
 
     def run(self):
         output_dir = os.path.join(self.model_run_dir, "output")
-        kwargs = {'output_dir': output_dir,
-                  'analysis_settings_json': self.analysis_settings_json}
+        kwargs = {
+            'output_dir': output_dir,
+            'analysis_settings_json': self.analysis_settings_json,
+            'model_data_dir': self.model_data_dir,
+        }
 
         _module = get_custom_module(self.post_analysis_module, 'Post-Analysis module path')
         try:
