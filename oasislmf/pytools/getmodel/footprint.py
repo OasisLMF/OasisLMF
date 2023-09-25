@@ -69,7 +69,12 @@ class Footprint:
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
 
     @classmethod
-    def load(cls, storage: BaseStorageConnector, ignore_file_type=set()):
+    def load(
+        cls,
+        storage: BaseStorageConnector,
+        ignore_file_type=set(),
+        df_engine="lot3.df_reader.reader.OasisPandasReader",
+    ):
         """
         Loads the loading classes defined in this file checking to see if the files are in the static path
         whilst doing so. The loading goes through the hierarchy with the following order:
@@ -110,7 +115,7 @@ class Footprint:
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
-                return footprint_class(storage)
+                return footprint_class(storage, df_engine=df_engine)
         else:
             if storage.isfile("footprint.parquet"):
                 raise OasisFootPrintError(

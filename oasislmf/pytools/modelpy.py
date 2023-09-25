@@ -16,6 +16,7 @@ parser.add_argument('--peril-filter', help='Id of the peril to keep, if empty ta
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
+parser.add_argument('--df-engine', help='The engine to use when loading dataframes', default='lot3.df_reader.reader.OasisPandasReader')
 
 
 def main() -> None:

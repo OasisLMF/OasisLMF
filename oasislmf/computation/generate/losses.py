@@ -382,6 +382,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -438,7 +439,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
-            peril_filter=self._get_peril_filter(self.analysis_settings)
+            peril_filter=self._get_peril_filter(self.analysis_settings),
+            df_engine=self.df_engine,
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:

@@ -12,6 +12,7 @@ from typing import Optional, Set, Tuple, List
 
 import numpy as np
 
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
 from oasislmf.pytools.getmodel.footprint import Footprint
 
@@ -56,7 +57,13 @@ class FootprintLayer:
         total_served (int): the total number of processes that have ever registered through the server's lifetime
     """
 
-    def __init__(self, storage: BaseStorageConnector, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
+    def __init__(
+        self,
+        storage: BaseStorageConnector,
+        total_expected: int,
+        ignore_file_type: Set[str] = set(),
+        df_engine="lot3.df_reader.reader.OasisPandasReader",
+    ) -> None:
         """
         The constructor for the FootprintLayer class.
 
@@ -72,6 +79,7 @@ class FootprintLayer:
         self.count: int = 0
         self.total_expected: int = total_expected
         self.total_served: int = 0
+        self.df_engine = df_engine
         self._define_socket()
 
     def _define_socket(self) -> None:
@@ -147,7 +155,8 @@ class FootprintLayer:
 
         with ExitStack() as stack:
             footprint_obj = stack.enter_context(Footprint.load(self.storage,
-                                                               ignore_file_type=self.ignore_file_type))
+                                                               ignore_file_type=self.ignore_file_type,
+                                                               df_engine=self.df_engine))
             self.file_data = footprint_obj
             while True:
                 try:
@@ -311,8 +320,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
+    parser.add_argument("--df-engine", help="The engine to use when loading dataframes", default="lot3.df_reader.reader.OasisPandasReader", )
     args = parser.parse_args()
-    server = FootprintLayer(static_path=args.p, total_expected=args.n)
+    server = FootprintLayer(LocalStorageConnector(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine)
     server.listen()
 
 

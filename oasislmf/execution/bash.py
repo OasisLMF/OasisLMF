@@ -259,7 +259,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter):
+def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, df_engine='lot3.df_reader.reader.OasisPandasReader'):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -274,7 +274,7 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
     elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server}"
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --df-engine=\'{df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
@@ -1143,6 +1143,7 @@ def get_getmodel_itm_cmd(
         gulmc_random_generator=1,
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
+        df_engine='lot3.df_reader.reader.OasisPandasReader',
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1158,14 +1159,16 @@ def get_getmodel_itm_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type eve_shuffle_flag: str
+    :param df_engine: The engine to use when loading dataframes
+    :type  df_engine: str
     :return: The generated getmodel command
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, df_engine=df_engine)} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], df_engine=df_engine)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1205,6 +1208,7 @@ def get_getmodel_cov_cmd(
         gulmc_random_generator=1,
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
+        df_engine='lot3.df_reader.reader.OasisPandasReader',
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1220,14 +1224,16 @@ def get_getmodel_cov_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type  eve_shuffle_flag: str
+    :param df_engine: The engine to use when loading dataframes
+    :type  df_engine: str
     :return: (str) The generated getmodel command
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter)} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, df_engine=df_engine)} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [])} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], df_engine=df_engine)} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1533,6 +1539,7 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     peril_filter=[],
+    df_engine="lot3.df_reader.reader.OasisPandasReader",
     **kwargs
 ):
 
@@ -1655,6 +1662,7 @@ def bash_params(
     bash_params['need_summary_fifo_for_gul'] = bash_params['gul_output'] and (
         bash_params['il_output'] or bash_params['ri_output']
     )
+    bash_params['df_engine'] = df_engine
 
     return bash_params
 
@@ -1777,6 +1785,7 @@ def create_bash_analysis(
     model_py_server,
     peril_filter,
     gul_legacy_stream=False,
+    df_engine='lot3.df_reader.reader.OasisPandasReader',
     **kwargs
 ):
 
@@ -2002,6 +2011,7 @@ def create_bash_analysis(
             'gulmc_vuln_cache_size': gulmc_vuln_cache_size,
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
+            "df_engine": df_engine,
         }
 
         # Establish whether items to amplifications map file is present
@@ -2353,6 +2363,7 @@ def genbash(
     gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
+    df_engine='lot3.df_reader.reader.OasisPandasReader',
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -2391,6 +2402,9 @@ def genbash(
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
+
+    :param df_engine: The engine to use when loading dataframes.
+    :type df_engine: str
     """
 
     params = bash_params(
@@ -2424,6 +2438,7 @@ def genbash(
         gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
+        df_engine=df_engine,
     )
 
     # remove the file if it already exists

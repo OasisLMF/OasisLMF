@@ -13,10 +13,9 @@ from contextlib import ExitStack
 import numba as nb
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 from numba.typed import Dict
-from pyarrow.fs import FSSpecHandler
 
+from lot3.df_reader.config import get_df_reader, clean_config, InputReaderConfig
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
 from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
@@ -281,7 +280,7 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, ignore_file_type=set()):
+def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="lot3.df_reader.reader.OasisPandasReader"):
     """
     Loads the vulnerabilities from the file.
 
@@ -296,18 +295,17 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
     input_files = set(storage.listdir())
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('vulnerability_dataset', encode_params=False)[1]}")
-        _, file_url = storage.get_storage_url('vulnerability_dataset', encode_params=False)
-        parquet_handle = pq.ParquetDataset(file_url, filesystem=FSSpecHandler(storage.fs), use_legacy_dataset=False,
-                                           filters=[("vulnerability_id", "in", list(vuln_dict))],
-                                           memory_map=True)
-        vuln_table = parquet_handle.read()
-        vuln_meta = vuln_table.schema.metadata
-        num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
-        number_of_intensity_bins = int(vuln_meta[b"num_intensity_bins"].decode("utf-8"))
-        vuln_array = np.vstack(vuln_table['vuln_array'].to_numpy()).reshape(vuln_table['vuln_array'].length(),
+
+        df_reader_config = clean_config(InputReaderConfig(filepath='vulnerability_dataset', engine=df_engine))
+        df_reader_config["engine"]["options"]["storage"] = storage
+        reader = get_df_reader(df_reader_config).filter(lambda df: df[df["vulnerability_id"] in list(vuln_dict)])
+        num_damage_bins = reader.apply(lambda df: df['damage_bin_id'].max())
+
+        df = reader.to_pandas()
+        vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(df['vuln_array'].length(),
                                                                             num_damage_bins,
-                                                                            number_of_intensity_bins)
-        vulns_id = vuln_table['vulnerability_id'].to_numpy()
+                                                                            num_intensity_bins)
+        vulns_id = df['vulnerability_id'].to_numpy()
         update_vulns_dictionary(vuln_dict, vulns_id)
 
     else:
@@ -547,7 +545,15 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
 
 
 @redirect_logging(exec_name='modelpy')
-def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
+def run(
+    run_dir,
+    file_in,
+    file_out,
+    ignore_file_type,
+    data_server,
+    peril_filter,
+    df_engine="lot3.df_reader.reader.OasisPandasReader",
+):
     """
     Runs the main process of the getmodel process.
 
@@ -558,6 +564,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         ignore_file_type: set(str) file extension to ignore when loading
         data_server: (bool) if set to True runs the data server
         peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
+        df_engine: (str) The engine to use when loading dataframes
 
     Returns: None
     """
@@ -604,7 +611,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
             input_path, ignore_file_type, valid_area_peril_id)
 
         logger.debug('init footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=df_engine))
 
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
@@ -614,7 +621,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=df_engine)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(model_storage, ignore_file_type)
