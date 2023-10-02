@@ -201,7 +201,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]  # columns which in locations / Accounts file
     mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
                    if c in summary_map_df.columns]  # Columns already in summary_map_df
-    tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
+    tiv_cols = ['tiv', 'loc_id', 'building_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
@@ -223,7 +223,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
-    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'coverage_type_id'] + oed_col_group,
+    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
                                                    keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
 
     return summary_ids[0], summary_ids[1], summary_tiv
