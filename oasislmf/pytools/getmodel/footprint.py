@@ -327,7 +327,7 @@ class FootprintParquet(Footprint):
         # except OSError:
         #     return None
 
-        reader = self.get_df_reader("footprint.parquet").filter(lambda df: df[df["event_id"] == event_id])
+        reader = self.get_df_reader("footprint.parquet", filters=[("event_id", "==", event_id)])
 
         df = reader.as_pandas()
         numpy_data = self.prepare_df_data(data_frame=df)
