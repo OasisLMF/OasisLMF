@@ -34,8 +34,6 @@ class GenerateOasisLosses(ComputationStep):
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
-        if os.path.exists(self.model_run_dir):
-            empty_dir(self.model_run_dir)
         self.kwargs['model_run_dir'] = self.model_run_dir
 
         # Run chain
