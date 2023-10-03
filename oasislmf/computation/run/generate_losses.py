@@ -3,8 +3,6 @@ __all__ = [
     'GenerateOasisLosses'
 ]
 
-import os
-
 from tqdm import tqdm
 
 from ..base import ComputationStep
