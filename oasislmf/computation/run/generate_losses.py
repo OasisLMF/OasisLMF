@@ -3,14 +3,11 @@ __all__ = [
     'GenerateOasisLosses'
 ]
 
-import os
-
 from tqdm import tqdm
 
 from ..base import ComputationStep
 from ..generate.losses import GenerateLosses
 from ..hooks.post_analysis import PostAnalysis
-from ...utils.path import empty_dir
 
 
 class GenerateOasisLosses(ComputationStep):
@@ -34,8 +31,6 @@ class GenerateOasisLosses(ComputationStep):
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
-        if os.path.exists(self.model_run_dir):
-            empty_dir(self.model_run_dir)
         self.kwargs['model_run_dir'] = self.model_run_dir
 
         # Run chain
