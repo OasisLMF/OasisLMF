@@ -22,6 +22,7 @@ class TestRunModel(ComputationChecker):
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
         cls.gen_loss_args = cls.manager._params_generate_losses()
+        cls.post_hook_args = cls.manager._params_post_analysis()
 
     def setUp(self):
         # Tempfiles
@@ -48,6 +49,7 @@ class TestRunModel(ComputationChecker):
             self.pre_hook_args,
             self.gen_files_args,
             self.gen_loss_args,
+            self.post_hook_args,
         ])
         self.assertEqual(expt_combined_args, self.default_args)
 
