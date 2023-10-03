@@ -29,6 +29,8 @@ class RunModel(ComputationStep):
             'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
             'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+        {'name': 'post_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True,
+         'help': 'Post-Analysis module path'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [

@@ -1,6 +1,96 @@
 OasisLMF Changelog
 ==================
 
+`1.28.2`_
+ ---------
+* [#1344](https://github.com/OasisLMF/OasisLMF/pull/1344) - Release/1.28.1 (staging) 
+* [#1326](https://github.com/OasisLMF/OasisLMF/pull/1345) - Update the the `KeyLookupInterface` class to have access to the `lookup_complex_config_json`
+* [#140](https://github.com/OasisLMF/OasisLMF/pull/1346) - Implement OED peril fields
+* [#1322](https://github.com/OasisLMF/OasisLMF/pull/1351) - Step policies: Allow BI ground up loss through to gross losses
+* [#1249](https://github.com/OasisLMF/OasisLMF/pull/1320) - Discuss documentation strategy
+* [#1293](https://github.com/OasisLMF/OasisLMF/pull/1352) - Multiple footprint file options
+* [#1357](https://github.com/OasisLMF/OasisLMF/pull/1357) - fix permissions for docs deploy
+* [#1360](https://github.com/OasisLMF/OasisLMF/pull/1360) - Add docs about gulmc
+* [#1347](https://github.com/OasisLMF/OasisLMF/pull/1369) - Add runtime user supplied secondary factor option to plapy
+* [#1340](https://github.com/OasisLMF/OasisLMF/pull/1340) - collect_unused_df in il preparation
+.. _`1.28.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.1...1.28.2
+
+`1.28.1`_
+ ---------
+* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
+* [#1324](https://github.com/OasisLMF/OasisLMF/pull/1324) - Release/1.28.0
+* [#1349](https://github.com/OasisLMF/OasisLMF/pull/1349) - Fix removal of handlers to logger + give logfiles unique names
+* [#1334](https://github.com/OasisLMF/OasisLMF/pull/1334) - Update CI - 1.28
+.. _`1.28.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.0...1.28.1
+
+`1.28.1rc1`_
+ ---------
+* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
+* [#1324](https://github.com/OasisLMF/OasisLMF/pull/1324) - Release/1.28.0
+* [#1349](https://github.com/OasisLMF/OasisLMF/pull/1349) - Fix removal of handlers to logger + give logfiles unique names
+* [#1334](https://github.com/OasisLMF/OasisLMF/pull/1334) - Update CI - 1.28
+.. _`1.28.1rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.0...1.28.1rc1
+
+`1.28.0`_
+ ---------
+* [#1280](https://github.com/OasisLMF/OasisLMF/pull/1280) - Drop py3.7 in testing and add py3.11
+* [#1134](https://github.com/OasisLMF/OasisLMF/pull/1153) - nan output in dummy model generated vulnerability file when intensity sparseness is low
+* [#1282](https://github.com/OasisLMF/OasisLMF/pull/1282) - Adding tarfile member sanitization to extractall()
+* [#1286](https://github.com/OasisLMF/OasisLMF/pull/1286) - Improve code coverage accuracy
+* [#1288](https://github.com/OasisLMF/OasisLMF/pull/1287) - Support for pandas 2
+* [#1289](https://github.com/OasisLMF/OasisLMF/pull/1289) - Fix/fillna on str
+* [#1295](https://github.com/OasisLMF/OasisLMF/pull/1290) - Add platform client unit tests 
+* [#1291](https://github.com/OasisLMF/OasisLMF/pull/1291) - remove obsolete fm compute
+* [#1294](https://github.com/OasisLMF/OasisLMF/pull/1294) - Removed obsolete Cookiecutter from oasislmf 
+* [#1296](https://github.com/OasisLMF/OasisLMF/pull/1296) - Pin ods-tools package for new fillna function 
+* [#1298](https://github.com/OasisLMF/OasisLMF/pull/1298) - Add testing for computation funcs 
+* [#1214](https://github.com/OasisLMF/OasisLMF/pull/1305) - Undefined behaviour when no successes are passed to write_oasis_keys_file
+* [#1306](https://github.com/OasisLMF/OasisLMF/pull/1306) - lookup: remove extra column after failed combine step
+* [#1307](https://github.com/OasisLMF/OasisLMF/pull/1308) - Update release section on Readme
+* [#1156, #1180, #1151](https://github.com/OasisLMF/OasisLMF/pull/1181) - [gulmc] implement hazard correlation
+* [#1310](https://github.com/OasisLMF/OasisLMF/pull/1310) - log wrapper, check log level before running input log
+* [#902](https://github.com/OasisLMF/OasisLMF/pull/1309) - Support for monetary / absolute damage functions
+* [#1315](https://github.com/OasisLMF/OasisLMF/pull/1315) - Bug fix for setcwd context manager
+* [#1300](https://github.com/OasisLMF/OasisLMF/pull/1318) - Assignment of loc_id and idx is not unique when using an EPA to split locations across more rows
+* [#1316](https://github.com/OasisLMF/OasisLMF/pull/1319) - Enhance pre-analysis hook
+* [#1321](https://github.com/OasisLMF/OasisLMF/pull/1321) - Cleanup/fix fm validation cr
+* [#1219](https://github.com/OasisLMF/OasisLMF/pull/1327) - Fix flakly checks in TestGetDataframe
+* [#1142](https://github.com/OasisLMF/OasisLMF/pull/1328) - Post Loss Amplification
+* [#1329](https://github.com/OasisLMF/OasisLMF/pull/1329) - Fix/ci skip ods build manual trigger
+* [#1330](https://github.com/OasisLMF/OasisLMF/pull/1330) - Set Ktools to version 3.10.0
+* [#1204](https://github.com/OasisLMF/OasisLMF/pull/1204) - Release/1.27.0
+* [#1332](https://github.com/OasisLMF/OasisLMF/pull/1332) - fix correlation issue
+* [#1207](https://github.com/OasisLMF/OasisLMF/pull/1209) - (FM) CondClass 1 as second priority condition doesn't work
+* [#1211](https://github.com/OasisLMF/OasisLMF/pull/1212) - OSError: [Errno 24] Too many open files in gulmc test
+* [#1218](https://github.com/OasisLMF/OasisLMF/pull/1218) - Fix missing default collumn for RI
+* [#1220](https://github.com/OasisLMF/OasisLMF/pull/1220) - Fix mapping of `vuln_idx` to `vuln_i` and implement `eff_vuln_cdf` as a dynamic array to work with large footprints
+* [#1222](https://github.com/OasisLMF/OasisLMF/pull/1222) - add option to have custom oed schema
+* [#1230](https://github.com/OasisLMF/OasisLMF/pull/1229) - Redirect warnings from pytools 
+* [#1231](https://github.com/OasisLMF/OasisLMF/pull/1231) - Fix expecteted output with Extra TIV cols from ods-tools
+* [#1232](https://github.com/OasisLMF/OasisLMF/pull/1232) - Moved Settings JSON validation to ods-tools
+* [#1233](https://github.com/OasisLMF/OasisLMF/pull/1234) - oasislmf exposure run reports missing location file when account missing
+* [#141](https://github.com/OasisLMF/OasisLMF/pull/1235) - Implement account level financial structures
+* [#1236](https://github.com/OasisLMF/OasisLMF/pull/1236) - Switch changelog builder from "build" repo to "OasisPlatform"
+* [#1237](https://github.com/OasisLMF/OasisLMF/pull/1237) - Add *.npy to gitignore and clean files from validation
+* [#1238](https://github.com/OasisLMF/OasisLMF/pull/1238) - Set oasislmf to version 1.27.2
+* [#1245](https://github.com/OasisLMF/OasisLMF/pull/1242) - Add the possibility to have both policy coverage and policy PD
+* [#28](https://github.com/OasisLMF/OasisLMF/pull/1243) - Fix/genbash
+* [#1244](https://github.com/OasisLMF/OasisLMF/pull/1244) - Use console entrypoint to define and install `oasislmf` binary
+* [#1251](https://github.com/OasisLMF/OasisLMF/pull/1252) - Error caused by pandas 2.0.0
+* [#1247](https://github.com/OasisLMF/OasisLMF/pull/1255) - OED/oasislmf version compatibility matrix #oasislmf
+* [#1253](https://github.com/OasisLMF/OasisLMF/pull/1256) - pandas 2.0.0 error using "oed_fields" in analysis settings 
+* [#1257](https://github.com/OasisLMF/OasisLMF/pull/1257) - Fix summary levels file
+* [#1130](https://github.com/OasisLMF/OasisLMF/pull/1130) - Remove check for IL + RI files from the run model cmd
+* [#1260](https://github.com/OasisLMF/OasisLMF/pull/1260) - Use low_memory=False in get_dataframe
+* [#1123](https://github.com/OasisLMF/OasisLMF/pull/1261) - Stochastic disaggregation 4 & 6 File preparation for disaggregated locations
+* [#1259](https://github.com/OasisLMF/OasisLMF/pull/1262) - Duplicate summary_ids in outputs
+* [#1221](https://github.com/OasisLMF/OasisLMF/pull/1265) - Enable simple way to specify hierarchal key lookup in lookup_config.json
+* [#1267](https://github.com/OasisLMF/OasisLMF/pull/1269) - Numba 0.57 breaks fmpy
+* [#1270](https://github.com/OasisLMF/OasisLMF/pull/1270) - Add generate and run to rest client 
+* [#1272](https://github.com/OasisLMF/OasisLMF/pull/1272) - Update numpy pin
+* [#1277](https://github.com/OasisLMF/OasisLMF/pull/1277) - Fix invalid columns in FM tests
+.. _`1.28.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.0...1.28.0
+
 `1.27.0`_
  ---------
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module

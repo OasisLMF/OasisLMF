@@ -46,7 +46,7 @@ class GenerateLossesCmd(OasisComputationCommand):
     files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'GenerateLosses'
+    computation_name = 'GenerateOasisLosses'
 
 
 class GenerateLossesPartialCmd(OasisComputationCommand):
