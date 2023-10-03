@@ -1,0 +1,3 @@
+LocID,PerilID,CoverageTypeID,Status,Message
+1,WEC,1,noreturn,unsuported peril_id
+1,WEC,3,noreturn,unsuported peril_id

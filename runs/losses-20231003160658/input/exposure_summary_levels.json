@@ -1,0 +1,26 @@
+{
+    "GUL": {
+        "available": {
+            "AccNumber": "Account number",
+            "BuildingID": "Unique building identification number",
+            "BuildingTIV": "Building Total Insured Value",
+            "ConstructionCode": "OED construction code",
+            "CountryCode": "Country code (based on ISO3166 alpha-2 codes)",
+            "IsTenant": "Whether property is occupied by a tenant or not",
+            "Latitude": "Latitude in degrees (-90.0 to +90.0)",
+            "LocCurrency": "Location currency",
+            "LocNumber": "Location number",
+            "LocPerilsCovered": "Location perils covered",
+            "Longitude": "Longitude in degrees (-180.0 to +180.0)",
+            "NumberOfBuildings": "Number of buildings",
+            "OEDVersion": "The OED schema version of the file - 'major, minor, patch' format i.e. (2.0.0)",
+            "OccupancyCode": "OED occupancy code",
+            "PortNumber": "Portfolio number",
+            "PostalCode": "Postcode: the highest resolution postcode most often used. (e.g. 5 digit zip for the US).",
+            "StreetAddress": "Street address including house number ",
+            "coverage_id": "Oasis coverage identifier",
+            "coverage_type_id": "Oasis coverage type",
+            "peril_id": "OED peril code"
+        }
+    }
+}
