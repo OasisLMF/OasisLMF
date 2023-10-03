@@ -2,8 +2,6 @@ __all__ = [
     'PostAnalysis'
 ]
 
-import os
-
 from ..base import ComputationStep
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
