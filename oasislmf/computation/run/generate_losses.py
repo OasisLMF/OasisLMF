@@ -10,7 +10,6 @@ from tqdm import tqdm
 from ..base import ComputationStep
 from ..generate.losses import GenerateLosses
 from ..hooks.post_analysis import PostAnalysis
-from ...utils.path import empty_dir
 
 
 class GenerateOasisLosses(ComputationStep):
