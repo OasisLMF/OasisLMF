@@ -146,6 +146,22 @@ class TestGenLosses(ComputationChecker):
         }
         self.manager.generate_losses(**call_args)
 
+    @patch('oasislmf.computation.hooks.post_analysis.PostAnalysis.run')
+    def test_losses__run__post_analysis_is_called(self, mock_post_analysis):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        with self.tmp_dir() as tmp_module_dir:
+            fake_module_path = pathlib.Path(tmp_module_dir, 'empty_module.py')
+            fake_module_path.touch()
+            call_args = {
+                **self.min_args,
+                'post_analysis_module': str(fake_module_path),
+                'post_analysis_class_name': 'missing_class',
+            }
+            self.manager.generate_files(**self.args_gen_files_gul)
+            self.manager.generate_oasis_losses(**call_args)
+            self.assertTrue(mock_post_analysis.called)
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)
