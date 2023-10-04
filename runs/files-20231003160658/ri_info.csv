@@ -1,2 +1,0 @@
-ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,ReinsCurrency,InuringPriority,ReinsType,RiskLevel,UseReinsDates,OEDVersion,TreatyShare
-1,1,ABC QS,WW1,2018-01-01,2018-12-31,1.0,0.0,0.0,0.0,0.0,1.0,GBP,1,SS,LOC,N,2.0.0,1.0
