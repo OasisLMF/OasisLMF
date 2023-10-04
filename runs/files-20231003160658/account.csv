@@ -1,0 +1,2 @@
+PortNumber,AccNumber,PolNumber,LayerNumber,AccCurrency,PolPerilsCovered,PolInceptionDate,PolExpiryDate,LayerParticipation,LayerLimit,LayerAttachment,OEDVersion,acc_idx,layer_id
+1,A11111,Layer1,1,GBP,WW1,2018-01-01,2018-12-31,0.3,5000000.0,500000.0,2.0.0,0,1

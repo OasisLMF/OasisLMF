@@ -1,0 +1,18 @@
+{
+  "location": {
+    "cur_version_name": "_csv",
+    "sources": {
+      "orig": {
+        "source_type": "filepath",
+        "filepath": "/tmp/TestGenLossespp2hbmac",
+        "read_param": {}
+      },
+      "_csv": {
+        "source_type": "filepath",
+        "filepath": "location.csv",
+        "extension": "csv"
+      }
+    }
+  },
+  "oed_schema_info": "/home/jbanorthwest.co.uk/carlfischer/venvs/oasislmf/lib/python3.10/site-packages/ods_tools/data/OpenExposureData_Spec.json"
+}
