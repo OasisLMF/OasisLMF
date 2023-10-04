@@ -1,3 +1,0 @@
-acc_idx,AccNumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,LocNumber,peril_id,PolNumber,PortNumber,tiv,output_id
-0,A11111,1,1,1,1,1,0,10002082046,WSS,Layer1,1,220000.0,1
-0,A11111,2,1,1,1,1,0,10002082046,WTC,Layer1,1,220000.0,2

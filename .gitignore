@@ -57,6 +57,8 @@ coverage.xml
 validation/runs
 tmp/
 *.npy
+runs/
+
 
 # Translations
 *.mo
