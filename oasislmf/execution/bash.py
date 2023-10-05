@@ -164,8 +164,8 @@ check_complete(){
     proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
     has_error=0
     for p in $proc_list; do
-        started=$(find log -name "$p*.log" | wc -l)
-        finished=$(find log -name "$p*.log" -exec grep -l "finish" {} + | wc -l)
+        started=$(find log -name "${p}_[0-9]*.log" | wc -l)
+        finished=$(find log -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
         if [ "$finished" -lt "$started" ]; then
             echo "[ERROR] $p - $((started-finished)) processes lost"
             has_error=1
