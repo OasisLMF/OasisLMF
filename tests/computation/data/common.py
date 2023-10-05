@@ -165,7 +165,7 @@ RI_ALL_ORD_OUTPUT_SETTINGS = {
     "model_settings": {},
     "number_of_samples": 1,
     "gul_output": True,
-    'return_periods': [1,10],
+    'return_periods': [1, 10],
     "model_settings": {
     },
     "gul_summaries": [
