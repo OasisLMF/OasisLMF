@@ -62,6 +62,12 @@ ORD_ALT_OUTPUT_SWITCHES = {
     }
 }
 
+ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
+    "alt_meanonly": {
+        'csv_flag': '-o', 'parquet_flag': '-p'
+    }
+}
+
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
         'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
@@ -155,7 +161,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "$p*.log" | wc -l)
@@ -473,6 +479,51 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
+            # ktools ORIG - aalcalcmeanonly
+            if summary.get('aalcalcmeanonly'):
+                cmd = 'aalcalcmeanonly -K{}{}_S{}_summaryaalcalcmeanonly'.format(
+                    work_sub_dir, runtype, summary_set
+                )
+
+                process_counter['lpid_monitor_count'] += 1
+                cmd = '{} > {}{}_S{}_aalcalcmeanonly.csv'.format(
+                    cmd, output_dir, runtype, summary_set
+                )
+                if stderr_guard:
+                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                else:
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                print_command(filename, cmd)
+
+            # ORD - aalcalcmeanonly
+            if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
+                cmd = 'aalcalcmeanonly -K{}{}_S{}_summary_altmeanonly'.format(
+                    work_sub_dir, runtype, summary_set
+                )
+                altmeanonly_outfile_stem = '{}{}_S{}_altmeanonly'.format(
+                    output_dir, runtype, summary_set
+                )
+
+                if summary.get('ord_output', {}).get('parquet_format'):
+                    cmd = '{} {}'.format(
+                        cmd,
+                        ORD_ALT_MEANONLY_OUTPUT_SWITCHES.get('alt_meanonly', {}).get('parquet_flag', '')
+                    )
+                    cmd = '{} {}.parquet'.format(cmd, altmeanonly_outfile_stem)
+                else:
+                    cmd = '{} {}'.format(
+                        cmd,
+                        ORD_ALT_MEANONLY_OUTPUT_SWITCHES.get('alt_meanonly', {}).get('csv_flag', '')
+                    )
+                    cmd = '{} > {}.csv'.format(cmd, altmeanonly_outfile_stem)
+
+                process_counter['lpid_monitor_count'] += 1
+                if stderr_guard:
+                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                else:
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                print_command(filename, cmd)
+
             # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
 
@@ -647,6 +698,18 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
                 print_command(
                     filename,
                     'mkdir -p {}{}_S{}_summary_palt'.format(work_dir, runtype, summary_set)
+                )
+
+            if summary.get('aalcalcmeanonly'):
+                print_command(
+                    filename,
+                    'mkdir -p {}{}_S{}_summaryaalcalcmeanonly'.format(work_dir, runtype, summary_set)
+                )
+
+            if summary.get('ord_output', {}).get('alt_meanonly'):
+                print_command(
+                    filename,
+                    'mkdir -p {}{}_S{}_summary_altmeanonly'.format(work_dir, runtype, summary_set)
                 )
 
 
@@ -831,6 +894,14 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                 aalcalc_ord_out = f'{work_dir}{runtype}_S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
+
+            if summary.get('aalcalcmeanonly'):
+                aalcalcmeanonly_out = f'{work_dir}{runtype}_S{summary_set}_summaryaalcalcmeanonly/P{process_id}'
+                cmd = f'{cmd} {aalcalcmeanonly_out}.bin'
+
+            if summary.get('ord_output', {}).get('alt_meanonly'):
+                aalcalcmeanonly_ord_out = f'{work_dir}{runtype}_S{summary_set}_summary_altmeanonly/P{process_id}'
+                cmd = f'{cmd} {aalcalcmeanonly_ord_out}.bin'
 
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
