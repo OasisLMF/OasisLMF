@@ -5,7 +5,7 @@ __all__ = [
     'MIN_MODEL_SETTINGS',
     'INVALID_RUN_SETTINGS',
     'RI_AAL_SETTINGS',
-    'RI_ALL_ORD_OUTPUT_SETTINGS',
+    'RI_ALL_OUTPUT_SETTINGS',
     'PARQUET_GUL_SETTINGS',
     'MIN_KEYS',
     'MIN_KEYS_ERR',
@@ -22,7 +22,7 @@ __all__ = [
     'GROUP_FIELDS_MODEL_SETTINGS',
     'OLD_GROUP_FIELDS_MODEL_SETTINGS',
     'merge_dirs',
-    'ALL_ORD_EXPECTED_SCRIPT',
+    'ALL_EXPECTED_SCRIPT',
 ]
 
 import os
@@ -159,13 +159,14 @@ RI_AAL_SETTINGS = {
 }
 
 
-RI_ALL_ORD_OUTPUT_SETTINGS = {
+RI_ALL_OUTPUT_SETTINGS = {
     "model_supplier_id": "M-sup",
     "model_name_id": 'M-name',
     "model_settings": {},
     "number_of_samples": 1,
     "gul_output": True,
-    'return_periods': [1, 10],
+    "return_periods": [1, 10],
+    "event_ids": [1, 2],
     "model_settings": {
     },
     "gul_summaries": [
@@ -189,7 +190,24 @@ RI_ALL_ORD_OUTPUT_SETTINGS = {
                 "ept_per_sample_mean_oep": True,
                 "psept_aep": True,
                 "psept_oep": True,
-                "parquet_format": True
+                "parquet_format": True,
+            },
+            "summarycalc": True,
+            "eltcalc": True,
+            "aalcalc": True,
+            "aalcalcmeanonly": True,
+            "pltcalc": True,
+            "lec_output": True,
+            "leccalc": {
+              "return_period_file": True,
+              "full_uncertainty_aep": True,
+              "full_uncertainty_oep": True,
+              "wheatsheaf_aep": True,
+              "wheatsheaf_oep": True,
+              "wheatsheaf_mean_aep": True,
+              "wheatsheaf_mean_oep": True,
+              "sample_mean_aep": True,
+              "sample_mean_oep": True
             }
         }
     ],
@@ -215,7 +233,23 @@ RI_ALL_ORD_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-                "return_period_file": False
+            },
+            "summarycalc": True,
+            "eltcalc": True,
+            "aalcalc": True,
+            "aalcalcmeanonly": True,
+            "pltcalc": True,
+            "lec_output": True,
+            "leccalc": {
+              "return_period_file": True,
+              "full_uncertainty_aep": True,
+              "full_uncertainty_oep": True,
+              "wheatsheaf_aep": True,
+              "wheatsheaf_oep": True,
+              "wheatsheaf_mean_aep": True,
+              "wheatsheaf_mean_oep": True,
+              "sample_mean_aep": True,
+              "sample_mean_oep": True
             }
         }
     ],
@@ -241,7 +275,23 @@ RI_ALL_ORD_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-                "return_period_file": False
+            },
+            "summarycalc": True,
+            "eltcalc": True,
+            "aalcalc": True,
+            "aalcalcmeanonly": True,
+            "pltcalc": True,
+            "lec_output": True,
+            "leccalc": {
+              "return_period_file": True,
+              "full_uncertainty_aep": True,
+              "full_uncertainty_oep": True,
+              "wheatsheaf_aep": True,
+              "wheatsheaf_oep": True,
+              "wheatsheaf_mean_aep": True,
+              "wheatsheaf_mean_oep": True,
+              "sample_mean_aep": True,
+              "sample_mean_oep": True
             }
         }
     ]
@@ -326,4 +376,4 @@ FAKE_PRE_ANALYSIS_MODULE = os.path.join(os.path.dirname(__file__), 'fake_pre_ana
 FAKE_MODEL_RUNNER = os.path.join(os.path.dirname(__file__), 'fake_model_runner')
 FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_runner__old')
 
-ALL_ORD_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script.sh')
+ALL_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script.sh')
