@@ -146,6 +146,44 @@ class TestGenLosses(ComputationChecker):
         }
         self.manager.generate_losses(**call_args)
 
+    @patch('oasislmf.computation.hooks.post_analysis.PostAnalysis.run')
+    def test_losses__run__post_analysis_is_called(self, mock_post_analysis):
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        with self.tmp_dir() as tmp_module_dir:
+            fake_module_path = pathlib.Path(tmp_module_dir, 'empty_module.py')
+            fake_module_path.touch()
+            call_args = {
+                **self.min_args,
+                'post_analysis_module': str(fake_module_path),
+                'post_analysis_class_name': 'missing_class',
+            }
+            self.manager.generate_files(**self.args_gen_files_gul)
+            self.manager.generate_oasis_losses(**call_args)
+            self.assertTrue(mock_post_analysis.called)
+
+    @patch('subprocess.check_output')
+    def test_losses__run_ri__all_outputs__check_bash_script(self, sub_process_run):
+        with self.tmp_dir() as model_run_dir:
+            self.manager.generate_files(**self.args_gen_files_ri)
+            run_settings = self.tmp_files.get('analysis_settings_json')
+            self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
+            call_args = {
+                **self.min_args,
+                'ktools_num_processes': 2,
+                'ktools_fifo_relative': True,
+                'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                'model_run_dir': model_run_dir,
+            }
+            self.manager.generate_losses(**call_args)
+
+            # Check bash script vs reference
+            self.assertTrue(sub_process_run.called)
+            bash_script_path = sub_process_run.call_args.args[0][1]
+            result_script = self.read_file(bash_script_path).decode()
+            expected_script = self.read_file(ALL_EXPECTED_SCRIPT).decode()
+            self.assertEqual(expected_script, result_script)
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)

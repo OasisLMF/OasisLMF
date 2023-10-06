@@ -49,7 +49,9 @@ MAP_SUMMARY_DTYPES = {
     'agg_id': 'int',
     'output_id': 'int',
     'coverage_type_id': 'int',
-    'tiv': 'float'
+    'tiv': 'float',
+    'building_id': 'int',
+    'risk_id': 'int',
 }
 
 
@@ -69,7 +71,9 @@ def get_useful_summary_cols(oed_hierarchy):
         'agg_id',
         'output_id',
         'coverage_type_id',
-        'tiv'
+        'tiv',
+        'building_id',
+        'risk_id'
     ]
 
 
@@ -128,7 +132,8 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
-        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
+        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id',
+                                 'building_id', 'risk_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -196,7 +201,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]  # columns which in locations / Accounts file
     mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
                    if c in summary_map_df.columns]  # Columns already in summary_map_df
-    tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
+    tiv_cols = ['tiv', 'loc_id', 'building_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
@@ -218,7 +223,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
-    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'coverage_type_id'] + oed_col_group,
+    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
                                                    keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
 
     return summary_ids[0], summary_ids[1], summary_tiv
@@ -493,7 +498,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
             summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv',
-                                          value=map_df.drop_duplicates(['loc_id', 'coverage_type_id'], keep='first').tiv.sum())
+                                          value=map_df.drop_duplicates(['building_id', 'loc_id', 'coverage_type_id'], keep='first').tiv.sum())
         else:
             (
                 summary_set_df['summary_id'],

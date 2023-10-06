@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.28.3`_
+ ---------
+* [#1377](https://github.com/OasisLMF/OasisLMF/pull/1377) - Clean up 'runs' dir in repo
+* [#1378](https://github.com/OasisLMF/OasisLMF/pull/1378) - Support output of overall average period loss without standard deviation calculation
+* [#1366](https://github.com/OasisLMF/OasisLMF/pull/1367) - Update fm supported terms document
+* [#1347](https://github.com/OasisLMF/OasisLMF/pull/1369) - Add runtime user supplied secondary factor option to plapy
+* [#1317](https://github.com/OasisLMF/OasisLMF/pull/1371) - Add post-analysis hook
+* [#1372](https://github.com/OasisLMF/OasisLMF/pull/1373) - Incorect TIV in the summary info files
+.. _`1.28.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.2...1.28.3
+
 `1.28.2`_
  ---------
 * [#1344](https://github.com/OasisLMF/OasisLMF/pull/1344) - Release/1.28.1 (staging) 
