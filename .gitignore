@@ -122,6 +122,7 @@ requirements.txt
 # output bash scripts from tests
 tests/model_execution/cov_kparse_output/
 tests/model_execution/err_kparse_output/
+tests/model_execution/eve_kparse_output/
 tests/model_execution/itm_kparse_output/
 tests/model_execution/lb_kparse_output/
 tests/model_execution/tmp_kparse_output/
