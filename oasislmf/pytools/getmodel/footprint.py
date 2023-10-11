@@ -305,6 +305,8 @@ class FootprintParquet(Footprint):
     footprint_filenames: List[str] = [parquetfootprint_filename, parquetfootprint_meta_filename]
 
     def __enter__(self):
+        self.reader = self.get_df_reader("footprint.parquet")
+
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
             meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
 
@@ -326,10 +328,10 @@ class FootprintParquet(Footprint):
         #     handle = pq.ParquetDataset(f'./static/footprint.parquet/event_id={event_id}')
         # except OSError:
         #     return None
+        #
+        # reader = self.get_df_reader("footprint.parquet", filters=[("event_id", "==", event_id)])
 
-        reader = self.get_df_reader("footprint.parquet", filters=[("event_id", "==", event_id)])
-
-        df = reader.as_pandas()
+        df = self.reader.filter([lambda _df: _df[_df.event_id == event_id]]).as_pandas()
         numpy_data = self.prepare_df_data(data_frame=df)
         return numpy_data
 
