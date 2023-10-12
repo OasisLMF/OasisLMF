@@ -592,6 +592,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
+        {'name': 'df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'model_df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading model data dataframes'},
     ]
 
     def run(self):
@@ -635,7 +637,8 @@ class GenerateLosses(GenerateLossesDir):
                         event_shuffle=self.ktools_event_shuffle,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
-                        peril_filter=self._get_peril_filter(analysis_settings)
+                        peril_filter=self._get_peril_filter(analysis_settings),
+                        df_engine=self.df_engine,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
