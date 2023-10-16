@@ -43,7 +43,7 @@ class GenerateOasisFiles(ComputationStep):
             'portfolio_numbers': self.portfolio,
             'account_numbers': self.account,
             'base_df_engine': self.base_df_engine,
-            'exposure_df_engine': self.exposure_df_engine,
+            'exposure_df_engine': self.exposure_df_engine or self.base_df_engine,
         }
 
     def run(self):
