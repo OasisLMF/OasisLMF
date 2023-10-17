@@ -16,7 +16,6 @@ import os
 
 import numpy as np
 import pandas as pd
-from pyarrow.parquet import write_table
 
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
@@ -437,7 +436,7 @@ def write_df_to_parquet_file(df, target_dir, filename):
     )
     parquet_fp = os.path.join(target_dir, filename)
     try:
-        write_table(df, parquet_fp)
+        df.to_parquet(path=parquet_fp, engine='pyarrow')
     except (IOError, OSError) as e:
         raise OasisException(
             "Exception raised in 'write_df_to_parquet_file'", e
@@ -448,7 +447,7 @@ def write_df_to_parquet_file(df, target_dir, filename):
 
 def get_summary_xref_df(
     map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type,
-    file_extension='csv', id_set_index='output_id'
+    id_set_index='output_id'
 ):
     """
     Create a Dataframe for either gul / il / ri  based on a section
@@ -492,9 +491,6 @@ def get_summary_xref_df(
     :param summaries_type: Text label to use as key in summary description either ['gul', 'il', 'ri']
     :type summaries_type: String
 
-    :param file_extension: File extension for summary-info files either ['csv', 'parquet']
-    :type file_extension: String
-
     :return summaryxref_df: Dataframe containing abstracted summary data for ktools
     :rtypwrite_xref_filee: pandas.DataFrame
 
@@ -516,6 +512,9 @@ def get_summary_xref_df(
     for summary_set in summaries_info_dict:
         summary_set_df = ids_set_df
         cols_group_by = get_column_selection(summary_set)
+        file_extension = 'csv'
+        if summary_set.get('ord_output', {}).get('parquet_format'):
+            file_extension = 'parquet'
         desc_key = '{}_S{}_summary-info.{}'.format(
             summaries_type, summary_set['id'], file_extension
         )
@@ -627,34 +626,27 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
     if gul_summaries:
         # Load GUL summary map
         id_set_index = 'item_id' if gul_item_stream else 'coverage_id'
-        gul_file_extension = 'csv'
-        if analysis_settings.get('gul_summaries').get('ord_output', {}).get('parquet_format'):
-            gul_file_extension = 'parquet'
         gul_summaryxref_df, gul_summary_desc = get_summary_xref_df(
             gul_map_df,
             location_df,
             account_df,
             analysis_settings['gul_summaries'],
             'gul',
-            gul_file_extension,
             id_set_index
         )
         # Write Xref file
         write_df_to_csv_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])
 
         # Write summary_id description files
-        write_df_to_file = write_df_to_csv_file
-        if gul_file_extension == 'parquet':
-            write_df_to_file = write_df_to_parquet_file
         for desc_key in gul_summary_desc:
-            write_df_to_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
     if il_summaries:
         # Load FM summary map
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
-        il_file_extension = 'csv'
-        if analysis_settings.get('il_summaries').get('ord_output', {}).get('parquet_format'):
-            il_file_extension = 'parquet'
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
             lowercase_cols=False,
@@ -668,18 +660,17 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
             location_df,
             account_df,
             analysis_settings['il_summaries'],
-            'il',
-            file_extension=il_file_extension
+            'il'
         )
         # Write Xref file
         write_df_to_csv_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files
-        write_df_to_file = write_df_to_csv_file
-        if gul_file_extension == 'parquet':
-            write_df_to_file = write_df_to_parquet_file
         for desc_key in il_summary_desc:
-            write_df_to_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
     if ri_summaries:
         ri_layers = get_ri_settings(model_run_fp)
@@ -708,11 +699,11 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
         write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files
-        write_df_to_file = write_df_to_csv_file
-        if gul_file_extension == 'parquet':
-            write_df_to_file = write_df_to_parquet_file
         for desc_key in ri_summary_desc:
-            write_df_to_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
 
 def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
