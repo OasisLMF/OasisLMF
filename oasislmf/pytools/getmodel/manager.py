@@ -16,7 +16,7 @@ import pandas as pd
 from numba.typed import Dict
 
 from lot3.df_reader.config import get_df_reader, clean_config, InputReaderConfig
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
 from lot3.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
@@ -280,7 +280,7 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="lot3.df_reader.reader.OasisPandasReader"):
+def get_vulns(storage: BaseStorage, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="lot3.df_reader.reader.OasisPandasReader"):
     """
     Loads the vulnerabilities from the file.
 
@@ -343,12 +343,12 @@ def get_vulns(storage: BaseStorageConnector, vuln_dict, num_intensity_bins, igno
     return vuln_array, vulns_id, num_damage_bins
 
 
-def get_mean_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
+def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     """
     Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
 
     Args:
-        storage: (BaseStorageConnector) the storage conector for ftching the model data
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
@@ -356,12 +356,12 @@ def get_mean_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
     return get_damage_bins(storage, ignore_file_type)['interpolation']
 
 
-def get_damage_bins(storage: BaseStorageConnector, ignore_file_type=set()):
+def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     """
     Loads the damage bins from the damage_bin_dict file.
 
     Args:
-        storage: (BaseStorageConnector) the storage conector for ftching the model data
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file

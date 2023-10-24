@@ -35,7 +35,7 @@ from oasislmf.model_execution.bin import (
     set_footprint_set
 )
 
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 
 from tests.data import (
@@ -614,7 +614,7 @@ class PrepareRunInputs(TestCase):
     def test_events_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
@@ -628,7 +628,7 @@ class PrepareRunInputs(TestCase):
     def test_events_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
@@ -642,7 +642,7 @@ class PrepareRunInputs(TestCase):
     def test_events_bin_doesnt_not_exist_event_set_is_specified___event_set_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'events_from_set.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events from set bin')
@@ -656,7 +656,7 @@ class PrepareRunInputs(TestCase):
     def test_no_events_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'events.bin'))
 
             with self.assertRaises(OasisException):
@@ -665,7 +665,7 @@ class PrepareRunInputs(TestCase):
     def test_returnperiods_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
@@ -679,7 +679,7 @@ class PrepareRunInputs(TestCase):
     def test_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
@@ -697,7 +697,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
@@ -714,7 +714,7 @@ class PrepareRunInputs(TestCase):
     def test_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
@@ -727,7 +727,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
@@ -739,7 +739,7 @@ class PrepareRunInputs(TestCase):
     def test_occurrence_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
@@ -753,7 +753,7 @@ class PrepareRunInputs(TestCase):
     def test_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
@@ -771,7 +771,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
@@ -788,7 +788,7 @@ class PrepareRunInputs(TestCase):
     def test_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence occurrence id bin')
@@ -809,7 +809,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence occurrence id bin')
@@ -829,7 +829,7 @@ class PrepareRunInputs(TestCase):
     def test_no_occurrence_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'occurrence.bin'))
 
             with self.assertRaises(OasisException):
@@ -844,7 +844,7 @@ class PrepareRunInputs(TestCase):
     def test_periods_bin_already_exists___existing_bin_is_unchanged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
@@ -864,7 +864,7 @@ class PrepareRunInputs(TestCase):
     def test_periods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
-            model_storage = LocalStorageConnector(root_dir=os.path.join(d, "static"), cache_dir=None)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')

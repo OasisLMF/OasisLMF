@@ -15,7 +15,7 @@ import numba as nb
 
 from lot3.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from lot3.df_reader.reader import OasisReader
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
@@ -50,16 +50,16 @@ class Footprint:
     This class is the base class for the footprint loaders.
 
     Attributes:
-        storage (BaseStorageConnector): the storage object used to lookup files
+        storage (BaseStorage): the storage object used to lookup files
         stack (ExitStack): the context manager that combines other context managers and cleanup functions
     """
 
-    def __init__(self, storage: BaseStorageConnector, df_engine="lot3.df_reader.reader.OasisPandasReader") -> None:
+    def __init__(self, storage: BaseStorage, df_engine="lot3.df_reader.reader.OasisPandasReader") -> None:
         """
         The constructor for the Footprint class.
 
         Args:
-            storage (BaseStorageConnector): the storage object used to lookup files
+            storage (BaseStorage): the storage object used to lookup files
         """
         self.storage = storage
         self.stack = ExitStack()
@@ -71,7 +71,7 @@ class Footprint:
     @classmethod
     def load(
         cls,
-        storage: BaseStorageConnector,
+        storage: BaseStorage,
         ignore_file_type=set(),
         df_engine="lot3.df_reader.reader.OasisPandasReader",
     ):
@@ -87,7 +87,7 @@ class Footprint:
         and so on.
 
         Args:
-            storage (BaseStorageConnector): the storage object used to lookup files
+            storage (BaseStorage): the storage object used to lookup files
             ignore_file_type (Set[str]): type of file to be skipped in the hierarchy. This can be a choice of:
 
             parquet
