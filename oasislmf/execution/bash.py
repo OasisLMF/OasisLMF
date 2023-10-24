@@ -272,9 +272,9 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
         raise ValueError("Expect either gulpy or gulmc to be True, got both True.")
 
     if gulpy:
-        cmd = f'gulpy --random-generator={gulpy_random_generator} --model-df-engine=\'{model_df_engine}\''
+        cmd = f'gulpy --random-generator={gulpy_random_generator}'
     elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server}"
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
