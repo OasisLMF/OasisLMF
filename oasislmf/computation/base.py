@@ -2,17 +2,19 @@ __all__ = [
     'ComputationStep',
 ]
 
+import inspect
+import json
+import logging
 import os
 import pathlib
-import logging
-import json
-import inspect
-from ods_tools.oed import OedSource
 from collections import OrderedDict
+
+from ods_tools.oed import OedSource
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
-from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
+from ..utils.inputs import (get_oasis_env, has_oasis_env, str2bool,
+                            update_config)
 
 
 class ComputationStep:
