@@ -429,7 +429,7 @@ def get_gul_input_items(
         [usecols]
         .drop_duplicates(subset='item_id')
         .sort_values("item_id")
-        .reindex(columns=list(usecols))
+        .reset_index()
     )
 
     return gul_inputs_df

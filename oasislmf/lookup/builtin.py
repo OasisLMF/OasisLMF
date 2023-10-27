@@ -38,22 +38,10 @@ import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.utils.peril import PERIL_GROUPS, PERILS
+from oasislmf.utils.peril import PERIL_GROUPS, PERILS, get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
-
-
-def get_peril_groups_df():
-    res = []
-    for peril in PERILS.values():
-        res.append((peril['id'], peril['id']))
-
-    for peril_group in PERIL_GROUPS.values():
-        for peril in peril_group['peril_ids']:
-            res.append((peril_group['id'], peril))
-
-    return pd.DataFrame(res, columns=['peril_group_id', 'peril_id'])
 
 
 def get_nearest(src_points, candidates, k_neighbors=1):
