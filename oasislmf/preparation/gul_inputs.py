@@ -82,7 +82,7 @@ def get_gul_input_items(
     exposure_profile=get_default_exposure_profile(),
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
-    do_disaggregation=True
+    # do_disaggregation=True
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -104,6 +104,9 @@ def get_gul_input_items(
 
     :param hazard_group_id_cols: Columns to be used to generate a hashed hazard group id.
     :type hazard_group_id_cols: list[str]
+
+    :param do_disaggregation: If True, disaggregates by the number of buildings
+    :type do_disaggregation: bool
 
     :return: GUL inputs dataframe
     :rtype: pandas.DataFrame
@@ -352,15 +355,15 @@ def get_gul_input_items(
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
 
         disagg_df_chunk = []
-        do_disaggregation=True
-        if do_disaggregation:
-            # split TIV
-            cov_type_group['tiv'] /= max(number_of_buildings, 1)
-            # if NumberOfBuildings == 0: still add one entry
-            for building_id in range(1, max(number_of_buildings, 1) + 1):
-                disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
-        else:
-            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=max(number_of_buildings, 1)))
+        # do_disaggregation=True
+        # if do_disaggregation:
+        # split TIV
+        cov_type_group['tiv'] /= max(number_of_buildings, 1)
+        # if NumberOfBuildings == 0: still add one entry
+        for building_id in range(1, max(number_of_buildings, 1) + 1):
+            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
+        # else:
+        #     disagg_df_chunk.append(cov_type_group.copy().assign(building_id=max(number_of_buildings, 1)))
             # disagg_df_chunk.append(cov_type_group.copy().assign(building_id=1))
 
         gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
