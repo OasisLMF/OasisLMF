@@ -383,8 +383,10 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'base_df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
-        {'name': 'exposure_df_engine', 'default': None, 'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
-        {'name': 'model_df_engine', 'default': None, 'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
+        {'name': 'exposure_df_engine', 'default': None,
+            'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -596,8 +598,10 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
-        {'name': 'model_df_engine', 'default': None, 'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
-        {'name': 'exposure_df_engine', 'default': None, 'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'exposure_df_engine', 'default': None,
+            'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
     ]
 
     def run(self):

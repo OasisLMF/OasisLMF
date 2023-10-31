@@ -303,8 +303,8 @@ def get_vulns(storage: BaseStorage, vuln_dict, num_intensity_bins, ignore_file_t
 
         df = reader.to_pandas()
         vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(df['vuln_array'].length(),
-                                                                            num_damage_bins,
-                                                                            num_intensity_bins)
+                                                                    num_damage_bins,
+                                                                    num_intensity_bins)
         vulns_id = df['vulnerability_id'].to_numpy()
         update_vulns_dictionary(vuln_dict, vulns_id)
 
