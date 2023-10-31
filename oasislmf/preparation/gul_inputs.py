@@ -352,6 +352,7 @@ def get_gul_input_items(
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
 
         disagg_df_chunk = []
+        do_disaggregation=False
         if do_disaggregation:
             # split TIV
             cov_type_group['tiv'] /= max(number_of_buildings, 1)
@@ -360,6 +361,7 @@ def get_gul_input_items(
                 disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
         else:
             disagg_df_chunk.append(cov_type_group.copy().assign(building_id=max(number_of_buildings, 1)))
+            # disagg_df_chunk.append(cov_type_group.copy().assign(building_id=1))
 
         gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
 
