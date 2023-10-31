@@ -352,7 +352,7 @@ def get_gul_input_items(
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
 
         disagg_df_chunk = []
-        do_disaggregation=False
+        do_disaggregation=True
         if do_disaggregation:
             # split TIV
             cov_type_group['tiv'] /= max(number_of_buildings, 1)
