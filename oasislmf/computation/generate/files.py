@@ -99,7 +99,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable lookup multiprocessing'},
-        # {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis dissagregation.'},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis dissagregation.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -275,7 +275,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
-            # do_disaggregation=self.do_disaggregation
+            do_disaggregation=self.do_disaggregation
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
