@@ -5,7 +5,7 @@ __all__ = [
 
 import os
 
-from ods_tools.oed.setting_schema import AnalysisSettingSchema
+from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
@@ -63,16 +63,17 @@ class GenerateKeys(KeyComputationStep):
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
-        {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
-        {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
+        {'name': 'keys_data_csv', 'flag': '-kd', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},  # replaced flag: -k -> -kd
+        {'name': 'keys_errors_csv', 'flag': '-ke', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},  # replaced flag: -e -> -ke
         {'name': 'keys_format', 'flag': '-f', 'help': 'Keys files output format', 'choices': ['oasis', 'json'], 'default': 'oasis'},
         {'name': 'lookup_config_json', 'flag': '-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
+        {'name': 'lookup_data_dir', 'flag': '-dd', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},  # replaced flag: -d -> -dd
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
         {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
         {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
         {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
+        {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': True, 'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
          'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
@@ -105,6 +106,19 @@ class GenerateKeys(KeyComputationStep):
             AnalysisSettingSchema().validate_file(self.lookup_complex_config_json)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
+
+        if self.model_settings_json is not None:
+            model_settings = ModelSettingSchema().get(self.model_settings_json)
+            # Check for the existence and contents of 'supported_oed_versions'
+            supported_versions = model_settings.get('data_settings', {}).get('supported_oed_versions', None)
+            if supported_versions:
+                # If 'supported_oed_versions' exists and is not empty
+                version = supported_versions[0]
+                self.logger.info(f"Converting to OED version {version}")
+                exposure_data.to_version(version)
+            else:
+                # If 'supported_oed_versions' is missing or empty
+                self.logger.debug("No OED version information in model settings.")
 
         keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
