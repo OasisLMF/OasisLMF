@@ -4,6 +4,7 @@ __all__ = [
 ]
 
 import os
+from packaging import version
 
 from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 from ..base import ComputationStep
@@ -63,11 +64,11 @@ class GenerateKeys(KeyComputationStep):
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
-        {'name': 'keys_data_csv', 'flag': '-kd', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},  # replaced flag: -k -> -kd
-        {'name': 'keys_errors_csv', 'flag': '-ke', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},  # replaced flag: -e -> -ke
+        {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},  # replaced flag: -k -> -kd
+        {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},  # replaced flag: -e -> -ke
         {'name': 'keys_format', 'flag': '-f', 'help': 'Keys files output format', 'choices': ['oasis', 'json'], 'default': 'oasis'},
         {'name': 'lookup_config_json', 'flag': '-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir', 'flag': '-dd', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},  # replaced flag: -d -> -dd
+        {'name': 'lookup_data_dir', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},  # removed flag: -d
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
         {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
         {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
@@ -112,10 +113,18 @@ class GenerateKeys(KeyComputationStep):
             # Check for the existence and contents of 'supported_oed_versions'
             supported_versions = model_settings.get('data_settings', {}).get('supported_oed_versions', None)
             if supported_versions:
-                # If 'supported_oed_versions' exists and is not empty
-                version = supported_versions[0]
-                self.logger.info(f"Converting to OED version {version}")
-                exposure_data.to_version(version)
+                if isinstance(supported_versions, str):
+                    self.logger.info(f"Converting to OED version {supported_versions}")
+                    exposure_data.to_version(supported_versions)
+                elif isinstance(supported_versions, list) and supported_versions:
+                    # If 'supported_oed_versions' is a list and is not empty
+                    # Sort the versions in descending order
+                    supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
+                    self.logger.info(f"Converting to OED version {supported_versions[0]}")
+                    exposure_data.to_version(supported_versions[0])
+                else:
+                    # If 'supported_oed_versions' is neither a string nor a non-empty list
+                    self.logger.debug("Invalid OED version information in model settings.")
             else:
                 # If 'supported_oed_versions' is missing or empty
                 self.logger.debug("No OED version information in model settings.")

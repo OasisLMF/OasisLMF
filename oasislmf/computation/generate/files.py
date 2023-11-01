@@ -81,7 +81,7 @@ class GenerateFiles(ComputationStep):
         # {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
         # {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
         #  'help': 'Directory containing additional model data files which varies between analysis runs'},
-        {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
+        {'name': 'profile_loc_json', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},  # removed flag -e
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
         {'name': 'profile_fm_agg_json', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},  # removed flag -g
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
