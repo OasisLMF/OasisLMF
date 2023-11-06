@@ -79,6 +79,8 @@ class GenerateKeys(KeyComputationStep):
          'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
          'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'version_convert', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'Flag to enable/disable conversion to latest compatible OED version. Must be present in model settings.'},
 
         # Manager only options
         {'name': 'verbose', 'default': False},
@@ -108,29 +110,30 @@ class GenerateKeys(KeyComputationStep):
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
-        if self.model_settings_json is not None:
-            try:
-                model_settings = ModelSettingSchema().get(self.model_settings_json, validate=False)
-                # Check for the existence and contents of 'supported_oed_versions'
-                supported_versions = model_settings.get('data_settings', {}).get('supported_oed_versions', None)
-                if supported_versions:
-                    if isinstance(supported_versions, str):
-                        self.logger.info(f"Converting to OED version {supported_versions}")
-                        exposure_data.to_version(supported_versions)
-                    elif isinstance(supported_versions, list) and supported_versions:
-                        # If 'supported_oed_versions' is a list and is not empty
-                        # Sort the versions in descending order
-                        supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
-                        self.logger.info(f"Converting to OED version {supported_versions[0]}")
-                        exposure_data.to_version(supported_versions[0])
+        if self.version_convert:
+            if self.model_settings_json is not None:
+                try:
+                    model_settings = ModelSettingSchema().get(self.model_settings_json, validate=False)
+                    # Check for the existence and contents of 'supported_oed_versions'
+                    supported_versions = model_settings.get('data_settings', {}).get('supported_oed_versions', None)
+                    if supported_versions:
+                        if isinstance(supported_versions, str):
+                            self.logger.info(f"Converting to OED version {supported_versions}")
+                            exposure_data.to_version(supported_versions)
+                        elif isinstance(supported_versions, list) and supported_versions:
+                            # If 'supported_oed_versions' is a list and is not empty
+                            # Sort the versions in descending order
+                            supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
+                            self.logger.info(f"Converting to OED version {supported_versions[0]}")
+                            exposure_data.to_version(supported_versions[0])
+                        else:
+                            # If 'supported_oed_versions' is neither a string nor a non-empty list
+                            self.logger.debug("Invalid OED version information in model settings.")
                     else:
-                        # If 'supported_oed_versions' is neither a string nor a non-empty list
-                        self.logger.debug("Invalid OED version information in model settings.")
-                else:
-                    # If 'supported_oed_versions' is missing or empty
-                    self.logger.debug("No OED version information in model settings.")
-            except OdsException:
-                self.logger.info("Could not load model settings. No conversion to OED version will be performed.")
+                        # If 'supported_oed_versions' is missing or empty
+                        self.logger.debug("No OED version information in model settings.")
+                except OdsException:
+                    self.logger.info("Could not load model settings. No conversion to OED version will be performed.")
 
         keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
