@@ -129,12 +129,25 @@ LIMIT_CODES = OrderedDict({
 })
 
 STEP_TRIGGER_TYPES = OrderedDict({
-    1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1},
-    2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2},
-    3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3},
+    1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1,
+        'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
+        },
+    },
+    2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2,
+        'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
+        },
+    },
+    3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3,
+        'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
+        },
+    },
     5: {
         'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4,
         'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
             SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
             SUPPORTED_COVERAGE_TYPES['contents']['id']: 2
         }
