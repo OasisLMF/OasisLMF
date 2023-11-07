@@ -85,11 +85,6 @@
                 "src": "FM",
                 "field": "CondTag",
                 "name": "Cond tag."
-            },
-            "CondNum":  {
-                "src": "FM",
-                "field": "CondNumber",
-                "name": "Cond num."
             }
         }
     },
@@ -111,11 +106,6 @@
                 "src": "FM",
                 "field": "CondTag",
                 "name": "Cond tag."
-            },
-            "CondNum":  {
-                "src": "FM",
-                "field": "CondNumber",
-                "name": "Cond num."
             }
         }
     },
@@ -137,11 +127,6 @@
                 "src": "FM",
                 "field": "CondTag",
                 "name": "Cond tag."
-            },
-            "CondNum":  {
-                "src": "FM",
-                "field": "CondNumber",
-                "name": "Cond num."
             }
         }
     },

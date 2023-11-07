@@ -1121,7 +1121,7 @@ def get_il_input_items(
     prev_level_df['share'] = 0
 
     il_inputs_df_list = []
-    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids, errors='ignore')
+    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids, errors='ignore').reset_index()
     prev_df_subset = prev_agg_key
 
 
@@ -1167,7 +1167,7 @@ def get_il_input_items(
         for acc_rec in accounts_df.to_dict(orient="records"):
             cond_tag_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'])
             cond_number_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'], acc_rec['CondNumber'])
-            cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1})
+            cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1, 'CondPeril': acc_rec['CondPeril']})
             cond_tag.setdefault('layers', {})[acc_rec['layer_id']] = {'CondNumber': cond_number_key}
             exclusion_cond_tags = account_layer_exclusion.setdefault((acc_rec['PortNumber'], acc_rec['AccNumber']), {}).setdefault(acc_rec['layer_id'], set())
             if acc_rec.get('CondClass')==1:
@@ -1227,6 +1227,7 @@ def get_il_input_items(
                             'CondNumber': 'FullFilter',
                             'CondDed6All': 1,
                             'CondDedType6All': 1,
+                            'CondPeril': 'AA1',
                         })
                     else:
                         extra_accounts.append({
@@ -1235,6 +1236,7 @@ def get_il_input_items(
                             'CondTag': cond_tag,
                             'layer_id': layer_id,
                             'CondNumber': '',
+                            'CondPeril': 'AA1',
                         })
                 level_conds.setdefault(cond_level_start, set()).add(cond_key)
 
@@ -1251,9 +1253,13 @@ def get_il_input_items(
                     loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
                     for stage, cond_keys in level_conds.items():
                         cond_filter_df = pd.DataFrame(cond_keys, columns=['PortNumber', 'AccNumber', 'CondTag'])
+                        print('cond_filter_df\n', cond_filter_df)
                         loc_conds_df_filter = cond_filter_df[['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates().merge(loc_conds_df, how='left')
+                        print('loc_conds_df_filter\n', loc_conds_df_filter)
                         gul_inputs_df.drop(columns=['CondTag'], inplace=True, errors='ignore')
                         gul_inputs_df['CondTag'] = gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber']].merge(loc_conds_df_filter, how='left')['CondTag']
+                        print(gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']])
+                        print(gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber']].merge(loc_conds_df_filter, how='left')['CondTag'])
                         yield (cond_filter_df.merge(pd.concat([accounts_df, pd.DataFrame(extra_accounts)]), how='left'),
                                group_info['levels'].items(),
                                group_info['fm_peril_field'])
@@ -1386,9 +1392,9 @@ def get_il_input_items(
             level_df.loc[~peril_filter, list(level_terms) + ['FMTermGroupID']] = 0
 
             level_df['FMTermGroupID'] = level_df['FMTermGroupID'].astype('Int64')
-
-            print(gul_inputs_df)
-            print(level_df)
+            if 'CondTag' in level_df.columns:
+                print(gul_inputs_df[gul_inputs_df['CondTag']=='4'])
+                print(level_df[level_df['CondTag']=='4'])
             if 'layer_id' in level_df.columns:
                 print('merged\n', level_df[['PortNumber', 'AccNumber', 'loc_id', 'coverage_type_id', 'FMTermGroupID', 'layer_id', 'gul_input_id']])
 
@@ -1675,7 +1681,7 @@ def get_il_input_items(
     prev_level_df['to_agg_id'] = 0
     print(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
     il_inputs_df_list.append(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
-
+    print('number of levels', len(il_inputs_df_list))
     il_inputs_df = pd.concat(il_inputs_df_list)
     for col in set(list(il_inputs_df.columns)):
         try:
