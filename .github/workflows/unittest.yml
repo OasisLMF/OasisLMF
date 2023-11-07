@@ -44,10 +44,10 @@ jobs:
     strategy:
       matrix:
         cfg:
-          - { python-version: "3.7", pkg-version: "", upload-cov: false }
           - { python-version: "3.8", pkg-version: "", upload-cov: false }
           - { python-version: "3.9", pkg-version: "", upload-cov: false }
-          - { python-version: "3.10", pkg-version: "", upload-cov: true }
+          - { python-version: "3.10", pkg-version: "", upload-cov: false }
+          - { python-version: "3.11", pkg-version: "", upload-cov: true }
 
     steps:
       - uses: actions/checkout@v3
