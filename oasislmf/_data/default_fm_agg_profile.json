@@ -67,6 +67,58 @@
             }
         }
     },
+    "4": {
+        "FMLevel": 4,
+        "FMLevelName": "CondAll",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            },
+            "CondTag":  {
+                "src": "FM",
+                "field": "CondTag",
+                "name": "Cond tag."
+            },
+            "CondNum":  {
+                "src": "FM",
+                "field": "CondNumber",
+                "name": "Cond num."
+            }
+        }
+    },
+    "5": {
+        "FMLevel": 5,
+        "FMLevelName": "CondAll",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            },
+            "CondTag":  {
+                "src": "FM",
+                "field": "CondTag",
+                "name": "Cond tag."
+            },
+            "CondNum":  {
+                "src": "FM",
+                "field": "CondNumber",
+                "name": "Cond num."
+            }
+        }
+    },
     "6": {
         "FMLevel": 6,
         "FMLevelName": "CondAll",

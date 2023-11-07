@@ -25,8 +25,11 @@ from ast import literal_eval
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 
-from ods_tools.oed import fill_empty
+from ods_tools.oed import fill_empty, OedSchema
+from ods_tools.oed.common import BLANK_VALUES
+
 
 from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
 from oasislmf.utils.calc_rules import get_calc_rules, get_step_calc_rules
@@ -41,7 +44,7 @@ from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, assign_defaults_to_il
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
                                DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
-                               SUPPORTED_FM_LEVELS)
+                               SUPPORTED_FM_LEVELS, FM_TERMS, GROUPED_SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
 from oasislmf.utils.profiles import (get_default_step_policies_profile, get_fm_terms_oed_columns,
@@ -53,8 +56,9 @@ pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # Define a list of all supported OED coverage types in the exposure
-supp_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
+supp_cov_type_ids = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
 
+policytc_cols = ['calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
 step_profile_cols = [
     'policytc_id', 'calcrule_id',
     'deductible1', 'deductible2', 'deductible3', 'attachment1',
@@ -76,6 +80,8 @@ profile_cols_map = {
 cross_layer_level = {FML_ACCALL, }
 
 risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit'}
+
+fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
 
 def set_calc_rule_ids(
@@ -248,8 +254,9 @@ def get_policytc_ids(il_inputs_df):
     :return: Numpy array of policy TC IDs
     :rtype: numpy.ndarray
     """
-    policytc_cols = ['calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
-    return factorize_ndarray(il_inputs_df.loc[:, policytc_cols].values, col_idxs=range(len(policytc_cols)))[0]
+    factor_col = list(set(il_inputs_df.columns).intersection(policytc_cols + step_profile_cols))
+    return factorize_ndarray(il_inputs_df.loc[:, factor_col].values,
+                             col_idxs=range(len(factor_col)))[0]
 
 
 def get_step_policytc_ids(
@@ -278,13 +285,13 @@ def get_step_policytc_ids(
     fm_policytc_df['pol_id'] = factorize_ndarray(fm_policytc_df.loc[:, idx_cols + ['coverage_id']].values, col_idxs=range(len(idx_cols) + 1))[0]
 
     step_calcrule_policytc_agg = pd.DataFrame(
-        fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['policytc_id'].to_list(),
-        index=fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['pol_id']
+        fm_policytc_df[fm_policytc_df['step_id'] > 0]['policytc_id'].to_list(),
+        index=fm_policytc_df[fm_policytc_df['step_id'] > 0]['pol_id']
     ).groupby('pol_id').aggregate(list).to_dict()[0]
 
     fm_policytc_df.loc[
-        fm_policytc_df['assign_step_calcrule'] == True, 'policytc_id'
-    ] = fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] == True]['pol_id'].map(step_calcrule_policytc_agg)
+        fm_policytc_df['step_id'] > 0, 'policytc_id'
+    ] = fm_policytc_df.loc[fm_policytc_df['step_id'] > 0]['pol_id'].map(step_calcrule_policytc_agg)
     fm_policytc_df['policytc_id'] = fm_policytc_df['policytc_id'].apply(
         lambda x: tuple(x) if isinstance(x, list) else x
     )
@@ -333,11 +340,11 @@ def get_programme_ids(il_inputs_df, level):
     ).agg_id.reset_index(drop=True)
 
 
-def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy):
+def __merge_exposure_and_gul(locations_df, gul_inputs_df, fm_terms, profile, oed_hierarchy):
     """merge the exposure df and the gul df
 
-    :param exposure_df: exposure dataframe
-    :type exposure_df: pandas.DataFrame
+    :param locations_df: exposure dataframe
+    :type locations_df: pandas.DataFrame
 
     :param gul_inputs_df: gul dataframe
     :type gul_inputs_df: pandas.DataFrame
@@ -351,16 +358,16 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
     :param oed_hierarchy: oed_hierarchy
     :type oed_hierarchy: dict
 
-    :return: merge dataframe between exposure_df and gul_inputs_df
+    :return: merge dataframe between locations_df and gul_inputs_df
     :rtype: pandas.DataFrame
 
 
     """
     cond_tag = oed_hierarchy['condtag']['ProfileElementName']
 
-    # get usefull term columns from exposure_df
-    site_pd_and_site_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all'])
-    exposure_usefull_fm_cols = list(set(site_pd_and_site_all_term_cols).intersection(exposure_df.columns))
+    # get usefull term columns from locations_df
+    site_pd_and_site_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all']) + ['LocPeril']
+    exposure_usefull_fm_cols = list(set(site_pd_and_site_all_term_cols).intersection(locations_df.columns))
 
     # The coverage FM level (site coverage, #1) ID
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
@@ -369,23 +376,22 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
         v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName']
         for v in profile[cov_level_id].values()
     }
-
     # Calculate sum of TIV columns
-    exposure_df['tiv_sum'] = exposure_df[tiv_terms.values()].sum(axis=1)
+    locations_df['tiv_sum'] = locations_df[tiv_terms.values()].sum(axis=1)
 
     # set default cond_tag
-    if cond_tag not in exposure_df.columns:
-        exposure_df[cond_tag] = '0'
-        exposure_df[cond_tag] = exposure_df[cond_tag].astype('category')
+    if cond_tag not in locations_df.columns:
+        locations_df[cond_tag] = '0'
+        locations_df[cond_tag] = locations_df[cond_tag].astype('category')
     else:
-        fill_empty(exposure_df, cond_tag, '0')
+        fill_empty(locations_df, cond_tag, '0')
 
     # Identify BI TIV column
     bi_tiv_col = __get_bi_tiv_col_name(profile)
 
-    # merge exposure_df and gul_inputs_df #####
+    # merge locations_df and gul_inputs_df #####
     return merge_dataframes(
-        exposure_df.loc[:, exposure_usefull_fm_cols + [
+        locations_df.loc[:, exposure_usefull_fm_cols + [
             'loc_id', 'tiv_sum', bi_tiv_col, cond_tag
         ]],
         gul_inputs_df,
@@ -734,11 +740,13 @@ def __get_level_terms(column_base_il_df, column_mapper):
     """
     get the column to term dictionary base on a level column mapper (created from profile)
     """
+    # TODO simple filter dict expression is good here
     level_terms = {}
     for ProfileElementName, term_info in column_mapper.items():
         if (ProfileElementName in column_base_il_df.columns
                 and column_base_il_df[ProfileElementName].any()):
             level_terms[ProfileElementName] = (term_info['FMTermType'].lower(), term_info.get('FMTermGroupID', 1))
+            #level_terms[ProfileElementName] = term_info
     return level_terms
 
 
@@ -759,15 +767,17 @@ def __split_fm_terms_by_risk(df):
             df[term] /= df['NumberOfRisks']
 
 
-def __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key):
+def __drop_duplicated_row(prev_level_df, level_df, sub_agg_key):
     """drop duplicated row base on the agg_key, sub_agg_key and layer_id"""
-    sub_level_layer_needed = level_df['agg_id'].isin(prev_level_df.loc[prev_level_df["layer_id"] == 2]['to_agg_id'])
+    if prev_level_df is not None:
+        sub_level_layer_needed = level_df['agg_id'].isin(prev_level_df.loc[prev_level_df["layer_id"] == 2]['to_agg_id'])
+    else:
+        sub_level_layer_needed = False
 
-    level_value_count = level_df[['agg_id'] + list(level_terms.values())].drop_duplicates()['agg_id'].value_counts()
+    level_value_count = level_df[['agg_id'] + list(set(level_df.columns).intersection(fm_term_ids))].drop_duplicates()['agg_id'].value_counts()
     this_level_layer_needed = level_df['agg_id'].isin(level_value_count[level_value_count > 1].index.values)
     if 'share' in level_df.columns:
         this_level_layer_needed |= ~level_df['share'].isin({0, 1})
-
     level_df['layer_id'] = np.where(sub_level_layer_needed | this_level_layer_needed,
                                     level_df['layer_id'],
                                     1)
@@ -787,10 +797,14 @@ def __process_standard_level_df(column_base_il_df,
                                 oed_hierarchy,
                                 fm_aggregation_profile,
                                 fm_term_filters):
+    # LEVEL_PERIL_COL[level_id]
+
     # identify fm columns for this level
     level_terms_group = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
     level_terms = {ProfileElementName: fm_term for (ProfileElementName, (fm_term, FMTermGroupID)) in level_terms_group.items()}
-
+    print(level_id, level_terms)
+    print(sorted(column_base_il_df.columns))
+    0/0
     if not level_terms:  # if no terms we skip the level
         return prev_level_df, prev_agg_key
 
@@ -925,6 +939,7 @@ def __process_condition_level_df(column_base_il_df,
 
     # identify fm columns for this level
     level_terms_group = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
+
     level_terms = {ProfileElementName: fm_term for (ProfileElementName, (fm_term, FMTermGroupID)) in level_terms_group.items()}
 
     if level_terms:  # if there is fm terms we create a new level and complete the previous level info
@@ -983,18 +998,19 @@ def __process_condition_level_df(column_base_il_df,
 
 @oasis_log
 def get_il_input_items(
-        exposure_df,
         gul_inputs_df,
+        locations_df,
         accounts_df,
+        oed_schema,
         exposure_profile=get_default_exposure_profile(),
         accounts_profile=get_default_accounts_profile(),
-        fm_aggregation_profile=get_default_fm_aggregation_profile()
+        fm_aggregation_profile=get_default_fm_aggregation_profile(),
 ):
     """
     Generates and returns a Pandas dataframe of IL input items.
 
-    :param exposure_df: Source exposure
-    :type exposure_df: pandas.DataFrame
+    :param locations_df: Source exposure
+    :type locations_df: pandas.DataFrame
 
     :param gul_inputs_df: GUL input items
     :type gul_inputs_df: pandas.DataFrame
@@ -1020,6 +1036,10 @@ def get_il_input_items(
     :return Accounts dataframe
     :rtype: pandas.DataFrame
     """
+    print('locations_df init', sorted(locations_df.columns))
+    print('gul_inputs_df init', sorted(gul_inputs_df.columns))
+    print('accounts_df init', sorted(accounts_df.columns))
+
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
 
     # Get the FM aggregation profile - this describes how the IL input
@@ -1042,12 +1062,33 @@ def get_il_input_items(
     policy_num = oed_hierarchy['polnum']['ProfileElementName']
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName']
 
-    # get column name to fm term
-    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile, lowercase=False)
-    column_base_il_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
-    bi_tiv_col = 'BITIV'
+    # =====
+    # TODO: why remove certain column in particular item_id
+    useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
+                             + get_useful_summary_cols(oed_hierarchy))
+                         - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
+    gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
+    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
+    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
-    column_base_il_df = __merge_gul_and_account(column_base_il_df, accounts_df, fm_terms, oed_hierarchy)
+    # initialization
+    agg_keys = set()
+    for level_id in fm_aggregation_profile:
+        agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
+
+    # TODO: check usefullness of level cols
+    level_cols = set(useful_cols).union(agg_keys)
+    present_cols = [col for col in gul_inputs_df.columns if col in set(useful_cols).union(agg_keys).union(fm_term_ids)]
+
+    print('difference', set(useful_cols).union(agg_keys).difference(set(gul_inputs_df)))
+    print('intersection', set(gul_inputs_df).intersection(set(useful_cols).union(agg_keys).union(fm_term_ids)))
+
+    gul_inputs_df = gul_inputs_df[present_cols]
+
+    # TODO: I beleive the tiv information is completely embeded inside the gul_inputs_df
+    tiv_cols = [v['tiv']['ProfileElementName'] for v in profile[SUPPORTED_FM_LEVELS['site coverage']['id']].values()]
+    locations_df = locations_df.drop(columns=tiv_cols)
 
     # Profile dict are base on key that correspond to the fm term name.
     # this prevent multiple file column to point to the same fm term
@@ -1064,40 +1105,38 @@ def get_il_input_items(
             new_term_info['FMTermType'] = term_name
             column_map[term_info['ProfileElementName']] = new_term_info
 
-    # column dependent fm term (level, dependency column name , dependency name in profile, default support ids)
-    fm_term_filters = {}
+    level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
 
-    def site_pd_term_filter(level_df, ProfileElementName):
-        return level_df['coverage_type_id'].isin(
-            (level_column_mapper[SUPPORTED_FM_LEVELS['site pd']['id']].get(ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_types)
+    prev_level_df = gul_inputs_df[present_cols]
+    prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
 
-    fm_term_filters[SUPPORTED_FM_LEVELS['site pd']['id']] = site_pd_term_filter
+    prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True, ignore_index=True)  # TODO: no duplicate, if we have, error will appear later for agg_id_1
+    __split_fm_terms_by_risk(prev_level_df)
+    prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
+    prev_level_df['level_id'] = 1
+    prev_level_df['orig_level_id'] = level_id
+    prev_level_df['layer_id'] = 1
+    prev_level_df['agg_tiv'] = prev_level_df['tiv']
+    prev_level_df['attachment'] = 0
+    prev_level_df['share'] = 0
 
-    def policy_term_filter(level_name):
-        def filter(level_df, ProfileElementName):
-            coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS[level_name]['id']].get(
-                ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_types
-            if isinstance(coverage_type_ids, int):
-                return level_df['coverage_type_id'] == coverage_type_ids
-            else:
-                return level_df['coverage_type_id'].isin(coverage_type_ids)
-        return filter
+    il_inputs_df_list = []
+    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids, errors='ignore')
+    prev_df_subset = prev_agg_key
 
-    fm_term_filters[SUPPORTED_FM_LEVELS['policy coverage']['id']] = policy_term_filter('policy coverage')
-    fm_term_filters[SUPPORTED_FM_LEVELS['policy pd']['id']] = policy_term_filter('policy pd')
 
-    # column_base_il_df contains for each items, the complete list of fm term necessary for each level
-    # up until the top account level. We are now going to pivot it to get for each line a node with
-    # agg_id, parrent_agg_id, level, layer and all the fm term interpretable as a generic policy
-    useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
-                             + get_useful_summary_cols(oed_hierarchy))
-                         - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
+    print('gul_inputs_df\n', gul_inputs_df.columns)
+    print('locations_df\n', locations_df.columns)
+    print('accounts_df\n', accounts_df.columns)
 
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
-    step_policies_present = ('StepTriggerType' in column_base_il_df and 'StepNumber' in column_base_il_df
-                             and column_base_il_df['StepTriggerType'].notnull().any()
-                             and column_base_il_df[column_base_il_df['StepTriggerType'].notnull()]['StepNumber'].gt(0).any())
+    if 'StepTriggerType' in accounts_df and 'StepNumber' in accounts_df:
+        fill_empty(accounts_df, ['StepTriggerType', 'StepNumber'], 0)
+        step_policies_present = (accounts_df['StepTriggerType'].notnull().any()
+                                 and accounts_df[accounts_df['StepTriggerType'].notnull()]['StepNumber'].gt(0).any())
+    else:
+        step_policies_present = False
 
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
@@ -1110,136 +1149,542 @@ def get_il_input_items(
                 'FMTermType': col,
             }
         for key, step_term in get_default_step_policies_profile().items():
+            print(step_term['Key'], {
+                'ProfileElementName': step_term['Key'],
+                'FMTermType': step_term['FMProfileField'],
+                'FMProfileStep': step_term.get('FMProfileStep')
+            })
             step_policy_level_map[step_term['Key']] = {
                 'ProfileElementName': step_term['Key'],
                 'FMTermType': step_term['FMProfileField'],
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
+    level_conds = {}
+    if 'CondTag' in accounts_df:
+        # we get information about cond from accounts_df
+        cond_tags = {}  # information about each cond tag
+        account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
+        for acc_rec in accounts_df.to_dict(orient="records"):
+            cond_tag_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'])
+            cond_number_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'], acc_rec['CondNumber'])
+            cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1})
+            cond_tag.setdefault('layers', {})[acc_rec['layer_id']] = {'CondNumber': cond_number_key}
+            exclusion_cond_tags = account_layer_exclusion.setdefault((acc_rec['PortNumber'], acc_rec['AccNumber']), {}).setdefault(acc_rec['layer_id'], set())
+            if acc_rec.get('CondClass')==1:
+                exclusion_cond_tags.add(acc_rec['CondTag'])
 
-        def assign_cov_agg_id(row):
-            try:
-                cov_agg_method = STEP_TRIGGER_TYPES[row['StepTriggerType']]['coverage_aggregation_method']
-                return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_type_id']]
-            except KeyError:
-                return 0
-
-        column_base_il_df['cov_agg_id'] = column_base_il_df.apply(lambda row: assign_cov_agg_id(row), axis=1)
-
-        def assign_calcrule_flag(row):
-            try:
-                calcrule_assign_method = STEP_TRIGGER_TYPES[row['StepTriggerType']]['calcrule_assignment_method']
-                return CALCRULE_ASSIGNMENT_METHODS[calcrule_assign_method][row['cov_agg_id']]
-
-            except KeyError:
-                return False
-
-        column_base_il_df['assign_step_calcrule'] = column_base_il_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
-
-        for level_info in list(SUPPORTED_FM_LEVELS.values())[1:]:
-            fm_aggregation_profile[level_info['id']]['FMAggKey']['cov_agg_id'] = {
-                "src": "FM",
-                "field": "cov_agg_id",
-                "name": "coverage aggregation id"
-            }
-        all_steps = column_base_il_df['StepTriggerType'].unique()
-
-        def step_policy_term_filter(level_df, ProfileElementName):
-            if 'FMProfileStep' not in level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']].get(ProfileElementName, {}):
-                return pd.Series(True, index=level_df.index)
+        # we get the list of loc for each cond_tag
+        loc_conds = {}
+        KEY_INDEX = 0
+        PRIORITY_INDEX = 1
+        for loc_rec in locations_df.to_dict(orient="records"):
+            loc_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['LocNumber'])
+            cond_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['CondTag'])
+            if cond_key in cond_tags:
+                cond_tag = cond_tags[cond_key]
             else:
-                return ((level_df['StepTriggerType'].isin(
-                    (level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']].get(ProfileElementName) or {}).get('FMProfileStep')
-                    or all_steps))
-                    & (level_df['assign_step_calcrule'] > 0))
+                cond_tag = {'CondPriority': 1, 'layers': {}}
+                cond_tags[cond_key] = cond_tag
 
-        fm_term_filters[SUPPORTED_FM_LEVELS['policy layer']['id']] = step_policy_term_filter
+            # if 'locations' not in cond_tag: # first time we see the cond tag in this loop, update the layers
+            #     for layer_id in account_layers[loc_rec['PortNumber'], loc_rec['AccNumber']]:
+            #         if layer_id not in cond_tag['CondNumber']:
+            #             cond_tag['CondNumber'][layer_id] = {'CondNumber': tuple(list(cond_key)+[''])}
 
-    agg_keys = set()
-    for level_id in fm_aggregation_profile:
-        agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
+            cond_location = cond_tag.setdefault('locations', set())
+            cond_location.add(loc_key)
+            cond_tag_priority = cond_tag['CondPriority']
+            conds = loc_conds.setdefault(loc_key, [])
 
-    column_base_il_df[['risk_id', 'NumberOfRisks']] = column_base_il_df[['building_id', 'NumberOfBuildings']]
-    column_base_il_df.loc[column_base_il_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
-    column_base_il_df.loc[column_base_il_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+            for i, cond in enumerate(conds):
+                if cond_tag_priority < cond[PRIORITY_INDEX]:
+                    conds.insert(i, (cond_key, cond_tag_priority))
+                    break
+                elif cond_tag_priority == cond[PRIORITY_INDEX] and cond_key != cond[KEY_INDEX]:
+                    raise OasisException(f"{cond_key} and {cond[KEY_INDEX]} have same priority in {loc_key}")
+            else:
+                conds.append((cond_key, cond_tag_priority))
 
-    level_cols = set(useful_cols).union(agg_keys)
-    present_cols = [col for col in column_base_il_df.columns if col in set(useful_cols).union(agg_keys)]
+        # at first we just want condtag for each level
+        extra_accounts = []
+        for cond_key, cond_info in cond_tags.items():
+            port_num, acc_num, cond_tag = cond_key
+            cond_level_start = 1
+            for loc_key in cond_info.get('locations', set()):
+                for i, (cond_key_i, _) in enumerate(loc_conds[loc_key]):
+                    if cond_key_i == cond_key:
+                        cond_level_start = max(cond_level_start, i + 1)
+                        break
+            cond_info['cond_level_start'] = cond_level_start
+            for layer_id, exclusion_conds in account_layer_exclusion[(cond_key[0], cond_key[1])].items():
+                if layer_id not in cond_info['layers']:
+                    if exclusion_conds:
+                        extra_accounts.append({
+                            'PortNumber': port_num,
+                            'AccNumber': acc_num,
+                            'CondTag': cond_tag,
+                            'layer_id': layer_id,
+                            'CondNumber': 'FullFilter',
+                            'CondDed6All': 1,
+                            'CondDedType6All': 1,
+                        })
+                    else:
+                        extra_accounts.append({
+                            'PortNumber': port_num,
+                            'AccNumber': acc_num,
+                            'CondTag': cond_tag,
+                            'layer_id': layer_id,
+                            'CondNumber': '',
+                        })
+                level_conds.setdefault(cond_level_start, set()).add(cond_key)
 
-    # get Tiv for each coverage
-    tiv_df = column_base_il_df[sorted(
-        set(agg_keys.union({'coverage_id', 'tiv', 'tiv_sum', bi_tiv_col, 'is_bi_coverage'})), key=str.lower)].drop_duplicates(keep='first')
+        for elm in level_conds.items():
+            print(elm)
 
-    # initialization
-    level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
-    coverage_level_term = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'ded_code', 'ded_type',
-                           'lim_code', 'lim_type']
-    for col in coverage_level_term:
-        if col not in column_base_il_df:
-            column_base_il_df[col] = 0
-    prev_level_df = column_base_il_df[list(set(present_cols + coverage_level_term))]
-    prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-    prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
-    __split_fm_terms_by_risk(prev_level_df)
-    prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
-    prev_level_df['level_id'] = 1
-    prev_level_df['orig_level_id'] = level_id
-    prev_level_df['layer_id'] = 1
-    prev_level_df['agg_tiv'] = prev_level_df['tiv']
-    prev_level_df['attachment'] = 0
-    prev_level_df['share'] = 0
-    il_inputs_df_list = []
-    prev_agg_key = ['coverage_id']
-    # create level for each SUPPORTED_FM_LEVELS
-    for level, level_info in list(SUPPORTED_FM_LEVELS.items())[1:]:
-        if level == 'cond all':  # special treatment for condition level
-            process_level_df = __process_condition_level_df
-        else:
-            process_level_df = __process_standard_level_df
+    def get_levels(gul_inputs_df, locations_df, accounts_df, level_conds):
+        for group_name, group_info in GROUPED_SUPPORTED_FM_LEVELS.items():
+            if group_info['oed_source'] == 'location':
+                locations_df['layer_id'] = 1
+                yield locations_df, list(group_info['levels'].items())[1:], group_info['fm_peril_field']  # [1:] => 'site coverage' is already done
+            elif group_info['oed_source'] == 'account':
+                if group_name == 'cond' and 'CondTag' in accounts_df:
+                    loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+                    for stage, cond_keys in level_conds.items():
+                        cond_filter_df = pd.DataFrame(cond_keys, columns=['PortNumber', 'AccNumber', 'CondTag'])
+                        loc_conds_df_filter = cond_filter_df[['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates().merge(loc_conds_df, how='left')
+                        gul_inputs_df.drop(columns=['CondTag'], inplace=True, errors='ignore')
+                        gul_inputs_df['CondTag'] = gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber']].merge(loc_conds_df_filter, how='left')['CondTag']
+                        yield (cond_filter_df.merge(pd.concat([accounts_df, pd.DataFrame(extra_accounts)]), how='left'),
+                               group_info['levels'].items(),
+                               group_info['fm_peril_field'])
+                else:
+                    yield accounts_df, group_info['levels'].items(), group_info['fm_peril_field']
 
-        prev_level_df, prev_agg_key = process_level_df(column_base_il_df,
-                                                       prev_level_df,
-                                                       prev_agg_key,
-                                                       tiv_df,
-                                                       il_inputs_df_list,
-                                                       level_info['id'],
-                                                       present_cols,
-                                                       level_cols,
-                                                       level_column_mapper,
-                                                       bi_tiv_col,
-                                                       oed_hierarchy,
-                                                       fm_aggregation_profile,
-                                                       fm_term_filters)
+    for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df, level_conds):
+        for level, level_info in levels:
+            level_id = level_info['id']
+
+            step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
+            level_terms = set()
+            terms_maps = {}
+            coverage_group_map = {}
+            for ProfileElementName, term_info in level_column_mapper[level_id].items():
+                if ProfileElementName not in term_df_source.columns:
+                    continue
+                fill_empty(term_df_source, ProfileElementName, 0)
+                if 'FMProfileStep' in term_info:
+                    profile_steps = term_info["FMProfileStep"]
+                    if isinstance(profile_steps, int):
+                        profile_steps = [profile_steps]
+                    valid_step_trigger_types = term_df_source.loc[(term_df_source['StepTriggerType'].isin(profile_steps))
+                                                                  & (term_df_source[ProfileElementName] > 0), 'StepTriggerType'].unique()
+                    if len(valid_step_trigger_types):
+                        level_terms.add(term_info['FMTermType'].lower())
+                    for step_trigger_type in valid_step_trigger_types:
+                        coverage_aggregation_method = STEP_TRIGGER_TYPES[step_trigger_type]['coverage_aggregation_method']
+                        calcrule_assignment_method = STEP_TRIGGER_TYPES[step_trigger_type]['calcrule_assignment_method']
+                        for coverage_type_id in supp_cov_type_ids:
+                            FMTermGroupID = COVERAGE_AGGREGATION_METHODS[coverage_aggregation_method][coverage_type_id]
+
+                            if (step_trigger_type, coverage_type_id) in coverage_group_map:
+                                if coverage_group_map[(step_trigger_type, coverage_type_id)] != FMTermGroupID:
+                                    raise OasisException(
+                                        f"multiple coverage_type_id {(step_trigger_type, coverage_type_id)} "
+                                        f"assigned to the different FMTermGroupID "
+                                        f"{(FMTermGroupID, coverage_group_map[(step_trigger_type, coverage_type_id)])}")
+                            else:
+                                coverage_group_map[(step_trigger_type, coverage_type_id)] = FMTermGroupID
+
+                            terms_map = terms_maps.setdefault((FMTermGroupID, step_trigger_type), {fm_peril_field: 'fm_peril'})
+                            if CALCRULE_ASSIGNMENT_METHODS[calcrule_assignment_method][FMTermGroupID]:
+                                terms_map[ProfileElementName] = term_info['FMTermType'].lower()
+                else:
+                    if not (term_df_source[ProfileElementName] > 0).any():
+                        continue
+                    level_terms.add(term_info['FMTermType'].lower())
+                    coverage_type_ids = term_info.get("CoverageTypeID", supp_cov_type_ids)
+                    FMTermGroupID = term_info.get('FMTermGroupID', 1)
+                    if step_level:
+                        term_key = (FMTermGroupID, 0)
+                    else:
+                        term_key = FMTermGroupID
+
+                    if isinstance(coverage_type_ids, int):
+                        coverage_type_ids = [coverage_type_ids]
+                    for coverage_type_id in coverage_type_ids:
+                        if step_level:
+                            coverage_group_key = (0, coverage_type_id)
+                        else:
+                            coverage_group_key = coverage_type_id
+                        if coverage_type_id in coverage_group_map:
+                            if coverage_group_map[coverage_group_key] != FMTermGroupID:
+                                raise OasisException(
+                                    f"multiple coverage_type_id {coverage_group_key}"
+                                    f"assigned to the different FMTermGroupID {(FMTermGroupID, coverage_group_map[coverage_group_key])}")
+                        else:
+                            coverage_group_map[coverage_group_key] = FMTermGroupID
+                    terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'})[ProfileElementName] = term_info['FMTermType'].lower()
+
+            if not terms_maps :
+                continue
+
+            print('\n\n**********', level, level_info, '********')
+            print(f"{coverage_group_map=}")
+            print(f"{terms_maps=}")
+
+            agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
+
+            level_df_list = []
+            for group_key, terms in terms_maps.items():
+                print(group_key, terms)
+                if step_level:
+                    FMTermGroupID, step_trigger_type = group_key
+                    group_df = term_df_source[term_df_source['StepTriggerType'] == step_trigger_type]
+                    terms = {**terms_maps.get((1, 0), {}), **terms} # take all common term plus term with step_trigger_type filter
+                else:
+                    FMTermGroupID = group_key
+                    group_df = term_df_source
+
+                group_df = (group_df[list(set(agg_key + list(terms.keys()) + ['layer_id'])
+                                          .union(set(useful_cols).difference(set(gul_inputs_df.columns)))
+                                          .intersection(group_df.columns))]
+                            .assign(FMTermGroupID=FMTermGroupID))
+                numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
+                group_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')]
+
+                # multiple ProfileElementName can have the same fm terms (ex: StepTriggerType 5), we take the max to have a unique one
+                for ProfileElementName, term in terms.items():
+                    print(ProfileElementName, term, term in group_df)
+                    if term in group_df:
+                        group_df[term] = group_df[[term, ProfileElementName]].max(axis=1)
+                        group_df.drop(columns=ProfileElementName, inplace=True)
+                    else:
+                        group_df.rename(columns={ProfileElementName: term}, inplace=True)
+                level_df_list.append(group_df)
+
+            level_df = pd.concat(level_df_list, copy=True)
+
+            print('concat', level_df)
+
+            if step_level:
+                gul_inputs_df.drop(columns=['FMTermGroupID'], errors='ignore', inplace=True)
+                coverage_type_id_df = pd.DataFrame(
+                    [[StepTriggerType, coverage_type_id, FMTermGroupID] for (StepTriggerType, coverage_type_id), FMTermGroupID in coverage_group_map.items()],
+                    columns=['steptriggertype', 'coverage_type_id', 'FMTermGroupID'])
+                level_df = level_df.merge(coverage_type_id_df)
+                print('before', level_df[['PortNumber', 'AccNumber', 'coverage_type_id', 'FMTermGroupID']])
+            else:
+                # map the coverage_type_id to the correct FMTermGroupID for this level. coverage_type_id without term and therefor FMTermGroupID are map to 0
+                gul_inputs_df['FMTermGroupID'] = gul_inputs_df['coverage_type_id'].map(coverage_group_map, na_action = 'ignore')
+
+            print(level_df.columns, gul_inputs_df.columns, set(level_df.columns).intersection(gul_inputs_df.columns))
+            level_df = (gul_inputs_df.merge(level_df, how='left'))
+
+            # check that peril_id is part of the fm peril policy
+            level_df['fm_peril'] = level_df['fm_peril'].fillna('')
+            peril_filter = oed_schema.peril_filtering(level_df['peril_id'], level_df['fm_peril'])
+            level_df.loc[~peril_filter, list(level_terms) + ['FMTermGroupID']] = 0
+
+            level_df['FMTermGroupID'] = level_df['FMTermGroupID'].astype('Int64')
+
+            print(gul_inputs_df)
+            print(level_df)
+            if 'layer_id' in level_df.columns:
+                print('merged\n', level_df[['PortNumber', 'AccNumber', 'loc_id', 'coverage_type_id', 'FMTermGroupID', 'layer_id', 'gul_input_id']])
+
+            # make sure agg_id without term still have the same amount of layer
+            level_df = level_df.merge(
+                prev_level_df[['gul_input_id', 'layer_id', 'agg_id']]
+                .rename(columns={'layer_id': 'layer_id_prev', 'agg_id': 'agg_id_prev'}),
+                how='left'
+            )
+            print(prev_level_df[['gul_input_id', 'layer_id', 'agg_id']])
+            print('level_df.merge\n', level_df[['PortNumber', 'AccNumber', 'loc_id', 'coverage_type_id', 'gul_input_id', 'layer_id', 'layer_id_prev',
+                                                'FMTermGroupID', 'agg_id_prev']])
+
+            level_df.loc[level_df['layer_id'].isna(), 'layer_id'] = level_df.loc[level_df['layer_id'].isna(), 'layer_id_prev']
+            level_df['layer_id'] = level_df['layer_id'].astype('int32')
+            level_df['agg_id_prev'] = level_df['agg_id_prev'].fillna(0).astype('int64')
+            level_df.drop(columns=['layer_id_prev'], inplace=True)
+            print('prev\n', level_df)
+            if 'risk_id' in agg_key:
+                __split_fm_terms_by_risk(level_df)
+
+            # for line that had no term FMTermGroupID == 0, we store in FMTermGroupID the previous agg_id to keep the same granularity
+            level_df.loc[level_df['FMTermGroupID'] == 0, 'FMTermGroupID'] = -level_df['agg_id_prev']
+
+            factorize_key = agg_key + ['FMTermGroupID', 'fm_peril']
+            level_df['agg_id'] = factorize_ndarray(level_df.loc[:, factorize_key].values, col_idxs=range(len(factorize_key)))[0]
+            print('factorize', factorize_key, len(il_inputs_df_list) + 1)
+            print(level_df[['gul_input_id', 'FMTermGroupID', 'agg_id', 'agg_id_prev']])
+
+            # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
+            need_root_start_df = level_df.groupby("agg_id_prev").agg({"agg_id": pd.Series.nunique})
+            need_root_start_df = need_root_start_df[need_root_start_df['agg_id'] > 1].index
+
+            # create new prev df for element that need to restart from items
+            root_df = level_df[((level_df['agg_id_prev'].isin(need_root_start_df)) & (level_df['layer_id'] == 1))]
+
+            root_df['to_agg_id'] = root_df['agg_id']
+            root_df['agg_id'] = -root_df['gul_input_id']
+            root_df.drop_duplicates(subset='agg_id', inplace=True)
+            root_df['level_id'] = len(il_inputs_df_list) + 1
+
+            print('need_root_start_df')
+            print(need_root_start_df)
+
+            level_df['agg_id']
+
+            max_agg_id = np.max(level_df['agg_id'])
+            print('prev_level_df', prev_level_df.index)
+            prev_level_df['to_agg_id'] = (prev_level_df[['gul_input_id']]
+                                          .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
+
+            prev_level_df.loc[prev_level_df['to_agg_id'].isna(), 'to_agg_id'] = (max_agg_id +
+                                                                                 factorize_ndarray(prev_level_df.loc[prev_level_df['to_agg_id'].isna(), ['agg_id']].values,
+                                                                                                   col_idxs=range(len(['agg_id'])))[0])
+            prev_level_df.loc[prev_level_df['agg_id'].isin(need_root_start_df), 'to_agg_id'] = 0
+
+            prev_level_df['to_agg_id'] = prev_level_df['to_agg_id'].astype('int32')
+            print('prev', prev_level_df[['level_id', 'agg_id', 'to_agg_id']])
+
+            level_df.drop(columns=['agg_id_prev'], inplace=True)
+
+            level_df = level_df.merge(
+                level_df[['coverage_type_id', 'gul_input_id', 'agg_id', 'tiv']]
+                .drop_duplicates()[['agg_id', 'tiv']]
+                .groupby('agg_id', observed=True)['tiv']
+                .sum()
+                .reset_index(name ='agg_tiv'), how='left'
+            )
+            __drop_duplicated_row(il_inputs_df_list[-1] if il_inputs_df_list else None, prev_level_df, prev_df_subset)
+            il_inputs_df_list.append(pd.concat([prev_level_df, root_df]))
+
+            level_df['level_id'] = len(il_inputs_df_list) + 1
+            level_df['orig_level_id'] = level_id
+
+            sub_agg_key = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
+                           if v['field'] in level_df.columns]
+
+            # TODO, look how to drop duplicate efficiently
+            prev_level_df = level_df
+            prev_df_subset = ['agg_id'] + sub_agg_key + ['layer_id']
+
+    # =====
+
+    # # get column name to fm term
+    # fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile, lowercase=False)
+    # column_base_il_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
+    # bi_tiv_col = 'BITIV'
+    #
+    # column_base_il_df = __merge_gul_and_account(column_base_il_df, accounts_df, fm_terms, oed_hierarchy)
+    #
+    # # Profile dict are base on key that correspond to the fm term name.
+    # # this prevent multiple file column to point to the same fm term
+    # # which is necessary to have a generic logic that works with step policy
+    # # so we change the key to be the column and use FMTermType to store the term name
+    # level_column_mapper = {}
+    # for level_id, level_profile in profile.items():
+    #     column_map = {}
+    #     level_column_mapper[level_id] = column_map
+    #
+    #     # for fm we only use term_id 1
+    #     for term_name, term_info in itertools.chain.from_iterable(profile.items() for profile in level_profile.values()):
+    #         new_term_info = copy.deepcopy(term_info)
+    #         new_term_info['FMTermType'] = term_name
+    #         column_map[term_info['ProfileElementName']] = new_term_info
+    #
+    # # column dependent fm term (level, dependency column name , dependency name in profile, default support ids)
+    # fm_term_filters = {}
+    #
+    # def site_pd_term_filter(level_df, ProfileElementName):
+    #     return level_df['coverage_type_id'].isin(
+    #         (level_column_mapper[SUPPORTED_FM_LEVELS['site pd']['id']].get(ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_type_ids)
+    #
+    # fm_term_filters[SUPPORTED_FM_LEVELS['site pd']['id']] = site_pd_term_filter
+    #
+    # def policy_term_filter(level_name):
+    #     def filter(level_df, ProfileElementName):
+    #         coverage_type_ids = (level_column_mapper[SUPPORTED_FM_LEVELS[level_name]['id']].get(
+    #             ProfileElementName) or {}).get('CoverageTypeID') or supp_cov_type_ids
+    #         if isinstance(coverage_type_ids, int):
+    #             return level_df['coverage_type_id'] == coverage_type_ids
+    #         else:
+    #             return level_df['coverage_type_id'].isin(coverage_type_ids)
+    #     return filter
+    #
+    # fm_term_filters[SUPPORTED_FM_LEVELS['policy coverage']['id']] = policy_term_filter('policy coverage')
+    # fm_term_filters[SUPPORTED_FM_LEVELS['policy pd']['id']] = policy_term_filter('policy pd')
+    #
+    # # column_base_il_df contains for each items, the complete list of fm term necessary for each level
+    # # up until the top account level. We are now going to pivot it to get for each line a node with
+    # # agg_id, parrent_agg_id, level, layer and all the fm term interpretable as a generic policy
+    # useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
+    #                          + get_useful_summary_cols(oed_hierarchy))
+    #                      - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
+    #
+    # # Determine whether step policies are listed, are not full of nans and step
+    # # numbers are greater than zero
+    # step_policies_present = ('StepTriggerType' in column_base_il_df and 'StepNumber' in column_base_il_df
+    #                          and column_base_il_df['StepTriggerType'].notnull().any()
+    #                          and column_base_il_df[column_base_il_df['StepTriggerType'].notnull()]['StepNumber'].gt(0).any())
+    #
+    # # If step policies listed, keep step trigger type and columns associated
+    # # with those step trigger types that are present
+    # if step_policies_present:
+    #     # we happend the fm step policy term to policy layer
+    #     step_policy_level_map = level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']]
+    #     for col in ['StepTriggerType', 'cov_agg_id', 'assign_step_calcrule']:
+    #         step_policy_level_map[col] = {
+    #             'ProfileElementName': col,
+    #             'FMTermType': col,
+    #         }
+    #     for key, step_term in get_default_step_policies_profile().items():
+    #         step_policy_level_map[step_term['Key']] = {
+    #             'ProfileElementName': step_term['Key'],
+    #             'FMTermType': step_term['FMProfileField'],
+    #             'FMProfileStep': step_term.get('FMProfileStep')
+    #         }
+    #
+    #     def assign_cov_agg_id(row):
+    #         try:
+    #             cov_agg_method = STEP_TRIGGER_TYPES[row['StepTriggerType']]['coverage_aggregation_method']
+    #             return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_type_id']]
+    #         except KeyError:
+    #             return 0
+    #
+    #     column_base_il_df['cov_agg_id'] = column_base_il_df.apply(lambda row: assign_cov_agg_id(row), axis=1)
+    #
+    #     def assign_calcrule_flag(row):
+    #         try:
+    #             calcrule_assign_method = STEP_TRIGGER_TYPES[row['StepTriggerType']]['calcrule_assignment_method']
+    #             return CALCRULE_ASSIGNMENT_METHODS[calcrule_assign_method][row['cov_agg_id']]
+    #
+    #         except KeyError:
+    #             return False
+    #
+    #     column_base_il_df['assign_step_calcrule'] = column_base_il_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
+    #
+    #     for level_info in list(SUPPORTED_FM_LEVELS.values())[1:]:
+    #         fm_aggregation_profile[level_info['id']]['FMAggKey']['cov_agg_id'] = {
+    #             "src": "FM",
+    #             "field": "cov_agg_id",
+    #             "name": "coverage aggregation id"
+    #         }
+    #     all_steps = column_base_il_df['StepTriggerType'].unique()
+    #
+    #     def step_policy_term_filter(level_df, ProfileElementName):
+    #         if 'FMProfileStep' not in level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']].get(ProfileElementName, {}):
+    #             return pd.Series(True, index=level_df.index)
+    #         else:
+    #             return ((level_df['StepTriggerType'].isin(
+    #                 (level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']].get(ProfileElementName) or {}).get('FMProfileStep')
+    #                 or all_steps))
+    #                 & (level_df['assign_step_calcrule'] > 0))
+    #
+    #     fm_term_filters[SUPPORTED_FM_LEVELS['policy layer']['id']] = step_policy_term_filter
+    #
+    # agg_keys = set()
+    # for level_id in fm_aggregation_profile:
+    #     agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
+    #
+    # column_base_il_df[['risk_id', 'NumberOfRisks']] = column_base_il_df[['building_id', 'NumberOfBuildings']]
+    # column_base_il_df.loc[column_base_il_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    # column_base_il_df.loc[column_base_il_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+    #
+    # level_cols = set(useful_cols).union(agg_keys)
+    # present_cols = [col for col in column_base_il_df.columns if col in set(useful_cols).union(agg_keys)]
+    #
+    # # get Tiv for each coverage
+    # tiv_df = column_base_il_df[sorted(
+    #     set(agg_keys.union({'coverage_id', 'tiv', 'tiv_sum', bi_tiv_col, 'is_bi_coverage'})), key=str.lower)].drop_duplicates(keep='first')
+    #
+    # # initialization
+    # level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
+    # coverage_level_term = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'ded_code', 'ded_type',
+    #                        'lim_code', 'lim_type']
+    # for col in coverage_level_term:
+    #     if col not in column_base_il_df:
+    #         column_base_il_df[col] = 0
+    #
+    # # print(column_base_il_df[['LocNumber', 'peril_id', 'LocPeril',]])
+    # prev_level_df = column_base_il_df[list(set(present_cols + coverage_level_term))]
+    # prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
+    # prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
+    # __split_fm_terms_by_risk(prev_level_df)
+    # prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
+    # prev_level_df['level_id'] = 1
+    # prev_level_df['orig_level_id'] = level_id
+    # prev_level_df['layer_id'] = 1
+    # prev_level_df['agg_tiv'] = prev_level_df['tiv']
+    # prev_level_df['attachment'] = 0
+    # prev_level_df['share'] = 0
+    #
+    # print('level df needed cols', prev_level_df.columns)
+    # 0/0
+    # il_inputs_df_list = []
+    # prev_agg_key = ['coverage_id']
+    # # create level for each SUPPORTED_FM_LEVELS
+    # for level, level_info in list(SUPPORTED_FM_LEVELS.items())[1:]:
+    #     if level == 'cond all':  # special treatment for condition level
+    #         process_level_df = __process_condition_level_df
+    #     else:
+    #         process_level_df = __process_standard_level_df
+    #
+    #     prev_level_df, prev_agg_key = process_level_df(column_base_il_df,
+    #                                                    prev_level_df,
+    #                                                    prev_agg_key,
+    #                                                    tiv_df,
+    #                                                    il_inputs_df_list,
+    #                                                    level_info['id'],
+    #                                                    present_cols,
+    #                                                    level_cols,
+    #                                                    level_column_mapper,
+    #                                                    bi_tiv_col,
+    #                                                    oed_hierarchy,
+    #                                                    fm_aggregation_profile,
+    #                                                    fm_term_filters)
+    #
 
     # create account aggregation if necessary
-    level = 'policy layer'
-    level_id = SUPPORTED_FM_LEVELS[level]['id']
-    agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-    sub_agg_key = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
-                   if v['field'] in prev_level_df.columns]
-    need_account_aggregation = prev_level_df[agg_key + sub_agg_key + ['layer_id']].groupby(agg_key + sub_agg_key + ['layer_id']).size().max() > 1
+    if prev_level_df['orig_level_id'].max() < SUPPORTED_FM_LEVELS['policy layer']['id']:
+        level = 'policy layer'
+        level_id = SUPPORTED_FM_LEVELS[level]['id']
 
-    if need_account_aggregation:
-        level_df = column_base_il_df[list(set(present_cols))]
-        level_df['orig_level_id'] = level_id
-        level_df['level_id'] = len(il_inputs_df_list) + 2
-        level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
-        prev_level_df['to_agg_id'] = factorize_ndarray(prev_level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
+        agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
+        sub_agg_key = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
+                       if v['field'] in prev_level_df.columns]
 
-        level_df.drop_duplicates(subset=agg_key + sub_agg_key + ['layer_id'], inplace=True)
-        il_inputs_df_list.append(prev_level_df)
-        prev_level_df = level_df
+        need_account_aggregation = (prev_level_df[agg_key + sub_agg_key + ['layer_id', 'agg_id']]
+                                    .drop_duplicates()
+                                    .groupby(agg_key + sub_agg_key + ['layer_id'], observed=True)
+                                    .size()
+                                    .max() > 1)
 
-    del column_base_il_df
-    gc.collect()
+        if need_account_aggregation:
+            level_df = gul_inputs_df.merge(accounts_df[agg_key + sub_agg_key + ['layer_id']])
+            level_df['orig_level_id'] = level_id
+            level_df['level_id'] = len(il_inputs_df_list) + 2
+            level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
+            prev_level_df['to_agg_id'] = (prev_level_df[['gul_input_id']]
+                .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
+
+            il_inputs_df_list.append(prev_level_df)
+            prev_level_df = level_df
 
     prev_level_df['to_agg_id'] = 0
-    il_inputs_df_list.append(prev_level_df)
+    print(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
+    il_inputs_df_list.append(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
+
     il_inputs_df = pd.concat(il_inputs_df_list)
-    for col in il_inputs_df.columns:
+    for col in set(list(il_inputs_df.columns)):
         try:
             il_inputs_df[col].fillna(0, inplace=True)
         except (TypeError, ValueError):
             pass
+    for col in  fm_term_ids:
+        if col not in il_inputs_df.columns:
+            il_inputs_df[col] = 0
 
     del prev_level_df
     del il_inputs_df_list
@@ -1254,7 +1699,7 @@ def get_il_input_items(
                                   'deductible1', 'limit1', 'limit2', 'trigger_start', 'trigger_end', 'payout_start', 'payout_end',
                                   'scale1', 'scale2']},
         **{t: 'int32' for t in
-           ['agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id', 'steptriggertype', 'step_id']},
+           ['agg_id', 'to_agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id', 'steptriggertype', 'step_id']},
         # **{t: 'uint16' for t in [cond_num]},
         **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type', 'trigger_type', 'payout_type']}
     }
@@ -1294,7 +1739,7 @@ def get_il_input_items(
 
     # Set the calc. rule IDs
     if step_policies_present:
-        step_filter = (il_inputs_df['StepTriggerType'] > 0) & ~il_inputs_df['is_bi_coverage']
+        step_filter = (il_inputs_df['StepTriggerType'] > 0)
         il_inputs_df.loc[~step_filter, 'calcrule_id'] = get_calc_rule_ids(il_inputs_df[~step_filter])
         il_inputs_df.loc[step_filter, 'calcrule_id'] = get_step_calc_rule_ids(il_inputs_df[step_filter])
     else:
@@ -1303,19 +1748,19 @@ def get_il_input_items(
     il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('uint32')
 
     # Set the policy TC IDs
-    if 'cov_agg_id' in il_inputs_df:
+    if 'StepTriggerType' in il_inputs_df:
         il_inputs_df.loc[
-            ~(il_inputs_df['assign_step_calcrule'] > 0), 'policytc_id'
+            ~(il_inputs_df['StepTriggerType'] > 0), 'policytc_id'
         ] = get_policytc_ids(
-            il_inputs_df[~(il_inputs_df['assign_step_calcrule'] > 0)]
+            il_inputs_df[~(il_inputs_df['StepTriggerType'] > 0)]
         )
 
         il_inputs_df.loc[
-            il_inputs_df['assign_step_calcrule'] > 0, 'policytc_id'
+            il_inputs_df['StepTriggerType'] > 0, 'policytc_id'
         ] = get_step_policytc_ids(
-            il_inputs_df[il_inputs_df['assign_step_calcrule'] > 0],
+            il_inputs_df[il_inputs_df['StepTriggerType'] > 0],
             offset=il_inputs_df['policytc_id'].max(),
-            idx_cols=[acc_num, policy_num, portfolio_num]
+            idx_cols=['AccNumber', 'PolNumber', 'PortNumber']
         )
     else:
         il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
@@ -1372,7 +1817,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     il_inputs_df = il_inputs_df[il_inputs_df['agg_id'] > 0]
     try:
         # Step policies exist
-        if 'cov_agg_id' in il_inputs_df:
+        if 'StepTriggerType' in il_inputs_df:
             fm_profile_df = il_inputs_df[list(set(il_inputs_df.columns).intersection(set(step_profile_cols)))]
             for col in step_profile_cols:
                 if col not in fm_profile_df.columns:
@@ -1402,6 +1847,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
             )
         # No step policies
         else:
+            # make sure there is no step file in the folder
             cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
             fm_profile_df = il_inputs_df.loc[:, cols]
 
@@ -1529,7 +1975,7 @@ def write_il_input_files(
         fm_xref.csv
 
     :param il_inputs_df: IL inputs dataframe
-    :type exposure_df: pandas.DataFrame
+    :type locations_df: pandas.DataFrame
 
     :param target_dir: Target directory in which to write the files
     :type target_dir: str

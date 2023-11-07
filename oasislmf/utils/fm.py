@@ -72,6 +72,25 @@ FM_LEVELS = OrderedDict({
     'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
 })
 
+GROUPED_SUPPORTED_FM_LEVELS = {
+    'site': {
+        'oed_source': 'location',
+        'fm_peril_field': 'LocPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['site coverage', 'site pd', 'site all']}},
+    'cond': {
+        'oed_source': 'account',
+        'fm_peril_field': 'CondPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['cond coverage', 'cond pd', 'cond all']}},
+    'policy': {
+        'oed_source': 'account',
+        'fm_peril_field': 'PolPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['policy coverage', 'policy pd', 'policy all', 'policy layer']}},
+    'account': {
+        'oed_source': 'account',
+        'fm_peril_field': 'AccPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['account all']}},
+}
+
 SUPPORTED_FM_LEVELS = OrderedDict({
     level: level_dict for level, level_dict in FM_LEVELS.items()
     if level in ['site coverage', 'site pd', 'site all', 'cond all', 'policy coverage', 'policy pd', 'policy all', 'policy layer', 'account all']

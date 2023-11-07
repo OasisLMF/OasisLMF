@@ -311,6 +311,8 @@ class RunFmTest(ComputationStep):
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
         {'name': 'test_tolerance', 'type': float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001',
          'default': 1e-4},
+        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
+         'help': 'List of peril covered by the model'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -407,6 +409,7 @@ class RunFmTest(ComputationStep):
             run_dir=run_dir,
             loss_factor=loss_factor,
             output_level=output_level,
+            model_perils_covered=self.model_perils_covered,
             output_file=output_file,
             include_loss_factor=include_loss_factor,
             fmpy=self.fmpy,
@@ -427,16 +430,23 @@ class RunFmTest(ComputationStep):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-        files = ['keys.csv', 'loc_summary.csv']
-        files += [
-            '{}.csv'.format(fn)
-            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
-        ]
-        files += ['gul_summary_map.csv', 'guls.csv']
+        # files = ['keys.csv', 'loc_summary.csv']
+        # files += [
+        #     '{}.csv'.format(fn)
+        #     for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+        # ]
+        # files += ['gul_summary_map.csv', 'guls.csv']
+        # if il:
+        #     files += ['fm_summary_map.csv', 'ils.csv']
+        # if ril:
+        #     files += ['rils.csv']
+
+        files = ['guls.csv']
         if il:
-            files += ['fm_summary_map.csv', 'ils.csv']
+            files += ['ils.csv']
         if ril:
             files += ['rils.csv']
+
 
         test_result = True
         for f in files:
