@@ -6,6 +6,7 @@ coverage
 furo
 hypothesis
 mock
+git+https://github.com/OasisLMF/ODS_Tools.git@feature/versioning#egg=ods-tools
 pip-tools>=2.0.2
 pytest
 pytest-cov
