@@ -812,7 +812,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
         #                                                                     (exposure_data.location.dataframe['AccNumber'].isin(acc_filter))]
         # exposure_data.account.dataframe = exposure_data.account.dataframe[(exposure_data.account.dataframe['PortNumber'].isin(ptf_filter)) &
         #                                                                   (exposure_data.account.dataframe['AccNumber'].isin(acc_filter))]
-        # ptf_filter = ['sc9', 'sc10']
+        # ptf_filter = ['sc16']
         # exposure_data.location.dataframe = exposure_data.location.dataframe[(exposure_data.location.dataframe['PortNumber'].isin(ptf_filter))]
         # exposure_data.account.dataframe = exposure_data.account.dataframe[(exposure_data.account.dataframe['PortNumber'].isin(ptf_filter))]
         return exposure_data

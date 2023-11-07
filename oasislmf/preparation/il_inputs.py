@@ -1124,11 +1124,6 @@ def get_il_input_items(
     gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids, errors='ignore').reset_index()
     prev_df_subset = prev_agg_key
 
-
-    print('gul_inputs_df\n', gul_inputs_df.columns)
-    print('locations_df\n', locations_df.columns)
-    print('accounts_df\n', accounts_df.columns)
-
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
     if 'StepTriggerType' in accounts_df and 'StepNumber' in accounts_df:
@@ -1149,11 +1144,6 @@ def get_il_input_items(
                 'FMTermType': col,
             }
         for key, step_term in get_default_step_policies_profile().items():
-            print(step_term['Key'], {
-                'ProfileElementName': step_term['Key'],
-                'FMTermType': step_term['FMProfileField'],
-                'FMProfileStep': step_term.get('FMProfileStep')
-            })
             step_policy_level_map[step_term['Key']] = {
                 'ProfileElementName': step_term['Key'],
                 'FMTermType': step_term['FMProfileField'],
@@ -1238,7 +1228,7 @@ def get_il_input_items(
                             'CondNumber': '',
                             'CondPeril': 'AA1',
                         })
-                level_conds.setdefault(cond_level_start, set()).add(cond_key)
+            level_conds.setdefault(cond_level_start, set()).add(cond_key)
 
         for elm in level_conds.items():
             print(elm)
@@ -1253,13 +1243,9 @@ def get_il_input_items(
                     loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
                     for stage, cond_keys in level_conds.items():
                         cond_filter_df = pd.DataFrame(cond_keys, columns=['PortNumber', 'AccNumber', 'CondTag'])
-                        print('cond_filter_df\n', cond_filter_df)
                         loc_conds_df_filter = cond_filter_df[['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates().merge(loc_conds_df, how='left')
-                        print('loc_conds_df_filter\n', loc_conds_df_filter)
                         gul_inputs_df.drop(columns=['CondTag'], inplace=True, errors='ignore')
                         gul_inputs_df['CondTag'] = gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber']].merge(loc_conds_df_filter, how='left')['CondTag']
-                        print(gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']])
-                        print(gul_inputs_df[['loc_id', 'PortNumber', 'AccNumber']].merge(loc_conds_df_filter, how='left')['CondTag'])
                         yield (cond_filter_df.merge(pd.concat([accounts_df, pd.DataFrame(extra_accounts)]), how='left'),
                                group_info['levels'].items(),
                                group_info['fm_peril_field'])
@@ -1342,7 +1328,6 @@ def get_il_input_items(
 
             level_df_list = []
             for group_key, terms in terms_maps.items():
-                print(group_key, terms)
                 if step_level:
                     FMTermGroupID, step_trigger_type = group_key
                     group_df = term_df_source[term_df_source['StepTriggerType'] == step_trigger_type]
@@ -1356,7 +1341,8 @@ def get_il_input_items(
                                           .intersection(group_df.columns))]
                             .assign(FMTermGroupID=FMTermGroupID))
                 numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
-                group_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')]
+                keep_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')][list(set(agg_key).intersection(group_df.columns))].drop_duplicates()
+                group_df = keep_df.merge(group_df, how='left')
 
                 # multiple ProfileElementName can have the same fm terms (ex: StepTriggerType 5), we take the max to have a unique one
                 for ProfileElementName, term in terms.items():
@@ -1392,9 +1378,7 @@ def get_il_input_items(
             level_df.loc[~peril_filter, list(level_terms) + ['FMTermGroupID']] = 0
 
             level_df['FMTermGroupID'] = level_df['FMTermGroupID'].astype('Int64')
-            if 'CondTag' in level_df.columns:
-                print(gul_inputs_df[gul_inputs_df['CondTag']=='4'])
-                print(level_df[level_df['CondTag']=='4'])
+
             if 'layer_id' in level_df.columns:
                 print('merged\n', level_df[['PortNumber', 'AccNumber', 'loc_id', 'coverage_type_id', 'FMTermGroupID', 'layer_id', 'gul_input_id']])
 
