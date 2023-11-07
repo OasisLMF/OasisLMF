@@ -148,7 +148,6 @@ class TestGenKeys(ComputationChecker):
         exposure_data = Mock()
         mock_get_exposure.return_value = exposure_data
 
-        self.default_args['version_convert'] = True
         call_args = self.combine_args([
             {k: v.name for k, v in self.tmp_dirs.items()},
             {k: v.name for k, v in self.tmp_files.items()},
@@ -197,7 +196,7 @@ class TestGenKeys(ComputationChecker):
     @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
     @patch('oasislmf.computation.generate.keys.get_exposure_data')
     @patch('oasislmf.computation.generate.keys.ModelSettingSchema')
-    def test_args__passed_correctly_noversion_in_settings(self, mock_model_schema, mock_get_exposure, mock_keys_factory):
+    def test_args__passed_correctly_withversion_disabled(self, mock_model_schema, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
             self.min_args_output_set['keys_data_csv'], 4,
@@ -207,7 +206,65 @@ class TestGenKeys(ComputationChecker):
         exposure_data = Mock()
         mock_get_exposure.return_value = exposure_data
 
-        self.default_args['version_convert'] = True
+        self.default_args['noconvert'] = True
+        call_args = self.combine_args([
+            {k: v.name for k, v in self.tmp_dirs.items()},
+            {k: v.name for k, v in self.tmp_files.items()},
+            self.default_args
+        ])
+
+        mock_keys_factory.return_value = ('model_info', key_server_mock)
+        exposure_data = Mock()
+        exposure_data.to_version = Mock(return_value="converted")
+        mock_get_exposure.return_value = exposure_data
+
+        def mock_get_method(file_path, validate=False):
+            return {'data_settings': {'supported_oed_versions': []}}
+
+        # Setting up the mock for ModelSettingSchema().get
+        mock_model_settings = Mock()
+        mock_model_settings.get.side_effect = mock_get_method
+        mock_model_schema.return_value = mock_model_settings
+
+        self.manager.generate_keys(**call_args)
+
+        mock_keys_factory.assert_called_once_with(
+            lookup_config_fp=call_args['lookup_config_json'],
+            model_keys_data_path=call_args['lookup_data_dir'],
+            model_version_file_path=call_args['model_version_csv'],
+            lookup_module_path=call_args['lookup_module_path'],
+            complex_lookup_config_fp=call_args['lookup_complex_config_json'],
+            user_data_dir=call_args['user_data_dir'],
+            output_directory=os.path.dirname(call_args['keys_data_csv'])
+        )
+
+        key_server_mock.generate_key_files.assert_called_once_with(
+            location_df=exposure_data.location.dataframe,
+            successes_fp=call_args['keys_data_csv'],
+            errors_fp=call_args['keys_errors_csv'],
+            format=call_args['keys_format'],
+            keys_success_msg=True,
+            multiproc_enabled=call_args['lookup_multiprocessing'],
+            multiproc_num_cores=call_args['lookup_num_processes'],
+            multiproc_num_partitions=call_args['lookup_num_chunks'],
+        )
+
+        # Assert that `to_version` was not called
+        mock_get_exposure.return_value.to_version.assert_not_called()
+
+    @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
+    @patch('oasislmf.computation.generate.keys.get_exposure_data')
+    @patch('oasislmf.computation.generate.keys.ModelSettingSchema')
+    def test_args__passed_correctly_withversion_nosettings(self, mock_model_schema, mock_get_exposure, mock_keys_factory):
+        key_server_mock = Mock()
+        key_server_mock.generate_key_files.return_value = (
+            self.min_args_output_set['keys_data_csv'], 4,
+            self.min_args_output_set['keys_errors_csv'], 2)
+
+        mock_keys_factory.return_value = ('model_info', key_server_mock)
+        exposure_data = Mock()
+        mock_get_exposure.return_value = exposure_data
+
         call_args = self.combine_args([
             {k: v.name for k, v in self.tmp_dirs.items()},
             {k: v.name for k, v in self.tmp_files.items()},
