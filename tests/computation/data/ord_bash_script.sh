@@ -175,8 +175,8 @@ tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryaalcalc/P1.idx work/ri_S1_summ
 tee < fifo/ri_S1_summary_P2 fifo/ri_S1_eltcalc_P2 fifo/ri_S1_summarycalc_P2 fifo/ri_S1_pltcalc_P2 fifo/ri_S1_plt_ord_P2 fifo/ri_S1_elt_ord_P2 fifo/ri_S1_selt_ord_P2 work/ri_S1_summaryaalcalc/P2.bin work/ri_S1_summary_palt/P2.bin work/ri_S1_summaryaalcalcmeanonly/P2.bin work/ri_S1_summary_altmeanonly/P2.bin work/ri_S1_summaryleccalc/P2.bin > /dev/null & pid15=$!
 tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summaryaalcalc/P2.idx work/ri_S1_summary_palt/P2.idx work/ri_S1_summaryleccalc/P2.idx > /dev/null & pid16=$!
 
-( summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
-( summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do insured loss computes ---
 
