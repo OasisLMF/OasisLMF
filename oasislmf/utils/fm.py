@@ -151,17 +151,17 @@ STEP_TRIGGER_TYPES = OrderedDict({
         'sub_step_trigger_types': {
             SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
         },
-    },
+        },
     2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2,
         'sub_step_trigger_types': {
             SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
         },
-    },
+        },
     3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3,
         'sub_step_trigger_types': {
             SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
         },
-    },
+        },
     5: {
         'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4,
         'sub_step_trigger_types': {
@@ -209,12 +209,10 @@ for StepTriggerType, step_info in STEP_TRIGGER_TYPES.items():
 STEP_TRIGGER_FM_MERGE_LOGIC = {}
 for StepTriggerType, step_info in STEP_TRIGGER_TYPES.items():
     for coverage_type_id, FMTermGroupID in COVERAGE_AGGREGATION_METHODS[step_info['coverage_aggregation_method']].items():
-        STEP_TRIGGER_FM_MERGE_LOGIC.setdefault(StepTriggerType, {}).setdefault(coverage_type_id,{
+        STEP_TRIGGER_FM_MERGE_LOGIC.setdefault(StepTriggerType, {}).setdefault(coverage_type_id, {
             'StepTriggerType': StepTriggerType,
             'sub_step_trigger_types': step_info.get('sub_step_trigger_types', {}).get(coverage_type_id, StepTriggerType),
             'coverage_type_id': coverage_type_id,
             'assign_step_calcrule': CALCRULE_ASSIGNMENT_METHODS[step_info['calcrule_assignment_method']][FMTermGroupID],
             'FMTermGroupID': FMTermGroupID
         })
-
-

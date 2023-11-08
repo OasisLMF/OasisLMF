@@ -441,7 +441,6 @@ class RunFmTest(ComputationStep):
         if ril:
             files += ['rils.csv']
 
-
         test_result = True
         for f in files:
             generated = os.path.join(run_dir, f)

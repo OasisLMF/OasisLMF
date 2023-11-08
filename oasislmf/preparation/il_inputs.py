@@ -498,6 +498,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
             terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'})[ProfileElementName] = term_info['FMTermType'].lower()
     return level_terms, terms_maps, coverage_group_map
 
+
 @oasis_log
 def get_il_input_items(
         gul_inputs_df,
@@ -601,7 +602,8 @@ def get_il_input_items(
     prev_level_df = gul_inputs_df[present_cols]
     prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
 
-    prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True, ignore_index=True)  # no duplicate, if we have, error will appear later for agg_id_1
+    # no duplicate, if we have, error will appear later for agg_id_1
+    prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True, ignore_index=True)
     __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     prev_level_df['level_id'] = 1
@@ -653,7 +655,7 @@ def get_il_input_items(
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
             level_terms, terms_maps, coverage_group_map = get_level_term_info(term_df_source, level_column_mapper, level_id, step_level,
                                                                               fm_peril_field)
-            if not terms_maps : # no terms we skip this level
+            if not terms_maps:  # no terms we skip this level
                 continue
 
             agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
@@ -664,7 +666,7 @@ def get_il_input_items(
                 if step_level:
                     FMTermGroupID, step_trigger_type = group_key
                     group_df = term_df_source[term_df_source['StepTriggerType'] == step_trigger_type]
-                    terms = {**terms_maps.get((1, 0), {}), **terms} # take all common terms in (1,0) plus term with step_trigger_type filter
+                    terms = {**terms_maps.get((1, 0), {}), **terms}  # take all common terms in (1,0) plus term with step_trigger_type filter
                 else:
                     FMTermGroupID = group_key
                     group_df = term_df_source
@@ -674,7 +676,8 @@ def get_il_input_items(
                                           .intersection(group_df.columns))]
                             .assign(FMTermGroupID=FMTermGroupID))
                 numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
-                keep_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')][list(set(agg_key).intersection(group_df.columns))].drop_duplicates()
+                keep_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')][list(
+                    set(agg_key).intersection(group_df.columns))].drop_duplicates()
                 group_df = keep_df.merge(group_df, how='left')
 
                 # multiple ProfileElementName can have the same fm terms (ex: StepTriggerType 5), we take the max to have a unique one
@@ -692,12 +695,13 @@ def get_il_input_items(
                 # merge with gul_inputs_df needs to be based on 'steptriggertype' and 'coverage_type_id'
                 gul_inputs_df.drop(columns=['FMTermGroupID'], errors='ignore', inplace=True)
                 coverage_type_id_df = pd.DataFrame(
-                    [[StepTriggerType, coverage_type_id, FMTermGroupID] for (StepTriggerType, coverage_type_id), FMTermGroupID in coverage_group_map.items()],
+                    [[StepTriggerType, coverage_type_id, FMTermGroupID]
+                        for (StepTriggerType, coverage_type_id), FMTermGroupID in coverage_group_map.items()],
                     columns=['steptriggertype', 'coverage_type_id', 'FMTermGroupID'])
                 level_df = level_df.merge(coverage_type_id_df)
             else:
                 # map the coverage_type_id to the correct FMTermGroupID for this level. coverage_type_id without term and therefor FMTermGroupID are map to 0
-                gul_inputs_df['FMTermGroupID'] = gul_inputs_df['coverage_type_id'].map(coverage_group_map, na_action = 'ignore')
+                gul_inputs_df['FMTermGroupID'] = gul_inputs_df['coverage_type_id'].map(coverage_group_map, na_action='ignore')
 
             # we have prepared FMTermGroupID on gul or level df (depending on  step_level) now we can merge the terms for this level to gul
             level_df = (gul_inputs_df.merge(level_df, how='left'))
@@ -759,7 +763,7 @@ def get_il_input_items(
                 .drop_duplicates()[['agg_id', 'tiv']]
                 .groupby('agg_id', observed=True)['tiv']
                 .sum()
-                .reset_index(name ='agg_tiv'), how='left'
+                .reset_index(name='agg_tiv'), how='left'
             )
             __drop_duplicated_row(il_inputs_df_list[-1] if il_inputs_df_list else None, prev_level_df, prev_df_subset)
             il_inputs_df_list.append(pd.concat([prev_level_df, root_df]))
@@ -794,7 +798,7 @@ def get_il_input_items(
             level_df['level_id'] = len(il_inputs_df_list) + 2
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
             prev_level_df['to_agg_id'] = (prev_level_df[['gul_input_id']]
-                .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
+                                          .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
 
             il_inputs_df_list.append(prev_level_df)
             prev_level_df = level_df
@@ -807,7 +811,7 @@ def get_il_input_items(
             il_inputs_df[col].fillna(0, inplace=True)
         except (TypeError, ValueError):
             pass
-    for col in  fm_term_ids:
+    for col in fm_term_ids:
         if col not in il_inputs_df.columns:
             il_inputs_df[col] = 0
 
