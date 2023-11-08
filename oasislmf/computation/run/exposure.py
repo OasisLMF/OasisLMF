@@ -430,20 +430,14 @@ class RunFmTest(ComputationStep):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-        # files = ['keys.csv', 'loc_summary.csv']
-        # files += [
-        #     '{}.csv'.format(fn)
-        #     for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
-        # ]
-        # files += ['gul_summary_map.csv', 'guls.csv']
-        # if il:
-        #     files += ['fm_summary_map.csv', 'ils.csv']
-        # if ril:
-        #     files += ['rils.csv']
-
-        files = ['guls.csv']
+        files = ['keys.csv', 'loc_summary.csv']
+        files += [
+            '{}.csv'.format(fn)
+            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+        ]
+        files += ['gul_summary_map.csv', 'guls.csv']
         if il:
-            files += ['ils.csv']
+            files += ['fm_summary_map.csv', 'ils.csv']
         if ril:
             files += ['rils.csv']
 
@@ -454,7 +448,7 @@ class RunFmTest(ComputationStep):
             expected = os.path.join(expected_data_dir, f)
 
             if not os.path.exists(expected):
-                if self.update_expected:
+                if self.update_expected and os.path.exists(generated):
                     shutil.copyfile(generated, expected)
                 continue
 
