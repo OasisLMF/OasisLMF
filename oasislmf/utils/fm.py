@@ -2,7 +2,6 @@ __all__ = [
     'DEDUCTIBLE_CODES',
     'DEDUCTIBLE_AND_LIMIT_TYPES',
     'FM_LEVELS',
-    'LEVEL_PERIL_COL',
     'FM_TERMS',
     'LIMIT_CODES',
     'SUPPORTED_FM_LEVELS',
@@ -58,19 +57,19 @@ FML_ACCPDM = 12
 FML_ACCALL = 13
 
 FM_LEVELS = OrderedDict({
-    'site coverage': {'id': FML_SITCOV, 'desc': 'site coverage', 'oed_source': 'location'},
-    'site pd': {'id': FML_SITPDM, 'desc': 'site property damage', 'oed_source': 'location'},
-    'site all': {'id': FML_SITALL, 'desc': 'site all (coverage + property damage)', 'oed_source': 'location'},
-    'cond coverage': {'id': FML_CNDCOV, 'desc': 'conditional coverage', 'oed_source': 'account'},
-    'cond pd': {'id': FML_CNDPDM, 'desc': 'conditional property damage', 'oed_source': 'account'},
-    'cond all': {'id': FML_CNDALL, 'desc': 'conditional all (coverage + property damage)', 'oed_source': 'account'},
-    'policy coverage': {'id': FML_POLCOV, 'desc': 'policy coverage', 'oed_source': 'account'},
-    'policy pd': {'id': FML_POLPDM, 'desc': 'policy property damage', 'oed_source': 'account'},
-    'policy all': {'id': FML_POLALL, 'desc': 'policy all (coverage + property damage)', 'oed_source': 'account'},
-    'policy layer': {'id': FML_POLLAY, 'desc': 'policy layer', 'oed_source': 'account'},
-    'account coverage': {'id': FML_ACCCOV, 'desc': 'account coverage', 'oed_source': 'account'},
-    'account pd': {'id': FML_ACCPDM, 'desc': 'account property damage', 'oed_source': 'account'},
-    'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)', 'oed_source': 'account'}
+    'site coverage': {'id': FML_SITCOV, 'desc': 'site coverage'},
+    'site pd': {'id': FML_SITPDM, 'desc': 'site property damage'},
+    'site all': {'id': FML_SITALL, 'desc': 'site all (coverage + property damage)'},
+    'cond coverage': {'id': FML_CNDCOV, 'desc': 'conditional coverage'},
+    'cond pd': {'id': FML_CNDPDM, 'desc': 'conditional property damage'},
+    'cond all': {'id': FML_CNDALL, 'desc': 'conditional all (coverage + property damage)'},
+    'policy coverage': {'id': FML_POLCOV, 'desc': 'policy coverage'},
+    'policy pd': {'id': FML_POLPDM, 'desc': 'policy property damage'},
+    'policy all': {'id': FML_POLALL, 'desc': 'policy all (coverage + property damage)'},
+    'policy layer': {'id': FML_POLLAY, 'desc': 'policy layer'},
+    'account coverage': {'id': FML_ACCCOV, 'desc': 'account coverage'},
+    'account pd': {'id': FML_ACCPDM, 'desc': 'account property damage'},
+    'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
 })
 
 GROUPED_SUPPORTED_FM_LEVELS = {
@@ -96,23 +95,6 @@ SUPPORTED_FM_LEVELS = OrderedDict({
     level: level_dict for group_info in GROUPED_SUPPORTED_FM_LEVELS.values() for level, level_dict in group_info['levels'].items()
 
 })
-
-LEVEL_PERIL_COL = {
-    FML_SITCOV: ['LocPeril'],
-    FML_SITPDM: ['LocPeril'],
-    FML_SITALL: ['LocPeril'],
-    FML_CNDCOV: ['CondPeril'],
-    FML_CNDPDM: ['CondPeril'],
-    FML_CNDALL: ['CondPeril'],
-    FML_POLCOV: ['PolPeril'],
-    FML_POLPDM: ['PolPeril'],
-    FML_POLALL: ['PolPeril'],
-    FML_POLLAY: ['PolPeril'],
-    FML_ACCCOV: ['AccPeril'],
-    FML_ACCPDM: ['AccPeril'],
-    FML_ACCALL: ['AccPeril'],
-}
-
 
 FMT_DED = 'deductible'
 FMT_DED_CODE = 'ded_code'
@@ -193,26 +175,3 @@ CALCRULE_ASSIGNMENT_METHODS = OrderedDict({
     3: {1: True, 2: False, 3: False},
     4: {1: True, 2: False, 3: True, 4: False}
 })
-
-
-STEP_TRIGGER_FM_MERGE_LOGIC = []
-for StepTriggerType, step_info in STEP_TRIGGER_TYPES.items():
-    for coverage_type_id, FMTermGroupID in COVERAGE_AGGREGATION_METHODS[step_info['coverage_aggregation_method']].items():
-        STEP_TRIGGER_FM_MERGE_LOGIC.append({
-            'StepTriggerType': StepTriggerType,
-            'sub_step_trigger_types': step_info.get('sub_step_trigger_types', {}).get(coverage_type_id, StepTriggerType),
-            'coverage_type_id': coverage_type_id,
-            'assign_step_calcrule': CALCRULE_ASSIGNMENT_METHODS[step_info['calcrule_assignment_method']][FMTermGroupID],
-            'FMTermGroupID': FMTermGroupID
-        })
-
-STEP_TRIGGER_FM_MERGE_LOGIC = {}
-for StepTriggerType, step_info in STEP_TRIGGER_TYPES.items():
-    for coverage_type_id, FMTermGroupID in COVERAGE_AGGREGATION_METHODS[step_info['coverage_aggregation_method']].items():
-        STEP_TRIGGER_FM_MERGE_LOGIC.setdefault(StepTriggerType, {}).setdefault(coverage_type_id, {
-            'StepTriggerType': StepTriggerType,
-            'sub_step_trigger_types': step_info.get('sub_step_trigger_types', {}).get(coverage_type_id, StepTriggerType),
-            'coverage_type_id': coverage_type_id,
-            'assign_step_calcrule': CALCRULE_ASSIGNMENT_METHODS[step_info['calcrule_assignment_method']][FMTermGroupID],
-            'FMTermGroupID': FMTermGroupID
-        })

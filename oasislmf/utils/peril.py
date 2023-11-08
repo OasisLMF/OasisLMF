@@ -1,13 +1,10 @@
 __all__ = [
     'PERILS',
     'PERIL_GROUPS',
-    'peril_filtering'
 ]
 
 from collections import OrderedDict
 import pandas as pd
-import numba as nb
-import numpy as np
 
 PRL_BBF = 'BBF'
 PRL_BFR = 'BFR'
@@ -96,37 +93,3 @@ def get_peril_groups_df():
             res.append((peril_group['id'], peril))
 
     return pd.DataFrame(res, columns=['peril_group_id', 'peril_id'])
-
-
-nb_perils_dict = nb.typed.Dict.empty(
-    key_type=nb.types.UnicodeCharSeq(3),
-    value_type=nb.types.UnicodeCharSeq(3)[:],
-)
-
-for peril in PERILS.values():
-    nb_perils_dict[peril['id']] = np.array([peril['id']], dtype='U3')
-
-for peril_group in PERIL_GROUPS.values():
-    nb_perils_dict[peril_group['id']] = np.array(peril_group['peril_ids'], dtype='U3')
-
-
-@nb.jit(cache=True, nopython=True)
-def __single_peril_filtering(peril_id, peril_filter, perils_dict):
-    for peril_filter in peril_filter.split(';'):
-        for p in perils_dict[peril_filter]:
-            if p == peril_id:
-                return True
-    return False
-
-
-@nb.jit(cache=True, nopython=True)
-def jit_peril_filtering(peril_ids, peril_filters, perils_dict):
-    result = np.empty_like(peril_ids, dtype=np.bool_)
-    for i in range(peril_ids.shape[0]):
-        result[i] = __single_peril_filtering(peril_ids[i], peril_filters[i], perils_dict)
-
-    return result
-
-
-def peril_filtering(peril_ids, peril_filters):
-    return jit_peril_filtering(peril_ids.to_numpy().astype('str'), peril_filters.to_numpy().astype('str'), nb_perils_dict)
