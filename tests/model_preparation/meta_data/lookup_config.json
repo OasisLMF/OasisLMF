@@ -56,7 +56,14 @@
             "parameters": {"file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
                            "id_columns": ["vulnerability_id"]
                           }
-        }
+        },
+	"amplification": {
+	    "type": "merge",
+	    "columns": ["peril_id", "PostalCode"],
+	    "parameters": {"file_path": "%%KEYS_DATA_PATH%%/amplification_dict.csv",
+                           "id_columns": ["amplification_id"]
+			  }
+	}
     },
-    "strategy": ["split_loc_perils_covered", "peril", "create_coverage_type", "vulnerability"]
+    "strategy": ["split_loc_perils_covered", "peril", "create_coverage_type", "vulnerability", "amplification"]
 }
