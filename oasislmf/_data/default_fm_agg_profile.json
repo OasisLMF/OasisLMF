@@ -64,7 +64,7 @@
     },
     "4": {
         "FMLevel": 4,
-        "FMLevelName": "CondCoverage",
+        "FMLevelName": "CondAll",
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",
@@ -85,7 +85,7 @@
     },
     "5": {
         "FMLevel": 5,
-        "FMLevelName": "CondPD",
+        "FMLevelName": "CondAll",
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",

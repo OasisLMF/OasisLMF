@@ -49,7 +49,9 @@ MAP_SUMMARY_DTYPES = {
     'agg_id': 'int',
     'output_id': 'int',
     'coverage_type_id': 'int',
-    'tiv': 'float'
+    'tiv': 'float',
+    'building_id': 'int',
+    'risk_id': 'int',
 }
 
 
@@ -69,7 +71,9 @@ def get_useful_summary_cols(oed_hierarchy):
         'agg_id',
         'output_id',
         'coverage_type_id',
-        'tiv'
+        'tiv',
+        'building_id',
+        'risk_id'
     ]
 
 
@@ -128,7 +132,8 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
-        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
+        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id',
+                                 'building_id', 'risk_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -196,7 +201,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]  # columns which in locations / Accounts file
     mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
                    if c in summary_map_df.columns]  # Columns already in summary_map_df
-    tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
+    tiv_cols = ['tiv', 'loc_id', 'building_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
@@ -218,7 +223,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
-    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'coverage_type_id'] + oed_col_group,
+    summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
                                                    keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
 
     return summary_ids[0], summary_ids[1], summary_tiv
@@ -383,17 +388,17 @@ def get_ri_settings(run_dir):
     return get_json(src_fp=os.path.join(run_dir, 'ri_layers.json'))
 
 
-def write_df_to_file(df, target_dir, filename):
+def write_df_to_csv_file(df, target_dir, filename):
     """
-    Write a generated summary xref dataframe to disk
+    Write a generated summary xref dataframe to disk in csv format.
 
     :param df: The dataframe output of get_df( .. )
     :type df:  pandas.DataFrame
 
-    :param target_dir: Abs directory to write a summary_xref file to
+    :param target_dir: Abs directory to write a summary_xref file
     :type target_dir:  str
 
-    :param filename: Name of file to store as
+    :param filename: Name of output file
     :type filename:  str
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
@@ -408,12 +413,42 @@ def write_df_to_file(df, target_dir, filename):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_df_to_file'", e)
+        raise OasisException("Exception raised in 'write_df_to_csv_file'", e)
 
     return csv_fp
 
 
-def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type, id_set_index='output_id'):
+def write_df_to_parquet_file(df, target_dir, filename):
+    """
+    Write a generated summary xref dataframe to disk in parquet format.
+
+    :param df: The dataframe output of get_df( .. )
+    :type df: pandas.DataFrame
+
+    :param target_dir: Abs directory to write a summary_xref file
+    :type target_dir: str
+
+    :param filename: Name of output file
+    :type filename: str
+    """
+    target_dir = as_path(
+        target_dir, 'Output files directory', is_dir=True, preexists=False
+    )
+    parquet_fp = os.path.join(target_dir, filename)
+    try:
+        df.to_parquet(path=parquet_fp, engine='pyarrow')
+    except (IOError, OSError) as e:
+        raise OasisException(
+            "Exception raised in 'write_df_to_parquet_file'", e
+        )
+
+    return parquet_fp
+
+
+def get_summary_xref_df(
+    map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type,
+    id_set_index='output_id'
+):
     """
     Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
@@ -477,7 +512,12 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     for summary_set in summaries_info_dict:
         summary_set_df = ids_set_df
         cols_group_by = get_column_selection(summary_set)
-        desc_key = '{}_S{}_summary-info.csv'.format(summaries_type, summary_set['id'])
+        file_extension = 'csv'
+        if summary_set.get('ord_output', {}).get('parquet_format'):
+            file_extension = 'parquet'
+        desc_key = '{}_S{}_summary-info.{}'.format(
+            summaries_type, summary_set['id'], file_extension
+        )
 
         # an empty intersection means no selected columns from the input data
         if not set(cols_group_by).intersection(all_cols):
@@ -493,7 +533,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
             summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv',
-                                          value=map_df.drop_duplicates(['loc_id', 'coverage_type_id'], keep='first').tiv.sum())
+                                          value=map_df.drop_duplicates(['building_id', 'loc_id', 'coverage_type_id'], keep='first').tiv.sum())
         else:
             (
                 summary_set_df['summary_id'],
@@ -595,11 +635,14 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
             id_set_index
         )
         # Write Xref file
-        write_df_to_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])
+        write_df_to_csv_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])
 
         # Write summary_id description files
         for desc_key in gul_summary_desc:
-            write_df_to_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(gul_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
     if il_summaries:
         # Load FM summary map
@@ -620,11 +663,14 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
             'il'
         )
         # Write Xref file
-        write_df_to_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['il'])
+        write_df_to_csv_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files
         for desc_key in il_summary_desc:
-            write_df_to_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
     if ri_summaries:
         ri_layers = get_ri_settings(model_run_fp)
@@ -650,11 +696,14 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
             'ri'
         )
         # Write Xref file
-        write_df_to_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
+        write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files
         for desc_key in ri_summary_desc:
-            write_df_to_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            if desc_key.split('.')[-1] == 'parquet':
+                write_df_to_parquet_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
+            else:
+                write_df_to_csv_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
 
 def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):

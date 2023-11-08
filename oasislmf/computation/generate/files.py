@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import List
 
 from oasislmf.computation.base import ComputationStep
-from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
+from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
+                                                            CoveragesFile,
                                                             DamageBinDictFile,
                                                             EventsFile,
                                                             FMPolicyTCFile,
@@ -22,6 +23,7 @@ from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
                                                             FootprintBinFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
+                                                            LossFactorsFile,
                                                             OccurrenceFile,
                                                             RandomFile,
                                                             VulnerabilityFile)
@@ -311,9 +313,10 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            gul_inputs_df=gul_inputs_df,
+            gul_inputs_df=gul_inputs_df.copy(),
             locations_df=exposure_data.location.dataframe,
             accounts_df=exposure_data.account.dataframe,
+            oed_schema=exposure_data.oed_schema,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
@@ -402,6 +405,11 @@ class GenerateDummyModelFiles(ComputationStep):
          'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0,
          'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
+        {'name': 'num_amplifications', 'flag': '-m', 'requried': False, 'type': int, 'default': 0, 'help': 'Number of amplifications'},
+        {'name': 'min_pla_factor', 'flag': '-f', 'required': False, 'type': float, 'default': 0.875,
+         'help': 'Minimum Post Loss Amplification Factor'},
+        {'name': 'max_pla_factor', 'flag': '-F', 'required': False, 'type': float, 'default': 1.5,
+         'help': 'Maximum Post Loss Amplification Factor'},
         {'name': 'num_randoms', 'flag': '-r', 'required': False, 'type': int, 'default': 0, 'help': 'Number of random numbers'},
         {'name': 'random_seed', 'flag': '-R', 'required': False, 'type': int, 'default': -
          1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
@@ -411,11 +419,17 @@ class GenerateDummyModelFiles(ComputationStep):
         if self.vulnerability_sparseness > 1.0 or self.vulnerability_sparseness < 0.0:
             raise OasisException('Invalid value for --vulnerability-sparseness')
         if self.intensity_sparseness > 1.0 or self.intensity_sparseness < 0.0:
-            raise OasisException('Invlid value for --intensity-sparseness')
+            raise OasisException('Invalid value for --intensity-sparseness')
         if not self.areaperils_per_event:
             self.areaperils_per_event = self.num_areaperils
         if self.areaperils_per_event > self.num_areaperils:
             raise OasisException('Number of areaperils per event exceeds total number of areaperils')
+        if self.num_amplifications < 0.0:
+            raise OasisException('Invalid value for --num-amplifications')
+        if self.max_pla_factor < self.min_pla_factor:
+            raise OasisException('Value for --max-pla-factor must be greater than that for --min-pla-factor')
+        if self.min_pla_factor < 0:
+            raise OasisException('Invalid value for --min-pla-factor')
         if self.random_seed < -1:
             raise OasisException('Invalid random seed')
 
@@ -477,6 +491,14 @@ class GenerateDummyModelFiles(ComputationStep):
                 self.input_dir, **self.periods_per_event_parameters
             )
         ]
+        if self.num_amplifications > 0:
+            self.model_files += [
+                LossFactorsFile(
+                    self.num_events, self.num_amplifications,
+                    self.min_pla_factor, self.max_pla_factor, self.random_seed,
+                    self.static_dir
+                )
+            ]
         if self.num_randoms > 0:
             self.model_files += [
                 RandomFile(self.num_randoms, self.random_seed, self.static_dir)
@@ -532,6 +554,13 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
                 self.num_locations, self.coverages_per_location, self.input_dir
             )
         ]
+        if self.num_amplifications > 0:
+            self.gul_files += [
+                AmplificationsFile(
+                    self.num_locations, self.coverages_per_location,
+                    self.num_amplifications, self.random_seed, self.input_dir
+                )
+            ]
 
     def _get_fm_file_objects(self):
 

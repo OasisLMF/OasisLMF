@@ -28,7 +28,7 @@ class FmAcceptanceTests(TestCase):
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
 
-    def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
+    def run_test(self, test_case, model_perils_covered, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             run_dir = tmp_run_dir
             if self.fm_keep_output:
@@ -43,6 +43,7 @@ class FmAcceptanceTests(TestCase):
                 test_case_name=test_case,
                 run_dir=run_dir,
                 update_expected=self.update_expected,
+                model_perils_covered=model_perils_covered,
                 fmpy=fmpy,
                 num_subperils=subperils,
                 test_tolerance=0.001,

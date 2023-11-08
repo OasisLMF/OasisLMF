@@ -311,6 +311,8 @@ class RunFmTest(ComputationStep):
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
         {'name': 'test_tolerance', 'type': float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001',
          'default': 1e-4},
+        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
+         'help': 'List of peril covered by the model'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -407,6 +409,7 @@ class RunFmTest(ComputationStep):
             run_dir=run_dir,
             loss_factor=loss_factor,
             output_level=output_level,
+            model_perils_covered=self.model_perils_covered,
             output_file=output_file,
             include_loss_factor=include_loss_factor,
             fmpy=self.fmpy,
@@ -438,13 +441,14 @@ class RunFmTest(ComputationStep):
         if ril:
             files += ['rils.csv']
 
+
         test_result = True
         for f in files:
             generated = os.path.join(run_dir, f)
             expected = os.path.join(expected_data_dir, f)
 
             if not os.path.exists(expected):
-                if self.update_expected:
+                if self.update_expected and os.path.exists(generated):
                     shutil.copyfile(generated, expected)
                 continue
 
