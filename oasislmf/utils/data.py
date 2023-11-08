@@ -806,12 +806,6 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 if exposure_data.ri_info and exposure_data.ri_scope:
                     exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
                                                                                                                exposure_data.ri_scope.dataframe)
-        ptf_filter = 'FloodGeneral_T1'
-        acc_filter = 'A2_T1'
-        exposure_data.location.dataframe = exposure_data.location.dataframe[(exposure_data.location.dataframe['PortNumber'] == ptf_filter) &
-                                                                            (exposure_data.location.dataframe['AccNumber'] == acc_filter)]
-        exposure_data.account.dataframe = exposure_data.account.dataframe[(exposure_data.account.dataframe['PortNumber'] == ptf_filter) &
-                                                                          (exposure_data.account.dataframe['AccNumber'] == acc_filter)]
         return exposure_data
     except OdsException as ods_error:
         raise OasisException("Failed to load OED exposure files", ods_error)

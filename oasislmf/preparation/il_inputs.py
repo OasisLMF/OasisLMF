@@ -845,7 +845,7 @@ def get_il_input_items(
         il_inputs_df['limit']
     )
 
-    if False: # TODO: if step_policies_present:
+    if step_policies_present:
         # Before assigning calc. rule IDs and policy TC IDs, the StepTriggerType
         # should be split into its sub-types in cases where the associated
         # coverages are covered separately

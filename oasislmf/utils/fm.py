@@ -168,25 +168,9 @@ STEP_TRIGGER_TYPES = OrderedDict({
             SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
             SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
             SUPPORTED_COVERAGE_TYPES['contents']['id']: 2,
-            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0
         }
     }
 })
-
-# COVERAGE_AGGREGATION_METHODS = OrderedDict({
-#     1: {
-#         SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
-#         SUPPORTED_COVERAGE_TYPES['other']['id']: 2,
-#         SUPPORTED_COVERAGE_TYPES['contents']['id']: 3,
-#         SUPPORTED_COVERAGE_TYPES['bi']['id']: 4
-#     },
-#     2: {
-#         SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
-#         SUPPORTED_COVERAGE_TYPES['other']['id']: 2,
-#         SUPPORTED_COVERAGE_TYPES['contents']['id']: 1,
-#         SUPPORTED_COVERAGE_TYPES['bi']['id']: 3
-#     }
-# })
 
 COVERAGE_AGGREGATION_METHODS = OrderedDict({
     1: {
