@@ -206,7 +206,7 @@ class TestGenKeys(ComputationChecker):
         exposure_data = Mock()
         mock_get_exposure.return_value = exposure_data
 
-        self.default_args['noconvert'] = True
+        self.default_args['disable_oed_version_update'] = True
         call_args = self.combine_args([
             {k: v.name for k, v in self.tmp_dirs.items()},
             {k: v.name for k, v in self.tmp_files.items()},

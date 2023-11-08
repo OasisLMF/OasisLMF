@@ -79,7 +79,7 @@ class GenerateKeys(KeyComputationStep):
          'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
          'help': 'Flag to enable/disable lookup multiprocessing'},
-        {'name': 'noconvert', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+        {'name': 'disable_oed_version_update', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable conversion to latest compatible OED version. Must be present in model settings.'},
 
         # Manager only options
@@ -110,7 +110,7 @@ class GenerateKeys(KeyComputationStep):
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
-        if not self.noconvert:
+        if not self.disable_oed_version_update:
             if self.model_settings_json is not None:
                 try:
                     model_settings = ModelSettingSchema().get(self.model_settings_json, validate=False)
