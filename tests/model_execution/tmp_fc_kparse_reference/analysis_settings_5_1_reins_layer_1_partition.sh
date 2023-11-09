@@ -75,7 +75,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1.idx
 tee < /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-summarycalc -m -f -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/ri_P1 &
+summarycalc -m -f -z -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -105,7 +105,7 @@ summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/f
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 work/full_correlation/ri_S1_summaryleccalc/P1.bin > /dev/null & pid10=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1.idx work/full_correlation/ri_S1_summaryleccalc/P1.idx > /dev/null & pid11=$!
 
-summarycalc -m -f -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 &
+summarycalc -m -f -z -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 &
 
 # --- Do insured loss computes ---
 
