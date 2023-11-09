@@ -71,8 +71,8 @@ tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & p
 tee < fifo/ri_S1_summary_P2 work/ri_S1_summaryleccalc/P2.bin > /dev/null & pid3=$!
 tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summaryleccalc/P2.idx > /dev/null & pid4=$!
 
-summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
-summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
+summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
 
 # --- Do insured loss computes ---
 
