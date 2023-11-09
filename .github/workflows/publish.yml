@@ -183,7 +183,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
       run: |
-        ${{ github.workspace }}/auto_changelog.py build-changelog \
+        ${{ github.workspace }}/update-changelog.py build-changelog \
           --repo OasisLMF \
           --from-tag ${{ env.PREV_RELEASE_TAG }} \
           --to-tag ${{ env.RELEASE_TAG }} \
@@ -197,7 +197,7 @@ jobs:
     - name: Create Release notes
       working-directory: ${{ env.WORKSPACE }}
       run: |
-        ${{ github.workspace }}/auto_changelog.py build-release \
+        ${{ github.workspace }}/update-changelog.py build-release \
           --repo OasisLMF \
           --from-tag ${{ env.PREV_RELEASE_TAG }} \
           --to-tag ${{ env.RELEASE_TAG }} \
