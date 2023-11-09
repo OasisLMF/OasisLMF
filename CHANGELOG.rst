@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.23.20`_
+ ---------
+* [#1337](https://github.com/OasisLMF/OasisLMF/pull/1337) - Update CI - 1.23
+* [#1397](https://github.com/OasisLMF/OasisLMF/pull/1397) - Add output zeros flag to summarycalc for all reinsurance loss computes
+.. _`1.23.20`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.18...1.23.20
+
 `1.23.18`_
  ---------
 * [#1276](https://github.com/OasisLMF/OasisLMF/pull/1276) - Release 1.23.17
