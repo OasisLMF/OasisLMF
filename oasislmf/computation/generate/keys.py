@@ -128,12 +128,12 @@ class GenerateKeys(KeyComputationStep):
                             exposure_data.to_version(supported_versions[0])
                         else:
                             # If 'supported_oed_versions' is neither a string nor a non-empty list
-                            self.logger.debug("Invalid OED version information in model settings.")
+                            self.logger.warning("Invalid OED version information in model settings.")
                     else:
                         # If 'supported_oed_versions' is missing or empty
                         self.logger.debug("No OED version information in model settings.")
                 except OdsException:
-                    self.logger.info("Could not load model settings. No conversion to OED version will be performed.")
+                    self.logger.debug("No OED version information in model settings.")
 
         keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
