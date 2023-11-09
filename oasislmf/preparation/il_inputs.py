@@ -539,10 +539,6 @@ def get_il_input_items(
     :return Accounts dataframe
     :rtype: pandas.DataFrame
     """
-    print('locations_df init', sorted(locations_df.columns))
-    print('gul_inputs_df init', sorted(gul_inputs_df.columns))
-    print('accounts_df init', sorted(accounts_df.columns))
-
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
 
     # Get the FM aggregation profile - this describes how the IL input
@@ -637,11 +633,6 @@ def get_il_input_items(
                 'FMTermType': col,
             }
         for key, step_term in get_default_step_policies_profile().items():
-            print(step_term['Key'], {
-                'ProfileElementName': step_term['Key'],
-                'FMTermType': step_term['FMProfileField'],
-                'FMProfileStep': step_term.get('FMProfileStep')
-            })
             step_policy_level_map[step_term['Key']] = {
                 'ProfileElementName': step_term['Key'],
                 'FMTermType': step_term['FMProfileField'],
@@ -759,7 +750,7 @@ def get_il_input_items(
             level_df.drop(columns=['agg_id_prev'], inplace=True)
 
             level_df = level_df.merge(
-                level_df[['coverage_type_id', 'gul_input_id', 'agg_id', 'tiv']]
+                level_df[['loc_id', 'coverage_type_id', 'building_id', 'agg_id', 'tiv']]
                 .drop_duplicates()[['agg_id', 'tiv']]
                 .groupby('agg_id', observed=True)['tiv']
                 .sum()
@@ -805,6 +796,7 @@ def get_il_input_items(
 
     prev_level_df['to_agg_id'] = 0
     il_inputs_df_list.append(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
+
     il_inputs_df = pd.concat(il_inputs_df_list)
     for col in set(list(il_inputs_df.columns)):
         try:
