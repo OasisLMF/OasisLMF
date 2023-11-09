@@ -408,7 +408,7 @@ def do_summarycalcs(
     summarycalc_directory_switch = ""
     if runtype == RUNTYPE_REINSURANCE_LOSS:
         i = num_reinsurance_iterations
-        summarycalc_directory_switch = "-p RI_{0}".format(i)
+        summarycalc_directory_switch = "-z -p RI_{0}".format(i)
 
     input_filename_component = ''
     if gul_full_correlation:
