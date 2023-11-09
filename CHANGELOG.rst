@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.27.7`_
+ ---------
+* [#1397](https://github.com/OasisLMF/OasisLMF/pull/1397) - Add output zeros flag to summarycalc for all reinsurance loss computes
+* [#1219](https://github.com/OasisLMF/OasisLMF/pull/1327) - Fix flakly checks in TestGetDataframe
+* [#1390](https://github.com/OasisLMF/OasisLMF/pull/1390) - Backport - Post analysis hook
+* [#1335](https://github.com/OasisLMF/OasisLMF/pull/1335) - Update CI - 1.27
+.. _`1.27.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.5...1.27.7
+
 `1.27.5`_
  ---------
 * [#1214](https://github.com/OasisLMF/OasisLMF/pull/1305) - Undefined behaviour when no successes are passed to write_oasis_keys_file
