@@ -112,7 +112,7 @@ class TestRunModel(ComputationChecker):
                     patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
                 self.manager.run_model(**call_args)
 
-        expected_err_msg = "The param 'gulpy' has an invalid value 'invalid-string' for boolean."
+        expected_err_msg = "The parameter 'gulpy' has an invalid value 'invalid-string' for boolean."
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_model_run__with_pre_analysis(self):
