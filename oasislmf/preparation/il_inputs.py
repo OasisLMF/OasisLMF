@@ -649,7 +649,7 @@ def get_il_input_items(
 
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
             level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(term_df_source, level_column_mapper, level_id, step_level,
-                                                                              fm_peril_field)
+                                                                                            fm_peril_field)
             if not terms_maps:  # no terms we skip this level
                 continue
 
