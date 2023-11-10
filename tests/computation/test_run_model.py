@@ -93,7 +93,7 @@ class TestRunModel(ComputationChecker):
 
         with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
                 patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock), \
-                  patch.object(oasislmf.computation.base, 'str2bool', str2bool_mock):
+        patch.object(oasislmf.computation.base, 'str2bool', str2bool_mock):
             self.manager.run_model(**call_args)
         str2bool_mock.assert_called_with('False')
 
