@@ -440,6 +440,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     level_terms = set()
     terms_maps = {}
     coverage_group_map = {}
+    fm_group_tiv = {}
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if ProfileElementName not in term_df_source.columns:
             continue
@@ -483,6 +484,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
 
             if isinstance(coverage_type_ids, int):
                 coverage_type_ids = [coverage_type_ids]
+            fm_group_tiv[FMTermGroupID] = coverage_type_ids
             for coverage_type_id in coverage_type_ids:
                 if step_level:
                     coverage_group_key = (0, coverage_type_id)
@@ -496,7 +498,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                 else:
                     coverage_group_map[coverage_group_key] = FMTermGroupID
             terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'})[ProfileElementName] = term_info['FMTermType'].lower()
-    return level_terms, terms_maps, coverage_group_map
+    return level_terms, terms_maps, coverage_group_map, fm_group_tiv
 
 
 @oasis_log
@@ -540,6 +542,7 @@ def get_il_input_items(
     :rtype: pandas.DataFrame
     """
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
+    tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in profile[1].items()}
 
     # Get the FM aggregation profile - this describes how the IL input
     # items are to be aggregated in the various FM levels
@@ -559,9 +562,11 @@ def get_il_input_items(
     oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
     # =====
     useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
-                             + get_useful_summary_cols(oed_hierarchy))
+                             + get_useful_summary_cols(oed_hierarchy) + list(tiv_terms.values()))
                          - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
     gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
+    # adjust tiv columns and name them as their coverage id
+    gul_inputs_df.rename(columns=tiv_terms, inplace=True)
     gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
     gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
     gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
@@ -575,8 +580,7 @@ def get_il_input_items(
     gul_inputs_df = gul_inputs_df[present_cols]
 
     # Remove TIV col from location as this information is present in gul_input_df
-    tiv_cols = [v['tiv']['ProfileElementName'] for v in profile[SUPPORTED_FM_LEVELS['site coverage']['id']].values()]
-    locations_df = locations_df.drop(columns=tiv_cols)
+    locations_df = locations_df.drop(columns=tiv_terms.keys())
 
     # Profile dict are base on key that correspond to the fm term name.
     # this prevent multiple file column to point to the same fm term
@@ -610,7 +614,7 @@ def get_il_input_items(
     prev_level_df['share'] = 0
 
     il_inputs_df_list = []
-    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids, errors='ignore').reset_index()
+    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids + ['tiv'], errors='ignore').reset_index()
     prev_df_subset = prev_agg_key
 
     # Determine whether step policies are listed, are not full of nans and step
@@ -644,7 +648,7 @@ def get_il_input_items(
             level_id = level_info['id']
 
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
-            level_terms, terms_maps, coverage_group_map = get_level_term_info(term_df_source, level_column_mapper, level_id, step_level,
+            level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(term_df_source, level_column_mapper, level_id, step_level,
                                                                               fm_peril_field)
             if not terms_maps:  # no terms we skip this level
                 continue
@@ -694,8 +698,19 @@ def get_il_input_items(
                 # map the coverage_type_id to the correct FMTermGroupID for this level. coverage_type_id without term and therefor FMTermGroupID are map to 0
                 gul_inputs_df['FMTermGroupID'] = gul_inputs_df['coverage_type_id'].map(coverage_group_map, na_action='ignore')
 
+            # make sure correct tiv sum exist
+            for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
+                tiv_key = '_'.join(map(str, sorted(coverage_type_ids)))
+                if tiv_key not in gul_inputs_df:
+                    gul_inputs_df[tiv_key] = gul_inputs_df[map(str, sorted(coverage_type_ids))].sum(axis=1)
+
             # we have prepared FMTermGroupID on gul or level df (depending on  step_level) now we can merge the terms for this level to gul
             level_df = (gul_inputs_df.merge(level_df, how='left'))
+
+            # assign correct tiv
+            for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
+                tiv_key = '_'.join(map(str, sorted(coverage_type_ids)))
+                level_df['tiv'] = level_df.loc[level_df['FMTermGroupID'] == FMTermGroupID, tiv_key]
 
             # check that peril_id is part of the fm peril policy, if not we remove the terms
             level_df['fm_peril'] = level_df['fm_peril'].fillna('')
@@ -749,13 +764,15 @@ def get_il_input_items(
 
             level_df.drop(columns=['agg_id_prev'], inplace=True)
 
+            # we don't need coverage_type_id as an agg key as tiv already represent the sum of correct tiv values
             level_df = level_df.merge(
-                level_df[['loc_id', 'coverage_type_id', 'building_id', 'agg_id', 'tiv']]
+                level_df[['loc_id', 'building_id', 'agg_id', 'tiv']]
                 .drop_duplicates()[['agg_id', 'tiv']]
                 .groupby('agg_id', observed=True)['tiv']
                 .sum()
                 .reset_index(name='agg_tiv'), how='left'
             )
+
             __drop_duplicated_row(il_inputs_df_list[-1] if il_inputs_df_list else None, prev_level_df, prev_df_subset)
             il_inputs_df_list.append(pd.concat([prev_level_df, root_df]))
 
@@ -835,6 +852,7 @@ def get_il_input_items(
         il_inputs_df['deductible'] * il_inputs_df['agg_tiv'],
         il_inputs_df['deductible']
     )
+
     il_inputs_df['limit'] = np.where(
         il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
         il_inputs_df['limit'] * il_inputs_df['agg_tiv'],

@@ -13,6 +13,7 @@ import warnings
 from collections import OrderedDict
 
 import pandas as pd
+import numpy as np
 
 from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -304,10 +305,8 @@ def get_gul_input_items(
     for cov_type in gul_inputs_df.coverage_type_id.unique():
         tiv_col = tiv_terms[cov_type]
         other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
-        other_cov_type_term_cols = (
-            [v for k, v in tiv_terms.items() if k != cov_type] +
-            get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
-        )
+        other_cov_type_term_cols = get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
+
         is_bi_coverage = cov_type == SUPPORTED_COVERAGE_TYPES['bi']['id']  # store for cov_type
         cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
         cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
@@ -315,12 +314,12 @@ def get_gul_input_items(
             generic_col: cov_col
             for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms) if generic_col in gul_inputs_df.columns
         }
-        column_mapping_dict[tiv_col] = 'tiv'
 
         cols_by_cov_type[cov_type] = {
             'to_drop': other_cov_types + other_cov_type_term_cols,
             'is_bi_coverage': is_bi_coverage,
-            'column_mapping_dict': column_mapping_dict
+            'column_mapping_dict': column_mapping_dict,
+            'tiv_col': tiv_col
         }
 
     # coverage unpacking and disaggregation loop:
@@ -332,6 +331,10 @@ def get_gul_input_items(
     #  - set the IL terms (and BI coverage boolean) in each group and update the corresponding frame section in the GUL inputs table
     gul_inputs_reformatted_chunks = []
     terms_found = set()
+
+    # split TIV
+    gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
+
     for (number_of_buildings, cov_type), cov_type_group in gul_inputs_df.groupby(by=['NumberOfBuildings', 'coverage_type_id'], sort=True):
         # drop columns corresponding to other cov types
         cov_type_group.drop(
@@ -344,11 +347,9 @@ def get_gul_input_items(
         cov_type_group['is_bi_coverage'] = cols_by_cov_type[cov_type]['is_bi_coverage']
 
         cov_type_group.rename(columns=cols_by_cov_type[cov_type]['column_mapping_dict'], inplace=True, copy=False)
+        cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
-
-        # split TIV
-        cov_type_group['tiv'] /= max(number_of_buildings, 1)
 
         # if NumberOfBuildings == 0: still add one entry
         disagg_df_chunk = []
@@ -365,7 +366,6 @@ def get_gul_input_items(
         .reset_index(drop=True)
         .fillna(value={c: 0 for c in set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints))})
     )
-
     # set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
@@ -419,6 +419,7 @@ def get_gul_input_items(
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
         # disagg_id is needed for fm_summary_map
         ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', ] +
+        tiv_cols +
         (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
     )
 
