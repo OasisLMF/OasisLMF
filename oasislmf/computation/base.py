@@ -49,7 +49,7 @@ class ComputationStep:
                 else:
                     param_value = param.get('default')
 
-            if (param.get('type', None) == str2bool) and (not isinstance(param_value, bool)):
+            if (getattr(param.get('type'), '__name__', None) == 'str2bool') and (not isinstance(param_value, bool)):
                 try:
                     param_value = str2bool(param_value)
                 except ArgumentTypeError:
