@@ -54,9 +54,9 @@ class ComputationStep:
                     param_value = str2bool(param_value)
                 except ArgumentTypeError:
                     raise OasisException(
-                        f"The param '{param.get('name')}' has an invalid value '{param_value}' for boolean"
-                        "\n  Valid strings for True:  ['yes', 'true', 't', 'y', '1']"
-                        "\n  Valid strings for False: ['no', 'false', 'f', 'n', '0']"
+                        f"The param '{param.get('name')}' has an invalid value '{param_value}' for boolean. Valid strings are (case insensitive):"
+                        "\n  True:  ['yes', 'true', 't', 'y', '1']"
+                        "\n  False: ['no', 'false', 'f', 'n', '0']"
                     )
 
             if (param.get('is_path')
