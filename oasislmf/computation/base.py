@@ -49,6 +49,9 @@ class ComputationStep:
                 else:
                     param_value = param.get('default')
 
+            if (param.get('type', None) == str2bool) and (not isinstance(param_value, bool)):
+                param_value = str2bool(param_value)
+
             if (param.get('is_path')
                     and param_value is not None
                     and not isinstance(param_value, OedSource)):
