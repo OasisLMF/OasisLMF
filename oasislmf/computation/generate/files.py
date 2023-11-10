@@ -72,19 +72,9 @@ class GenerateFiles(ComputationStep):
          'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
         {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
-        {'name': 'lookup_config_json', 'flag': '-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir', 'flag': '-k', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
-        {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
-        {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
-        {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
-        {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
-        {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
-        {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': True, 'help': 'Model settings JSON file path'},
-        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
-         'help': 'Directory containing additional model data files which varies between analysis runs'},
-        {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
+        {'name': 'profile_loc_json', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
-        {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
+        {'name': 'profile_fm_agg_json', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
@@ -110,6 +100,10 @@ class GenerateFiles(ComputationStep):
         {'name': 'profile_loc', 'default': get_default_exposure_profile()},
         {'name': 'profile_acc', 'default': get_default_accounts_profile()},
         {'name': 'profile_fm_agg', 'default': get_default_fm_aggregation_profile()},
+    ]
+
+    chained_commands = [
+        GenerateKeys
     ]
 
     def _get_output_dir(self):
@@ -142,7 +136,8 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
-
+        if self.model_settings_json is not None:
+            print(f"Model settings are present at: {self.model_settings_json}")
         self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
