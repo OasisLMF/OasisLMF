@@ -417,7 +417,7 @@ def get_cond_info(locations_df, accounts_df):
 
 def get_levels(gul_inputs_df, locations_df, accounts_df, cond_info):
     level_conds, extra_accounts = cond_info
-    for group_name, group_info in GROUPED_SUPPORTED_FM_LEVELS.items():
+    for group_name, group_info in copy.deepcopy(GROUPED_SUPPORTED_FM_LEVELS).items():
         if group_info['oed_source'] == 'location':
             locations_df['layer_id'] = 1
             yield locations_df, list(group_info['levels'].items())[1:], group_info['fm_peril_field']  # [1:] => 'site coverage' is already done
@@ -619,12 +619,20 @@ def get_il_input_items(
 
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
+    step_policies_present = False
+    extra_fm_col = ['layer_id']
     if 'StepTriggerType' in accounts_df and 'StepNumber' in accounts_df:
         fill_empty(accounts_df, ['StepTriggerType', 'StepNumber'], 0)
-        step_policies_present = (accounts_df['StepTriggerType'].notnull().any()
-                                 and accounts_df[accounts_df['StepTriggerType'].notnull()]['StepNumber'].gt(0).any())
-    else:
-        step_policies_present = False
+        step_account = (accounts_df[accounts_df[accounts_df['StepTriggerType'].notnull()]['StepNumber'].gt(0)][['PortNumber', 'AccNumber']]
+                        .drop_duplicates())
+        step_policies_present = bool(step_account.shape[0])
+        # this is done only for fmcalc to make sure it program nodes stay as a tree, remove 'is_step' logic when fmcalc is dropped
+        if step_policies_present:
+            step_account['is_step'] = 1
+            gul_inputs_df = gul_inputs_df.merge(step_account, how='left')
+            gul_inputs_df['is_step'] = gul_inputs_df['is_step'].fillna(0).astype('int8')
+            extra_fm_col = ['layer_id', 'is_step']
+
 
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
@@ -642,11 +650,9 @@ def get_il_input_items(
                 'FMTermType': step_term['FMProfileField'],
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
-
     for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df, get_cond_info(locations_df, accounts_df)):
         for level, level_info in levels:
             level_id = level_info['id']
-
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
             level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(term_df_source, level_column_mapper, level_id, step_level,
                                                                                             fm_peril_field)
@@ -654,7 +660,6 @@ def get_il_input_items(
                 continue
 
             agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-
             # get all rows with terms in term_df_source and determine the correct FMTermGroupID
             level_df_list = []
             for group_key, terms in terms_maps.items():
@@ -666,7 +671,7 @@ def get_il_input_items(
                     FMTermGroupID = group_key
                     group_df = term_df_source
 
-                group_df = (group_df[list(set(agg_key + list(terms.keys()) + ['layer_id'])
+                group_df = (group_df[list(set(agg_key + list(terms.keys()) + extra_fm_col)
                                           .union(set(useful_cols).difference(set(gul_inputs_df.columns)))
                                           .intersection(group_df.columns))]
                             .assign(FMTermGroupID=FMTermGroupID))
@@ -683,7 +688,6 @@ def get_il_input_items(
                     else:
                         group_df.rename(columns={ProfileElementName: term}, inplace=True)
                 level_df_list.append(group_df)
-
             level_df = pd.concat(level_df_list, copy=True)
 
             if step_level:
@@ -734,14 +738,15 @@ def get_il_input_items(
                 __split_fm_terms_by_risk(level_df)
 
             # for line that had no term FMTermGroupID == 0, we store in FMTermGroupID the previous agg_id to keep the same granularity
-            level_df.loc[level_df['FMTermGroupID'] == 0, 'FMTermGroupID'] = -level_df['agg_id_prev']
+            if 'is_step' in level_df:
+                level_df.loc[(level_df['FMTermGroupID'] == 0) & (level_df['is_step'] == 1), 'FMTermGroupID'] = -level_df['agg_id_prev']
 
             factorize_key = agg_key + ['FMTermGroupID', 'fm_peril']
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, factorize_key].values, col_idxs=range(len(factorize_key)))[0]
 
             # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
-            need_root_start_df = level_df.groupby("agg_id_prev").agg({"agg_id": pd.Series.nunique})
-            need_root_start_df = need_root_start_df[need_root_start_df['agg_id'] > 1].index
+            need_root_start_df = level_df.groupby("agg_id_prev")["agg_id"].nunique()
+            need_root_start_df = need_root_start_df[need_root_start_df > 1].index
 
             # create new prev df for element that need to restart from items
             root_df = level_df[((level_df['agg_id_prev'].isin(need_root_start_df)) & (level_df['layer_id'] == 1))]
@@ -755,9 +760,9 @@ def get_il_input_items(
             prev_level_df['to_agg_id'] = (prev_level_df[['gul_input_id']]
                                           .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
 
-            prev_level_df.loc[prev_level_df['to_agg_id'].isna(), 'to_agg_id'] = (max_agg_id +
-                                                                                 factorize_ndarray(prev_level_df.loc[prev_level_df['to_agg_id'].isna(), ['agg_id']].values,
-                                                                                                   col_idxs=range(len(['agg_id'])))[0])
+            prev_level_df.loc[prev_level_df['to_agg_id'].isna(), 'to_agg_id'] = (
+                    max_agg_id +
+                    factorize_ndarray(prev_level_df.loc[prev_level_df['to_agg_id'].isna(), ['agg_id']].values, col_idxs=range(len(['agg_id'])))[0])
             prev_level_df.loc[prev_level_df['agg_id'].isin(need_root_start_df), 'to_agg_id'] = 0
 
             prev_level_df['to_agg_id'] = prev_level_df['to_agg_id'].astype('int32')
