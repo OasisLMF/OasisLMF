@@ -196,7 +196,6 @@ class TestGenFiles(ComputationChecker):
         self.write_json(model_settings_file, CORRELATIONS_MODEL_SETTINGS)
         analysis_settings_file = self.tmp_files.get('analysis_settings_json')
         self.write_json(analysis_settings_file, MIN_RUN_CORRELATIONS_SETTINGS)
-
         with self.tmp_dir() as _:
             call_args = {
                 **self.ri_args,
@@ -204,7 +203,6 @@ class TestGenFiles(ComputationChecker):
                 'analysis_settings_json': analysis_settings_file.name
             }
             self.manager.generate_files(**call_args)
-
             establish_correlations.assert_called_once()
             used_correlations = establish_correlations.call_args.kwargs['model_settings']
             self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['correlation_settings'])
