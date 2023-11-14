@@ -632,8 +632,7 @@ def get_il_input_items(
             gul_inputs_df = gul_inputs_df.merge(step_account, how='left')
             gul_inputs_df['is_step'] = gul_inputs_df['is_step'].fillna(0).astype('int8')
             extra_fm_col = ['layer_id', 'is_step']
-
-
+            
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
     if step_policies_present:
@@ -761,8 +760,8 @@ def get_il_input_items(
                                           .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
 
             prev_level_df.loc[prev_level_df['to_agg_id'].isna(), 'to_agg_id'] = (
-                    max_agg_id +
-                    factorize_ndarray(prev_level_df.loc[prev_level_df['to_agg_id'].isna(), ['agg_id']].values, col_idxs=range(len(['agg_id'])))[0])
+                max_agg_id +
+                factorize_ndarray(prev_level_df.loc[prev_level_df['to_agg_id'].isna(), ['agg_id']].values, col_idxs=range(len(['agg_id'])))[0])
             prev_level_df.loc[prev_level_df['agg_id'].isin(need_root_start_df), 'to_agg_id'] = 0
 
             prev_level_df['to_agg_id'] = prev_level_df['to_agg_id'].astype('int32')
