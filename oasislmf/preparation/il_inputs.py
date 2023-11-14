@@ -632,7 +632,6 @@ def get_il_input_items(
             gul_inputs_df = gul_inputs_df.merge(step_account, how='left')
             gul_inputs_df['is_step'] = gul_inputs_df['is_step'].fillna(0).astype('int8')
             extra_fm_col = ['layer_id', 'is_step']
-            
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
     if step_policies_present:
