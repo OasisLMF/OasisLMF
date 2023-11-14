@@ -23,6 +23,8 @@ __all__ = [
     'OLD_GROUP_FIELDS_MODEL_SETTINGS',
     'merge_dirs',
     'ALL_EXPECTED_SCRIPT',
+    'MIN_RUN_CORRELATIONS_SETTINGS',
+    'CORRELATIONS_MODEL_SETTINGS'
 ]
 
 import os
@@ -70,6 +72,24 @@ MIN_RUN_SETTINGS = {
             "id": 1,
             "eltcalc": True,
         }
+    ]
+}
+
+MIN_RUN_CORRELATIONS_SETTINGS = {
+    "model_supplier_id": "M-sup",
+    "model_name_id": 'M-name',
+    "model_settings": {},
+    "number_of_samples": 1,
+    "gul_output": True,
+    "gul_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
+    ],
+    'correlation_settings': [
+        {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
+        {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}
     ]
 }
 
@@ -326,6 +346,24 @@ GROUP_FIELDS_MODEL_SETTINGS = {
     "version": "3",
     "model_settings": {},
     "lookup_settings": {},
+    "model_default_samples": 10,
+    "data_settings": {
+        "damage_group_fields": ["PortNumber", "AccNumber", "LocNumber"],
+        "hazard_group_fields": ["PortNumber", "AccNumber", "LocNumber"]
+    }
+}
+
+CORRELATIONS_MODEL_SETTINGS = {
+    "version": "3",
+    "model_settings": {},
+    "lookup_settings": {
+        "supported_perils": [
+            {"id": "WSS", "desc": "Single Peril: Storm Surge", "peril_correlation_group": 1},
+            {"id": "WTC", "desc": "Single Peril: Tropical Cyclone", "peril_correlation_group": 2},
+            {"id": "WW1", "desc": "Group Peril: Windstorm with storm surge"},
+            {"id": "WW2", "desc": "Group Peril: Windstorm w/o storm surge"}
+        ]
+    },
     "model_default_samples": 10,
     "data_settings": {
         "damage_group_fields": ["PortNumber", "AccNumber", "LocNumber"],

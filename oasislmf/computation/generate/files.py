@@ -229,7 +229,6 @@ class GenerateFiles(ComputationStep):
         correlations_analysis_settings = None
         if self.analysis_settings_json is not None:
             correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('correlation_settings', None)
-        # TODO: find out if correlations should be inserted into model_settings even if there are no model_settings.
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             if correlations_analysis_settings is not None:
