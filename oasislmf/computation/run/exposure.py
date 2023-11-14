@@ -60,6 +60,7 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
     ]
 
     def _check_alloc_rules(self):
@@ -114,6 +115,7 @@ class RunExposure(ComputationStep):
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
             keys_data_csv=keys_fp,
+            do_disaggregation=self.do_disaggregation,
         ).run()
 
         # 3. Run Deterministic Losses

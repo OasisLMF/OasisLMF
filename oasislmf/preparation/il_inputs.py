@@ -25,29 +25,30 @@ from ast import literal_eval
 
 import numpy as np
 import pandas as pd
-
 from ods_tools.oed import fill_empty
 
 from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
 from oasislmf.utils.calc_rules import get_calc_rules, get_step_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (factorize_array, factorize_ndarray,
-                                 fast_zip_arrays,
-                                 merge_check, merge_dataframes,
-                                 set_dataframe_column_dtypes)
-from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, assign_defaults_to_il_inputs,
-                                     get_default_accounts_profile, get_default_exposure_profile,
+                                 fast_zip_arrays, merge_check,
+                                 merge_dataframes, set_dataframe_column_dtypes)
+from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
+                                     assign_defaults_to_il_inputs,
+                                     get_default_accounts_profile,
+                                     get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
-                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
-                               SUPPORTED_FM_LEVELS)
+from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS,
+                               COVERAGE_AGGREGATION_METHODS,
+                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL,
+                               STEP_TRIGGER_TYPES, SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
-from oasislmf.utils.profiles import (get_default_step_policies_profile, get_fm_terms_oed_columns,
-                                     get_grouped_fm_profile_by_level_and_term_group,
-                                     get_grouped_fm_terms_by_level_and_term_group,
-                                     get_oed_hierarchy)
+from oasislmf.utils.profiles import (
+    get_default_step_policies_profile, get_fm_terms_oed_columns,
+    get_grouped_fm_profile_by_level_and_term_group,
+    get_grouped_fm_terms_by_level_and_term_group, get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -988,7 +989,8 @@ def get_il_input_items(
         accounts_df,
         exposure_profile=get_default_exposure_profile(),
         accounts_profile=get_default_accounts_profile(),
-        fm_aggregation_profile=get_default_fm_aggregation_profile()
+        fm_aggregation_profile=get_default_fm_aggregation_profile(),
+        do_disaggregation=True,
 ):
     """
     Generates and returns a Pandas dataframe of IL input items.
@@ -1013,6 +1015,9 @@ def get_il_input_items(
 
     :param fm_aggregation_profile: FM aggregation profile (optional)
     :param fm_aggregation_profile: dict
+
+    :param do_disaggregation: whether to split terms and conditions for aggregate exposure (optional)
+    :param do_disaggregation: bool
 
     :return: IL inputs dataframe
     :rtype: pandas.DataFrame
@@ -1179,7 +1184,8 @@ def get_il_input_items(
     prev_level_df = column_base_il_df[list(set(present_cols + coverage_level_term))]
     prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
-    __split_fm_terms_by_risk(prev_level_df)
+    if do_disaggregation:
+        __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     prev_level_df['level_id'] = 1
     prev_level_df['orig_level_id'] = level_id
