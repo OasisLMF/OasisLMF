@@ -497,7 +497,8 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                             f"assigned to the different FMTermGroupID {(FMTermGroupID, coverage_group_map[coverage_group_key])}")
                 else:
                     coverage_group_map[coverage_group_key] = FMTermGroupID
-            terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'} if fm_peril_field else {})[ProfileElementName] = term_info['FMTermType'].lower()
+            terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'} if fm_peril_field else {})[
+                ProfileElementName] = term_info['FMTermType'].lower()
     return level_terms, terms_maps, coverage_group_map, fm_group_tiv
 
 
