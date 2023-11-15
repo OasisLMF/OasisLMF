@@ -84,7 +84,10 @@ GROUPED_SUPPORTED_FM_LEVELS = {
     'policy': {
         'oed_source': 'account',
         'fm_peril_field': 'PolPeril',
-        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['policy coverage', 'policy pd', 'policy all', 'policy layer']}},
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['policy coverage', 'policy pd', 'policy all']}},
+    'layer': {
+        'oed_source': 'account',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['policy layer']}},
     'account': {
         'oed_source': 'account',
         'fm_peril_field': 'AccPeril',

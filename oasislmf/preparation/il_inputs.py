@@ -433,7 +433,7 @@ def get_levels(gul_inputs_df, locations_df, accounts_df, cond_info):
                            group_info['levels'].items(),
                            group_info['fm_peril_field'])
             else:
-                yield accounts_df, group_info['levels'].items(), group_info['fm_peril_field']
+                yield accounts_df, group_info['levels'].items(), group_info.get('fm_peril_field')
 
 
 def get_level_term_info(term_df_source, level_column_mapper, level_id, step_level, fm_peril_field):
@@ -468,7 +468,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     else:
                         coverage_group_map[(step_trigger_type, coverage_type_id)] = FMTermGroupID
 
-                    terms_map = terms_maps.setdefault((FMTermGroupID, step_trigger_type), {fm_peril_field: 'fm_peril'})
+                    terms_map = terms_maps.setdefault((FMTermGroupID, step_trigger_type), {fm_peril_field: 'fm_peril'} if fm_peril_field else {})
                     if CALCRULE_ASSIGNMENT_METHODS[calcrule_assignment_method][FMTermGroupID]:
                         terms_map[ProfileElementName] = term_info['FMTermType'].lower()
         else:
@@ -497,7 +497,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                             f"assigned to the different FMTermGroupID {(FMTermGroupID, coverage_group_map[coverage_group_key])}")
                 else:
                     coverage_group_map[coverage_group_key] = FMTermGroupID
-            terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'})[ProfileElementName] = term_info['FMTermType'].lower()
+            terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'} if fm_peril_field else {})[ProfileElementName] = term_info['FMTermType'].lower()
     return level_terms, terms_maps, coverage_group_map, fm_group_tiv
 
 
@@ -604,6 +604,7 @@ def get_il_input_items(
 
     # no duplicate, if we have, error will appear later for agg_id_1
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True, ignore_index=True)
+
     __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     prev_level_df['level_id'] = 1
@@ -715,9 +716,13 @@ def get_il_input_items(
                 level_df['tiv'] = level_df.loc[level_df['FMTermGroupID'] == FMTermGroupID, tiv_key]
 
             # check that peril_id is part of the fm peril policy, if not we remove the terms
-            level_df['fm_peril'] = level_df['fm_peril'].fillna('')
-            peril_filter = oed_schema.peril_filtering(level_df['peril_id'], level_df['fm_peril'])
-            level_df.loc[~peril_filter, list(level_terms) + ['FMTermGroupID']] = 0
+            if 'fm_peril' in level_df:
+                level_df['fm_peril'] = level_df['fm_peril'].fillna('')
+                peril_filter = oed_schema.peril_filtering(level_df['peril_id'], level_df['fm_peril'])
+                level_df.loc[~peril_filter, list(level_terms) + ['FMTermGroupID']] = 0
+                factorize_key = agg_key + ['FMTermGroupID', 'fm_peril']
+            else:
+                factorize_key = agg_key + ['FMTermGroupID']
             level_df['FMTermGroupID'] = level_df['FMTermGroupID'].astype('Int64')
 
             # make sure agg_id without term still have the same amount of layer
@@ -739,7 +744,6 @@ def get_il_input_items(
             if 'is_step' in level_df:
                 level_df.loc[(level_df['FMTermGroupID'] == 0) & (level_df['is_step'] == 1), 'FMTermGroupID'] = -level_df['agg_id_prev']
 
-            factorize_key = agg_key + ['FMTermGroupID', 'fm_peril']
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, factorize_key].values, col_idxs=range(len(factorize_key)))[0]
 
             # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
@@ -1039,12 +1043,12 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        il_inputs_df = il_inputs_df[il_inputs_df['to_agg_id'] != 0]
-        item_level = il_inputs_df.loc[il_inputs_df['level_id'] == 1, ['gul_input_id', 'level_id', 'agg_id']]
+        item_level = il_inputs_df.loc[(il_inputs_df['level_id'] == 1) & (il_inputs_df['agg_id'] > 0), ['gul_input_id', 'level_id', 'agg_id']]
         item_level.rename(columns={'gul_input_id': 'from_agg_id',
                                    'agg_id': 'to_agg_id',
                                    }, inplace=True)
         item_level.drop_duplicates(keep='first', inplace=True)
+        il_inputs_df = il_inputs_df[il_inputs_df['to_agg_id'] != 0]
         fm_programme_df = il_inputs_df[['agg_id', 'level_id', 'to_agg_id']]
         fm_programme_df['level_id'] += 1
         fm_programme_df.rename(columns={'agg_id': 'from_agg_id'}, inplace=True)
