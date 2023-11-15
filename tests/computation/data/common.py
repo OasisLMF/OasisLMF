@@ -78,7 +78,12 @@ MIN_RUN_SETTINGS = {
 MIN_RUN_CORRELATIONS_SETTINGS = {
     "model_supplier_id": "M-sup",
     "model_name_id": 'M-name',
-    "model_settings": {},
+    "model_settings": {
+        'correlation_settings': [
+            {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
+            {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}
+        ]
+    },
     "number_of_samples": 1,
     "gul_output": True,
     "gul_summaries": [
@@ -86,10 +91,6 @@ MIN_RUN_CORRELATIONS_SETTINGS = {
             "id": 1,
             "eltcalc": True,
         }
-    ],
-    'correlation_settings': [
-        {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
-        {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}
     ]
 }
 

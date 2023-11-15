@@ -230,7 +230,7 @@ class GenerateFiles(ComputationStep):
 
         # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
         if self.analysis_settings_json is not None:
-            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('correlation_settings', None)
+            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             if correlations_analysis_settings is not None:

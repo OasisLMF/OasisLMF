@@ -223,7 +223,7 @@ class TestGenFiles(ComputationChecker):
             self.manager.generate_files(**call_args)
             establish_correlations.assert_called_once()
             used_correlations = establish_correlations.call_args.kwargs['model_settings']
-            self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['correlation_settings'])
+            self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
 
 
 class TestGenDummyModelFiles(ComputationChecker):
