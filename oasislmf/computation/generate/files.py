@@ -308,9 +308,10 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            exposure_df=exposure_data.location.dataframe,
-            gul_inputs_df=gul_inputs_df,
+            gul_inputs_df=gul_inputs_df.copy(),
+            locations_df=exposure_data.location.dataframe,
             accounts_df=exposure_data.account.dataframe,
+            oed_schema=exposure_data.oed_schema,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
