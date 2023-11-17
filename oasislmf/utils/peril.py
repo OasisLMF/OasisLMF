@@ -1,9 +1,10 @@
 __all__ = [
     'PERILS',
-    'PERIL_GROUPS'
+    'PERIL_GROUPS',
 ]
 
 from collections import OrderedDict
+import pandas as pd
 
 PRL_BBF = 'BBF'
 PRL_BFR = 'BFR'
@@ -80,3 +81,15 @@ PERILS = OrderedDict({
     'snow': {'id': PRL_ZSN, 'desc': 'Snow', 'eqv_oasis_peril': None, 'group_peril': 'winter storm'},
     'winterstorm wind': {'id': PRL_ZST, 'desc': 'Winterstorm Wind', 'group_peril': 'winter storm'}
 })
+
+
+def get_peril_groups_df():
+    res = []
+    for peril in PERILS.values():
+        res.append((peril['id'], peril['id']))
+
+    for peril_group in PERIL_GROUPS.values():
+        for peril in peril_group['peril_ids']:
+            res.append((peril_group['id'], peril))
+
+    return pd.DataFrame(res, columns=['peril_group_id', 'peril_id'])

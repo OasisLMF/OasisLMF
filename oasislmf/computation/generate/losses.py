@@ -681,7 +681,6 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'net_ri', 'default': False},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
-        {'name': 'num_subperils', 'default': 1},
         {'name': 'fmpy', 'default': True},
         {'name': 'fmpy_low_memory', 'default': False},
         {'name': 'fmpy_sort_output', 'default': False},
@@ -715,7 +714,12 @@ class GenerateLossesDeterministic(ComputationStep):
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
-        items.tiv = items.tiv / self.num_subperils
+        coverage_id_count = items['coverage_id'].value_counts().reset_index()
+        coverage_id_count.columns = ['coverage_id', 'count']  # support for pandas < 2.x
+        items = items.merge(coverage_id_count, how='left')
+
+        items['tiv'] = items['tiv'] / items['count']
+        items.drop(columns=['count'], inplace=True)
         # Change order of stream depending on rule type
         #   Stream_type 1
         #     event_id, item_id, sidx, loss
