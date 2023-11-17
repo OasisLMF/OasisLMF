@@ -611,7 +611,6 @@ def get_il_input_items(
     if 'LocPeril' in prev_level_df:
         peril_filter = oed_schema.peril_filtering(prev_level_df['peril_id'], prev_level_df['LocPeril'])
         prev_level_df.loc[~peril_filter, list(set(prev_level_df.columns).intersection(fm_term_ids))] = 0
-
     if do_disaggregation:
         __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
@@ -744,7 +743,6 @@ def get_il_input_items(
             level_df['layer_id'] = level_df['layer_id'].astype('int32')
             level_df['agg_id_prev'] = level_df['agg_id_prev'].fillna(0).astype('int64')
             level_df.drop(columns=['layer_id_prev'], inplace=True)
-            
             if do_disaggregation:
                 if 'risk_id' in agg_key:
                     __split_fm_terms_by_risk(level_df)
