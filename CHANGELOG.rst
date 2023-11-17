@@ -1,6 +1,17 @@
 OasisLMF Changelog
 ==================
 
+`1.28.4`_
+ ---------
+* [#1376](https://github.com/OasisLMF/OasisLMF/pull/1376) - Release 1.28.3
+* [#1292](https://github.com/OasisLMF/OasisLMF/pull/1380) - Parquet format summary info file
+* [#1382](https://github.com/OasisLMF/OasisLMF/pull/1386) - Change vulnerability weight data type from 32-bit integer to 32-bit float in gulmc
+* [#1381](https://github.com/OasisLMF/OasisLMF/pull/1388) - Converting exposure files to previous OED version before running model
+* [#140](https://github.com/OasisLMF/OasisLMF/pull/1299) - Implement OED peril fields
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1397) - Net RI losses do not use -z in summarycalc
+* [#1398](https://github.com/OasisLMF/OasisLMF/pull/1398) - Allow disaggregation to be disabled
+* [#1399](https://github.com/OasisLMF/OasisLMF/pull/1399) - Fixed loading booleans from oasislmf.json
+* [#1347](https://github.com/OasisLMF/OasisLMF/pull/1369) - Add runtime user supplied secondary factor option to plapy
 .. _`1.28.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.3...1.28.4
 
 `1.28.3`_
@@ -15,7 +26,7 @@ OasisLMF Changelog
 
 `1.28.2`_
  ---------
-* [#1344](https://github.com/OasisLMF/OasisLMF/pull/1344) - Release/1.28.1 (staging) 
+* [#1344](https://github.com/OasisLMF/OasisLMF/pull/1344) - Release/1.28.1 (staging)
 * [#1326](https://github.com/OasisLMF/OasisLMF/pull/1345) - Update the the `KeyLookupInterface` class to have access to the `lookup_complex_config_json`
 * [#140](https://github.com/OasisLMF/OasisLMF/pull/1346) - Implement OED peril fields
 * [#1322](https://github.com/OasisLMF/OasisLMF/pull/1351) - Step policies: Allow BI ground up loss through to gross losses
@@ -29,7 +40,7 @@ OasisLMF Changelog
 
 `1.28.1`_
  ---------
-* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
+* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release
 * [#1324](https://github.com/OasisLMF/OasisLMF/pull/1324) - Release/1.28.0
 * [#1349](https://github.com/OasisLMF/OasisLMF/pull/1349) - Fix removal of handlers to logger + give logfiles unique names
 * [#1334](https://github.com/OasisLMF/OasisLMF/pull/1334) - Update CI - 1.28
@@ -37,7 +48,7 @@ OasisLMF Changelog
 
 `1.28.1rc1`_
  ---------
-* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
+* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release
 * [#1324](https://github.com/OasisLMF/OasisLMF/pull/1324) - Release/1.28.0
 * [#1349](https://github.com/OasisLMF/OasisLMF/pull/1349) - Fix removal of handlers to logger + give logfiles unique names
 * [#1334](https://github.com/OasisLMF/OasisLMF/pull/1334) - Update CI - 1.28
@@ -51,11 +62,11 @@ OasisLMF Changelog
 * [#1286](https://github.com/OasisLMF/OasisLMF/pull/1286) - Improve code coverage accuracy
 * [#1288](https://github.com/OasisLMF/OasisLMF/pull/1287) - Support for pandas 2
 * [#1289](https://github.com/OasisLMF/OasisLMF/pull/1289) - Fix/fillna on str
-* [#1295](https://github.com/OasisLMF/OasisLMF/pull/1290) - Add platform client unit tests 
+* [#1295](https://github.com/OasisLMF/OasisLMF/pull/1290) - Add platform client unit tests
 * [#1291](https://github.com/OasisLMF/OasisLMF/pull/1291) - remove obsolete fm compute
-* [#1294](https://github.com/OasisLMF/OasisLMF/pull/1294) - Removed obsolete Cookiecutter from oasislmf 
-* [#1296](https://github.com/OasisLMF/OasisLMF/pull/1296) - Pin ods-tools package for new fillna function 
-* [#1298](https://github.com/OasisLMF/OasisLMF/pull/1298) - Add testing for computation funcs 
+* [#1294](https://github.com/OasisLMF/OasisLMF/pull/1294) - Removed obsolete Cookiecutter from oasislmf
+* [#1296](https://github.com/OasisLMF/OasisLMF/pull/1296) - Pin ods-tools package for new fillna function
+* [#1298](https://github.com/OasisLMF/OasisLMF/pull/1298) - Add testing for computation funcs
 * [#1214](https://github.com/OasisLMF/OasisLMF/pull/1305) - Undefined behaviour when no successes are passed to write_oasis_keys_file
 * [#1306](https://github.com/OasisLMF/OasisLMF/pull/1306) - lookup: remove extra column after failed combine step
 * [#1307](https://github.com/OasisLMF/OasisLMF/pull/1308) - Update release section on Readme
@@ -77,7 +88,7 @@ OasisLMF Changelog
 * [#1218](https://github.com/OasisLMF/OasisLMF/pull/1218) - Fix missing default collumn for RI
 * [#1220](https://github.com/OasisLMF/OasisLMF/pull/1220) - Fix mapping of `vuln_idx` to `vuln_i` and implement `eff_vuln_cdf` as a dynamic array to work with large footprints
 * [#1222](https://github.com/OasisLMF/OasisLMF/pull/1222) - add option to have custom oed schema
-* [#1230](https://github.com/OasisLMF/OasisLMF/pull/1229) - Redirect warnings from pytools 
+* [#1230](https://github.com/OasisLMF/OasisLMF/pull/1229) - Redirect warnings from pytools
 * [#1231](https://github.com/OasisLMF/OasisLMF/pull/1231) - Fix expecteted output with Extra TIV cols from ods-tools
 * [#1232](https://github.com/OasisLMF/OasisLMF/pull/1232) - Moved Settings JSON validation to ods-tools
 * [#1233](https://github.com/OasisLMF/OasisLMF/pull/1234) - oasislmf exposure run reports missing location file when account missing
@@ -90,7 +101,7 @@ OasisLMF Changelog
 * [#1244](https://github.com/OasisLMF/OasisLMF/pull/1244) - Use console entrypoint to define and install `oasislmf` binary
 * [#1251](https://github.com/OasisLMF/OasisLMF/pull/1252) - Error caused by pandas 2.0.0
 * [#1247](https://github.com/OasisLMF/OasisLMF/pull/1255) - OED/oasislmf version compatibility matrix #oasislmf
-* [#1253](https://github.com/OasisLMF/OasisLMF/pull/1256) - pandas 2.0.0 error using "oed_fields" in analysis settings 
+* [#1253](https://github.com/OasisLMF/OasisLMF/pull/1256) - pandas 2.0.0 error using "oed_fields" in analysis settings
 * [#1257](https://github.com/OasisLMF/OasisLMF/pull/1257) - Fix summary levels file
 * [#1130](https://github.com/OasisLMF/OasisLMF/pull/1130) - Remove check for IL + RI files from the run model cmd
 * [#1260](https://github.com/OasisLMF/OasisLMF/pull/1260) - Use low_memory=False in get_dataframe
@@ -98,7 +109,7 @@ OasisLMF Changelog
 * [#1259](https://github.com/OasisLMF/OasisLMF/pull/1262) - Duplicate summary_ids in outputs
 * [#1221](https://github.com/OasisLMF/OasisLMF/pull/1265) - Enable simple way to specify hierarchal key lookup in lookup_config.json
 * [#1267](https://github.com/OasisLMF/OasisLMF/pull/1269) - Numba 0.57 breaks fmpy
-* [#1270](https://github.com/OasisLMF/OasisLMF/pull/1270) - Add generate and run to rest client 
+* [#1270](https://github.com/OasisLMF/OasisLMF/pull/1270) - Add generate and run to rest client
 * [#1272](https://github.com/OasisLMF/OasisLMF/pull/1272) - Update numpy pin
 * [#1277](https://github.com/OasisLMF/OasisLMF/pull/1277) - Fix invalid columns in FM tests
 .. _`1.28.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.0...1.28.0
@@ -119,38 +130,38 @@ OasisLMF Changelog
 * [#1174](https://github.com/OasisLMF/OasisLMF/pull/1174) - Set pip-compile to backtracking and trim unused requirments
 * [#1175](https://github.com/OasisLMF/OasisLMF/pull/1175) - Fix drop na in expected data
 * [#1176](https://github.com/OasisLMF/OasisLMF/pull/1176) - Feature/ods tools migration test
-* [#1177](https://github.com/OasisLMF/OasisLMF/pull/1179) - The run_ktools.sh script does not check if all custom gulcalc processes completed successfully. 
+* [#1177](https://github.com/OasisLMF/OasisLMF/pull/1179) - The run_ktools.sh script does not check if all custom gulcalc processes completed successfully.
 * [#1182](https://github.com/OasisLMF/OasisLMF/pull/1182) - Feature/ods tools migration piwind fix
 * [#1048](https://github.com/OasisLMF/OasisLMF/pull/1055) - set modelpy and gulpy as default runtime options
 * [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
 * [#1058](https://github.com/OasisLMF/OasisLMF/pull/1058) - Correlation map
 * [#1187](https://github.com/OasisLMF/OasisLMF/pull/1186) - `sklearn` is now deprecated in requirements files: use `scikit-learn` instead
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
 * [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
 * [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
-* [#1191](https://github.com/OasisLMF/OasisLMF/pull/1194) - Github actions to manage new issues and PR's 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses
+* [#1191](https://github.com/OasisLMF/OasisLMF/pull/1194) - Github actions to manage new issues and PR's
 * [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
 * [#1184](https://github.com/OasisLMF/OasisLMF/pull/1193) - Add `gulmc` option to the model runner
 * [#1068](https://github.com/OasisLMF/OasisLMF/pull/1069) - Implement correlated random number generation in gulpy
 * [#1192](https://github.com/OasisLMF/OasisLMF/pull/1192) - Track pid of gulcalc processes and wait on them in `run_ktools.sh`
 * [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
 * [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
-* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages
 * [#1074](https://github.com/OasisLMF/OasisLMF/pull/1074) - Added lower-case-cols and raise-error flags
 * [#1075](https://github.com/OasisLMF/OasisLMF/pull/1075) - setting model_custom_gulcalc disables gulpy
 * [#1076](https://github.com/OasisLMF/OasisLMF/pull/1076) - Set ktools to 3.9.2
 * [#992](https://github.com/OasisLMF/OasisLMF/pull/1077) - Peril Specific Runs
 * [#1049](https://github.com/OasisLMF/OasisLMF/pull/1078) - random number generator can be set to 0 at oasislmf command line
-* [#1066](https://github.com/OasisLMF/OasisLMF/pull/1079) - Gulpy failing in distributed runs 
+* [#1066](https://github.com/OasisLMF/OasisLMF/pull/1079) - Gulpy failing in distributed runs
 * [#1080](https://github.com/OasisLMF/OasisLMF/pull/1080) - add peril_filter to run settings spec
 * [#1200](https://github.com/OasisLMF/OasisLMF/pull/1200) - Update CI badges
 * [#1016](https://github.com/OasisLMF/OasisLMF/pull/1082) - Update package testing
-* [#1203](https://github.com/OasisLMF/OasisLMF/pull/1203) - Update Develop to be inline with master 
+* [#1203](https://github.com/OasisLMF/OasisLMF/pull/1203) - Update Develop to be inline with master
 * [#1085](https://github.com/OasisLMF/OasisLMF/pull/1085) - Disable all deadlines in utils/test_data.py
 * [#1090](https://github.com/OasisLMF/OasisLMF/pull/1090) - Request token refresh on HTTP error 403 - Forbidden
-* [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution 
+* [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution
 * [#1035](https://github.com/OasisLMF/OasisLMF/pull/1092) - No check of parquet output before running model
 * [#1093](https://github.com/OasisLMF/OasisLMF/pull/1093) - Fix call to write_summary_levels - missing IL options
 * [#1094](https://github.com/OasisLMF/OasisLMF/pull/1094) - Disable GroupID hashing for acceptance tests
@@ -163,7 +174,7 @@ OasisLMF Changelog
 * [#1107](https://github.com/OasisLMF/OasisLMF/pull/1107) - Fix/678 logger
 * [#1110](https://github.com/OasisLMF/OasisLMF/pull/1110) - extent api commands with run-inputs/run-losses options
 * [#1108](https://github.com/OasisLMF/OasisLMF/pull/1111) - API client doesn't detect cancelled analysis
-* [#1105](https://github.com/OasisLMF/OasisLMF/pull/1112) - Add a 'strict' mode to fail runs if IL/RI is requested but files are missing 
+* [#1105](https://github.com/OasisLMF/OasisLMF/pull/1112) - Add a 'strict' mode to fail runs if IL/RI is requested but files are missing
 * [#1113](https://github.com/OasisLMF/OasisLMF/pull/1113) - Bugfix: out of bounds cdf
 * [#906](https://github.com/OasisLMF/OasisLMF/pull/1114) - include "classic" event rates and Metadata in ORD output for oasis outputs
 * [#1116](https://github.com/OasisLMF/OasisLMF/pull/1116) - Hide geopandas warning
@@ -197,27 +208,27 @@ OasisLMF Changelog
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
 * [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
 * [#1058](https://github.com/OasisLMF/OasisLMF/pull/1058) - Correlation map
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
 * [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
 * [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
 * [#1068](https://github.com/OasisLMF/OasisLMF/pull/1069) - Implement correlated random number generation in gulpy
 * [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
 * [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
-* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages
 * [#1074](https://github.com/OasisLMF/OasisLMF/pull/1074) - Added lower-case-cols and raise-error flags
 * [#1075](https://github.com/OasisLMF/OasisLMF/pull/1075) - setting model_custom_gulcalc disables gulpy
 * [#1076](https://github.com/OasisLMF/OasisLMF/pull/1076) - Set ktools to 3.9.2
 * [#992](https://github.com/OasisLMF/OasisLMF/pull/1077) - Peril Specific Runs
 * [#1049](https://github.com/OasisLMF/OasisLMF/pull/1078) - random number generator can be set to 0 at oasislmf command line
-* [#1066](https://github.com/OasisLMF/OasisLMF/pull/1079) - Gulpy failing in distributed runs 
+* [#1066](https://github.com/OasisLMF/OasisLMF/pull/1079) - Gulpy failing in distributed runs
 * [#1080](https://github.com/OasisLMF/OasisLMF/pull/1080) - add peril_filter to run settings spec
 * [#1016](https://github.com/OasisLMF/OasisLMF/pull/1082) - Update package testing
 * [#1085](https://github.com/OasisLMF/OasisLMF/pull/1085) - Disable all deadlines in utils/test_data.py
 * [#1090](https://github.com/OasisLMF/OasisLMF/pull/1090) - Request token refresh on HTTP error 403 - Forbidden
-* [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution 
+* [#1091](https://github.com/OasisLMF/OasisLMF/pull/1091) - Debug complex model execution
 * [#1035](https://github.com/OasisLMF/OasisLMF/pull/1092) - No check of parquet output before running model
 * [#1093](https://github.com/OasisLMF/OasisLMF/pull/1093) - Fix call to write_summary_levels - missing IL options
 * [#1094](https://github.com/OasisLMF/OasisLMF/pull/1094) - Disable GroupID hashing for acceptance tests
@@ -230,7 +241,7 @@ OasisLMF Changelog
 * [#1107](https://github.com/OasisLMF/OasisLMF/pull/1107) - Fix/678 logger
 * [#1110](https://github.com/OasisLMF/OasisLMF/pull/1110) - extent api commands with run-inputs/run-losses options
 * [#1108](https://github.com/OasisLMF/OasisLMF/pull/1111) - API client doesn't detect cancelled analysis
-* [#1105](https://github.com/OasisLMF/OasisLMF/pull/1112) - Add a 'strict' mode to fail runs if IL/RI is requested but files are missing 
+* [#1105](https://github.com/OasisLMF/OasisLMF/pull/1112) - Add a 'strict' mode to fail runs if IL/RI is requested but files are missing
 * [#1113](https://github.com/OasisLMF/OasisLMF/pull/1113) - Bugfix: out of bounds cdf
 * [#906](https://github.com/OasisLMF/OasisLMF/pull/1114) - include "classic" event rates and Metadata in ORD output for oasis outputs
 * [#1116](https://github.com/OasisLMF/OasisLMF/pull/1116) - Hide geopandas warning
@@ -240,15 +251,15 @@ OasisLMF Changelog
  ---------
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
 * [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
 * [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
 * [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
 * [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
 * [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
-* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages
 * [#1075](https://github.com/OasisLMF/OasisLMF/pull/1075) - setting model_custom_gulcalc disables gulpy
 * [#1076](https://github.com/OasisLMF/OasisLMF/pull/1076) - Set ktools to 3.9.2
 * [#1048](https://github.com/OasisLMF/OasisLMF/pull/1055) - set modelpy and gulpy as default runtime options
@@ -258,15 +269,15 @@ OasisLMF Changelog
  ---------
 * [#135](https://github.com/OasisLMF/OasisLMF/pull/1024) - Implement OED policy coverage terms in Financial Module
 * [#1057](https://github.com/OasisLMF/OasisLMF/pull/1057) - Remove sys.exit(1) calls and replace with exceptions
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1060) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1040](https://github.com/OasisLMF/OasisLMF/pull/1062) - Builtin lookup - missing feedback when all locations are using unsupported LocPerilsCovered
 * [#1063](https://github.com/OasisLMF/OasisLMF/pull/1063) - Fix/pre analysis hook
 * [#1007](https://github.com/OasisLMF/OasisLMF/pull/1064) - Parquet to csv comparison script
-* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses 
+* [#1059](https://github.com/OasisLMF/OasisLMF/pull/1065) - Missing CSV headers in summarycalc.csv when running chunked losses
 * [#1067](https://github.com/OasisLMF/OasisLMF/pull/1067) - Fix/platform run
 * [#1071](https://github.com/OasisLMF/OasisLMF/pull/1071) - Feature/param loading
 * [#1072](https://github.com/OasisLMF/OasisLMF/pull/1072) - Update/package requirements
-* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages 
+* [#1070](https://github.com/OasisLMF/OasisLMF/pull/1073) - Clean up warning messages
 * [#1048](https://github.com/OasisLMF/OasisLMF/pull/1055) - set modelpy and gulpy as default runtime options
 .. _`1.26.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.26.0...1.26.1
 
@@ -333,8 +344,8 @@ OasisLMF Changelog
 `1.25.1`_
  ---------
 * [#987](https://github.com/OasisLMF/OasisLMF/pull/985) - Add a Python implementation of the `cdftocsv` tool
-* [#983](https://github.com/OasisLMF/OasisLMF/pull/988) - Unexpected output change in PiWind testing 
-* [#983](https://github.com/OasisLMF/OasisLMF/pull/982) - Unexpected output change in PiWind testing 
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/988) - Unexpected output change in PiWind testing
+* [#983](https://github.com/OasisLMF/OasisLMF/pull/982) - Unexpected output change in PiWind testing
 .. _`1.25.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.25.0...1.25.1
 
 `1.25.0`_
@@ -342,17 +353,17 @@ OasisLMF Changelog
 * [#961](https://github.com/OasisLMF/OasisLMF/pull/961) - Feature/docs
 * [#973](https://github.com/OasisLMF/OasisLMF/pull/973) - manage -4 and pass through -5 sidx
 * [#963](https://github.com/OasisLMF/OasisLMF/pull/974) - Add supported OED versions to model metadata (model_settings.json)
-* [#978](https://github.com/OasisLMF/OasisLMF/pull/979) - Model Schema update - replace `numeric_parameters` with `integer_parameters` 
+* [#978](https://github.com/OasisLMF/OasisLMF/pull/979) - Model Schema update - replace `numeric_parameters` with `integer_parameters`
 * [#980](https://github.com/OasisLMF/OasisLMF/pull/980) - Feature/976 quantile
 * [#981](https://github.com/OasisLMF/OasisLMF/pull/981) - Footprint server profiling
 .. _`1.25.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.24.1...1.25.0
 
-* [#971](https://github.com/OasisLMF/OasisLMF/pull/972) - Numpy installation issues 
+* [#971](https://github.com/OasisLMF/OasisLMF/pull/972) - Numpy installation issues
 .. _`1.24.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.24.0...1.24.1
 
 `1.24.0`_
  ---------
-* [#962](https://github.com/OasisLMF/OasisLMF/pull/962) - Prepare 1.23.0 for LTS 
+* [#962](https://github.com/OasisLMF/OasisLMF/pull/962) - Prepare 1.23.0 for LTS
 * [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
 * [#965](https://github.com/OasisLMF/OasisLMF/pull/965) - Client Fix for update in platform 2.0
 * [#966](https://github.com/OasisLMF/OasisLMF/pull/966) - Footprint server
@@ -372,7 +383,7 @@ OasisLMF Changelog
 * [#916](https://github.com/OasisLMF/OasisLMF/pull/916) - stashing
 * [#953](https://github.com/OasisLMF/OasisLMF/pull/953) - removing memory map attribute
 * [#858](https://github.com/OasisLMF/OasisLMF/pull/890) - support parquet for OED
-* [#955](https://github.com/OasisLMF/OasisLMF/pull/957) - Update the model references for consistency 
+* [#955](https://github.com/OasisLMF/OasisLMF/pull/957) - Update the model references for consistency
 * [#959](https://github.com/OasisLMF/OasisLMF/pull/959) - Replace refs to getmodelpy with modelpy
 .. _`1.23.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.22.0...1.23.0
 
@@ -385,13 +396,13 @@ OasisLMF Changelog
 * [#931](https://github.com/OasisLMF/OasisLMF/pull/931) - Disable memory map for non-utf8 encoding
 * [#903](https://github.com/OasisLMF/OasisLMF/pull/903) - Generate Quantile Event Loss Table (QELT) and Quantile Period Loss Table (QPLT)
 * [#935](https://github.com/OasisLMF/OasisLMF/pull/935) - fmpy:ignore sidx < -3
-* [#936](https://github.com/OasisLMF/OasisLMF/pull/937) - Bash options overriden when running ktools in Subprrocess 
+* [#936](https://github.com/OasisLMF/OasisLMF/pull/937) - Bash options overriden when running ktools in Subprrocess
 * [#913](https://github.com/OasisLMF/OasisLMF/pull/913) - Update API platform client
 * [#858](https://github.com/OasisLMF/OasisLMF/pull/890) - support parquet for OED
 * [#916](https://github.com/OasisLMF/OasisLMF/pull/916) - stashing
 * [#917](https://github.com/OasisLMF/OasisLMF/pull/918) - High memory use in generating dummy model
 * [#829](https://github.com/OasisLMF/OasisLMF/pull/919) - Step policies: support files with both step and non-step policies
-* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation 
+* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation
 * [#884](https://github.com/OasisLMF/OasisLMF/pull/922) - OasisLMF install fails on OSX Catalina because of ktools installation
 * [#739, #740](https://github.com/OasisLMF/OasisLMF/pull/923) - Dummy model occurrence file generation supports repeated events over time and dummy model files are split into static and input directories
 * [#924](https://github.com/OasisLMF/OasisLMF/pull/926) - Non UTF-8 portfolio causes model run to crash
@@ -409,7 +420,7 @@ OasisLMF Changelog
 * [#916](https://github.com/OasisLMF/OasisLMF/pull/916) - stashing
 * [#917](https://github.com/OasisLMF/OasisLMF/pull/918) - High memory use in generating dummy model
 * [#829](https://github.com/OasisLMF/OasisLMF/pull/919) - Step policies: support files with both step and non-step policies
-* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation 
+* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation
 * [#884](https://github.com/OasisLMF/OasisLMF/pull/922) - OasisLMF install fails on OSX Catalina because of ktools installation
 * [#739, #740](https://github.com/OasisLMF/OasisLMF/pull/923) - Dummy model occurrence file generation supports repeated events over time and dummy model files are split into static and input directories
 * [#924](https://github.com/OasisLMF/OasisLMF/pull/926) - Non UTF-8 portfolio causes model run to crash
@@ -479,15 +490,15 @@ OasisLMF Changelog
 `1.18.0`_
  ---------
 * [#865](https://github.com/OasisLMF/OasisLMF/pull/865) - correction for PolDed6All fields
-* [#861](https://github.com/OasisLMF/OasisLMF/pull/866) - Add PALT to genbash 
+* [#861](https://github.com/OasisLMF/OasisLMF/pull/866) - Add PALT to genbash
 * [#820](https://github.com/OasisLMF/OasisLMF/pull/868) - Pol Fac Contracts
 * [#837](https://github.com/OasisLMF/OasisLMF/pull/837) - added new doc
 * [#869](https://github.com/OasisLMF/OasisLMF/pull/869) - Feature/761 fm tests
 * [#862](https://github.com/OasisLMF/OasisLMF/pull/871) - oasislmf test fm doesn't work and there is no documentation
 * [#828](https://github.com/OasisLMF/OasisLMF/pull/872) - RI FM File Generation issue when locations have zero TIV
-* [#850](https://github.com/OasisLMF/OasisLMF/pull/870) - Improve exit handler's process cleanup 
-* [#874](https://github.com/OasisLMF/OasisLMF/pull/875) - Check and set minimum versions for optional packages 
-* [#846](https://github.com/OasisLMF/OasisLMF/pull/847) - Update package dependencies for flexible lookup code 
+* [#850](https://github.com/OasisLMF/OasisLMF/pull/870) - Improve exit handler's process cleanup
+* [#874](https://github.com/OasisLMF/OasisLMF/pull/875) - Check and set minimum versions for optional packages
+* [#846](https://github.com/OasisLMF/OasisLMF/pull/847) - Update package dependencies for flexible lookup code
 * [#852](https://github.com/OasisLMF/OasisLMF/pull/854) - Issue with custom lookup_module_path relative path
 * [#826](https://github.com/OasisLMF/OasisLMF/pull/826) - Automate Change logs and release notes
 * [#860](https://github.com/OasisLMF/OasisLMF/pull/860) - slight interface changes for key server functions
@@ -495,14 +506,14 @@ OasisLMF Changelog
 
 `1.17.0`_
  ---------
-* [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
+* [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text
 * [#831](https://github.com/OasisLMF/OasisLMF/pull/835) - Add timestamps to logger
 * [#844](https://github.com/OasisLMF/OasisLMF/pull/836) - Built-in Lookup revamp
 * [#840](https://github.com/OasisLMF/OasisLMF/pull/841) - Fix flaky tests in model_preparation/test_lookup.py
 * [#843](https://github.com/OasisLMF/OasisLMF/pull/843) - Fix CI pipeline error, double tagging release causes script to fail
 * [#842](https://github.com/OasisLMF/OasisLMF/pull/845) - Produce summary index files by default to reduce memory use of ktools output components
 * [#816](https://github.com/OasisLMF/OasisLMF/pull/817) - Issue in coverage_type_id grouping of ground up loss results for multi-peril
-* [#809](https://github.com/OasisLMF/OasisLMF/pull/818) - Error handling for invalid oasislmf.json config files 
+* [#809](https://github.com/OasisLMF/OasisLMF/pull/818) - Error handling for invalid oasislmf.json config files
 * [#849](https://github.com/OasisLMF/OasisLMF/pull/849) - Fix CVE-2021-33503
 * [#821](https://github.com/OasisLMF/OasisLMF/pull/821) - Add missing items to data settings
 * [#824](https://github.com/OasisLMF/OasisLMF/pull/825) - Inputs directory preparation issue when ORD is enabled
@@ -512,14 +523,14 @@ OasisLMF Changelog
 
 `1.17.0rc1`_
  ---------
-* [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
+* [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text
 * [#831](https://github.com/OasisLMF/OasisLMF/pull/835) - Add timestamps to logger
 * [#844](https://github.com/OasisLMF/OasisLMF/pull/836) - Built-in Lookup revamp
 * [#840](https://github.com/OasisLMF/OasisLMF/pull/841) - Fix flaky tests in model_preparation/test_lookup.py
 * [#843](https://github.com/OasisLMF/OasisLMF/pull/843) - Fix CI pipeline error, double tagging release causes script to fail
 * [#842](https://github.com/OasisLMF/OasisLMF/pull/845) - Produce summary index files by default to reduce memory use of ktools output components
 * [#816](https://github.com/OasisLMF/OasisLMF/pull/817) - Issue in coverage_type_id grouping of ground up loss results for multi-peril
-* [#809](https://github.com/OasisLMF/OasisLMF/pull/818) - Error handling for invalid oasislmf.json config files 
+* [#809](https://github.com/OasisLMF/OasisLMF/pull/818) - Error handling for invalid oasislmf.json config files
 * [#821](https://github.com/OasisLMF/OasisLMF/pull/821) - Add missing items to data settings
 * [#824](https://github.com/OasisLMF/OasisLMF/pull/825) - Inputs directory preparation issue when ORD is enabled
 * [#826](https://github.com/OasisLMF/OasisLMF/pull/826) - Automate Change logs and release notes
@@ -530,12 +541,12 @@ OasisLMF Changelog
 ---------
 .. start_latest_release
 * [#669](https://github.com/OasisLMF/OasisLMF/pull/792) - Revamp of the Key service for improved performance (PR-792)
-* [#802](https://github.com/OasisLMF/OasisLMF/pull/802) - Fix for null loss in max deductible case 
-* [#766](https://github.com/OasisLMF/OasisLMF/issues/766) - Updated FM python documentation 
+* [#802](https://github.com/OasisLMF/OasisLMF/pull/802) - Fix for null loss in max deductible case
+* [#766](https://github.com/OasisLMF/OasisLMF/issues/766) - Updated FM python documentation
 * [#753](https://github.com/OasisLMF/OasisLMF/pull/800) - Added ORD output options for ept/psept and updated json schema
 * [#814](https://github.com/OasisLMF/OasisLMF/pull/814) - Fix back allocation child loss loop
 * [#815](https://github.com/OasisLMF/OasisLMF/pull/815) - Update requirements and set tests to Python3.8
-* [#806](https://github.com/OasisLMF/OasisLMF/issues/806) - Store analysis run settings to outputs via the MDK 
+* [#806](https://github.com/OasisLMF/OasisLMF/issues/806) - Store analysis run settings to outputs via the MDK
 * [#807](https://github.com/OasisLMF/OasisLMF/issues/807) - Fixed fmpy numerical errors for step policies producing gross > ground up
 .. end_latest_release
 
