@@ -15,20 +15,23 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import CorrelationsData
+from oasislmf.pytools.data_layer.oasis_files.correlations import \
+    CorrelationsData
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import factorize_ndarray, merge_dataframes, set_dataframe_column_dtypes
-from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DAMAGE_GROUP_ID_COLS,
-                                     HAZARD_GROUP_ID_COLS, OASIS_FILES_PREFIXES, SOURCE_IDX,
+from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
+                                 set_dataframe_column_dtypes)
+from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
+                                     DAMAGE_GROUP_ID_COLS,
+                                     HAZARD_GROUP_ID_COLS,
+                                     OASIS_FILES_PREFIXES, SOURCE_IDX,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
-from oasislmf.utils.profiles import (get_fm_terms_oed_columns,
-                                     get_grouped_fm_profile_by_level_and_term_group,
-                                     get_grouped_fm_terms_by_level_and_term_group,
-                                     get_oed_hierarchy)
+from oasislmf.utils.profiles import (
+    get_fm_terms_oed_columns, get_grouped_fm_profile_by_level_and_term_group,
+    get_grouped_fm_terms_by_level_and_term_group, get_oed_hierarchy)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -80,6 +83,7 @@ def get_gul_input_items(
     exposure_profile=get_default_exposure_profile(),
     damage_group_id_cols=None,
     hazard_group_id_cols=None,
+    do_disaggregation=True
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -101,6 +105,9 @@ def get_gul_input_items(
 
     :param hazard_group_id_cols: Columns to be used to generate a hashed hazard group id.
     :type hazard_group_id_cols: list[str]
+
+    :param do_disaggregation: If True, disaggregates by the number of buildings
+    :type do_disaggregation: bool
 
     :return: GUL inputs dataframe
     :rtype: pandas.DataFrame
@@ -331,9 +338,9 @@ def get_gul_input_items(
     #  - set the IL terms (and BI coverage boolean) in each group and update the corresponding frame section in the GUL inputs table
     gul_inputs_reformatted_chunks = []
     terms_found = set()
-
-    # split TIV
-    gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
+    if do_disaggregation:
+        # split TIV
+        gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
 
     for (number_of_buildings, cov_type), cov_type_group in gul_inputs_df.groupby(by=['NumberOfBuildings', 'coverage_type_id'], sort=True):
         # drop columns corresponding to other cov types
@@ -350,11 +357,13 @@ def get_gul_input_items(
         cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
-
-        # if NumberOfBuildings == 0: still add one entry
         disagg_df_chunk = []
-        for building_id in range(1, max(number_of_buildings, 1) + 1):
-            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
+        if do_disaggregation:
+            # if NumberOfBuildings == 0: still add one entry
+            for building_id in range(1, max(number_of_buildings, 1) + 1):
+                disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
+        else:
+            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=1))
 
         gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
 

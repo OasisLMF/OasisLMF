@@ -26,7 +26,6 @@ from ast import literal_eval
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-
 from ods_tools.oed import fill_empty
 
 from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
@@ -511,6 +510,7 @@ def get_il_input_items(
         exposure_profile=get_default_exposure_profile(),
         accounts_profile=get_default_accounts_profile(),
         fm_aggregation_profile=get_default_fm_aggregation_profile(),
+        do_disaggregation=True,
 ):
     """
     Generates and returns a Pandas dataframe of IL input items.
@@ -535,6 +535,9 @@ def get_il_input_items(
 
     :param fm_aggregation_profile: FM aggregation profile (optional)
     :param fm_aggregation_profile: dict
+
+    :param do_disaggregation: whether to split terms and conditions for aggregate exposure (optional)
+    :param do_disaggregation: bool
 
     :return: IL inputs dataframe
     :rtype: pandas.DataFrame
@@ -608,8 +611,8 @@ def get_il_input_items(
     if 'LocPeril' in prev_level_df:
         peril_filter = oed_schema.peril_filtering(prev_level_df['peril_id'], prev_level_df['LocPeril'])
         prev_level_df.loc[~peril_filter, list(set(prev_level_df.columns).intersection(fm_term_ids))] = 0
-
-    __split_fm_terms_by_risk(prev_level_df)
+    if do_disaggregation:
+        __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     prev_level_df['level_id'] = 1
     prev_level_df['orig_level_id'] = level_id
@@ -740,9 +743,9 @@ def get_il_input_items(
             level_df['layer_id'] = level_df['layer_id'].astype('int32')
             level_df['agg_id_prev'] = level_df['agg_id_prev'].fillna(0).astype('int64')
             level_df.drop(columns=['layer_id_prev'], inplace=True)
-
-            if 'risk_id' in agg_key:
-                __split_fm_terms_by_risk(level_df)
+            if do_disaggregation:
+                if 'risk_id' in agg_key:
+                    __split_fm_terms_by_risk(level_df)
 
             # for line that had no term FMTermGroupID == 0, we store in FMTermGroupID the previous agg_id to keep the same granularity
             if 'is_step' in level_df:
