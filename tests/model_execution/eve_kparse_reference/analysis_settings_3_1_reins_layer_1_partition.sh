@@ -89,8 +89,8 @@ tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryaalcalc/P1.idx > /dev/null & p
 tee < fifo/ri_S1_summary_P2 fifo/ri_S1_eltcalc_P2 fifo/ri_S1_summarycalc_P2 fifo/ri_S1_pltcalc_P2 work/ri_S1_summaryaalcalc/P2.bin > /dev/null & pid9=$!
 tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summaryaalcalc/P2.idx > /dev/null & pid10=$!
 
-summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
-summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
+summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
 
 # --- Do insured loss computes ---
 

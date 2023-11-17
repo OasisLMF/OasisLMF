@@ -12,7 +12,7 @@ from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
-from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env
+from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
 
 
 class ComputationStep:
@@ -48,6 +48,16 @@ class ComputationStep:
                                          f"for Computation Step {self.__class__.__name__}")
                 else:
                     param_value = param.get('default')
+
+            if (getattr(param.get('type'), '__name__', None) == 'str2bool') and (not isinstance(param_value, bool)):
+                try:
+                    param_value = str2bool(param_value)
+                except ArgumentTypeError:
+                    raise OasisException(
+                        f"The parameter '{param.get('name')}' has an invalid value '{param_value}' for boolean. Valid strings are (case insensitive):"
+                        "\n  True:  ['yes', 'true', 't', 'y', '1']"
+                        "\n  False: ['no', 'false', 'f', 'n', '0']"
+                    )
 
             if (param.get('is_path')
                     and param_value is not None

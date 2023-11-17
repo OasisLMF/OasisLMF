@@ -72,9 +72,31 @@ FM_LEVELS = OrderedDict({
     'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
 })
 
+GROUPED_SUPPORTED_FM_LEVELS = {
+    'site': {
+        'oed_source': 'location',
+        'fm_peril_field': 'LocPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['site coverage', 'site pd', 'site all']}},
+    'cond': {
+        'oed_source': 'account',
+        'fm_peril_field': 'CondPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['cond coverage', 'cond pd', 'cond all']}},
+    'policy': {
+        'oed_source': 'account',
+        'fm_peril_field': 'PolPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['policy coverage', 'policy pd', 'policy all']}},
+    'layer': {
+        'oed_source': 'account',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['policy layer']}},
+    'account': {
+        'oed_source': 'account',
+        'fm_peril_field': 'AccPeril',
+        'levels': {level: level_dict for level, level_dict in FM_LEVELS.items() if level in ['account all']}},
+}
+
 SUPPORTED_FM_LEVELS = OrderedDict({
-    level: level_dict for level, level_dict in FM_LEVELS.items()
-    if level in ['site coverage', 'site pd', 'site all', 'cond all', 'policy coverage', 'policy pd', 'policy all', 'policy layer', 'account all']
+    level: level_dict for group_info in GROUPED_SUPPORTED_FM_LEVELS.values() for level, level_dict in group_info['levels'].items()
+
 })
 
 FMT_DED = 'deductible'
@@ -110,14 +132,27 @@ LIMIT_CODES = OrderedDict({
 })
 
 STEP_TRIGGER_TYPES = OrderedDict({
-    1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1},
-    2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2},
-    3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3},
+    1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1,
+        'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
+        },
+        },
+    2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2,
+        'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
+        },
+        },
+    3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3,
+        'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
+        },
+        },
     5: {
         'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4,
         'sub_step_trigger_types': {
+            SUPPORTED_COVERAGE_TYPES['bi']['id']: 0,
             SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
-            SUPPORTED_COVERAGE_TYPES['contents']['id']: 2
+            SUPPORTED_COVERAGE_TYPES['contents']['id']: 2,
         }
     }
 })

@@ -29,11 +29,6 @@
                 "field": "LocNumber",
                 "name": "Location number"
             },
-            "IsBICoverage": {
-                "src": "FM",
-                "field": "is_bi_coverage",
-                "name": "Is BI coverage?"
-            },
             "risk_id": {
                 "src": "builtin",
                 "field": "risk_id",
@@ -67,6 +62,48 @@
             }
         }
     },
+    "4": {
+        "FMLevel": 4,
+        "FMLevelName": "CondCoverage",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            },
+            "CondTag":  {
+                "src": "FM",
+                "field": "CondTag",
+                "name": "Cond tag."
+            }
+        }
+    },
+    "5": {
+        "FMLevel": 5,
+        "FMLevelName": "CondPD",
+        "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            },
+            "CondTag":  {
+                "src": "FM",
+                "field": "CondTag",
+                "name": "Cond tag."
+            }
+        }
+    },
     "6": {
         "FMLevel": 6,
         "FMLevelName": "CondAll",
@@ -85,11 +122,6 @@
                 "src": "FM",
                 "field": "CondTag",
                 "name": "Cond tag."
-            },
-            "CondNum":  {
-                "src": "FM",
-                "field": "CondNumber",
-                "name": "Cond num."
             }
         }
     },
