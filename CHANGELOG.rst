@@ -1,6 +1,8 @@
 OasisLMF Changelog
 ==================
 
+.. _`1.28.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.3...1.28.4
+
 `1.28.3`_
  ---------
 * [#1377](https://github.com/OasisLMF/OasisLMF/pull/1377) - Clean up 'runs' dir in repo
