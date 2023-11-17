@@ -185,7 +185,7 @@ def get_gul_input_items(
 
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
-    exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num, 'NumberOfBuildings', 'IsAggregate'] + term_cols + tiv_cols
+    exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num, 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] + term_cols + tiv_cols
     if SOURCE_IDX['loc'] in location_df:
         exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
 
@@ -418,7 +418,7 @@ def get_gul_input_items(
         terms +
         (['model_data'] if 'model_data' in gul_inputs_df else []) +
         # disagg_id is needed for fm_summary_map
-        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', ] +
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         tiv_cols +
         (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
     )

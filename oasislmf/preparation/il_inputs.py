@@ -577,7 +577,7 @@ def get_il_input_items(
     for level_id in fm_aggregation_profile:
         agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
 
-    present_cols = [col for col in gul_inputs_df.columns if col in set(useful_cols).union(agg_keys).union(fm_term_ids)]
+    present_cols = [col for col in gul_inputs_df.columns if col in set(useful_cols).union(agg_keys).union(fm_term_ids + ['LocPeril'])]
     gul_inputs_df = gul_inputs_df[present_cols]
 
     # Remove TIV col from location as this information is present in gul_input_df
@@ -605,8 +605,9 @@ def get_il_input_items(
 
     # no duplicate, if we have, error will appear later for agg_id_1
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True, ignore_index=True)
-    peril_filter = oed_schema.peril_filtering(prev_level_df['peril_id'], prev_level_df['LocPeril'])
-    prev_level_df.loc[~peril_filter, list(set(prev_level_df.columns).intersection(fm_term_ids))] = 0
+    if 'LocPeril' in prev_level_df:
+        peril_filter = oed_schema.peril_filtering(prev_level_df['peril_id'], prev_level_df['LocPeril'])
+        prev_level_df.loc[~peril_filter, list(set(prev_level_df.columns).intersection(fm_term_ids))] = 0
 
     __split_fm_terms_by_risk(prev_level_df)
     prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
