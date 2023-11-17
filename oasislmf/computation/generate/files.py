@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 from typing import List
 
+from ods_tools.oed.setting_schema import ModelSettingSchema
+
 from oasislmf.computation.base import ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
                                                             CoveragesFile,
@@ -46,8 +48,7 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
 from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
-                                 get_exposure_data, get_json,
-                                 get_utctimestamp,
+                                 get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
                                  prepare_reinsurance_df)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
@@ -58,7 +59,6 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
-from ods_tools.oed.setting_schema import ModelSettingSchema
 
 
 class GenerateFiles(ComputationStep):
@@ -89,6 +89,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -269,6 +270,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
+            do_disaggregation=self.do_disaggregation
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -314,7 +316,8 @@ class GenerateFiles(ComputationStep):
             oed_schema=exposure_data.oed_schema,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
-            fm_aggregation_profile=fm_aggregation_profile
+            fm_aggregation_profile=fm_aggregation_profile,
+            do_disaggregation=self.do_disaggregation,
         )
 
         # Write the IL/FM input files
