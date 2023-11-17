@@ -338,7 +338,6 @@ def get_gul_input_items(
     #  - set the IL terms (and BI coverage boolean) in each group and update the corresponding frame section in the GUL inputs table
     gul_inputs_reformatted_chunks = []
     terms_found = set()
-    
     if do_disaggregation:
         # split TIV
         gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
@@ -358,7 +357,6 @@ def get_gul_input_items(
         cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
-        
         disagg_df_chunk = []
         if do_disaggregation:
             # if NumberOfBuildings == 0: still add one entry
