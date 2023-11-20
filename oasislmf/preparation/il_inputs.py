@@ -343,7 +343,7 @@ def get_cond_info(locations_df, accounts_df):
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
         acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
-        missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge']=='right_only', ['PortNumber', 'AccNumber', 'CondTag']]
+        missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['PortNumber', 'AccNumber', 'CondTag']]
     else:
         acc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
         missing_condkey_df = loc_condkey_df
