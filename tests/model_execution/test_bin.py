@@ -32,7 +32,8 @@ from oasislmf.model_execution.bin import (
     csv_to_bin,
     prepare_run_directory,
     prepare_run_inputs,
-    set_footprint_set
+    set_footprint_set,
+    set_vulnerability_set
 )
 from oasislmf.utils.exceptions import OasisException
 
@@ -1001,6 +1002,51 @@ class SetFootprintSet(TestCase):
         with TemporaryDirectory() as d:
             with self.assertRaises(OasisException):
                 set_footprint_set(self.setting_val, d)
+
+
+class SetVulnerabilitySet(TestCase):
+
+    def setUp(self):
+        """
+        Declare identifier for vulnerability file set for tests.
+        """
+        self.setting_val = 'test'
+
+    def make_fake_vulnerability_files(self, directory, file_format):
+        """
+        Write a fake vulnerability file in the specified format to the directory.
+        """
+        os.mkdir(os.path.join(directory, 'static'))
+        filename = f'vulnerability_{self.setting_val}.{file_format}'
+        Path(os.path.join(directory, 'static', filename)).touch()
+
+    def test_symbolic_link_creation(self):
+        """
+        Test that symbolic links pointing to vulnerability files are correctly created.
+        """
+        vulnerability_formats = ['bin', 'parquet', 'csv']
+
+        for file_format in vulnerability_formats:
+            with TemporaryDirectory() as d:
+                self.make_fake_vulnerability_files(d, file_format)
+
+                set_vulnerability_set(self.setting_val, d)
+
+                vulnerability_fp = os.path.join(d, 'static', f'vulnerability_{self.setting_val}.{file_format}')
+                vulnerability_target_fp = os.path.join(d, 'static', f'vulnerability.{file_format}')
+
+                self.assertTrue(os.path.islink(vulnerability_target_fp))
+                self.assertEqual(os.readlink(vulnerability_target_fp), vulnerability_fp)
+
+    def test_no_valid_files_raises_exception(self):
+        """
+        Test that an exception is raised if no valid vulnerability files are found.
+        """
+        with TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'static'))
+
+            with self.assertRaises(OasisException):
+                set_vulnerability_set(self.setting_val, d)
 
 
 class CleanBinDirectory(TestCase):
