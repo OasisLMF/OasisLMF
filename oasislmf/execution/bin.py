@@ -12,7 +12,8 @@ __all__ = [
     'csv_to_bin',
     'prepare_run_directory',
     'prepare_run_inputs',
-    'set_footprint_set'
+    'set_footprint_set',
+    'set_vulnerability_set'
 ]
 
 
@@ -435,6 +436,33 @@ def set_footprint_set(setting_val, run_dir):
             return
 
     raise OasisException(f'Could not find footprint data files with identifier {setting_val}')
+
+
+@oasis_log
+def set_vulnerability_set(setting_val, run_dir):
+    """
+    Create symbolic link to vulnerability file set that will be used for output
+    calculation.
+
+    :param setting_val: identifier for vulnerability set
+    :type setting_val: string
+
+    :param run_dir: model run directory
+    :type run_dir: string
+    """
+
+    vulnerability_formats = ['bin', 'parquet', 'csv']
+    setting_val = str(setting_val)
+
+    for file_format in vulnerability_formats:
+        vulnerability_fp = os.path.join(run_dir, 'static', f'vulnerability_{setting_val}.{file_format}')
+        vulnerability_target_fp = os.path.join(run_dir, 'static', f'vulnerability.{file_format}')
+        if os.path.isfile(vulnerability_fp):
+            os.symlink(vulnerability_fp, vulnerability_target_fp)
+            return
+        else:
+            logger.debug(f'{vulnerability_fp} not found, trying next format')
+    raise OasisException(f'Could not find vulnerability data files with identifier {setting_val}')
 
 
 @oasis_log
