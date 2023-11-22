@@ -43,6 +43,7 @@ from oasislmf.pytools.getmodel.common import fp_format_priorities
 from oasislmf.pytools.getmodel.footprint import (
     FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv
 )
+from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, vulnerability_filename
 
 logger = logging.getLogger(__name__)
 
@@ -455,14 +456,27 @@ def set_vulnerability_set(setting_val, run_dir):
     setting_val = str(setting_val)
 
     for file_format in vulnerability_formats:
-        vulnerability_fp = os.path.join(run_dir, 'static', f'vulnerability_{setting_val}.{file_format}')
-        vulnerability_target_fp = os.path.join(run_dir, 'static', f'vulnerability.{file_format}')
-        if os.path.isfile(vulnerability_fp):
-            os.symlink(vulnerability_fp, vulnerability_target_fp)
-            return
+
+        if file_format == 'parquet':
+            # For Parquet, check if it's a directory
+            vulnerability_fp = os.path.join(run_dir, 'static', f'{vulnerability_dataset}_{setting_val}')
+            vulnerability_target_fp = os.path.join(run_dir, 'static', f'{vulnerability_dataset}')
+            if os.path.isdir(vulnerability_fp):
+                os.symlink(vulnerability_fp, vulnerability_target_fp)
+                return
+            else:
+                logger.debug(f'{vulnerability_fp} not found, trying next format')
         else:
-            logger.debug(f'{vulnerability_fp} not found, trying next format')
-    raise OasisException(f'Could not find vulnerability data files with identifier {setting_val}')
+            # For other file formats, check if it's a file
+            vulnerability_fp = os.path.join(run_dir, 'static', f'{vulnerability_filename}_{setting_val}.{file_format}')
+            vulnerability_target_fp = os.path.join(run_dir, 'static', f'{vulnerability_filename}.{file_format}')
+            if os.path.isfile(vulnerability_fp):
+                os.symlink(vulnerability_fp, vulnerability_target_fp)
+                return
+            else:
+                logger.debug(f'{vulnerability_fp} not found, trying next format')
+
+    raise OasisException(f'Could not find vulnerability data files with identifier "{setting_val}"')
 
 
 @oasis_log

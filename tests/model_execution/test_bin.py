@@ -1007,43 +1007,47 @@ class SetFootprintSet(TestCase):
 class SetVulnerabilitySet(TestCase):
 
     def setUp(self):
-        """
-        Declare identifier for vulnerability file set for tests.
-        """
+        """ Declare identifier for vulnerability file set for tests. """
         self.setting_val = 'test'
+        self.vulnerability_dataset = 'vulnerability_dataset'
 
     def make_fake_vulnerability_files(self, directory, file_format):
-        """
-        Write a fake vulnerability file in the specified format to the directory.
-        """
-        os.mkdir(os.path.join(directory, 'static'))
-        filename = f'vulnerability_{self.setting_val}.{file_format}'
-        Path(os.path.join(directory, 'static', filename)).touch()
+        """ Write a fake vulnerability file in the specified format to the directory. """
+        os.makedirs(os.path.join(directory, 'static'), exist_ok=True)
+        if file_format == 'parquet':
+            # Create a directory for parquet format
+            os.makedirs(os.path.join(directory, 'static', f'{self.vulnerability_dataset}_{self.setting_val}'))
+        else:
+            # Create a file for other formats
+            filename = f'vulnerability_{self.setting_val}.{file_format}'
+            Path(os.path.join(directory, 'static', filename)).touch()
 
     def test_symbolic_link_creation(self):
-        """
-        Test that symbolic links pointing to vulnerability files are correctly created.
-        """
+        """ Test that symbolic links or directories are correctly created. """
         vulnerability_formats = ['bin', 'parquet', 'csv']
 
         for file_format in vulnerability_formats:
             with TemporaryDirectory() as d:
                 self.make_fake_vulnerability_files(d, file_format)
-
                 set_vulnerability_set(self.setting_val, d)
 
-                vulnerability_fp = os.path.join(d, 'static', f'vulnerability_{self.setting_val}.{file_format}')
-                vulnerability_target_fp = os.path.join(d, 'static', f'vulnerability.{file_format}')
-
-                self.assertTrue(os.path.islink(vulnerability_target_fp))
-                self.assertEqual(os.readlink(vulnerability_target_fp), vulnerability_fp)
+                if file_format == 'parquet':
+                    # Check for symbolic link to directory
+                    src_dir = os.path.join(d, 'static', f'{self.vulnerability_dataset}_{self.setting_val}')
+                    target_dir = os.path.join(d, 'static', self.vulnerability_dataset)
+                    self.assertTrue(os.path.islink(target_dir))
+                    self.assertEqual(os.readlink(target_dir), src_dir)
+                else:
+                    # Check for symbolic link to file
+                    vulnerability_fp = os.path.join(d, 'static', f'vulnerability_{self.setting_val}.{file_format}')
+                    vulnerability_target_fp = os.path.join(d, 'static', f'vulnerability.{file_format}')
+                    self.assertTrue(os.path.islink(vulnerability_target_fp))
+                    self.assertEqual(os.readlink(vulnerability_target_fp), vulnerability_fp)
 
     def test_no_valid_files_raises_exception(self):
-        """
-        Test that an exception is raised if no valid vulnerability files are found.
-        """
+        """ Test that an exception is raised if no valid vulnerability files are found. """
         with TemporaryDirectory() as d:
-            os.mkdir(os.path.join(d, 'static'))
+            os.makedirs(os.path.join(d, 'static'), exist_ok=True)
 
             with self.assertRaises(OasisException):
                 set_vulnerability_set(self.setting_val, d)
