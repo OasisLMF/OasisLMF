@@ -50,7 +50,7 @@ class TestGenFiles(ComputationChecker):
 
         self.write_json(self.tmp_files.get('lookup_complex_config_json'), MIN_RUN_SETTINGS)
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
-
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_files.get('oed_info_csv'), MIN_INF)
@@ -207,6 +207,23 @@ class TestGenFiles(ComputationChecker):
                          'keys_data_csv': keys_file,
                          'keys_errors_csv': keys_err_file}
             file_gen_return = self.manager.generate_files(**call_args)
+
+    @patch('oasislmf.computation.generate.files.establish_correlations')
+    def test_files__model_settings_given__analysis_settings_replace_correlations(self, establish_correlations):
+        model_settings_file = self.tmp_files.get('model_settings_json')
+        self.write_json(model_settings_file, CORRELATIONS_MODEL_SETTINGS)
+        analysis_settings_file = self.tmp_files.get('analysis_settings_json')
+        self.write_json(analysis_settings_file, MIN_RUN_CORRELATIONS_SETTINGS)
+        with self.tmp_dir() as _:
+            call_args = {
+                **self.ri_args,
+                'model_settings_json': model_settings_file.name,
+                'analysis_settings_json': analysis_settings_file.name
+            }
+            self.manager.generate_files(**call_args)
+            establish_correlations.assert_called_once()
+            used_correlations = establish_correlations.call_args.kwargs['model_settings']
+            self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
 
 
 class TestGenDummyModelFiles(ComputationChecker):
