@@ -175,10 +175,10 @@ class GenerateKeysDeterministic(KeyComputationStep):
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
-        {'name': 'num_subperils', 'flag': '-p', 'default': 1, 'type': int,
-         'help': 'Set the number of subperils returned by deterministic key generator'},
         {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
          'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
+         'help': 'List of peril covered by the model'}
     ]
 
     def _get_output_dir(self):
@@ -193,12 +193,12 @@ class GenerateKeysDeterministic(KeyComputationStep):
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
-        config = {'builtin_lookup_type': 'deterministic',
+        config = {'builtin_lookup_type': 'peril_covered_deterministic',
                   'model': {"supplier_id": "OasisLMF",
                             "model_id": "Deterministic",
                             "model_version": "1"},
-                  'num_subperils': self.num_subperils,
-                  'supported_oed_coverage_types': self.supported_oed_coverage_types}
+                  'supported_oed_coverage_types': self.supported_oed_coverage_types,
+                  'model_perils_covered': self.model_perils_covered}
 
         model_info, lookup = KeyServerFactory.create(
             lookup_config=config,

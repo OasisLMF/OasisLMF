@@ -162,7 +162,7 @@ class TestGenFiles(ComputationChecker):
                     'currency_conversion_json': currency_config_file.name
                 }
                 self.manager.generate_files(**call_args)
-                loc_df = mock_get_il_items.call_args.kwargs['exposure_df']
+                loc_df = mock_get_il_items.call_args.kwargs['locations_df']
                 acc_df = mock_get_il_items.call_args.kwargs['accounts_df']
                 self.assertEqual(loc_df['LocCurrency'].unique().to_list(), [CURRENCY])
                 self.assertEqual(acc_df['AccCurrency'].unique().to_list(), [CURRENCY])
