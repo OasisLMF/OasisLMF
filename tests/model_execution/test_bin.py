@@ -1011,8 +1011,8 @@ class SetVulnerabilitySet(TestCase):
         self.setting_val = 'test'
         self.vulnerability_dataset = 'vulnerability_dataset'
 
-    def make_fake_vulnerability_files(self, directory, file_format):
-        """ Write a fake vulnerability file in the specified format to the directory. """
+    def make_mock_vulnerability_files(self, directory, file_format):
+        """ Write a mock vulnerability file in the specified format to the directory. """
         os.makedirs(os.path.join(directory, 'static'), exist_ok=True)
         if file_format == 'parquet':
             # Create a directory for parquet format
@@ -1028,7 +1028,7 @@ class SetVulnerabilitySet(TestCase):
 
         for file_format in vulnerability_formats:
             with TemporaryDirectory() as d:
-                self.make_fake_vulnerability_files(d, file_format)
+                self.make_mock_vulnerability_files(d, file_format)
                 set_vulnerability_set(self.setting_val, d)
 
                 if file_format == 'parquet':
