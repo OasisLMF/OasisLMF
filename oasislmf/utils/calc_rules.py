@@ -30,6 +30,7 @@ CALC_RULE_TERMS_INFO = {
 }
 
 # Ktools calc. rules
+
+
 def get_calc_rules(calc_rule_type):
     return get_dataframe(src_fp=os.path.join(STATIC_DATA_FP, CALC_RULE_FILES[calc_rule_type])), CALC_RULE_TERMS_INFO[calc_rule_type]
-

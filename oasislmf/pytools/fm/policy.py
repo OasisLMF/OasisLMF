@@ -381,7 +381,7 @@ def calc(policy, loss_out, loss_in, stepped):
     elif policy['calcrule_id'] == 133:
         calcrule_33(policy, loss_out, loss_in)
         loss_out *= policy['share_1']
-    elif stepped is not None: # step policies
+    elif stepped is not None:  # step policies
         if policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in)
         elif policy['calcrule_id'] == 32:
