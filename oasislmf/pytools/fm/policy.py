@@ -359,7 +359,29 @@ def calc(policy, loss_out, loss_in, stepped):
         calcrule_34(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
-    elif stepped is not None:
+    # policies non layer policy with share
+    elif policy['calcrule_id'] == 103:
+        calcrule_3(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 105:
+        calcrule_5(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 114:
+        calcrule_14(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 115:
+        calcrule_15(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 116:
+        calcrule_16(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 120:
+        calcrule_20(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 133:
+        calcrule_33(policy, loss_out, loss_in)
+        loss_out *= policy['share_1']
+    elif stepped is not None: # step policies
         if policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in)
         elif policy['calcrule_id'] == 32:

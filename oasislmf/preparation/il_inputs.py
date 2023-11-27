@@ -88,7 +88,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
         pandas Series of calc. rule IDs
     """
     calc_rules_df, calc_rule_term_info = get_calc_rules(calc_rule_type)
-    calc_rules_df = calc_rules_df.drop(['desc', 'id_key'], axis=1)
+    calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], axis=1, errors='ignore')
 
     terms = []
     terms_indicators = []

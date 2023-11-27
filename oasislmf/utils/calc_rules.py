@@ -16,7 +16,7 @@ CALC_RULE_FILES = {
 
 CALC_RULE_TERMS_INFO = {
     'base': {
-        'terms': ['deductible', 'deductible_min', 'deductible_max', 'limit'],
+        'terms': ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share'],
         'types_and_codes': ['ded_type', 'ded_code', 'lim_type', 'lim_code'],
     },
     'policy_layer': {
