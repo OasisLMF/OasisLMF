@@ -234,16 +234,14 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, ad
     cur_vulnerability_id = -1
 
     # New logic: replace vulnerability_id with the one in the vulnerability_adj file before
+    # Add a check that we are replacing vuln_ids that are in the vuln_dict
+    # Otherwise that's unnecessary work
     if adj_vuln_data is not None:
         vulns_bin = replace_vulns(vulns_bin, adj_vuln_data)
 
     for vuln_i in range(vulns_bin.shape[0]):
         vuln = vulns_bin[vuln_i]
         if vuln['vulnerability_id'] != cur_vulnerability_id:
-            # if vuln['vulnerability_id'] in vuln_dict and vuln['vulnerability_id'] in adj_vuln_data['vulnerability_id']:
-            #     cur_vulnerability_id = adj_vuln_data[vuln['vulnerability_id']]['vulnerability_id']
-            #     cur_vuln_array = vuln_array[vuln_dict[cur_vulnerability_id]]
-            # elif vuln['vulnerability_id'] in vuln_dict and not adj_vuln_data:
             if vuln['vulnerability_id'] in vuln_dict:
                 cur_vulnerability_id = vuln['vulnerability_id']
                 cur_vuln_array = vuln_array[vuln_dict[cur_vulnerability_id]]
@@ -257,19 +255,19 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, ad
 
 @nb.njit(cache=True)
 def replace_vulns(vulns_bin, vulns_adj):
-    # Create a list of shared vulnerability IDs
+    # create a list of shared vulnerability IDs
     shared_vuln_ids = []
     for item in vulns_adj:
         if item['vulnerability_id'] in vulns_bin['vulnerability_id']:
             shared_vuln_ids.append(item['vulnerability_id'])
 
-    # filter vulns_bin to only include non-shared vulnerability IDs
+    # count non_shared vulns_bin
     non_shared_count = 0
     for item in vulns_bin:
         if item['vulnerability_id'] not in shared_vuln_ids:
             non_shared_count += 1
 
-    # Create an empty array for non-shared vulns_bin
+    # create a new array for the non_shared vulns_bin
     non_shared_vulns_bin = np.empty(non_shared_count, dtype=vulns_bin.dtype)
     idx = 0
     for item in vulns_bin:
@@ -277,11 +275,9 @@ def replace_vulns(vulns_bin, vulns_adj):
             non_shared_vulns_bin[idx] = item
             idx += 1
 
-    # Concatenate non-shared vulns with vulns_adj
+    # put them all together
     combined_vulns = np.concatenate((non_shared_vulns_bin, vulns_adj))
-
     return combined_vulns
-
 
 
 @nb.njit()
