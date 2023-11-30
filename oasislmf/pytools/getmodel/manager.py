@@ -217,6 +217,53 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
 
 
 @nb.njit(cache=True)
+def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
+    """
+    Loads the vulnerability binary index file.
+
+    Args:
+        vulns_bin:
+        vulns_idx_bin:
+        vuln_dict:
+        num_damage_bins:
+        num_intensity_bins:
+        adj_vuln_data: (List[Vulnerability]) vulnerability adjustment data
+
+    Returns:(List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    """
+    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+    ids_to_replace = set()
+
+    # Create list of ids to replace if adj_vuln_data is provided
+    if adj_vuln_data is not None:
+        for adj_vuln in adj_vuln_data:
+            if adj_vuln['vulnerability_id'] in vuln_dict:
+                ids_to_replace.add(adj_vuln['vulnerability_id'])
+
+    for idx_i in range(vulns_idx_bin.shape[0]):
+        vuln_idx = vulns_idx_bin[idx_i]
+        vuln_id = vuln_idx['vulnerability_id']
+
+        if vuln_id in vuln_dict:
+            cur_vuln_array = vuln_array[vuln_dict[vuln_id]]
+
+            if vuln_id in ids_to_replace:
+                # Replace data with adj_vuln_data. Could be optimized by assuming sorted adj_vuln_data by vuln_id
+                for adj_vuln in adj_vuln_data:
+                    if adj_vuln['vulnerability_id'] == vuln_id:
+                        cur_vuln_array[adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+            else:
+
+                start = (vuln_idx['offset'] - vuln_offset) // VulnerabilityRow.itemsize
+                end = start + vuln_idx['size'] // VulnerabilityRow.itemsize
+                for vuln_i in range(start, end):
+                    vuln = vulns_bin[vuln_i]
+                    cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
+
+    return vuln_array
+
+
+@nb.njit(cache=True)
 def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     """
     Loads the vulnerability data grouped by the intensity and damage bins.
@@ -277,7 +324,7 @@ def load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity
 
         if vuln_id in vuln_dict:
             if vuln_id in ids_to_replace:
-                # Replace data with adj_vuln_data
+                # Replace data with adj_vuln_data. Could be optimized by assuming sorted adj_vuln_data by vuln_id
                 for adj_vuln in adj_vuln_data:
                     if adj_vuln['vulnerability_id'] == vuln_id:
                         vuln_array[vuln_dict[vuln_id], adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
@@ -307,6 +354,25 @@ def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
     for i in range(vulns_id_array.shape[0]):
         vuln_dict[vulns_id_array[i]] = np.int32(i)
+
+
+@nb.njit()
+def update_vuln_array_with_adj_data(vuln_array, vuln_dict, adj_vuln_data):
+    """
+    Update the vulnerability array with adjustment data.
+
+    Args:
+        vuln_array: (3D array) The vulnerability data array.
+        vuln_dict: (Dict[int, int]) Maps vulnerability IDs to indices in vuln_array.
+        adj_vuln_data: (List[Vulnerability]) The vulnerability adjustment data.
+
+    Returns: (3D array) The updated vulnerability data array.
+    """
+    for adj_vuln in adj_vuln_data:
+        vuln_id = adj_vuln['vulnerability_id']
+        if vuln_id in vuln_dict:
+            vuln_array[vuln_dict[vuln_id], adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+    return vuln_array
 
 
 @nb.njit()
@@ -361,6 +427,8 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                                                                             number_of_intensity_bins)
         vulns_id = vuln_table['vulnerability_id'].to_numpy()
         update_vulns_dictionary(vuln_dict, vulns_id)
+        if vulnerability_adjust is not None:
+            vuln_array = update_vuln_array_with_adj_data(vuln_array, vuln_dict, vulnerability_adjust)
 
     else:
         if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
@@ -374,8 +442,12 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                                       dtype=VulnerabilityRow, offset=4, mode='r')
                 vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"),
                                           dtype=VulnerabilityIndex, mode='r')
-                vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                                                num_damage_bins, num_intensity_bins)
+                if vulnerability_adjust is not None:
+                    vuln_array = load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
+                                                             num_damage_bins, num_intensity_bins, vulnerability_adjust)
+                else:
+                    vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
+                                                    num_damage_bins, num_intensity_bins, vulnerability_adjust)
             else:
                 vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
                                       dtype=Vulnerability, offset=4, mode='r')
