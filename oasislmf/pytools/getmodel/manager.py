@@ -10,7 +10,6 @@ import os
 import sys
 from contextlib import ExitStack
 
-import json
 import numba as nb
 import numpy as np
 import pandas as pd
@@ -218,7 +217,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
 
 
 @nb.njit(cache=True)
-def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
+def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     """
     Loads the vulnerability data grouped by the intensity and damage bins.
 
@@ -232,12 +231,6 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, ad
     """
     vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
     cur_vulnerability_id = -1
-
-    # New logic: replace vulnerability_id with the one in the vulnerability_adj file before
-    # Add a check that we are replacing vuln_ids that are in the vuln_dict
-    # Otherwise that's unnecessary work
-    if adj_vuln_data is not None:
-        vulns_bin = replace_vulns(vulns_bin, adj_vuln_data)
 
     for vuln_i in range(vulns_bin.shape[0]):
         vuln = vulns_bin[vuln_i]
@@ -254,30 +247,52 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, ad
 
 
 @nb.njit(cache=True)
-def replace_vulns(vulns_bin, vulns_adj):
-    # create a list of shared vulnerability IDs
-    shared_vuln_ids = []
-    for item in vulns_adj:
-        if item['vulnerability_id'] in vulns_bin['vulnerability_id']:
-            shared_vuln_ids.append(item['vulnerability_id'])
+def load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
+    """
+    Loads the vulnerability data grouped by the intensity and damage bins, prioritizing the data
+    in the adjustments file over the data in the vulnerability file.
 
-    # count non_shared vulns_bin
-    non_shared_count = 0
-    for item in vulns_bin:
-        if item['vulnerability_id'] not in shared_vuln_ids:
-            non_shared_count += 1
+    Args:
+        vuln_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_damage_bins: (int) number of damage bins in the data
+        num_intensity_bins: (int) the number of intensity bins
+        adj_vuln_data: (List[Vulnerability]) vulnerability adjustment data
 
-    # create a new array for the non_shared vulns_bin
-    non_shared_vulns_bin = np.empty(non_shared_count, dtype=vulns_bin.dtype)
-    idx = 0
-    for item in vulns_bin:
-        if item['vulnerability_id'] not in shared_vuln_ids:
-            non_shared_vulns_bin[idx] = item
-            idx += 1
+    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    """
+    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+    ids_to_replace = set()
 
-    # put them all together
-    combined_vulns = np.concatenate((non_shared_vulns_bin, vulns_adj))
-    return combined_vulns
+    # Create list of ids to replace if adj_vuln_data is provided
+    if adj_vuln_data is not None:
+        for adj_vuln in adj_vuln_data:
+            if adj_vuln['vulnerability_id'] in vuln_dict:
+                ids_to_replace.add(adj_vuln['vulnerability_id'])
+
+    vuln_i = 0
+    while vuln_i < len(vulns_bin):
+        vuln = vulns_bin[vuln_i]
+        vuln_id = vuln['vulnerability_id']
+
+        if vuln_id in vuln_dict:
+            if vuln_id in ids_to_replace:
+                # Replace data with adj_vuln_data
+                for adj_vuln in adj_vuln_data:
+                    if adj_vuln['vulnerability_id'] == vuln_id:
+                        vuln_array[vuln_dict[vuln_id], adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+
+                # Skip remaining vulns_bin entries with the same vulnerability_id
+                while vuln_i < len(vulns_bin) and vulns_bin[vuln_i]['vulnerability_id'] == vuln_id:
+                    vuln_i += 1
+                continue
+            else:
+                # Use data from vulns_bin
+                vuln_array[vuln_dict[vuln_id], vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
+
+        vuln_i += 1
+
+    return vuln_array
 
 
 @nb.njit()
@@ -326,7 +341,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
     """
     input_files = set(os.listdir(static_path))
 
-    # check if vulnerability_adjust is in the static_path - CONSIDER WHICH JSON IMPORT WE SHOULD USE HERE - or if json at all
+    # Pass analysis_settings and see if vulnerability_adjust is in there?
     vulnerability_adjust = None
     if os.path.exists(os.path.join(static_path, "vulnerability_adj.csv")):
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_adj.csv')}")
@@ -364,13 +379,20 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
             else:
                 vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
                                       dtype=Vulnerability, offset=4, mode='r')
-                vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
+                # load_vulns_bin is slightly faster than load_vulns_bin_adjusted if vulnerability_adjust is None
+                if vulnerability_adjust is not None:
+                    vuln_array = load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
+                else:
+                    vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
             logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
             vuln_csv = np.loadtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
-            vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
+            if vulnerability_adjust is not None:
+                vuln_array = load_vulns_bin_adjusted(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
+            else:
+                vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
         else:
             raise FileNotFoundError(f'vulnerability file not found at {static_path}')
 
