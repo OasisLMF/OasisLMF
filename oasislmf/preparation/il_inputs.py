@@ -1090,14 +1090,9 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        xref_df = get_xref_df(il_inputs_df)
-        pd.DataFrame(
-            {
-                'output': factorize_ndarray(xref_df.loc[:, ['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
-                'agg_id': xref_df['gul_input_id'],
-                'layer_id': xref_df['layer_id']
-            }
-        ).to_csv(
+        xref_df = get_xref_df(il_inputs_df)[['gul_input_id', 'layer_id']].rename(columns={'gul_input_id': 'agg_id'})
+        xref_df['output'] = xref_df.reset_index().index + 1
+        xref_df[['output', 'agg_id', 'layer_id']].to_csv(
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_xref_fp) else 'a'),
