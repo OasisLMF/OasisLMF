@@ -713,6 +713,9 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
+    elif policy['calcrule_id'] == 101:
+        calcrule_1(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
     elif policy['calcrule_id'] == 103:
         calcrule_3(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         loss_out *= policy['share_1']
@@ -730,6 +733,9 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         loss_out *= policy['share_1']
     elif policy['calcrule_id'] == 111:
         calcrule_11(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 112:
+        calcrule_12(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         loss_out *= policy['share_1']
     elif policy['calcrule_id'] == 113:
         calcrule_13(policy, loss_out, loss_in, deductible, over_limit, under_limit)
