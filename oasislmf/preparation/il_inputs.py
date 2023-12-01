@@ -336,6 +336,8 @@ def get_cond_info(locations_df, accounts_df):
         # we get information about cond from accounts_df
         cond_tags = {}  # information about each cond tag
         account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
+        fill_empty(accounts_df, 'CondPriority', 1)
+        fill_empty(accounts_df, 'CondPeril', '')
         for acc_rec in accounts_df.to_dict(orient="records"):
             cond_tag_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'])
             cond_number_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'], acc_rec['CondNumber'])
