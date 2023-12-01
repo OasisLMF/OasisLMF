@@ -666,7 +666,7 @@ def get_il_input_items(
             )
 
             __drop_duplicated_row(il_inputs_df_list[-1] if il_inputs_df_list else None, prev_level_df, prev_df_subset)
-            il_inputs_df_list.append(pd.concat([prev_level_df, root_df]))
+            il_inputs_df_list.append(pd.concat([df for df in [prev_level_df, root_df] if not df.empty]))
 
             level_df['level_id'] = len(il_inputs_df_list) + 1
             level_df['orig_level_id'] = level_id
