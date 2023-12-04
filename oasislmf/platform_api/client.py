@@ -364,7 +364,7 @@ class APIClient(object):
         self.logger = logger or logging.getLogger(__name__)
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
-        self.api_ver =  api_ver.lower()
+        self.api_ver = api_ver.lower()
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, self.api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, self.api_ver))
         self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, self.api_ver))
