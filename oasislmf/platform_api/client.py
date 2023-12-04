@@ -360,15 +360,16 @@ class API_analyses(ApiEndpoint):
 
 
 class APIClient(object):
-    def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
+    def __init__(self, api_url='http://localhost:8000', api_ver='V2', username='admin', password='password', timeout=25, logger=None, **kwargs):
         self.logger = logger or logging.getLogger(__name__)
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
-        self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
-        self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
-        self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, api_ver))
-        self.data_files = API_datafiles(self.api, '{}{}/data_files/'.format(self.api.url_base, api_ver))
-        self.task_status = API_task_status(self.api, '{}{}/analysis-task-statuses/'.format(self.api.url_base, api_ver))
+        self.api_ver =  api_ver.lower()
+        self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, self.api_ver))
+        self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, self.api_ver))
+        self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, self.api_ver))
+        self.data_files = API_datafiles(self.api, '{}{}/data_files/'.format(self.api.url_base, self.api_ver))
+        self.task_status = API_task_status(self.api, '{}{}/analysis-task-statuses/'.format(self.api.url_base, self.api_ver))
 
     def oed_peril_codes(self):
         return self.api.get('{}oed_peril_codes/'.format(self.api.url_base))
