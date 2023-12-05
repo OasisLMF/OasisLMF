@@ -1,12 +1,113 @@
-from unittest import main, TestCase
+import os
+import shutil
+import tempfile
+from unittest import main, TestCase, mock
 
-# from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
+from oasislmf.pytools.getmodel.manager import get_vulns
+from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
+# from oasislmf.pytools.getmodel.manager import get_items, Footprint
 # from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
-#
-# import numpy as np
-# import numba as nb
-# import pyarrow.parquet as pq
+
+import numpy as np
+import numba as nb
+from numba.typed import Dict
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 # from pyarrow import memory_map
+
+
+class TestGetVulns(TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.vuln_dict_base = {1: 2, 2: 0, 3: 1}
+        self.vuln_dict = Dict.empty(key_type=nb.int32, value_type=nb.int32)
+        for key, value in self.vuln_dict_base.items():
+            self.vuln_dict[key] = value
+        self.num_intensity_bins = 2
+        self.mock_vuln_data = np.array([
+            (1, 1, 1, 0.25),
+            (1, 1, 2, 0.25),
+            (1, 2, 1, 0.25),
+            (1, 2, 2, 0.25),
+            (2, 1, 1, 0.7),
+            (2, 1, 2, 0.1),
+            (2, 2, 1, 0.1),
+            (2, 2, 2, 0.1),
+            (3, 1, 1, 0.1),
+            (3, 1, 2, 0.1),
+            (3, 2, 1, 0.1),
+            (3, 2, 2, 0.7),
+            (4, 1, 1, 0.9),
+            (4, 1, 2, 0.01),
+            (4, 2, 1, 0.01),
+            (4, 2, 2, 0.08),
+        ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
+        self.mock_vuln_adj_data = np.array([
+            (2, 1, 1, 0.95),
+            (2, 1, 2, 0.01),
+            (2, 2, 1, 0.02),
+            (2, 2, 2, 0.01),
+        ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
+        self.expected_outputs = {
+            'vuln_array': np.array([[[0.1, 0.2, 0.3, 0.4, 0.5], [0.1, 0.2, 0.3, 0.4, 0.5]]]),
+            'vulns_id': np.array([1, 2, 3]),
+            'num_damage_bins': 2
+        }
+        self.expected_outputs_adj = {
+            'vuln_array': np.array([[[0.1, 0.2, 0.3, 0.4, 0.5], [0.1, 0.2, 0.3, 0.4, 0.5]]]),
+            'vulns_id': np.array([1, 2, 3]),
+            'num_damage_bins': 50
+        }
+        self.ignore_file_type = {"parquet", "bin", "csv"}
+
+        # create csv file
+        df = pd.DataFrame(self.mock_vuln_data)
+        csv_path = os.path.join(self.temp_dir, 'vulnerability.csv')
+        df.to_csv(csv_path, index=False)
+
+        # create bin file
+        bin_path = os.path.join(self.temp_dir, 'vulnerability.bin')
+        with open(bin_path, 'wb') as f:
+            # Write a header if required by your format
+            header = np.array([0], dtype='i4')  # Example header; adjust as needed
+            f.write(header.tobytes())
+            for record in self.mock_vuln_data:
+                f.write(record.tobytes())
+
+        # create parquet file
+        vulnerability_to_parquet(self.temp_dir)
+
+        # create adjustment csv file
+        df_adj = pd.DataFrame(self.mock_vuln_adj_data)
+        csv_path_adj = os.path.join(self.temp_dir, 'vulnerability_adj.csv')
+        df_adj.to_csv(csv_path_adj, index=False)
+        self.static_path = self.temp_dir
+
+    def test_get_vulns(self):
+        # Remove vulnerability_adj.csv before running test
+        adj_csv_path = os.path.join(self.temp_dir, 'vulnerability_adj.csv')
+        if os.path.exists(adj_csv_path):
+            os.remove(adj_csv_path)
+        for file_type in ['csv', 'bin', 'parquet']:
+            ignore_file_types = self.ignore_file_type - {file_type}
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict, self.num_intensity_bins, ignore_file_type=ignore_file_types)
+        self.assertIsNotNone(vuln_array)
+        # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
+        self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+
+    def test_get_vulns_adj(self):
+        for file_type in ['csv', 'bin', 'parquet']:
+            ignore_file_types = self.ignore_file_type - {file_type}
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict, self.num_intensity_bins, ignore_file_type=ignore_file_types)
+        # self.assertEqual(vuln_array, self.expected_outputs['vuln_array'])
+        self.assertIsNotNone(vuln_array)
+        # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
+        self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
 
 
 class GetModelTests(TestCase):

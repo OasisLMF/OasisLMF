@@ -220,7 +220,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
 # that the index file is never being used. Should this be fixed, this function implements
 # the adjustments to the vulnerability data using the vulnerability adjustment file.
 
-#@nb.njit(cache=True)
+# @nb.njit(cache=True)
 # def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
 #     """
 #     Loads the vulnerability binary index file.
@@ -416,7 +416,9 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
     if os.path.exists(os.path.join(static_path, "vulnerability_adj.csv")):
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_adj.csv')}")
         vulnerability_adjust = np.loadtxt(os.path.join(static_path, "vulnerability_adj.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
-        vulnerability_adjust = np.array([adj_vuln for adj_vuln in vulnerability_adjust if adj_vuln['vulnerability_id'] in vuln_dict], dtype=vulnerability_adjust.dtype)
+        vulnerability_adjust = np.array(
+            [adj_vuln for adj_vuln in vulnerability_adjust if adj_vuln['vulnerability_id'] in vuln_dict], dtype=vulnerability_adjust.dtype
+        )
 
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
@@ -465,7 +467,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
             if vulnerability_adjust is not None and len(vulnerability_adjust) > 0:
                 vuln_array = load_vulns_bin_adjusted(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
             else:
-                vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vulnerability_adjust)
+                vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
             raise FileNotFoundError(f'vulnerability file not found at {static_path}')
 
