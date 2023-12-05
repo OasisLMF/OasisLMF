@@ -51,14 +51,14 @@ class TestGetVulns(TestCase):
             (2, 2, 2, 0.01),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.expected_outputs = {
-            'vuln_array': np.array([[[0.1, 0.2, 0.3, 0.4, 0.5], [0.1, 0.2, 0.3, 0.4, 0.5]]]),
-            'vulns_id': np.array([1, 2, 3]),
+            'vuln_array_adj': np.array([[[0.95, 0.02], [0.01, 0.01]],
+                                        [[0.1, 0.1], [0.1, 0.7]],
+                                        [[0.25, 0.25], [0.25, 0.25]]], dtype=np.float32),
+            'vuln_array': np.array([[[0.7, 0.1], [0.1, 0.1]],
+                                    [[0.1, 0.1], [0.1, 0.7]],
+                                    [[0.25, 0.25], [0.25, 0.25]]], dtype=np.float32),
+            'vulns_id': np.array([2, 3, 1], dtype=np.int32),
             'num_damage_bins': 2
-        }
-        self.expected_outputs_adj = {
-            'vuln_array': np.array([[[0.1, 0.2, 0.3, 0.4, 0.5], [0.1, 0.2, 0.3, 0.4, 0.5]]]),
-            'vulns_id': np.array([1, 2, 3]),
-            'num_damage_bins': 50
         }
         self.ignore_file_type = {"parquet", "bin", "csv"}
 
@@ -100,18 +100,62 @@ class TestGetVulns(TestCase):
             vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             self.assertIsNotNone(vuln_array)
-            # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+            for vuln_id in vulns_id:
+                expected_index = self.vuln_dict_base[vuln_id]
+                actual_index = np.where(vulns_id == vuln_id)[0][0]
+                self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][expected_index]))
 
     def test_get_vulns_adj(self):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
-            # self.assertEqual(vuln_array, self.expected_outputs['vuln_array'])
             self.assertIsNotNone(vuln_array)
-            # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+            for vuln_id in vulns_id:
+                expected_index = self.vuln_dict_base[vuln_id]
+                actual_index = np.where(vulns_id == vuln_id)[0][0]
+                self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array_adj'][expected_index]))
+
+    def map_vulns_id_to_indices(self, vulns_id):
+        """
+        Create a mapping from vulnerability IDs to their indices in the vuln_array to compare them.
+        """
+        return {v_id: idx for idx, v_id in enumerate(vulns_id)}
+
+    def test_get_vulns_compare(self):
+        adj_csv_path = os.path.join(self.temp_dir, 'vulnerability_adj.csv')
+        df = pd.DataFrame(self.mock_vuln_data)
+        df.to_csv(adj_csv_path, index=False)
+
+        vuln_arrays_with_adj = {}
+        vuln_ids_with_adj = {}
+
+        for file_type in ['csv', 'bin', 'parquet']:
+            ignore_file_types = self.ignore_file_type - {file_type}
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
+                                                              self.num_intensity_bins, ignore_file_type=ignore_file_types)
+            vuln_arrays_with_adj[file_type] = vuln_array
+            vuln_ids_with_adj[file_type] = vulns_id
+
+        # Remove adjustment CSV file
+        adj_csv_path = os.path.join(self.temp_dir, 'vulnerability_adj.csv')
+        if os.path.exists(adj_csv_path):
+            os.remove(adj_csv_path)
+
+        for file_type in ['csv', 'bin', 'parquet']:
+            ignore_file_types = self.ignore_file_type - {file_type}
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
+                                                              self.num_intensity_bins, ignore_file_type=ignore_file_types)
+            vulns_id_map = self.map_vulns_id_to_indices(vulns_id)
+            vulns_id_adj_map = self.map_vulns_id_to_indices(vuln_ids_with_adj[file_type])
+
+            # Compare vuln_array for each vuln_id
+            for vuln_id in vulns_id:
+                idx = vulns_id_map[vuln_id]
+                adj_idx = vulns_id_adj_map[vuln_id]
+                self.assertTrue(np.array_equal(vuln_array[idx], vuln_arrays_with_adj[file_type][adj_idx]))
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
