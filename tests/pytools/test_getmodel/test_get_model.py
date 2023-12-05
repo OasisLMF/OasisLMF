@@ -70,9 +70,14 @@ class TestGetVulns(TestCase):
         # create bin file
         bin_path = os.path.join(self.temp_dir, 'vulnerability.bin')
         with open(bin_path, 'wb') as f:
-            # Write a header if required by your format
-            header = np.array([0], dtype='i4')  # Example header; adjust as needed
+            # Calculate num_damage_bins as the maximum damage_bin_id
+            num_damage_bins = np.max(self.mock_vuln_data['damage_bin_id'])
+
+            # Write num_damage_bins as the header
+            header = np.array([num_damage_bins], dtype='i4')
             f.write(header.tobytes())
+
+            # Write the mock_vuln_data records
             for record in self.mock_vuln_data:
                 f.write(record.tobytes())
 
@@ -94,19 +99,19 @@ class TestGetVulns(TestCase):
             ignore_file_types = self.ignore_file_type - {file_type}
             vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
-        self.assertIsNotNone(vuln_array)
-        # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
-        self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+            self.assertIsNotNone(vuln_array)
+            # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
+            self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
 
     def test_get_vulns_adj(self):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
-        # self.assertEqual(vuln_array, self.expected_outputs['vuln_array'])
-        self.assertIsNotNone(vuln_array)
-        # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
-        self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+            # self.assertEqual(vuln_array, self.expected_outputs['vuln_array'])
+            self.assertIsNotNone(vuln_array)
+            # self.assertEqual(vulns_id, self.expected_outputs['vulns_id'])
+            self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
