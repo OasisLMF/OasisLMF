@@ -656,6 +656,7 @@ def get_il_input_items(
                 'FMTermType': step_term['FMProfileField'],
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
+
     for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df, get_cond_info(locations_df, accounts_df)):
         for level, level_info in levels:
             level_id = level_info['id']
@@ -664,7 +665,6 @@ def get_il_input_items(
                                                                                             fm_peril_field)
             if not terms_maps:  # no terms we skip this level
                 continue
-
             agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
             # get all rows with terms in term_df_source and determine the correct FMTermGroupID
             level_df_list = []
@@ -815,7 +815,9 @@ def get_il_input_items(
                                     .max() > 1)
 
         if need_account_aggregation:
-            level_df = gul_inputs_df.merge(accounts_df[agg_key + sub_agg_key + ['layer_id']])
+            level_df = gul_inputs_df.merge(accounts_df[list(set(agg_key + sub_agg_key + ['layer_id'])
+                                                            .union(set(useful_cols).difference(set(gul_inputs_df.columns)))
+                                                            .intersection(accounts_df.columns))])
             level_df['orig_level_id'] = level_id
             level_df['level_id'] = len(il_inputs_df_list) + 2
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
