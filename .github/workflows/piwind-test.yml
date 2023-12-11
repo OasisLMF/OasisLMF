@@ -13,11 +13,8 @@
 name: PiWind output check
 
 on:
-  push:
-    branches:
-      - main
-      - stable**
   pull_request:
+  push:
     branches:
       - main
       - stable**
