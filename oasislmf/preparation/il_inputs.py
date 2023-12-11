@@ -555,7 +555,7 @@ def get_il_input_items(
                 'FMTermType': step_term['FMProfileField'],
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
-    
+
     for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df):
         for level, level_info in levels:
             level_id = level_info['id']
