@@ -7,11 +7,8 @@
 name: PiWind MDK
 
 on:
-  push:
-    branches:
-      - main
-      - stable**
   pull_request:
+  push:
     branches:
       - main
       - stable**
