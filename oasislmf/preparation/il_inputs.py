@@ -1,12 +1,10 @@
 __all__ = [
-    'set_calc_rule_ids',
     'get_calc_rule_ids',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
     'get_il_input_items',
     'get_policytc_ids',
-    'get_step_calc_rule_ids',
     'get_step_policytc_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
@@ -21,7 +19,6 @@ import itertools
 import os
 import sys
 import warnings
-from ast import literal_eval
 
 import numpy as np
 import pandas as pd
@@ -29,11 +26,9 @@ from pandas.api.types import is_numeric_dtype
 from ods_tools.oed import fill_empty
 
 from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
-from oasislmf.utils.calc_rules import get_calc_rules, get_step_calc_rules
+from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (factorize_array, factorize_ndarray,
-                                 fast_zip_arrays,
-                                 merge_dataframes,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, assign_defaults_to_il_inputs,
                                      get_default_accounts_profile, get_default_exposure_profile,
@@ -81,164 +76,48 @@ risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'a
 fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
 
-def set_calc_rule_ids(
-        il_inputs_calc_rules_df,
-        terms,
-        terms_indicators,
-        types_and_codes,
-        types,
-        policy_layer=False
-):
+def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     """
-    Lookup and assign calc. rule IDs
+    merge selected il_inputs with the correct calc_rule table and  return a pandas Series of calc. rule IDs
 
-    :param il_inputs_df: IL inputs items dataframe
-    :type il_inputs_df: pandas.DataFrame
+    Args:
+     il_inputs_calc_rules_df (DataFrame):  IL input items dataframe
+     calc_rule_type (str): type of calc_rule to look for
 
-    :param terms: list of relevant terms
-    :type terms: list
-
-    :param terms_indicators: list indicating whether relevant terms > 0
-    :type terms_indicators: list
-
-    :param types_and_codes: list of types and codes if applicable
-    :type types_and_codes: list
-
-    :param types: list of types if applicable
-    :type types: list or NoneType
-
-    :param policy_layer: flag to indicate whether policy layer present
-    :type policy_layer: bool
-
-    :return: Numpy array of calc. rule IDs
-    :type: numpy.ndarray
+    Returns:
+        pandas Series of calc. rule IDs
     """
+    calc_rules_df, calc_rule_term_info = get_calc_rules(calc_rule_type)
+    calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], axis=1, errors='ignore')
 
-    calc_rules = get_calc_rules(policy_layer).drop(['desc'], axis=1)
-    try:
-        calc_rules['id_key'] = calc_rules['id_key'].apply(literal_eval)
-    except ValueError as e:
-        raise OasisException("Exception raised in 'set_calc_rule_ids'", e)
-
-    # Percentage type assigned same calc. rule as flat type so set both to flat
-    # type to reduce permutations
-    if types:
-        il_inputs_calc_rules_df.loc[:, types] = np.where(
-            il_inputs_calc_rules_df[types] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
-            DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id'],
-            il_inputs_calc_rules_df[types]
-        )
-    il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(
-        il_inputs_calc_rules_df[terms] > 0, 1, 0
-    )
-    il_inputs_calc_rules_df['id_key'] = [
-        t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)
-    ]
-    il_inputs_calc_rules_df = merge_dataframes(
-        il_inputs_calc_rules_df, calc_rules, how='left', on='id_key', drop_duplicates=False
-    ).fillna(0)
-    il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
-    if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
-        err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
-        no_match_keys = il_inputs_calc_rules_df.loc[il_inputs_calc_rules_df.calcrule_id == 0].id_key.unique()
-
-        err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
-        for key_id in no_match_keys:
-            err_msg += '   {}\n'.format(key_id)
-        raise OasisException(err_msg)
-
-    return il_inputs_calc_rules_df['calcrule_id'].values
-
-
-def get_calc_rule_ids(il_inputs_df):
-    """
-    Returns a Numpy array of calc. rule IDs from a table of IL input items
-
-    :param il_inputs_df: IL input items dataframe
-    :type il_inputs_df: pandas.DataFrame
-
-    :return: Numpy array of calc. rule IDs
-    :rtype: numpy.ndarray
-    """
-    policy_layer_id = SUPPORTED_FM_LEVELS['policy layer']['id']
-
-    # Get calc. rule IDs for all levels except policy layer
-    terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
-    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
-    types_and_codes = ['ded_type', 'ded_code', 'lim_type', 'lim_code']
-    types = ['ded_type', 'lim_type']
-    calc_mapping_cols = ['item_id'] + terms + terms_indicators + types_and_codes + ['orig_level_id', 'calcrule_id']
-    il_inputs_calc_rules_df = il_inputs_df.reindex(columns=calc_mapping_cols)
-    il_inputs_df.loc[
-        il_inputs_df['orig_level_id'] != policy_layer_id, 'calcrule_id'
-    ] = set_calc_rule_ids(
-        il_inputs_calc_rules_df[il_inputs_calc_rules_df['orig_level_id'] != policy_layer_id],
-        terms, terms_indicators, types_and_codes, types
-    )
-
-    # Get calc. rule IDs for policy layer level
-    terms = ['limit', 'share', 'attachment']
-    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
-    types_and_codes = []
-    types = None
-    calc_mapping_cols = ['item_id'] + terms + terms_indicators + ['orig_level_id', 'calcrule_id']
-    il_inputs_calc_rules_df = il_inputs_df.reindex(columns=calc_mapping_cols)
-    il_inputs_df.loc[
-        il_inputs_df['orig_level_id'] == policy_layer_id, 'calcrule_id'
-    ] = set_calc_rule_ids(
-        il_inputs_calc_rules_df[il_inputs_calc_rules_df['orig_level_id'] == policy_layer_id],
-        terms, terms_indicators, types_and_codes, types, policy_layer=True
-    )
-
-    return il_inputs_df['calcrule_id'].values
-
-
-def get_step_calc_rule_ids(il_inputs_df):
-    """
-    Returns a Numpy array of calc. rule IDs from a table of IL input items that
-    include step policies
-
-    :param il_inputs_df: IL input items dataframe
-    :type il_inputs_df: pandas.DataFrame
-
-    :return: Numpy array of calc. rule IDs
-    :rtype: numpy.ndarray
-    """
-    calc_rules_step = get_step_calc_rules().drop(['desc'], axis=1)
-    try:
-        calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(literal_eval)
-    except ValueError as e:
-        raise OasisException("Exception raised in 'get_step_calc_rule_ids'", e)
-
-    terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
-    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
-    types = ['trigger_type', 'payout_type']
-
-    cols = ['orig_level_id',
-            'item_id', 'level_id', 'StepTriggerType', 'assign_step_calcrule',
-            'coverage_type_id'
-            ]
-
-    calc_mapping_cols = cols + terms + terms_indicators + types + ['calcrule_id']
-    il_inputs_calc_rules_df = il_inputs_df.reindex(columns=calc_mapping_cols)
-
+    terms = []
+    terms_indicators = []
+    for term in calc_rule_term_info['terms']:
+        if term in il_inputs_calc_rules_df.columns:
+            terms.append(term)
+            terms_indicators.append('{}_gt_0'.format(term))
+        else:
+            calc_rules_df = calc_rules_df[calc_rules_df['{}_gt_0'.format(term)] == 0].drop(columns=['{}_gt_0'.format(term)])
+    for term in calc_rule_term_info['types_and_codes']:
+        if term in il_inputs_calc_rules_df.columns:
+            il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df[term].fillna(0).astype('uint8')
+        else:
+            calc_rules_df = calc_rules_df[calc_rules_df[term] == 0].drop(columns=[term])
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
-    il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
-    il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types].transpose().values)]
-    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules_step, how='left', on='id_key', drop_duplicates=False).fillna(0)
 
-    # Assign passthrough calcrule ID 100 to first level
-    il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
-    if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
-        err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
-        no_match_keys = il_inputs_calc_rules_df.loc[il_inputs_calc_rules_df.calcrule_id == 0].id_key.unique()
+    merge_col = list(set(il_inputs_calc_rules_df.columns).intersection(calc_rules_df.columns).difference({'calcrule_id'}))
 
-        err_msg += '   {}\n'.format(tuple(terms_indicators + types))
-        for key_id in no_match_keys:
-            err_msg += '   {}\n'.format(key_id)
+    calcrule_ids = (
+        il_inputs_calc_rules_df.reset_index()
+        .drop(columns=['calcrule_id'], errors='ignore')
+        .merge(calc_rules_df[merge_col + ['calcrule_id']].drop_duplicates(), how='left', on=merge_col)
+    ).set_index('index')['calcrule_id'].fillna(0)
+
+    if 0 in calcrule_ids.unique():
+        no_match_keys = il_inputs_calc_rules_df.loc[calcrule_ids == 0, ['PortNumber', 'AccNumber', 'LocNumber'] + merge_col].drop_duplicates()
+        err_msg = 'Calculation Rule mapping error, non-matching keys:\n{}'.format(no_match_keys)
         raise OasisException(err_msg)
-
-    return il_inputs_calc_rules_df['calcrule_id'].values
+    return calcrule_ids
 
 
 def get_policytc_ids(il_inputs_df):
@@ -303,7 +182,6 @@ def __split_fm_terms_by_risk(df):
     Args:
          df (DataFrame): the DataFrame an FM level
     """
-
     for term in risk_disaggregation_term.intersection(set(df.columns)):
         if f'{term[:3]}_code' in df.columns:
             code_filter = df[f'{term[:3]}_code'] == 0
@@ -332,7 +210,28 @@ def __drop_duplicated_row(prev_level_df, level_df, sub_agg_key):
 def get_cond_info(locations_df, accounts_df):
     level_conds = {}
     extra_accounts = []
-    if 'CondTag' in accounts_df:
+    default_cond_tag = '0'
+    if 'CondTag' in locations_df.columns:
+        fill_empty(locations_df, 'CondTag', default_cond_tag)
+        loc_condkey_df = locations_df.loc[locations_df['CondTag'] != default_cond_tag, ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+    else:
+        loc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
+
+    if 'CondTag' in accounts_df.columns:
+        fill_empty(accounts_df, 'CondTag', default_cond_tag)
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+        condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
+        missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['PortNumber', 'AccNumber', 'CondTag']]
+    else:
+        acc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
+        missing_condkey_df = loc_condkey_df
+
+    if missing_condkey_df.shape[0]:
+        raise OasisException(f'Those condtag are present in locations but missing in the account file:\n{missing_condkey_df}')
+
+    if acc_condkey_df.shape[0]:
+        if 'CondTag' not in locations_df.columns:
+            locations_df['CondTag'] = default_cond_tag
         # we get information about cond from accounts_df
         cond_tags = {}  # information about each cond tag
         account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
@@ -354,7 +253,7 @@ def get_cond_info(locations_df, accounts_df):
         PRIORITY_INDEX = 1
         for loc_rec in locations_df.to_dict(orient="records"):
             loc_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['LocNumber'])
-            cond_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['CondTag'])
+            cond_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec.get('CondTag', default_cond_tag))
             if cond_key in cond_tags:
                 cond_tag = cond_tags[cond_key]
             else:
@@ -416,14 +315,14 @@ def get_cond_info(locations_df, accounts_df):
     return level_conds, extra_accounts
 
 
-def get_levels(gul_inputs_df, locations_df, accounts_df, cond_info):
-    level_conds, extra_accounts = cond_info
+def get_levels(gul_inputs_df, locations_df, accounts_df):
+    level_conds, extra_accounts = get_cond_info(locations_df, accounts_df)
     for group_name, group_info in copy.deepcopy(GROUPED_SUPPORTED_FM_LEVELS).items():
         if group_info['oed_source'] == 'location':
             locations_df['layer_id'] = 1
             yield locations_df, list(group_info['levels'].items())[1:], group_info['fm_peril_field']  # [1:] => 'site coverage' is already done
         elif group_info['oed_source'] == 'account':
-            if group_name == 'cond' and 'CondTag' in accounts_df:
+            if group_name == 'cond' and level_conds:
                 loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
                 for stage, cond_keys in level_conds.items():
                     cond_filter_df = pd.DataFrame(cond_keys, columns=['PortNumber', 'AccNumber', 'CondTag'])
@@ -624,7 +523,7 @@ def get_il_input_items(
     prev_level_df['share'] = 0
 
     il_inputs_df_list = []
-    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids + ['tiv'], errors='ignore').reset_index()
+    gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids + ['tiv'], errors='ignore').reset_index(drop=True)
     prev_df_subset = prev_agg_key
 
     # Determine whether step policies are listed, are not full of nans and step
@@ -658,7 +557,8 @@ def get_il_input_items(
                 'FMTermType': step_term['FMProfileField'],
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
-    for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df, get_cond_info(locations_df, accounts_df)):
+
+    for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df):
         for level, level_info in levels:
             level_id = level_info['id']
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
@@ -666,7 +566,6 @@ def get_il_input_items(
                                                                                             fm_peril_field)
             if not terms_maps:  # no terms we skip this level
                 continue
-
             agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
             # get all rows with terms in term_df_source and determine the correct FMTermGroupID
             level_df_list = []
@@ -790,7 +689,7 @@ def get_il_input_items(
             )
 
             __drop_duplicated_row(il_inputs_df_list[-1] if il_inputs_df_list else None, prev_level_df, prev_df_subset)
-            il_inputs_df_list.append(pd.concat([prev_level_df, root_df]))
+            il_inputs_df_list.append(pd.concat([df for df in [prev_level_df, root_df] if not df.empty]))
 
             level_df['level_id'] = len(il_inputs_df_list) + 1
             level_df['orig_level_id'] = level_id
@@ -817,7 +716,9 @@ def get_il_input_items(
                                     .max() > 1)
 
         if need_account_aggregation:
-            level_df = gul_inputs_df.merge(accounts_df[agg_key + sub_agg_key + ['layer_id']])
+            level_df = gul_inputs_df.merge(accounts_df[list(set(agg_key + sub_agg_key + ['layer_id'])
+                                                            .union(set(useful_cols).difference(set(gul_inputs_df.columns)))
+                                                            .intersection(accounts_df.columns))])
             level_df['orig_level_id'] = level_id
             level_df['level_id'] = len(il_inputs_df_list) + 2
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
@@ -868,12 +769,14 @@ def get_il_input_items(
         il_inputs_df['deductible'] * il_inputs_df['agg_tiv'],
         il_inputs_df['deductible']
     )
+    il_inputs_df.loc[il_inputs_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'], 'ded_type'] = DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id']
 
     il_inputs_df['limit'] = np.where(
         il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
         il_inputs_df['limit'] * il_inputs_df['agg_tiv'],
         il_inputs_df['limit']
     )
+    il_inputs_df.loc[il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'], 'lim_type'] = DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id']
 
     if step_policies_present:
         # Before assigning calc. rule IDs and policy TC IDs, the StepTriggerType
@@ -893,13 +796,17 @@ def get_il_input_items(
         )
 
     # Set the calc. rule IDs
+    il_inputs_df.reset_index(drop=True, inplace=True)
+    policy_layer_filter = il_inputs_df['orig_level_id'] == SUPPORTED_FM_LEVELS['policy layer']['id']
     if step_policies_present:
         step_filter = (il_inputs_df['StepTriggerType'] > 0)
-        il_inputs_df.loc[~step_filter, 'calcrule_id'] = get_calc_rule_ids(il_inputs_df[~step_filter])
-        il_inputs_df.loc[step_filter, 'calcrule_id'] = get_step_calc_rule_ids(il_inputs_df[step_filter])
+        base_filter = (~step_filter) & (~policy_layer_filter)
+        policy_layer_filter = (~step_filter) & policy_layer_filter
+        il_inputs_df.loc[step_filter, 'calcrule_id'] = get_calc_rule_ids(il_inputs_df[step_filter], calc_rule_type='step')
     else:
-        il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
-
+        base_filter = ~policy_layer_filter
+    il_inputs_df.loc[base_filter, 'calcrule_id'] = get_calc_rule_ids(il_inputs_df[base_filter], calc_rule_type='base')
+    il_inputs_df.loc[policy_layer_filter, 'calcrule_id'] = get_calc_rule_ids(il_inputs_df[policy_layer_filter], calc_rule_type='policy_layer')
     il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('uint32')
 
     # Set the policy TC IDs
@@ -1092,14 +999,9 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        xref_df = get_xref_df(il_inputs_df)
-        pd.DataFrame(
-            {
-                'output': factorize_ndarray(xref_df.loc[:, ['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
-                'agg_id': xref_df['gul_input_id'],
-                'layer_id': xref_df['layer_id']
-            }
-        ).to_csv(
+        xref_df = get_xref_df(il_inputs_df)[['gul_input_id', 'layer_id']].rename(columns={'gul_input_id': 'agg_id'})
+        xref_df['output'] = xref_df.reset_index().index + 1
+        xref_df[['output', 'agg_id', 'layer_id']].to_csv(
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_xref_fp) else 'a'),
