@@ -59,6 +59,7 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
+from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
 
 class GenerateFiles(ComputationStep):
@@ -71,6 +72,8 @@ class GenerateFiles(ComputationStep):
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
          'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
+        {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': False,
+         'help': 'Analysis settings JSON file path'},
         {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
         {'name': 'profile_loc_json', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
@@ -137,8 +140,6 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
-        if self.model_settings_json is not None:
-            print(f"Model settings are present at: {self.model_settings_json}")
         self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
@@ -205,7 +206,7 @@ class GenerateFiles(ComputationStep):
         # Load keys file  **** WARNING - REFACTOR THIS ****
         dtypes = {
             'locid': 'int64',
-            'perilid': 'str',
+            'perilid': 'category',
             'coveragetypeid': 'uint8',
             'areaperilid': 'uint64',
             'vulnerabilityid': 'uint32',
@@ -227,9 +228,15 @@ class GenerateFiles(ComputationStep):
         model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
+        correlations_analysis_settings = None
 
+        # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
+        if self.analysis_settings_json is not None:
+            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
+            if correlations_analysis_settings is not None:
+                model_settings['correlation_settings'] = correlations_analysis_settings
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
@@ -300,7 +307,7 @@ class GenerateFiles(ComputationStep):
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
-
+        del gul_summary_mapping
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
         if not il:
@@ -352,7 +359,7 @@ class GenerateFiles(ComputationStep):
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
         ).sort_values(by='agg_id')
-
+        del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info
 
         ri_layers = write_files_for_reinsurance(

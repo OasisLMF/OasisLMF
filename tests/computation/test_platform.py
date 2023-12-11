@@ -44,6 +44,7 @@ class TestPlatformList(ComputationChecker):
         self.tmp_files = self.create_tmp_files([a for a in self.default_args.keys() if 'json' in a])
         assert responses, 'responses package required to run'
         self.api_url = 'http://example.com/api'
+        self.api_ver = 'v1'
         responses.start()
         self.min_args = {'server_url': self.api_url}
 
@@ -54,9 +55,9 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_all(self):
         called_args = self.min_args
-        url_models = f'{self.api_url}/V1/models/'
-        url_portfolios = f'{self.api_url}/V1/portfolios/'
-        url_analyses = f'{self.api_url}/V1/analyses/'
+        url_models = f'{self.api_url}/{self.api_ver}/models/'
+        url_portfolios = f'{self.api_url}/{self.api_ver}/portfolios/'
+        url_analyses = f'{self.api_url}/{self.api_ver}/analyses/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -72,8 +73,8 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_models__success(self):
         called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
-        url_1 = f'{self.api_url}/V1/models/1/'
-        url_2 = f'{self.api_url}/V1/models/2/'
+        url_1 = f'{self.api_url}/{self.api_ver}/models/1/'
+        url_2 = f'{self.api_url}/{self.api_ver}/models/2/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -86,8 +87,8 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_models__logs_error(self):
         called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
-        url_1 = f'{self.api_url}/V1/models/1/'
-        url_2 = f'{self.api_url}/V1/models/2/'
+        url_1 = f'{self.api_url}/{self.api_ver}/models/1/'
+        url_2 = f'{self.api_url}/{self.api_ver}/models/2/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -100,8 +101,8 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_portfolios__success(self):
         called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
-        url_1 = f'{self.api_url}/V1/portfolios/1/'
-        url_2 = f'{self.api_url}/V1/portfolios/2/'
+        url_1 = f'{self.api_url}/{self.api_ver}/portfolios/1/'
+        url_2 = f'{self.api_url}/{self.api_ver}/portfolios/2/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -114,8 +115,8 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_portfolios__logs_error(self):
         called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
-        url_1 = f'{self.api_url}/V1/portfolios/1/'
-        url_2 = f'{self.api_url}/V1/portfolios/2/'
+        url_1 = f'{self.api_url}/{self.api_ver}/portfolios/1/'
+        url_2 = f'{self.api_url}/{self.api_ver}/portfolios/2/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -128,7 +129,7 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_analyses__success(self):
         called_args = self.combine_args([self.min_args, {'analyses': [4]}])
-        url = f'{self.api_url}/V1/analyses/4/'
+        url = f'{self.api_url}/{self.api_ver}/analyses/4/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -139,8 +140,8 @@ class TestPlatformList(ComputationChecker):
 
     def test_list_analyses__logs_error__and_model_success(self):
         called_args = self.combine_args([self.min_args, {'models': [1], 'analyses': [4]}])
-        url_1 = f'{self.api_url}/V1/models/1/'
-        url_2 = f'{self.api_url}/V1/analyses/4/'
+        url_1 = f'{self.api_url}/{self.api_ver}/models/1/'
+        url_2 = f'{self.api_url}/{self.api_ver}/analyses/4/'
 
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
@@ -175,6 +176,7 @@ class TestPlatformRunInputs(ComputationChecker):
         )
         assert responses, 'responses package required to run'
         self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v1'
         responses.start()
 
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
@@ -297,20 +299,20 @@ class TestPlatformRunInputs(ComputationChecker):
         ID = 4
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'NEW'})
-            rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/', json={'id': ID, 'status': 'NEW'})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
             self.manager.platform_run_inputs(analysis_id=ID)
 
     def test_run_inputs__given_analysis_id__server_error__exception_raised(self):
         ID = 4
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'error': 'server failed'}, status=500)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/', json={'error': 'server failed'}, status=500)
 
             with self.assertRaises(OasisException) as context:
                 self.manager.platform_run_inputs(analysis_id=ID)
             self.assertEqual(str(context.exception),
-                             f'Error running analysis ({ID}) - 500 Server Error: Internal Server Error for url: {self.api_url}/V1/analyses/{ID}/')
+                             f'Error running analysis ({ID}) - 500 Server Error: Internal Server Error for url: {self.api_url}/{self.api_ver}/analyses/{ID}/')
 
     @patch('oasislmf.computation.run.platform.APIClient.cancel_generate', return_value=True)
     @patch('oasislmf.computation.run.platform.APIClient.cancel_analysis', return_value=True)
@@ -318,14 +320,14 @@ class TestPlatformRunInputs(ComputationChecker):
         ID = 4
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'RUN_STARTED'})
-            rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/', json={'id': ID, 'status': 'RUN_STARTED'})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
             self.manager.platform_run_inputs(analysis_id=ID)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/analyses/{ID}/', json={'id': ID, 'status': 'INPUTS_GENERATION_QUEUED'})
-            rsps.post(url=f'{self.api_url}/V1/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/', json={'id': ID, 'status': 'INPUTS_GENERATION_QUEUED'})
+            rsps.post(url=f'{self.api_url}/{self.api_ver}/analyses/{ID}/generate_inputs/', json={'id': ID, 'status': 'READY'})
             self.manager.platform_run_inputs(analysis_id=ID)
 
         mock_cancel_analysis.assert_called_with(ID)
@@ -339,8 +341,8 @@ class TestPlatformRunInputs(ComputationChecker):
         exposure_files = {f: self.tmp_files.get(f).name for f in self.default_args if 'csv' in f}
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/models/', json=[{'id': model_id}])
-            rsps.get(url=f'{self.api_url}/V1/portfolios/', json=[{'id': port_id}])
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=[{'id': model_id}])
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/portfolios/', json=[{'id': port_id}])
             self.manager.platform_run_inputs(portfolio_id=port_id, **exposure_files)
             mock_run_generate.assert_called_once_with(1)
             mock_create_analysis.assert_called_once_with(portfolio_id=port_id, model_id=model_id, analysis_settings_fp=None)
@@ -357,9 +359,9 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
-            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
-            rsps.get(url=f'{self.api_url}/V1/portfolios/', json=[{'id': port_id}])
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/portfolios/', json=[{'id': port_id}])
             self.manager.platform_run_inputs(
                 portfolio_id=port_id,
                 analysis_settings_json=setting_file,
@@ -379,8 +381,8 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
-            rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=RETURN_MODELS)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=RETURN_MODELS)
             with self.assertRaises(OasisException) as context:
                 self.manager.platform_run_inputs(
                     portfolio_id=port_id,
@@ -403,8 +405,8 @@ class TestPlatformRunInputs(ComputationChecker):
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
-                rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
-                rsps.get(url=f'{self.api_url}/V1/models/', json=RETURN_MODELS)
+                rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=RETURN_MODELS)
+                rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=RETURN_MODELS)
                 with self.assertRaises(OasisException) as context:
                     self.manager.platform_run_inputs(
                         portfolio_id=port_id,
@@ -430,7 +432,7 @@ class TestPlatformRunInputs(ComputationChecker):
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
-                rsps.get(url=f'{self.api_url}/V1/models/', json=[])
+                rsps.get(url=f'{self.api_url}/{self.api_ver}/models/', json=[])
                 with self.assertRaises(OasisException) as context:
                     self.manager.platform_run_inputs(
                         portfolio_id=port_id,
@@ -452,7 +454,7 @@ class TestPlatformRunInputs(ComputationChecker):
         with self._caplog.at_level(logging.INFO):
             with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
                 self.add_connection_startup(rsps)
-                rsps.get(url=f'{self.api_url}/V1/portfolios/', json=RETURN_PORT)
+                rsps.get(url=f'{self.api_url}/{self.api_ver}/portfolios/', json=RETURN_PORT)
                 with self.assertRaises(OasisException) as context:
                     self.manager.platform_run_inputs(
                         portfolio_id=port_id,
@@ -508,6 +510,7 @@ class TestPlatformRunLosses(ComputationChecker):
         self.tmp_files = self.create_tmp_files([a for a in self.default_args if 'json' in a])
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v1'
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -569,6 +572,7 @@ class TestPlatformRun(ComputationChecker):
         )
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v1'
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -670,6 +674,7 @@ class TestPlatformDelete(ComputationChecker):
 
     def setUp(self):
         self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v1'
         self.min_args = {'server_url': self.api_url}
 
     def test_delete__no_input_given__exception_raised(self):
@@ -694,13 +699,13 @@ class TestPlatformDelete(ComputationChecker):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.delete(url=f'{self.api_url}/V1/models/1/')
-            rsps.delete(url=f'{self.api_url}/V1/models/4/', status=404)
-            rsps.delete(url=f'{self.api_url}/V1/models/6/')
+            rsps.delete(url=f'{self.api_url}/{self.api_ver}/models/1/')
+            rsps.delete(url=f'{self.api_url}/{self.api_ver}/models/4/', status=404)
+            rsps.delete(url=f'{self.api_url}/{self.api_ver}/models/6/')
 
             with self._caplog.at_level(logging.INFO):
                 self.manager.platform_delete(models=model_list)
-                expected_err_log = f'Delete error models_id=4 - 404 Client Error: Not Found for url: {self.api_url}/V1/models/4/'
+                expected_err_log = f'Delete error models_id=4 - 404 Client Error: Not Found for url: {self.api_url}/{self.api_ver}/models/4/'
                 self.assertEqual(self._caplog.messages[1], 'Deleted models_id=1')
                 self.assertEqual(self._caplog.messages[2], expected_err_log)
                 self.assertEqual(self._caplog.messages[3], 'Deleted models_id=6')
@@ -716,11 +721,11 @@ class TestPlatformDelete(ComputationChecker):
             self.add_connection_startup(rsps)
 
             for id in models:
-                rsps.delete(url=f'{self.api_url}/V1/models/{id}/')
+                rsps.delete(url=f'{self.api_url}/{self.api_ver}/models/{id}/')
             for id in portfolios:
-                rsps.delete(url=f'{self.api_url}/V1/portfolios/{id}/')
+                rsps.delete(url=f'{self.api_url}/{self.api_ver}/portfolios/{id}/')
             for id in analyses:
-                rsps.delete(url=f'{self.api_url}/V1/analyses/{id}/')
+                rsps.delete(url=f'{self.api_url}/{self.api_ver}/analyses/{id}/')
             self.manager.platform_delete(models=models, portfolios=portfolios, analyses=analyses)
 
 
@@ -741,6 +746,7 @@ class TestPlatformGet(ComputationChecker):
 
     def setUp(self):
         self.api_url = 'http://localhost:8000'
+        self.api_ver = 'v1'
         self.tmp_dirs = self.create_tmp_dirs(['output_dir'])
         self.min_args = {'server_url': self.api_url, 'output_dir': self.tmp_dirs['output_dir'].name}
 
@@ -758,13 +764,13 @@ class TestPlatformGet(ComputationChecker):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/analyses/1/settings_file/', body=expected_content_1, content_type='application/json')
-            rsps.get(url=f'{self.api_url}/V1/analyses/4/settings_file/', status=404)
-            rsps.get(url=f'{self.api_url}/V1/analyses/6/settings_file/', body=expected_content_6, content_type='application/json')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/1/settings_file/', body=expected_content_1, content_type='application/json')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/4/settings_file/', status=404)
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/analyses/6/settings_file/', body=expected_content_6, content_type='application/json')
 
             with self._caplog.at_level(logging.INFO):
                 self.manager.platform_get(**self.min_args, analyses_settings_file=analysis_list)
-                expected_err_log = f'Download failed: - 404 Client Error: Not Found for url: {self.api_url}/V1/analyses/4/settings_file/'
+                expected_err_log = f'Download failed: - 404 Client Error: Not Found for url: {self.api_url}/{self.api_ver}/analyses/4/settings_file/'
                 self.assertEqual(self._caplog.messages[2], expected_err_log)
 
                 filepath_1 = os.path.join(self.min_args['output_dir'], '1_analyses_settings_file.json')
@@ -793,10 +799,10 @@ class TestPlatformGet(ComputationChecker):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True) as rsps:
             self.add_connection_startup(rsps)
-            rsps.get(url=f'{self.api_url}/V1/portfolios/4/location_file/', body=expected_content_loc, content_type='text/csv')
-            rsps.get(url=f'{self.api_url}/V1/portfolios/4/accounts_file/', body=expected_content_acc, content_type='text/csv')
-            rsps.get(url=f'{self.api_url}/V1/models/1/settings/', body=expected_content_settings, content_type='application/json')
-            rsps.get(url=f'{self.api_url}/V1/models/1/versions/', body=expected_content_version, content_type='application/json')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/portfolios/4/location_file/', body=expected_content_loc, content_type='text/csv')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/portfolios/4/accounts_file/', body=expected_content_acc, content_type='text/csv')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/1/settings/', body=expected_content_settings, content_type='application/json')
+            rsps.get(url=f'{self.api_url}/{self.api_ver}/models/1/versions/', body=expected_content_version, content_type='application/json')
             self.manager.platform_get(**self.min_args, **requested_files)
 
             downloaded_files = [
