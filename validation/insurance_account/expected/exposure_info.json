@@ -4,7 +4,8 @@
     "sources": {
       "orig": {
         "source_type": "filepath",
-        "filepath": "/home/joh/dev/OasisLMF_account_terms/validation/insurance_account/location.csv"
+        "filepath": "/home/joh/dev/OasisLMF_fm_pol_cov_tests/validation/insurance_account/location.csv",
+        "read_param": {}
       },
       "_csv": {
         "source_type": "filepath",
@@ -18,7 +19,8 @@
     "sources": {
       "orig": {
         "source_type": "filepath",
-        "filepath": "/home/joh/dev/OasisLMF_account_terms/validation/insurance_account/account.csv"
+        "filepath": "/home/joh/dev/OasisLMF_fm_pol_cov_tests/validation/insurance_account/account.csv",
+        "read_param": {}
       },
       "_csv": {
         "source_type": "filepath",
