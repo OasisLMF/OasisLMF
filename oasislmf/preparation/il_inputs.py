@@ -210,7 +210,28 @@ def __drop_duplicated_row(prev_level_df, level_df, sub_agg_key):
 def get_cond_info(locations_df, accounts_df):
     level_conds = {}
     extra_accounts = []
-    if 'CondTag' in accounts_df:
+    default_cond_tag = '0'
+    if 'CondTag' in locations_df.columns:
+        fill_empty(locations_df, 'CondTag', default_cond_tag)
+        loc_condkey_df = locations_df.loc[locations_df['CondTag'] != default_cond_tag, ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+    else:
+        loc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
+
+    if 'CondTag' in accounts_df.columns:
+        fill_empty(accounts_df, 'CondTag', default_cond_tag)
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+        condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
+        missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['PortNumber', 'AccNumber', 'CondTag']]
+    else:
+        acc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
+        missing_condkey_df = loc_condkey_df
+
+    if missing_condkey_df.shape[0]:
+        raise OasisException(f'Those condtag are present in locations but missing in the account file:\n{missing_condkey_df}')
+
+    if acc_condkey_df.shape[0]:
+        if 'CondTag' not in locations_df.columns:
+            locations_df['CondTag'] = default_cond_tag
         # we get information about cond from accounts_df
         cond_tags = {}  # information about each cond tag
         account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
@@ -230,7 +251,7 @@ def get_cond_info(locations_df, accounts_df):
         PRIORITY_INDEX = 1
         for loc_rec in locations_df.to_dict(orient="records"):
             loc_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['LocNumber'])
-            cond_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['CondTag'])
+            cond_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec.get('CondTag', default_cond_tag))
             if cond_key in cond_tags:
                 cond_tag = cond_tags[cond_key]
             else:
@@ -292,14 +313,14 @@ def get_cond_info(locations_df, accounts_df):
     return level_conds, extra_accounts
 
 
-def get_levels(gul_inputs_df, locations_df, accounts_df, cond_info):
-    level_conds, extra_accounts = cond_info
+def get_levels(gul_inputs_df, locations_df, accounts_df):
+    level_conds, extra_accounts = get_cond_info(locations_df, accounts_df)
     for group_name, group_info in copy.deepcopy(GROUPED_SUPPORTED_FM_LEVELS).items():
         if group_info['oed_source'] == 'location':
             locations_df['layer_id'] = 1
             yield locations_df, list(group_info['levels'].items())[1:], group_info['fm_peril_field']  # [1:] => 'site coverage' is already done
         elif group_info['oed_source'] == 'account':
-            if group_name == 'cond' and 'CondTag' in accounts_df:
+            if group_name == 'cond' and level_conds:
                 loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
                 for stage, cond_keys in level_conds.items():
                     cond_filter_df = pd.DataFrame(cond_keys, columns=['PortNumber', 'AccNumber', 'CondTag'])
@@ -535,7 +556,7 @@ def get_il_input_items(
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
 
-    for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df, get_cond_info(locations_df, accounts_df)):
+    for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df):
         for level, level_info in levels:
             level_id = level_info['id']
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
