@@ -27,38 +27,48 @@ class TestGetVulns(TestCase):
             self.vuln_dict[key] = value
         self.num_intensity_bins = 2
         self.mock_vuln_data = np.array([
-            (1, 1, 1, 0.25),
-            (1, 1, 2, 0.25),
-            (1, 2, 1, 0.25),
-            (1, 2, 2, 0.25),
+            (1, 1, 1, 0.333),
+            (1, 1, 2, 0.333),
+            (1, 1, 3, 0.333),
+            (1, 2, 1, 0.333),
+            (1, 2, 2, 0.333),
+            (1, 2, 3, 0.333),
             (2, 1, 1, 0.7),
             (2, 1, 2, 0.1),
+            (2, 1, 3, 0.2),
             (2, 2, 1, 0.1),
-            (2, 2, 2, 0.1),
-            (3, 1, 1, 0.1),
-            (3, 1, 2, 0.1),
-            (3, 2, 1, 0.1),
-            (3, 2, 2, 0.7),
+            (2, 2, 2, 0.2),
+            (2, 2, 3, 0.7),
+            (3, 1, 1, 0.4),
+            (3, 1, 2, 0.3),
+            (3, 1, 3, 0.3),
+            (3, 2, 1, 0.3),
+            (3, 2, 2, 0.3),
+            (3, 2, 3, 0.4),
             (4, 1, 1, 0.9),
-            (4, 1, 2, 0.01),
-            (4, 2, 1, 0.01),
-            (4, 2, 2, 0.08),
+            (4, 1, 2, 0.05),
+            (4, 1, 3, 0.05),
+            (4, 2, 1, 0.05),
+            (4, 2, 2, 0.05),
+            (4, 2, 3, 0.09),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.mock_vuln_adj_data = np.array([
-            (2, 1, 1, 0.95),
-            (2, 1, 2, 0.01),
-            (2, 2, 1, 0.02),
-            (2, 2, 2, 0.01),
+            (2, 1, 1, 0.83),
+            (2, 1, 2, 0.08),
+            (2, 1, 3, 0.08),
+            (2, 2, 1, 0.08),
+            (2, 2, 2, 0.08),
+            (2, 2, 3, 0.83),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.expected_outputs = {
-            'vuln_array_adj': np.array([[[0.95, 0.02], [0.01, 0.01]],
-                                        [[0.1, 0.1], [0.1, 0.7]],
-                                        [[0.25, 0.25], [0.25, 0.25]]], dtype=np.float32),
-            'vuln_array': np.array([[[0.7, 0.1], [0.1, 0.1]],
-                                    [[0.1, 0.1], [0.1, 0.7]],
-                                    [[0.25, 0.25], [0.25, 0.25]]], dtype=np.float32),
+            'vuln_array_adj': np.array([[[0.83, 0.08], [0.08, 0.08], [0.08, 0.83]],
+                                        [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]],
+                                        [[0.333, 0.333], [0.333, 0.333], [0.333, 0.333]]], dtype=np.float32),
+            'vuln_array': np.array([[[0.7, 0.1], [0.1, 0.2], [0.2, 0.7]],
+                                    [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]],
+                                    [[0.333, 0.333], [0.333, 0.333], [0.333, 0.333]]], dtype=np.float32),
             'vulns_id': np.array([2, 3, 1], dtype=np.int32),
-            'num_damage_bins': 2
+            'num_damage_bins': 3
         }
         self.ignore_file_type = {"parquet", "bin", "csv"}
 
@@ -97,7 +107,7 @@ class TestGetVulns(TestCase):
             os.remove(adj_csv_path)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             self.assertIsNotNone(vuln_array)
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -109,7 +119,7 @@ class TestGetVulns(TestCase):
     def test_get_vulns_adj(self):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             self.assertIsNotNone(vuln_array)
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -134,7 +144,7 @@ class TestGetVulns(TestCase):
 
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             vuln_arrays_with_adj[file_type] = vuln_array
             vuln_ids_with_adj[file_type] = vulns_id
@@ -146,7 +156,7 @@ class TestGetVulns(TestCase):
 
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             vulns_id_map = self.map_vulns_id_to_indices(vulns_id)
             vulns_id_adj_map = self.map_vulns_id_to_indices(vuln_ids_with_adj[file_type])

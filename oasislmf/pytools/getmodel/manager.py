@@ -397,12 +397,13 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
+def get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
     """
     Loads the vulnerabilities from the file.
 
     Args:
         static_path: (str) the path pointing to the static file where the data is
+        input_path: (str) the path pointing to the input data folder
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_intensity_bins: (int) the number of intensity bins
         ignore_file_type: set(str) file extension to ignore when loading
@@ -411,14 +412,16 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
     """
     input_files = set(os.listdir(static_path))
 
-    # Pass analysis_settings and see if vulnerability_adjust is in there?
-    vulnerability_adjust = None
-    if os.path.exists(os.path.join(static_path, "vulnerability_adj.csv")):
-        logger.debug(f"loading {os.path.join(static_path, 'vulnerability_adj.csv')}")
-        vulnerability_adjust = np.loadtxt(os.path.join(static_path, "vulnerability_adj.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+    # at this point, either there's a vulnerability adjustment file or there isn't, the check has been done earlier and
+    # the file has been put in the input files folder
+    if os.path.exists(os.path.join(input_path, "vulnerability_adj.csv")):
+        logger.debug(f"loading {os.path.join(input_path, 'vulnerability_adj.csv')}")
+        vulnerability_adjust = np.loadtxt(os.path.join(input_path, "vulnerability_adj.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
         vulnerability_adjust = np.array(
             [adj_vuln for adj_vuln in vulnerability_adjust if adj_vuln['vulnerability_id'] in vuln_dict], dtype=vulnerability_adjust.dtype
         )
+    else:
+        vulnerability_adjust = None
 
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
@@ -740,7 +743,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_file_type)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
