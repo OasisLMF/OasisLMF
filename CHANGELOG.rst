@@ -1,6 +1,8 @@
 OasisLMF Changelog
 ==================
 
+.. _`1.28.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.4...1.28.5
+
 `1.28.4`_
  ---------
 * [#1376](https://github.com/OasisLMF/OasisLMF/pull/1376) - Release 1.28.3
