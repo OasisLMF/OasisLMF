@@ -5,7 +5,12 @@
 
 name: Code Quality
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - stable**
 
 env:
   max_line_length: 150

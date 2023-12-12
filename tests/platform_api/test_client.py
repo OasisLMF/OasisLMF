@@ -1039,7 +1039,7 @@ class APIClientTests(unittest.TestCase):
     def setUp(self):
         assert responses, 'responses package required to run'
         self.api_url = 'http://example.com/api'
-        self.api_ver = 'V1'
+        self.api_ver = 'v1'
         self.username = 'testUser'
         self.password = 'testPass'
         self.timeout = 0.1

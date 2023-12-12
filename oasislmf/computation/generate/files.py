@@ -205,7 +205,7 @@ class GenerateFiles(ComputationStep):
         # Load keys file  **** WARNING - REFACTOR THIS ****
         dtypes = {
             'locid': 'int64',
-            'perilid': 'str',
+            'perilid': 'category',
             'coveragetypeid': 'uint8',
             'areaperilid': 'uint64',
             'vulnerabilityid': 'uint32',
@@ -300,7 +300,7 @@ class GenerateFiles(ComputationStep):
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
-
+        del gul_summary_mapping
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
         if not il:
@@ -352,7 +352,7 @@ class GenerateFiles(ComputationStep):
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
         ).sort_values(by='agg_id')
-
+        del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info
 
         ri_layers = write_files_for_reinsurance(
