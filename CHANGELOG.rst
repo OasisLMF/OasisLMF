@@ -1,6 +1,18 @@
 OasisLMF Changelog
 ==================
 
+`1.28.5`_
+ ---------
+* [#1409](https://github.com/OasisLMF/OasisLMF/pull/1409) - Fix server-version flag for API client runner
+* [#1410](https://github.com/OasisLMF/OasisLMF/pull/1411) - Support for AccParticipation
+* [#1412](https://github.com/OasisLMF/OasisLMF/pull/1412) - use category for peril_id in keys.csv, improve write_fm_xref_file
+* [#1416](https://github.com/OasisLMF/OasisLMF/pull/1416) - fix useful columns when extra aggregation level is needed
+* [#1417](https://github.com/OasisLMF/OasisLMF/pull/1417) - Update CI job triggers - only test on PR or commit to main branches
+* [#1418](https://github.com/OasisLMF/OasisLMF/pull/1418) - Set ktools to 3.11.1
+* [#1347](https://github.com/OasisLMF/OasisLMF/pull/1369) - Add runtime user supplied secondary factor option to plapy
+* [#1405](https://github.com/OasisLMF/OasisLMF/pull/1405) - Fix/non compulsory condtag
+* [#1403](https://github.com/OasisLMF/OasisLMF/pull/1406) - Vulnerability File Option
+* [#1407](https://github.com/OasisLMF/OasisLMF/pull/1407) - Added tests for condition coverages 1-5 financial terms
 .. _`1.28.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.4...1.28.5
 
 `1.28.4`_
