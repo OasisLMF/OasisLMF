@@ -33,7 +33,6 @@ def prepare_input_files_directory(
         complex_lookup_config_fp=None,
         accounts_profile_fp=None,
         fm_aggregation_profile_fp=None,
-        vulnerability_adjustments=None,
 ):
     try:
         # Prepare the target directory and copy the source files, profiles and
@@ -47,7 +46,7 @@ def prepare_input_files_directory(
             (p, os.path.join(target_dir, os.path.basename(p))) for p in (
                 exposure_profile_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                keys_fp, keys_errors_fp, vulnerability_adjustments
+                keys_fp, keys_errors_fp
             ) if p
         ]
 

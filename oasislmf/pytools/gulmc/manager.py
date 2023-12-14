@@ -224,7 +224,7 @@ def run(run_dir,
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('import vulnerabilities')
-        vuln_array, _, _ = get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, _, _ = get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # set up streams

@@ -22,6 +22,7 @@ from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
+from ods_tools.oed import AnalysisSettingSchema
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +398,7 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
+def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set()):
     """
     Loads the vulnerabilities from the file.
 
@@ -412,16 +413,7 @@ def get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_fil
     """
     input_files = set(os.listdir(static_path))
 
-    # at this point, either there's a vulnerability adjustment file or there isn't, the check has been done earlier and
-    # the file has been put in the input files folder
-    if os.path.exists(os.path.join(input_path, "vulnerability_adj.csv")):
-        logger.debug(f"loading {os.path.join(input_path, 'vulnerability_adj.csv')}")
-        vulnerability_adjust = np.loadtxt(os.path.join(input_path, "vulnerability_adj.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
-        vulnerability_adjust = np.array(
-            [adj_vuln for adj_vuln in vulnerability_adjust if adj_vuln['vulnerability_id'] in vuln_dict], dtype=vulnerability_adjust.dtype
-        )
-    else:
-        vulnerability_adjust = None
+    vulnerability_adjust = get_vulnerability_adjustments(run_dir, vuln_dict)
 
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
@@ -477,6 +469,74 @@ def get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_fil
         vulns_id = create_vulns_id(vuln_dict)
 
     return vuln_array, vulns_id, num_damage_bins
+
+
+def get_vulnerability_adjustments(run_dir, vuln_dict):
+    """
+    Loads the vulnerability adjustment file.
+
+    Args:
+        path: (str) the path pointing to the run directory
+        vuln_dict: (Dict[int, int]) list of vulnerability IDs
+
+    Returns: (List[Vulnerability]) vulnerability adjustment data
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+
+    if not os.path.exists(settings_path):
+        logger.warning(f"analysis_settings.json not found in {run_dir}.")
+        return None
+
+    vulnerability_adjustments = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
+    if vulnerability_adjustments is None:
+        logger.info("Vulnerability adjustments not found in analysis settings.")
+        return None
+
+    if isinstance(vulnerability_adjustments, dict):
+        flat_data = []
+        for v_id, adjustments in vulnerability_adjustments.items():
+            for adj in adjustments:
+                flat_data.append((v_id, *adj))
+        vulnerability_adjust = np.array(flat_data, dtype=Vulnerability)
+        vulnerability_adjust = np.array(
+            [adj_vuln for adj_vuln in vulnerability_adjust if adj_vuln['vulnerability_id'] in vuln_dict], dtype=vulnerability_adjust.dtype
+        )
+        logger.info("Vulnerability adjustments found in analysis settings.")
+        return validate_vulnerability_adjustments(vulnerability_adjust)
+    elif isinstance(vulnerability_adjustments, str):
+        if os.path.exists(vulnerability_adjustments):
+            logger.debug(f"loading {vulnerability_adjustments}")
+            vulnerability_adjust = np.loadtxt(vulnerability_adjustments, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+            vulnerability_adjust = np.array(
+                [adj_vuln for adj_vuln in vulnerability_adjust if adj_vuln['vulnerability_id'] in vuln_dict], dtype=vulnerability_adjust.dtype
+            )
+        logger.info("Vulnerability adjustments found in analysis settings.")
+        return validate_vulnerability_adjustments(vulnerability_adjust)
+    else:
+        vulnerability_adjust = None
+        logger.warning("Vulnerability adjustments format is incorrect.")
+        return None
+
+
+def validate_vulnerability_adjustments(array):
+    """
+    Validates whether the array has the required data types.
+
+    Args:
+        array (np.ndarray): Array to validate.
+
+    Returns:
+        np.ndarray: The validated array.
+    """
+    expected_fields = ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id', 'probability']
+    if array.dtype.names != tuple(expected_fields):
+        raise ValueError(f"Array must have fields: {expected_fields}")
+
+    # Check data types within each field
+    for field, expected_dtype in zip(expected_fields, [np.int32, np.int32, np.int32, oasis_float]):
+        if array.dtype[field] != expected_dtype:
+            raise ValueError(f"Field {field} must be of type {expected_dtype}")
+    return array
 
 
 def get_mean_damage_bins(static_path, ignore_file_type=set()):
@@ -743,7 +803,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, input_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)

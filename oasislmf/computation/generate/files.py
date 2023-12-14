@@ -10,8 +10,6 @@ import os
 from pathlib import Path
 from typing import List
 
-from ods_tools.oed.setting_schema import ModelSettingSchema
-
 from oasislmf.computation.base import ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
                                                             CoveragesFile,
@@ -149,25 +147,6 @@ class GenerateFiles(ComputationStep):
         self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         summarise_exposure = not self.disable_summarise_exposure
 
-        vulnerability_adjustments = None
-        if self.analysis_settings_json is not None:
-            vulnerability_adjustments = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('vulnerability_adjustments', None)
-            # if it is a path, that's fine. check that it's a path
-            if vulnerability_adjustments is not None and os.path.exists(vulnerability_adjustments):
-                self.logger.info(f'Using vulnerability_adjustments file: {vulnerability_adjustments}')
-            else:
-                # is it a dictionary?
-                try:
-                    vulnerability_adjustments = json.loads(vulnerability_adjustments)
-                    # tsave it as a csv file in the input directory
-                    vulnerability_adjustments_fp = os.path.join(self.input_dir, 'vulnerability_adjustments.csv')
-                    with open(vulnerability_adjustments_fp, 'w') as f:
-                        f.write('vulnerability_id,adjustment\n')
-                        for k, v in vulnerability_adjustments.items():
-                            f.write(f'{k},{v}\n')
-                except Exception as e:
-                    raise OasisException(f'vulnerability_adjustments is not a path nor a dictionary: {e}')
-
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
         target_dir = prepare_input_files_directory(
@@ -181,7 +160,6 @@ class GenerateFiles(ComputationStep):
             complex_lookup_config_fp=self.lookup_complex_config_json,
             accounts_profile_fp=self.profile_acc_json,
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
-            vulnerability_adjustments=vulnerability_adjustments
         )
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
