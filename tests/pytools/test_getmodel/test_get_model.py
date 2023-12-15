@@ -51,12 +51,18 @@ class TestGetVulns(TestCase):
             (4, 2, 3, 0.09),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.mock_vuln_adj_data = np.array([
+            (33, 1, 1, 0.4),
+            (33, 1, 2, 0.3),
+            (33, 1, 3, 0.3),
             (2, 1, 1, 0.83),
             (2, 1, 2, 0.08),
             (2, 1, 3, 0.08),
             (2, 2, 1, 0.08),
             (2, 2, 2, 0.08),
             (2, 2, 3, 0.83),
+            (0, 2, 1, 0.3),
+            (0, 2, 2, 0.3),
+            (0, 2, 3, 0.4),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.expected_outputs = {
             'vuln_array_adj': np.array([[[0.83, 0.08], [0.08, 0.08], [0.08, 0.83]],
