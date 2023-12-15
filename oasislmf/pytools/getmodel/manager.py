@@ -460,8 +460,13 @@ def get_vulnerability_adjustments(run_dir, vuln_dict):
             logger.debug(f"loading {vulnerability_adjustments_field}")
             vuln_adj = np.loadtxt(vulnerability_adjustments_field, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
         else:
-            # Warning if file does not exist
-            logger.warning(f"Vulnerability adjustments file not found at {vulnerability_adjustments_field}.")
+            absolute_path = os.path.abspath(vulnerability_adjustments_field)
+            if os.path.exists(absolute_path):
+                logger.debug(f"loading {absolute_path}")
+                vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+            else:
+                # Warning if file does not exist
+                logger.warning(f"Vulnerability adjustments file not found at {vulnerability_adjustments_field}.")
             return None
     else:
         # Warning if format is neither dict nor str

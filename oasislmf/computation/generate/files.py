@@ -48,7 +48,7 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import \
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
-                                 prepare_reinsurance_df)
+                                 prepare_reinsurance_df, validate_vulnerability_adjustments)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
@@ -146,6 +146,8 @@ class GenerateFiles(ComputationStep):
         ri = exposure_data.ri_info and exposure_data.ri_scope and il
         self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         summarise_exposure = not self.disable_summarise_exposure
+
+        validate_vulnerability_adjustments(self.analysis_settings_json)
 
         # Prepare the target directory and copy the source files, profiles and
         # model version into it

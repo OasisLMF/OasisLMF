@@ -23,7 +23,8 @@ __all__ = [
     'PANDAS_DEFAULT_NULL_VALUES',
     'set_dataframe_column_dtypes',
     'RI_SCOPE_DEFAULTS',
-    'RI_INFO_DEFAULTS'
+    'RI_INFO_DEFAULTS',
+    'validate_vulnerability_adjustments',
 ]
 
 import builtins
@@ -53,6 +54,8 @@ from tabulate import tabulate
 
 from oasislmf.utils.defaults import SOURCE_IDX
 from oasislmf.utils.exceptions import OasisException
+from ods_tools.oed import AnalysisSettingSchema
+
 
 logger = logging.getLogger(__name__)
 
@@ -914,6 +917,37 @@ def set_dataframe_column_dtypes(df, dtypes):
     df = df.astype(_dtypes)
 
     return df
+
+
+def validate_vulnerability_adjustments(analysis_settings_json):
+    """
+    Validate vulnerability adjustments in analysis settings file.
+    If vulnerability adjustments are specified as a file path, check that the file exists.
+    This way the user will be warned early if the vulnerability option selected is not valid.
+
+    Args:
+        analysis_settings_json (str): JSON file path to analysis settings file
+    """
+    if analysis_settings_json is None:
+        return
+
+    vulnerability_adjustments = None
+    vulnerability_adjustments = AnalysisSettingSchema().get(analysis_settings_json).get('vulnerability_adjustments', None)
+
+    if vulnerability_adjustments is None:
+        return
+    if isinstance(vulnerability_adjustments, dict):
+        logger.info('Vulnerability adjustments are specified in the analysis settings file')
+        return
+    if isinstance(vulnerability_adjustments, str):
+        abs_path = os.path.abspath(vulnerability_adjustments)
+        if not os.path.isfile(abs_path):
+            logger.warning('Vulnerability adjustments file does not exist: {}'.format(abs_path))
+            return
+        logger.info('Vulnerability adjustments are specified in file: {}'.format(abs_path))
+        return
+    logger.warning('Vulnerability adjustments must be a dict or a file path, got: {}'.format(vulnerability_adjustments))
+    return
 
 
 def fill_na_with_categoricals(df, fill_value):
