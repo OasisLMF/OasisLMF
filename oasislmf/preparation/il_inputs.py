@@ -539,12 +539,12 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
     level_grouping = {}
     agg_dict = {level_id: 1 for level_id in range(base_level, max_level + 1)}
 
-    def set_agg_cond(group_id, group, level_id, layer_id, condition):
+    def set_agg_cond(group_id, locations, level_id, layer_id, condition):
         level_group_key = group_id + (level_id,)
         if level_group_key not in level_grouping:
             level_grouping[level_group_key] = agg_dict[level_id]
             agg_dict[level_id] += 1
-        for loc_key in group['locations']:
+        for loc_key in locations:
             location = loc_key[-1]
             level_location_to_agg_cond_dict[group_id + (level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
 
@@ -553,22 +553,23 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
         no_parent_not_top_groups = dict(groups)
         for group_id, group in groups.items():
             for layer_id, cond_num in group['layers'].items():
-                for level_id in range(base_level, group['level']):
-                    set_agg_cond(group_id, group, level_id, layer_id, '')
+                if group['locations']:
+                    for level_id in range(base_level, group['level']):
+                        set_agg_cond(group_id, group['locations'], level_id, layer_id, '')
 
                 if group['level'] == max_level:
                     no_parent_not_top_groups.pop(group_id, None)
-                set_agg_cond(group_id, group, group['level'], layer_id, cond_num)
+                set_agg_cond(group_id, group['locations'], group['level'], layer_id, cond_num)
 
                 for child_group_id in group.get('childs', []):
                     no_parent_not_top_groups.pop(child_group_id, None)
-                    set_agg_cond(group_id, groups[child_group_id], group['level'], layer_id, cond_num)
+                    set_agg_cond(group_id, groups[child_group_id]['locations'], group['level'], layer_id, cond_num)
 
         for group_id in no_parent_not_top_groups:
             for level_id in range(group['level'] + 1, max_level + 1):
                 group = groups[group_id]
                 for layer_id in group['layers']:
-                    set_agg_cond(group_id, group, level_id, layer_id, '')
+                    set_agg_cond(group_id, group['locations'], level_id, layer_id, '')
 
     return level_location_to_agg_cond_dict
 
