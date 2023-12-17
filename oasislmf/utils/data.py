@@ -24,6 +24,7 @@ __all__ = [
     'set_dataframe_column_dtypes',
     'RI_SCOPE_DEFAULTS',
     'RI_INFO_DEFAULTS',
+    'validate_vuln_csv_contents',
     'validate_vulnerability_adjustments',
 ]
 
@@ -919,6 +920,47 @@ def set_dataframe_column_dtypes(df, dtypes):
     return df
 
 
+def validate_vuln_csv_contents(file_path):
+    """
+    Validate the contents of the CSV file for vulnerability adjustments.
+
+    Args:
+        file_path (str): Path to the vulnerability CSV file
+
+    Returns:
+        bool: True if the file is valid, False otherwise
+    """
+    expected_columns = ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id', 'probability']
+    try:
+        vuln_df = pd.read_csv(file_path)
+        if list(vuln_df.columns) != expected_columns:
+            logger.warning(f"CSV file {file_path} does not have the expected columns.")
+            return False
+
+        # Check data types and constraints
+        if not np.issubdtype(vuln_df['vulnerability_id'].dtype, np.integer):
+            logger.warning("vulnerability_id column must contain integer values.")
+            return False
+        if not np.issubdtype(vuln_df['intensity_bin_id'].dtype, np.integer):
+            logger.warning("intensity_bin_id column must contain integer values.")
+            return False
+        if not np.issubdtype(vuln_df['damage_bin_id'].dtype, np.integer):
+            logger.warning("damage_bin_id column must contain integer values.")
+            return False
+        if vuln_df['probability'].apply(lambda x: isinstance(x, (int, float))).all():
+            if not (vuln_df['probability'].between(0, 1).all()):
+                logger.warning("probability column must contain values between 0 and 1.")
+                return False
+        else:
+            logger.warning("probability column must contain numeric values.")
+            return False
+        return True
+    except Exception as e:
+        # No fail if the file is not valid, just warn the user
+        logger.warning(f"Error occurred while validating CSV file: {e}")
+        return False
+
+
 def validate_vulnerability_adjustments(analysis_settings_json):
     """
     Validate vulnerability adjustments in analysis settings file.
@@ -927,27 +969,35 @@ def validate_vulnerability_adjustments(analysis_settings_json):
 
     Args:
         analysis_settings_json (str): JSON file path to analysis settings file
+
+    Returns:
+        bool: True if the vulnerability adjustments are present and valid, False otherwise
+
     """
     if analysis_settings_json is None:
-        return
+        return False
 
     vulnerability_adjustments = None
     vulnerability_adjustments = AnalysisSettingSchema().get(analysis_settings_json).get('vulnerability_adjustments', None)
-
     if vulnerability_adjustments is None:
-        return
+        return False
     if isinstance(vulnerability_adjustments, dict):
         logger.info('Vulnerability adjustments are specified in the analysis settings file')
-        return
+        return True
     if isinstance(vulnerability_adjustments, str):
         abs_path = os.path.abspath(vulnerability_adjustments)
         if not os.path.isfile(abs_path):
             logger.warning('Vulnerability adjustments file does not exist: {}'.format(abs_path))
-            return
-        logger.info('Vulnerability adjustments are specified in file: {}'.format(abs_path))
-        return
+            return False
+
+        if not validate_vuln_csv_contents(abs_path):
+            logger.warning('Vulnerability adjustments file is not valid: {}'.format(abs_path))
+            return False
+
+        logger.info('Vulnerability adjustments found in file: {}'.format(abs_path))
+        return True
     logger.warning('Vulnerability adjustments must be a dict or a file path, got: {}'.format(vulnerability_adjustments))
-    return
+    return False
 
 
 def fill_na_with_categoricals(df, fill_value):
