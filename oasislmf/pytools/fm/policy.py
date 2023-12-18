@@ -360,6 +360,8 @@ def calc(policy, loss_out, loss_in, stepped):
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
     # policies non layer policy with share
+    elif policy['calcrule_id'] == 200:
+        loss_out[:] = loss_in * policy['share_1']
     elif policy['calcrule_id'] == 101:
         calcrule_1(policy, loss_out, loss_in)
         loss_out *= policy['share_1']

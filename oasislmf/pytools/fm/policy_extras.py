@@ -713,6 +713,8 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
+    elif policy['calcrule_id'] == 200:
+        loss_out[:] = loss_in * policy['share_1']
     elif policy['calcrule_id'] == 101:
         calcrule_1(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         loss_out *= policy['share_1']

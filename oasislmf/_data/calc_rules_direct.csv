@@ -50,6 +50,10 @@ reverse franchise deductible; no limit % loss,20,0,1,0,0,0,0,99,1,0,0
 pass through; no deductible % loss,100,0,0,0,0,0,1,0,0,0,0
 pass through; no limit % loss,100,0,0,0,0,0,0,0,1,0,0
 "pass through; no deductible % loss, no limit % loss",100,0,0,0,0,0,1,0,1,0,0
+"participation only; no deductible, no limit",200,0,0,0,0,0,0,0,0,0,1
+participation only; no deductible % loss,200,0,0,0,0,0,1,0,0,0,1
+participation only; no limit % loss,200,0,0,0,0,0,0,0,1,0,1
+"participation only; no deductible % loss, no limit % loss",200,0,0,0,0,0,1,0,1,0,1
 deductible % loss with min and max deductible and limit,26,0,1,1,1,1,1,0,0,0,0
 no deductible % loss;  min and max deductible and limit,26,0,0,1,1,1,1,0,0,0,0
 deductible % loss with min deductible and limit,26,0,1,1,0,1,1,0,0,0,0
