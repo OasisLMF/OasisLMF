@@ -1382,6 +1382,29 @@ class TestValidateVulnerabilityAdjustments(TestCase):
                                     for args, _ in self.mock_logger.warning.call_args_list)
                 self.assertTrue(message_found, "Expected log message not found")
 
+    def test_invalid_csv_file_columns_vulnerability_adjustments(self):
+        # Mock invalid CSV contents
+        mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'wrong_field': "content", 'intensity_bin_id': [1],
+                                        'damage_bin_id': [1], 'probability': [0.5]})
+        with patch('pandas.read_csv', return_value=mock_invalid_df):
+            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'invalid_contents.csv'}):
+                with patch('os.path.isfile', return_value=True):
+                    validate_vulnerability_adjustments('dummy_path')
+                    message_found = any('does not have the expected columns.' in args[0] and 'invalid_contents.csv' in args[0]
+                                        for args, _ in self.mock_logger.warning.call_args_list)
+                    self.assertTrue(message_found, "Expected log message not found")
+
+    def test_invalid_csv_file_contents_int_vulnerability_adjustments(self):
+        # Mock invalid CSV contents
+        mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'intensity_bin_id': ['O'], 'damage_bin_id': [1], 'probability': [1.5]})
+        with patch('pandas.read_csv', return_value=mock_invalid_df):
+            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'invalid_contents.csv'}):
+                with patch('os.path.isfile', return_value=True):
+                    validate_vulnerability_adjustments('dummy_path')
+                    message_found = any('Vulnerability adjustments file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
+                                        for args, _ in self.mock_logger.warning.call_args_list)
+                    self.assertTrue(message_found, "Expected log message not found")
+
     def test_invalid_csv_file_contents_vulnerability_adjustments(self):
         # Mock invalid CSV contents
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'intensity_bin_id': [1], 'damage_bin_id': [1], 'probability': [1.5]})

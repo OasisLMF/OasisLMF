@@ -938,14 +938,12 @@ def validate_vuln_csv_contents(file_path):
             return False
 
         # Check data types and constraints
-        if not np.issubdtype(vuln_df['vulnerability_id'].dtype, np.integer):
-            logger.warning("vulnerability_id column must contain integer values.")
-            return False
-        if not np.issubdtype(vuln_df['intensity_bin_id'].dtype, np.integer):
-            logger.warning("intensity_bin_id column must contain integer values.")
-            return False
-        if not np.issubdtype(vuln_df['damage_bin_id'].dtype, np.integer):
-            logger.warning("damage_bin_id column must contain integer values.")
+        if not (
+            np.issubdtype(vuln_df['vulnerability_id'].dtype, np.integer)
+            and np.issubdtype(vuln_df['intensity_bin_id'].dtype, np.integer)
+            and np.issubdtype(vuln_df['damage_bin_id'].dtype, np.integer)
+        ):
+            logger.warning("vulnerability_id, intensity_bin_id, and damage_bin_id columns must contain integer values.")
             return False
         if vuln_df['probability'].apply(lambda x: isinstance(x, (int, float))).all():
             if not (vuln_df['probability'].between(0, 1).all()):

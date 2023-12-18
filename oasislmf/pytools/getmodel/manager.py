@@ -17,6 +17,7 @@ import pyarrow.parquet as pq
 from numba.typed import Dict
 
 from oasislmf.pytools.common import PIPE_CAPACITY
+from oasislmf.utils.data import validate_vulnerability_adjustments
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
@@ -363,11 +364,7 @@ def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_t
     """
     input_files = set(os.listdir(static_path))
 
-    try:
-        vuln_adj = get_vulnerability_adjustments(run_dir, vuln_dict)
-    except Exception as e:
-        logger.warning(f"Error while loading vulnerability adjustments: {e}")
-        vuln_adj = None
+    vuln_adj = get_vulnerability_adjustments(run_dir, vuln_dict)
 
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
@@ -441,43 +438,29 @@ def get_vulnerability_adjustments(run_dir, vuln_dict):
     if not os.path.exists(settings_path):
         logger.warning(f"analysis_settings.json not found in {run_dir}.")
         return None
-
+    vulnerability_adjustments_field = None
     vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
-    if vulnerability_adjustments_field is None:
-        logger.info("Vulnerability adjustments not found in analysis settings.")
+    if not validate_vulnerability_adjustments(vulnerability_adjustments_field):
         return None
 
-    if isinstance(vulnerability_adjustments_field, dict):
-        # Convert dict to flat array equivalent to csv format
-        flat_data = []
-        for v_id, adjustments in vulnerability_adjustments_field.items():
-            for adj in adjustments:
-                flat_data.append((v_id, *adj))
-        vuln_adj = np.array(flat_data, dtype=Vulnerability)
-    elif isinstance(vulnerability_adjustments_field, str):
-        # Load csv file
-        if os.path.exists(vulnerability_adjustments_field):
-            logger.debug(f"loading {vulnerability_adjustments_field}")
-            vuln_adj = np.loadtxt(vulnerability_adjustments_field, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
-        else:
-            absolute_path = os.path.abspath(vulnerability_adjustments_field)
-            if os.path.exists(absolute_path):
-                logger.debug(f"loading {absolute_path}")
-                vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
-            else:
-                # Warning if file does not exist
-                logger.warning(f"Vulnerability adjustments file not found at {vulnerability_adjustments_field}.")
-            return None
     else:
-        # Warning if format is neither dict nor str
-        vuln_adj = None
-        logger.warning("Vulnerability adjustments format is incorrect.")
-        return None
-    vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],
-                        dtype=vuln_adj.dtype)
-    vuln_adj.sort(order='vulnerability_id')
-    logger.info("Vulnerability adjustments found in analysis settings.")
-    return vuln_adj
+        if isinstance(vulnerability_adjustments_field, dict):
+            # Convert dict to flat array equivalent to csv format
+            flat_data = []
+            for v_id, adjustments in vulnerability_adjustments_field.items():
+                for adj in adjustments:
+                    flat_data.append((v_id, *adj))
+            vuln_adj = np.array(flat_data, dtype=Vulnerability)
+        elif isinstance(vulnerability_adjustments_field, str):
+            # Load csv file
+            absolute_path = os.path.abspath(vulnerability_adjustments_field)
+            logger.debug(f"loading {absolute_path}")
+            vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+        vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],
+                            dtype=vuln_adj.dtype)
+        vuln_adj.sort(order='vulnerability_id')
+        logger.info("Vulnerability adjustments found in analysis settings.")
+        return vuln_adj
 
 
 def get_mean_damage_bins(static_path, ignore_file_type=set()):
