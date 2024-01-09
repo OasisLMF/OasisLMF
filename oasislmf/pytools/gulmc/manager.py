@@ -19,7 +19,7 @@ from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
@@ -225,6 +225,7 @@ def run(run_dir,
 
         logger.debug('import vulnerabilities')
         vuln_array, _, _ = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_adj_dict = get_vuln_rngadj_dict(run_dir)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # set up streams
@@ -392,6 +393,10 @@ def run(run_dir,
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 next_cached_vuln_cdf = 0
 
+                # # test adj dict
+                # vuln_adj_dict = Dict.empty(nb_int32, nb_float64)
+                # vuln_adj_dict[2] = 0.5
+
                 while last_processed_coverage_ids_idx < compute_i:
 
                     cursor, cursor_bytes, last_processed_coverage_ids_idx, next_cached_vuln_cdf = compute_event_losses(event_id,
@@ -425,6 +430,7 @@ def run(run_dir,
                                                                                                                        do_haz_correlation,
                                                                                                                        haz_rndms_base,
                                                                                                                        vuln_rndms_base,
+                                                                                                                       vuln_adj_dict,
                                                                                                                        haz_eps_ij,
                                                                                                                        eps_ij,
                                                                                                                        norm_inv_parameters,
@@ -483,6 +489,7 @@ def compute_event_losses(event_id,
                          do_haz_correlation,
                          haz_rndms_base,
                          vuln_rndms_base,
+                         vuln_adj_dict,
                          haz_eps_ij,
                          eps_ij,
                          norm_inv_parameters,
@@ -536,6 +543,7 @@ def compute_event_losses(event_id,
           drawn for each seed for the hazard intensity sampling.
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
+        vuln_adj_dict (dict[int, float]): map between vulnerability_id and the adjustment factor to be applied to the (random numbers extracted) vulnerability function.
         haz_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for hazard sampling.
         eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
@@ -730,6 +738,13 @@ def compute_event_losses(event_id,
                 else:
                     # do not use correlation
                     vuln_rndms = vuln_rndms_base[rng_index]
+
+            if vuln_adj_dict is not None:
+                if vulnerability_id in vuln_adj_dict:
+                    vuln_rndms = vuln_rndms * vuln_adj_dict[vulnerability_id]
+                # write txt file with the vulnerability adjustment factors. Create if it doesn't exist, append if it does
+                    # with open('vuln_adj_factors.txt', 'a') as f:
+                    #     f.write(f'{event_id},{item_id},{vulnerability_id},{vuln_adj_dict[vulnerability_id]}\n')
 
                 if effective_damageability:
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)
@@ -1316,7 +1331,7 @@ if __name__ == '__main__':
     # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
     #     .joinpath("assets").joinpath("test_model_2")
 
-    test_dir = Path("/home/mtazzari/repos/OasisLMF/tests/assets/test_model_1")
+    test_dir = Path("runs/losses-20240108105851")
 
     file_out = test_dir.joinpath('gulpy_mc.bin')
     run(

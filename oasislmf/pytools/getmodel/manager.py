@@ -14,6 +14,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+from numba import int32 as nb_int32, float64 as nb_float64
 from numba.typed import Dict
 
 from oasislmf.pytools.common import PIPE_CAPACITY
@@ -22,6 +23,8 @@ from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
+from ods_tools.oed import AnalysisSettingSchema
+
 
 logger = logging.getLogger(__name__)
 
@@ -278,12 +281,36 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
+def get_vuln_rngadj_dict(run_dir):
+    """
+    Loads vulnerability adjustments from the analysis settings file.
+
+    Args:
+        run_dir (str): path to the run directory (used to load the analysis settings)
+
+    Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+
+    if not os.path.exists(settings_path):
+        logger.warning(f"analysis_settings.json not found in {run_dir}.")
+        return None
+    vulnerability_adjustments_field = None
+    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_rng_adjustments')
+    if vulnerability_adjustments_field is None:
+        logger.debug(f"vulnerability_rng_adjustments not found in {settings_path}.")
+    vuln_adj_numba_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+    for key, value in vulnerability_adjustments_field.items():
+        vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
+    return vuln_adj_numba_dict
+
+
 def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
     """
     Loads the vulnerabilities from the file.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        static_path: (str) the path pointing to the static folder where the data is
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_intensity_bins: (int) the number of intensity bins
         ignore_file_type: set(str) file extension to ignore when loading
