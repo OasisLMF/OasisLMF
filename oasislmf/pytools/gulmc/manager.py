@@ -393,10 +393,6 @@ def run(run_dir,
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 next_cached_vuln_cdf = 0
 
-                # # test adj dict
-                # vuln_adj_dict = Dict.empty(nb_int32, nb_float64)
-                # vuln_adj_dict[2] = 0.5
-
                 while last_processed_coverage_ids_idx < compute_i:
 
                     cursor, cursor_bytes, last_processed_coverage_ids_idx, next_cached_vuln_cdf = compute_event_losses(event_id,
@@ -731,20 +727,19 @@ def compute_event_losses(event_id,
                             norm_cdf, sample_size, z_unif
                         )
                         vuln_rndms = z_unif
+                        if vulnerability_id in vuln_adj_dict:
+                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                     else:
                         vuln_rndms = vuln_rndms_base[rng_index]
+                        if vulnerability_id in vuln_adj_dict:
+                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                 else:
                     # do not use correlation
                     vuln_rndms = vuln_rndms_base[rng_index]
-
-            if vuln_adj_dict is not None:
-                if vulnerability_id in vuln_adj_dict:
-                    vuln_rndms = vuln_rndms * vuln_adj_dict[vulnerability_id]
-                # write txt file with the vulnerability adjustment factors. Create if it doesn't exist, append if it does
-                    # with open('vuln_adj_factors.txt', 'a') as f:
-                    #     f.write(f'{event_id},{item_id},{vulnerability_id},{vuln_adj_dict[vulnerability_id]}\n')
+                    if vulnerability_id in vuln_adj_dict:
+                        vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                 if effective_damageability:
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)

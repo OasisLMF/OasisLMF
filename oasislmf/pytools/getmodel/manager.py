@@ -291,15 +291,15 @@ def get_vuln_rngadj_dict(run_dir):
     Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
     """
     settings_path = os.path.join(run_dir, "analysis_settings.json")
-
+    vuln_adj_numba_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
     if not os.path.exists(settings_path):
-        logger.warning(f"analysis_settings.json not found in {run_dir}.")
-        return None
+        logger.debug(f"analysis_settings.json not found in {run_dir}.")
+        return vuln_adj_numba_dict
     vulnerability_adjustments_field = None
-    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_rng_adjustments')
+    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_rng_adjustments', None)
     if vulnerability_adjustments_field is None:
         logger.debug(f"vulnerability_rng_adjustments not found in {settings_path}.")
-    vuln_adj_numba_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+        return vuln_adj_numba_dict
     for key, value in vulnerability_adjustments_field.items():
         vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
     return vuln_adj_numba_dict
