@@ -2,7 +2,7 @@ from unittest import main, TestCase
 from unittest.mock import patch
 from oasislmf.pytools.getmodel.manager import get_vuln_rngadj_dict
 
-from numba.typed import Dict
+from numba.typed.typeddict import Dict
 from numba import int32 as nb_int32, float64 as nb_float64
 # from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
 # from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
@@ -19,17 +19,15 @@ class TestGetVulnaRngAdj(TestCase):
 
 
     Args:
-        TestCase (_type_): _description_
+        TestCase (TestCase): This class inherits from unittest.TestCase.
     """
+
     def test_get_vuln_rngadj_dict_nofile(self):
         """
         This function tests the get_vuln_rngadj_dict() function when no file is passed.
 
         Args:
-            self (type): description
-
-        Returns:
-            type: description
+            self (TestCase): unittest.TestCase
         """
         result_dict = get_vuln_rngadj_dict(".")
         self.assertTrue(isinstance(result_dict, Dict))
