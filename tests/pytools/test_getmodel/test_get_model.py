@@ -1,5 +1,9 @@
 from unittest import main, TestCase
+from unittest.mock import patch
+from oasislmf.pytools.getmodel.manager import get_vuln_rngadj_dict
 
+from numba.typed import Dict
+from numba import int32 as nb_int32, float64 as nb_float64
 # from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
 # from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
 #
@@ -8,6 +12,48 @@ from unittest import main, TestCase
 # import pyarrow.parquet as pq
 # from pyarrow import memory_map
 
+
+class TestGetVulnaRngAdj(TestCase):
+    """
+    This class tests get_vuln_rngadj_dict().
+
+
+    Args:
+        TestCase (_type_): _description_
+    """
+    def test_get_vuln_rngadj_dict_nofile(self):
+        """
+        This function tests the get_vuln_rngadj_dict() function when no file is passed.
+
+        Args:
+            self (type): description
+
+        Returns:
+            type: description
+        """
+        result_dict = get_vuln_rngadj_dict(".")
+        self.assertEqual(result_dict, {})
+
+    @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
+    @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={})
+    def test_get_vuln_rngadj_dict_fileempty(self, mock_get, mock_exists):
+        """
+        Test get_vuln_rngadj_dict function with an empty analysis settings file.
+        """
+        result_dict = get_vuln_rngadj_dict("dummy_run_dir")
+        self.assertIsInstance(result_dict, Dict)
+        self.assertEqual(len(result_dict), 0)
+
+    @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
+    @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={"vulnerability_rng_adjustments": {"2": 0.95}})
+    def test_get_vuln_rngadj_dict_regular(self, mock_get, mock_exists):
+        """
+        Test get_vuln_rngadj_dict function with a regular settings file.
+        """
+        result_dict = get_vuln_rngadj_dict("dummy_run_dir")
+        self.assertIsInstance(result_dict, Dict)
+        self.assertEqual(len(result_dict), 1)
+        self.assertEqual(result_dict[nb_int32(2)], nb_float64(0.95))
 
 class GetModelTests(TestCase):
     """
