@@ -2,7 +2,7 @@ from unittest import main, TestCase
 from unittest.mock import patch
 from oasislmf.pytools.getmodel.manager import get_vuln_rngadj_dict
 
-from numba.typed.typeddict import Dict
+from numba.typed import Dict
 from numba import int32 as nb_int32, float64 as nb_float64
 # from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
 # from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
@@ -29,8 +29,9 @@ class TestGetVulnaRngAdj(TestCase):
         Args:
             self (TestCase): unittest.TestCase
         """
+        expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
         result_dict = get_vuln_rngadj_dict(".")
-        self.assertTrue(isinstance(result_dict, Dict))
+        self.assertEqual(result_dict, expected_dict)
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
     @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={})
@@ -38,9 +39,9 @@ class TestGetVulnaRngAdj(TestCase):
         """
         Test get_vuln_rngadj_dict function with an empty analysis settings file.
         """
+        expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
         result_dict = get_vuln_rngadj_dict("dummy_run_dir")
-        self.assertTrue(isinstance(result_dict, Dict))
-        self.assertEqual(len(result_dict), 0)
+        self.assertEqual(result_dict, expected_dict)
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
     @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={"vulnerability_rng_adjustments": {"2": 0.95}})
@@ -48,10 +49,10 @@ class TestGetVulnaRngAdj(TestCase):
         """
         Test get_vuln_rngadj_dict function with a regular settings file.
         """
+        expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+        expected_dict[nb_int32(2)] = nb_float64(0.95)
         result_dict = get_vuln_rngadj_dict("dummy_run_dir")
-        self.assertIsInstance(result_dict, Dict)
-        self.assertEqual(len(result_dict), 1)
-        self.assertEqual(result_dict[nb_int32(2)], nb_float64(0.95))
+        self.assertEqual(result_dict, expected_dict)
 
 
 class GetModelTests(TestCase):
