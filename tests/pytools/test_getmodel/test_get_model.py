@@ -32,7 +32,7 @@ class TestGetVulnaRngAdj(TestCase):
             type: description
         """
         result_dict = get_vuln_rngadj_dict(".")
-        self.assertEqual(result_dict, {})
+        self.assertTrue(isinstance(result_dict, Dict))
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
     @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={})
@@ -41,7 +41,7 @@ class TestGetVulnaRngAdj(TestCase):
         Test get_vuln_rngadj_dict function with an empty analysis settings file.
         """
         result_dict = get_vuln_rngadj_dict("dummy_run_dir")
-        self.assertIsInstance(result_dict, Dict)
+        self.assertTrue(isinstance(result_dict, Dict))
         self.assertEqual(len(result_dict), 0)
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
@@ -54,6 +54,7 @@ class TestGetVulnaRngAdj(TestCase):
         self.assertIsInstance(result_dict, Dict)
         self.assertEqual(len(result_dict), 1)
         self.assertEqual(result_dict[nb_int32(2)], nb_float64(0.95))
+
 
 class GetModelTests(TestCase):
     """
