@@ -382,6 +382,11 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'base_df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'exposure_df_engine', 'default': None,
+            'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -438,7 +443,9 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
-            peril_filter=self._get_peril_filter(self.analysis_settings)
+            peril_filter=self._get_peril_filter(self.analysis_settings),
+            exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
+            model_df_engine=self.model_df_engine or self.base_df_engine,
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -590,6 +597,11 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
+        {'name': 'base_df_engine', 'default': "lot3.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'exposure_df_engine', 'default': None,
+            'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
     ]
 
     def run(self):
@@ -633,7 +645,8 @@ class GenerateLosses(GenerateLossesDir):
                         event_shuffle=self.ktools_event_shuffle,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
-                        peril_filter=self._get_peril_filter(analysis_settings)
+                        peril_filter=self._get_peril_filter(analysis_settings),
+                        model_df_engine=self.model_df_engine or self.base_df_engine,
                     )
                 except TypeError:
                     warnings.simplefilter("always")

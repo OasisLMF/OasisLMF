@@ -12,7 +12,7 @@ a model storage configuration file. The path to this file is passed to the model
 For example, to connect to an S3 bucket your configuration may look like::
 
     {
-        "storage_class": "lot3.filestore.backends.aws_storage.AwsObjectStore", 
+        "storage_class": "lot3.filestore.backends.aws_s3.AwsS3Storage", 
         "options": {
             "bucket_name": "modeldata", 
             "access_key": "<access_key>",

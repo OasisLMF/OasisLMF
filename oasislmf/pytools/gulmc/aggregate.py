@@ -12,7 +12,7 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import uint32 as nb_uint32
 
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
 from oasislmf.pytools.common import areaperil_int
 
 logger = logging.getLogger(__name__)
@@ -48,11 +48,11 @@ def gen_empty_areaperil_vuln_ids_to_weights():
     return Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
 
 
-def read_aggregate_vulnerability(storage: BaseStorageConnector, ignore_file_type=set()):
+def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
     """Load the aggregate vulnerability definitions from file.
 
     Args:
-        storage: (BaseStorageConnector) the storage manager for fetching model data
+        storage: (BaseStorage) the storage manager for fetching model data
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:
@@ -78,11 +78,11 @@ def read_aggregate_vulnerability(storage: BaseStorageConnector, ignore_file_type
     return aggregate_vulnerability
 
 
-def read_vulnerability_weights(storage: BaseStorageConnector, ignore_file_type=set()):
+def read_vulnerability_weights(storage: BaseStorage, ignore_file_type=set()):
     """Load the vulnerability weights definitions from file.
 
     Args:
-        storage: (BaseStorageConnector) the storage manager for fetching model data
+        storage: (BaseStorage) the storage manager for fetching model data
         ignore_file_type (Set[str]): file extension to ignore when loading.
 
     Returns:

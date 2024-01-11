@@ -33,7 +33,7 @@ from itertools import chain
 
 from pathlib import Path
 
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
@@ -282,7 +282,7 @@ def _load_default_quantile_bin(run_dir):
                          )
 
 
-def _prepare_input_bin(run_dir, bin_name, model_settings, storage: BaseStorageConnector, setting_key=None, ri=False, extension='bin'):
+def _prepare_input_bin(run_dir, bin_name, model_settings, storage: BaseStorage, setting_key=None, ri=False, extension='bin'):
     bin_fp = os.path.join(run_dir, 'input', '{}.{}'.format(bin_name, extension))
     if not os.path.exists(bin_fp):
         setting_val = model_settings.get(setting_key)
@@ -362,7 +362,7 @@ def _leccalc_selected(analysis_settings):
 
 
 @oasis_log
-def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorageConnector, ri=False):
+def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, ri=False):
     """
     Sets up binary files in the model inputs directory.
 

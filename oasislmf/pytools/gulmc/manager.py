@@ -86,6 +86,7 @@ def run(run_dir,
         ignore_haz_correlation=False,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
+        model_df_engine="lot3.df_reader.reader.OasisPandasReader",
         **kwargs):
     """Execute the main gulmc worklow.
 
@@ -106,6 +107,7 @@ def run(run_dir,
         effective_damageability (bool, optional): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
         max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory cache to store and reuse vulnerability cdf. Defaults to 200.
+        model_df_engine: (str) The engine to use when loading model dataframes
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
         ValueError: if alloc_rule is 1, 2, or 3 when debug is 1 or 2.
@@ -222,7 +224,7 @@ def run(run_dir,
             areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=model_df_engine))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")

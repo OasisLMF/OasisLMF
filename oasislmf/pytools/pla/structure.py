@@ -5,7 +5,7 @@ from numba.typed import Dict
 import numpy as np
 import os
 
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
 from .common import (
     BUFFER_SIZE,
     DATA_SIZE,
@@ -98,7 +98,7 @@ def fill_post_loss_amplification_factors(
     return event_id, count, plafactors
 
 
-def get_post_loss_amplification_factors(storage: BaseStorageConnector, ignore_file_type=set()):
+def get_post_loss_amplification_factors(storage: BaseStorage, ignore_file_type=set()):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
 
@@ -116,7 +116,7 @@ def get_post_loss_amplification_factors(storage: BaseStorageConnector, ignore_fi
         amplification ID n (4-byte int), loss factor for amplification ID n (4-byte float)
 
     Args:
-        storage: (BaseStorageConnector) the storage conector for ftching the model data
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
     Returns:

@@ -15,7 +15,7 @@ import numba as nb
 
 from lot3.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from lot3.df_reader.reader import OasisReader
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
@@ -50,16 +50,16 @@ class Footprint:
     This class is the base class for the footprint loaders.
 
     Attributes:
-        storage (BaseStorageConnector): the storage object used to lookup files
+        storage (BaseStorage): the storage object used to lookup files
         stack (ExitStack): the context manager that combines other context managers and cleanup functions
     """
 
-    def __init__(self, storage: BaseStorageConnector, df_engine="lot3.df_reader.reader.OasisPandasReader") -> None:
+    def __init__(self, storage: BaseStorage, df_engine="lot3.df_reader.reader.OasisPandasReader") -> None:
         """
         The constructor for the Footprint class.
 
         Args:
-            storage (BaseStorageConnector): the storage object used to lookup files
+            storage (BaseStorage): the storage object used to lookup files
         """
         self.storage = storage
         self.stack = ExitStack()
@@ -69,7 +69,12 @@ class Footprint:
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
 
     @classmethod
-    def load(cls, storage: BaseStorageConnector, ignore_file_type=set()):
+    def load(
+        cls,
+        storage: BaseStorage,
+        ignore_file_type=set(),
+        df_engine="lot3.df_reader.reader.OasisPandasReader",
+    ):
         """
         Loads the loading classes defined in this file checking to see if the files are in the static path
         whilst doing so. The loading goes through the hierarchy with the following order:
@@ -82,7 +87,7 @@ class Footprint:
         and so on.
 
         Args:
-            storage (BaseStorageConnector): the storage object used to lookup files
+            storage (BaseStorage): the storage object used to lookup files
             ignore_file_type (Set[str]): type of file to be skipped in the hierarchy. This can be a choice of:
 
             parquet
@@ -110,7 +115,7 @@ class Footprint:
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
-                return footprint_class(storage)
+                return footprint_class(storage, df_engine=df_engine)
         else:
             if storage.isfile("footprint.parquet"):
                 raise OasisFootPrintError(
@@ -317,15 +322,9 @@ class FootprintParquet(Footprint):
 
         Returns: (np.array[Event]) the event that was extracted
         """
-        # try:
-        #     handle = pq.ParquetDataset(f'./static/footprint.parquet/event_id={event_id}')
-        # except OSError:
-        #     return None
+        reader = self.get_df_reader("footprint.parquet", filters=[("event_id", "==", event_id)])
 
-        reader = self.get_df_reader("footprint.parquet").filter(lambda df: df[df["event_id"] == event_id])
-
-        df = reader.as_pandas()
-        numpy_data = self.prepare_df_data(data_frame=df)
+        numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
         return numpy_data
 
 
