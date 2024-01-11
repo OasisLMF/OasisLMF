@@ -281,7 +281,7 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vuln_rngadj_dict(run_dir):
+def get_vuln_rngadj_dict(run_dir, vuln_dict):
     """
     Loads vulnerability adjustments from the analysis settings file.
 
@@ -301,7 +301,8 @@ def get_vuln_rngadj_dict(run_dir):
         logger.debug(f"vulnerability_rng_adjustments not found in {settings_path}.")
         return vuln_adj_numba_dict
     for key, value in vulnerability_adjustments_field.items():
-        vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
+        if int(key) in vuln_dict.keys():
+            vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
     return vuln_adj_numba_dict
 
 

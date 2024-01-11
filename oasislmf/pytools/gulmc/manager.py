@@ -225,7 +225,7 @@ def run(run_dir,
 
         logger.debug('import vulnerabilities')
         vuln_array, _, _ = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
-        vuln_adj_dict = get_vuln_rngadj_dict(run_dir)
+        vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # set up streams
