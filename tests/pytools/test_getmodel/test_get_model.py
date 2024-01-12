@@ -30,7 +30,7 @@ class TestGetVulnaRngAdj(TestCase):
             self (TestCase): unittest.TestCase
         """
         expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
-        result_dict = get_vuln_rngadj_dict(".", {})
+        result_dict = get_vuln_rngadj_dict(".", {2: 0})
         self.assertEqual(result_dict, expected_dict)
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
@@ -40,7 +40,7 @@ class TestGetVulnaRngAdj(TestCase):
         Test get_vuln_rngadj_dict function with an empty analysis settings file.
         """
         expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
-        result_dict = get_vuln_rngadj_dict("dummy_run_dir", {})
+        result_dict = get_vuln_rngadj_dict("dummy_run_dir", {2: 0})
         self.assertEqual(result_dict, expected_dict)
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)

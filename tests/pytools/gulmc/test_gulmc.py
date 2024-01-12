@@ -294,3 +294,56 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
     # remove temporary file, if it was created
     if file_out.exists():
         file_out.unlink()
+
+
+@pytest.mark.parametrize("test_model", [("test_adjustments", TESTS_ASSETS_DIR.joinpath("test_adjustments"))], ids=lambda x: x[0])
+def test_adjustments(test_model: Tuple[str, str]):
+    """Test gulmc to check that the adjustments are applied correctly.
+    """
+    _, test_model_dir_str = test_model
+    test_model_dir = Path(test_model_dir_str)
+    with TemporaryDirectory() as tmp_result_dir_str:
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+
+        # link to test model data and expected results (copy would be too slow)
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+
+        # run gulmc
+        file_out = tmp_result_dir.joinpath('tmp.bin')
+        run_gulmc(
+            run_dir=tmp_result_dir,
+            ignore_file_type=set(),
+            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+            file_out=file_out,
+            sample_size=10,
+            loss_threshold=0.,
+            alloc_rule=0,
+            debug=0,
+            random_generator=0,
+            ignore_correlation=False,
+            effective_damageability=False,
+        )
+
+        # assert that file_out exists
+        assert file_out.exists()
+
+        if file_out.exists():
+            # convert to csv
+            try:
+                subprocess.run(f"gultocsv < {file_out} > {file_out.with_suffix('.csv')}",
+                               check=True, capture_output=False, shell=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Command failed: {e}")
+                print(f"stdout: {e.stdout}")
+                print(f"stderr: {e.stderr}")
+                raise
+
+            df_test = pd.read_csv(file_out.with_suffix('.csv'))
+            df_compare = pd.read_csv(Path(tmp_result_dir).joinpath("expected").joinpath("rng_adj.csv"))
+            # assert that the adjustments were applied correctly
+
+            assert_allclose(df_test['loss'], df_compare['loss'], rtol=1e-10, atol=1e-8, x_name='test', y_name='expected')
+
+            # remove temporary file
+            file_out.unlink()
+            file_out.with_suffix('.csv').unlink()
