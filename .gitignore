@@ -138,6 +138,9 @@ tests/model_execution/tmp_fc_kparse_output/
 !tests/assets/test_model_?/static/*.bin
 !tests/assets/test_model_?/expected/*.bin
 !tests/assets/test_adjustments_?/*.bin
+!tests/assets/test_adjustments_?/input/*.bin
+!tests/assets/test_adjustments_?/static/*.bin
+!tests/assets/test_adjustments_?/expected/*.bin
 
 # pycharm
 .idea/
