@@ -296,7 +296,7 @@ def test_alloc_rule_value(test_model: Tuple[str, str],
         file_out.unlink()
 
 
-@pytest.mark.parametrize("test_model", [("test_adjustments", TESTS_ASSETS_DIR.joinpath("test_adjustments"))], ids=lambda x: x[0])
+@pytest.mark.parametrize("test_model", [("test_adjustments_1", TESTS_ASSETS_DIR.joinpath("test_adjustments_1"))], ids=lambda x: x[0])
 def test_adjustments(test_model: Tuple[str, str]):
     """Test gulmc to check that the adjustments are applied correctly.
     """
