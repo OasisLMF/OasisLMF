@@ -224,7 +224,11 @@ def get_gul_input_items(
                 correlation_check = True
 
     query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
-    exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
+    for col in tiv_cols:
+        if col not in exposure_df.columns:
+            exposure_df[col] = 0.
+        else:
+            exposure_df.fillna({col: 0.}, inplace=True)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
     gul_inputs_df = exposure_df[list(set(exposure_df_gul_inputs_cols).intersection(exposure_df.columns))]
