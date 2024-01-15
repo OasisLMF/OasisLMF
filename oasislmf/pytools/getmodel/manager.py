@@ -75,7 +75,7 @@ VulnerabilityIndex = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                              ('original_size', np.int64)
                                              ]))
 VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
-                                           ('damage_bin_id', np.int64),
+                                           ('damage_bin_id', np.int32),
                                            ('probability', oasis_float)
                                            ]))
 
@@ -194,21 +194,21 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
     Loads the vulnerability binary index file.
 
     Args:
-        vulns_bin:
-        vulns_idx_bin:
-        vuln_dict:
-        num_damage_bins:
-        num_intensity_bins:
+        vulns_bin: (List[VulnerabilityRow]) vulnerability data from the vulnerability file
+        vulns_idx_bin: (List[VulnerabilityIndex]) vulnerability index data from the vulnerability idx file
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_damage_bins: (int) number of damage bins in the data
+        num_intensity_bins: (int) the number of intensity bins
 
-    Returns:
+    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
     """
     vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
     for idx_i in range(vulns_idx_bin.shape[0]):
         vuln_idx = vulns_idx_bin[idx_i]
         if vuln_idx['vulnerability_id'] in vuln_dict:
             cur_vuln_array = vuln_array[vuln_dict[vuln_idx['vulnerability_id']]]
-            start = (vuln_idx['offset'] - vuln_offset) // VulnerabilityRow.itemsize
-            end = start + vuln_idx['size'] // VulnerabilityRow.itemsize
+            start = (vuln_idx['offset'] - vuln_offset) // VulnerabilityRow.dtype.itemsize
+            end = start + vuln_idx['size'] // VulnerabilityRow.dtype.itemsize
             for vuln_i in range(start, end):
                 vuln = vulns_bin[vuln_i]
                 cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
@@ -312,7 +312,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
             with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
                 header = np.frombuffer(f.read(8), 'i4')
                 num_damage_bins = header[0]
-            if "vulnerability.idx" in static_path:
+            if "vulnerability.idx" in input_files:
                 logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
                 vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
                                       dtype=VulnerabilityRow, offset=4, mode='r')
