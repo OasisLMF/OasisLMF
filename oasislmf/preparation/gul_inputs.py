@@ -224,6 +224,9 @@ def get_gul_input_items(
                 correlation_check = True
 
     query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
+    for tiv_col in tiv_cols:
+        if tiv_col not in exposure_df.columns:
+            exposure_df[tiv_col] = 0
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
