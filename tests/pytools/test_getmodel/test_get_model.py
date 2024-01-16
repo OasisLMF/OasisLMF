@@ -12,6 +12,7 @@ import numpy as np
 import numba as nb
 from numba.typed import Dict
 import pandas as pd
+import subprocess
 # from pyarrow import memory_map
 
 
@@ -82,6 +83,12 @@ class TestGetVulns(TestCase):
         csv_path = os.path.join(self.temp_dir, 'vulnerability.csv')
         df.to_csv(csv_path, index=False)
 
+        # create bin + idx file
+        subprocess.run("vulnerabilitytobin -d 3 -i < vulnerability.csv", check=True, capture_output=False, shell=True, cwd=self.temp_dir)
+        # rename vulnerability.bin to vul.bin and vulnerability.idx to vul.idx
+        os.rename(os.path.join(self.temp_dir, 'vulnerability.bin'), os.path.join(self.temp_dir, 'vul.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vulnerability.idx'), os.path.join(self.temp_dir, 'vul.idx'))
+
         # create bin file
         bin_path = os.path.join(self.temp_dir, 'vulnerability.bin')
         with open(bin_path, 'wb') as f:
@@ -133,6 +140,21 @@ class TestGetVulns(TestCase):
                 actual_index = np.where(vulns_id == vuln_id)[0][0]
                 self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][expected_index]))
 
+        ignore_file_types = {'csv', 'parquet'}
+
+        # Test index file: delete vulnerability.bin and rename vul.bin to vulnerability.bin and vul.idx to vulnerability.idx
+        os.remove(os.path.join(self.temp_dir, 'vulnerability.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
+        vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                                                          self.num_intensity_bins, ignore_file_type=ignore_file_types)
+        self.assertIsNotNone(vuln_array)
+        self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+        for vuln_id in vulns_id:
+            expected_index = self.vuln_dict_base[vuln_id]
+            actual_index = np.where(vulns_id == vuln_id)[0][0]
+            self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][expected_index]))
+
     def test_get_vulns_adj(self):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
@@ -159,6 +181,23 @@ class TestGetVulns(TestCase):
                         expected_index = self.vuln_dict_base[vuln_id]
                         actual_index = np.where(vulns_id == vuln_id)[0][0]
                         self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array_adj'][expected_index]))
+
+        ignore_file_types = {'csv', 'parquet'}
+
+        # Test index file: delete vulnerability.bin and rename vul.bin to vulnerability.bin and vul.idx to vulnerability.idx
+        os.remove(os.path.join(self.temp_dir, 'vulnerability.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
+        with mock.patch('os.path.exists', return_value=True):
+            with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': self.vuln_dict_adj}):
+                vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                                                                  self.num_intensity_bins, ignore_file_type=ignore_file_types)
+                self.assertIsNotNone(vuln_array)
+                self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
+                for vuln_id in vulns_id:
+                    expected_index = self.vuln_dict_base[vuln_id]
+                    actual_index = np.where(vulns_id == vuln_id)[0][0]
+                    self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array_adj'][expected_index]))
 
     def test_get_vulns_compare(self):
         # First, run the function without any adjustments
@@ -194,6 +233,21 @@ class TestGetVulns(TestCase):
                 idx_no_adj = np.where(vuln_ids_no_adj[file_type] == vuln_id)[0][0]
                 idx_with_adj = np.where(vuln_ids_with_adj[file_type] == vuln_id)[0][0]
                 self.assertTrue(np.array_equal(vuln_arrays_no_adj[file_type][idx_no_adj], vuln_arrays_with_adj[file_type][idx_with_adj]))
+
+        ignore_file_types = {'csv', 'parquet'}
+        os.remove(os.path.join(self.temp_dir, 'vulnerability.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
+        os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
+        with mock.patch('os.path.exists', return_value=True):
+            with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': vuln_dict_adj}):
+                vuln_array_idx_adj, vulns_id_idx_adj, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                                                                                  self.num_intensity_bins, ignore_file_type=ignore_file_types)
+        vuln_array_idx, vulns_id_idx, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                                                                  self.num_intensity_bins, ignore_file_type=ignore_file_types)
+        for vuln_id in vulns_id_idx:
+            idx_no_adj = np.where(vulns_id_idx == vuln_id)[0][0]
+            idx_with_adj = np.where(vulns_id_idx_adj == vuln_id)[0][0]
+            self.assertTrue(np.array_equal(vuln_array_idx[idx_no_adj], vuln_array_idx_adj[idx_with_adj]))
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
