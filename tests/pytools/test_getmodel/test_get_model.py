@@ -44,7 +44,7 @@ class TestGetVulnaRngAdj(TestCase):
         self.assertEqual(result_dict, expected_dict)
 
     @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
-    @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={"vulnerability_rng_adjustments": {"2": 0.95}})
+    @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={"vulnerability_adjustments": {"2": 0.95}})
     def test_get_vuln_rngadj_dict_regular(self, mock_get, mock_exists):
         """
         Test get_vuln_rngadj_dict function with a regular settings file.

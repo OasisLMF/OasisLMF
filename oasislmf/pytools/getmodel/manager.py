@@ -296,9 +296,9 @@ def get_vuln_rngadj_dict(run_dir, vuln_dict):
         logger.debug(f"analysis_settings.json not found in {run_dir}.")
         return vuln_adj_numba_dict
     vulnerability_adjustments_field = None
-    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_rng_adjustments', None)
+    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments', None)
     if vulnerability_adjustments_field is None:
-        logger.debug(f"vulnerability_rng_adjustments not found in {settings_path}.")
+        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
         return vuln_adj_numba_dict
     for key, value in vulnerability_adjustments_field.items():
         if int(key) in vuln_dict.keys():

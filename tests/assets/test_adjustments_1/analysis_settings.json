@@ -10,7 +10,7 @@
         "event_set": "p",
         "event_occurrence_id": "lt"
     },
-    "vulnerability_rng_adjustments": {"2": 0.0000001, "8": 100.000},
+    "vulnerability_adjustments": {"2": 0.0000001, "8": 100.000},
     "gul_summaries": [
         {
             "aalcalc": true,
