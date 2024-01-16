@@ -17,7 +17,7 @@ import pyarrow.parquet as pq
 from numba.typed import Dict
 
 from oasislmf.pytools.common import PIPE_CAPACITY
-from oasislmf.utils.data import validate_vulnerability_adjustments
+from oasislmf.utils.data import validate_vulnerability_replacements
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
@@ -419,7 +419,7 @@ def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_t
     """
     input_files = set(os.listdir(static_path))
 
-    vuln_adj = get_vulnerability_adjustments(run_dir, vuln_dict)
+    vuln_adj = get_vulnerability_replacements(run_dir, vuln_dict)
 
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
@@ -482,7 +482,7 @@ def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_t
     return vuln_array, vulns_id, num_damage_bins
 
 
-def get_vulnerability_adjustments(run_dir, vuln_dict):
+def get_vulnerability_replacements(run_dir, vuln_dict):
     """
     Loads the vulnerability adjustment file.
 
@@ -490,29 +490,29 @@ def get_vulnerability_adjustments(run_dir, vuln_dict):
         path: (str) the path pointing to the run directory
         vuln_dict: (Dict[int, int]) list of vulnerability IDs
 
-    Returns: (List[Vulnerability]) vulnerability adjustment data
+    Returns: (List[Vulnerability]) vulnerability replacement data
     """
     settings_path = os.path.join(run_dir, "analysis_settings.json")
 
     if not os.path.exists(settings_path):
         logger.warning(f"analysis_settings.json not found in {run_dir}.")
         return None
-    vulnerability_adjustments_field = None
-    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
-    if not validate_vulnerability_adjustments(vulnerability_adjustments_field):
+    vulnerability_replacements_field = None
+    vulnerability_replacements_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_replacements')
+    if not validate_vulnerability_replacements(vulnerability_replacements_field):
         return None
 
     else:
-        if isinstance(vulnerability_adjustments_field, dict):
+        if isinstance(vulnerability_replacements_field, dict):
             # Convert dict to flat array equivalent to csv format
             flat_data = []
-            for v_id, adjustments in vulnerability_adjustments_field.items():
+            for v_id, adjustments in vulnerability_replacements_field.items():
                 for adj in adjustments:
                     flat_data.append((v_id, *adj))
             vuln_adj = np.array(flat_data, dtype=Vulnerability)
-        elif isinstance(vulnerability_adjustments_field, str):
+        elif isinstance(vulnerability_replacements_field, str):
             # Load csv file
-            absolute_path = os.path.abspath(vulnerability_adjustments_field)
+            absolute_path = os.path.abspath(vulnerability_replacements_field)
             logger.debug(f"loading {absolute_path}")
             vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
         vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],

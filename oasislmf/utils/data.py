@@ -25,7 +25,7 @@ __all__ = [
     'RI_SCOPE_DEFAULTS',
     'RI_INFO_DEFAULTS',
     'validate_vuln_csv_contents',
-    'validate_vulnerability_adjustments',
+    'validate_vulnerability_replacements',
 ]
 
 import builtins
@@ -922,7 +922,7 @@ def set_dataframe_column_dtypes(df, dtypes):
 
 def validate_vuln_csv_contents(file_path):
     """
-    Validate the contents of the CSV file for vulnerability adjustments.
+    Validate the contents of the CSV file for vulnerability replacements.
 
     Args:
         file_path (str): Path to the vulnerability CSV file
@@ -959,42 +959,42 @@ def validate_vuln_csv_contents(file_path):
         return False
 
 
-def validate_vulnerability_adjustments(analysis_settings_json):
+def validate_vulnerability_replacements(analysis_settings_json):
     """
-    Validate vulnerability adjustments in analysis settings file.
-    If vulnerability adjustments are specified as a file path, check that the file exists.
+    Validate vulnerability replacements in analysis settings file.
+    If vulnerability replacements are specified as a file path, check that the file exists.
     This way the user will be warned early if the vulnerability option selected is not valid.
 
     Args:
         analysis_settings_json (str): JSON file path to analysis settings file
 
     Returns:
-        bool: True if the vulnerability adjustments are present and valid, False otherwise
+        bool: True if the vulnerability replacements are present and valid, False otherwise
 
     """
     if analysis_settings_json is None:
         return False
 
-    vulnerability_adjustments = None
-    vulnerability_adjustments = AnalysisSettingSchema().get(analysis_settings_json).get('vulnerability_adjustments', None)
-    if vulnerability_adjustments is None:
+    vulnerability_replacements = None
+    vulnerability_replacements = AnalysisSettingSchema().get(analysis_settings_json).get('vulnerability_replacements', None)
+    if vulnerability_replacements is None:
         return False
-    if isinstance(vulnerability_adjustments, dict):
-        logger.info('Vulnerability adjustments are specified in the analysis settings file')
+    if isinstance(vulnerability_replacements, dict):
+        logger.info('Vulnerability replacements are specified in the analysis settings file')
         return True
-    if isinstance(vulnerability_adjustments, str):
-        abs_path = os.path.abspath(vulnerability_adjustments)
+    if isinstance(vulnerability_replacements, str):
+        abs_path = os.path.abspath(vulnerability_replacements)
         if not os.path.isfile(abs_path):
-            logger.warning('Vulnerability adjustments file does not exist: {}'.format(abs_path))
+            logger.warning('Vulnerability replacements file does not exist: {}'.format(abs_path))
             return False
 
         if not validate_vuln_csv_contents(abs_path):
-            logger.warning('Vulnerability adjustments file is not valid: {}'.format(abs_path))
+            logger.warning('Vulnerability replacements file is not valid: {}'.format(abs_path))
             return False
 
-        logger.info('Vulnerability adjustments found in file: {}'.format(abs_path))
+        logger.info('Vulnerability replacements found in file: {}'.format(abs_path))
         return True
-    logger.warning('Vulnerability adjustments must be a dict or a file path, got: {}'.format(vulnerability_adjustments))
+    logger.warning('Vulnerability replacements must be a dict or a file path, got: {}'.format(vulnerability_replacements))
     return False
 
 

@@ -25,7 +25,7 @@ from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
                                  factorize_ndarray, fast_zip_arrays,
                                  get_dataframe, get_timestamp,
                                  get_utctimestamp, prepare_location_df,
-                                 validate_vuln_csv_contents, validate_vulnerability_adjustments)
+                                 validate_vuln_csv_contents, validate_vulnerability_replacements)
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -1339,7 +1339,7 @@ class TestGetTimestamp(TestCase):
         self.assertEqual(result, expected)
 
 
-class TestValidateVulnerabilityAdjustments(TestCase):
+class TestValidateVulnerabilityReplacements(TestCase):
 
     def setUp(self):
         # Mock logger
@@ -1349,70 +1349,70 @@ class TestValidateVulnerabilityAdjustments(TestCase):
     def tearDown(self):
         self.logger_patch.stop()
 
-    def test_no_vulnerability_adjustments(self):
+    def test_no_vulnerability_replacements(self):
         with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={}):
-            result = validate_vulnerability_adjustments('dummy_path')
+            result = validate_vulnerability_replacements('dummy_path')
             self.assertFalse(result)
 
-    def test_valid_dict_vulnerability_adjustments(self):
-        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {'2': [[1, 1, 0.5]]}}):
-            result = validate_vulnerability_adjustments('dummy_path')
+    def test_valid_dict_vulnerability_replacements(self):
+        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': {'2': [[1, 1, 0.5]]}}):
+            result = validate_vulnerability_replacements('dummy_path')
             self.assertTrue(result)
-            self.mock_logger.info.assert_called_with('Vulnerability adjustments are specified in the analysis settings file')
+            self.mock_logger.info.assert_called_with('Vulnerability replacements are specified in the analysis settings file')
 
-    def test_valid_csv_file_vulnerability_adjustments(self):
+    def test_valid_csv_file_vulnerability_replacements(self):
         # Mock pandas read_csv to return a valid dataframe
         mock_df = pd.DataFrame({'vulnerability_id': [2], 'intensity_bin_id': [1], 'damage_bin_id': [1], 'probability': [0.5]})
         with patch('pandas.read_csv', return_value=mock_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'valid_path.csv'}):
+            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': 'valid_path.csv'}):
                 with patch('os.path.isfile', return_value=True):
-                    result = validate_vulnerability_adjustments('dummy_path')
+                    result = validate_vulnerability_replacements('dummy_path')
                     # Check that the log contains the expected substrings
                     self.assertTrue(result)
-                    message_found = any('Vulnerability adjustments found in file:' in args[0] and 'valid_path.csv' in args[0]
+                    message_found = any('Vulnerability replacements found in file:' in args[0] and 'valid_path.csv' in args[0]
                                         for args, _ in self.mock_logger.info.call_args_list)
                     self.assertTrue(message_found, "Expected log message not found")
 
-    def test_invalid_csv_file_path_vulnerability_adjustments(self):
-        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'invalid_path.csv'}):
+    def test_invalid_csv_file_path_vulnerability_replacements(self):
+        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': 'invalid_path.csv'}):
             with patch('os.path.isfile', return_value=False):
-                result = validate_vulnerability_adjustments('dummy_path')
+                result = validate_vulnerability_replacements('dummy_path')
                 self.assertFalse(result)
-                message_found = any('Vulnerability adjustments file does not exist:' in args[0] and 'invalid_path.csv' in args[0]
+                message_found = any('Vulnerability replacements file does not exist:' in args[0] and 'invalid_path.csv' in args[0]
                                     for args, _ in self.mock_logger.warning.call_args_list)
                 self.assertTrue(message_found, "Expected log message not found")
 
-    def test_invalid_csv_file_columns_vulnerability_adjustments(self):
+    def test_invalid_csv_file_columns_vulnerability_replacements(self):
         # Mock invalid CSV contents
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'wrong_field': "content", 'intensity_bin_id': [1],
                                         'damage_bin_id': [1], 'probability': [0.5]})
         with patch('pandas.read_csv', return_value=mock_invalid_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'invalid_contents.csv'}):
+            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': 'invalid_contents.csv'}):
                 with patch('os.path.isfile', return_value=True):
-                    validate_vulnerability_adjustments('dummy_path')
+                    validate_vulnerability_replacements('dummy_path')
                     message_found = any('does not have the expected columns.' in args[0] and 'invalid_contents.csv' in args[0]
                                         for args, _ in self.mock_logger.warning.call_args_list)
                     self.assertTrue(message_found, "Expected log message not found")
 
-    def test_invalid_csv_file_contents_int_vulnerability_adjustments(self):
+    def test_invalid_csv_file_contents_int_vulnerability_replacements(self):
         # Mock invalid CSV contents
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'intensity_bin_id': ['O'], 'damage_bin_id': [1], 'probability': [1.5]})
         with patch('pandas.read_csv', return_value=mock_invalid_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'invalid_contents.csv'}):
+            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': 'invalid_contents.csv'}):
                 with patch('os.path.isfile', return_value=True):
-                    validate_vulnerability_adjustments('dummy_path')
-                    message_found = any('Vulnerability adjustments file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
+                    validate_vulnerability_replacements('dummy_path')
+                    message_found = any('Vulnerability replacements file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
                                         for args, _ in self.mock_logger.warning.call_args_list)
                     self.assertTrue(message_found, "Expected log message not found")
 
-    def test_invalid_csv_file_contents_vulnerability_adjustments(self):
+    def test_invalid_csv_file_contents_vulnerability_replacements(self):
         # Mock invalid CSV contents
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'intensity_bin_id': [1], 'damage_bin_id': [1], 'probability': [1.5]})
         with patch('pandas.read_csv', return_value=mock_invalid_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': 'invalid_contents.csv'}):
+            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': 'invalid_contents.csv'}):
                 with patch('os.path.isfile', return_value=True):
-                    validate_vulnerability_adjustments('dummy_path')
-                    message_found = any('Vulnerability adjustments file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
+                    validate_vulnerability_replacements('dummy_path')
+                    message_found = any('Vulnerability replacements file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
                                         for args, _ in self.mock_logger.warning.call_args_list)
                     self.assertTrue(message_found, "Expected log message not found")
 
