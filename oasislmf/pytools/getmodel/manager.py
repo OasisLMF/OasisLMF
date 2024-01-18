@@ -497,8 +497,15 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
     if not os.path.exists(settings_path):
         logger.warning(f"analysis_settings.json not found in {run_dir}.")
         return None
-    vulnerability_replacements_field = None
-    vulnerability_replacements_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_replacements')
+    vulnerability_replacements_key = None
+    vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_replacements')
+    if vulnerability_replacements_key is not None:
+
+        # Inputting the data directly into the analysis_settings.json file takes precedence over the file path
+        vulnerability_replacements_field = vulnerability_replacements_key.get('replace_data', None)
+        if vulnerability_replacements_field is None:
+            vulnerability_replacements_field = vulnerability_replacements_key.get('replace_file', None)
+
     if not validate_vulnerability_replacements(vulnerability_replacements_field):
         return None
 
