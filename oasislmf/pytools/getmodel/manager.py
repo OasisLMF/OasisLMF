@@ -499,34 +499,34 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
         return None
     vulnerability_replacements_key = None
     vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_replacements')
-    if vulnerability_replacements_key is not None:
+    if vulnerability_replacements_key is None:
+        return None
 
-        # Inputting the data directly into the analysis_settings.json file takes precedence over the file path
-        vulnerability_replacements_field = vulnerability_replacements_key.get('replace_data', None)
-        if vulnerability_replacements_field is None:
-            vulnerability_replacements_field = vulnerability_replacements_key.get('replace_file', None)
+    # Inputting the data directly into the analysis_settings.json file takes precedence over the file path
+    vulnerability_replacements_field = vulnerability_replacements_key.get('replace_data', None)
+    if vulnerability_replacements_field is None:
+        vulnerability_replacements_field = vulnerability_replacements_key.get('replace_file', None)
 
     if not validate_vulnerability_replacements(vulnerability_replacements_field):
         return None
 
-    else:
-        if isinstance(vulnerability_replacements_field, dict):
-            # Convert dict to flat array equivalent to csv format
-            flat_data = []
-            for v_id, adjustments in vulnerability_replacements_field.items():
-                for adj in adjustments:
-                    flat_data.append((v_id, *adj))
-            vuln_adj = np.array(flat_data, dtype=Vulnerability)
-        elif isinstance(vulnerability_replacements_field, str):
-            # Load csv file
-            absolute_path = os.path.abspath(vulnerability_replacements_field)
-            logger.debug(f"loading {absolute_path}")
-            vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
-        vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],
-                            dtype=vuln_adj.dtype)
-        vuln_adj.sort(order='vulnerability_id')
-        logger.info("Vulnerability adjustments found in analysis settings.")
-        return vuln_adj
+    if isinstance(vulnerability_replacements_field, dict):
+        # Convert dict to flat array equivalent to csv format
+        flat_data = []
+        for v_id, adjustments in vulnerability_replacements_field.items():
+            for adj in adjustments:
+                flat_data.append((v_id, *adj))
+        vuln_adj = np.array(flat_data, dtype=Vulnerability)
+    elif isinstance(vulnerability_replacements_field, str):
+        # Load csv file
+        absolute_path = os.path.abspath(vulnerability_replacements_field)
+        logger.debug(f"loading {absolute_path}")
+        vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+    vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],
+                        dtype=vuln_adj.dtype)
+    vuln_adj.sort(order='vulnerability_id')
+    logger.info("Vulnerability adjustments found in analysis settings.")
+    return vuln_adj
 
 
 def get_mean_damage_bins(static_path, ignore_file_type=set()):
