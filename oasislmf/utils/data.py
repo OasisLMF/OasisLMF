@@ -723,8 +723,8 @@ def prepare_location_df(location_df):
 
 
 def prepare_account_df(accounts_df):
-    accounts_df[SOURCE_IDX['acc']] = accounts_df.index
-
+    if SOURCE_IDX['acc'] not in accounts_df.columns:
+        accounts_df[SOURCE_IDX['acc']] = accounts_df.index
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
     accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)
@@ -757,7 +757,6 @@ def prepare_account_df(accounts_df):
         accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
     else:
         accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
-
     return accounts_df
 
 
