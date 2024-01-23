@@ -727,7 +727,7 @@ def prepare_account_df(accounts_df):
 
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
-    accounts_df['LayerNumber'].fillna(1, inplace=True)
+    accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)
 
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
@@ -748,7 +748,7 @@ def prepare_account_df(accounts_df):
     layers_cols = ['PortNumber', 'AccNumber']
     if step_policies_present:
         layers_cols += ['StepNumber']
-        accounts_df['StepNumber'].fillna(0, inplace=True)
+        accounts_df['StepNumber'] = accounts_df['StepNumber'].fillna(0)
     if 'layer_id' not in accounts_df.columns:
         id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
         id_df['layer_id'] = get_ids(id_df,

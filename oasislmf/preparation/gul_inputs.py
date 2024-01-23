@@ -188,7 +188,7 @@ def get_gul_input_items(
     if 'NumberOfBuildings' not in location_df.columns:
         location_df['NumberOfBuildings'] = 1
     else:
-        location_df['NumberOfBuildings'].fillna(1, inplace=True)
+        location_df['NumberOfBuildings'] = location_df['NumberOfBuildings'].fillna(1)
 
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
