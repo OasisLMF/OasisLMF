@@ -857,7 +857,7 @@ def get_exposure_summary(
     """
 
     # get location tivs by coveragetype
-    df_summary = pd.DataFrame(columns=['loc_id', 'coverage_type_id', 'tiv'])
+    df_summary = []
 
     for field in exposure_profile:
         if 'FMTermType' in exposure_profile[field].keys():
@@ -867,17 +867,18 @@ def get_exposure_summary(
                 tmp_df = exposure_df[['loc_id', cov_name]]
                 tmp_df.columns = ['loc_id', 'tiv']
                 tmp_df['coverage_type_id'] = coverage_type_id
-                df_summary = pd.concat([df_summary, tmp_df])
+                df_summary.append(tmp_df)
+    df_summary = pd.concat(df_summary)
 
     # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
 
-    df_summary_peril = pd.DataFrame(columns=['loc_id', 'coverage_type_id', 'tiv', 'peril_id'])
-
+    df_summary_peril = []
     for peril_id in peril_list:
-        tmp_df = df_summary
+        tmp_df = df_summary.copy()
         tmp_df['peril_id'] = peril_id
-        df_summary_peril = pd.concat([df_summary_peril, tmp_df])
+        df_summary_peril.append(tmp_df)
+    df_summary_peril = pd.concat(df_summary_peril)
 
     df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id', 'coverage_type_id', 'peril_id'])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
