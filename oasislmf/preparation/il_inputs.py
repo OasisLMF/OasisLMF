@@ -734,7 +734,7 @@ def get_il_input_items(
     il_inputs_df = pd.concat(il_inputs_df_list)
     for col in set(list(il_inputs_df.columns)):
         try:
-            il_inputs_df[col].fillna(0, inplace=True)
+            il_inputs_df[col] = il_inputs_df[col].fillna(0)
         except (TypeError, ValueError):
             pass
     for col in fm_term_ids:
