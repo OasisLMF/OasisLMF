@@ -875,7 +875,7 @@ def get_exposure_summary(
 
     df_summary_peril = []
     for peril_id in peril_list:
-        tmp_df = df_summary
+        tmp_df = df_summary.copy()
         tmp_df['peril_id'] = peril_id
         df_summary_peril.append(tmp_df)
     df_summary_peril = pd.concat(df_summary_peril)
