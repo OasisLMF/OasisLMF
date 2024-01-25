@@ -80,9 +80,6 @@ class OasisBaseCommand(BaseCommand):
                     break
 
             ods_logger = logging.getLogger('ods_tools')
-            ods_handler = logging.StreamHandler()
-            ods_handler.setFormatter(logging.Formatter(log_format))
-            ods_logger.addHandler(ods_handler)
             ods_logger.setLevel(log_level)
             ods_logger.propagate = False
 
@@ -90,6 +87,7 @@ class OasisBaseCommand(BaseCommand):
             ch.name = 'oasislmf'
             ch.setFormatter(logging.Formatter(log_format))
             logger.addHandler(ch)
+            ods_logger.addHandler(ch)
             logger.setLevel(log_level)
             self._logger = logger
 
