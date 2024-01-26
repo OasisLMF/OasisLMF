@@ -80,7 +80,10 @@ class OasisBaseCommand(BaseCommand):
                     break
 
             ods_logger = logging.getLogger('ods_tools')
-            ods_logger.setLevel(log_level)
+            if self.log_verbose:
+                ods_logger.setLevel(logging.DEBUG)
+            else:
+                ods_logger.setLevel(logging.WARNING)
             ods_logger.propagate = False
 
             ch = logging.StreamHandler(stream=sys.stdout)
