@@ -31,7 +31,7 @@ class PlatformBase(ComputationStep):
     step_params = [
         {'name': 'server_login_json', 'is_path': True, 'pre_exist': False, 'help': 'Source location CSV file path'},
         {'name': 'server_url', 'default': 'http://localhost:8000', 'help': 'URL to Oasis Platform server, default is localhost'},
-        {'name': 'server_version', 'default': 'v1', 'help': "Version prefix for OasisPlatform server, 'v1' = single server run, 'v2' = distributed on cluster"},
+        {'name': 'server_version', 'default': 'v2', 'help': "Version prefix for OasisPlatform server, 'v1' = single server run, 'v2' = distributed on cluster"},
     ]
 
     def __init__(self, **kwargs):
