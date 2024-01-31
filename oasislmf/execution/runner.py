@@ -22,7 +22,7 @@ def run(analysis_settings,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
         gul_legacy_stream=False,
-        df_engine='lot3.df_reader.reader.OasisPandasReader',
+        df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
         **kwargs
         ):

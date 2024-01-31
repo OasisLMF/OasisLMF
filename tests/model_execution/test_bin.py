@@ -35,7 +35,7 @@ from oasislmf.model_execution.bin import (
     set_footprint_set
 )
 
-from lot3.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 
 from tests.data import (

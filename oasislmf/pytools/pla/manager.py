@@ -8,7 +8,7 @@ from .structure import (
     get_items_amplifications,
     get_post_loss_amplification_factors
 )
-from lot3.filestore.config import get_storage_from_config_path
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)

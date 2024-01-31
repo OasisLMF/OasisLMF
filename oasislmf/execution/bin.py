@@ -33,7 +33,7 @@ from itertools import chain
 
 from pathlib import Path
 
-from lot3.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP

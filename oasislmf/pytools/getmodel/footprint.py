@@ -13,9 +13,9 @@ import numpy as np
 import pandas as pd
 import numba as nb
 
-from lot3.df_reader.config import clean_config, InputReaderConfig, get_df_reader
-from lot3.df_reader.reader import OasisReader
-from lot3.filestore.backends.base import BaseStorage
+from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
+from oasis_data_manager.df_reader.reader import OasisReader
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
@@ -54,7 +54,7 @@ class Footprint:
         stack (ExitStack): the context manager that combines other context managers and cleanup functions
     """
 
-    def __init__(self, storage: BaseStorage, df_engine="lot3.df_reader.reader.OasisPandasReader") -> None:
+    def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader") -> None:
         """
         The constructor for the Footprint class.
 
@@ -73,7 +73,7 @@ class Footprint:
         cls,
         storage: BaseStorage,
         ignore_file_type=set(),
-        df_engine="lot3.df_reader.reader.OasisPandasReader",
+        df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     ):
         """
         Loads the loading classes defined in this file checking to see if the files are in the static path

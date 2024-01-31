@@ -15,9 +15,9 @@ import numpy as np
 import pandas as pd
 from numba.typed import Dict
 
-from lot3.df_reader.config import get_df_reader, clean_config, InputReaderConfig
-from lot3.filestore.backends.base import BaseStorage
-from lot3.filestore.config import get_storage_from_config_path
+from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
+from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
@@ -275,7 +275,7 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(storage: BaseStorage, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="lot3.df_reader.reader.OasisPandasReader"):
+def get_vulns(storage: BaseStorage, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
     """
     Loads the vulnerabilities from the file.
 
@@ -548,7 +548,7 @@ def run(
     ignore_file_type,
     data_server,
     peril_filter,
-    df_engine="lot3.df_reader.reader.OasisPandasReader",
+    df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
 ):
     """
     Runs the main process of the getmodel process.

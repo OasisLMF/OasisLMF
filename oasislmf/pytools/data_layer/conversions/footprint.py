@@ -6,7 +6,7 @@ import pandas as pd
 import pyarrow as pa
 from pyarrow import parquet as pq
 
-from lot3.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 
