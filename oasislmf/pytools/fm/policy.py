@@ -9,11 +9,6 @@ TODO: It seems that if a policy with share is used, subsequent policy using min 
 
 from numba import njit
 
-
-class UnknownCalcrule(Exception):
-    pass
-
-
 @njit(cache=True)
 def min2(a, b):
     return a if a < b else b
@@ -413,6 +408,6 @@ def calc(policy, loss_out, loss_in, stepped):
         elif policy['calcrule_id'] == 38:
             calcrule_38(policy, loss_out, loss_in)
         else:
-            raise UnknownCalcrule()
+            raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")
     else:
-        raise UnknownCalcrule()
+        raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")

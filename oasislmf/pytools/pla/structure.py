@@ -170,7 +170,7 @@ def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, 
 
                 event_id, count, plafactors = fill_post_loss_amplification_factors(
                     event_id, count, cursor, valid_length, event_count, amp_factor,
-                    plafactors
+                    plafactors, secondary_factor
                 )
 
                 valid_buffer = 0
