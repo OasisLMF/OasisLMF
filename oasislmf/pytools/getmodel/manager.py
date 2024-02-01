@@ -497,18 +497,17 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
     if not os.path.exists(settings_path):
         logger.warning(f"analysis_settings.json not found in {run_dir}.")
         return None
+
+    if not validate_vulnerability_replacements(settings_path):
+        return None
+
     vulnerability_replacements_key = None
     vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
-    if vulnerability_replacements_key is None:
-        return None
 
     # Inputting the data directly into the analysis_settings.json file takes precedence over the file path
     vulnerability_replacements_field = vulnerability_replacements_key.get('replace_data', None)
     if vulnerability_replacements_field is None:
         vulnerability_replacements_field = vulnerability_replacements_key.get('replace_file', None)
-
-    if not validate_vulnerability_replacements(vulnerability_replacements_key):
-        return None
 
     if isinstance(vulnerability_replacements_field, dict):
         # Convert dict to flat array equivalent to csv format
