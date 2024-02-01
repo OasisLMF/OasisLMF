@@ -1010,5 +1010,13 @@
         "FMTermType": "LimitType",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
+    },
+    "AccParticipation": {
+        "ProfileElementName": "AccParticipation",
+        "FMLevelName": "AccAll",
+        "FMLevel": 13,
+        "FMTermType": "Share",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     }
 }

@@ -654,6 +654,20 @@ def calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     _calcrule_38(policy, loss_out, loss_in)
 
 
+@njit(cache=True, fastmath=True)
+def calcrule_39(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    Franchise deductible
+    """
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            under_limit[i] += loss_in[i]
+            deductible[i] += loss_in[i]
+            loss_out[i] = 0
+        else:
+            loss_out[i] = loss_in[i]
+
+
 @njit(cache=True)
 def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped):
     if policy['calcrule_id'] == 1:
@@ -711,8 +725,66 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 36:
         calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+    elif policy['calcrule_id'] == 39:
+        calcrule_39(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
+    elif policy['calcrule_id'] == 200:
+        loss_out[:] = loss_in * policy['share_1']
+    elif policy['calcrule_id'] == 101:
+        calcrule_1(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 103:
+        calcrule_3(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 105:
+        calcrule_5(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 107:
+        calcrule_7(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 108:
+        calcrule_8(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 110:
+        calcrule_10(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 111:
+        calcrule_11(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 112:
+        calcrule_12(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 113:
+        calcrule_13(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 114:
+        calcrule_14(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 115:
+        calcrule_15(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 116:
+        calcrule_16(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 119:
+        calcrule_19(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 120:
+        calcrule_20(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 126:
+        calcrule_26(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 133:
+        calcrule_33(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 135:
+        calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
+    elif policy['calcrule_id'] == 136:
+        calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        loss_out *= policy['share_1']
     elif stepped is not None:
         if policy['calcrule_id'] == 27:
             calcrule_27(policy, loss_out, loss_in, deductible, over_limit, under_limit)
