@@ -8,6 +8,7 @@ import uuid
 
 
 def logging_set_handlers(logger_name, handler, log_level):
+    logging.captureWarnings(True)
     logger = logging.getLogger(logger_name)
     # set all handlers to ERROR
     for handler in logger.handlers:
@@ -22,6 +23,7 @@ def logging_set_handlers(logger_name, handler, log_level):
 
 
 def logging_reset_handlers(logger_name):
+    logging.captureWarnings(False)
     logger = logging.getLogger(logger_name)
     # revert all handlers to NOTSET
     for handler in logger.handlers:
