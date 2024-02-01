@@ -305,7 +305,7 @@ def get_vuln_rngadj_dict(run_dir, vuln_dict):
         logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
         return vuln_adj_numba_dict
     for key, value in adjustments.items():
-        if int(key) in vuln_dict.keys():
+        if nb_int32(key) in vuln_dict.keys():
             vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
     return vuln_adj_numba_dict
 
