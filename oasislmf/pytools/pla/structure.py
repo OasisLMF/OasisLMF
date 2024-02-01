@@ -5,7 +5,7 @@ from numba.typed import Dict
 import numpy as np
 import os
 
-from lot3.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
     BUFFER_SIZE,
     DATA_SIZE,

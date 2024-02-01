@@ -15,7 +15,7 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from lot3.filestore.config import get_storage_from_config_path
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
@@ -86,7 +86,7 @@ def run(run_dir,
         ignore_haz_correlation=False,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
-        model_df_engine="lot3.df_reader.reader.OasisPandasReader",
+        model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         **kwargs):
     """Execute the main gulmc worklow.
 

@@ -12,7 +12,7 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import uint32 as nb_uint32
 
-from lot3.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.common import areaperil_int
 
 logger = logging.getLogger(__name__)

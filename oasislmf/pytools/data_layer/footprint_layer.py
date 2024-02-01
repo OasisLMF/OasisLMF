@@ -12,8 +12,8 @@ from typing import Optional, Set, Tuple, List
 
 import numpy as np
 
-from lot3.filestore.backends.local import LocalStorage
-from lot3.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 # configuring process meta data
@@ -62,7 +62,7 @@ class FootprintLayer:
         storage: BaseStorage,
         total_expected: int,
         ignore_file_type: Set[str] = set(),
-        df_engine="lot3.df_reader.reader.OasisPandasReader",
+        df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     ) -> None:
         """
         The constructor for the FootprintLayer class.
@@ -320,7 +320,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
-    parser.add_argument("--df-engine", help="The engine to use when loading dataframes", default="lot3.df_reader.reader.OasisPandasReader", )
+    parser.add_argument("--df-engine", help="The engine to use when loading dataframes", default="oasis_data_manager.df_reader.reader.OasisPandasReader", )
     args = parser.parse_args()
     server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine)
     server.listen()

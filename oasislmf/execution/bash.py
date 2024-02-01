@@ -259,7 +259,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='lot3.df_reader.reader.OasisPandasReader'):
+def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader'):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -1143,7 +1143,7 @@ def get_getmodel_itm_cmd(
         gulmc_random_generator=1,
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
-        model_df_engine='lot3.df_reader.reader.OasisPandasReader',
+        model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1208,7 +1208,7 @@ def get_getmodel_cov_cmd(
         gulmc_random_generator=1,
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
-        model_df_engine='lot3.df_reader.reader.OasisPandasReader',
+        model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1539,8 +1539,8 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     peril_filter=[],
-    exposure_df_engine="lot3.df_reader.reader.OasisPandasReader",
-    model_df_engine="lot3.df_reader.reader.OasisPandasReader",
+    exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+    model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     **kwargs
 ):
 
@@ -1787,7 +1787,7 @@ def create_bash_analysis(
     model_py_server,
     peril_filter,
     gul_legacy_stream=False,
-    model_df_engine='lot3.df_reader.reader.OasisPandasReader',
+    model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     **kwargs
 ):
 
@@ -2365,7 +2365,7 @@ def genbash(
     gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
-    base_df_engine='lot3.df_reader.reader.OasisPandasReader',
+    base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
 ):
     """
