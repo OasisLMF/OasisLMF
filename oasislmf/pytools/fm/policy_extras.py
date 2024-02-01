@@ -654,6 +654,20 @@ def calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     _calcrule_38(policy, loss_out, loss_in)
 
 
+@njit(cache=True, fastmath=True)
+def calcrule_39(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    Franchise deductible
+    """
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            under_limit[i] += loss_in[i]
+            deductible[i] += loss_in[i]
+            loss_out[i] = 0
+        else:
+            loss_out[i] = loss_in[i]
+
+
 @njit(cache=True)
 def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped):
     if policy['calcrule_id'] == 1:
@@ -711,6 +725,8 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 36:
         calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+    elif policy['calcrule_id'] == 39:
+        calcrule_39(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
     elif policy['calcrule_id'] == 101:

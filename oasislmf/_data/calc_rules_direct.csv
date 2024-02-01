@@ -1,6 +1,7 @@
 desc,calcrule_id,attachment_gt_0,deductible_gt_0,deductible_min_gt_0,deductible_max_gt_0,limit_gt_0,ded_type,ded_code,lim_type,lim_code,share_gt_0
 deductible and limit,1,0,1,0,0,1,0,0,0,0,0
 franchise deductible and limit,3,0,1,0,0,1,0,2,0,0,0
+franchise deductible,39,0,1,0,0,0,0,2,0,0,0
 deductible % loss with limit % loss,5,0,1,0,0,1,1,0,1,0,0
 no deductible; limit and max. deductible,7,0,0,0,1,1,0,0,0,0,0
 no deductible % loss; limit and max. deductible,7,0,0,0,1,1,1,0,0,0,0
