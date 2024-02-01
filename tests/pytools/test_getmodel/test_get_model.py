@@ -159,7 +159,7 @@ class TestGetVulns(TestCase):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             with mock.patch('os.path.exists', return_value=True):
-                with mock.patch('ods_tools.oed.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': {
+                with mock.patch('ods_tools.oed.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                          'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}
                                                                                          }):
                     vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
@@ -174,7 +174,7 @@ class TestGetVulns(TestCase):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             with mock.patch('os.path.exists', return_value=True):
-                with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': {
+                with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                                              'replace_data': self.vuln_dict_adj
                                                                                                              }
                                                                                                              }):
@@ -195,7 +195,7 @@ class TestGetVulns(TestCase):
         os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
         os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
         with mock.patch('os.path.exists', return_value=True):
-            with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': {
+            with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                                          'replace_data': self.vuln_dict_adj}
                                                                                                          }):
                 vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
@@ -229,7 +229,7 @@ class TestGetVulns(TestCase):
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             with mock.patch('os.path.exists', return_value=True):
-                with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': {
+                with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                                              'replace_data': vuln_dict_adj
                                                                                                              }
                                                                                                              }):
@@ -250,7 +250,7 @@ class TestGetVulns(TestCase):
         os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
         os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
         with mock.patch('os.path.exists', return_value=True):
-            with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_replacements': {
+            with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                                          'replace_data': vuln_dict_adj}
                                                                                                          }):
                 vuln_array_idx_adj, vulns_id_idx_adj, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
