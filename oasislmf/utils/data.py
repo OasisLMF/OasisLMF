@@ -975,13 +975,9 @@ def validate_vulnerability_replacements(analysis_settings_json):
     if analysis_settings_json is None:
         return False
 
-    vulnerability_replacements_key = None
-    vulnerability_replacements_key = AnalysisSettingSchema().get(analysis_settings_json).get('vulnerability_replacements', None)
-    if vulnerability_replacements_key is None:
-        return False
-    vulnerability_replacements = vulnerability_replacements_key.get('replace_data', None)
+    vulnerability_replacements = analysis_settings_json.get('replace_data', None)
     if vulnerability_replacements is None:
-        vulnerability_replacements = vulnerability_replacements_key.get('replace_file', None)
+        vulnerability_replacements = analysis_settings_json.get('replace_file', None)
     if vulnerability_replacements is None:
         return False
     if isinstance(vulnerability_replacements, dict):

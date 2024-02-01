@@ -498,7 +498,7 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
         logger.warning(f"analysis_settings.json not found in {run_dir}.")
         return None
     vulnerability_replacements_key = None
-    vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_replacements')
+    vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
     if vulnerability_replacements_key is None:
         return None
 
@@ -507,7 +507,7 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
     if vulnerability_replacements_field is None:
         vulnerability_replacements_field = vulnerability_replacements_key.get('replace_file', None)
 
-    if not validate_vulnerability_replacements(vulnerability_replacements_field):
+    if not validate_vulnerability_replacements(vulnerability_replacements_key):
         return None
 
     if isinstance(vulnerability_replacements_field, dict):
