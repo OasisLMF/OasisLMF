@@ -7,6 +7,7 @@ msgpack
 numba>=0.55.1
 numexpr
 numpy==1.25.2
+oasis-data-manager
 ods-tools>=3.1.0
 pandas>=1.0.3,!=1.1.0,!=1.1.1
 pytz
