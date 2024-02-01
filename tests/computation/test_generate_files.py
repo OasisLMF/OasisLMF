@@ -50,7 +50,7 @@ class TestGenFiles(ComputationChecker):
 
         self.write_json(self.tmp_files.get('lookup_complex_config_json'), MIN_RUN_SETTINGS)
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
-
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_files.get('oed_info_csv'), MIN_INF)
@@ -73,7 +73,8 @@ class TestGenFiles(ComputationChecker):
 
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
-                'coverages': f'{expected_run_dir}/coverages.csv'
+                'coverages': f'{expected_run_dir}/coverages.csv',
+                'amplifications': f'{expected_run_dir}/amplifications.csv'
             }
             self.assertEqual(file_gen_return, expected_return)
             for _, filepath in expected_return.items():
@@ -90,6 +91,7 @@ class TestGenFiles(ComputationChecker):
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
                 'coverages': f'{expected_run_dir}/coverages.csv',
+                'amplifications': f'{expected_run_dir}/amplifications.csv',
                 'fm_policytc': f'{expected_run_dir}/fm_policytc.csv',
                 'fm_profile': f'{expected_run_dir}/fm_profile.csv',
                 'fm_programme': f'{expected_run_dir}/fm_programme.csv',
@@ -107,6 +109,7 @@ class TestGenFiles(ComputationChecker):
             expected_return = {
                 'items': f'{expected_run_dir}/items.csv',
                 'coverages': f'{expected_run_dir}/coverages.csv',
+                'amplifications': f'{expected_run_dir}/amplifications.csv',
                 'fm_policytc': f'{expected_run_dir}/fm_policytc.csv',
                 'fm_profile': f'{expected_run_dir}/fm_profile.csv',
                 'fm_programme': f'{expected_run_dir}/fm_programme.csv',
@@ -159,7 +162,7 @@ class TestGenFiles(ComputationChecker):
                     'currency_conversion_json': currency_config_file.name
                 }
                 self.manager.generate_files(**call_args)
-                loc_df = mock_get_il_items.call_args.kwargs['exposure_df']
+                loc_df = mock_get_il_items.call_args.kwargs['locations_df']
                 acc_df = mock_get_il_items.call_args.kwargs['accounts_df']
                 self.assertEqual(loc_df['LocCurrency'].unique().to_list(), [CURRENCY])
                 self.assertEqual(acc_df['AccCurrency'].unique().to_list(), [CURRENCY])
@@ -189,15 +192,12 @@ class TestGenFiles(ComputationChecker):
             call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
             file_gen_return = self.manager.generate_files(**call_args)
 
-    def test_files__model_settings_given__group_fields_are_invalid(self):
+    def test_files__model_settings_given__old_group_fields_are_valid(self):
         model_settings_file = self.tmp_files.get('model_settings_json')
         self.write_json(model_settings_file, OLD_GROUP_FIELDS_MODEL_SETTINGS)
         with self.tmp_dir() as t_dir:
-            with self.assertRaises(OdsException) as context:
-                call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
-                file_gen_return = self.manager.generate_files(**call_args)
-            expected_err_msg = f'Additional properties are not allowed'
-            self.assertIn(expected_err_msg, str(context.exception))
+            call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
+            file_gen_return = self.manager.generate_files(**call_args)
 
     def test_files__keys_csv__is_given(self):
         keys_file = self.tmp_files.get('keys_data_csv').name
@@ -207,6 +207,23 @@ class TestGenFiles(ComputationChecker):
                          'keys_data_csv': keys_file,
                          'keys_errors_csv': keys_err_file}
             file_gen_return = self.manager.generate_files(**call_args)
+
+    @patch('oasislmf.computation.generate.files.establish_correlations')
+    def test_files__model_settings_given__analysis_settings_replace_correlations(self, establish_correlations):
+        model_settings_file = self.tmp_files.get('model_settings_json')
+        self.write_json(model_settings_file, CORRELATIONS_MODEL_SETTINGS)
+        analysis_settings_file = self.tmp_files.get('analysis_settings_json')
+        self.write_json(analysis_settings_file, MIN_RUN_CORRELATIONS_SETTINGS)
+        with self.tmp_dir() as _:
+            call_args = {
+                **self.ri_args,
+                'model_settings_json': model_settings_file.name,
+                'analysis_settings_json': analysis_settings_file.name
+            }
+            self.manager.generate_files(**call_args)
+            establish_correlations.assert_called_once()
+            used_correlations = establish_correlations.call_args.kwargs['model_settings']
+            self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
 
 
 class TestGenDummyModelFiles(ComputationChecker):
@@ -276,7 +293,7 @@ class TestGenDummyModelFiles(ComputationChecker):
             with self.assertRaises(OasisException) as context:
                 call_args = {**self.min_args, 'target_dir': t_dir, 'intensity_sparseness': 2.0}
                 self.manager.generate_dummy_model_files(**call_args)
-        expected_err_msg = 'Invlid value for --intensity-sparseness'
+        expected_err_msg = 'Invalid value for --intensity-sparseness'
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_validate__areaperils_per_event__exception_raised(self):
@@ -285,6 +302,30 @@ class TestGenDummyModelFiles(ComputationChecker):
                 call_args = {**self.min_args, 'target_dir': t_dir, 'areaperils_per_event': 20}
                 self.manager.generate_dummy_model_files(**call_args)
         expected_err_msg = 'Number of areaperils per event exceeds total number of areaperils'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_validate__num_amplifications__exception_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'target_dir': t_dir, 'num_amplifications': -1}
+                self.manager.generate_dummy_model_files(**call_args)
+        expected_err_msg = 'Invalid value for --num-amplifications'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_validate__max_and_min_pla_factors__exception_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'target_dir': t_dir, 'min_pla_factor': 2.0, 'max_pla_factor': 1.0}
+                self.manager.generate_dummy_model_files(**call_args)
+        expected_err_msg = 'Value for --max-pla-factor must be greater than that for --min-pla-factor'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_validate__min_pla_factor__exception_raised(self):
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.min_args, 'target_dir': t_dir, 'min_pla_factor': -1.0}
+                self.manager.generate_dummy_model_files(**call_args)
+        expected_err_msg = 'Invalid value for --min-pla-factor'
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_validate__random_seed__exception_raised(self):
@@ -311,8 +352,11 @@ class TestGenDummyOasisFiles(ComputationChecker):
             'num_events',
             'num_areaperils',
             'num_periods',
+            'num_amplifications',
         ]
         self.min_args = {k: 10 for k in self.required_args}
+        self.min_args['min_pla_factor'] = 0.2
+        self.min_args['max_pla_factor'] = 0.6
         self.min_args['num_locations'] = 10000
         self.min_args['coverages_per_location'] = 4
         self.min_args['num_layers'] = 5

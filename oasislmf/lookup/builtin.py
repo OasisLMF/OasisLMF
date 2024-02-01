@@ -33,13 +33,12 @@ try:  # needed for rtree
 except ImportError:
     Point = gdp = None
 
-import itertools
 import math
 import re
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.utils.peril import PERIL_GROUPS, PERILS
+from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
@@ -106,18 +105,33 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     return closest_points
 
 
-class DeterministicLookup(AbstractBasicKeyLookup):
+key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
+
+
+class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
 
     def process_locations(self, locations):
-        loc_ids = (loc_it['loc_id'] for _, loc_it in locations.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
-        success_status = OASIS_KEYS_STATUS['success']['id']
-        return pd.DataFrame.from_records((
-            {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1,
-             'vulnerability_id': i + 1, 'status': success_status}
-            for i, (_loc_id, peril, cov_type) in enumerate(itertools.product(loc_ids, range(1, 1 + self.config['num_subperils']),
-                                                                             self.config['supported_oed_coverage_types']))
-        ))
+        peril_groups_df = get_peril_groups_df()
+        model_perils_covered = np.unique(pd.DataFrame({'peril_group_id': self.config['model_perils_covered']})
+                                         .merge(peril_groups_df)['peril_id'])
+        split_df = locations['LocPerilsCovered'].str.split(';').apply(pd.Series).stack()
+        split_df.index = split_df.index.droplevel(-1)
+        split_df.name = 'peril_group_id'
+        keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
+
+        coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
+        keys_df = keys_df.sort_values('loc_id').merge(coverage_df, how="cross")
+        success_df = keys_df['peril_id'].isin(model_perils_covered)
+        success_df_len = keys_df[success_df].shape[0]
+        keys_df.loc[success_df, 'area_peril_id'] = np.arange(1, success_df_len + 1)
+        keys_df.loc[success_df, 'vulnerability_id'] = np.arange(1, success_df_len + 1)
+        keys_df.loc[success_df, 'status'] = OASIS_KEYS_STATUS['success']['id']
+        keys_df.loc[~keys_df['peril_id'].isin(model_perils_covered), ['status', 'message']
+                    ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
+        keys_df[['area_peril_id', 'vulnerability_id']] = keys_df[['area_peril_id', 'vulnerability_id']].astype('Int32')
+
+        return keys_df
 
 
 class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
@@ -351,15 +365,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
 
         """
-        res = []
-        for peril in PERILS.values():
-            res.append((peril['id'], peril['id']))
-
-        for peril_group in PERIL_GROUPS.values():
-            for peril in peril_group['peril_ids']:
-                res.append((peril_group['id'], peril))
-
-        peril_groups_df = pd.DataFrame(res, columns=['peril_group_id', 'peril_id'])
+        peril_groups_df = get_peril_groups_df()
 
         def fct(locations):
             for col in locations.columns:

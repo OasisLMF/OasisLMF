@@ -30,7 +30,7 @@ from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSche
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set)
+                              prepare_run_inputs, set_footprint_set, set_vulnerability_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from ...utils.data import (fast_zip_dataframe_columns, get_dataframe, get_exposure_data, get_json,
@@ -324,6 +324,9 @@ class GenerateLossesDir(GenerateLossesBase):
         footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
         if footprint_set_val:
             set_footprint_set(footprint_set_val, model_run_fp)
+        vulnerability_set_val = analysis_settings.get('model_settings', {}).get('vulnerability_set')
+        if vulnerability_set_val:
+            set_vulnerability_set(vulnerability_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:
@@ -704,7 +707,6 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'net_ri', 'default': False},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
-        {'name': 'num_subperils', 'default': 1},
         {'name': 'fmpy', 'default': True},
         {'name': 'fmpy_low_memory', 'default': False},
         {'name': 'fmpy_sort_output', 'default': False},
@@ -738,7 +740,12 @@ class GenerateLossesDeterministic(ComputationStep):
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
-        items.tiv = items.tiv / self.num_subperils
+        coverage_id_count = items['coverage_id'].value_counts().reset_index()
+        coverage_id_count.columns = ['coverage_id', 'count']  # support for pandas < 2.x
+        items = items.merge(coverage_id_count, how='left')
+
+        items['tiv'] = items['tiv'] / items['count']
+        items.drop(columns=['count'], inplace=True)
         # Change order of stream depending on rule type
         #   Stream_type 1
         #     event_id, item_id, sidx, loss

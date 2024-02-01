@@ -11,6 +11,7 @@ from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import uint32 as nb_uint32
+from numba.types import float32 as nb_float32
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.common import areaperil_int
@@ -18,14 +19,14 @@ from oasislmf.pytools.common import areaperil_int
 logger = logging.getLogger(__name__)
 
 AGG_VULN_WEIGHTS_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.int32
+AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float32
 
 AggregateVulnerability = nb.from_dtype(np.dtype([('aggregate_vulnerability_id', np.int32),
                                                  ('vulnerability_id', np.int32), ]))
 
 VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', np.int32),
                                               ('vulnerability_id', np.int32),
-                                              ('weight', np.int32)]))
+                                              ('weight', np.float32)]))
 
 
 @njit(cache=True)
@@ -159,7 +160,7 @@ def process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id):
         if len(agg_vuln_to_vuln_id) > 0:
             # at least one aggregate vulnerability is defined
             for agg, grp in agg_weight_df.groupby(['areaperil_id', 'vulnerability_id']):
-                areaperil_vuln_id_to_weight[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_int32(grp['weight'].to_list()[0])
+                areaperil_vuln_id_to_weight[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_float32(grp['weight'].to_list()[0])
 
     return areaperil_vuln_id_to_weight
 

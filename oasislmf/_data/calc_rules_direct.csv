@@ -1,68 +1,135 @@
-desc,calcrule_id,deductible_gt_0,deductible_min_gt_0,deductible_max_gt_0,limit_gt_0,ded_type,ded_code,lim_type,lim_code,id_key
-deductible and limit,1,1,0,0,1,0,0,0,0,"(1, 0, 0, 1, 0, 0, 0, 0)"
-franchise deductible and limit,3,1,0,0,1,0,2,0,0,"(1, 0, 0, 1, 0, 2, 0, 0)"
-deductible % loss with limit % loss,5,1,0,0,1,1,0,1,0,"(1, 0, 0, 1, 1, 0, 1, 0)"
-no deductible; limit and max. deductible,7,0,0,1,1,0,0,0,0,"(0, 0, 1, 1, 0, 0, 0, 0)"
-no deductible % loss; limit and max. deductible,7,0,0,1,1,1,0,0,0,"(0, 0, 1, 1, 1, 0, 0, 0)"
-deductible; limit and max. deductible,7,1,0,1,1,0,0,0,0,"(1, 0, 1, 1, 0, 0, 0, 0)"
-deductible; limit and min and max. deductible,7,1,1,1,1,0,0,0,0,"(1, 1, 1, 1, 0, 0, 0, 0)"
-no deductible; limit and min and max. deductible,7,0,1,1,1,0,0,0,0,"(0, 1, 1, 1, 0, 0, 0, 0)"
-no deductible; limit and min. deductible,8,0,1,0,1,0,0,0,0,"(0, 1, 0, 1, 0, 0, 0, 0)"
-no deductible % loss; limit and min. deductible,8,0,1,0,1,1,0,0,0,"(0, 1, 0, 1, 1, 0, 0, 0)"
-deductible; limit and min. deductible,8,1,1,0,1,0,0,0,0,"(1, 1, 0, 1, 0, 0, 0, 0)"
-no deductible or limit; max. deductible,10,0,0,1,0,0,0,0,0,"(0, 0, 1, 0, 0, 0, 0, 0)"
-no deductible or limit % loss; max. deductible,10,0,0,1,0,0,0,1,0,"(0, 0, 1, 0, 0, 0, 1, 0)"
-"deductible, no limit, max. deductible",10,1,0,1,0,0,0,0,0,"(1, 0, 1, 0, 0, 0, 0, 0)"
-"deductible, no limit % loss; max. deductible",10,1,0,1,0,0,0,1,0,"(1, 0, 1, 0, 0, 0, 1, 0)"
-no deductible % loss or limit; max. deductible,10,0,0,1,0,1,0,0,0,"(0, 0, 1, 0, 1, 0, 0, 0)"
-no deductible % loss or limit % loss; max. deductible,10,0,0,1,0,1,0,1,0,"(0, 0, 1, 0, 1, 0, 1, 0)"
-no deductible or limit; min. deductible,11,0,1,0,0,0,0,0,0,"(0, 1, 0, 0, 0, 0, 0, 0)"
-no deductible or limit % loss; min. deductible,11,0,1,0,0,0,0,1,0,"(0, 1, 0, 0, 0, 0, 1, 0)"
-"deductible, no limit; min. deductible",11,1,1,0,0,0,0,0,0,"(1, 1, 0, 0, 0, 0, 0, 0)"
-"deductible, no limit % loss; min. deductible",11,1,1,0,0,0,0,1,0,"(1, 1, 0, 0, 0, 0, 1, 0)"
-no deductible % loss or limit; min. deductible,11,0,1,0,0,1,0,0,0,"(0, 1, 0, 0, 1, 0, 0, 0)"
-no deductible % loss or limit % loss; min. deductible,11,0,1,0,0,1,0,1,0,"(0, 1, 0, 0, 1, 0, 1, 0)"
-deductible; no limit,12,1,0,0,0,0,0,0,0,"(1, 0, 0, 0, 0, 0, 0, 0)"
-deductible; no limit % loss,12,1,0,0,0,0,0,1,0,"(1, 0, 0, 0, 0, 0, 1, 0)"
-no deductible or limit; min. & max. deductible,13,0,1,1,0,0,0,0,0,"(0, 1, 1, 0, 0, 0, 0, 0)"
-no deductible or limit % loss; min. & max. deductible,13,0,1,1,0,0,0,1,0,"(0, 1, 1, 0, 0, 0, 1, 0)"
-no deductible % loss or limit; min. & max. deductible,13,0,1,1,0,1,0,0,0,"(0, 1, 1, 0, 1, 0, 0, 0)"
-no deductible % loss or limit % loss; min. & max. deductible,13,0,1,1,0,1,0,1,0,"(0, 1, 1, 0, 1, 0, 1, 0)"
-"no deductible, limit only",14,0,0,0,1,0,0,0,0,"(0, 0, 0, 1, 0, 0, 0, 0)"
-no deductible % loss; limit only,14,0,0,0,1,1,0,0,0,"(0, 0, 0, 1, 1, 0, 0, 0)"
-no deductible; limit % loss,15,0,0,0,1,0,0,1,0,"(0, 0, 0, 1, 0, 0, 1, 0)"
-no deductible % loss; limit % loss,15,0,0,0,1,1,0,1,0,"(0, 0, 0, 1, 1, 0, 1, 0)"
-deductible; limit % loss,15,1,0,0,1,0,0,1,0,"(1, 0, 0, 1, 0, 0, 1, 0)"
-deductible % loss; no limit,16,1,0,0,0,1,0,0,0,"(1, 0, 0, 0, 1, 0, 0, 0)"
-deductible % loss; no limit % loss,16,1,0,0,0,1,0,1,0,"(1, 0, 0, 0, 1, 0, 1, 0)"
-deductible % loss; limit,33,1,0,0,1,1,0,0,0,"(1, 0, 0, 1, 1, 0, 0, 0)"
-deductible % loss with min. and max. deductible; no limit,19,1,1,1,0,1,0,0,0,"(1, 1, 1, 0, 1, 0, 0, 0)"
-deductible % loss with min. and max. deductible; no limit % loss,19,1,1,1,0,1,0,1,0,"(1, 1, 1, 0, 1, 0, 1, 0)"
-deductible % loss with max. deductible; no limit,19,1,0,1,0,1,0,0,0,"(1, 0, 1, 0, 1, 0, 0, 0)"
-deductible % loss with max. deductible; no limit % loss,19,1,0,1,0,1,0,1,0,"(1, 0, 1, 0, 1, 0, 1, 0)"
-deductible % loss with min. deductible; no limit,19,1,1,0,0,1,0,0,0,"(1, 1, 0, 0, 1, 0, 0, 0)"
-deductible % loss with min. deductible; no limit % loss,19,1,1,0,0,1,0,1,0,"(1, 1, 0, 0, 1, 0, 1, 0)"
-reverse franchise deductible; no limit,20,1,0,0,0,0,99,0,0,"(1, 0, 0, 0, 0, 99, 0, 0)"
-reverse franchise deductible; no limit % loss,20,1,0,0,0,0,99,1,0,"(1, 0, 0, 0, 0, 99, 1, 0)"
-"deductible with min and max deductible, no limit",13,1,1,1,0,0,0,0,0,"(1, 1, 1, 0, 0, 0, 0, 0)"
-"deductible with min and max deductible, no limit % loss",13,1,1,1,0,0,0,1,0,"(1, 1, 1, 0, 0, 0, 1, 0)"
-"pass through; no deductible, no limit",100,0,0,0,0,0,0,0,0,"(0, 0, 0, 0, 0, 0, 0, 0)"
-pass through; no deductible % loss,100,0,0,0,0,1,0,0,0,"(0, 0, 0, 0, 1, 0, 0, 0)"
-pass through; no limit % loss,100,0,0,0,0,0,0,1,0,"(0, 0, 0, 0, 0, 0, 1, 0)"
-"pass through; no deductible % loss, no limit % loss",100,0,0,0,0,1,0,1,0,"(0, 0, 0, 0, 1, 0, 1, 0)"
-deductible % loss with min and max deductible and limit,26,1,1,1,1,1,0,0,0,"(1, 1, 1, 1, 1, 0, 0, 0)"
-no deductible % loss;  min and max deductible and limit,26,0,1,1,1,1,0,0,0,"(0, 1, 1, 1, 1, 0, 0, 0)"
-deductible % loss with min deductible and limit,26,1,1,0,1,1,0,0,0,"(1, 1, 0, 1, 1, 0, 0, 0)"
-deductible % loss with max deductible and limit,26,1,0,1,1,1,0,0,0,"(1, 0, 1, 1, 1, 0, 0, 0)"
-deductible % loss with min deductible and limit % loss,35,1,1,0,1,1,0,1,0,"(1, 1, 0, 1, 1, 0, 1, 0)"
-deductible % loss  with max deductible and limit % loss,35,1,0,1,1,1,0,1,0,"(1, 0, 1, 1, 1, 0, 1, 0)"
-deductible % loss with min and max deductible and limit % loss,35,1,1,1,1,1,0,1,0,"(1, 1, 1, 1, 1, 0, 1, 0)"
-no deductible % loss with min deductible and limit % loss,35,0,1,0,1,1,0,1,0,"(0, 1, 0, 1, 1, 0, 1, 0)"
-no deductible % loss  with max deductible and limit % loss,35,0,0,1,1,1,0,1,0,"(0, 0, 1, 1, 1, 0, 1, 0)"
-no deductible % loss with min and max deductible and limit % loss,35,0,1,1,1,1,0,1,0,"(0, 1, 1, 1, 1, 0, 1, 0)"
-deductible with min deductible and limit % loss,36,1,1,0,1,0,0,1,0,"(1, 1, 0, 1, 0, 0, 1, 0)"
-deductible with max deductible and limit % loss,36,1,0,1,1,0,0,1,0,"(1, 0, 1, 1, 0, 0, 1, 0)"
-deductible with min and max deductible and limit % loss,36,1,1,1,1,0,0,1,0,"(1, 1, 1, 1, 0, 0, 1, 0)"
-no deductible with min deductible and limit % loss,36,0,1,0,1,0,0,1,0,"(0, 1, 0, 1, 0, 0, 1, 0)"
-no deductible with max deductible and limit % loss,36,0,0,1,1,0,0,1,0,"(0, 0, 1, 1, 0, 0, 1, 0)"
-no deductible with min and max deductible and limit % loss,36,0,1,1,1,0,0,1,0,"(0, 1, 1, 1, 0, 0, 1, 0)"
+desc,calcrule_id,attachment_gt_0,deductible_gt_0,deductible_min_gt_0,deductible_max_gt_0,limit_gt_0,ded_type,ded_code,lim_type,lim_code,share_gt_0
+deductible and limit,1,0,1,0,0,1,0,0,0,0,0
+franchise deductible and limit,3,0,1,0,0,1,0,2,0,0,0
+franchise deductible,39,0,1,0,0,0,0,2,0,0,0
+deductible % loss with limit % loss,5,0,1,0,0,1,1,0,1,0,0
+no deductible; limit and max. deductible,7,0,0,0,1,1,0,0,0,0,0
+no deductible % loss; limit and max. deductible,7,0,0,0,1,1,1,0,0,0,0
+deductible; limit and max. deductible,7,0,1,0,1,1,0,0,0,0,0
+deductible; limit and min and max. deductible,7,0,1,1,1,1,0,0,0,0,0
+no deductible; limit and min and max. deductible,7,0,0,1,1,1,0,0,0,0,0
+no deductible; limit and min. deductible,8,0,0,1,0,1,0,0,0,0,0
+no deductible % loss; limit and min. deductible,8,0,0,1,0,1,1,0,0,0,0
+deductible; limit and min. deductible,8,0,1,1,0,1,0,0,0,0,0
+no deductible or limit; max. deductible,10,0,0,0,1,0,0,0,0,0,0
+no deductible or limit % loss; max. deductible,10,0,0,0,1,0,0,0,1,0,0
+"deductible, no limit, max. deductible",10,0,1,0,1,0,0,0,0,0,0
+"deductible, no limit % loss; max. deductible",10,0,1,0,1,0,0,0,1,0,0
+no deductible % loss or limit; max. deductible,10,0,0,0,1,0,1,0,0,0,0
+no deductible % loss or limit % loss; max. deductible,10,0,0,0,1,0,1,0,1,0,0
+no deductible or limit; min. deductible,11,0,0,1,0,0,0,0,0,0,0
+no deductible or limit % loss; min. deductible,11,0,0,1,0,0,0,0,1,0,0
+"deductible, no limit; min. deductible",11,0,1,1,0,0,0,0,0,0,0
+"deductible, no limit % loss; min. deductible",11,0,1,1,0,0,0,0,1,0,0
+no deductible % loss or limit; min. deductible,11,0,0,1,0,0,1,0,0,0,0
+no deductible % loss or limit % loss; min. deductible,11,0,0,1,0,0,1,0,1,0,0
+deductible; no limit,12,0,1,0,0,0,0,0,0,0,0
+deductible; no limit % loss,12,0,1,0,0,0,0,0,1,0,0
+no deductible or limit; min. & max. deductible,13,0,0,1,1,0,0,0,0,0,0
+no deductible or limit % loss; min. & max. deductible,13,0,0,1,1,0,0,0,1,0,0
+no deductible % loss or limit; min. & max. deductible,13,0,0,1,1,0,1,0,0,0,0
+no deductible % loss or limit % loss; min. & max. deductible,13,0,0,1,1,0,1,0,1,0,0
+"no deductible, limit only",14,0,0,0,0,1,0,0,0,0,0
+no deductible % loss; limit only,14,0,0,0,0,1,1,0,0,0,0
+no deductible; limit % loss,15,0,0,0,0,1,0,0,1,0,0
+no deductible % loss; limit % loss,15,0,0,0,0,1,1,0,1,0,0
+deductible; limit % loss,15,0,1,0,0,1,0,0,1,0,0
+deductible % loss; no limit,16,0,1,0,0,0,1,0,0,0,0
+deductible % loss; no limit % loss,16,0,1,0,0,0,1,0,1,0,0
+deductible % loss; limit,33,0,1,0,0,1,1,0,0,0,0
+deductible % loss with min. and max. deductible; no limit,19,0,1,1,1,0,1,0,0,0,0
+deductible % loss with min. and max. deductible; no limit % loss,19,0,1,1,1,0,1,0,1,0,0
+deductible % loss with max. deductible; no limit,19,0,1,0,1,0,1,0,0,0,0
+deductible % loss with max. deductible; no limit % loss,19,0,1,0,1,0,1,0,1,0,0
+deductible % loss with min. deductible; no limit,19,0,1,1,0,0,1,0,0,0,0
+deductible % loss with min. deductible; no limit % loss,19,0,1,1,0,0,1,0,1,0,0
+reverse franchise deductible; no limit,20,0,1,0,0,0,0,99,0,0,0
+reverse franchise deductible; no limit % loss,20,0,1,0,0,0,0,99,1,0,0
+"deductible with min and max deductible, no limit",13,0,1,1,1,0,0,0,0,0,0
+"deductible with min and max deductible, no limit % loss",13,0,1,1,1,0,0,0,1,0,0
+"pass through; no deductible, no limit",100,0,0,0,0,0,0,0,0,0,0
+pass through; no deductible % loss,100,0,0,0,0,0,1,0,0,0,0
+pass through; no limit % loss,100,0,0,0,0,0,0,0,1,0,0
+"pass through; no deductible % loss, no limit % loss",100,0,0,0,0,0,1,0,1,0,0
+"participation only; no deductible, no limit",200,0,0,0,0,0,0,0,0,0,1
+participation only; no deductible % loss,200,0,0,0,0,0,1,0,0,0,1
+participation only; no limit % loss,200,0,0,0,0,0,0,0,1,0,1
+"participation only; no deductible % loss, no limit % loss",200,0,0,0,0,0,1,0,1,0,1
+deductible % loss with min and max deductible and limit,26,0,1,1,1,1,1,0,0,0,0
+no deductible % loss;  min and max deductible and limit,26,0,0,1,1,1,1,0,0,0,0
+deductible % loss with min deductible and limit,26,0,1,1,0,1,1,0,0,0,0
+deductible % loss with max deductible and limit,26,0,1,0,1,1,1,0,0,0,0
+deductible % loss with min deductible and limit % loss,35,0,1,1,0,1,1,0,1,0,0
+deductible % loss  with max deductible and limit % loss,35,0,1,0,1,1,1,0,1,0,0
+deductible % loss with min and max deductible and limit % loss,35,0,1,1,1,1,1,0,1,0,0
+no deductible % loss with min deductible and limit % loss,35,0,0,1,0,1,1,0,1,0,0
+no deductible % loss  with max deductible and limit % loss,35,0,0,0,1,1,1,0,1,0,0
+no deductible % loss with min and max deductible and limit % loss,35,0,0,1,1,1,1,0,1,0,0
+deductible with min deductible and limit % loss,36,0,1,1,0,1,0,0,1,0,0
+deductible with max deductible and limit % loss,36,0,1,0,1,1,0,0,1,0,0
+deductible with min and max deductible and limit % loss,36,0,1,1,1,1,0,0,1,0,0
+no deductible with min deductible and limit % loss,36,0,0,1,0,1,0,0,1,0,0
+no deductible with max deductible and limit % loss,36,0,0,0,1,1,0,0,1,0,0
+no deductible with min and max deductible and limit % loss,36,0,0,1,1,1,0,0,1,0,0
+"deductible, limit; share",101,0,1,0,0,1,0,0,0,0,1
+"franchise deductible, limit; share",103,0,1,0,0,1,0,2,0,0,1
+deductible % loss with limit % loss; share,105,0,1,0,0,1,1,0,1,0,1
+"no deductible; limit, max. deductible; share",107,0,0,0,1,1,0,0,0,0,1
+"no deductible % loss; limit, max. deductible; share",107,0,0,0,1,1,1,0,0,0,1
+"deductible; limit, max. deductible; share",107,0,1,0,1,1,0,0,0,0,1
+"deductible; limit, min and max. deductible; share",107,0,1,1,1,1,0,0,0,0,1
+"no deductible; limit, min and max. deductible; share",107,0,0,1,1,1,0,0,0,0,1
+"no deductible; limit, min. deductible; share",108,0,0,1,0,1,0,0,0,0,1
+"no deductible % loss; limit, min. deductible; share",108,0,0,1,0,1,1,0,0,0,1
+"deductible; limit, min. deductible; share",108,0,1,1,0,1,0,0,0,0,1
+no deductible or limit; max. deductible; share,110,0,0,0,1,0,0,0,0,0,1
+no deductible or limit % loss; max. deductible; share,110,0,0,0,1,0,0,0,1,0,1
+"deductible, no limit, max. deductible; share",110,0,1,0,1,0,0,0,0,0,1
+"deductible, no limit % loss; max. deductible; share",110,0,1,0,1,0,0,0,1,0,1
+no deductible % loss or limit; max. deductible; share,110,0,0,0,1,0,1,0,0,0,1
+no deductible % loss or limit % loss; max. deductible; share,110,0,0,0,1,0,1,0,1,0,1
+no deductible or limit; min. deductible; share,111,0,0,1,0,0,0,0,0,0,1
+no deductible or limit % loss; min. deductible; share,111,0,0,1,0,0,0,0,1,0,1
+"deductible, no limit; min. deductible; share",111,0,1,1,0,0,0,0,0,0,1
+"deductible, no limit % loss; min. deductible; share",111,0,1,1,0,0,0,0,1,0,1
+no deductible % loss or limit; min. deductible; share,111,0,0,1,0,0,1,0,0,0,1
+no deductible % loss or limit % loss; min. deductible; share,111,0,0,1,0,0,1,0,1,0,1
+deductible; no limit; share,112,0,1,0,0,0,0,0,0,0,1
+deductible; no limit % loss; share,112,0,1,0,0,0,0,0,1,0,1
+no deductible or limit; min. & max. deductible; share,113,0,0,1,1,0,0,0,0,0,1
+no deductible or limit % loss; min. & max. deductible; share,113,0,0,1,1,0,0,0,1,0,1
+no deductible % loss or limit; min. & max. deductible; share,113,0,0,1,1,0,1,0,0,0,1
+no deductible % loss or limit % loss; min. & max. deductible; share,113,0,0,1,1,0,1,0,1,0,1
+"no deductible, limit only; share",114,0,0,0,0,1,0,0,0,0,1
+no deductible % loss; limit only; share,114,0,0,0,0,1,1,0,0,0,1
+no deductible; limit % loss; share,115,0,0,0,0,1,0,0,1,0,1
+no deductible % loss; limit % loss; share,115,0,0,0,0,1,1,0,1,0,1
+deductible; limit % loss; share,115,0,1,0,0,1,0,0,1,0,1
+deductible % loss; no limit; share,116,0,1,0,0,0,1,0,0,0,1
+deductible % loss; no limit % loss; share,116,0,1,0,0,0,1,0,1,0,1
+deductible % loss; limit; share,133,0,1,0,0,1,1,0,0,0,1
+deductible % loss with min. and max. deductible; no limit; share,119,0,1,1,1,0,1,0,0,0,1
+deductible % loss with min. and max. deductible; no limit % loss; share,119,0,1,1,1,0,1,0,1,0,1
+deductible % loss with max. deductible; no limit; share,119,0,1,0,1,0,1,0,0,0,1
+deductible % loss with max. deductible; no limit % loss; share,119,0,1,0,1,0,1,0,1,0,1
+deductible % loss with min. deductible; no limit; share,119,0,1,1,0,0,1,0,0,0,1
+deductible % loss with min. deductible; no limit % loss; share,119,0,1,1,0,0,1,0,1,0,1
+reverse franchise deductible; no limit; share,120,0,1,0,0,0,0,99,0,0,1
+reverse franchise deductible; no limit % loss; share,120,0,1,0,0,0,0,99,1,0,1
+"deductible with min and max deductible, no limit; share",113,0,1,1,1,0,0,0,0,0,1
+"deductible with min and max deductible, no limit % loss; share",113,0,1,1,1,0,0,0,1,0,1
+"deductible % loss with min and max deductible, limit; share",126,0,1,1,1,1,1,0,0,0,1
+"no deductible % loss;  min and max deductible, limit; share",126,0,0,1,1,1,1,0,0,0,1
+"deductible % loss with min deductible, limit; share",126,0,1,1,0,1,1,0,0,0,1
+"deductible % loss with max deductible, limit; share",126,0,1,0,1,1,1,0,0,0,1
+"deductible % loss with min deductible, limit % loss; share",135,0,1,1,0,1,1,0,1,0,1
+"deductible % loss  with max deductible, limit % loss; share",135,0,1,0,1,1,1,0,1,0,1
+"deductible % loss with min and max deductible, limit % loss; share",135,0,1,1,1,1,1,0,1,0,1
+"no deductible % loss with min deductible, limit % loss; share",135,0,0,1,0,1,1,0,1,0,1
+"no deductible % loss  with max deductible, limit % loss; share",135,0,0,0,1,1,1,0,1,0,1
+"no deductible % loss with min and max deductible, limit % loss; share",135,0,0,1,1,1,1,0,1,0,1
+"deductible with min deductible, limit % loss; share",136,0,1,1,0,1,0,0,1,0,1
+"deductible with max deductible, limit % loss; share",136,0,1,0,1,1,0,0,1,0,1
+"deductible with min and max deductible, limit % loss; share",136,0,1,1,1,1,0,0,1,0,1
+"no deductible with min deductible, limit % loss; share",136,0,0,1,0,1,0,0,1,0,1
+"no deductible with max deductible, limit % loss; share",136,0,0,0,1,1,0,0,1,0,1

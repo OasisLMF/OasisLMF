@@ -24,7 +24,7 @@ from ..utils.log import oasis_log
 from ..utils.path import import_from_string, get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
-from .builtin import DeterministicLookup
+from .builtin import PerilCoveredDeterministicLookup
 from .builtin import Lookup as NewLookup
 
 from multiprocessing import cpu_count, Queue, Process
@@ -83,7 +83,6 @@ class KeyServerFactory(object):
     @classmethod
     def update_deprecated_args(cls, config_dir, config,
                                complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
-
         if (complex_lookup_config_fp
                 or model_keys_data_path
                 or model_version_file_path
@@ -143,6 +142,10 @@ class KeyServerFactory(object):
                                                             complex_lookup_config_fp, model_keys_data_path,
                                                             model_version_file_path, lookup_module_path)
         else:  # reproduce lookup_config overwrite complex_lookup_config_fp
+            if complex_lookup_config_fp:
+                complex_config_dir, complex_config = cls.get_config(complex_lookup_config_fp)
+                config['complex_config_dir'] = complex_config_dir
+                config['complex_config'] = complex_config
             complex_lookup_config_fp = None
 
         if config.get('key_server_module_path'):
@@ -258,8 +261,8 @@ class BasicKeyServer:
             lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
         else:  # built-in lookup
-            if self.config.get('builtin_lookup_type') == 'deterministic':
-                lookup_cls = DeterministicLookup
+            if self.config.get('builtin_lookup_type') == 'peril_covered_deterministic':
+                lookup_cls = PerilCoveredDeterministicLookup
             elif self.config.get('builtin_lookup_type') == 'new_lookup':
                 lookup_cls = NewLookup
             else:

@@ -45,11 +45,11 @@ trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
     has_error=0
     for p in $proc_list; do
-        started=$(find log -name "$p*.log" | wc -l)
-        finished=$(find log -name "$p*.log" -exec grep -l "finish" {} + | wc -l)
+        started=$(find log -name "${p}_[0-9]*.log" | wc -l)
+        finished=$(find log -name "${p}_[0-9]*.log" -exec grep -l "finish" {} + | wc -l)
         if [ "$finished" -lt "$started" ]; then
             echo "[ERROR] $p - $((started-finished)) processes lost"
             has_error=1
@@ -111,7 +111,7 @@ mkfifo fifo/ri_S1_pltcalc_P1
 tee < fifo/ri_S1_summary_P1 fifo/ri_S1_eltcalc_P1 fifo/ri_S1_summarycalc_P1 fifo/ri_S1_pltcalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryaalcalc/P1.idx > /dev/null & pid5=$!
 
-( summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do insured loss computes ---
 

@@ -6,6 +6,8 @@ import os
 
 import oasislmf
 from oasislmf.manager import OasisManager
+from oasislmf.utils.inputs import str2bool
+from oasislmf.utils.exceptions import OasisException
 
 from .data.common import *
 from .test_computation import ComputationChecker
@@ -22,6 +24,7 @@ class TestRunModel(ComputationChecker):
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
         cls.gen_loss_args = cls.manager._params_generate_losses()
+        cls.post_hook_args = cls.manager._params_post_analysis()
 
     def setUp(self):
         # Tempfiles
@@ -48,6 +51,7 @@ class TestRunModel(ComputationChecker):
             self.pre_hook_args,
             self.gen_files_args,
             self.gen_loss_args,
+            self.post_hook_args,
         ])
         self.assertEqual(expt_combined_args, self.default_args)
 
@@ -75,6 +79,41 @@ class TestRunModel(ComputationChecker):
         losses_mock.assert_called_once()
         self.assertEqual(files_called_kwargs, expected_called_kwargs)
         self.assertEqual(losses_called_kwargs, expected_called_kwargs)
+
+    def test_model_run__str2bool_called(self):
+        files_mock = MagicMock()
+        losses_mock = MagicMock()
+        str2bool_mock = mock.create_autospec(str2bool)
+        run_dir = self.tmp_dirs.get('model_run_dir').name
+        losses_mock._get_output_dir.return_value = run_dir
+
+        call_args = self.combine_args([self.min_args, {
+            'gulpy': "False",
+        }])
+
+        with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
+                patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock), \
+        patch.object(oasislmf.computation.base, 'str2bool', str2bool_mock):
+            self.manager.run_model(**call_args)
+        str2bool_mock.assert_called_with('False')
+
+    def test_model_run__str2bool_invalid_call__exception_raised(self):
+        files_mock = MagicMock()
+        losses_mock = MagicMock()
+        run_dir = self.tmp_dirs.get('model_run_dir').name
+        losses_mock._get_output_dir.return_value = run_dir
+
+        call_args = self.combine_args([self.min_args, {
+            'gulpy': "invalid-string",
+        }])
+
+        with self.assertRaises(OasisException) as context:
+            with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
+                    patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
+                self.manager.run_model(**call_args)
+
+        expected_err_msg = "The parameter 'gulpy' has an invalid value 'invalid-string' for boolean."
+        self.assertIn(expected_err_msg, str(context.exception))
 
     def test_model_run__with_pre_analysis(self):
         pre_mock = MagicMock()

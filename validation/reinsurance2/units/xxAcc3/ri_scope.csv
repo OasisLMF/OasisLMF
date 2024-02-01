@@ -1,8 +1,8 @@
-ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
-1,E,11611,,,33679,,,,,,,LOC
-2,E,11611,,,33679,,,,,,0.24,LOC
-3,E,11611,,,33679,,,,,,0.53,LOC
-4,E,,,,,,,,,,,LOC
-5,E,,,,,,,,,,,LOC
-6,E,,,,,,,,,,,LOC
-7,E,,,,,,,,,,,LOC
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
+203,xxAcc3,11611,,,33679,,,,,,,2.0.0
+204,xxAcc3,11611,,,33679,,,,,,0.24,2.0.0
+205,xxAcc3,11611,,,33679,,,,,,0.53,2.0.0
+206,xxAcc3,,,,,,,,,,,2.0.0
+207,xxAcc3,,,,,,,,,,,2.0.0
+208,xxAcc3,,,,,,,,,,,2.0.0
+209,xxAcc3,,,,,,,,,,,2.0.0

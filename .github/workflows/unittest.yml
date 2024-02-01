@@ -8,8 +8,8 @@
 name: Oasislmf Testing
 
 on:
-  push:
   pull_request:
+  push:
     branches:
       - main
       - stable**

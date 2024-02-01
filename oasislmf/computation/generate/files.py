@@ -10,8 +10,11 @@ import os
 from pathlib import Path
 from typing import List
 
+from ods_tools.oed.setting_schema import ModelSettingSchema
+
 from oasislmf.computation.base import ComputationStep
-from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
+from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
+                                                            CoveragesFile,
                                                             DamageBinDictFile,
                                                             EventsFile,
                                                             FMPolicyTCFile,
@@ -22,6 +25,7 @@ from oasislmf.computation.data.dummy_model.generate import (CoveragesFile,
                                                             FootprintBinFile,
                                                             GULSummaryXrefFile,
                                                             ItemsFile,
+                                                            LossFactorsFile,
                                                             OccurrenceFile,
                                                             RandomFile,
                                                             VulnerabilityFile)
@@ -44,8 +48,7 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
 from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
-                                 get_exposure_data, get_json,
-                                 get_utctimestamp,
+                                 get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
                                  prepare_reinsurance_df)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
@@ -56,7 +59,7 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
-from ods_tools.oed.setting_schema import ModelSettingSchema
+from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
 
 class GenerateFiles(ComputationStep):
@@ -69,20 +72,12 @@ class GenerateFiles(ComputationStep):
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
          'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
+        {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': False,
+         'help': 'Analysis settings JSON file path'},
         {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
-        {'name': 'lookup_config_json', 'flag': '-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir', 'flag': '-k', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
-        {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
-        {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
-        {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
-        {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
-        {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
-        {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': True, 'help': 'Model settings JSON file path'},
-        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
-         'help': 'Directory containing additional model data files which varies between analysis runs'},
-        {'name': 'profile_loc_json', 'flag': '-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
+        {'name': 'profile_loc_json', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
-        {'name': 'profile_fm_agg_json', 'flag': '-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
+        {'name': 'profile_fm_agg_json', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
@@ -97,6 +92,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
         {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable lookup multiprocessing'},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
@@ -115,6 +111,10 @@ class GenerateFiles(ComputationStep):
          'help': 'The default dataframe reading engine to use when loading files'},
         {'name': 'exposure_df_engine', 'type': str, 'default': None,
          'help': 'The dataframe reading engine to use when loading exposure files'},
+    ]
+
+    chained_commands = [
+        GenerateKeys
     ]
 
     def _get_output_dir(self):
@@ -152,7 +152,6 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
-
         self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
@@ -219,7 +218,7 @@ class GenerateFiles(ComputationStep):
         # Load keys file  **** WARNING - REFACTOR THIS ****
         dtypes = {
             'locid': 'int64',
-            'perilid': 'str',
+            'perilid': 'category',
             'coveragetypeid': 'uint8',
             'areaperilid': 'uint64',
             'vulnerabilityid': 'uint32',
@@ -241,9 +240,15 @@ class GenerateFiles(ComputationStep):
         model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
+        correlations_analysis_settings = None
 
+        # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
+        if self.analysis_settings_json is not None:
+            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
+            if correlations_analysis_settings is not None:
+                model_settings['correlation_settings'] = correlations_analysis_settings
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
@@ -284,6 +289,7 @@ class GenerateFiles(ComputationStep):
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
             hazard_group_id_cols=hazard_group_id_cols,
+            do_disaggregation=self.do_disaggregation
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -313,7 +319,7 @@ class GenerateFiles(ComputationStep):
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
-
+        del gul_summary_mapping
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
         if not il:
@@ -323,12 +329,14 @@ class GenerateFiles(ComputationStep):
 
         # Get the IL input items
         il_inputs_df = get_il_input_items(
-            exposure_df=exposure_data.location.dataframe,
-            gul_inputs_df=gul_inputs_df,
+            gul_inputs_df=gul_inputs_df.copy(),
+            locations_df=exposure_data.location.dataframe,
             accounts_df=exposure_data.account.dataframe,
+            oed_schema=exposure_data.oed_schema,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
-            fm_aggregation_profile=fm_aggregation_profile
+            fm_aggregation_profile=fm_aggregation_profile,
+            do_disaggregation=self.do_disaggregation,
         )
 
         # Write the IL/FM input files
@@ -363,7 +371,7 @@ class GenerateFiles(ComputationStep):
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
         ).sort_values(by='agg_id')
-
+        del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info
 
         ri_layers = write_files_for_reinsurance(
@@ -414,6 +422,11 @@ class GenerateDummyModelFiles(ComputationStep):
          'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0,
          'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
+        {'name': 'num_amplifications', 'flag': '-m', 'requried': False, 'type': int, 'default': 0, 'help': 'Number of amplifications'},
+        {'name': 'min_pla_factor', 'flag': '-f', 'required': False, 'type': float, 'default': 0.875,
+         'help': 'Minimum Post Loss Amplification Factor'},
+        {'name': 'max_pla_factor', 'flag': '-F', 'required': False, 'type': float, 'default': 1.5,
+         'help': 'Maximum Post Loss Amplification Factor'},
         {'name': 'num_randoms', 'flag': '-r', 'required': False, 'type': int, 'default': 0, 'help': 'Number of random numbers'},
         {'name': 'random_seed', 'flag': '-R', 'required': False, 'type': int, 'default': -
          1, 'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
@@ -423,11 +436,17 @@ class GenerateDummyModelFiles(ComputationStep):
         if self.vulnerability_sparseness > 1.0 or self.vulnerability_sparseness < 0.0:
             raise OasisException('Invalid value for --vulnerability-sparseness')
         if self.intensity_sparseness > 1.0 or self.intensity_sparseness < 0.0:
-            raise OasisException('Invlid value for --intensity-sparseness')
+            raise OasisException('Invalid value for --intensity-sparseness')
         if not self.areaperils_per_event:
             self.areaperils_per_event = self.num_areaperils
         if self.areaperils_per_event > self.num_areaperils:
             raise OasisException('Number of areaperils per event exceeds total number of areaperils')
+        if self.num_amplifications < 0.0:
+            raise OasisException('Invalid value for --num-amplifications')
+        if self.max_pla_factor < self.min_pla_factor:
+            raise OasisException('Value for --max-pla-factor must be greater than that for --min-pla-factor')
+        if self.min_pla_factor < 0:
+            raise OasisException('Invalid value for --min-pla-factor')
         if self.random_seed < -1:
             raise OasisException('Invalid random seed')
 
@@ -489,6 +508,14 @@ class GenerateDummyModelFiles(ComputationStep):
                 self.input_dir, **self.periods_per_event_parameters
             )
         ]
+        if self.num_amplifications > 0:
+            self.model_files += [
+                LossFactorsFile(
+                    self.num_events, self.num_amplifications,
+                    self.min_pla_factor, self.max_pla_factor, self.random_seed,
+                    self.static_dir
+                )
+            ]
         if self.num_randoms > 0:
             self.model_files += [
                 RandomFile(self.num_randoms, self.random_seed, self.static_dir)
@@ -544,6 +571,13 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
                 self.num_locations, self.coverages_per_location, self.input_dir
             )
         ]
+        if self.num_amplifications > 0:
+            self.gul_files += [
+                AmplificationsFile(
+                    self.num_locations, self.coverages_per_location,
+                    self.num_amplifications, self.random_seed, self.input_dir
+                )
+            ]
 
     def _get_fm_file_objects(self):
 
