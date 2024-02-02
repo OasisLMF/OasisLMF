@@ -106,7 +106,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             # # Debug: print logging tree
             # import ipdb; ipdb.set_trace()
             # import logging_tree; logging_tree.printout()
-            
+
             try:
                 # Run the wrapped function
                 logger.info(kwargs)

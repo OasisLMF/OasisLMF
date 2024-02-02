@@ -320,7 +320,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
-    parser.add_argument("--df-engine", help="The engine to use when loading dataframes", default="oasis_data_manager.df_reader.reader.OasisPandasReader", )
+    parser.add_argument("--df-engine", help="The engine to use when loading dataframes",
+                        default="oasis_data_manager.df_reader.reader.OasisPandasReader", )
     args = parser.parse_args()
     server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine)
     server.listen()

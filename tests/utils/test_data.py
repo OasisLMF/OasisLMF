@@ -680,7 +680,7 @@ class TestGetDataframe(TestCase):
         try:
             data = [
                 {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k ==
-                     'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                                                                'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -715,7 +715,7 @@ class TestGetDataframe(TestCase):
         try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
-                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                                                               'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -1171,7 +1171,7 @@ class TestGetDataframe(TestCase):
         try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
-                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                                                               'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
