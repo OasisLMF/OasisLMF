@@ -35,7 +35,7 @@ jobs:
     uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'feature/lot3' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'feature/lot3-update' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
 
   unittest:
     if: ${{ ! failure() || ! cancelled() }}
@@ -87,13 +87,6 @@ jobs:
         if: matrix.cfg.upload-cov != true
         run: |
           pip install ${{ needs.build.outputs.linux_pkg_filename }}
-
-      # Temp build step
-      - name: Install LOT3 package
-        run: |
-          pip install pyspark dask
-          sudo apt-get install protobuf-compiler
-          pip install -v git+https://git@github.com/OasisLMF/OasisPlatformLot3.git@feature/lot3-model-data#egg=lot3
 
       - name: Install Oasislmf (Editable mode)
         if: matrix.cfg.upload-cov == true
