@@ -510,6 +510,7 @@ def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, igno
 
     return vuln_array, vulns_id, num_damage_bins
 
+
 def get_vulnerability_replacements(run_dir, vuln_dict):
     """
     Loads the vulnerability adjustment file.
@@ -835,7 +836,8 @@ def run(
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=df_engine)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, vuln_dict,
+                                                          num_intensity_bins, ignore_file_type, df_engine=df_engine)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(model_storage, ignore_file_type)
