@@ -1,3 +1,10 @@
+from unittest import main, TestCase
+from unittest.mock import patch
+from oasislmf.pytools.getmodel.manager import get_vuln_rngadj_dict
+
+from numba.typed import Dict
+from numba import int32 as nb_int32, float64 as nb_float64
+
 import os
 import shutil
 import tempfile
@@ -14,6 +21,48 @@ from numba.typed import Dict
 import pandas as pd
 import subprocess
 # from pyarrow import memory_map
+
+
+class TestGetVulnaRngAdj(TestCase):
+    """
+    This class tests get_vuln_rngadj_dict().
+
+
+    Args:
+        TestCase (TestCase): This class inherits from unittest.TestCase.
+    """
+
+    def test_get_vuln_rngadj_dict_nofile(self):
+        """
+        This function tests the get_vuln_rngadj_dict() function when no file is passed.
+
+        Args:
+            self (TestCase): unittest.TestCase
+        """
+        expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+        result_dict = get_vuln_rngadj_dict(".", {2: 0})
+        self.assertEqual(result_dict, expected_dict)
+
+    @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
+    @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={})
+    def test_get_vuln_rngadj_dict_fileempty(self, mock_get, mock_exists):
+        """
+        Test get_vuln_rngadj_dict function with an empty analysis settings file.
+        """
+        expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+        result_dict = get_vuln_rngadj_dict("dummy_run_dir", {2: 0})
+        self.assertEqual(result_dict, expected_dict)
+
+    @patch('oasislmf.pytools.getmodel.manager.os.path.exists', return_value=True)
+    @patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={"vulnerability_adjustments": {"adjustments": {"2": 0.95}}})
+    def test_get_vuln_rngadj_dict_regular(self, mock_get, mock_exists):
+        """
+        Test get_vuln_rngadj_dict function with a regular settings file.
+        """
+        expected_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+        expected_dict[nb_int32(2)] = nb_float64(0.95)
+        result_dict = get_vuln_rngadj_dict("dummy_run_dir", {2: 0})
+        self.assertEqual(result_dict, expected_dict)
 
 
 class TestGetVulns(TestCase):

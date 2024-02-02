@@ -14,6 +14,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+from numba import int32 as nb_int32, float64 as nb_float64
 from numba.typed import Dict
 
 from oasislmf.pytools.common import PIPE_CAPACITY
@@ -24,6 +25,7 @@ from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 from ods_tools.oed import AnalysisSettingSchema
+
 
 logger = logging.getLogger(__name__)
 
@@ -402,6 +404,35 @@ def create_vulns_id(vuln_dict):
         vulns_id[vuln_idx] = vuln_id
 
     return vulns_id
+
+
+def get_vuln_rngadj_dict(run_dir, vuln_dict):
+    """
+    Loads vulnerability adjustments from the analysis settings file.
+
+    Args:
+        run_dir (str): path to the run directory (used to load the analysis settings)
+
+    Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+    vuln_adj_numba_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+    if not os.path.exists(settings_path):
+        logger.debug(f"analysis_settings.json not found in {run_dir}.")
+        return vuln_adj_numba_dict
+    vulnerability_adjustments_field = None
+    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments', None)
+    if vulnerability_adjustments_field is not None:
+        adjustments = vulnerability_adjustments_field.get('adjustments', None)
+    else:
+        adjustments = None
+    if adjustments is None:
+        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
+        return vuln_adj_numba_dict
+    for key, value in adjustments.items():
+        if nb_int32(key) in vuln_dict.keys():
+            vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
+    return vuln_adj_numba_dict
 
 
 def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set()):

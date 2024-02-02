@@ -1,0 +1,60 @@
+{
+    "version": "3",
+    "analysis_tag": "base_example",
+    "source_tag": "MDK",
+    "model_name_id": "PiWind",
+    "model_supplier_id": "OasisLMF",
+    "gul_threshold": 0,
+    "gul_output": true,
+    "model_settings": {
+        "event_set": "p",
+        "event_occurrence_id": "lt"
+    },
+    "vulnerability_adjustments": {
+        "adjustments": {
+            "2": 0.0000001,
+            "8": 100.000
+        }
+    },
+    "gul_summaries": [
+        {
+            "aalcalc": true,
+            "eltcalc": true,
+            "id": 1,
+            "lec_output": true,
+            "leccalc": {
+                "full_uncertainty_aep": true,
+                "full_uncertainty_oep": true,
+                "return_period_file": true
+            }
+        }
+    ],
+    "il_output": true,
+    "il_summaries": [
+        {
+            "aalcalc": true,
+            "eltcalc": true,
+            "id": 1,
+            "lec_output": true,
+            "leccalc": {
+                "full_uncertainty_aep": true,
+                "full_uncertainty_oep": true,
+                "return_period_file": true
+            }
+        }
+    ],
+    "ri_output": true,
+    "ri_summaries": [
+        {
+            "aalcalc": true,
+            "eltcalc": true,
+            "id": 1,
+            "lec_output": true,
+            "leccalc": {
+                "full_uncertainty_aep": true,
+                "full_uncertainty_oep": true,
+                "return_period_file": true
+            }
+        }
+    ]
+}
