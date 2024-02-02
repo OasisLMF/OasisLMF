@@ -12,6 +12,7 @@ from unittest import main, TestCase, mock
 
 from oasislmf.pytools.getmodel.manager import get_vulns
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
+from oasis_data_manager.filestore.backends.local import LocalStorage
 # from oasislmf.pytools.getmodel.manager import get_items, Footprint
 # from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
 
@@ -178,9 +179,11 @@ class TestGetVulns(TestCase):
         return {v_id: idx for idx, v_id in enumerate(vulns_id)}
 
     def test_get_vulns(self):
+
+        model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             self.assertIsNotNone(vuln_array)
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
