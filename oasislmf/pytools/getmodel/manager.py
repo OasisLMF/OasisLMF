@@ -405,7 +405,7 @@ def create_vulns_id(vuln_dict):
 
     return vulns_id
 
-  
+
 def get_vuln_rngadj_dict(run_dir, vuln_dict):
     """
     Loads vulnerability adjustments from the analysis settings file.
