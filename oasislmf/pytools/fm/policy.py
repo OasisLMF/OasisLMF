@@ -318,6 +318,18 @@ def calcrule_38(policy, loss_out, loss_in):
             loss_out[i] = (loss_out[i] + min(loss_out[i] * policy['scale_2'], policy['limit_2'])) * (policy['scale_1'])
 
 
+@njit(cache=True, fastmath=True)
+def calcrule_39(policy, loss_out, loss_in):
+    """
+    Franchise deductible
+    """
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            loss_out[i] = 0
+        else:
+            loss_out[i] = loss_in[i]
+
+
 @njit(cache=True)
 def calc(policy, loss_out, loss_in, stepped):
     if policy['calcrule_id'] == 1:
@@ -357,9 +369,13 @@ def calc(policy, loss_out, loss_in, stepped):
         calcrule_33(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 34:
         calcrule_34(policy, loss_out, loss_in)
+    elif policy['calcrule_id'] == 39:
+        calcrule_39(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
     # policies non layer policy with share
+    elif policy['calcrule_id'] == 200:
+        loss_out[:] = loss_in * policy['share_1']
     elif policy['calcrule_id'] == 101:
         calcrule_1(policy, loss_out, loss_in)
         loss_out *= policy['share_1']
