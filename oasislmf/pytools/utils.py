@@ -71,6 +71,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
 
             logging.captureWarnings(True)
             logging_config = logging.root.manager.loggerDict.keys()
+            logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
@@ -98,6 +99,14 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             logger.addHandler(rootFileHandler)
             logger.addHandler(rootStreamHandler)
 
+            # Set warning log handler
+            warn_logger = logging.getLogger('py.warnings')
+            warn_logger.addHandler(rootFileHandler)
+
+            # # Debug: print logging tree
+            # import ipdb; ipdb.set_trace()
+            # import logging_tree; logging_tree.printout()
+            
             try:
                 # Run the wrapped function
                 logger.info(kwargs)
@@ -116,6 +125,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                 # logging_reset_handlers(logging_config)
                 logger.handlers = stored_handlers
                 logging.shutdown()
+                logging.captureWarnings(False)
         return wrapper
     return inner
 

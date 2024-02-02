@@ -44,7 +44,7 @@ class TestPlatformList(ComputationChecker):
         self.tmp_files = self.create_tmp_files([a for a in self.default_args.keys() if 'json' in a])
         assert responses, 'responses package required to run'
         self.api_url = 'http://example.com/api'
-        self.api_ver = 'v1'
+        self.api_ver = 'v2'
         responses.start()
         self.min_args = {'server_url': self.api_url}
 
@@ -176,7 +176,7 @@ class TestPlatformRunInputs(ComputationChecker):
         )
         assert responses, 'responses package required to run'
         self.api_url = 'http://localhost:8000'
-        self.api_ver = 'v1'
+        self.api_ver = 'v2'
         responses.start()
 
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
@@ -510,7 +510,7 @@ class TestPlatformRunLosses(ComputationChecker):
         self.tmp_files = self.create_tmp_files([a for a in self.default_args if 'json' in a])
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.api_url = 'http://localhost:8000'
-        self.api_ver = 'v1'
+        self.api_ver = 'v2'
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -572,7 +572,7 @@ class TestPlatformRun(ComputationChecker):
         )
         self.write_json(self.tmp_files.get('analysis_settings_json'), {'test': 'run settings'})
         self.api_url = 'http://localhost:8000'
-        self.api_ver = 'v1'
+        self.api_ver = 'v2'
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -674,7 +674,7 @@ class TestPlatformDelete(ComputationChecker):
 
     def setUp(self):
         self.api_url = 'http://localhost:8000'
-        self.api_ver = 'v1'
+        self.api_ver = 'v2'
         self.min_args = {'server_url': self.api_url}
 
     def test_delete__no_input_given__exception_raised(self):
@@ -746,7 +746,7 @@ class TestPlatformGet(ComputationChecker):
 
     def setUp(self):
         self.api_url = 'http://localhost:8000'
-        self.api_ver = 'v1'
+        self.api_ver = 'v2'
         self.tmp_dirs = self.create_tmp_dirs(['output_dir'])
         self.min_args = {'server_url': self.api_url, 'output_dir': self.tmp_dirs['output_dir'].name}
 
