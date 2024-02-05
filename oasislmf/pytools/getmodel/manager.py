@@ -5,6 +5,7 @@ TODO: use selector and select for output
 
 """
 import atexit
+import json
 import logging
 import os
 import sys
@@ -29,6 +30,7 @@ from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 from ods_tools.oed import AnalysisSettingSchema
 
+from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
 logger = logging.getLogger(__name__)
 
@@ -449,16 +451,17 @@ def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, igno
     input_files = set(storage.listdir())
     vuln_adj = get_vulnerability_replacements(run_dir, vuln_dict)
 
-    if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url('vulnerability_dataset', encode_params=False)[1]}")
+    if vulnerability_dataset in input_files and "parquet" not in ignore_file_type:
+        with storage.open(parquetvulnerability_meta_filename, 'r') as outfile:
+            meta_data = json.load(outfile)
+        logger.debug(f"loading {storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]}")
 
-        df_reader_config = clean_config(InputReaderConfig(filepath='vulnerability_dataset', engine=df_engine))
+        df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
         df_reader_config["engine"]["options"]["storage"] = storage
-        reader = get_df_reader(df_reader_config).filter(lambda df: df[df["vulnerability_id"] in list(vuln_dict)])
-        num_damage_bins = reader.apply(lambda df: df['damage_bin_id'].max())
-
-        df = reader.to_pandas()
-        vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(df['vuln_array'].length(),
+        reader = get_df_reader(df_reader_config).filter(lambda df: df[df["vulnerability_id"].isin(list(vuln_dict))])
+        df = reader.as_pandas()
+        num_damage_bins = meta_data['num_damage_bins']
+        vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
                                                                     num_damage_bins,
                                                                     num_intensity_bins)
         vulns_id = df['vulnerability_id'].to_numpy()
@@ -491,7 +494,10 @@ def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, igno
             else:
                 with storage.with_fileno("vulnerability.bin") as f:
                     vulns_bin = np.memmap(f, dtype=Vulnerability, offset=4, mode='r')
-                vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
+                if vuln_adj is not None and len(vuln_adj) > 0:
+                    vuln_array = load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
+                else:
+                    vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
             logger.debug(f"loading {storage.get_storage_url('vulnerability.csv', encode_params=False)[1]}")
