@@ -38,6 +38,7 @@ from oasislmf.model_execution.bin import (
 
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset
 
 from tests.data import (
     standard_input_files,
@@ -1028,7 +1029,7 @@ class SetVulnerabilitySet(TestCase):
     def setUp(self):
         """ Declare identifier for vulnerability file set for tests. """
         self.setting_val = 'test'
-        self.vulnerability_dataset = 'vulnerability_dataset'
+        self.vulnerability_dataset = vulnerability_dataset
 
     def make_mock_vulnerability_files(self, directory, file_format):
         """ Write a mock vulnerability file in the specified format to the directory. """
