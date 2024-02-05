@@ -208,13 +208,15 @@ class TestGetVulns(TestCase):
             self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][expected_index]))
 
     def test_get_vulns_adj(self):
+        model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
+
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             with mock.patch('os.path.exists', return_value=True):
                 with mock.patch('ods_tools.oed.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                          'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}
                                                                                          }):
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     self.assertIsNotNone(vuln_array)
                     self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -263,10 +265,10 @@ class TestGetVulns(TestCase):
         # First, run the function without any adjustments
         vuln_arrays_no_adj = {}
         vuln_ids_no_adj = {}
-
+        model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             vuln_arrays_no_adj[file_type] = vuln_array
             vuln_ids_no_adj[file_type] = vulns_id
