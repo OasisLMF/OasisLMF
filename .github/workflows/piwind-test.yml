@@ -53,7 +53,7 @@ jobs:
     uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/3.1.x' ||  inputs.ods_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/3.2.x' ||  inputs.ods_branch }}
 
   platform1:
     if: ${{ ! failure() || ! cancelled() }}
@@ -61,11 +61,12 @@ jobs:
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/1.28.x' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/2.3.x' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
-      platform_version: ${{ github.event_name != 'workflow_dispatch' && '1.28.0' ||  inputs.platform_1_version }}
+      platform_version: ${{ github.event_name != 'workflow_dispatch' && 'latest' ||  inputs.platform_1_version }}
+      worker_api_ver: 'v1'
       storage_suffix: '_platform1'
 
   platform2:
@@ -80,4 +81,5 @@ jobs:
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
       platform_version: ${{ github.event_name != 'workflow_dispatch' && '2.2.0' ||  inputs.platform_2_version }}
       pytest_opts: "--docker-compose=./docker/plat2.docker-compose.yml "
+      worker_api_ver: 'v1'
       storage_suffix: '_platform2'

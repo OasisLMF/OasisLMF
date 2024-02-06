@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.testing import assert_array_almost_equal
 from oasislmf.pytools.fm.common import fm_profile_dtype
-from oasislmf.pytools.fm.policy_extras import calc, UnknownCalcrule
+from oasislmf.pytools.fm.policy_extras import calc
 
 
 def test_calcrule_1():

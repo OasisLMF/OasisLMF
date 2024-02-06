@@ -34,5 +34,5 @@ jobs:
     with:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/1.28.x' || inputs.piwind_branch }}
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/3.1.x' || inputs.ods_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/2.3.x' || inputs.piwind_branch }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/3.2.x' || inputs.ods_branch }}

@@ -5,6 +5,7 @@ TODO: use selector and select for output
 
 """
 import atexit
+import json
 import logging
 import os
 import sys
@@ -13,15 +14,23 @@ from contextlib import ExitStack
 import numba as nb
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
+
+from numba import int32 as nb_int32, float64 as nb_float64
 from numba.typed import Dict
 
+from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
+from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
+from oasislmf.utils.data import validate_vulnerability_replacements
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
+from ods_tools.oed import AnalysisSettingSchema
+
+from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +52,6 @@ damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('interpolation', oasis_float),
                                               ('interval_type', np.int32),
                                               ]))
-
-damagebindictionaryCsv = nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                                 ('bin_from', oasis_float),
-                                                 ('bin_to', oasis_float),
-                                                 ('interpolation', oasis_float)]))
 
 EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
                                    ('areaperil_id', areaperil_int),
@@ -75,7 +79,7 @@ VulnerabilityIndex = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                              ('original_size', np.int64)
                                              ]))
 VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
-                                           ('damage_bin_id', np.int64),
+                                           ('damage_bin_id', np.int32),
                                            ('probability', oasis_float)
                                            ]))
 
@@ -189,29 +193,84 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
 
 @nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                       num_damage_bins, num_intensity_bins):
+                       num_damage_bins, num_intensity_bins, rowsize):
     """
     Loads the vulnerability binary index file.
 
     Args:
-        vulns_bin:
-        vulns_idx_bin:
-        vuln_dict:
-        num_damage_bins:
-        num_intensity_bins:
+        vulns_bin: (List[VulnerabilityRow]) vulnerability data from the vulnerability file
+        vulns_idx_bin: (List[VulnerabilityIndex]) vulnerability index data from the vulnerability idx file
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_damage_bins: (int) number of damage bins in the data
+        num_intensity_bins: (int) the number of intensity bins
 
-    Returns:
+    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
     """
     vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
     for idx_i in range(vulns_idx_bin.shape[0]):
         vuln_idx = vulns_idx_bin[idx_i]
         if vuln_idx['vulnerability_id'] in vuln_dict:
             cur_vuln_array = vuln_array[vuln_dict[vuln_idx['vulnerability_id']]]
-            start = (vuln_idx['offset'] - vuln_offset) // VulnerabilityRow.itemsize
-            end = start + vuln_idx['size'] // VulnerabilityRow.itemsize
+            start = (vuln_idx['offset'] - vuln_offset) // rowsize
+            end = start + vuln_idx['size'] // rowsize
             for vuln_i in range(start, end):
                 vuln = vulns_bin[vuln_i]
                 cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
+
+    return vuln_array
+
+
+@nb.njit(cache=True)
+def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
+                                num_damage_bins, num_intensity_bins, rowsize, adj_vuln_data=None):
+    """
+    Loads the vulnerability binary index file, prioritizing the data in the adjustments file over the data in the
+    vulnerability file.
+
+    Args:
+        vulns_bin: (List[VulnerabilityRow]) vulnerability data from the vulnerability file
+        vulns_idx_bin: (List[VulnerabilityIndex]) vulnerability index data from the vulnerability idx file
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_damage_bins: (int) number of damage bins in the data
+        num_intensity_bins: (int) the number of intensity bins
+        adj_vuln_data: (List[Vulnerability]) vulnerability adjustment data, sorted by vuln_id
+
+    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    """
+    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+    adj_vuln_index = 0
+
+    for idx_i in range(vulns_idx_bin.shape[0]):
+        vuln_idx = vulns_idx_bin[idx_i]
+        vuln_id = vuln_idx['vulnerability_id']
+
+        # Check if current vulnerability id is in the adjustment data
+        while adj_vuln_data is not None and adj_vuln_index < len(adj_vuln_data) and adj_vuln_data[adj_vuln_index]['vulnerability_id'] < vuln_id:
+            adj_vuln_index += 1
+
+        if vuln_id in vuln_dict:
+            cur_vuln_array = vuln_array[vuln_dict[vuln_id]]
+            start = (vuln_idx['offset'] - vuln_offset) // rowsize
+            end = start + vuln_idx['size'] // rowsize
+
+            # Apply data from vulns_bin or adj_vuln_data
+            for vuln_i in range(start, end):
+                if (adj_vuln_data is not None and adj_vuln_index < len(adj_vuln_data) and adj_vuln_data[adj_vuln_index]['vulnerability_id'] == vuln_id):
+                    adj_vuln = adj_vuln_data[adj_vuln_index]
+                    cur_vuln_array[adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+                    adj_vuln_index += 1
+                else:
+                    vuln = vulns_bin[vuln_i]
+                    cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
+
+    # Add remaining adj_vuln_data
+    while adj_vuln_data is not None and adj_vuln_index < len(adj_vuln_data):
+        adj_vuln = adj_vuln_data[adj_vuln_index]
+        vuln_id = adj_vuln['vulnerability_id']
+        if vuln_id in vuln_dict:
+            cur_vuln_array = vuln_array[vuln_dict[vuln_id]]
+            cur_vuln_array[adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+        adj_vuln_index += 1
 
     return vuln_array
 
@@ -246,6 +305,56 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     return vuln_array
 
 
+@nb.njit(cache=True)
+def load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, adj_vuln_data=None):
+    """
+    Loads the vulnerability data grouped by the intensity and damage bins, prioritizing the data
+    in the adjustments file over the data in the vulnerability file.
+
+    Args:
+        vuln_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_damage_bins: (int) number of damage bins in the data
+        num_intensity_bins: (int) the number of intensity bins
+        adj_vuln_data: (List[Vulnerability]) vulnerability adjustment data, sorted by vuln_id
+
+    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    """
+    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+    ids_to_replace = set()
+    adj_vuln_index = 0
+
+    # Create list of ids to replace if adj_vuln_data is provided
+    if adj_vuln_data is not None:
+        for adj_vuln in adj_vuln_data:
+            ids_to_replace.add(adj_vuln['vulnerability_id'])
+
+    vuln_i = 0
+
+    while vuln_i < len(vulns_bin):
+        vuln = vulns_bin[vuln_i]
+        vuln_id = vuln['vulnerability_id']
+        if vuln_id in vuln_dict:
+            if vuln_id in ids_to_replace:
+                # Advance to current vuln_id
+                while adj_vuln_index < len(adj_vuln_data) and adj_vuln_data[adj_vuln_index]['vulnerability_id'] < vuln_id:
+                    adj_vuln_index += 1
+                # process current vuln_id
+                while adj_vuln_index < len(adj_vuln_data) and adj_vuln_data[adj_vuln_index]['vulnerability_id'] == vuln_id:
+                    adj_vuln = adj_vuln_data[adj_vuln_index]
+                    vuln_array[vuln_dict[vuln_id], adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+                    adj_vuln_index += 1
+                # Skip remaining vulns_bin entries with the same vulnerability_id
+                while vuln_i < len(vulns_bin) and vulns_bin[vuln_i]['vulnerability_id'] == vuln_id:
+                    vuln_i += 1
+                continue
+            else:
+                # Use data from vulns_bin
+                vuln_array[vuln_dict[vuln_id], vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
+        vuln_i += 1
+    return vuln_array
+
+
 @nb.njit()
 def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
@@ -258,6 +367,25 @@ def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
     for i in range(vulns_id_array.shape[0]):
         vuln_dict[vulns_id_array[i]] = np.int32(i)
+
+
+@nb.njit()
+def update_vuln_array_with_adj_data(vuln_array, vuln_dict, adj_vuln_data):
+    """
+    Update the vulnerability array with adjustment data (used for parquet loading).
+
+    Args:
+        vuln_array: (3D array) The vulnerability data array.
+        vuln_dict: (Dict[int, int]) Maps vulnerability IDs to indices in vuln_array.
+        adj_vuln_data: (List[Vulnerability]) The vulnerability adjustment data.
+
+    Returns: (3D array) The updated vulnerability data array.
+    """
+    for adj_vuln in adj_vuln_data:
+        vuln_id = adj_vuln['vulnerability_id']
+        if vuln_id in vuln_dict:
+            vuln_array[vuln_dict[vuln_id], adj_vuln['damage_bin_id'] - 1, adj_vuln['intensity_bin_id'] - 1] = adj_vuln['probability']
+    return vuln_array
 
 
 @nb.njit()
@@ -278,98 +406,197 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
+def get_vuln_rngadj_dict(run_dir, vuln_dict):
+    """
+    Loads vulnerability adjustments from the analysis settings file.
+
+    Args:
+        run_dir (str): path to the run directory (used to load the analysis settings)
+
+    Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+    vuln_adj_numba_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
+    if not os.path.exists(settings_path):
+        logger.debug(f"analysis_settings.json not found in {run_dir}.")
+        return vuln_adj_numba_dict
+    vulnerability_adjustments_field = None
+    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments', None)
+    if vulnerability_adjustments_field is not None:
+        adjustments = vulnerability_adjustments_field.get('adjustments', None)
+    else:
+        adjustments = None
+    if adjustments is None:
+        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
+        return vuln_adj_numba_dict
+    for key, value in adjustments.items():
+        if nb_int32(key) in vuln_dict.keys():
+            vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
+    return vuln_adj_numba_dict
+
+
+def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
     """
     Loads the vulnerabilities from the file.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        storage: (str) the storage manager for fetching model data
+        run_dir: (str) the path to the run folder (used to load the analysis settings)
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_intensity_bins: (int) the number of intensity bins
         ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: (Tuple[List[List[float]], int, np.array[int]) vulnerability data, vulnerabilities id, number of damage bins
     """
-    input_files = set(os.listdir(static_path))
-    if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
-        parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability_dataset"), use_legacy_dataset=False,
-                                           filters=[("vulnerability_id", "in", list(vuln_dict))],
-                                           memory_map=True)
-        vuln_table = parquet_handle.read()
-        vuln_meta = vuln_table.schema.metadata
-        num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
-        number_of_intensity_bins = int(vuln_meta[b"num_intensity_bins"].decode("utf-8"))
-        vuln_array = np.vstack(vuln_table['vuln_array'].to_numpy()).reshape(vuln_table['vuln_array'].length(),
-                                                                            num_damage_bins,
-                                                                            number_of_intensity_bins)
-        vulns_id = vuln_table['vulnerability_id'].to_numpy()
+    input_files = set(storage.listdir())
+    vuln_adj = get_vulnerability_replacements(run_dir, vuln_dict)
+
+    if vulnerability_dataset in input_files and "parquet" not in ignore_file_type:
+        with storage.open(parquetvulnerability_meta_filename, 'r') as outfile:
+            meta_data = json.load(outfile)
+        logger.debug(f"loading {storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]}")
+
+        df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
+        df_reader_config["engine"]["options"]["storage"] = storage
+        reader = get_df_reader(df_reader_config).filter(lambda df: df[df["vulnerability_id"].isin(list(vuln_dict))])
+        df = reader.as_pandas()
+        num_damage_bins = meta_data['num_damage_bins']
+        vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
+                                                                    num_damage_bins,
+                                                                    num_intensity_bins)
+        vulns_id = df['vulnerability_id'].to_numpy()
         update_vulns_dictionary(vuln_dict, vulns_id)
+        # update vulnerability array with adjustment data if present
+        if vuln_adj is not None and len(vuln_adj) > 0:
+            vuln_array = update_vuln_array_with_adj_data(vuln_array, vuln_dict, vuln_adj)
 
     else:
         if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
-            logger.debug(f"loading {os.path.join(static_path, 'vulnerability.bin')}")
-            with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
+            logger.debug(f"loading {storage.get_storage_url('vulnerability.bin', encode_params=False)[1]}")
+            with storage.open("vulnerability.bin", 'rb') as f:
                 header = np.frombuffer(f.read(8), 'i4')
                 num_damage_bins = header[0]
-            if "vulnerability.idx" in static_path:
-                logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
-                                      dtype=VulnerabilityRow, offset=4, mode='r')
-                vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"),
-                                          dtype=VulnerabilityIndex, mode='r')
-                vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                                                num_damage_bins, num_intensity_bins)
+
+            if "vulnerability.idx" in input_files and 'idx' not in ignore_file_type:
+                logger.debug(f"loading {storage.get_storage_url('vulnerability.idx', encode_params=False)[1]}")
+                with storage.open("vulnerability.bin") as f:
+                    vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=4, mode='r')
+
+                with storage.open("vulnerability.idx") as f:
+                    vulns_idx_bin = np.memmap(f, dtype=VulnerabilityIndex, mode='r')
+
+                if vuln_adj is not None and len(vuln_adj) > 0:
+                    vuln_array = load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
+                                                             num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize, vuln_adj)
+                else:
+                    vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
+                                                    num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize)
             else:
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
-                                      dtype=Vulnerability, offset=4, mode='r')
-                vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
+                with storage.with_fileno("vulnerability.bin") as f:
+                    vulns_bin = np.memmap(f, dtype=Vulnerability, offset=4, mode='r')
+                if vuln_adj is not None and len(vuln_adj) > 0:
+                    vuln_array = load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
+                else:
+                    vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
-            logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
-            vuln_csv = np.loadtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+            logger.debug(f"loading {storage.get_storage_url('vulnerability.csv', encode_params=False)[1]}")
+            with storage.open("vulnerability.csv") as f:
+                vuln_csv = np.loadtxt(f, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
-            vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
+            if vuln_adj is not None and len(vuln_adj) > 0:
+                vuln_array = load_vulns_bin_adjusted(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
+            else:
+                vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
-            raise FileNotFoundError(f'vulnerability file not found at {static_path}')
+            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
         vulns_id = create_vulns_id(vuln_dict)
 
     return vuln_array, vulns_id, num_damage_bins
 
 
-def get_mean_damage_bins(static_path, ignore_file_type=set()):
+def get_vulnerability_replacements(run_dir, vuln_dict):
+    """
+    Loads the vulnerability adjustment file.
+
+    Args:
+        path: (str) the path pointing to the run directory
+        vuln_dict: (Dict[int, int]) list of vulnerability IDs
+
+    Returns: (List[Vulnerability]) vulnerability replacement data
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+
+    if not os.path.exists(settings_path):
+        logger.warning(f"analysis_settings.json not found in {run_dir}.")
+        return None
+
+    if not validate_vulnerability_replacements(settings_path):
+        return None
+
+    vulnerability_replacements_key = None
+    vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
+
+    # Inputting the data directly into the analysis_settings.json file takes precedence over the file path
+    vulnerability_replacements_field = vulnerability_replacements_key.get('replace_data', None)
+    if vulnerability_replacements_field is None:
+        vulnerability_replacements_field = vulnerability_replacements_key.get('replace_file', None)
+
+    if isinstance(vulnerability_replacements_field, dict):
+        # Convert dict to flat array equivalent to csv format
+        flat_data = []
+        for v_id, adjustments in vulnerability_replacements_field.items():
+            for adj in adjustments:
+                flat_data.append((v_id, *adj))
+        vuln_adj = np.array(flat_data, dtype=Vulnerability)
+    elif isinstance(vulnerability_replacements_field, str):
+        # Load csv file
+        absolute_path = os.path.abspath(vulnerability_replacements_field)
+        logger.debug(f"loading {absolute_path}")
+        vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+    vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],
+                        dtype=vuln_adj.dtype)
+    vuln_adj.sort(order='vulnerability_id')
+    logger.info("Vulnerability adjustments found in analysis settings.")
+    return vuln_adj
+
+
+def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     """
     Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
     """
-    return get_damage_bins(static_path, ignore_file_type)['interpolation']
+    return get_damage_bins(storage, ignore_file_type)['interpolation']
 
 
-def get_damage_bins(static_path, ignore_file_type=set()):
+def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     """
     Loads the damage bins from the damage_bin_dict file.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
     """
-    input_files = set(os.listdir(static_path))
+    input_files = set(storage.listdir())
+
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.bin')}")
-        return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)
+        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
+        with storage.with_fileno("damage_bin_dict.bin") as f:
+            return np.fromfile(f, dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
-        return np.loadtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv, skiprows=1, delimiter=',', ndmin=1)
+        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
+        with storage.open("damage_bin_dict.csv") as f:
+            return np.loadtxt(f, dtype=damagebindictionary, skiprows=1, delimiter=',', ndmin=1)
     else:
-        raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
+        raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -538,7 +765,15 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
 
 
 @redirect_logging(exec_name='modelpy')
-def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
+def run(
+    run_dir,
+    file_in,
+    file_out,
+    ignore_file_type,
+    data_server,
+    peril_filter,
+    df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+):
     """
     Runs the main process of the getmodel process.
 
@@ -549,10 +784,14 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         ignore_file_type: set(str) file extension to ignore when loading
         data_server: (bool) if set to True runs the data server
         peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
+        df_engine: (str) The engine to use when loading dataframes
 
     Returns: None
     """
-    static_path = os.path.join(run_dir, 'static')
+    model_storage = get_storage_from_config_path(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, 'static'),
+    )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -592,7 +831,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
             input_path, ignore_file_type, valid_area_peril_id)
 
         logger.debug('init footprint')
-        footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=df_engine))
 
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
@@ -602,10 +841,11 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, vuln_dict,
+                                                          num_intensity_bins, ignore_file_type, df_engine=df_engine)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
-        mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
+        mean_damage_bins = get_mean_damage_bins(model_storage, ignore_file_type)
 
         # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
         max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size

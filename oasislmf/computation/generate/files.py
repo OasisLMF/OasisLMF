@@ -10,8 +10,6 @@ import os
 from pathlib import Path
 from typing import List
 
-from ods_tools.oed.setting_schema import ModelSettingSchema
-
 from oasislmf.computation.base import ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
                                                             CoveragesFile,
@@ -50,7 +48,7 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import \
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
-                                 prepare_reinsurance_df)
+                                 prepare_reinsurance_df, validate_vulnerability_replacements)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
@@ -59,6 +57,7 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
+from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
 
 class GenerateFiles(ComputationStep):
@@ -71,6 +70,8 @@ class GenerateFiles(ComputationStep):
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
          'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
+        {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': False,
+         'help': 'Analysis settings JSON file path'},
         {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
         {'name': 'profile_loc_json', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
@@ -101,6 +102,13 @@ class GenerateFiles(ComputationStep):
         {'name': 'profile_loc', 'default': get_default_exposure_profile()},
         {'name': 'profile_acc', 'default': get_default_accounts_profile()},
         {'name': 'profile_fm_agg', 'default': get_default_fm_aggregation_profile()},
+        {'name': 'location', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+        {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
+        {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+        {'name': 'base_df_engine', 'type': str, 'default': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
+         'help': 'The default dataframe reading engine to use when loading files'},
+        {'name': 'exposure_df_engine', 'type': str, 'default': None,
+         'help': 'The dataframe reading engine to use when loading exposure files'},
     ]
 
     chained_commands = [
@@ -122,7 +130,12 @@ class GenerateFiles(ComputationStep):
             'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'location_numbers': self.location,
+            'portfolio_numbers': self.portfolio,
+            'account_numbers': self.account,
+            'base_df_engine': self.base_df_engine,
+            'exposure_df_engine': self.exposure_df_engine,
         }
 
     def run(self):
@@ -137,8 +150,6 @@ class GenerateFiles(ComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
-        if self.model_settings_json is not None:
-            print(f"Model settings are present at: {self.model_settings_json}")
         self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
@@ -147,6 +158,8 @@ class GenerateFiles(ComputationStep):
         ri = exposure_data.ri_info and exposure_data.ri_scope and il
         self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         summarise_exposure = not self.disable_summarise_exposure
+
+        validate_vulnerability_replacements(self.analysis_settings_json)
 
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
@@ -227,9 +240,15 @@ class GenerateFiles(ComputationStep):
         model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
+        correlations_analysis_settings = None
 
+        # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
+        if self.analysis_settings_json is not None:
+            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
+            if correlations_analysis_settings is not None:
+                model_settings['correlation_settings'] = correlations_analysis_settings
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")

@@ -5,6 +5,7 @@ from numba.typed import Dict
 import numpy as np
 import os
 
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
     BUFFER_SIZE,
     DATA_SIZE,
@@ -106,9 +107,7 @@ def fill_post_loss_amplification_factors(
     return event_id, count, plafactors
 
 
-def get_post_loss_amplification_factors(
-    path, secondary_factor, uniform_factor
-):
+def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, uniform_factor, ignore_file_type=set()):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
     Returns empty dictionary if uniform factor to apply across all losses has
@@ -128,10 +127,11 @@ def get_post_loss_amplification_factors(
         amplification ID n (4-byte int), loss factor for amplification ID n (4-byte float)
 
     Args:
-        path (str): path to lossfactors.bin file
+        storage: (BaseStorage) the storage connector for fetching the model data
         secondary_factor (float): secondary factor to apply to post loss
           amplification
         uniform_factor (float): uniform factor to apply across all losses
+        ignore_file_type: set(str) file extension to ignore when loading
 
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
@@ -142,35 +142,40 @@ def get_post_loss_amplification_factors(
     if uniform_factor > 0.0:
         return plafactors
 
-    with open(os.path.join(path, LOSS_FACTORS_FILE_NAME), 'rb') as f:
-        factors_buffer = memoryview(bytearray(BUFFER_SIZE))
-        event_count = np.ndarray(
-            N_PAIRS, buffer=factors_buffer, dtype=event_count_dtype
-        )
-        amp_factor = np.ndarray(
-            N_PAIRS, buffer=factors_buffer, dtype=amp_factor_dtype
-        )
-        f.readinto(factors_buffer[:FILE_HEADER_SIZE])   # Ignore first 4 bytes
-
-        cursor = 0
-        valid_buffer = 0
-        count = 0
-        event_id = 0
-        while True:
-            len_read = f.readinto(factors_buffer[valid_buffer:])
-            valid_buffer += len_read
-
-            if len_read == 0:
-                break
-
-            valid_length = valid_buffer // DATA_SIZE
-
-            event_id, count, plafactors = fill_post_loss_amplification_factors(
-                event_id, count, cursor, valid_length, event_count, amp_factor,
-                plafactors, secondary_factor
+    input_files = set(storage.listdir())
+    if LOSS_FACTORS_FILE_NAME in input_files and 'bin' not in ignore_file_type:
+        logger.debug(f"loading {storage.get_storage_url(LOSS_FACTORS_FILE_NAME, encode_params=False)[1]}")
+        with storage.with_fileno(LOSS_FACTORS_FILE_NAME) as f:
+            factors_buffer = memoryview(bytearray(BUFFER_SIZE))
+            event_count = np.ndarray(
+                N_PAIRS, buffer=factors_buffer, dtype=event_count_dtype
             )
+            amp_factor = np.ndarray(
+                N_PAIRS, buffer=factors_buffer, dtype=amp_factor_dtype
+            )
+            f.readinto(factors_buffer[:FILE_HEADER_SIZE])   # Ignore first 4 bytes
 
-            valid_buffer = 0
             cursor = 0
+            valid_buffer = 0
+            count = 0
+            event_id = 0
+            while True:
+                len_read = f.readinto(factors_buffer[valid_buffer:])
+                valid_buffer += len_read
 
-    return plafactors
+                if len_read == 0:
+                    break
+
+                valid_length = valid_buffer // DATA_SIZE
+
+                event_id, count, plafactors = fill_post_loss_amplification_factors(
+                    event_id, count, cursor, valid_length, event_count, amp_factor,
+                    plafactors, secondary_factor
+                )
+
+                valid_buffer = 0
+                cursor = 0
+
+            return plafactors
+    else:
+        raise FileNotFoundError(f"lossfactors.bin file not found at {storage.get_storage_url('', encode_params=False)[1]}")

@@ -35,7 +35,10 @@ from oasislmf.model_execution.bin import (
     set_footprint_set,
     set_vulnerability_set
 )
+
+from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset
 
 from tests.data import (
     standard_input_files,
@@ -608,17 +611,18 @@ class PrepareRunInputs(TestCase):
     def test_prepare_input_bin_raises___oasis_exception_is_raised(self):
         with patch('oasislmf.model_execution.bin._prepare_input_bin', Mock(side_effect=OSError('os error'))):
             with self.assertRaises(OasisException):
-                prepare_run_inputs({}, 'some_dir')
+                prepare_run_inputs({}, 'some_dir', Mock())
 
     def test_events_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
                 events_file.flush()
 
-                prepare_run_inputs({}, d)
+                prepare_run_inputs({}, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events bin', new_events_file.read())
@@ -626,12 +630,13 @@ class PrepareRunInputs(TestCase):
     def test_events_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
                 events_file.flush()
 
-                prepare_run_inputs({}, d)
+                prepare_run_inputs({}, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events bin', new_events_file.read())
@@ -639,12 +644,13 @@ class PrepareRunInputs(TestCase):
     def test_events_bin_doesnt_not_exist_event_set_is_specified___event_set_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'events_from_set.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events from set bin')
                 events_file.flush()
 
-                prepare_run_inputs({'model_settings': {'event_set': 'from set'}}, d)
+                prepare_run_inputs({'model_settings': {'event_set': 'from set'}}, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events from set bin', new_events_file.read())
@@ -652,20 +658,22 @@ class PrepareRunInputs(TestCase):
     def test_no_events_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'events.bin'))
 
             with self.assertRaises(OasisException):
-                prepare_run_inputs({}, d)
+                prepare_run_inputs({}, d, model_storage)
 
     def test_returnperiods_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
-                prepare_run_inputs({}, d)
+                prepare_run_inputs({}, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
@@ -673,6 +681,7 @@ class PrepareRunInputs(TestCase):
     def test_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
@@ -682,7 +691,7 @@ class PrepareRunInputs(TestCase):
                     "lec_output": True,
                     "leccalc": {"full_uncertainty_aep": True},
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
@@ -690,6 +699,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
@@ -698,7 +708,7 @@ class PrepareRunInputs(TestCase):
                 settings = {"gul_summaries": [{
                     "ord_output": {"psept_oep": True},
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
@@ -706,6 +716,7 @@ class PrepareRunInputs(TestCase):
     def test_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
@@ -713,28 +724,30 @@ class PrepareRunInputs(TestCase):
                     "lec_output": True,
                     "leccalc": {"full_uncertainty_aep": True},
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
     def test_ord_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
                 settings = {"gul_summaries": [{
                     "ord_output": {"ept_full_uncertainty_aep": True},
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
     def test_occurrence_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
-                prepare_run_inputs({}, d)
+                prepare_run_inputs({}, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
@@ -742,6 +755,7 @@ class PrepareRunInputs(TestCase):
     def test_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
@@ -751,7 +765,7 @@ class PrepareRunInputs(TestCase):
                     "lec_output": True,
                     "leccalc": {"full_uncertainty_aep": True},
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
@@ -759,6 +773,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
@@ -767,7 +782,7 @@ class PrepareRunInputs(TestCase):
                 settings = {"gul_summaries": [{
                     "ord_output": {"ept_per_sample_mean_aep": True},
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
@@ -775,6 +790,7 @@ class PrepareRunInputs(TestCase):
     def test_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence occurrence id bin')
@@ -787,7 +803,7 @@ class PrepareRunInputs(TestCase):
                     }],
                     'model_settings': {'event_occurrence_id': 'occurrence id'}
                 }
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
@@ -795,6 +811,7 @@ class PrepareRunInputs(TestCase):
     def test_ord_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence occurrence id bin')
@@ -806,7 +823,7 @@ class PrepareRunInputs(TestCase):
                     }],
                     'model_settings': {'event_occurrence_id': 'occurrence id'}
                 }
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
@@ -814,6 +831,7 @@ class PrepareRunInputs(TestCase):
     def test_no_occurrence_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
             os.remove(os.path.join(d, 'static', 'occurrence.bin'))
 
             with self.assertRaises(OasisException):
@@ -823,11 +841,12 @@ class PrepareRunInputs(TestCase):
                     "pltcalc": True,
                     "lec_output": True,
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
     def test_periods_bin_already_exists___existing_bin_is_unchanged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
@@ -839,7 +858,7 @@ class PrepareRunInputs(TestCase):
                     "pltcalc": True,
                     "lec_output": True,
                 }]}
-                prepare_run_inputs(settings, d)
+                prepare_run_inputs(settings, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
@@ -847,12 +866,13 @@ class PrepareRunInputs(TestCase):
     def test_periods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
+            model_storage = LocalStorage(root_dir=os.path.join(d, "static"), cache_dir=None)
 
             with io.open(os.path.join(d, 'static', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
                 periods_file.flush()
 
-                prepare_run_inputs({}, d)
+                prepare_run_inputs({}, d, model_storage)
 
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
@@ -1009,7 +1029,7 @@ class SetVulnerabilitySet(TestCase):
     def setUp(self):
         """ Declare identifier for vulnerability file set for tests. """
         self.setting_val = 'test'
-        self.vulnerability_dataset = 'vulnerability_dataset'
+        self.vulnerability_dataset = vulnerability_dataset
 
     def make_mock_vulnerability_files(self, directory, file_format):
         """ Write a mock vulnerability file in the specified format to the directory. """

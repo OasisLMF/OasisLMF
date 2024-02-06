@@ -66,6 +66,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             if not os.path.isdir(log_dir):
                 os.makedirs(log_dir)
             logging_config = logging.root.manager.loggerDict.keys()
+            logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
@@ -86,6 +87,10 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
             logger.setLevel(logging.INFO)
             logger.addHandler(rootFileHandler)
 
+            # Set warning log handler
+            warn_logger = logging.getLogger('py.warnings')
+            warn_logger.addHandler(rootFileHandler)
+
             # # Debug: print logging tree
             # import ipdb; ipdb.set_trace()
             # import logging_tree; logging_tree.printout()
@@ -105,6 +110,7 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                     logging_reset_handlers(lg_name)
                 logger.removeHandler(rootFileHandler)
                 logging.shutdown()
+                logging.captureWarnings(False)
         return wrapper
     return inner
 

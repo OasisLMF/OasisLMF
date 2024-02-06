@@ -38,7 +38,12 @@ class GenerateOasisFiles(ComputationStep):
             'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'location_numbers': self.location,
+            'portfolio_numbers': self.portfolio,
+            'account_numbers': self.account,
+            'base_df_engine': self.base_df_engine,
+            'exposure_df_engine': self.exposure_df_engine or self.base_df_engine,
         }
 
     def run(self):

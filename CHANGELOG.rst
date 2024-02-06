@@ -1,6 +1,59 @@
 OasisLMF Changelog
 ==================
 
+`2.3.0`_
+ ---------
+* [#1409](https://github.com/OasisLMF/OasisLMF/pull/1409) - Fix server-version flag for API client runner
+* [#1410](https://github.com/OasisLMF/OasisLMF/pull/1411) - Support for AccParticipation 
+* [#1412](https://github.com/OasisLMF/OasisLMF/pull/1412) - use category for peril_id in keys.csv, improve write_fm_xref_file
+* [#1413](https://github.com/OasisLMF/OasisLMF/pull/1413) - Release 1.28.5
+* [#1408, #1414](https://github.com/OasisLMF/OasisLMF/pull/1415) - Replace single vulnerabilities through additional adjustments settings or file
+* [#1416](https://github.com/OasisLMF/OasisLMF/pull/1416) - fix useful columns when extra aggregation level is needed
+* [#1417](https://github.com/OasisLMF/OasisLMF/pull/1417) - Update CI job triggers - only test on PR or commit to main branches
+* [#1418](https://github.com/OasisLMF/OasisLMF/pull/1418) - Set ktools to 3.11.1
+* [#1421](https://github.com/OasisLMF/OasisLMF/pull/1421) - add test with location with 1 empty and 1 level 2 condtag
+* [#1423](https://github.com/OasisLMF/OasisLMF/pull/1423) - add acc participation only
+* [#1425](https://github.com/OasisLMF/OasisLMF/pull/1426) - Customise specific vulnerabilities (without providing full replacement data)
+* [#140](https://github.com/OasisLMF/OasisLMF/pull/1299) - Implement OED peril fields
+* [#1429](https://github.com/OasisLMF/OasisLMF/pull/1429) - franchise deductible
+* [#1430](https://github.com/OasisLMF/OasisLMF/pull/1431) - FM acceptance tests failing with pandas==2.2.0 
+* [#1422](https://github.com/OasisLMF/OasisLMF/pull/1432) - Adjust log levels separately for modules
+* [#1435](https://github.com/OasisLMF/OasisLMF/pull/1435) - Fix/update defaults
+* [#1441](https://github.com/OasisLMF/OasisLMF/pull/1441) - Feature/lot3 merge
+* [#1443](https://github.com/OasisLMF/OasisLMF/pull/1443) - Set package versions for 2.3.0
+* [#1249](https://github.com/OasisLMF/OasisLMF/pull/1320) - Discuss documentation strategy
+* [#1324](https://github.com/OasisLMF/OasisLMF/pull/1324) - Release/1.28.0
+* [#1334](https://github.com/OasisLMF/OasisLMF/pull/1334) - Update CI - 1.28
+* [#1340](https://github.com/OasisLMF/OasisLMF/pull/1340) - collect_unused_df in il preparation
+* [#1341](https://github.com/OasisLMF/OasisLMF/pull/1342) - Bug in latest platform2 release 
+* [#1344](https://github.com/OasisLMF/OasisLMF/pull/1344) - Release/1.28.1 (staging) 
+* [#1326](https://github.com/OasisLMF/OasisLMF/pull/1345) - Update the the `KeyLookupInterface` class to have access to the `lookup_complex_config_json`
+* [#140](https://github.com/OasisLMF/OasisLMF/pull/1346) - Implement OED peril fields
+* [#1349](https://github.com/OasisLMF/OasisLMF/pull/1349) - Fix removal of handlers to logger + give logfiles unique names
+* [#1322](https://github.com/OasisLMF/OasisLMF/pull/1351) - Step policies: Allow BI ground up loss through to gross losses
+* [#1293](https://github.com/OasisLMF/OasisLMF/pull/1352) - Multiple footprint file options
+* [#1357](https://github.com/OasisLMF/OasisLMF/pull/1357) - fix permissions for docs deploy
+* [#1360](https://github.com/OasisLMF/OasisLMF/pull/1360) - Add docs about gulmc
+* [#1366](https://github.com/OasisLMF/OasisLMF/pull/1367) - Update fm supported terms document
+* [#1347](https://github.com/OasisLMF/OasisLMF/pull/1369) - Add runtime user supplied secondary factor option to plapy
+* [#1317](https://github.com/OasisLMF/OasisLMF/pull/1371) - Add post-analysis hook
+* [#1372](https://github.com/OasisLMF/OasisLMF/pull/1373) - Incorect TIV in the summary info files
+* [#1376](https://github.com/OasisLMF/OasisLMF/pull/1376) - Release 1.28.3
+* [#1377](https://github.com/OasisLMF/OasisLMF/pull/1377) - Clean up 'runs' dir in repo
+* [#1378](https://github.com/OasisLMF/OasisLMF/pull/1378) - Support output of overall average period loss without standard deviation calculation
+* [#1292](https://github.com/OasisLMF/OasisLMF/pull/1380) - Parquet format summary info file
+* [#1382](https://github.com/OasisLMF/OasisLMF/pull/1386) - Change vulnerability weight data type from 32-bit integer to 32-bit float in gulmc
+* [#1387](https://github.com/OasisLMF/OasisLMF/pull/1387) - Release 1.28.4
+* [#1381](https://github.com/OasisLMF/OasisLMF/pull/1388) - Converting exposure files to previous OED version before running model
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1397) - Net RI losses do not use -z in summarycalc
+* [#1398](https://github.com/OasisLMF/OasisLMF/pull/1398) - Allow disaggregation to be disabled
+* [#1399](https://github.com/OasisLMF/OasisLMF/pull/1399) - Fixed loading booleans from oasislmf.json
+* [#1088](https://github.com/OasisLMF/OasisLMF/pull/1401) - Correlation options for the user
+* [#1405](https://github.com/OasisLMF/OasisLMF/pull/1405) - Fix/non compulsory condtag
+* [#1403](https://github.com/OasisLMF/OasisLMF/pull/1406) - Vulnerability File Option
+* [#1407](https://github.com/OasisLMF/OasisLMF/pull/1407) - Added tests for condition coverages 1-5 financial terms
+.. _`2.3.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.0...2.3.0
+
 `1.28.5`_
  ---------
 * [#1409](https://github.com/OasisLMF/OasisLMF/pull/1409) - Fix server-version flag for API client runner
