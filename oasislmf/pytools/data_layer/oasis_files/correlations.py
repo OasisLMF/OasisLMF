@@ -85,7 +85,7 @@ class CorrelationsData:
 
         Returns: None
         """
-        data = np.array(list(self.data.itertuples(index=False)), dtype=Correlation)
+        data = np.array([r for r in self.data.itertuples(index=False)], dtype=Correlation)
         data.tofile(file_path)
 
 

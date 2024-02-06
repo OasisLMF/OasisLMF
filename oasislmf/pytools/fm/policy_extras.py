@@ -12,10 +12,6 @@ from .policy import (calcrule_28 as _calcrule_28, calcrule_32 as _calcrule_32, c
                      calcrule_37 as _calcrule_37, calcrule_38 as _calcrule_38)
 
 
-class UnknownCalcrule(Exception):
-    pass
-
-
 @njit(cache=True)
 def min2(a, b):
     return a if a < b else b
@@ -654,6 +650,20 @@ def calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     _calcrule_38(policy, loss_out, loss_in)
 
 
+@njit(cache=True, fastmath=True)
+def calcrule_39(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    Franchise deductible
+    """
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            under_limit[i] += loss_in[i]
+            deductible[i] += loss_in[i]
+            loss_out[i] = 0
+        else:
+            loss_out[i] = loss_in[i]
+
+
 @njit(cache=True)
 def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped):
     if policy['calcrule_id'] == 1:
@@ -711,8 +721,12 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_35(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 36:
         calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+    elif policy['calcrule_id'] == 39:
+        calcrule_39(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
+    elif policy['calcrule_id'] == 200:
+        loss_out[:] = loss_in * policy['share_1']
     elif policy['calcrule_id'] == 101:
         calcrule_1(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         loss_out *= policy['share_1']
@@ -779,6 +793,6 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         elif policy['calcrule_id'] == 38:
             calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         else:
-            raise UnknownCalcrule()
+            raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")
     else:
-        raise UnknownCalcrule()
+        raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")

@@ -15,11 +15,12 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
@@ -85,6 +86,7 @@ def run(run_dir,
         ignore_haz_correlation=False,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
+        model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         **kwargs):
     """Execute the main gulmc worklow.
 
@@ -105,6 +107,7 @@ def run(run_dir,
         effective_damageability (bool, optional): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
         max_cached_vuln_cdf_size_MB (int, optional): size in MB of the in-memory cache to store and reuse vulnerability cdf. Defaults to 200.
+        model_df_engine: (str) The engine to use when loading model dataframes
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
         ValueError: if alloc_rule is 1, 2, or 3 when debug is 1 or 2.
@@ -114,7 +117,10 @@ def run(run_dir,
     """
     logger.info("starting gulmc")
 
-    static_path = os.path.join(run_dir, 'static')
+    model_storage = get_storage_from_config_path(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, 'static'),
+    )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -151,7 +157,7 @@ def run(run_dir,
             valid_area_peril_id = None
 
         logger.debug('import damage bins')
-        damage_bins = get_damage_bins(static_path, ignore_file_type)
+        damage_bins = get_damage_bins(model_storage, ignore_file_type)
 
         logger.debug('import coverages')
         # coverages are numbered from 1, therefore we skip element 0 in `coverages`
@@ -161,12 +167,14 @@ def run(run_dir,
 
         # prepare for stochastic disaggregation
         logger.debug('import aggregate vulnerability definitions and vulnerability weights')
-        aggregate_vulnerability = read_aggregate_vulnerability(static_path, ignore_file_type)
-        aggregate_weights = read_vulnerability_weights(static_path, ignore_file_type)
+        aggregate_vulnerability = read_aggregate_vulnerability(model_storage, ignore_file_type)
+        aggregate_weights = read_vulnerability_weights(model_storage, ignore_file_type)
         agg_vuln_to_vuln_id = process_aggregate_vulnerability(aggregate_vulnerability)
 
         if aggregate_vulnerability is not None and aggregate_weights is None:
-            raise FileNotFoundError(f'Vulnerability weights file not found at {static_path}')
+            raise FileNotFoundError(
+                f"Vulnerability weights file not found at {model_storage.get_storage_url('', print_safe=True)[1]}"
+            )
 
         # create map of weights by (areaperil_id, vuln_id)
         areaperil_vuln_id_to_weight = process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id)
@@ -216,7 +224,7 @@ def run(run_dir,
             areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=model_df_engine))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
@@ -224,7 +232,8 @@ def run(run_dir,
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('import vulnerabilities')
-        vuln_array, _, _ = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
+        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
         # set up streams
@@ -425,6 +434,7 @@ def run(run_dir,
                                                                                                                        do_haz_correlation,
                                                                                                                        haz_rndms_base,
                                                                                                                        vuln_rndms_base,
+                                                                                                                       vuln_adj_dict,
                                                                                                                        haz_eps_ij,
                                                                                                                        eps_ij,
                                                                                                                        norm_inv_parameters,
@@ -483,6 +493,7 @@ def compute_event_losses(event_id,
                          do_haz_correlation,
                          haz_rndms_base,
                          vuln_rndms_base,
+                         vuln_adj_dict,
                          haz_eps_ij,
                          eps_ij,
                          norm_inv_parameters,
@@ -536,6 +547,7 @@ def compute_event_losses(event_id,
           drawn for each seed for the hazard intensity sampling.
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
+        vuln_adj_dict (dict[int, float]): map between vulnerability_id and the adjustment factor to be applied to the (random numbers extracted) vulnerability function.
         haz_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for hazard sampling.
         eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
@@ -723,13 +735,19 @@ def compute_event_losses(event_id,
                             norm_cdf, sample_size, z_unif
                         )
                         vuln_rndms = z_unif
+                        if vulnerability_id in vuln_adj_dict:
+                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                     else:
                         vuln_rndms = vuln_rndms_base[rng_index]
+                        if vulnerability_id in vuln_adj_dict:
+                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                 else:
                     # do not use correlation
                     vuln_rndms = vuln_rndms_base[rng_index]
+                    if vulnerability_id in vuln_adj_dict:
+                        vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                 if effective_damageability:
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)
@@ -1316,7 +1334,7 @@ if __name__ == '__main__':
     # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
     #     .joinpath("assets").joinpath("test_model_2")
 
-    test_dir = Path("/home/mtazzari/repos/OasisLMF/tests/assets/test_model_1")
+    test_dir = Path("runs/losses-20240108105851")
 
     file_out = test_dir.joinpath('gulpy_mc.bin')
     run(

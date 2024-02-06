@@ -115,8 +115,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         peril_groups_df = get_peril_groups_df()
         model_perils_covered = np.unique(pd.DataFrame({'peril_group_id': self.config['model_perils_covered']})
                                          .merge(peril_groups_df)['peril_id'])
-
-        split_df = locations['LocPerilsCovered'].str.split(';').apply(pd.Series, 1).stack()
+        split_df = locations['LocPerilsCovered'].str.split(';').apply(pd.Series).stack()
         split_df.index = split_df.index.droplevel(-1)
         split_df.name = 'peril_group_id'
         keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
@@ -130,7 +129,6 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         keys_df.loc[success_df, 'status'] = OASIS_KEYS_STATUS['success']['id']
         keys_df.loc[~keys_df['peril_id'].isin(model_perils_covered), ['status', 'message']
                     ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
-
         keys_df[['area_peril_id', 'vulnerability_id']] = keys_df[['area_peril_id', 'vulnerability_id']].astype('Int32')
 
         return keys_df
@@ -377,7 +375,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing LocPerilsCovered column in location')
 
-            split_df = locations[loc_perils_covered_column].str.split(';').apply(pd.Series, 1).stack()
+            split_df = locations[loc_perils_covered_column].astype(str).str.split(';').apply(pd.Series, 1).stack()
             split_df.index = split_df.index.droplevel(-1)
             split_df.name = 'peril_group_id'
 
@@ -465,9 +463,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
             null_gdf_loc = locations[null_gdf]
             if not null_gdf_loc.empty:
-                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf])
+                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf], columns=locations.columns)
             else:
-                gdf_loc = gpd.GeoDataFrame(locations)
+                gdf_loc = gpd.GeoDataFrame(locations, columns=locations.columns)
 
             gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
                                                     axis=1,

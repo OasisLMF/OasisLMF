@@ -23,7 +23,9 @@ __all__ = [
     'PANDAS_DEFAULT_NULL_VALUES',
     'set_dataframe_column_dtypes',
     'RI_SCOPE_DEFAULTS',
-    'RI_INFO_DEFAULTS'
+    'RI_INFO_DEFAULTS',
+    'validate_vuln_csv_contents',
+    'validate_vulnerability_replacements',
 ]
 
 import builtins
@@ -53,6 +55,8 @@ from tabulate import tabulate
 
 from oasislmf.utils.defaults import SOURCE_IDX
 from oasislmf.utils.exceptions import OasisException
+from ods_tools.oed import AnalysisSettingSchema
+
 
 logger = logging.getLogger(__name__)
 
@@ -723,11 +727,11 @@ def prepare_location_df(location_df):
 
 
 def prepare_account_df(accounts_df):
-    accounts_df[SOURCE_IDX['acc']] = accounts_df.index
-
+    if SOURCE_IDX['acc'] not in accounts_df.columns:
+        accounts_df[SOURCE_IDX['acc']] = accounts_df.index
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
-    accounts_df['LayerNumber'].fillna(1, inplace=True)
+    accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)
 
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
@@ -748,7 +752,7 @@ def prepare_account_df(accounts_df):
     layers_cols = ['PortNumber', 'AccNumber']
     if step_policies_present:
         layers_cols += ['StepNumber']
-        accounts_df['StepNumber'].fillna(0, inplace=True)
+        accounts_df['StepNumber'] = accounts_df['StepNumber'].fillna(0)
     if 'layer_id' not in accounts_df.columns:
         id_df = accounts_df[layers_cols + ['PolNumber', 'LayerNumber']].drop_duplicates(keep='first')
         id_df['layer_id'] = get_ids(id_df,
@@ -757,7 +761,6 @@ def prepare_account_df(accounts_df):
         accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
     else:
         accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
-
     return accounts_df
 
 
@@ -914,6 +917,90 @@ def set_dataframe_column_dtypes(df, dtypes):
     df = df.astype(_dtypes)
 
     return df
+
+
+def validate_vuln_csv_contents(file_path):
+    """
+    Validate the contents of the CSV file for vulnerability replacements.
+
+    Args:
+        file_path (str): Path to the vulnerability CSV file
+
+    Returns:
+        bool: True if the file is valid, False otherwise
+    """
+    expected_columns = ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id', 'probability']
+    try:
+        vuln_df = pd.read_csv(file_path)
+        if list(vuln_df.columns) != expected_columns:
+            logger.warning(f"CSV file {file_path} does not have the expected columns.")
+            return False
+
+        # Check data types and constraints
+        if not (
+            np.issubdtype(vuln_df['vulnerability_id'].dtype, np.integer)
+            and np.issubdtype(vuln_df['intensity_bin_id'].dtype, np.integer)
+            and np.issubdtype(vuln_df['damage_bin_id'].dtype, np.integer)
+        ):
+            logger.warning("vulnerability_id, intensity_bin_id, and damage_bin_id columns must contain integer values.")
+            return False
+        if vuln_df['probability'].apply(lambda x: isinstance(x, (int, float))).all():
+            if not (vuln_df['probability'].between(0, 1).all()):
+                logger.warning("probability column must contain values between 0 and 1.")
+                return False
+        else:
+            logger.warning("probability column must contain numeric values.")
+            return False
+        return True
+    except Exception as e:
+        # No fail if the file is not valid, just warn the user
+        logger.warning(f"Error occurred while validating CSV file: {e}")
+        return False
+
+
+def validate_vulnerability_replacements(analysis_settings_json):
+    """
+    Validate vulnerability replacements in analysis settings file.
+    If vulnerability replacements are specified as a file path, check that the file exists.
+    This way the user will be warned early if the vulnerability option selected is not valid.
+
+    Args:
+        analysis_settings_json (str): JSON file path to analysis settings file
+
+    Returns:
+        bool: True if the vulnerability replacements are present and valid, False otherwise
+
+    """
+    if analysis_settings_json is None:
+        return False
+
+    vulnerability_adjustments_key = None
+    vulnerability_adjustments_key = AnalysisSettingSchema().get(analysis_settings_json, {}).get('vulnerability_adjustments')
+    if vulnerability_adjustments_key is None:
+        return False
+
+    vulnerability_replacements = vulnerability_adjustments_key.get('replace_data', None)
+    if vulnerability_replacements is None:
+        vulnerability_replacements = vulnerability_adjustments_key.get('replace_file', None)
+    if vulnerability_replacements is None:
+        return False
+    if isinstance(vulnerability_replacements, dict):
+        logger.info('Vulnerability replacements are specified in the analysis settings file')
+        return True
+    if isinstance(vulnerability_replacements, str):
+        abs_path = os.path.abspath(vulnerability_replacements)
+        if not os.path.isfile(abs_path):
+            logger.warning('Vulnerability replacements file does not exist: {}'.format(abs_path))
+            return False
+
+        if not validate_vuln_csv_contents(abs_path):
+            logger.warning('Vulnerability replacements file is not valid: {}'.format(abs_path))
+            return False
+
+        logger.info('Vulnerability replacements found in file: {}'.format(abs_path))
+        return True
+    logger.warning('Vulnerability replacements must be a dict or a file path, got: {}'.format(vulnerability_replacements))
+    return False
 
 
 def fill_na_with_categoricals(df, fill_value):
