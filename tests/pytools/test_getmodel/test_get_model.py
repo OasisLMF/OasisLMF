@@ -12,6 +12,7 @@ from unittest import main, TestCase, mock
 
 from oasislmf.pytools.getmodel.manager import get_vulns
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
+from oasis_data_manager.filestore.backends.local import LocalStorage
 # from oasislmf.pytools.getmodel.manager import get_items, Footprint
 # from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
 
@@ -178,9 +179,11 @@ class TestGetVulns(TestCase):
         return {v_id: idx for idx, v_id in enumerate(vulns_id)}
 
     def test_get_vulns(self):
+
+        model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             self.assertIsNotNone(vuln_array)
             self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -195,7 +198,7 @@ class TestGetVulns(TestCase):
         os.remove(os.path.join(self.temp_dir, 'vulnerability.bin'))
         os.rename(os.path.join(self.temp_dir, 'vul.bin'), os.path.join(self.temp_dir, 'vulnerability.bin'))
         os.rename(os.path.join(self.temp_dir, 'vul.idx'), os.path.join(self.temp_dir, 'vulnerability.idx'))
-        vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                           self.num_intensity_bins, ignore_file_type=ignore_file_types)
         self.assertIsNotNone(vuln_array)
         self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -205,13 +208,14 @@ class TestGetVulns(TestCase):
             self.assertTrue(np.array_equal(vuln_array[actual_index], self.expected_outputs['vuln_array'][expected_index]))
 
     def test_get_vulns_adj(self):
+        model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
             with mock.patch('os.path.exists', return_value=True):
                 with mock.patch('ods_tools.oed.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                          'replace_file': str(os.path.join(self.static_path, "vulnerability_adj.csv"))}
                                                                                          }):
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     self.assertIsNotNone(vuln_array)
                     self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -228,7 +232,7 @@ class TestGetVulns(TestCase):
                                                                                                              }
                                                                                                              }):
 
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     self.assertIsNotNone(vuln_array)
                     self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -247,7 +251,7 @@ class TestGetVulns(TestCase):
             with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                                          'replace_data': self.vuln_dict_adj}
                                                                                                          }):
-                vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                   self.num_intensity_bins, ignore_file_type=ignore_file_types)
                 self.assertIsNotNone(vuln_array)
                 self.assertEqual(num_damage_bins, self.expected_outputs['num_damage_bins'])
@@ -260,10 +264,10 @@ class TestGetVulns(TestCase):
         # First, run the function without any adjustments
         vuln_arrays_no_adj = {}
         vuln_ids_no_adj = {}
-
+        model_storage = LocalStorage(root_dir=self.static_path, cache_dir=None)
         for file_type in ['csv', 'bin', 'parquet']:
             ignore_file_types = self.ignore_file_type - {file_type}
-            vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+            vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                               self.num_intensity_bins, ignore_file_type=ignore_file_types)
             vuln_arrays_no_adj[file_type] = vuln_array
             vuln_ids_no_adj[file_type] = vulns_id
@@ -282,7 +286,7 @@ class TestGetVulns(TestCase):
                                                                                                              'replace_data': vuln_dict_adj
                                                                                                              }
                                                                                                              }):
-                    vuln_array, vulns_id, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                    vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                       self.num_intensity_bins, ignore_file_type=ignore_file_types)
                     vuln_arrays_with_adj[file_type] = vuln_array
                     vuln_ids_with_adj[file_type] = vulns_id
@@ -302,9 +306,9 @@ class TestGetVulns(TestCase):
             with mock.patch('oasislmf.pytools.getmodel.manager.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
                                                                                                          'replace_data': vuln_dict_adj}
                                                                                                          }):
-                vuln_array_idx_adj, vulns_id_idx_adj, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+                vuln_array_idx_adj, vulns_id_idx_adj, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                                   self.num_intensity_bins, ignore_file_type=ignore_file_types)
-        vuln_array_idx, vulns_id_idx, num_damage_bins = get_vulns(self.static_path, self.static_path, self.vuln_dict,
+        vuln_array_idx, vulns_id_idx, num_damage_bins = get_vulns(model_storage, self.static_path, self.vuln_dict,
                                                                   self.num_intensity_bins, ignore_file_type=ignore_file_types)
         for vuln_id in vulns_id_idx:
             idx_no_adj = np.where(vulns_id_idx == vuln_id)[0][0]

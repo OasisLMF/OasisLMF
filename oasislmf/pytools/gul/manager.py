@@ -13,6 +13,7 @@ import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import (
     Correlation, CorrelationsData)
@@ -148,11 +149,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     """
     logger.info("starting gulpy")
 
-    static_path = os.path.join(run_dir, 'static')
+    model_storage = get_storage_from_config_path(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, 'static'),
+    )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    damage_bins = get_damage_bins(static_path)
+    damage_bins = get_damage_bins(model_storage)
 
     # read coverages from file
     coverages_tiv = get_coverages(input_path)

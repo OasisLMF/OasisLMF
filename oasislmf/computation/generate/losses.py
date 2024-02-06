@@ -23,6 +23,8 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
 import pandas as pd
+
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 
 from ...execution import bash, runner
@@ -175,6 +177,8 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True,
          'help': 'Analysis settings JSON file path'},
+        {'name': 'model_storage_json', 'is_path': True, 'pre_exist': True, 'required': False,
+         'help': 'Model data storage settings JSON file path'},
         {'name': 'model_settings_json', 'flag': '-M', 'is_path': True, 'pre_exist': False, 'required': False,
          'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
@@ -224,6 +228,11 @@ class GenerateLossesDir(GenerateLossesBase):
         model_run_fp = self._get_output_dir()
         analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
 
+        model_storage = get_storage_from_config_path(
+            self.model_storage_json,
+            os.path.join(self.model_run_dir, "static"),
+        )
+
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
             'fm_profile.csv',
@@ -262,6 +271,7 @@ class GenerateLossesDir(GenerateLossesBase):
             user_data_dir=self.user_data_dir,
             ri=ri,
             copy_model_data=self.copy_model_data,
+            model_storage_config_fp=self.model_storage_json,
         )
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
@@ -310,7 +320,7 @@ class GenerateLossesDir(GenerateLossesBase):
             self.logger.info(f"Loaded samples from model_settings file: 'model_default_samples = {default_model_samples}'")
             analysis_settings['number_of_samples'] = default_model_samples
 
-        prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri)
         footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
         if footprint_set_val:
             set_footprint_set(footprint_set_val, model_run_fp)
@@ -375,6 +385,11 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'exposure_df_engine', 'default': None,
+            'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -431,7 +446,9 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
-            peril_filter=self._get_peril_filter(self.analysis_settings)
+            peril_filter=self._get_peril_filter(self.analysis_settings),
+            exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
+            model_df_engine=self.model_df_engine or self.base_df_engine,
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -583,6 +600,11 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
+        {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
+        {'name': 'model_df_engine', 'default': None,
+            'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'exposure_df_engine', 'default': None,
+            'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
     ]
 
     def run(self):
@@ -626,7 +648,8 @@ class GenerateLosses(GenerateLossesDir):
                         event_shuffle=self.ktools_event_shuffle,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
-                        peril_filter=self._get_peril_filter(analysis_settings)
+                        peril_filter=self._get_peril_filter(analysis_settings),
+                        model_df_engine=self.model_df_engine or self.base_df_engine,
                     )
                 except TypeError:
                     warnings.simplefilter("always")

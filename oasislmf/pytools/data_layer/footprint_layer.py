@@ -12,6 +12,8 @@ from typing import Optional, Set, Tuple, List
 
 import numpy as np
 
+from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 # configuring process meta data
@@ -55,23 +57,29 @@ class FootprintLayer:
         total_served (int): the total number of processes that have ever registered through the server's lifetime
     """
 
-    def __init__(self, static_path: str, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
+    def __init__(
+        self,
+        storage: BaseStorage,
+        total_expected: int,
+        ignore_file_type: Set[str] = set(),
+        df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+    ) -> None:
         """
         The constructor for the FootprintLayer class.
 
         Args:
-            static_path: (str) path to the static file to load the data
             ignore_file_type: (Set[str]) collection of file types to ignore when loading
             total_expected: (int) the total number of reliant processes expected
 
         """
-        self.static_path: str = static_path
+        self.storage = storage
         self.ignore_file_type: Set[str] = ignore_file_type
         self.file_data: Optional[Footprint] = None
         self.socket: Optional[socket.socket] = None
         self.count: int = 0
         self.total_expected: int = total_expected
         self.total_served: int = 0
+        self.df_engine = df_engine
         self._define_socket()
 
     def _define_socket(self) -> None:
@@ -146,8 +154,9 @@ class FootprintLayer:
         self._establish_shutdown_procedure()
 
         with ExitStack() as stack:
-            footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
-                                                               ignore_file_type=self.ignore_file_type))
+            footprint_obj = stack.enter_context(Footprint.load(self.storage,
+                                                               ignore_file_type=self.ignore_file_type,
+                                                               df_engine=self.df_engine))
             self.file_data = footprint_obj
             while True:
                 try:
@@ -311,8 +320,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
+    parser.add_argument("--df-engine", help="The engine to use when loading dataframes",
+                        default="oasis_data_manager.df_reader.reader.OasisPandasReader", )
     args = parser.parse_args()
-    server = FootprintLayer(static_path=args.p, total_expected=args.n)
+    server = FootprintLayer(LocalStorage(root_dir=args.p), total_expected=args.n, df_engine=args.df_engine)
     server.listen()
 
 

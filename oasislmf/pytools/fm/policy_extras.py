@@ -12,10 +12,6 @@ from .policy import (calcrule_28 as _calcrule_28, calcrule_32 as _calcrule_32, c
                      calcrule_37 as _calcrule_37, calcrule_38 as _calcrule_38)
 
 
-class UnknownCalcrule(Exception):
-    pass
-
-
 @njit(cache=True)
 def min2(a, b):
     return a if a < b else b
@@ -797,6 +793,6 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         elif policy['calcrule_id'] == 38:
             calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         else:
-            raise UnknownCalcrule()
+            raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")
     else:
-        raise UnknownCalcrule()
+        raise ValueError(f"UnknownCalcrule {policy['calcrule_id']}")

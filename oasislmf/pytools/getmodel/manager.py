@@ -5,6 +5,7 @@ TODO: use selector and select for output
 
 """
 import atexit
+import json
 import logging
 import os
 import sys
@@ -13,10 +14,13 @@ from contextlib import ExitStack
 import numba as nb
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
+
 from numba import int32 as nb_int32, float64 as nb_float64
 from numba.typed import Dict
 
+from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
+from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
@@ -26,6 +30,7 @@ from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 from ods_tools.oed import AnalysisSettingSchema
 
+from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +52,6 @@ damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('interpolation', oasis_float),
                                               ('interval_type', np.int32),
                                               ]))
-
-damagebindictionaryCsv = nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                                 ('bin_from', oasis_float),
-                                                 ('bin_to', oasis_float),
-                                                 ('interpolation', oasis_float)]))
 
 EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
                                    ('areaperil_id', areaperil_int),
@@ -435,12 +435,12 @@ def get_vuln_rngadj_dict(run_dir, vuln_dict):
     return vuln_adj_numba_dict
 
 
-def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set()):
+def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
     """
     Loads the vulnerabilities from the file.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        storage: (str) the storage manager for fetching model data
         run_dir: (str) the path to the run folder (used to load the analysis settings)
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_intensity_bins: (int) the number of intensity bins
@@ -448,23 +448,23 @@ def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_t
 
     Returns: (Tuple[List[List[float]], int, np.array[int]) vulnerability data, vulnerabilities id, number of damage bins
     """
-    input_files = set(os.listdir(static_path))
-
+    input_files = set(storage.listdir())
     vuln_adj = get_vulnerability_replacements(run_dir, vuln_dict)
 
-    if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
-        parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability_dataset"), use_legacy_dataset=False,
-                                           filters=[("vulnerability_id", "in", list(vuln_dict))],
-                                           memory_map=True)
-        vuln_table = parquet_handle.read()
-        vuln_meta = vuln_table.schema.metadata
-        num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
-        number_of_intensity_bins = int(vuln_meta[b"num_intensity_bins"].decode("utf-8"))
-        vuln_array = np.vstack(vuln_table['vuln_array'].to_numpy()).reshape(vuln_table['vuln_array'].length(),
-                                                                            num_damage_bins,
-                                                                            number_of_intensity_bins)
-        vulns_id = vuln_table['vulnerability_id'].to_numpy()
+    if vulnerability_dataset in input_files and "parquet" not in ignore_file_type:
+        with storage.open(parquetvulnerability_meta_filename, 'r') as outfile:
+            meta_data = json.load(outfile)
+        logger.debug(f"loading {storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]}")
+
+        df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
+        df_reader_config["engine"]["options"]["storage"] = storage
+        reader = get_df_reader(df_reader_config).filter(lambda df: df[df["vulnerability_id"].isin(list(vuln_dict))])
+        df = reader.as_pandas()
+        num_damage_bins = meta_data['num_damage_bins']
+        vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
+                                                                    num_damage_bins,
+                                                                    num_intensity_bins)
+        vulns_id = df['vulnerability_id'].to_numpy()
         update_vulns_dictionary(vuln_dict, vulns_id)
         # update vulnerability array with adjustment data if present
         if vuln_adj is not None and len(vuln_adj) > 0:
@@ -472,16 +472,19 @@ def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_t
 
     else:
         if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
-            logger.debug(f"loading {os.path.join(static_path, 'vulnerability.bin')}")
-            with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
+            logger.debug(f"loading {storage.get_storage_url('vulnerability.bin', encode_params=False)[1]}")
+            with storage.open("vulnerability.bin", 'rb') as f:
                 header = np.frombuffer(f.read(8), 'i4')
                 num_damage_bins = header[0]
+
             if "vulnerability.idx" in input_files and 'idx' not in ignore_file_type:
-                logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
-                                      dtype=VulnerabilityRow, offset=4, mode='r')
-                vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"),
-                                          dtype=VulnerabilityIndex, mode='r')
+                logger.debug(f"loading {storage.get_storage_url('vulnerability.idx', encode_params=False)[1]}")
+                with storage.open("vulnerability.bin") as f:
+                    vulns_bin = np.memmap(f, dtype=VulnerabilityRow, offset=4, mode='r')
+
+                with storage.open("vulnerability.idx") as f:
+                    vulns_idx_bin = np.memmap(f, dtype=VulnerabilityIndex, mode='r')
+
                 if vuln_adj is not None and len(vuln_adj) > 0:
                     vuln_array = load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
                                                              num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize, vuln_adj)
@@ -489,24 +492,24 @@ def get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_t
                     vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                                     num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize)
             else:
-                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"),
-                                      dtype=Vulnerability, offset=4, mode='r')
-                # load_vulns_bin is slightly faster than load_vulns_bin_adjusted if vuln_adj is None
+                with storage.with_fileno("vulnerability.bin") as f:
+                    vulns_bin = np.memmap(f, dtype=Vulnerability, offset=4, mode='r')
                 if vuln_adj is not None and len(vuln_adj) > 0:
                     vuln_array = load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
                 else:
                     vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
-            logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
-            vuln_csv = np.loadtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+            logger.debug(f"loading {storage.get_storage_url('vulnerability.csv', encode_params=False)[1]}")
+            with storage.open("vulnerability.csv") as f:
+                vuln_csv = np.loadtxt(f, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
             if vuln_adj is not None and len(vuln_adj) > 0:
                 vuln_array = load_vulns_bin_adjusted(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
             else:
                 vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
-            raise FileNotFoundError(f'vulnerability file not found at {static_path}')
+            raise FileNotFoundError(f"vulnerability file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
         vulns_id = create_vulns_id(vuln_dict)
 
@@ -559,38 +562,41 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
     return vuln_adj
 
 
-def get_mean_damage_bins(static_path, ignore_file_type=set()):
+def get_mean_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     """
     Loads the mean damage bins from the damage_bin_dict file, namely, the `interpolation` value for each bin.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
     """
-    return get_damage_bins(static_path, ignore_file_type)['interpolation']
+    return get_damage_bins(storage, ignore_file_type)['interpolation']
 
 
-def get_damage_bins(static_path, ignore_file_type=set()):
+def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     """
     Loads the damage bins from the damage_bin_dict file.
 
     Args:
-        static_path: (str) the path pointing to the static file where the data is
+        storage: (BaseStorage) the storage connector for fetching the model data
         ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
+    Returns: (List[Union[damagebindictionary]]) loaded data from the damage_bin_dict file
     """
-    input_files = set(os.listdir(static_path))
+    input_files = set(storage.listdir())
+
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.bin')}")
-        return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)
+        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
+        with storage.with_fileno("damage_bin_dict.bin") as f:
+            return np.fromfile(f, dtype=damagebindictionary)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
-        logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
-        return np.loadtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv, skiprows=1, delimiter=',', ndmin=1)
+        logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
+        with storage.open("damage_bin_dict.csv") as f:
+            return np.loadtxt(f, dtype=damagebindictionary, skiprows=1, delimiter=',', ndmin=1)
     else:
-        raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
+        raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -759,7 +765,15 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
 
 
 @redirect_logging(exec_name='modelpy')
-def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter):
+def run(
+    run_dir,
+    file_in,
+    file_out,
+    ignore_file_type,
+    data_server,
+    peril_filter,
+    df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+):
     """
     Runs the main process of the getmodel process.
 
@@ -770,10 +784,14 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
         ignore_file_type: set(str) file extension to ignore when loading
         data_server: (bool) if set to True runs the data server
         peril_filter (list[int]): list of perils to include in the computation (if None, all perils will be included).
+        df_engine: (str) The engine to use when loading dataframes
 
     Returns: None
     """
-    static_path = os.path.join(run_dir, 'static')
+    model_storage = get_storage_from_config_path(
+        os.path.join(run_dir, 'model_storage.json'),
+        os.path.join(run_dir, 'static'),
+    )
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
@@ -813,7 +831,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
             input_path, ignore_file_type, valid_area_peril_id)
 
         logger.debug('init footprint')
-        footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=df_engine))
 
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
@@ -823,10 +841,11 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server, peril_filter)
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, vulns_id, num_damage_bins = get_vulns(model_storage, run_dir, vuln_dict,
+                                                          num_intensity_bins, ignore_file_type, df_engine=df_engine)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
-        mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
+        mean_damage_bins = get_mean_damage_bins(model_storage, ignore_file_type)
 
         # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
         max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size

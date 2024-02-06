@@ -22,8 +22,11 @@ def run(analysis_settings,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
         gul_legacy_stream=False,
+        df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
+        model_df_engine=None,
         **kwargs
         ):
+    model_df_engine = model_df_engine or df_engine
 
     ## MOVED into bash_params #########################################
     #  keep here for the moment and refactor after testing
@@ -97,6 +100,7 @@ def run(analysis_settings,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
         custom_gulcalc_log_start=custom_gulcalc_log_start,
         custom_gulcalc_log_finish=custom_gulcalc_log_finish,
+        model_df_engine=model_df_engine,
         **kwargs,
     )
     bash_trace = subprocess.check_output(['bash', filename])

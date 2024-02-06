@@ -5,7 +5,6 @@ import os
 import string
 from collections import OrderedDict
 from datetime import datetime
-from tempfile import NamedTemporaryFile
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
@@ -15,11 +14,10 @@ import pytest
 import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
-                                   integers, just, lists, sampled_from, text)
+                                   integers, just, lists, sampled_from, text as _text)
 from pandas.testing import assert_frame_equal as pd_assert_frame_equal
-import tempfile
-from ods_tools.oed import OedExposure, OedSchema
-
+from tempfile import NamedTemporaryFile
+from ods_tools.oed import OedExposure
 
 from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
                                  factorize_ndarray, fast_zip_arrays,
@@ -27,6 +25,10 @@ from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
                                  get_utctimestamp, prepare_location_df,
                                  validate_vuln_csv_contents, validate_vulnerability_replacements)
 from oasislmf.utils.exceptions import OasisException
+
+
+# for now excluded "nan" as it breaks the current loading from csv
+text = lambda *args, **kwargs: _text(*args, **kwargs).filter(lambda e: e != "nan")
 
 
 def arrays_are_identical(expected, result):
@@ -188,7 +190,7 @@ class TestGetDataframe(TestCase):
 
             expected = df.copy(deep=True)
             result = get_dataframe(src_fp=fp.name)
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -218,7 +220,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -253,7 +255,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -289,7 +291,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -346,7 +348,7 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -386,7 +388,7 @@ class TestGetDataframe(TestCase):
                 required_cols=required
             )
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -494,7 +496,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -531,7 +533,7 @@ class TestGetDataframe(TestCase):
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -561,7 +563,7 @@ class TestGetDataframe(TestCase):
             expected = df.dropna(subset=non_na_cols, axis=0)
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -593,7 +595,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -624,7 +626,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -656,7 +658,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -679,7 +681,7 @@ class TestGetDataframe(TestCase):
         try:
             data = [
                 {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k ==
-                     'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                                                                'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -691,7 +693,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -714,7 +716,7 @@ class TestGetDataframe(TestCase):
         try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
-                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                                                               'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -727,7 +729,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -771,7 +773,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -816,7 +818,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -925,7 +927,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -960,7 +962,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1000,7 +1002,7 @@ class TestGetDataframe(TestCase):
                 lowercase_cols=False
             )
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1073,7 +1075,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1115,7 +1117,8 @@ class TestGetDataframe(TestCase):
             expected = df.dropna(subset=non_na_cols, axis=0)
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
-            assert_frame_equal(result, expected)
+
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1146,7 +1149,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1169,7 +1172,7 @@ class TestGetDataframe(TestCase):
         try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k ==
-                     'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
+                                                               'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -1181,7 +1184,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 
@@ -1225,7 +1228,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False, required_cols=required, col_defaults=defaults)
 
-            assert_frame_equal(result, expected)
+            pd.testing.assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
 

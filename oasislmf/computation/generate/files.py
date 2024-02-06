@@ -102,6 +102,13 @@ class GenerateFiles(ComputationStep):
         {'name': 'profile_loc', 'default': get_default_exposure_profile()},
         {'name': 'profile_acc', 'default': get_default_accounts_profile()},
         {'name': 'profile_fm_agg', 'default': get_default_fm_aggregation_profile()},
+        {'name': 'location', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+        {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
+        {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+        {'name': 'base_df_engine', 'type': str, 'default': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
+         'help': 'The default dataframe reading engine to use when loading files'},
+        {'name': 'exposure_df_engine', 'type': str, 'default': None,
+         'help': 'The dataframe reading engine to use when loading exposure files'},
     ]
 
     chained_commands = [
@@ -123,7 +130,12 @@ class GenerateFiles(ComputationStep):
             'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'location_numbers': self.location,
+            'portfolio_numbers': self.portfolio,
+            'account_numbers': self.account,
+            'base_df_engine': self.base_df_engine,
+            'exposure_df_engine': self.exposure_df_engine,
         }
 
     def run(self):

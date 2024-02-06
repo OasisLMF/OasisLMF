@@ -43,7 +43,14 @@ class ExposurePreAnalysis(ComputationStep):
                    {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
                    {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
                     'help': 'Path to the directory in which to generate the Oasis files'},
-
+                   {'name': 'location', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+                   {'name': 'portfolio', 'type': str, 'nargs': '+', 'help': 'A set of portfolios to include in the files'},
+                   {'name': 'account', 'type': str, 'nargs': '+', 'help': 'A set of locations to include in the files'},
+                   {'name': 'base_df_engine', 'type': str, 'default': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
+                    'help': 'The default dataframe reading engine to use when loading files'},
+                   {'name': 'exposure_df_engine', 'type': str, 'default': None,
+                    'help': 'The dataframe reading engine to use when loading exposure files'},
+                   {'name': 'model_df_engine', 'type': str, 'default': None, 'help': 'The dataframe reading engine to use when loading model files'},
                    {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
                    {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,
                     'help': 'Analysis settings JSON file path'},
@@ -59,7 +66,12 @@ class ExposurePreAnalysis(ComputationStep):
             'ri_scope': self.oed_scope_csv,
             'oed_schema_info': self.oed_schema_info,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'location_numbers': self.location,
+            'portfolio_numbers': self.portfolio,
+            'account_numbers': self.account,
+            'base_df_engine': self.base_df_engine,
+            'exposure_df_engine': self.exposure_df_engine,
         }
 
     def run(self):
