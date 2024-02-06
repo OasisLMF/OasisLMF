@@ -1,4 +1,4 @@
-from unittest import main, TestCase
+from unittest import main, TestCase, mock
 from unittest.mock import patch
 from oasislmf.pytools.getmodel.manager import get_vuln_rngadj_dict
 
@@ -8,7 +8,6 @@ from numba import int32 as nb_int32, float64 as nb_float64
 import os
 import shutil
 import tempfile
-from unittest import main, TestCase, mock
 
 from oasislmf.pytools.getmodel.manager import get_vulns
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
@@ -18,7 +17,6 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 
 import numpy as np
 import numba as nb
-from numba.typed import Dict
 import pandas as pd
 import subprocess
 # from pyarrow import memory_map
@@ -76,12 +74,12 @@ class TestGetVulns(TestCase):
             self.vuln_dict[key] = value
         self.num_intensity_bins = 2
         self.mock_vuln_data = np.array([
-            (1, 1, 1, 0.333),
+            (1, 1, 1, 0.330),
             (1, 1, 2, 0.333),
-            (1, 1, 3, 0.333),
-            (1, 2, 1, 0.333),
+            (1, 1, 3, 0.337),
+            (1, 2, 1, 0.330),
             (1, 2, 2, 0.333),
-            (1, 2, 3, 0.333),
+            (1, 2, 3, 0.337),
             (2, 1, 1, 0.7),
             (2, 1, 2, 0.1),
             (2, 1, 3, 0.2),
@@ -99,7 +97,7 @@ class TestGetVulns(TestCase):
             (4, 1, 3, 0.05),
             (4, 2, 1, 0.05),
             (4, 2, 2, 0.05),
-            (4, 2, 3, 0.09),
+            (4, 2, 3, 0.9),
         ], dtype=[('vulnerability_id', 'i4'), ('intensity_bin_id', 'i4'), ('damage_bin_id', 'i4'), ('probability', 'f4')])
         self.mock_vuln_adj_data = np.array([
             (33, 1, 1, 0.4),
@@ -118,10 +116,10 @@ class TestGetVulns(TestCase):
         self.expected_outputs = {
             'vuln_array_adj': np.array([[[0.83, 0.08], [0.08, 0.08], [0.08, 0.83]],
                                         [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]],
-                                        [[0.333, 0.333], [0.333, 0.333], [0.333, 0.333]]], dtype=np.float32),
+                                        [[0.330, 0.330], [0.333, 0.333], [0.337, 0.337]]], dtype=np.float32),
             'vuln_array': np.array([[[0.7, 0.1], [0.1, 0.2], [0.2, 0.7]],
                                     [[0.4, 0.3], [0.3, 0.3], [0.3, 0.4]],
-                                    [[0.333, 0.333], [0.333, 0.333], [0.333, 0.333]]], dtype=np.float32),
+                                    [[0.330, 0.330], [0.333, 0.333], [0.337, 0.337]]], dtype=np.float32),
             'vulns_id': np.array([2, 3, 1], dtype=np.int32),
             'num_damage_bins': 3
         }
