@@ -208,6 +208,35 @@ class TestGenFiles(ComputationChecker):
                          'keys_errors_csv': keys_err_file}
             file_gen_return = self.manager.generate_files(**call_args)
 
+    def test_files__keys_csv__missing_loc_id__error_is_raised(self):
+        oed_location_csv = self.tmp_files.get('oed_location_csv')
+        self.write_str(oed_location_csv, N2_LOC)
+        keys_file = self.tmp_files.get('keys_data_csv').name
+        keys_err_file = self.tmp_files.get('keys_errors_csv').name
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.ri_args,
+                             'oed_location_csv': oed_location_csv.name,
+                             'keys_data_csv': keys_file,
+                             'keys_errors_csv': keys_err_file}
+                file_gen_return = self.manager.generate_files(**call_args)
+        expected_err_msg = 'Lookup error: missing "loc_id" values from keys return: [2]'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_files__error_file_not_given__missing_loc_id__error_is_raised(self):
+        oed_location_csv = self.tmp_files.get('oed_location_csv')
+        self.write_str(oed_location_csv, N2_LOC)
+        keys_file = self.tmp_files.get('keys_data_csv').name
+        keys_err_file = self.tmp_files.get('keys_errors_csv').name
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.ri_args,
+                             'oed_location_csv': oed_location_csv.name,
+                             'keys_data_csv': keys_file}
+                file_gen_return = self.manager.generate_files(**call_args)
+        expected_err_msg = 'Lookup error: missing "loc_id" values from keys return: [2]'
+        self.assertIn(expected_err_msg, str(context.exception))
+
     @patch('oasislmf.computation.generate.files.establish_correlations')
     def test_files__model_settings_given__analysis_settings_replace_correlations(self, establish_correlations):
         model_settings_file = self.tmp_files.get('model_settings_json')
