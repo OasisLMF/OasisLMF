@@ -241,7 +241,7 @@ class GenerateFiles(ComputationStep):
         missing_locid = set(location_df['loc_id']).difference(returned_locid)
         del keys_errors_df
 
-        if missing_locid != set(): # if not empty set
+        if missing_locid != set():  # if not empty set
             raise OasisException('Missing loc_id in keys lookup: {missing_locid}')
 
         # Columns from loc file to assign group_id
