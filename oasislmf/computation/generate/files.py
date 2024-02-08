@@ -242,7 +242,7 @@ class GenerateFiles(ComputationStep):
         del keys_errors_df
 
         if missing_locid != set():  # if not empty set
-            raise OasisException('Missing loc_id in keys lookup: {missing_locid}')
+            raise OasisException(f'Missing loc_id in keys lookup: {missing_locid}')
 
         # Columns from loc file to assign group_id
         model_damage_group_fields = []
