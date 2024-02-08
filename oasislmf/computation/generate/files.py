@@ -235,6 +235,15 @@ class GenerateFiles(ComputationStep):
         )
         # ************************************************
 
+        # check that all loc_ids have been returned from keys lookup
+        keys_errors_df = get_dataframe(src_fp=_keys_errors_fp, memory_map=True)
+        returned_locid = set(keys_errors_df['locid'].unique()).union(set(keys_df['locid'].unique()))
+        missing_locid = set(location_df['loc_id']).difference(returned_locid)
+        del keys_errors_df
+
+        if missing_locid != set(): # if not empty set
+            raise OasisException('Missing loc_id in keys lookup: {missing_locid}')
+
         # Columns from loc file to assign group_id
         model_damage_group_fields = []
         model_hazard_group_fields = []
