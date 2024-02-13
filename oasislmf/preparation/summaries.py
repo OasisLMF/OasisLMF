@@ -673,11 +673,6 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
                 write_df_to_csv_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
     if ri_summaries:
-        ri_layers = get_ri_settings(model_run_fp)
-        max_layer = str(max([int(x) for x in ri_layers]))
-        summary_ri_fp = os.path.join(
-            model_run_fp, os.path.basename(ri_layers[max_layer]['directory']))
-
         if ('il_summaries' not in analysis_settings) or (not il_summaries):
             il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
             il_map_df = get_dataframe(
@@ -695,8 +690,23 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
             analysis_settings['ri_summaries'],
             'ri'
         )
-        # Write Xref file
-        write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
+        # Write Xref file for each inuring priority where output has been requested
+        ri_settings = get_ri_settings(model_run_fp)
+        ri_layers = {int(x) for x in ri_settings}
+        max_layer = max(ri_layers)
+        ri_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
+        ri_inuring_priorities.add(max_layer)
+        if not ri_inuring_priorities.issubset(ri_layers):
+            ri_missing_layers = ri_inuring_priorities.difference(ri_layers)
+            ri_missing_layers = [str(layer) for layer in ri_missing_layers]
+            missing_layers = ', '.join(ri_missing_layers[:-1])
+            missing_layers += ' and ' * (len(ri_missing_layers) > 1) + ri_missing_layers[-1]
+            missing_layers = ('priority ' if len(ri_missing_layers) == 1 else 'priorities ') + missing_layers
+            raise OasisException(f'Requested outputs for inuring {missing_layers} lie outside of scope.')
+        for inuring_priority in ri_inuring_priorities:
+            summary_ri_fp = os.path.join(
+                model_run_fp, os.path.basename(ri_settings[str(inuring_priority)]['directory']))
+            write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files
         for desc_key in ri_summary_desc:
