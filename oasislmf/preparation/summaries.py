@@ -578,6 +578,9 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
 
     :param gul_items: Boolean to gul to use item_id instead of coverage_id
     :type gul_items: bool
+
+    :param fmpy: Boolean to indicate whether fmpy python version will be used
+    :type fmpy: bool
     """
 
     # Boolean checks for summary generation types (gul / il / ri)
