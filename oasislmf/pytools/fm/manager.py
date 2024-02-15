@@ -87,6 +87,14 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             net_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
                               loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
             keep_input_loss = True
+        elif net_loss == '-':  # double stream out, net_loss written to stdout
+            gross_writer = False
+            if files_out is not None:  # gross loss written out only if files_out path given
+                gross_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
+                                    loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
+            net_writer = stack.enter_context(event_writer_cls(None, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
+                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
+            keep_input_loss = True
         else:  # double stream out, net_loss is the extra path to write the net to
             gross_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
                               loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
