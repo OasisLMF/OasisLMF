@@ -10,6 +10,7 @@ __all__ = [
     'MIN_KEYS',
     'MIN_KEYS_ERR',
     'MIN_LOC',
+    'N2_LOC',
     'MIN_ACC',
     'MIN_INF',
     'MIN_SCP',
@@ -364,6 +365,11 @@ MIN_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDat
 """
 MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
 1,1,A11111,,,10002082047,,,,,,0.1,2.0.0
+"""
+
+N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latitude,Longitude,StreetAddress,PostalCode,OccupancyCode,ConstructionCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
+1,A11111,10002082046,1,1,GB,52.76698052,-0.895469856,1 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,220000,0,0,0,GBP,2.0.0
+1,A11111,10002082047,1,1,GB,52.76697956,-0.89536613,2 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,790000,0,0,0,GBP,2.0.0
 """
 
 EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID,AmplificationID\n1,WSS,1,1000,8,2\n1,WTC,1,500,2,1\n1,WSS,3,1000,11,2\n1,WTC,3,500,5,1\n'
