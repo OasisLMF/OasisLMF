@@ -284,7 +284,7 @@ def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes
         compute_idx['next_compute_i'] += 1
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True, error_model="numpy")
 def compute_event(compute_info,
                   net_loss,
                   nodes_array,
