@@ -21,7 +21,7 @@ def run(create_financial_structure_files, **kwargs):
         return run_synchronous(**kwargs)
 
 
-#@redirect_logging(exec_name='fmpy')
+# @redirect_logging(exec_name='fmpy')
 def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_method, **kwargs):
     if allocation_rule == 3:
         allocation_rule = 2
