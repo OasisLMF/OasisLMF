@@ -31,7 +31,8 @@ class TestGenFiles(ComputationChecker):
         self.tmp_files = self.create_tmp_files(
             [a for a in self.default_args.keys() if 'csv' in a] +
             [a for a in self.default_args.keys() if 'path' in a] +
-            [a for a in self.default_args.keys() if 'json' in a]
+            [a for a in self.default_args.keys() if 'json' in a] +
+            ['oed_location_csv__2r']
         )
 
         self.min_args = {
@@ -52,6 +53,7 @@ class TestGenFiles(ComputationChecker):
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
 
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
+        self.write_str(self.tmp_files.get('oed_location_csv__2r'), N2_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_files.get('oed_info_csv'), MIN_INF)
         self.write_str(self.tmp_files.get('oed_scope_csv'), MIN_SCP)
@@ -200,13 +202,59 @@ class TestGenFiles(ComputationChecker):
             file_gen_return = self.manager.generate_files(**call_args)
 
     def test_files__keys_csv__is_given(self):
+
         keys_file = self.tmp_files.get('keys_data_csv').name
         keys_err_file = self.tmp_files.get('keys_errors_csv').name
         with self.tmp_dir() as t_dir:
             call_args = {**self.ri_args,
+                         'oasis_files_dir': t_dir,
                          'keys_data_csv': keys_file,
                          'keys_errors_csv': keys_err_file}
             file_gen_return = self.manager.generate_files(**call_args)
+
+    def test_files__keys_csv__missing_loc_id__error_is_raised(self):
+        keys_file = self.tmp_files.get('keys_data_csv').name
+        keys_err_file = self.tmp_files.get('keys_errors_csv').name
+        loc_file = self.tmp_files.get('oed_location_csv__2r').name
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.ri_args,
+                             'oed_location_csv': loc_file,
+                             'keys_data_csv': keys_file,
+                             'keys_errors_csv': keys_err_file}
+                file_gen_return = self.manager.generate_files(**call_args)
+        expected_err_msg = 'Lookup error: missing "loc_id" values from keys return: [2]'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    def test_files__error_file_not_given__missing_loc_id__error_is_raised(self):
+        keys_file = self.tmp_files.get('keys_data_csv').name
+        keys_err_file = self.tmp_files.get('keys_errors_csv').name
+        loc_file = self.tmp_files.get('oed_location_csv__2r').name
+        with self.tmp_dir() as t_dir:
+            with self.assertRaises(OasisException) as context:
+                call_args = {**self.ri_args,
+                             'oed_location_csv': loc_file,
+                             'keys_data_csv': keys_file}
+                file_gen_return = self.manager.generate_files(**call_args)
+        expected_err_msg = 'Lookup error: missing "loc_id" values from keys return: [2]'
+        self.assertIn(expected_err_msg, str(context.exception))
+
+    @patch('oasislmf.computation.generate.files.establish_correlations')
+    def test_files__model_settings_given__analysis_settings_replace_correlations(self, establish_correlations):
+        model_settings_file = self.tmp_files.get('model_settings_json')
+        self.write_json(model_settings_file, CORRELATIONS_MODEL_SETTINGS)
+        analysis_settings_file = self.tmp_files.get('analysis_settings_json')
+        self.write_json(analysis_settings_file, MIN_RUN_CORRELATIONS_SETTINGS)
+        with self.tmp_dir() as _:
+            call_args = {
+                **self.ri_args,
+                'model_settings_json': model_settings_file.name,
+                'analysis_settings_json': analysis_settings_file.name
+            }
+            self.manager.generate_files(**call_args)
+            establish_correlations.assert_called_once()
+            used_correlations = establish_correlations.call_args.kwargs['model_settings']
+            self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
 
 
 class TestGenDummyModelFiles(ComputationChecker):
