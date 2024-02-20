@@ -493,7 +493,7 @@ def set_vulnerability_set(setting_val, run_dir):
                 os.symlink(vulnerability_meta, vulnerability_meta_target)
                 return
             else:
-                logger.debug(f'{vulnerability_fp} not found, trying next format')
+                logger.debug(f'{vulnerability_fp} and/or {vulnerability_meta} not found, trying next format')
         else:
             # For other file formats, check if it's a file
             vulnerability_fp = os.path.join(run_dir, 'static', f'vulnerability_{setting_val}.{file_format}')

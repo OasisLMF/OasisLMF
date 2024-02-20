@@ -22,8 +22,8 @@ from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
 from pathlib import Path
 
-from oasislmf.model_execution.files import GUL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
-from oasislmf.model_execution.bin import (
+from oasislmf.execution.files import GUL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
+from oasislmf.execution.bin import (
     check_binary_tar_file,
     check_conversion_tools,
     check_inputs_directory,
@@ -38,7 +38,7 @@ from oasislmf.model_execution.bin import (
 
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset
+from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
 from tests.data import (
     standard_input_files,
@@ -1030,13 +1030,17 @@ class SetVulnerabilitySet(TestCase):
         """ Declare identifier for vulnerability file set for tests. """
         self.setting_val = 'test'
         self.vulnerability_dataset = vulnerability_dataset
+        self.parquetvulnerability_meta_filename = parquetvulnerability_meta_filename
 
     def make_mock_vulnerability_files(self, directory, file_format):
         """ Write a mock vulnerability file in the specified format to the directory. """
         os.makedirs(os.path.join(directory, 'static'), exist_ok=True)
         if file_format == 'parquet':
             # Create a directory for parquet format
-            os.makedirs(os.path.join(directory, 'static', f'{self.vulnerability_dataset}_{self.setting_val}'))
+            base_name, extension = os.path.splitext(self.vulnerability_dataset)
+            os.makedirs(os.path.join(directory, 'static', f'{base_name}_{self.setting_val}{extension}'))
+            base_meta_name, extension = os.path.splitext(self.parquetvulnerability_meta_filename)
+            Path(os.path.join(directory, 'static', f'{base_meta_name}_{self.setting_val}{extension}')).touch()
         else:
             # Create a file for other formats
             filename = f'vulnerability_{self.setting_val}.{file_format}'
@@ -1053,10 +1057,17 @@ class SetVulnerabilitySet(TestCase):
 
                 if file_format == 'parquet':
                     # Check for symbolic link to directory
-                    src_dir = os.path.join(d, 'static', f'{self.vulnerability_dataset}_{self.setting_val}')
+                    base_name, extension = os.path.splitext(self.vulnerability_dataset)
+                    src_dir = os.path.join(d, 'static', f'{base_name}_{self.setting_val}{extension}')
                     target_dir = os.path.join(d, 'static', self.vulnerability_dataset)
                     self.assertTrue(os.path.islink(target_dir))
                     self.assertEqual(os.readlink(target_dir), src_dir)
+                    # Check for symbolic link to meta file
+                    base_meta_name, extension = os.path.splitext(self.parquetvulnerability_meta_filename)
+                    src_meta_fp = os.path.join(d, 'static', f'{base_meta_name}_{self.setting_val}{extension}')
+                    target_meta_fp = os.path.join(d, 'static', self.parquetvulnerability_meta_filename)
+                    self.assertTrue(os.path.exists(target_meta_fp))
+                    self.assertEqual(src_meta_fp, os.readlink(target_meta_fp))
                 else:
                     # Check for symbolic link to file
                     vulnerability_fp = os.path.join(d, 'static', f'vulnerability_{self.setting_val}.{file_format}')
