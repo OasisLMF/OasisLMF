@@ -931,7 +931,7 @@ class SetFootprintSet(TestCase):
                     stem, extension = filename.split('.', 1)
                     file_path = os.path.join(d, 'static', f'{stem}_{self.setting_val}.{extension}')
                     Path(file_path).touch()
-                
+
     def test_symbolic_links_to_parquet_files(self):
         """
         Test symbolic links pointing to footprint files in parquet format are
