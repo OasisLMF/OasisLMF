@@ -911,12 +911,27 @@ class SetFootprintSet(TestCase):
             priority_level (int): file format being tested - formats with higher
                 priority (closer to 1) include those of lower priority
         """
-        os.mkdir(os.path.join(d, 'static'))
-        for fp_format, fp_filename in islice(self.fp_filenames.items(), priority_level, None):
-            for filename in fp_filename:
-                stem, extension = filename.split('.', 1)
-                Path(os.path.join(d, 'static', f'{stem}_{self.setting_val}.{extension}')).touch()
-
+        os.makedirs(os.path.join(d, 'static'), exist_ok=True)
+        for fp_format, fp_filenames in islice(self.fp_filenames.items(), priority_level, None):
+            if fp_format == 'parquet':
+                # Handle parquet as a directory
+                for filename in fp_filenames:
+                    stem, extension = filename.split('.', 1)
+                    if 'meta' in filename:
+                        # For the meta file, create a file instead of a directory
+                        meta_fp = os.path.join(d, 'static', f'{stem}_{self.setting_val}.{extension}')
+                        Path(meta_fp).touch()
+                    else:
+                        # Create a directory for the parquet format
+                        parquet_dir_path = os.path.join(d, 'static', f'{stem}_{self.setting_val}.{extension}')
+                        os.makedirs(parquet_dir_path, exist_ok=True)
+            else:
+                # For other formats, just create files
+                for filename in fp_filenames:
+                    stem, extension = filename.split('.', 1)
+                    file_path = os.path.join(d, 'static', f'{stem}_{self.setting_val}.{extension}')
+                    Path(file_path).touch()
+                
     def test_symbolic_links_to_parquet_files(self):
         """
         Test symbolic links pointing to footprint files in parquet format are
