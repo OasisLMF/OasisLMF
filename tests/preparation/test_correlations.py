@@ -23,14 +23,14 @@ class TestMapData(TestCase):
         pass
 
     def test_map_data(self):
-        mapped_data = map_data(data=self.model_settings)
+        mapped_data = map_data(data=self.model_settings, logger=None)
         self.assertEqual(EXPECTED_MAPPED_DATA, mapped_data.to_dict('records'))
 
     def test_get_correlation_input_items(self):
         gul_path = META_PATH + "gul_inputs_df.csv"
 
         gul_inputs_df = pd.read_csv(gul_path)
-        correlation_df = get_correlation_input_items(correlation_map_df=map_data(data=self.model_settings),
+        correlation_df = get_correlation_input_items(correlation_map_df=map_data(data=self.model_settings, logger=None),
                                                      gul_inputs_df=gul_inputs_df)
         correlation_df_check = pd.read_csv(f"{META_PATH}correlation_df.csv")
 
