@@ -245,76 +245,76 @@ class ReinsuranceLayer(object):
             fields = []
 
         df_ = df_.merge(
-            ri_df_[fields + ['layer_id', 'level_id', 'profile_id']].drop_duplicates(),
+            ri_df_[fields + ['layer_id', 'level_id', 'policytc_id']].drop_duplicates(),
             how='left', on=fields + ['layer_id', 'level_id'], suffixes=['', '_y']
         )
-        df_['profile_id'] = df_['profile_id'].where(
-            df_['profile_id_y'].isna(), df_['profile_id_y']
+        df_['policytc_id'] = df_['policytc_id'].where(
+            df_['policytc_id_y'].isna(), df_['policytc_id_y']
         )
 
-        return df_['profile_id'].to_list()
+        return df_['policytc_id'].to_list()
 
     def _match_portfolio(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields(oed.REINS_RISK_LEVEL_PORTFOLIO)
         valid_fields = self._get_valid_fields(fields)
 
-        df_['profile_id'] = self._match_exact(
+        df_['policytc_id'] = self._match_exact(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[0]] == True],
             fields=fields
         )
 
-        df_['profile_id'] = self._match_exact(
+        df_['policytc_id'] = self._match_exact(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[0]] == False]
         )
 
-        return df_['profile_id'].to_list()
+        return df_['policytc_id'].to_list()
 
     def _match_account(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields(oed.REINS_RISK_LEVEL_ACCOUNT)
         valid_fields = self._get_valid_fields(fields)
 
-        df_['profile_id'] = self._match_exact(
+        df_['policytc_id'] = self._match_exact(
             df_=df_,
             ri_df_=ri_df_[(ri_df_[valid_fields[0]] == True) & (ri_df_[valid_fields[1]] == True)],
             fields=fields
         )
 
-        df_['profile_id'] = self._match_portfolio(
+        df_['policytc_id'] = self._match_portfolio(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[1]] == False]
         )
 
-        return df_['profile_id'].to_list()
+        return df_['policytc_id'].to_list()
 
     def _match_policy_or_location(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields()
         valid_fields = self._get_valid_fields(fields)
 
-        df_['profile_id'] = self._match_exact(
+        df_['policytc_id'] = self._match_exact(
             df_=df_,
             ri_df_=ri_df_[(ri_df_[valid_fields[0]] == True) & (ri_df_[valid_fields[1]] == True) & (ri_df_[valid_fields[2]] == True)],
             fields=fields
         )
 
-        df_['profile_id'] = self._match_account(
+        df_['policytc_id'] = self._match_account(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[2]] == False]
         )
 
-        return df_['profile_id'].to_list()
+        return df_['policytc_id'].to_list()
 
     def _match_location_group(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields()
         valid_fields = self._get_valid_fields(fields)
 
-        df_['profile_id'] = self._match_exact(
+        df_['policytc_id'] = self._match_exact(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[0]] == True],
             fields=fields
         )
 
-        return df_['profile_id'].to_list()
+        return df_['policytc_id'].to_list()
 
     def _match_row(self, row):
         match = True
@@ -508,7 +508,7 @@ class ReinsuranceLayer(object):
     ):
         profiles = ri_df_.apply(
             lambda row: oed.get_reinsurance_profile(
-                row['profile_id'], attachment=eval(attachment),
+                row['policytc_id'], attachment=eval(attachment),
                 limit=eval(limit), ceded=eval(ceded), placement=eval(placement)
             ), axis=1
         ).drop_duplicates()
@@ -524,7 +524,7 @@ class ReinsuranceLayer(object):
     ):
         profiles = occlimit_df_.apply(
             lambda row: oed.get_occlim_profile(
-                row['profile_id'], limit=eval(limit), placement=eval(placement)
+                row['policytc_id'], limit=eval(limit), placement=eval(placement)
             ), axis=1
         ).drop_duplicates()
         if len(profiles) > 0:
@@ -573,8 +573,8 @@ class ReinsuranceLayer(object):
         xref_df = self._get_xref_df()
 
         # Assign default profile IDs
-        xref_df['profile_id'] = nolossprofile_id
-        xref_df['profile_id'] = xref_df['profile_id'].where(
+        xref_df['policytc_id'] = nolossprofile_id
+        xref_df['policytc_id'] = xref_df['policytc_id'].where(
             (xref_df['level_id'] == self._get_filter_level_id()) | (xref_df['level_id'] == self._get_risk_level_id()),
             passthroughprofile_id
         )
@@ -613,17 +613,17 @@ class ReinsuranceLayer(object):
 
         # Create risk level and filter level profile IDs
         ri_df['level_id'] = 0
-        ri_df['profile_id'] = 0
+        ri_df['policytc_id'] = 0
         # Facultative profile IDs
         self.logger.debug('Creating risk level and filter level profile IDs:')
         self.logger.debug(f'{oed.REINS_TYPE_FAC} profiles...')
         ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_FAC, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_FAC, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
+        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_FAC, 'policytc_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['RiskAttachment'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['RiskLimit'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['CededPercent'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC]['PlacedPercent'].values
-        ]))[0] + 1 + fmprofiles_df['profile_id'].max()
+        ]))[0] + 1 + fmprofiles_df['policytc_id'].max()
         fmprofiles_df = self._get_profiles(
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC],
             fmprofiles_df=fmprofiles_df, attachment="row['RiskAttachment']",
@@ -633,11 +633,11 @@ class ReinsuranceLayer(object):
         # Per Risk profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_PER_RISK} profiles...')
         ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
+        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK, 'policytc_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK]['RiskAttachment'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK]['RiskLimit'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK]['CededPercent'].values
-        ]))[0] + 1 + fmprofiles_df['profile_id'].max()
+        ]))[0] + 1 + fmprofiles_df['policytc_id'].max()
         fmprofiles_df = self._get_profiles(
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK],
             fmprofiles_df=fmprofiles_df, attachment="row['RiskAttachment']",
@@ -646,10 +646,10 @@ class ReinsuranceLayer(object):
         # Quota Share profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_QUOTA_SHARE} profiles...')
         ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
+        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE, 'policytc_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE]['RiskLimit'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE]['CededPercent'].values
-        ]))[0] + 1 + fmprofiles_df['profile_id'].max()
+        ]))[0] + 1 + fmprofiles_df['policytc_id'].max()
         fmprofiles_df = self._get_profiles(
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE],
             fmprofiles_df=fmprofiles_df, limit="row['RiskLimit']",
@@ -658,11 +658,11 @@ class ReinsuranceLayer(object):
         # Surplus Share profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_SURPLUS_SHARE} profiles...')
         ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE, 'profile_id'] = pd.factorize(pd._libs.lib.fast_zip([
+        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE, 'policytc_id'] = pd.factorize(pd._libs.lib.fast_zip([
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE]['RiskAttachment'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE]['RiskLimit'].values,
             ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE]['CededPercent_scope'].values
-        ]))[0] + 1 + fmprofiles_df['profile_id'].max()
+        ]))[0] + 1 + fmprofiles_df['policytc_id'].max()
         fmprofiles_df = self._get_profiles(
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE],
             fmprofiles_df=fmprofiles_df, attachment="row['RiskAttachment']",
@@ -671,9 +671,9 @@ class ReinsuranceLayer(object):
         # Cat XL profile IDs = pass through profile ID
         self.logger.debug(f'{oed.REINS_TYPE_CAT_XL} profiles...')
         ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_CAT_XL, 'level_id'] = self._get_risk_level_id()
-        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_CAT_XL, 'profile_id'] = passthroughprofile_id
+        ri_df.loc[ri_df['ReinsType'] == oed.REINS_TYPE_CAT_XL, 'policytc_id'] = passthroughprofile_id
 
-        ri_df['profile_id'] = ri_df['profile_id'].astype('int64')
+        ri_df['policytc_id'] = ri_df['policytc_id'].astype('int64')
 
         fields = self._get_reins_type_fields(all_fields=True)
         valid_fields = self._get_valid_fields(fields)
@@ -692,7 +692,7 @@ class ReinsuranceLayer(object):
         # Risk level
         # Note that Facultative profiles scope much match the filter exactly
         profile_map_df.loc[
-            profile_map_df['layer_id'].isin(layer_id_set), 'profile_id'
+            profile_map_df['layer_id'].isin(layer_id_set), 'policytc_id'
         ] = self._get_risk_level_profile_ids(
             df_=profile_map_df[profile_map_df['layer_id'].isin(layer_id_set)],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_FAC], exact=True
@@ -700,7 +700,7 @@ class ReinsuranceLayer(object):
         # Filter level
         profile_map_df.loc[
             (profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id()),
-            'profile_id'
+            'policytc_id'
         ] = passthroughprofile_id
 
         # Per Risk profile IDs
@@ -710,7 +710,7 @@ class ReinsuranceLayer(object):
         )
         # Risk level
         profile_map_df.loc[
-            profile_map_df['layer_id'].isin(layer_id_set), 'profile_id'
+            profile_map_df['layer_id'].isin(layer_id_set), 'policytc_id'
         ] = self._get_risk_level_profile_ids(
             df_=profile_map_df[profile_map_df['layer_id'].isin(layer_id_set)],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK]
@@ -720,7 +720,7 @@ class ReinsuranceLayer(object):
             df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id())],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_PER_RISK][fields + valid_fields + ['layer_id']]
         )
-        profile_map_df.loc[filter_idx, 'profile_id'] = passthroughprofile_id
+        profile_map_df.loc[filter_idx, 'policytc_id'] = passthroughprofile_id
 
         # Quota Share profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_QUOTA_SHARE} profiles...')
@@ -729,7 +729,7 @@ class ReinsuranceLayer(object):
         )
         # Risk level
         profile_map_df.loc[
-            profile_map_df['layer_id'].isin(layer_id_set), 'profile_id'
+            profile_map_df['layer_id'].isin(layer_id_set), 'policytc_id'
         ] = self._get_risk_level_profile_ids(
             df_=profile_map_df[profile_map_df['layer_id'].isin(layer_id_set)],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE]
@@ -739,7 +739,7 @@ class ReinsuranceLayer(object):
             df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id())],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_QUOTA_SHARE][fields + valid_fields + ['layer_id']]
         )
-        profile_map_df.loc[filter_idx, 'profile_id'] = passthroughprofile_id
+        profile_map_df.loc[filter_idx, 'policytc_id'] = passthroughprofile_id
 
         # Surplus Share profile IDs
         self.logger.debug(f'{oed.REINS_TYPE_SURPLUS_SHARE} profiles...')
@@ -749,7 +749,7 @@ class ReinsuranceLayer(object):
         # Risk level
         # Note that Surplus Share profiles scope much match the filter exactly
         profile_map_df.loc[
-            profile_map_df['layer_id'].isin(layer_id_set), 'profile_id'
+            profile_map_df['layer_id'].isin(layer_id_set), 'policytc_id'
         ] = self._get_risk_level_profile_ids(
             df_=profile_map_df[profile_map_df['layer_id'].isin(layer_id_set)],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_SURPLUS_SHARE],
@@ -758,7 +758,7 @@ class ReinsuranceLayer(object):
         # Filter level
         profile_map_df.loc[
             (profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id()),
-            'profile_id'
+            'policytc_id'
         ] = passthroughprofile_id
 
         # Cat XL profile IDs
@@ -768,7 +768,7 @@ class ReinsuranceLayer(object):
         )
         # Risk level
         profile_map_df.loc[
-            profile_map_df['layer_id'].isin(layer_id_set), 'profile_id'
+            profile_map_df['layer_id'].isin(layer_id_set), 'policytc_id'
         ] = self._get_risk_level_profile_ids(
             df_=profile_map_df[profile_map_df['layer_id'].isin(layer_id_set)],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_CAT_XL],
@@ -778,7 +778,7 @@ class ReinsuranceLayer(object):
             df_=profile_map_df[(profile_map_df['layer_id'].isin(layer_id_set)) & (profile_map_df['level_id'] == self._get_filter_level_id())],
             ri_df_=ri_df[ri_df['ReinsType'] == oed.REINS_TYPE_CAT_XL][fields + valid_fields + ['layer_id']]
         )
-        profile_map_df.loc[filter_idx, 'profile_id'] = passthroughprofile_id
+        profile_map_df.loc[filter_idx, 'policytc_id'] = passthroughprofile_id
 
         # OccLimit / Placed Percent
         occlimit_df = self.ri_info_df.copy()
@@ -786,7 +786,7 @@ class ReinsuranceLayer(object):
         occlimit_df = occlimit_df[occlimit_df['ReinsType'] != oed.REINS_TYPE_FAC]
         occlimit_df['level_id'] = self._get_risk_level_id() + 1
         occlimit_df = occlimit_df.reset_index(drop=True)
-        occlimit_df['profile_id'] = occlimit_df.index + 1 + ri_df['profile_id'].max()
+        occlimit_df['policytc_id'] = occlimit_df.index + 1 + ri_df['policytc_id'].max()
         if self.logger:
             self._log_dataframe({'occlimit_df': occlimit_df})
 
@@ -808,21 +808,21 @@ class ReinsuranceLayer(object):
 
         # Programme level profile IDs
         profile_map_df.loc[
-            profile_map_df['level_id'] == 4, 'profile_id'
+            profile_map_df['level_id'] == 4, 'policytc_id'
         ] = self._match_exact(
             profile_map_df[profile_map_df['level_id'] == 4],
-            occlimit_df[['layer_id', 'level_id', 'profile_id']]
+            occlimit_df[['layer_id', 'level_id', 'policytc_id']]
         )
 
-        profile_map_df['profile_id'] = profile_map_df['profile_id'].astype('int64')
+        profile_map_df['policytc_id'] = profile_map_df['policytc_id'].astype('int64')
         if self.logger:
             self._log_dataframe({'profile_map_df': profile_map_df})
 
         # Write out Oasis structure
         self.fmprogrammes_df = xref_df[xref_df['agg_id_to'] != 0][['agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
         self.fmprogrammes_df.columns = ['from_agg_id', 'level_id', 'to_agg_id']
-        self.fmprofiles_df = fmprofiles_df.sort_values(by='profile_id').reset_index(drop=True)
-        self.fm_policytcs_df = profile_map_df[profile_map_df['level_id'] > 1][['layer_id', 'level_id', 'agg_id', 'profile_id']].reset_index(drop=True)
+        self.fmprofiles_df = fmprofiles_df.sort_values(by='policytc_id').reset_index(drop=True)
+        self.fm_policytcs_df = profile_map_df[profile_map_df['level_id'] > 1][['layer_id', 'level_id', 'agg_id', 'policytc_id']].reset_index(drop=True)
         self.fm_policytcs_df['level_id'] = self.fm_policytcs_df['level_id'] - 1
 
         if self.logger:

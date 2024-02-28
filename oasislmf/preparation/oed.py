@@ -447,9 +447,9 @@ Coverage = namedtuple(
 FmProgramme = namedtuple(
     "FmProgramme", "from_agg_id level_id to_agg_id")
 FmProfile = namedtuple(
-    "FmProfile", "profile_id calcrule_id deductible1 deductible2 deductible3 attachment limit share1 share2 share3")
+    "FmProfile", "policytc_id calcrule_id deductible1 deductible2 deductible3 attachment limit share1 share2 share3")
 FmPolicyTc = namedtuple(
-    "FmPolicyTc", "layer_id level_id agg_id profile_id")
+    "FmPolicyTc", "layer_id level_id agg_id policytc_id")
 GulSummaryXref = namedtuple(
     "GulSummaryXref", "coverage_id summary_id summaryset_id")
 FmSummaryXref = namedtuple(
@@ -469,7 +469,7 @@ GulRecord = namedtuple("GulRecord", "event_id item_id sidx loss")
 
 def get_no_loss_profile(profile_id):
     return FmProfile(
-        profile_id=profile_id,
+        policytc_id=profile_id,
         calcrule_id=CALCRULE_ID_LIMIT_ONLY,
         deductible1=0.0,  # Not used
         deductible2=0.0,  # Not used
@@ -484,7 +484,7 @@ def get_no_loss_profile(profile_id):
 
 def get_pass_through_profile(profile_id):
     return FmProfile(
-        profile_id=profile_id,
+        policytc_id=profile_id,
         calcrule_id=CALCRULE_ID_DEDUCTIBLE_ONLY,
         deductible1=0.0,
         deductible2=0.0,  # Not used
@@ -509,7 +509,7 @@ def get_profile(
         limit = LARGE_VALUE
 
     return FmProfile(
-        profile_id=profile_id,
+        policytc_id=profile_id,
         calcrule_id=CALCRULE_ID_DEDUCTIBLE_ATTACHMENT_LIMIT_AND_SHARE,
         deductible1=deductible,
         deductible2=0.0,  # Not used
@@ -544,7 +544,7 @@ def get_reinsurance_profile(
         placement = 1.0
 
     return FmProfile(
-        profile_id=profile_id,
+        policytc_id=profile_id,
         calcrule_id=CALCRULE_ID_OCCURRENCE_CATASTROPHE_EXCESS_OF_LOSS,
         deductible1=0.0,          # Not used
         deductible2=0.0,          # Not used
@@ -569,7 +569,7 @@ def get_occlim_profile(
         limit = LARGE_VALUE
 
     return FmProfile(
-        profile_id=profile_id,
+        policytc_id=profile_id,
         calcrule_id=CALCRULE_ID_OCCURRENCE_LIMIT_AND_SHARE,
         deductible1=0,      # Not used
         deductible2=0,      # Not used
