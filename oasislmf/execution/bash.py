@@ -27,7 +27,8 @@ RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
 RUNTYPE_INSURED_LOSS = 'il'
 RUNTYPE_REINSURANCE_LOSS = 'ri'
 RUNTYPE_FULL_CORRELATION = 'fc'
-RUNTYPE_INTERMEDIATE_INURING_PRIORITY = 'ip'
+
+INTERMEDIATE_INURING_PRIORITY_PREFIX = 'IP'
 
 WAIT_PROCESSING_SWITCHES = {
     'full_uncertainty_aep': '-F',
@@ -1123,7 +1124,7 @@ def do_any(
 def get_ri_inuring_priorities(analysis_settings):
     intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
     ri_inuring_priorities = [
-        {'text' : RUNTYPE_INTERMEDIATE_INURING_PRIORITY + str(inuring_priority) + '_',
+        {'text' : INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
          'level' : inuring_priority} for inuring_priority in map(str, intermediate_inuring_priorities)
     ]
     ri_inuring_priorities.append({'text': '', 'level': None})   # Final inuring priority
