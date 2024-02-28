@@ -1124,8 +1124,8 @@ def do_any(
 def get_ri_inuring_priorities(analysis_settings):
     intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
     ri_inuring_priorities = [
-        {'text' : INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
-         'level' : inuring_priority} for inuring_priority in map(str, intermediate_inuring_priorities)
+        {'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
+         'level': inuring_priority} for inuring_priority in map(str, intermediate_inuring_priorities)
     ]
     ri_inuring_priorities.append({'text': '', 'level': None})   # Final inuring priority
 
@@ -2377,7 +2377,7 @@ def create_bash_analysis(
                     fmpy_sort_output,
                     step_flag,
                     process_counter=process_counter,
-                    ri_inuring_priorities={int(ip['level']) : ip['text'] for ip in get_ri_inuring_priorities(analysis_settings) if ip['level']}
+                    ri_inuring_priorities={int(ip['level']): ip['text'] for ip in get_ri_inuring_priorities(analysis_settings) if ip['level']}
                 )
                 print_command(filename, main_cmd)
 
