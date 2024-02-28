@@ -320,8 +320,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if col not in df:
                 df[col] = OASIS_UNKNOWN_ID
             else:
+                df[col] = df[col].astype('Int64')
                 df.loc[df[col].isna(), col] = OASIS_UNKNOWN_ID
-            df[col] = df[col].astype(np.int64)
         return df
 
     @staticmethod
