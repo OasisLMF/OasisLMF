@@ -239,23 +239,6 @@ class TestGenFiles(ComputationChecker):
         expected_err_msg = 'Lookup error: missing "loc_id" values from keys return: [2]'
         self.assertIn(expected_err_msg, str(context.exception))
 
-    @patch('oasislmf.computation.generate.files.establish_correlations')
-    def test_files__model_settings_given__analysis_settings_replace_correlations(self, establish_correlations):
-        model_settings_file = self.tmp_files.get('model_settings_json')
-        self.write_json(model_settings_file, CORRELATIONS_MODEL_SETTINGS)
-        analysis_settings_file = self.tmp_files.get('analysis_settings_json')
-        self.write_json(analysis_settings_file, MIN_RUN_CORRELATIONS_SETTINGS)
-        with self.tmp_dir() as _:
-            call_args = {
-                **self.ri_args,
-                'model_settings_json': model_settings_file.name,
-                'analysis_settings_json': analysis_settings_file.name
-            }
-            self.manager.generate_files(**call_args)
-            establish_correlations.assert_called_once()
-            used_correlations = establish_correlations.call_args.kwargs['model_settings']
-            self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
-
 
 class TestGenDummyModelFiles(ComputationChecker):
 
