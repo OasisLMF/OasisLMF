@@ -500,7 +500,7 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
-                    if 'sub_task_list' in analysis:
+                    if analysis.get('run_mode', '') == 'V2':
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
@@ -580,7 +580,7 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    if 'sub_task_list' in analysis:
+                    if analysis.get('run_mode', '') == 'V2':
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
