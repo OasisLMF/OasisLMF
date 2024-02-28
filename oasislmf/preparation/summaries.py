@@ -558,7 +558,7 @@ def get_summary_xref_df(
 
 
 @oasis_log
-def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False, fmpy):
+def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False, fmpy=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
