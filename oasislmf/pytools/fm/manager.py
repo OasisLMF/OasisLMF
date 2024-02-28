@@ -79,27 +79,57 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             keep_input_loss = True
 
         if net_loss is None:  # stream out need to provide gross loss
-            gross_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
+            gross_writer = stack.enter_context(
+                event_writer_cls(
+                    files_out, nodes_array, output_array, sidx_indexes,
+                    sidx_indptr, sidx_val, loss_indptr, loss_val,
+                    pass_through_out, max_sidx_val, computes
+                )
+            )
             net_writer = False
         elif net_loss == '':  # stream out need to provide net_loss instead of gross loss
             gross_writer = False
-            net_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
+            net_writer = stack.enter_context(
+                event_writer_cls(
+                    files_out, nodes_array, output_array, sidx_indexes,
+                    sidx_indptr, sidx_val, loss_indptr, loss_val,
+                    pass_through_out, max_sidx_val, computes
+                )
+            )
             keep_input_loss = True
         elif net_loss == '-':  # double stream out, net_loss written to stdout
             gross_writer = False
             if files_out is not None:  # gross loss written out only if files_out path given
-                gross_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                                    loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
-            net_writer = stack.enter_context(event_writer_cls(None, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
+                gross_writer = stack.enter_context(
+                    event_writer_cls(
+                        files_out, nodes_array, output_array, sidx_indexes,
+                        sidx_indptr, sidx_val, loss_indptr, loss_val,
+                        pass_through_out, max_sidx_val, computes
+                    )
+                )
+            net_writer = stack.enter_context(
+                event_writer_cls(
+                    None, nodes_array, output_array, sidx_indexes, sidx_indptr,
+                    sidx_val, loss_indptr, loss_val, pass_through_out,
+                    max_sidx_val, computes
+                )
+            )
             keep_input_loss = True
         else:  # double stream out, net_loss is the extra path to write the net to
-            gross_writer = stack.enter_context(event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
-            net_writer = stack.enter_context(event_writer_cls(net_loss, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
-                              loss_indptr, loss_val, pass_through_out, max_sidx_val, computes))
+            gross_writer = stack.enter_context(
+                event_writer_cls(
+                    files_out, nodes_array, output_array, sidx_indexes,
+                    sidx_indptr, sidx_val, loss_indptr, loss_val,
+                    pass_through_out, max_sidx_val, computes
+                )
+            )
+            net_writer = stack.enter_context(
+                event_writer_cls(
+                    net_loss, nodes_array, output_array, sidx_indexes,
+                    sidx_indptr, sidx_val, loss_indptr, loss_val,
+                    pass_through_out, max_sidx_val, computes
+                )
+            )
             keep_input_loss = True
 
         for event_id in read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
