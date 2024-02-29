@@ -44,7 +44,7 @@ from oasislmf.pytools.getmodel.common import fp_format_priorities
 from oasislmf.pytools.getmodel.footprint import (
     FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv
 )
-from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset
+from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
 logger = logging.getLogger(__name__)
 
@@ -448,11 +448,11 @@ def set_footprint_set(setting_val, run_dir):
             stem, extension = filename.split('.', 1)
             footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
             footprint_target_fp = os.path.join(run_dir, 'static', filename)
-            if not os.path.isfile(footprint_fp):
+            if not os.path.exists(footprint_fp):
                 # 'compatibility' - Fallback name formatting to keep existing conversion
                 setting_val_old = setting_val.replace(' ', '_').lower()
                 footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}.{extension}')
-                if not os.path.isfile(footprint_fp):
+                if not os.path.exists(footprint_fp):
                     logger.debug(f'{footprint_fp} not found, moving on to next footprint class')
                     break
             os.symlink(footprint_fp, footprint_target_fp)
@@ -481,14 +481,19 @@ def set_vulnerability_set(setting_val, run_dir):
     for file_format in vulnerability_formats:
 
         if file_format == 'parquet':
+            base_name, format_extension = vulnerability_dataset.split('.', 1)
+            base_meta_name, _ = parquetvulnerability_meta_filename.split('.', 1)
             # For Parquet, check if it's a directory
-            vulnerability_fp = os.path.join(run_dir, 'static', f'{vulnerability_dataset}_{setting_val}')
+            vulnerability_fp = os.path.join(run_dir, 'static', f'{base_name}_{setting_val}.{format_extension}')
             vulnerability_target_fp = os.path.join(run_dir, 'static', f'{vulnerability_dataset}')
-            if os.path.isdir(vulnerability_fp):
+            vulnerability_meta = os.path.join(run_dir, 'static', f'{base_meta_name}_{setting_val}.json')
+            vulnerability_meta_target = os.path.join(run_dir, 'static', f'{parquetvulnerability_meta_filename}')
+            if os.path.isdir(vulnerability_fp) and os.path.isfile(vulnerability_meta):
                 os.symlink(vulnerability_fp, vulnerability_target_fp)
+                os.symlink(vulnerability_meta, vulnerability_meta_target)
                 return
             else:
-                logger.debug(f'{vulnerability_fp} not found, trying next format')
+                logger.debug(f'{vulnerability_fp} and/or {vulnerability_meta} not found, trying next format')
         else:
             # For other file formats, check if it's a file
             vulnerability_fp = os.path.join(run_dir, 'static', f'vulnerability_{setting_val}.{file_format}')
