@@ -61,7 +61,7 @@ jobs:
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'update/results-pandas-v2' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
@@ -75,7 +75,7 @@ jobs:
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'update/results-pandas-v2' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
