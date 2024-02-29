@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 from typing import List
+import numpy as np
+import pandas as pd
 
 from oasislmf.computation.base import ComputationStep
 from oasislmf.computation.data.dummy_model.generate import (AmplificationsFile,
@@ -235,6 +237,23 @@ class GenerateFiles(ComputationStep):
         )
         # ************************************************
 
+        # check that all loc_ids have been returned from keys lookup
+        try:
+            if self.keys_errors_csv:
+                keys_errors_df = get_dataframe(src_fp=self.keys_errors_csv, memory_map=True)
+            else:
+                keys_errors_df = get_dataframe(src_fp=_keys_errors_fp, memory_map=True)
+        except OasisException:
+            # Assume empty file on read error.
+            keys_errors_df = pd.DataFrame(columns=['locid'])
+
+        returned_locid_df = np.union1d(keys_errors_df['locid'], keys_df['locid'])
+        del keys_errors_df
+
+        missing_ids = np.setdiff1d(location_df['loc_id'].unique(), returned_locid_df)
+        if len(missing_ids) > 0:
+            raise OasisException(f'Lookup error: missing "loc_id" values from keys return: {missing_ids}')
+
         # Columns from loc file to assign group_id
         model_damage_group_fields = []
         model_hazard_group_fields = []
@@ -284,7 +303,7 @@ class GenerateFiles(ComputationStep):
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
-            peril_correlation_group_df=map_data(data=model_settings),
+            peril_correlation_group_df=map_data(data=model_settings, logger=self.logger),
             correlations=correlations,
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
