@@ -411,7 +411,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
         elif _calc_selected(analysis_settings, [
-            'pltcalc', 'aalcalc', 'alt_period', 'elt_moment', 'elt_quantile',
+            'pltcalc', 'aalcalc', 'aalcalcmeanonly', 'alt_period', 'elt_moment', 'elt_quantile',
             'elt_sample', 'plt_moment', 'plt_quantile', 'plt_sample'
         ]):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
