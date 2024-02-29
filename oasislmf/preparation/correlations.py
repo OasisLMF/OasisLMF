@@ -29,15 +29,11 @@ def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
         if len(correlation_settings_df) > 0:
             # correlations_settings are defined
             if "damage_correlation_value" not in correlation_settings_df.columns:
-                logger.warning(
-                    "Expect correlation settings in model settings file to contain a `damage_correlation_value` "
-                    f"in each `peril_correlation_group` entry, got \n{correlation_settings}.")
+                logger.info("Correlation settings: No `damage_correlation_value` found")
                 correlation_settings_df["damage_correlation_value"] = 0
 
             if "hazard_correlation_value" not in correlation_settings_df.columns:
-                logger.warning(
-                    "Expect correlation settings in model settings file to contain a `hazard_correlation_value` "
-                    f"in each `peril_correlation_group` entry, got \n {correlation_settings}.")
+                logger.info("Correlation settings: No `hazard_correlation_value` found")
                 correlation_settings_df["hazard_correlation_value"] = 0
 
         # merge allows duplicates of the "peril_correlation_group" in the supported perils
