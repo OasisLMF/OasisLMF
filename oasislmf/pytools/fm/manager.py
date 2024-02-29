@@ -149,16 +149,14 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
                     item_parent_i,
                     fm_profile,
                     stepped)
-                event_writer.write(event_id, compute_idx)
+                if gross_writer:
+                    gross_writer.write(event_id, compute_idx)
+                if net_writer:
+                    load_net_value(computes, compute_idx, nodes_array, sidx_indptr, sidx_indexes, loss_indptr, loss_val)
+                    net_writer.write(event_id, compute_idx)
                 reset_variable_sparse(children, compute_idx, computes)
             except Exception:
                 node = nodes_array[computes[compute_idx['compute_i']]]
                 logger.error(f"event index={i} id={event_id}, "
                              f"at node level_id={node['level_id']} agg_id={node['agg_id']}")
                 raise
-            if gross_writer:
-                gross_writer.write(event_id, compute_idx)
-            if net_writer:
-                load_net_value(computes, compute_idx, nodes_array, sidx_indptr, sidx_indexes, loss_indptr, loss_val)
-                net_writer.write(event_id, compute_idx)
-            reset_variable_sparse(children, compute_idx, computes)

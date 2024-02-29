@@ -303,7 +303,7 @@ def load_net_value(computes, compute_idx, nodes_array,
             node_ba_val_prev = node_ba_val_cur
     compute_idx['level_start_compute_i'] = 0
 
-    
+
 @njit(cache=True, fastmath=True, error_model="numpy")
 def compute_event(compute_info,
                   keep_input_loss,
