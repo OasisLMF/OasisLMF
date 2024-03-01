@@ -1,6 +1,22 @@
 OasisLMF Changelog
 ==================
 
+`2.3.1`_
+ ---------
+* [#1444](https://github.com/OasisLMF/OasisLMF/pull/1444) - support for pandas 3
+* [#1446](https://github.com/OasisLMF/OasisLMF/pull/1446) - Add missing loc_id check
+* [#1447](https://github.com/OasisLMF/OasisLMF/pull/1447) - use correct error_model in back allocation
+* [#1448](https://github.com/OasisLMF/OasisLMF/pull/1448) - ensure header is written in keys.csv
+* [#1449](https://github.com/OasisLMF/OasisLMF/pull/1450) - Footprint_set option not working with parquet format
+* [#1455](https://github.com/OasisLMF/OasisLMF/pull/1455) - fix for vuln parquet read
+* [#1350](https://github.com/OasisLMF/OasisLMF/pull/1456) - model settings - correlation settings - allow optional hazard or damage correlation value 
+* [#1445](https://github.com/OasisLMF/OasisLMF/pull/1457) - Platform API needs to check RUN_MODE to detect workflow  
+* [#146](https://github.com/OasisLMF/OasisLMF/pull/1458) - Outputs Reinsurance: RI contract level output (by ReinsNumber and or ReinsType)
+* [#1385](https://github.com/OasisLMF/OasisLMF/pull/1459) - Missing parquet library dependencies for gulmc in 1.27
+* [#1460](https://github.com/OasisLMF/OasisLMF/pull/1463) - Occurrence file not found when requesting output from ktools component aalcalcmeanonly
+* [#1467](https://github.com/OasisLMF/OasisLMF/pull/1467) - fix for 1 loc with no account fm terms
+.. _`2.3.1`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.0...2.3.1
+
 `2.3.0`_
  ---------
 * [#1409](https://github.com/OasisLMF/OasisLMF/pull/1409) - Fix server-version flag for API client runner
