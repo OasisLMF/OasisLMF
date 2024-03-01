@@ -284,9 +284,29 @@ def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes
         compute_idx['next_compute_i'] += 1
 
 
+@njit(cache=True, fastmath=True)
+def load_net_value(computes, compute_idx, nodes_array,
+                   sidx_indptr, sidx_indexes,
+                   loss_indptr, loss_val):
+    # we go through the last level node and replace the gross loss by net loss, then reset compute_i to its value
+    net_compute_i = 0
+    while computes[net_compute_i]:
+        node_i, net_compute_i = computes[net_compute_i], net_compute_i + 1
+        node = nodes_array[node_i]
+        # net loss layer i is initial loss - sum of all layer up to i
+        node_val_len = sidx_indptr[sidx_indexes[node['node_id']] + 1] - sidx_indptr[sidx_indexes[node['node_id']]]
+        node_ba_val_prev = loss_val[loss_indptr[node['net_loss']]: loss_indptr[node['net_loss']] + node_val_len]
+        for layer in range(node['layer_len']):
+            node_ba_val_cur = loss_val[loss_indptr[node['loss'] + layer]: loss_indptr[node['loss'] + layer] + node_val_len]
+            # print(node['agg_id'], layer, loss_indptr[node['loss'] + layer], node_ba_val_prev, node_ba_val_cur)
+            node_ba_val_cur[:] = np.maximum(node_ba_val_prev - node_ba_val_cur, 0)
+            node_ba_val_prev = node_ba_val_cur
+    compute_idx['level_start_compute_i'] = 0
+
+
 @njit(cache=True, fastmath=True, error_model="numpy")
 def compute_event(compute_info,
-                  net_loss,
+                  keep_input_loss,
                   nodes_array,
                   node_parents_array,
                   node_profiles_array,
@@ -301,7 +321,7 @@ def compute_event(compute_info,
     compute an entire event, result losses are stored inplace in loss_val
     Args:
         compute_info: general information on the computation (financial_structure.compute_info_dtype)
-        net_loss: if true compute the net loss instead of the insured loss
+        keep_input_loss: if true compute the net loss instead of the insured loss
         nodes_array: array of information on all nodes
         node_parents_array: array of node to parent node
         node_profiles_array: array of profile for each node
@@ -361,7 +381,6 @@ def compute_event(compute_info,
     all_sidx[2] = -1
     all_sidx[3:] = np.arange(1, max_sidx_val + 1)
 
-    is_net_loss_or_allocation_rule_a1 = net_loss or (compute_info['allocation_rule'] == 1)
     is_allocation_rule_a0 = compute_info['allocation_rule'] == 0
     is_allocation_rule_a1 = compute_info['allocation_rule'] == 1
     is_allocation_rule_a2 = compute_info['allocation_rule'] == 2
@@ -489,7 +508,7 @@ def compute_event(compute_info,
                     if compute_node['extra'] != null_index:
                         extras_indptr[storage_node['extra'] + layer] = extras_indptr[storage_node['extra']]
 
-                if is_net_loss_or_allocation_rule_a1:
+                if keep_input_loss:
                     loss_indptr[storage_node['net_loss']] = compute_idx['loss_ptr_i']
                     loss_val[compute_idx['loss_ptr_i']: compute_idx['loss_ptr_i'] + node_val_len] = node_loss
                     compute_idx['loss_ptr_i'] += node_val_len
@@ -692,21 +711,6 @@ def compute_event(compute_info,
                         loss_indptr[compute_node['loss'] + p] = loss_indptr[storage_node['loss'] + p]
 
         compute_idx['compute_i'] += 1
-
-    if net_loss:
-        # we go through the last level node and replace the gross loss by net loss, then reset compute_i to its value
-        net_compute_i = 0
-        while computes[net_compute_i]:
-            node_i, net_compute_i = computes[net_compute_i], net_compute_i + 1
-            node = nodes_array[node_i]
-            # net loss layer i is initial loss - sum of all layer up to i
-            node_val_len = sidx_indptr[sidx_indexes[node['node_id']] + 1] - sidx_indptr[sidx_indexes[node['node_id']]]
-            node_ba_val_prev = loss_val[loss_indptr[node['net_loss']]: loss_indptr[node['net_loss']] + node_val_len]
-            for layer in range(node['layer_len']):
-                node_ba_val_cur = loss_val[loss_indptr[node['loss'] + layer]: loss_indptr[node['loss'] + layer] + node_val_len]
-                # print(node['agg_id'], layer, loss_indptr[node['loss'] + layer], node_ba_val_prev, node_ba_val_cur)
-                node_ba_val_cur[:] = np.maximum(node_ba_val_prev - node_ba_val_cur, 0)
-                node_ba_val_prev = node_ba_val_cur
 
     item_parent_i.fill(1)
     # print(compute_info['max_level'], next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i + 2], computes[next_compute_i - 1: next_compute_i + 1])
