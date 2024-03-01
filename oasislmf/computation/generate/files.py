@@ -303,7 +303,7 @@ class GenerateFiles(ComputationStep):
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
-            peril_correlation_group_df=map_data(data=model_settings),
+            peril_correlation_group_df=map_data(data=model_settings, logger=self.logger),
             correlations=correlations,
             exposure_profile=location_profile,
             damage_group_id_cols=damage_group_id_cols,
