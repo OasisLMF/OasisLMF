@@ -188,7 +188,7 @@ def get_gul_input_items(
     if 'NumberOfBuildings' not in location_df.columns:
         location_df['NumberOfBuildings'] = 1
     else:
-        location_df['NumberOfBuildings'].fillna(1, inplace=True)
+        location_df['NumberOfBuildings'] = location_df['NumberOfBuildings'].fillna(1)
 
     # Select only the columns required. This reduces memory use significantly for portfolios
     # that include many OED columns.
@@ -276,14 +276,12 @@ def get_gul_input_items(
     # and vulnerability ID columns
     if 'model_data' in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
-
     gul_inputs_df = merge_dataframes(
-        gul_inputs_df,
         keys_df,
+        gul_inputs_df,
         join_on='loc_id',
-        how='inner'
+        how='inner',
     )
-
     if gul_inputs_df.empty:
         raise OasisException(
             'Inner merge of the exposure file dataframe '
@@ -404,7 +402,6 @@ def get_gul_input_items(
     if correlations:
         # do merge with peril correlation df
         gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
-
     gul_inputs_df["group_id"] = (
         pd.util.hash_pandas_object(
             gul_inputs_df.rename(columns=damage_group_id_cols_map)[sorted(list(damage_group_id_cols_map.values()))], index=False).to_numpy() >> 33

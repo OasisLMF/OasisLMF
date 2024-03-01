@@ -2,7 +2,7 @@ from numba import njit
 from .common import DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True, error_model="numpy")
 def back_alloc_extra_a2(base_children_len, temp_children_queue, nodes_array, p,
                         node_val_len, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                         loss_in, loss_out, temp_node_loss, loss_indptr, loss_val,
@@ -134,7 +134,7 @@ def back_alloc_extra_a2(base_children_len, temp_children_queue, nodes_array, p,
             # extras_indptr[child['extra'] + p], child_extra[0])
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True, error_model="numpy")
 def back_alloc_a2(base_children_len, temp_children_queue, nodes_array, p,
                   node_val_len, node_sidx, sidx_indptr, sidx_indexes, sidx_val,
                   loss_in, loss_out, temp_node_loss, loss_indptr, loss_val):
@@ -182,7 +182,7 @@ def back_alloc_a2(base_children_len, temp_children_queue, nodes_array, p,
             # print('ba', child['level_id'], child['agg_id'], p, loss_indptr[child['loss'] + p], child_loss[0], temp_node_loss[p, -3])
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True, error_model="numpy")
 def back_alloc_layer(layer_len, node_val_len, node_loss_indptr,
                      loss_in, loss_out, loss_indptr, loss_val,
                      temp_node_loss_layer_ba):
@@ -208,7 +208,7 @@ def back_alloc_layer(layer_len, node_val_len, node_loss_indptr,
             temp_node_loss_layer_ba[l, i] = loss_val[layer_loss_indptr + i] * loss_factor
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True, error_model="numpy")
 def back_alloc_layer_extra(layer_len, node_val_len, node_loss_indptr, node_extra_indptr,
                            loss_in, loss_out, loss_indptr, loss_val,
                            temp_node_loss_layer_ba,

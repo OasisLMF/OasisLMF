@@ -426,11 +426,14 @@ class BasicKeyServer:
             for i, result in enumerate(results):
                 success = result['status'] == OASIS_KEYS_STATUS['success']['id']
                 success_df = result[success]
-                if success_heading_row is None:
-                    success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                 if not success_df.empty:
+                    if success_heading_row is None:
+                        success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
+                        write_header = True
+                    else:
+                        write_header = False
                     success_df[success_heading_row.keys()].rename(columns=success_heading_row
-                                                                  ).to_csv(successes_file, index=False, header=not i)
+                                                                  ).to_csv(successes_file, index=False, header=write_header)
                     successes_count += success_df.shape[0]
                 if errors_file:
                     errors_df = result[~success]

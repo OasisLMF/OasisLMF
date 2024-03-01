@@ -284,7 +284,7 @@ def set_parent_next_compute(parent_id, child_id, nodes_array, children, computes
         compute_idx['next_compute_i'] += 1
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True, error_model="numpy")
 def compute_event(compute_info,
                   net_loss,
                   nodes_array,
@@ -501,62 +501,63 @@ def compute_event(compute_info,
 
             if compute_node['cross_layer_profile']:
                 node_profile = node_profiles_array[compute_node['profiles']]
-                if compute_node['extra'] != null_index:
-                    temp_node_loss_layer_merge.fill(0)
-                    temp_node_extras_layer_merge.fill(0)
+                if node_profile['i_start'] < node_profile['i_end']:
+                    if compute_node['extra'] != null_index:
+                        temp_node_loss_layer_merge.fill(0)
+                        temp_node_extras_layer_merge.fill(0)
 
-                    for l in range(compute_node['layer_len']):
-                        temp_node_loss_layer_merge[:node_val_len] += loss_val[
-                            loss_indptr[storage_node['loss'] + l]:
-                            loss_indptr[storage_node['loss'] + l] + node_val_len
-                        ]
-                        temp_node_extras_layer_merge[:node_val_len] += extras_val[
-                            extras_indptr[storage_node['extra'] + l]:
-                            extras_indptr[storage_node['extra'] + l] + node_val_len
-                        ]
-                    loss_in = temp_node_loss_layer_merge[:node_val_len]
-                    loss_out = temp_node_loss_sparse[:node_val_len]
-                    temp_node_extras_layer_merge_save[:node_val_len] = temp_node_extras_layer_merge[
-                        :node_val_len]  # save values as they are overwriten
+                        for l in range(compute_node['layer_len']):
+                            temp_node_loss_layer_merge[:node_val_len] += loss_val[
+                                loss_indptr[storage_node['loss'] + l]:
+                                loss_indptr[storage_node['loss'] + l] + node_val_len
+                            ]
+                            temp_node_extras_layer_merge[:node_val_len] += extras_val[
+                                extras_indptr[storage_node['extra'] + l]:
+                                extras_indptr[storage_node['extra'] + l] + node_val_len
+                            ]
+                        loss_in = temp_node_loss_layer_merge[:node_val_len]
+                        loss_out = temp_node_loss_sparse[:node_val_len]
+                        temp_node_extras_layer_merge_save[:node_val_len] = temp_node_extras_layer_merge[
+                            :node_val_len]  # save values as they are overwriten
 
-                    for profile_index in range(node_profile['i_start'], node_profile['i_end']):
-                        calc_extra(fm_profile[profile_index],
-                                   loss_out,
-                                   loss_in,
-                                   temp_node_extras_layer_merge[:, DEDUCTIBLE],
-                                   temp_node_extras_layer_merge[:, OVERLIMIT],
-                                   temp_node_extras_layer_merge[:, UNDERLIMIT],
-                                   stepped)
-                    # print(level, compute_node['agg_id'], base_children_len, fm_profile[profile_index]['calcrule_id'],
-                    #       loss_indptr[storage_node['loss']], loss_in, '=>', loss_out)
-                    # print(temp_node_extras_layer_merge_save[node_sidx[0], DEDUCTIBLE], '=>', temp_node_extras_layer_merge[0, DEDUCTIBLE], extras_indptr[storage_node['extra']])
-                    # print(temp_node_extras_layer_merge_save[node_sidx[0], OVERLIMIT], '=>', temp_node_extras_layer_merge[0, OVERLIMIT])
-                    # print(temp_node_extras_layer_merge_save[node_sidx[0], UNDERLIMIT], '=>', temp_node_extras_layer_merge[0, UNDERLIMIT])
-                    back_alloc_layer_extra(compute_node['layer_len'], node_val_len, storage_node['loss'], storage_node['extra'],
-                                           loss_in, loss_out, loss_indptr, loss_val,
-                                           temp_node_loss_layer_ba,
-                                           extras_indptr, extras_val,
-                                           temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
-                                           )
+                        for profile_index in range(node_profile['i_start'], node_profile['i_end']):
+                            calc_extra(fm_profile[profile_index],
+                                       loss_out,
+                                       loss_in,
+                                       temp_node_extras_layer_merge[:, DEDUCTIBLE],
+                                       temp_node_extras_layer_merge[:, OVERLIMIT],
+                                       temp_node_extras_layer_merge[:, UNDERLIMIT],
+                                       stepped)
+                        # print(level, compute_node['agg_id'], base_children_len, fm_profile[profile_index]['calcrule_id'],
+                        #       loss_indptr[storage_node['loss']], loss_in, '=>', loss_out)
+                        # print(temp_node_extras_layer_merge_save[node_sidx[0], DEDUCTIBLE], '=>', temp_node_extras_layer_merge[0, DEDUCTIBLE], extras_indptr[storage_node['extra']])
+                        # print(temp_node_extras_layer_merge_save[node_sidx[0], OVERLIMIT], '=>', temp_node_extras_layer_merge[0, OVERLIMIT])
+                        # print(temp_node_extras_layer_merge_save[node_sidx[0], UNDERLIMIT], '=>', temp_node_extras_layer_merge[0, UNDERLIMIT])
+                        back_alloc_layer_extra(compute_node['layer_len'], node_val_len, storage_node['loss'], storage_node['extra'],
+                                               loss_in, loss_out, loss_indptr, loss_val,
+                                               temp_node_loss_layer_ba,
+                                               extras_indptr, extras_val,
+                                               temp_node_extras_layer_merge, temp_node_extras_layer_merge_save
+                                               )
 
-                else:
-                    temp_node_loss_layer_merge.fill(0)
-                    for l in range(compute_node['layer_len']):
-                        temp_node_loss_layer_merge[:node_val_len] += loss_val[
-                            loss_indptr[storage_node['loss'] + l]:
-                            loss_indptr[storage_node['loss'] + l] + node_val_len
-                        ]
-                    loss_in = temp_node_loss_layer_merge[:node_val_len]
-                    loss_out = temp_node_loss_sparse[:node_val_len]
-                    for profile_index in range(node_profile['i_start'], node_profile['i_end']):
-                        calc(fm_profile[profile_index],
-                             loss_out,
-                             loss_in,
-                             stepped)
-                    # print(level, compute_node['agg_id'], base_children_len, fm_profile[profile_index]['calcrule_id'],
-                    #       loss_indptr[storage_node['loss']], loss_in, '=>', loss_out)
-                    back_alloc_layer(compute_node['layer_len'], node_val_len, storage_node['loss'],
-                                     loss_in, loss_out, loss_indptr, loss_val, temp_node_loss_layer_ba)
+                    else:
+                        temp_node_loss_layer_merge.fill(0)
+                        for l in range(compute_node['layer_len']):
+                            temp_node_loss_layer_merge[:node_val_len] += loss_val[
+                                loss_indptr[storage_node['loss'] + l]:
+                                loss_indptr[storage_node['loss'] + l] + node_val_len
+                            ]
+                        loss_in = temp_node_loss_layer_merge[:node_val_len]
+                        loss_out = temp_node_loss_sparse[:node_val_len]
+                        for profile_index in range(node_profile['i_start'], node_profile['i_end']):
+                            calc(fm_profile[profile_index],
+                                 loss_out,
+                                 loss_in,
+                                 stepped)
+                        # print(level, compute_node['agg_id'], base_children_len, fm_profile[profile_index]['calcrule_id'],
+                        #       loss_indptr[storage_node['loss']], loss_in, '=>', loss_out)
+                        back_alloc_layer(compute_node['layer_len'], node_val_len, storage_node['loss'],
+                                         loss_in, loss_out, loss_indptr, loss_val, temp_node_loss_layer_ba)
 
             # we apply the policy term on each layer
             for p in range(compute_node['profile_len']):
