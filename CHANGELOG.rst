@@ -1,6 +1,20 @@
 OasisLMF Changelog
 ==================
 
+`1.28.6`_
+ ---------
+* [#1460](https://github.com/OasisLMF/OasisLMF/pull/1463) - Occurrence file not found when requesting output from ktools component aalcalcmeanonly
+* [#1413](https://github.com/OasisLMF/OasisLMF/pull/1413) - Release 1.28.5
+* [#1446](https://github.com/OasisLMF/OasisLMF/pull/1446) - Add missing loc_id check
+* [#1447](https://github.com/OasisLMF/OasisLMF/pull/1447) - use correct error_model in back allocation
+* [#1448](https://github.com/OasisLMF/OasisLMF/pull/1448) - ensure header is written in keys.csv
+* [#1350](https://github.com/OasisLMF/OasisLMF/pull/1456) - model settings - correlation settings - allow optional hazard or damage correlation value 
+* [#1385](https://github.com/OasisLMF/OasisLMF/pull/1459) - Missing parquet library dependencies for gulmc in 1.27
+* [#1430](https://github.com/OasisLMF/OasisLMF/pull/1431) - FM acceptance tests failing with pandas==2.2.0 
+* [#1467](https://github.com/OasisLMF/OasisLMF/pull/1467) - fix for 1 loc with no account fm terms
+* [#1407](https://github.com/OasisLMF/OasisLMF/pull/1407) - Added tests for condition coverages 1-5 financial terms
+.. _`1.28.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.5...1.28.6
+
 `1.28.5`_
  ---------
 * [#1409](https://github.com/OasisLMF/OasisLMF/pull/1409) - Fix server-version flag for API client runner
