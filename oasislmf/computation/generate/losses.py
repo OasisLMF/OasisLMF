@@ -284,7 +284,8 @@ class GenerateLossesDir(GenerateLossesBase):
             analysis_settings,
             gul_item_stream=gul_item_stream,
             il=il,
-            ri=ri
+            ri=ri,
+            fmpy=self.fmpy
         )
 
         if not ri:

@@ -31,6 +31,7 @@ from ..utils.defaults import (
     SOURCE_IDX,
     SUMMARY_MAPPING,
     SUMMARY_OUTPUT,
+    SUMMARY_TOP_LEVEL_COLS,
     get_default_exposure_profile,
 )
 from ..utils.exceptions import OasisException
@@ -78,10 +79,9 @@ def get_useful_summary_cols(oed_hierarchy):
 
 
 def get_xref_df(il_inputs_df):
-    top_level_cols = ['layer_id', SOURCE_IDX['acc'], 'PolNumber']
-    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + top_level_cols]
+    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS]
     bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 1]
-    bottom_level_layers_df.drop(columns=top_level_cols, inplace=True)
+    bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
             .drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
             .sort_values(['gul_input_id', 'layer_id'])
@@ -558,7 +558,7 @@ def get_summary_xref_df(
 
 
 @oasis_log
-def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False):
+def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False, fmpy=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
@@ -578,6 +578,9 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
 
     :param gul_items: Boolean to gul to use item_id instead of coverage_id
     :type gul_items: bool
+
+    :param fmpy: Boolean to indicate whether fmpy python version will be used
+    :type fmpy: bool
     """
 
     # Boolean checks for summary generation types (gul / il / ri)
@@ -673,11 +676,6 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
                 write_df_to_csv_file(il_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
     if ri_summaries:
-        ri_layers = get_ri_settings(model_run_fp)
-        max_layer = str(max([int(x) for x in ri_layers]))
-        summary_ri_fp = os.path.join(
-            model_run_fp, os.path.basename(ri_layers[max_layer]['directory']))
-
         if ('il_summaries' not in analysis_settings) or (not il_summaries):
             il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
             il_map_df = get_dataframe(
@@ -695,8 +693,26 @@ def generate_summaryxref_files(location_df, account_df, model_run_fp, analysis_s
             analysis_settings['ri_summaries'],
             'ri'
         )
-        # Write Xref file
-        write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
+        # Write Xref file for each inuring priority where output has been requested
+        ri_settings = get_ri_settings(model_run_fp)
+        ri_layers = {int(x) for x in ri_settings}
+        max_layer = max(ri_layers)
+        ri_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
+        ri_inuring_priorities.add(max_layer)
+        if not fmpy:
+            if len(ri_inuring_priorities) > 1:
+                raise OasisException('Outputs at intermediate inuring priorities not compatible with fmcalc c++ option.')
+        if not ri_inuring_priorities.issubset(ri_layers):
+            ri_missing_layers = ri_inuring_priorities.difference(ri_layers)
+            ri_missing_layers = [str(layer) for layer in ri_missing_layers]
+            missing_layers = ', '.join(ri_missing_layers[:-1])
+            missing_layers += ' and ' * (len(ri_missing_layers) > 1) + ri_missing_layers[-1]
+            missing_layers = ('priority ' if len(ri_missing_layers) == 1 else 'priorities ') + missing_layers
+            raise OasisException(f'Requested outputs for inuring {missing_layers} lie outside of scope.')
+        for inuring_priority in ri_inuring_priorities:
+            summary_ri_fp = os.path.join(
+                model_run_fp, os.path.basename(ri_settings[str(inuring_priority)]['directory']))
+            write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files
         for desc_key in ri_summary_desc:
