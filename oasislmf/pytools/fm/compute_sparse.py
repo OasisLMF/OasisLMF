@@ -321,7 +321,7 @@ def compute_event(compute_info,
     compute an entire event, result losses are stored inplace in loss_val
     Args:
         compute_info: general information on the computation (financial_structure.compute_info_dtype)
-        net_loss: if true compute the net loss instead of the insured loss
+        keep_input_loss: if true compute the net loss instead of the insured loss
         nodes_array: array of information on all nodes
         node_parents_array: array of node to parent node
         node_profiles_array: array of profile for each node

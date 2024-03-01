@@ -138,7 +138,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             try:
                 compute_event_sparse(
                     compute_info,
-                    net_loss,
+                    keep_input_loss,
                     nodes_array,
                     node_parents_array,
                     node_profiles_array,
