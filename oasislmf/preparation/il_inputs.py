@@ -30,7 +30,7 @@ from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (factorize_array, factorize_ndarray,
                                  set_dataframe_column_dtypes)
-from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, assign_defaults_to_il_inputs,
+from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, SUMMARY_TOP_LEVEL_COLS, assign_defaults_to_il_inputs,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
@@ -713,7 +713,7 @@ def get_il_input_items(
                                     .drop_duplicates()
                                     .groupby(agg_key + sub_agg_key + ['layer_id'], observed=True)
                                     .size()
-                                    .max() > 1)
+                                    .max() > 1) or set(SUMMARY_TOP_LEVEL_COLS).difference(set(prev_level_df.columns))
 
         if need_account_aggregation:
             level_df = gul_inputs_df.merge(accounts_df[list(set(agg_key + sub_agg_key + ['layer_id'])
@@ -829,6 +829,7 @@ def get_il_input_items(
     il_inputs_df['policytc_id'] = il_inputs_df['policytc_id'].astype('uint32')
 
     il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
+
     return il_inputs_df
 
 
