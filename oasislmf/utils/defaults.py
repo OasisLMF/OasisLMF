@@ -129,6 +129,8 @@ SUMMARY_OUTPUT = OrderedDict({
     'il': 'fmsummaryxref.csv'
 })
 
+SUMMARY_TOP_LEVEL_COLS = ['layer_id', SOURCE_IDX['acc'], 'PolNumber']
+
 # Path for storing static data/metadata files used in the package
 STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), '_data')
 
