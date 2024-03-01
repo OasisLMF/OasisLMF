@@ -72,20 +72,27 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
 
         with event_writer_cls(files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val,
                               loss_indptr, loss_val, pass_through_out, max_sidx_val, computes) as event_writer:
-            for event_id in read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
-                                                loss_indptr, loss_val, pass_through, len_array, computes, compute_idx):
-                compute_event_sparse(
-                    compute_info,
-                    net_loss,
-                    nodes_array,
-                    node_parents_array,
-                    node_profiles_array,
-                    len_array, max_sidx_val, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, extras_indptr, extras_val,
-                    children,
-                    computes,
-                    compute_idx,
-                    item_parent_i,
-                    fm_profile,
-                    stepped)
-                event_writer.write(event_id, compute_idx)
-                reset_variable_sparse(children, compute_idx, computes)
+            for i, event_id in enumerate(read_streams_sparse(
+                    streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
+                    loss_indptr, loss_val, pass_through, len_array, computes, compute_idx)):
+                try:
+                    compute_event_sparse(
+                        compute_info,
+                        net_loss,
+                        nodes_array,
+                        node_parents_array,
+                        node_profiles_array,
+                        len_array, max_sidx_val, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, extras_indptr, extras_val,
+                        children,
+                        computes,
+                        compute_idx,
+                        item_parent_i,
+                        fm_profile,
+                        stepped)
+                    event_writer.write(event_id, compute_idx)
+                    reset_variable_sparse(children, compute_idx, computes)
+                except Exception:
+                    node = nodes_array[computes[compute_idx['compute_i']]]
+                    logger.error(f"event index={i} id={event_id}, "
+                                 f"at node level_id={node['level_id']} agg_id={node['agg_id']}")
+                    raise

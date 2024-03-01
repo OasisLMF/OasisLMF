@@ -1,6 +1,8 @@
 OasisLMF Changelog
 ==================
 
+.. _`1.27.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.7...1.27.8
+
 `1.27.7`_
  ---------
 * [#1397](https://github.com/OasisLMF/OasisLMF/pull/1397) - Add output zeros flag to summarycalc for all reinsurance loss computes

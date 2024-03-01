@@ -224,6 +224,9 @@ def get_gul_input_items(
                 correlation_check = True
 
     query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
+    for tiv_col in tiv_cols:
+        if tiv_col not in exposure_df.columns:
+            exposure_df[tiv_col] = 0
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
@@ -273,7 +276,7 @@ def get_gul_input_items(
     # Free memory after merge, before memory-intensive restructuring of data
     del keys_df
 
-    gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)
+    gul_inputs_df[list(tiv_terms.values())] = gul_inputs_df[list(tiv_terms.values())].fillna(0)
 
     # Group the rows in the GUL inputs table by coverage type, and set the
     # IL terms (and BI coverage boolean) in each group and update the
@@ -320,7 +323,7 @@ def get_gul_input_items(
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
     gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks)
-    gul_inputs_df[list(terms_found)].fillna(0., inplace=True)
+    gul_inputs_df[list(terms_found)] = gul_inputs_df[list(terms_found)].fillna(0.)
     gul_inputs_df = gul_inputs_df.sort_index().reset_index(drop=True)
     term_int_found = list(set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints)))
     gul_inputs_df[term_int_found] = gul_inputs_df[term_int_found].fillna(0)

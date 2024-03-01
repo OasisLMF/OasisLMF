@@ -16,6 +16,7 @@ __all__ = [
 ]
 
 import copy
+import gc
 import itertools
 import os
 import sys
@@ -539,12 +540,12 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
     level_grouping = {}
     agg_dict = {level_id: 1 for level_id in range(base_level, max_level + 1)}
 
-    def set_agg_cond(group_id, group, level_id, layer_id, condition):
+    def set_agg_cond(group_id, locations, level_id, layer_id, condition):
         level_group_key = group_id + (level_id,)
         if level_group_key not in level_grouping:
             level_grouping[level_group_key] = agg_dict[level_id]
             agg_dict[level_id] += 1
-        for loc_key in group['locations']:
+        for loc_key in locations:
             location = loc_key[-1]
             level_location_to_agg_cond_dict[group_id + (level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
 
@@ -553,22 +554,23 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
         no_parent_not_top_groups = dict(groups)
         for group_id, group in groups.items():
             for layer_id, cond_num in group['layers'].items():
-                for level_id in range(base_level, group['level']):
-                    set_agg_cond(group_id, group, level_id, layer_id, '')
+                if group['locations']:
+                    for level_id in range(base_level, group['level']):
+                        set_agg_cond(group_id, group['locations'], level_id, layer_id, '')
 
                 if group['level'] == max_level:
                     no_parent_not_top_groups.pop(group_id, None)
-                set_agg_cond(group_id, group, group['level'], layer_id, cond_num)
+                set_agg_cond(group_id, group['locations'], group['level'], layer_id, cond_num)
 
                 for child_group_id in group.get('childs', []):
                     no_parent_not_top_groups.pop(child_group_id, None)
-                    set_agg_cond(group_id, groups[child_group_id], group['level'], layer_id, cond_num)
+                    set_agg_cond(group_id, groups[child_group_id]['locations'], group['level'], layer_id, cond_num)
 
         for group_id in no_parent_not_top_groups:
             for level_id in range(group['level'] + 1, max_level + 1):
                 group = groups[group_id]
                 for layer_id in group['layers']:
-                    set_agg_cond(group_id, group, level_id, layer_id, '')
+                    set_agg_cond(group_id, group['locations'], level_id, layer_id, '')
 
     return level_location_to_agg_cond_dict
 
@@ -823,6 +825,7 @@ def __process_standard_level_df(column_base_il_df,
                    if v['field'] in level_df_with_term.columns]
 
     level_df_with_term['agg_id'] = factorize_ndarray(level_df_with_term.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
+
     level_df_with_term['prev_agg_id'] = factorize_ndarray(level_df_with_term.loc[:, prev_agg_key].values, col_idxs=range(len(prev_agg_key)))[0]
 
     # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
@@ -1023,10 +1026,10 @@ def get_il_input_items(
 
     # get column name to fm term
     fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile, lowercase=False)
-    gul_inputs_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
+    column_base_il_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
     bi_tiv_col = 'BITIV'
 
-    column_base_il_df = __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
+    column_base_il_df = __merge_gul_and_account(column_base_il_df, accounts_df, fm_terms, oed_hierarchy)
 
     # Profile dict are base on key that correspond to the fm term name.
     # this prevent multiple file column to point to the same fm term
@@ -1203,6 +1206,9 @@ def get_il_input_items(
         il_inputs_df_list.append(prev_level_df)
         prev_level_df = level_df
 
+    del column_base_il_df
+    gc.collect()
+
     prev_level_df['to_agg_id'] = 0
     il_inputs_df_list.append(prev_level_df)
     il_inputs_df = pd.concat(il_inputs_df_list)
@@ -1211,6 +1217,10 @@ def get_il_input_items(
             il_inputs_df[col].fillna(0, inplace=True)
         except Exception:
             pass
+
+    del prev_level_df
+    del il_inputs_df_list
+    gc.collect()
 
     # set top agg_id for later xref computation
     il_inputs_df['top_agg_id'] = factorize_ndarray(il_inputs_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]

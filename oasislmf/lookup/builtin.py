@@ -362,7 +362,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing LocPerilsCovered column in location')
 
-            split_df = locations[loc_perils_covered_column].str.split(';').apply(pd.Series, 1).stack()
+            split_df = locations[loc_perils_covered_column].str.split(';').apply(pd.Series).stack()
             split_df.index = split_df.index.droplevel(-1)
             split_df.name = 'peril_group_id'
 
