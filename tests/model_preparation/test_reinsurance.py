@@ -116,10 +116,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [2, 3, 1, 1, 1, 2, 2, 2, 2]
+                    'profile_id': [2, 3, 1, 1, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -185,10 +185,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [2, 3, 1, 2, 2, 2, 2]
+                    'profile_id': [2, 3, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -254,10 +254,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [2, 3, 1, 2, 2, 2, 2]
+                    'profile_id': [2, 3, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -323,10 +323,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [2, 1, 3, 2, 2, 2, 2]
+                    'profile_id': [2, 1, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -393,10 +393,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                        'policytc_id': [2, 3, 3, 1, 1, 2, 2, 2, 2]
+                        'profile_id': [2, 3, 3, 1, 1, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3, ],
+                        'profile_id': [1, 2, 3, ],
                         'calcrule_id': [14, 12, 24, ],
                         'deductible1': [0.0, 0.0, 0.0, ],
                         'deductible2': [0.0, 0.0, 0.0, ],
@@ -422,10 +422,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                        'policytc_id': [2, 3, 1, 2, 2, 2, 2]
+                        'profile_id': [2, 3, 1, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3],
+                        'profile_id': [1, 2, 3],
                         'calcrule_id': [14, 12, 24],
                         'deductible1': [0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0],
@@ -451,10 +451,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                        'policytc_id': [2, 3, 1, 2, 2, 2, 2]
+                        'profile_id': [2, 3, 1, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3],
+                        'profile_id': [1, 2, 3],
                         'calcrule_id': [14, 12, 24],
                         'deductible1': [0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0],
@@ -521,10 +521,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -590,10 +590,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 1, 3, 1, 1, 2, 2]
+                    'profile_id': [4, 1, 3, 1, 1, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -659,10 +659,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 1, 2, 2, 1, 1]
+                    'profile_id': [4, 3, 1, 2, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -728,10 +728,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 1, 2, 2, 1, 1]
+                    'profile_id': [4, 3, 1, 2, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -797,10 +797,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 1, 1, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 1, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -866,10 +866,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 1, 1, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 1, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -935,10 +935,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 1, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1004,10 +1004,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1073,10 +1073,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1142,10 +1142,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 1, 2, 2, 1, 1]
+                    'profile_id': [4, 3, 1, 2, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1211,10 +1211,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [7, 3, 4, 5, 6, 2, 2, 2, 2]
+                    'profile_id': [7, 3, 4, 5, 6, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4, 5, 6, 7],
+                    'profile_id': [1, 2, 3, 4, 5, 6, 7],
                     'calcrule_id': [14, 12, 24, 24, 24, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1280,10 +1280,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [5, 3, 1, 2, 2, 2, 2]
+                    'profile_id': [5, 3, 1, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4, 5],
+                    'profile_id': [1, 2, 3, 4, 5],
                     'calcrule_id': [14, 12, 24, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1349,10 +1349,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 1, 2, 2, 1, 1]
+                    'profile_id': [4, 3, 1, 2, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1418,10 +1418,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1487,10 +1487,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 1, 2, 3, 4],
-                    'policytc_id': [3, 2, 2, 2, 2, 2]
+                    'profile_id': [3, 2, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -1556,10 +1556,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 1, 2, 3, 4],
-                    'policytc_id': [3, 2, 2, 2, 2, 2]
+                    'profile_id': [3, 2, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -1625,10 +1625,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1694,10 +1694,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1763,10 +1763,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1832,10 +1832,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 1, 2, 3],
-                    'policytc_id': [4, 3, 3, 1, 2, 2, 1]
+                    'profile_id': [4, 3, 3, 1, 2, 2, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1901,10 +1901,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 1, 2, 3],
-                    'policytc_id': [4, 3, 1, 1, 2, 1, 1]
+                    'profile_id': [4, 3, 1, 1, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -1970,10 +1970,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 2, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 1, 2, 3],
-                    'policytc_id': [4, 3, 1, 1, 2, 1, 1]
+                    'profile_id': [4, 3, 1, 1, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -2038,10 +2038,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 2, 2, 2, 2, 2, 2]
+                    'profile_id': [3, 2, 2, 2, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2106,10 +2106,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 1, 2, 2, 2, 2, 1]
+                    'profile_id': [3, 2, 1, 2, 2, 2, 2, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2174,10 +2174,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 1, 2, 2, 1, 1, 1]
+                    'profile_id': [3, 2, 1, 2, 2, 1, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2242,10 +2242,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 1, 1, 1, 2, 1, 1]
+                    'profile_id': [3, 2, 1, 1, 1, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2310,10 +2310,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 1, 1, 1, 2, 1, 1]
+                    'profile_id': [3, 2, 1, 1, 1, 2, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2378,10 +2378,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 1, 2, 2, 1, 1, 1]
+                    'profile_id': [3, 2, 1, 2, 2, 1, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2446,10 +2446,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1],
                     'level_id': [3, 2, 2, 1, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 1, 2, 3, 4, 5],
-                    'policytc_id': [3, 2, 1, 2, 1, 1, 1, 1]
+                    'profile_id': [3, 2, 1, 2, 1, 1, 1, 1]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3],
+                    'profile_id': [1, 2, 3],
                     'calcrule_id': [14, 12, 24],
                     'deductible1': [0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0],
@@ -2514,10 +2514,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2],
                     'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1, 3, 2, 2, 2, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4, 1, 1, 2, 3, 4, 1, 2, 3, 4],
-                    'policytc_id': [4, 3, 3, 1, 1, 2, 2, 2, 2, 5, 1, 1, 3, 3, 2, 2, 2, 2]
+                    'profile_id': [4, 3, 3, 1, 1, 2, 2, 2, 2, 5, 1, 1, 3, 3, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4, 5],
+                    'profile_id': [1, 2, 3, 4, 5],
                     'calcrule_id': [14, 12, 24, 23, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -2583,10 +2583,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                        'policytc_id': [4, 3, 3, 1, 1, 2, 2, 2, 2]
+                        'profile_id': [4, 3, 3, 1, 1, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3, 4],
+                        'profile_id': [1, 2, 3, 4],
                         'calcrule_id': [14, 12, 24, 23],
                         'deductible1': [0.0, 0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -2611,10 +2611,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4],
-                        'policytc_id': [4, 3, 1, 1, 3, 2, 2, 2, 2]
+                        'profile_id': [4, 3, 1, 1, 3, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3, 4],
+                        'profile_id': [1, 2, 3, 4],
                         'calcrule_id': [14, 12, 24, 23],
                         'deductible1': [0.0, 0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -2679,10 +2679,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
                     'level_id': [3, 2, 1, 1, 1, 1, 3, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 1, 2, 3, 4, 1, 1, 1, 2, 3, 4],
-                    'policytc_id': [5, 3, 2, 2, 2, 2, 6, 4, 2, 2, 2, 2]
+                    'profile_id': [5, 3, 2, 2, 2, 2, 6, 4, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4, 5, 6],
+                    'profile_id': [1, 2, 3, 4, 5, 6],
                     'calcrule_id': [14, 12, 24, 24, 23, 23],
                     'deductible1': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -2748,10 +2748,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 1, 2, 3, 4],
-                        'policytc_id': [4, 3, 2, 2, 2, 2]
+                        'profile_id': [4, 3, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3, 4],
+                        'profile_id': [1, 2, 3, 4],
                         'calcrule_id': [14, 12, 24, 23],
                         'deductible1': [0.0, 0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -2776,10 +2776,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 1, 2, 3, 4],
-                        'policytc_id': [4, 3, 2, 2, 2, 2]
+                        'profile_id': [4, 3, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3, 4],
+                        'profile_id': [1, 2, 3, 4],
                         'calcrule_id': [14, 12, 24, 23],
                         'deductible1': [0.0, 0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -2844,10 +2844,10 @@ class TestReinsurance(unittest.TestCase):
                     'layer_id': [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
                     'level_id': [3, 2, 1, 1, 1, 1, 3, 2, 1, 1, 1, 1],
                     'agg_id': [1, 1, 1, 2, 3, 4, 1, 1, 1, 2, 3, 4],
-                    'policytc_id': [3, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2]
+                    'profile_id': [3, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'policytc_id': [1, 2, 3, 4],
+                    'profile_id': [1, 2, 3, 4],
                     'calcrule_id': [14, 12, 24, 24],
                     'deductible1': [0.0, 0.0, 0.0, 0.0],
                     'deductible2': [0.0, 0.0, 0.0, 0.0],
@@ -2919,10 +2919,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 1, 2, 3, 4],
-                        'policytc_id': [3, 2, 2, 2, 2, 2]
+                        'profile_id': [3, 2, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3],
+                        'profile_id': [1, 2, 3],
                         'calcrule_id': [14, 12, 24],
                         'deductible1': [0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0],
@@ -2948,10 +2948,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 1, 1, 1, 1],
                         'agg_id': [1, 1, 1, 2, 3, 4],
-                        'policytc_id': [3, 2, 2, 2, 2, 2]
+                        'profile_id': [3, 2, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3],
+                        'profile_id': [1, 2, 3],
                         'calcrule_id': [14, 12, 24],
                         'deductible1': [0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0],
@@ -3050,10 +3050,10 @@ class TestReinsurance(unittest.TestCase):
                         'layer_id': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                         'level_id': [3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1],
                         'agg_id': [1, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6],
-                        'policytc_id': [2, 3, 1, 1, 1, 2, 2, 2, 2, 2, 2]
+                        'profile_id': [2, 3, 1, 1, 1, 2, 2, 2, 2, 2, 2]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'policytc_id': [1, 2, 3],
+                        'profile_id': [1, 2, 3],
                         'calcrule_id': [14, 12, 24],
                         'deductible1': [0.0, 0.0, 0.0],
                         'deductible2': [0.0, 0.0, 0.0],
