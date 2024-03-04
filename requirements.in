@@ -7,7 +7,7 @@ furo
 hypothesis
 mock
 pip-tools>=2.0.2
-pytest
+pytest<8.1.0
 pytest-cov
 pytest-ignore-flaky
 sphinx-autoapi
