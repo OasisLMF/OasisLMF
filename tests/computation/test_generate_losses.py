@@ -104,6 +104,7 @@ class TestGenLosses(ComputationChecker):
             'analysis_settings_json': self.tmp_files.get('analysis_settings_json').name,
             'oasis_files_dir': self.args_gen_files_gul['oasis_files_dir'],
             'model_data_dir': self.model_data_dir,
+            'model_run_dir': self.tmp_dirs.get('model_run_dir').name,
         }
 
     def test_losses__no_input__exception_raised(self):
