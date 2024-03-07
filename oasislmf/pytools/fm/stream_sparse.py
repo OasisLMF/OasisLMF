@@ -50,12 +50,6 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
     sidx_indptr[compute_i] += 1
 
 
-def read_stream_header(stream_obj):
-    stream_type = stream_obj.read(4)
-    len_sample = np.frombuffer(stream_obj.read(4), dtype=np.int32)[0]
-    return stream_type, len_sample
-
-
 def register_streams_in(selector_class, streams_in):
     """
     Data from input process is generally sent by event block, meaning once a stream receive data, the complete event is

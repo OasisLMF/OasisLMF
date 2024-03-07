@@ -386,6 +386,7 @@ setup(
             'oasislmf=oasislmf.cli.root:main',
             'plapy=oasislmf.pytools.plapy:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
+            'summarypy=oasislmf.pytools.summarypy.cli:main',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
         ]
     },

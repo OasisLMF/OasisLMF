@@ -4,11 +4,12 @@ import logging
 import numpy as np
 
 from .financial_structure import create_financial_structure, load_financial_structure
-from .stream_sparse import read_stream_header, EventWriterSparse, read_streams_sparse, EventWriterOrderedOutputSparse
+from .stream_sparse import EventWriterSparse, read_streams_sparse, EventWriterOrderedOutputSparse
 from .compute_sparse import compute_event as compute_event_sparse
 from .compute_sparse import init_variable as init_variable_sparse
 from .compute_sparse import reset_variable as reset_variable_sparse
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.pytools.common import read_stream_info
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_meth
 
     try:
         for stream_in in streams_in:
-            stream_type, max_sidx_val = read_stream_header(stream_in)
+            stream_type, max_sidx_val = read_stream_info(stream_in)
 
         if storage_method == "sparse":
             run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, **kwargs)

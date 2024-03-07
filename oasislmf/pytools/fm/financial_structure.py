@@ -9,10 +9,11 @@ import logging
 import os
 
 import numpy as np
-import pandas as pd
 from numba import from_dtype, njit, types
 from numba.typed import Dict, List
 
+
+from oasislmf.pytools.common import load_as_ndarray, load_as_array
 from .common import (allowed_allocation_rule, almost_equal, fm_policytc_dtype,
                      fm_profile_csv_col_map, fm_profile_dtype,
                      fm_profile_step_dtype, fm_programme_dtype,
@@ -71,10 +72,6 @@ def load_static(static_path):
     first check if .bin file is present then try .cvs
     try loading profile_step before falling back to normal profile,
 
-    # TODO: handle profile_step
-    # profile_step = load_file('fm_profile_step', fm_profile_step_dtype, must_exist=False)
-    # profile = profile_step if profile_step else load_file('fm_profile', fm_profile_dtype)
-
     :param static_path: str
             static_path
     :return:
@@ -82,47 +79,25 @@ def load_static(static_path):
         policytc : info on layer
         profile : policy profile can be profile_step or profile
         xref : node to output_id
+        items : items (item_id and coverage_id mapping)
+        coverages : Tiv value for each coverage id
     :raise:
         FileNotFoundError if one of the static is missing
     """
-    def load_file(name, _dtype, must_exist=True, col_map=None):
-        if os.path.isfile(os.path.join(static_path, name + '.bin')):
-            return np.fromfile(os.path.join(static_path, name + '.bin'), dtype=_dtype)
-        elif must_exist or os.path.isfile(os.path.join(static_path, name + '.csv')):
-            # in csv column cam be out of order and have different name,
-            # we load with pandas and write each column to the ndarray
-            if col_map is None:
-                col_map = {}
-            with open(os.path.join(static_path, name + '.csv')) as file_in:
-                cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
-                df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype)
-                res = np.empty(df.shape[0], dtype=_dtype)
-                for name in _dtype.names:
-                    res[name] = df[col_map.get(name, name)]
-                return res
-
-    programme = load_file('fm_programme', fm_programme_dtype)
-    policytc = load_file('fm_policytc', fm_policytc_dtype)
-    profile = load_file('fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
-    if profile is None:
-        profile = load_file('fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)
+    programme = load_as_ndarray(static_path, 'fm_programme', fm_programme_dtype)
+    policytc = load_as_ndarray(static_path, 'fm_policytc', fm_policytc_dtype)
+    profile = load_as_ndarray(static_path, 'fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
+    if len(profile) == 0:
+        profile = load_as_ndarray(static_path, 'fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)
         stepped = None
     else:
         stepped = True
-    xref = load_file('fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
+    xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
 
-    try:  # try to load items and coverage if present for TIV base policies (not used in re-insurance)
-        items = load_file('items', items_dtype)[['item_id', 'coverage_id']]
-
-        # coverage has a different structure whether it comes for the csv or the bin file
-        fp = os.path.join(static_path, 'coverages.bin')
-        if os.path.isfile(fp):
-            coverages = np.fromfile(fp, dtype=np_oasis_float)
-        else:
-            fp = os.path.join(static_path, 'coverages.csv')
-            with open(fp) as file_in:
-                coverages = np.loadtxt(file_in, dtype=np_oasis_float, delimiter=',', skiprows=1, usecols=1)
-    except FileNotFoundError:
+    items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
+    coverages = load_as_array(static_path, 'coverages', np_oasis_float, must_exist=False)
+    if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
+        # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
         coverages = np.empty(0, dtype=np_oasis_float)
 
