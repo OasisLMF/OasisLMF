@@ -7,12 +7,14 @@ import selectors
 from select import select
 import logging
 
+from oasislmf.pytools.common import stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM
+
 logger = logging.getLogger(__name__)
 
 
 remove_empty = False
 
-fm_header = np.int32(1 | 2 << 24).tobytes()
+
 buff_size = 65536
 event_agg_dtype = np.dtype([('event_id', 'i4'), ('agg_id', 'i4')])
 sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
@@ -337,7 +339,7 @@ class EventWriterSparse:
         else:
             self.stream_out = open(self.files_out, 'wb')
         # prepare output buffer
-        self.stream_out.write(fm_header)
+        self.stream_out.write(stream_info_to_bytes(FM_STREAM_ID, ITEM_STREAM))
         self.stream_out.write(np.int32(self.len_sample).tobytes())
         return self
 

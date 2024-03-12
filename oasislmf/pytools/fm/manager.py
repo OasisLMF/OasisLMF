@@ -39,7 +39,7 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss, storage_meth
 
     try:
         for stream_in in streams_in:
-            stream_type, max_sidx_val = read_stream_info(stream_in)
+            stream_type, stream_agg_type, max_sidx_val = read_stream_info(stream_in)
 
         if storage_method == "sparse":
             run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out=files_out, net_loss=net_loss, **kwargs)

@@ -32,6 +32,9 @@ GUL_STREAM_ID = 1
 FM_STREAM_ID = 2
 SUMMARY_STREAM_ID = 3
 
+ITEM_STREAM = 1
+COVERAGE_STREAM = 2
+
 null_index = oasis_int.type(-1)
 
 def bytes_to_stream_info(stream_header):
