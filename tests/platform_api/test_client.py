@@ -1324,8 +1324,8 @@ class APIClientTests(unittest.TestCase):
             sub_task_data = json.load(f)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
-            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url"})
-            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url"})
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "READY"})
@@ -1343,8 +1343,8 @@ class APIClientTests(unittest.TestCase):
             sub_task_data = json.load(f)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
-            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url"})
-            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url"})
+            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
@@ -1439,8 +1439,8 @@ class APIClientTests(unittest.TestCase):
             sub_task_data = json.load(f)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
-            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url"})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url"})
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
@@ -1458,8 +1458,8 @@ class APIClientTests(unittest.TestCase):
             sub_task_data = json.load(f)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
-            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url"})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url"})
+            rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
