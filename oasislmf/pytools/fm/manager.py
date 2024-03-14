@@ -4,7 +4,7 @@ import numpy as np
 from contextlib import ExitStack
 
 from .financial_structure import create_financial_structure, load_financial_structure
-from .stream_sparse import EventWriterSparse, read_streams_sparse, EventWriterOrderedOutputSparse
+from .stream_sparse import FMReader, EventWriterSparse, EventWriterOrderedOutputSparse
 from .compute_sparse import compute_event as compute_event_sparse
 from .compute_sparse import init_variable as init_variable_sparse
 from .compute_sparse import reset_variable as reset_variable_sparse
@@ -129,8 +129,6 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
                              loss_indptr, loss_val, pass_through, len_array, computes, compute_idx)
 
         for i, event_id in enumerate(fm_reader.read_streams(streams_in)):
-        for i, event_id in enumerate(read_streams_sparse(
-                streams_in, )):
             try:
                 compute_event_sparse(
                     compute_info,

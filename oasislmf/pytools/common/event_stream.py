@@ -86,7 +86,7 @@ def init_streams_in(files_in, stack):
     streams_info = [read_stream_info(stream_in) for stream_in in streams_in]
     if len(set(streams_info)) > 1:
         raise IOError(f"multiple stream type detected in streams {dict(enumerate(streams_info))}")
-    return streams_in, streams_info
+    return streams_in, streams_info[0]
 
 @nb.jit()
 def mv_read(byte_mv, cursor, _dtype, itemsize):

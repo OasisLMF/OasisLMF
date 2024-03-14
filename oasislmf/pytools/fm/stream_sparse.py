@@ -141,44 +141,6 @@ def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg
 
     return cursor, event_id, agg_id, 0
 
-
-def read_event_sparse(stream, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-                      computes, compute_idx, main_selector, stream_selector, mv, event_agg, sidx_loss, cursor, valid_buf):
-    event_id = 0
-    agg_id = 0
-
-    while True:
-        if valid_buf < buff_size:
-            len_read = stream.readinto1(mv[valid_buf:])
-            valid_buf += len_read
-
-            if len_read == 0:
-                stream_selector.close()
-                main_selector.unregister(stream)
-                if event_id:
-                    reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
-                    return event_id, cursor, valid_buf
-
-                break
-
-        cursor, event_id, agg_id, yield_event = stream_to_loss_sparse(
-            event_agg, sidx_loss, valid_buf, cursor,
-            event_id, agg_id, nodes_array,
-            sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
-            pass_through, computes, compute_idx)
-
-        if yield_event:
-            if number_size * cursor == valid_buf:
-                valid_buf = 0
-            return event_id, cursor, valid_buf
-        else:
-            cursor_buf = number_size * cursor
-            mv[:valid_buf - cursor_buf] = mv[cursor_buf: valid_buf]
-            valid_buf -= cursor_buf
-            cursor = 0
-            stream_selector.select()
-
-
 def event_log_msg(event_id, sidx_indptr, len_array, node_count):
     return f"event_id: {event_id}, node_count: {node_count}, sparsity: {100 * sidx_indptr[node_count] / node_count / len_array}"
 
@@ -236,6 +198,17 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
 
 class FMReader(EventReader):
+    """
+    when reading the stream we store relenvant value into a slithly modified version of the CSR sparse matrix where
+    the column indices for row i are stored in indices[indptr[i]:indptr[i+1]]
+    and their corresponding values are stored in data[indptr[i]:indptr[i+1]].
+
+    nodes_array: array containing all the static information on the nodes
+    loss_indptr: array containing the indexes of the beginning and end of samples of an item
+    loss_sidx: array containing the sidx of the samples
+    loss_val: array containing the loss of the samples
+    """
+
     def __init__(self, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                  len_array, computes, compute_idx):
         self.nodes_array = nodes_array
@@ -259,61 +232,12 @@ class FMReader(EventReader):
         )
 
     def item_exit(self):
-        raise NotImplementedError
+        reset_empty_items(self.compute_idx, self.sidx_indptr, self.sidx_val, self.loss_val, self.computes)
 
     def event_read_log(self, event_id):
         logger.debug(event_log_msg(event_id, self.sidx_indptr, self.len_array, self.compute_idx['next_compute_i']))
 
-
-def read_streams_sparse(streams_in, ):
-    try:
-        main_selector, stream_data = register_streams_in(selectors.DefaultSelector, streams_in)
-        logger.debug("Streams read with DefaultSelector")
-    except PermissionError:  # Fall back option if stream_in contain regular files
-        main_selector, stream_data = register_streams_in(selectors.SelectSelector, streams_in)
-        logger.debug("Streams read with SelectSelector")
-    try:
-        while main_selector.get_map():
-            for sKey, _ in main_selector.select():
-                event = read_event_sparse(sKey.fileobj, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr,
-                                          loss_val, pass_through, computes, compute_idx, main_selector, **sKey.data)
-
-                if event:
-                    event_id, cursor, valid_buf = event
-                    sKey.data['cursor'] = cursor
-                    sKey.data['valid_buf'] = valid_buf
-                    logger.debug(event_log_msg(event_id, sidx_indptr, len_array, compute_idx['next_compute_i']))
-                    yield event_id
-
-        # Stream is read, we need to check if there is remaining event to be parsed
-        for data in stream_data:
-            if data['cursor'] < data['valid_buf']:
-                event_agg = data['event_agg']
-                sidx_loss = data['sidx_loss']
-                cursor = data['cursor']
-                valid_buf = data['valid_buf']
-                yield_event = True
-                while yield_event:
-                    cursor, event_id, agg_id, yield_event = stream_to_loss_sparse(
-                        event_agg,
-                        sidx_loss,
-                        valid_buf,
-                        cursor,
-                        0, 0,
-                        nodes_array,
-                        sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
-                        pass_through, computes, compute_idx)
-
-                    if event_id:
-                        reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
-                        logger.debug(event_log_msg(event_id, sidx_indptr, len_array, compute_idx['next_compute_i']))
-                        yield event_id
-
-    finally:
-        main_selector.close()
-
-
-@jit(cache=True, nopython=True)
+@nb.jit(cache=True, nopython=True)
 def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
                sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                computes, compute_idx, output_array, i_layer, i_index, nb_values):
@@ -454,7 +378,7 @@ class EventWriterSparse:
             writable[0].write(self.mv[:cursor])
 
 
-@jit(cache=True, nopython=True)
+@nb.jit(cache=True, nopython=True)
 def get_compute_end(computes, compute_idx):
     compute_start = compute_end = compute_idx['level_start_compute_i']
     while computes[compute_end]:
