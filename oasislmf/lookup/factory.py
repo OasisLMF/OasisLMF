@@ -29,7 +29,7 @@ from .builtin import Lookup as NewLookup
 
 try:
     from billiard import cpu_count, Queue, Process
-except ImportError: 
+except ImportError:
     from multiprocessing import cpu_count, Queue, Process
 
 from queue import Empty, Full
