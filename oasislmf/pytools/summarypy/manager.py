@@ -10,21 +10,17 @@ import logging
 import os
 import sys
 
-from oasislmf.pytools.common import (LossReader, read_stream_info, stream_info_to_bytes,
-                                     GUL_STREAM_ID, FM_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, load_as_ndarray, PIPE_CAPACITY,
-                                     oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                     null_index, )
+from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
+                                          null_index, summary_xref_dtype)
+from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes,
+                                                  mv_read, load_summary_header, load_sidx_loss, load_delimiter,
+                                                  GUL_STREAM_ID, FM_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
+                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
-summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summary_set_id', 'i4')])
 
-mean_idx = -1
-std_dev_idx = -2
-tiv_idx = -3
-chance_of_loss_idx = number_of_affected_risk_idx =  -4
-max_loss_idx = -5
 SPECIAL_SIDX_COUNT = 6 # 0 is included as a special sidx
 SUMMARY_HEADER_LEN = 2 * oasis_int_size + oasis_float_size + SPECIAL_SIDX_COUNT * (oasis_int_size + oasis_float_size)
 
@@ -56,15 +52,6 @@ def nb_extract_risk_info(item_to_risks_i, summary_map_item_ids, summary_map_loc_
 
     return last_risk_i
 
-@nb.jit()
-def mv_read(byte_mv, cursor, _dtype, itemsize):
-    return byte_mv[cursor:cursor + itemsize].view(_dtype)[0], cursor + itemsize
-
-
-@nb.jit()
-def mv_write(byte_mv, cursor, _dtype, itemsize, value):
-    byte_mv[cursor:cursor + itemsize].view(_dtype)[0] = value
-    return cursor + itemsize
 
 @nb.jit(cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
@@ -80,6 +67,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx:
                 loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                loss = 0 if np.isnan(loss) else loss
 
                 ###### do loss read ######
                 if sidx > 0 or sidx in [-1, -3, -5]:
@@ -129,33 +117,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             ##########
     return cursor, event_id, item_id, 0
 
-@nb.njit()
-def load_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value):
-    # print(event_id, summary_id, exposure_value)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, summary_id)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, exposure_value)
-    return cursor
-@nb.njit()
-def load_item_header(byte_mv, cursor, event_id, item_id):
-    # print(event_id, item_id)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, item_id)
-    return cursor
-
-@nb.njit()
-def load_sidx_loss(byte_mv, cursor, sidx, loss):
-    # print('    ', sidx, loss)
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, sidx)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss)
-    return cursor
-
-@nb.njit()
-def load_delimiter(byte_mv, cursor):
-    cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, 0)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_int_size, 0)
-    # print('end', cursor)
-    return cursor
 
 @nb.njit(cache=True)
 def load_event(byte_mv, event_id, len_sample, output_zeros, last_loss_summary_index, last_sidx,
@@ -186,7 +147,7 @@ def load_event(byte_mv, event_id, len_sample, output_zeros, last_loss_summary_in
 
         losses = loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1]
 
-        if not output_zeros and losses[tiv_idx] == 0:
+        if not output_zeros and losses[TIV_IDX] == 0:
             continue
 
         summary_stream_index[summary_index_cursor]['summary_id'] = summary_id
@@ -194,11 +155,11 @@ def load_event(byte_mv, event_id, len_sample, output_zeros, last_loss_summary_in
 
         if last_sidx == 0:
             if cursor + SUMMARY_HEADER_LEN < PIPE_CAPACITY:
-                cursor = load_summary_header(byte_mv, cursor, event_id, summary_id, losses[tiv_idx])
-                cursor = load_sidx_loss(byte_mv, cursor, mean_idx, losses[mean_idx])
+                cursor = load_summary_header(byte_mv, cursor, event_id, summary_id, losses[TIV_IDX])
+                cursor = load_sidx_loss(byte_mv, cursor, MEAN_IDX, losses[MEAN_IDX])
                 if has_affected_risk is not None:
-                    cursor = load_sidx_loss(byte_mv, cursor, number_of_affected_risk_idx, losses[number_of_affected_risk_idx])
-                cursor = load_sidx_loss(byte_mv, cursor, max_loss_idx, losses[max_loss_idx])
+                    cursor = load_sidx_loss(byte_mv, cursor, NUMBER_OF_AFFECTED_RISK_IDX, losses[NUMBER_OF_AFFECTED_RISK_IDX])
+                cursor = load_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, losses[MAX_LOSS_IDX])
                 last_sidx = 1
             else:
                 return cursor, loss_summary_index, last_sidx, summary_index_cursor
@@ -221,7 +182,7 @@ def load_event(byte_mv, event_id, len_sample, output_zeros, last_loss_summary_in
         last_sidx = 0
     return cursor, -1, 0, summary_index_cursor
 
-class SummaryReader(LossReader):
+class SummaryReader(EventReader):
     def __init__(self, summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                  loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
                  item_id_to_risks_i, is_risk_affected, has_affected_risk):
@@ -262,107 +223,98 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
 
     print(files_in, static_path, low_memory, output_zeros, summary_sets_pipe, summary_sets_id)
 
-    if files_in is None:
-        streams_in = [sys.stdin.buffer]
-    else:
-        streams_in = [open(file_in, 'rb') for file_in in files_in]
-
-
-    streams_info = [read_stream_info(stream_in) for stream_in in streams_in]
-    if len(set(streams_info)) > 1:
-        raise IOError(f"multiple stream type detected in streams {dict(enumerate(streams_info))}")
-
-    stream_type, stream_agg_type, len_sample = streams_info[0]
-
-    # map summary set id to summary set index
-    summary_set_id_to_summary_set_index = np.full(10, null_index, 'i4')
-    for summary_set_index in range(summary_sets_id.shape[0]):
-        summary_set_id_to_summary_set_index[summary_sets_id[summary_set_index]] = summary_set_index
-
-    print('summary_set_map', summary_set_id_to_summary_set_index)
-
-    # extract item_id to index in the loss summary
-    if stream_type == GUL_STREAM_ID:
-        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype)
-        summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
-                                  usecols = ['loc_id', 'item_id', 'building_id', 'coverage_id'],
-                                  dtype=oasis_int)
-        has_affected_risk = True
-
-    elif  stream_type == FM_STREAM_ID:
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype)
-        if os.path.exists(os.path.join(static_path, 'fm_summary_map.csv')):
-            summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
-                                      usecols = ['loc_id', 'output_id', 'building_id', 'coverage_id'],
-                                      dtype=oasis_int,
-                                      ).rename(columns={'output_id': 'item_id'})
-            has_affected_risk = True
-        else:
-            has_affected_risk = None
-    else:
-        raise Exception(f"unsupported stream type {stream_type}")
-
-    print(stream_type)
-    print(summary_xref)
-    print(summary_map)
-    0/0
-    summary_set_index_to_loss_ptr = np.zeros(summary_sets_id.shape[0] + 1, oasis_int)
-    max_item_id = 0
-    for i in range(summary_xref.shape[0]):
-        xref = summary_xref[i]
-        summary_set_index = summary_set_id_to_summary_set_index[xref['summary_set_id']]
-        if summary_set_index == null_index:
-            continue
-        if xref['summary_id'] > summary_set_index_to_loss_ptr[summary_set_index + 1]:
-            summary_set_index_to_loss_ptr[summary_set_index + 1] = xref['summary_id']
-        if xref['item_id'] > max_item_id:
-            max_item_id = xref['item_id']
-    for i in range(1, summary_set_index_to_loss_ptr.shape[0]):
-        summary_set_index_to_loss_ptr[i] += summary_set_index_to_loss_ptr[i - 1]
-    print('summary_set_index_to_loss_ptr', summary_set_index_to_loss_ptr)
-
-    item_id_to_summary_id = np.full((max_item_id + 1, summary_sets_id.shape[0]), null_index, oasis_int)
-    for i in range(summary_xref.shape[0]):
-        xref = summary_xref[i]
-        summary_set_index = summary_set_id_to_summary_set_index[xref['summary_set_id']]
-        if summary_set_index == null_index:
-            continue
-        item_id_to_summary_id[xref['item_id'], summary_set_index] = xref['summary_id']
-
-    present_summary_id = np.zeros(summary_set_index_to_loss_ptr[-1], oasis_int)
-    loss_index = np.empty(summary_sets_id.shape[0], oasis_int)
-    summary_id_count_per_summary_set = np.array(summary_set_index_to_loss_ptr)
-    loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
-
-    if has_affected_risk:
-        nb_risk, item_id_to_risks_i = extract_risk_info(item_id_to_summary_id.shape[0], summary_map)
-        is_risk_affected = np.zeros(nb_risk, dtype=oasis_int)
-        print(item_id_to_risks_i)
-    else:
-        item_id_to_risks_i = is_risk_affected = np.zeros(0, dtype=oasis_int)
-
-    # summary_sets_id: list of summary_set_id
-    # summary_set_to_index : map summary_set_id to summary_set_index
-    # summary_set_ptr : map summary_set_id to where it starts in the loss
-    # summary_ptr : ptr to where the summary id is in summary_id_present
-    # summary_id_present: starting at each summary_set_ptr, list all summary id present, 0 means no more summary for this set
-    # summary_xref_map : map between ( item_id , summary) => index 1 in loss_summary
-    # loss_summary: loss for (summary_set_id, summary_id) via index = (summary_set_ptr[summary_set_id] + summary_id, sidx)
-
-
-    summary_reader = SummaryReader(
-            summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-            loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
-            item_id_to_risks_i, is_risk_affected, has_affected_risk)
-
-    out_mv = memoryview(bytearray(PIPE_CAPACITY))
-    out_byte_mv = np.frombuffer(buffer=out_mv, dtype='b')
-
-    # data for index file (low_memory==True)
-    summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
-    summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=np.dtype([('summary_id', oasis_int), ('offset', np.int64)]))
-
     with ExitStack() as stack:
+        streams_in, (stream_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
+
+        # map summary set id to summary set index
+        summary_set_id_to_summary_set_index = np.full(10, null_index, 'i4')
+        for summary_set_index in range(summary_sets_id.shape[0]):
+            summary_set_id_to_summary_set_index[summary_sets_id[summary_set_index]] = summary_set_index
+
+        print('summary_set_map', summary_set_id_to_summary_set_index)
+
+        # extract item_id to index in the loss summary
+        if stream_type == GUL_STREAM_ID:
+            summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype)
+            summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
+                                      usecols = ['loc_id', 'item_id', 'building_id', 'coverage_id'],
+                                      dtype=oasis_int)
+            has_affected_risk = True
+
+        elif  stream_type == FM_STREAM_ID:
+            summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype)
+            if os.path.exists(os.path.join(static_path, 'fm_summary_map.csv')):
+                summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
+                                          usecols = ['loc_id', 'output_id', 'building_id', 'coverage_id'],
+                                          dtype=oasis_int,
+                                          ).rename(columns={'output_id': 'item_id'})
+                has_affected_risk = True
+            else:
+                has_affected_risk = None
+        else:
+            raise Exception(f"unsupported stream type {stream_type}")
+
+        print(stream_type)
+        print(summary_xref)
+        print(summary_map)
+        0/0
+        summary_set_index_to_loss_ptr = np.zeros(summary_sets_id.shape[0] + 1, oasis_int)
+        max_item_id = 0
+        for i in range(summary_xref.shape[0]):
+            xref = summary_xref[i]
+            summary_set_index = summary_set_id_to_summary_set_index[xref['summary_set_id']]
+            if summary_set_index == null_index:
+                continue
+            if xref['summary_id'] > summary_set_index_to_loss_ptr[summary_set_index + 1]:
+                summary_set_index_to_loss_ptr[summary_set_index + 1] = xref['summary_id']
+            if xref['item_id'] > max_item_id:
+                max_item_id = xref['item_id']
+        for i in range(1, summary_set_index_to_loss_ptr.shape[0]):
+            summary_set_index_to_loss_ptr[i] += summary_set_index_to_loss_ptr[i - 1]
+        print('summary_set_index_to_loss_ptr', summary_set_index_to_loss_ptr)
+
+        item_id_to_summary_id = np.full((max_item_id + 1, summary_sets_id.shape[0]), null_index, oasis_int)
+        for i in range(summary_xref.shape[0]):
+            xref = summary_xref[i]
+            summary_set_index = summary_set_id_to_summary_set_index[xref['summary_set_id']]
+            if summary_set_index == null_index:
+                continue
+            item_id_to_summary_id[xref['item_id'], summary_set_index] = xref['summary_id']
+
+        present_summary_id = np.zeros(summary_set_index_to_loss_ptr[-1], oasis_int)
+        loss_index = np.empty(summary_sets_id.shape[0], oasis_int)
+        summary_id_count_per_summary_set = np.array(summary_set_index_to_loss_ptr)
+        loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
+
+        if has_affected_risk:
+            nb_risk, item_id_to_risks_i = extract_risk_info(item_id_to_summary_id.shape[0], summary_map)
+            is_risk_affected = np.zeros(nb_risk, dtype=oasis_int)
+            print(item_id_to_risks_i)
+        else:
+            item_id_to_risks_i = is_risk_affected = np.zeros(0, dtype=oasis_int)
+
+        # summary_sets_id: list of summary_set_id
+        # summary_set_to_index : map summary_set_id to summary_set_index
+        # summary_set_ptr : map summary_set_id to where it starts in the loss
+        # summary_ptr : ptr to where the summary id is in summary_id_present
+        # summary_id_present: starting at each summary_set_ptr, list all summary id present, 0 means no more summary for this set
+        # summary_xref_map : map between ( item_id , summary) => index 1 in loss_summary
+        # loss_summary: loss for (summary_set_id, summary_id) via index = (summary_set_ptr[summary_set_id] + summary_id, sidx)
+
+
+        summary_reader = SummaryReader(
+                summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
+                loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
+                item_id_to_risks_i, is_risk_affected, has_affected_risk)
+
+        out_mv = memoryview(bytearray(PIPE_CAPACITY))
+        out_byte_mv = np.frombuffer(buffer=out_mv, dtype='b')
+
+        # data for index file (low_memory==True)
+        summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
+        summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=np.dtype([('summary_id', oasis_int), ('offset', np.int64)]))
+
+
         if low_memory:
             summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'w'))
                                        for summary_set_id, setpath in summary_sets_pipe.items()}
@@ -396,7 +348,7 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
                     if loss_summary_index == -1:
                         break
                 if low_memory:
-                    ##write the summary.idx file
+                    # write the summary.idx file
                     np.savetxt(summary_sets_index_pipe[summary_set_id],
                                summary_stream_index[:summary_index_cursor],
                                fmt="%i,%i")
@@ -405,48 +357,3 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
             present_summary_id.fill(0)
             summary_id_count_per_summary_set.fill(0)
             is_risk_affected.fill(0)
-
-            # write_summaries(loss_summary, summary_sets_id, summary_set_to_index, summary_set_ptr, summary_id_present, )
-
-
-    # # do event
-    # len_read = stream_in.readinto1(mv[valid_buf:])
-    # valid_buf += len_read
-    #
-    # event_id = 0
-    #
-    # while True:
-    #     if event_id == 0:
-    #         event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-    #         item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-    #         for summary_set_index in range(summary_sets_id.shape[0]):
-    #             loss_index[summary_set_index] = summary_set_index_to_loss_ptr[summary_set_index] + item_id_to_summary_id[item_id] - 1
-    #             if loss_summary[loss_index[summary_set_index], 0] == 0: # we use sidx 0 to check if this summary_id has already been seen
-    #                 present_summary_id[summary_id_count_per_summary_set[summary_set_index]] = item_id_to_summary_id[item_id]
-    #                 summary_id_count_per_summary_set[summary_set_index] += 1
-    #     else:
-    #         sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-    #         if sidx == 0 :
-    #             event_id = 0
-    #             cursor += oasis_float_size
-    #             for summary_set_index in range(summary_sets_id.shape[0]):
-    #                 summary_set_id = summary_sets_id[summary_set_index]
-    #                 for loss_summary_index in  range(summary_set_index_to_loss_ptr[summary_set_index], summary_id_count_per_summary_set[summary_set_index]):
-    #                     summary_id = present_summary_id[loss_summary_index]
-    #                     print(summary_set_id, summary_id, loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1, -3])
-    #
-    #             # write_summaries(loss_summary, summary_sets_id, summary_set_to_index, summary_set_ptr, summary_id_present, )
-    #             break
-    #         else:
-    #             loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
-    #             for summary_set_index in range(summary_sets_id.shape[0]):
-    #                 loss_summary[loss_index[summary_set_index], sidx] += loss
-    # print(event_id)
-    # # if event_id !=0:
-    # #     write_summaries(loss_summary, summary_sets_id, summary_set_to_index, summary_set_ptr, summary_id_present, )
-    # # #
-    # # int32_mv[cursor:cursor +
-    # #                 areaperil_int_to_int32_size].view(areaperil_int)[0], cursor + areaperil_int_to_int32_size
-    # # print(summary_xref_map)
-
-

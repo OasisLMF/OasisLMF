@@ -2,12 +2,13 @@
 
 import sys
 import numpy as np
-from numba import jit
+import numba as nb
 import selectors
 from select import select
 import logging
 
-from oasislmf.pytools.common import stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM
+from oasislmf.pytools.common.event_stream import stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM, EventReader, mv_read
+from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float, oasis_float_size
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ number_size = 8
 nb_number = buff_size // number_size
 
 
-@jit(cache=True, nopython=True)
+@nb.jit(cache=True, nopython=True)
 def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
     if remove_empty:
         if sidx_indptr[compute_idx['next_compute_i']] == sidx_indptr[compute_idx['next_compute_i'] - 1]:
@@ -36,7 +37,7 @@ def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
             sidx_indptr[compute_idx['next_compute_i']] += 1
 
 
-@jit(cache=True, nopython=True)
+@nb.jit(cache=True, nopython=True)
 def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
     if ((sidx_indptr[compute_i - 1] == sidx_indptr[compute_i])
             or (sidx_val[sidx_indptr[compute_i] - 1] < sidx)):
@@ -81,7 +82,7 @@ def register_streams_in(selector_class, streams_in):
     return main_selector, stream_data
 
 
-@jit(cache=True, nopython=True)
+@nb.jit(cache=True, nopython=True)
 def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, nodes_array,
                           sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                           computes, compute_idx):
@@ -181,9 +182,90 @@ def read_event_sparse(stream, nodes_array, sidx_indexes, sidx_indptr, sidx_val, 
 def event_log_msg(event_id, sidx_indptr, len_array, node_count):
     return f"event_id: {event_id}, node_count: {node_count}, sparsity: {100 * sidx_indptr[node_count] / node_count / len_array}"
 
+@nb.njit(cache=True)
+def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
+                nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
+                computes, compute_idx
+                ):
+    last_event_id = event_id
+    while True:
+        if item_id:
+            if valid_buff -  cursor < (oasis_int_size + oasis_float_size):
+                break
+            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            if sidx:
+                loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                loss = 0 if np.isnan(loss) else loss
 
-def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-                        len_array, computes, compute_idx):
+                ###### do loss read ######
+                if loss != 0:
+                    if sidx == -2:  # standard deviation
+                        pass
+                    elif sidx == -4:  # chance of loss
+                        pass_through[compute_idx['next_compute_i']] = loss
+                    else:
+                        add_new_loss(sidx, loss, compute_idx['next_compute_i'], sidx_indptr, sidx_val, loss_val)
+                ##########
+            else:
+                ##### do item exit ####
+                reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes)
+                ##########
+                cursor += oasis_float_size
+                item_id = 0
+        else:
+            if valid_buff -  cursor < 2 * oasis_int_size:
+                break
+            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            if event_id != last_event_id:
+                if last_event_id: # we have a new event we return the one we just finished
+                    return cursor - oasis_int_size, last_event_id, 0, 1
+                else: # first pass we store the event we are reading
+                    last_event_id = event_id
+            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+
+            ##### do new item setup #####
+            node = nodes_array[item_id]
+
+            sidx_indexes[node['node_id']] = compute_idx['next_compute_i']
+            loss_indptr[node['loss']: node['loss'] + node['layer_len']] = sidx_indptr[compute_idx['next_compute_i']]
+            sidx_indptr[compute_idx['next_compute_i'] + 1] = sidx_indptr[compute_idx['next_compute_i']]
+            computes[compute_idx['next_compute_i']] = item_id
+            compute_idx['next_compute_i'] += 1
+            ##########
+    return cursor, event_id, item_id, 0
+
+
+class FMReader(EventReader):
+    def __init__(self, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
+                 len_array, computes, compute_idx):
+        self.nodes_array = nodes_array
+        self.sidx_indexes = sidx_indexes
+        self.sidx_indptr = sidx_indptr
+        self.sidx_val = sidx_val
+        self.loss_indptr = loss_indptr
+        self.loss_val = loss_val
+        self.pass_through = pass_through
+        self.len_array = len_array
+        self.computes = computes
+        self.compute_idx = compute_idx
+        self.logger = logger
+
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id,):
+        return read_buffer(
+            byte_mv, cursor, valid_buff, event_id, item_id,
+            self.nodes_array, self.sidx_indexes, self.sidx_indptr,
+            self.sidx_val, self.loss_indptr, self.loss_val, self.pass_through,
+            self.computes, self.compute_idx
+        )
+
+    def item_exit(self):
+        raise NotImplementedError
+
+    def event_read_log(self, event_id):
+        logger.debug(event_log_msg(event_id, self.sidx_indptr, self.len_array, self.compute_idx['next_compute_i']))
+
+
+def read_streams_sparse(streams_in, ):
     try:
         main_selector, stream_data = register_streams_in(selectors.DefaultSelector, streams_in)
         logger.debug("Streams read with DefaultSelector")

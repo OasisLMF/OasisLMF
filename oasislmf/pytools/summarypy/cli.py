@@ -10,22 +10,6 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter  # for multi-line help text
 )
 
-# fprintf(stderr,
-#         "Usage: \n"
-#         "-v version\n"
-#         "-h help\n"
-#         "-f input stream = fm\n"
-#         "-g input stream = gul coverage\n"
-#         "-c input stream = gul coverage\n"
-#         "-i input stream = gul item\n"
-#         "-p input path\n"
-#         "-m reduce downstream memory use with index file(s)\n"
-#         "-z output zeros\n"
-#         "-[summarysetid] outfilepipe\n"
-#         "where summarysetid range is 0 to 9\n"
-#         );
-
-
 parser.add_argument('-i', '--files-in', help='names of the input file_path', nargs='+')
 parser.add_argument('-m', '--low-memory', help='reduce downstream memory use with index file(s)', action='store_true')
 parser.add_argument('-p', '--static-path', help='path to the folder containing the static files', default='input')
@@ -42,8 +26,6 @@ parser.add_argument('-6', help="output stream for summary_set_id 6")
 parser.add_argument('-7', help="output stream for summary_set_id 7")
 parser.add_argument('-8', help="output stream for summary_set_id 8")
 parser.add_argument('-9', help="???")
-
-
 
 
 def main():
