@@ -1,4 +1,4 @@
-policytc_id,calcrule_id,deductible1,deductible2,deductible3,attachment1,limit1,share1,share2,share3
+profile_id,calcrule_id,deductible1,deductible2,deductible3,attachment1,limit1,share1,share2,share3
 1,14,0.0,0.0,0.0,0.0,3500000.0,0.0,0.0,0.0
 2,1,1492232.0,0.0,0.0,0.0,350000000.0,0.0,0.0,0.0
 3,1,51474822.63,0.0,0.0,0.0,68322448.36,0.0,0.0,0.0
