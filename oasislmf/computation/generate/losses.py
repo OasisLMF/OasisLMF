@@ -298,7 +298,8 @@ class GenerateLossesDir(GenerateLossesBase):
                 'No valid output settings in: {}'.format(self.analysis_settings_json))
 
         # Load default samples if not set in analysis settings
-        if not analysis_settings.get('number_of_samples'):
+        # Additional check to avoid 0 samples being interpreted as false
+        if not analysis_settings.get('number_of_samples') and analysis_settings.get('number_of_samples') != 0:
             if not self.model_settings_json:
                 raise OasisException("'number_of_samples' not set in analysis_settings and no model_settings.json file provided for a default value.")
 
