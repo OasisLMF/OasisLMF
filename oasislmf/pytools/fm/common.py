@@ -27,8 +27,8 @@ EXTRA_VALUES = 3
 
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
-fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('policytc_id', 'i4')])
-fm_profile_dtype = np.dtype([('policytc_id', 'i4'),
+fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('profile_id', 'i4')])
+fm_profile_dtype = np.dtype([('profile_id', 'i4'),
                              ('calcrule_id', 'i4'),
                              ('deductible_1', 'f4'),
                              ('deductible_2', 'f4'),
@@ -39,7 +39,7 @@ fm_profile_dtype = np.dtype([('policytc_id', 'i4'),
                              ('share_2', 'f4'),
                              ('share_3', 'f4'),
                              ])
-fm_profile_step_dtype = np.dtype([('policytc_id', 'i4'),
+fm_profile_step_dtype = np.dtype([('profile_id', 'i4'),
                                   ('calcrule_id', 'i4'),
                                   ('deductible_1', 'f4'),
                                   ('deductible_2', 'f4'),
