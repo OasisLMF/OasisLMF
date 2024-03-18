@@ -314,7 +314,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     # policies may have multiple step, crate a mapping between policytc_id and the start and end index in fm_profile file
     max_policytc_id = np.max(fm_profile['policytc_id'])
     policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=profile_index_dtype)
-    has_tiv_policy = Dict.empty(oasis_int, oasis_int)
+    has_tiv_policy = Dict.empty(nb_oasis_int, nb_oasis_int)
     last_policytc_id = 0  # real policytc_id start at 1
     for i in range(fm_profile.shape[0]):
         if fm_profile[i]['calcrule_id'] in need_tiv_policy:
@@ -410,8 +410,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     ##### programme ####
     # node_layers will contain the number of layer for each nodes
-    node_layers = Dict.empty(node_type, oasis_int)
-    node_cross_layers = Dict.empty(node_type, oasis_int)
+    node_layers = Dict.empty(node_type, nb_oasis_int)
+    node_cross_layers = Dict.empty(node_type, nb_oasis_int)
 
     # fill up node_layers with the number of policies for each node
     for programme in fm_programme:

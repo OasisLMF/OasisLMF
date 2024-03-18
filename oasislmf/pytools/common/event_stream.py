@@ -1,4 +1,5 @@
 import selectors
+from select import select
 import sys
 
 import numpy as np
@@ -39,7 +40,7 @@ def stream_info_to_bytes(stream_source_type, stream_agg_type):
     Returns:
         return bytes
     """
-    return np.int32(stream_source_type).tobytes()[:3] + np.int8(stream_agg_type).tobytes()
+    return np.int8(stream_agg_type).tobytes() + np.array([stream_source_type], '>i4').tobytes()[1:]
 
 
 def bytes_to_stream_types(stream_header):
@@ -51,7 +52,7 @@ def bytes_to_stream_types(stream_header):
     Returns:
         (stream source type (np.int32), stream aggregation type (np.int32))
     """
-    return np.frombuffer(stream_header[:3] + b'\x00', '<i4')[0], np.frombuffer(stream_header[3:], 'i1')[0]
+    return np.frombuffer(b'\x00' + stream_header[1:], '>i4')[0], np.frombuffer(stream_header[:1], 'i1')[0]
 
 
 def read_stream_info(stream_obj):
@@ -99,28 +100,28 @@ def mv_write(byte_mv, cursor, _dtype, itemsize, value):
     return cursor + itemsize
 
 @nb.njit()
-def load_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value):
+def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value):
     # print(event_id, summary_id, exposure_value)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, summary_id)
     cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, exposure_value)
     return cursor
 @nb.njit()
-def load_item_header(byte_mv, cursor, event_id, item_id):
+def mv_write_item_header(byte_mv, cursor, event_id, item_id)->int:
     # print(event_id, item_id)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, item_id)
     return cursor
 
 @nb.njit()
-def load_sidx_loss(byte_mv, cursor, sidx, loss):
+def mv_write_sidx_loss(byte_mv, cursor, sidx, loss):
     # print('    ', sidx, loss)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, sidx)
     cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss)
     return cursor
 
 @nb.njit()
-def load_delimiter(byte_mv, cursor):
+def mv_write_delimiter(byte_mv, cursor):
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, 0)
     cursor = mv_write(byte_mv, cursor, oasis_float, oasis_int_size, 0)
     # print('end', cursor)
@@ -135,19 +136,24 @@ class EventReader:
     - memoryview : read a chuck (PIPE_CAPACITY) of data at a time then work on it using a numpy byte view of this buffer
 
     To use those methods need to be implemented:
+    - __init__(self, ...) the constructor with all data structure needed to read and store the event stream
     - read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id)
         simply point to a local numba.jit function name read_buffer (a template is provided bellow)
         this function should implement the specific logic of where and how to store the event information.
+
+    Those to method may be overwritten
     - item_exit(self):
         specific logic to do when an item is finished (only executed once the stream is finished but no 0,0 closure was present)
 
     - event_read_log(self):
         what kpi to log when a full event is read
 
-
-    usage:
-
-
+    usage snippet:
+        with ExitStack() as stack:
+            streams_in, (stream_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
+            reader = CustomReader(<read relevant attributes>)
+            for event_id in reader.read_streams(streams_in):
+                <event logic>
 
     """
 
@@ -248,10 +254,10 @@ class EventReader:
         raise NotImplementedError
 
     def item_exit(self):
-        raise NotImplementedError
+        pass
 
-    def event_read_log(self):
-        raise NotImplementedError
+    def event_read_log(self, event_id):
+        pass
 
 
 
@@ -293,3 +299,12 @@ class EventReader:
 #             ##### do new item setup #####
 #             ##########
 #     return cursor, event_id, item_id, 0
+
+
+def write_mv_to_stream(stream, byte_mv, cursor):
+    written = 0
+    while written < cursor:
+        _, writable, exceptional = select([], [stream], [stream])
+        if exceptional:
+            raise IOError(f'error with input stream, {exceptional}')
+        written += stream.write(byte_mv[written:cursor].tobytes())
