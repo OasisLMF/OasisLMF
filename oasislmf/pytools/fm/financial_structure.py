@@ -310,19 +310,19 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         node_profiles_array:
         output_array:
     """
-    ##### policytc_id_to_profile_index ####
-    # policies may have multiple step, crate a mapping between policytc_id and the start and end index in fm_profile file
-    max_policytc_id = np.max(fm_profile['policytc_id'])
-    policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=profile_index_dtype)
+    ##### profile_id_to_profile_index ####
+    # policies may have multiple step, crate a mapping between profile_id and the start and end index in fm_profile file
+    max_profile_id = np.max(fm_profile['profile_id'])
+    profile_id_to_profile_index = np.empty(max_profile_id + 1, dtype=profile_index_dtype)
     has_tiv_policy = Dict.empty(nb_oasis_int, nb_oasis_int)
-    last_policytc_id = 0  # real policytc_id start at 1
+    last_profile_id = 0  # real profile_id start at 1
     for i in range(fm_profile.shape[0]):
         if fm_profile[i]['calcrule_id'] in need_tiv_policy:
-            has_tiv_policy[fm_profile[i]['policytc_id']] = nb_oasis_int(0)
-        policytc_id_to_profile_index[fm_profile[i]['policytc_id']]['i_end'] = i + 1
-        if last_policytc_id != fm_profile[i]['policytc_id']:
-            policytc_id_to_profile_index[fm_profile[i]['policytc_id']]['i_start'] = i
-            last_policytc_id = fm_profile[i]['policytc_id']
+            has_tiv_policy[fm_profile[i]['profile_id']] = nb_oasis_int(0)
+        profile_id_to_profile_index[fm_profile[i]['profile_id']]['i_end'] = i + 1
+        if last_profile_id != fm_profile[i]['profile_id']:
+            profile_id_to_profile_index[fm_profile[i]['profile_id']]['i_start'] = i
+            last_profile_id = fm_profile[i]['profile_id']
 
     # in fm_programme check if multi-peril and get size of each levels
     max_level = np.max(fm_programme['level_id'])
@@ -338,7 +338,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         if level_node_len[programme['level_id']] < programme['to_agg_id']:
             level_node_len[programme['level_id']] = programme['to_agg_id']
 
-    ##### fm_policytc (level_id agg_id layer_id => policytc_id) #####
+    ##### fm_policytc (level_id agg_id layer_id => profile_id) #####
     # programme_node_to_layers dict of (level_id, agg_id) => list of (layer_id, policy_index_start, policy_index_end)
     # for each policy needing tiv, we duplicate the policy for each node to then later on calculate the % tiv parameters
     programme_node_to_layers = Dict.empty(node_type, List.empty_list(layer_type))
@@ -347,17 +347,17 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for i in range(fm_policytc.shape[0]):
         policytc = fm_policytc[i]
         programme_node = (nb_oasis_int(policytc['level_id']), nb_oasis_int(policytc['agg_id']))
-        i_start = policytc_id_to_profile_index[nb_oasis_int(policytc['policytc_id'])]['i_start']
-        i_end = policytc_id_to_profile_index[nb_oasis_int(policytc['policytc_id'])]['i_end']
+        i_start = profile_id_to_profile_index[nb_oasis_int(policytc['profile_id'])]['i_start']
+        i_end = profile_id_to_profile_index[nb_oasis_int(policytc['profile_id'])]['i_end']
 
-        if policytc['policytc_id'] in has_tiv_policy:
-            if has_tiv_policy[policytc['policytc_id']]:
+        if policytc['profile_id'] in has_tiv_policy:
+            if has_tiv_policy[policytc['profile_id']]:
                 for j in range(i_start, i_end):
                     new_fm_profile_list.append(j)
                 i_start, i_end = i_new_fm_profile, i_new_fm_profile + i_end - i_start
                 i_new_fm_profile = i_end
             else:
-                has_tiv_policy[policytc['policytc_id']] = nb_oasis_int(1)
+                has_tiv_policy[policytc['profile_id']] = nb_oasis_int(1)
 
         layer = (nb_oasis_int(policytc['layer_id']), nb_oasis_int(i_start), nb_oasis_int(i_end))
 

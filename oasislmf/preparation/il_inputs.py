@@ -4,8 +4,8 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
     'get_il_input_items',
-    'get_policytc_ids',
-    'get_step_policytc_ids',
+    'get_profile_ids',
+    'get_step_profile_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
     'write_fm_profile_file',
@@ -52,14 +52,14 @@ supp_cov_type_ids = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
 
 policytc_cols = ['calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
 step_profile_cols = [
-    'policytc_id', 'calcrule_id',
+    'profile_id', 'calcrule_id',
     'deductible1', 'deductible2', 'deductible3', 'attachment1',
     'limit1', 'share1', 'share2', 'share3', 'step_id',
     'trigger_start', 'trigger_end', 'payout_start', 'payout_end',
     'limit2', 'scale1', 'scale2'
 ]
 
-profile_cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1',
+profile_cols = ['profile_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1',
                 'share1', 'share2', 'share3']
 profile_cols_map = {
     'deductible': 'deductible1',
@@ -120,7 +120,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     return calcrule_ids
 
 
-def get_policytc_ids(il_inputs_df):
+def get_profile_ids(il_inputs_df):
     """
     Returns a Numpy array of policy TC IDs from a table of IL input items
 
@@ -135,7 +135,7 @@ def get_policytc_ids(il_inputs_df):
                              col_idxs=range(len(factor_col)))[0]
 
 
-def get_step_policytc_ids(
+def get_step_profile_ids(
         il_inputs_df,
         offset=0,
         idx_cols=[]
@@ -157,21 +157,21 @@ def get_step_policytc_ids(
     fm_policytc_cols = [col for col in idx_cols + ['layer_id', 'level_id', 'agg_id', 'coverage_id', 'assign_step_calcrule'] + step_profile_cols
                         if col in il_inputs_df.columns]
     fm_policytc_df = il_inputs_df[fm_policytc_cols]
-    fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df.loc[:, ['layer_id', 'level_id', 'agg_id']].values, col_idxs=range(3))[0]
+    fm_policytc_df['profile_id'] = factorize_ndarray(fm_policytc_df.loc[:, ['layer_id', 'level_id', 'agg_id']].values, col_idxs=range(3))[0]
     fm_policytc_df['pol_id'] = factorize_ndarray(fm_policytc_df.loc[:, idx_cols + ['coverage_id']].values, col_idxs=range(len(idx_cols) + 1))[0]
 
     step_calcrule_policytc_agg = pd.DataFrame(
-        fm_policytc_df[fm_policytc_df['step_id'] > 0]['policytc_id'].to_list(),
+        fm_policytc_df[fm_policytc_df['step_id'] > 0]['profile_id'].to_list(),
         index=fm_policytc_df[fm_policytc_df['step_id'] > 0]['pol_id']
     ).groupby('pol_id').aggregate(list).to_dict()[0]
 
     fm_policytc_df.loc[
-        fm_policytc_df['step_id'] > 0, 'policytc_id'
+        fm_policytc_df['step_id'] > 0, 'profile_id'
     ] = fm_policytc_df.loc[fm_policytc_df['step_id'] > 0]['pol_id'].map(step_calcrule_policytc_agg)
-    fm_policytc_df['policytc_id'] = fm_policytc_df['policytc_id'].apply(
+    fm_policytc_df['profile_id'] = fm_policytc_df['profile_id'].apply(
         lambda x: tuple(x) if isinstance(x, list) else x
     )
-    return factorize_array(fm_policytc_df['policytc_id'])[0] + offset
+    return factorize_array(fm_policytc_df['profile_id'])[0] + offset
 
 
 def __split_fm_terms_by_risk(df):
@@ -468,7 +468,7 @@ def get_il_input_items(
     # =====
     useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
                              + get_useful_summary_cols(oed_hierarchy) + list(tiv_terms.values()))
-                         - {'policytc_id', 'item_id', 'output_id'}, key=str.lower)
+                         - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
     gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
     # adjust tiv columns and name them as their coverage id
     gul_inputs_df.rename(columns=tiv_terms, inplace=True)
@@ -754,7 +754,7 @@ def get_il_input_items(
                                   'deductible1', 'limit1', 'limit2', 'trigger_start', 'trigger_end', 'payout_start', 'payout_end',
                                   'scale1', 'scale2']},
         **{t: 'int32' for t in
-           ['agg_id', 'to_agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id', 'steptriggertype', 'step_id']},
+           ['agg_id', 'to_agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'profile_id', 'steptriggertype', 'step_id']},
         # **{t: 'uint16' for t in [cond_num]},
         **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type', 'trigger_type', 'payout_type']}
     }
@@ -812,21 +812,21 @@ def get_il_input_items(
     # Set the policy TC IDs
     if 'StepTriggerType' in il_inputs_df:
         il_inputs_df.loc[
-            ~(il_inputs_df['StepTriggerType'] > 0), 'policytc_id'
-        ] = get_policytc_ids(
+            ~(il_inputs_df['StepTriggerType'] > 0), 'profile_id'
+        ] = get_profile_ids(
             il_inputs_df[~(il_inputs_df['StepTriggerType'] > 0)]
         )
 
         il_inputs_df.loc[
-            il_inputs_df['StepTriggerType'] > 0, 'policytc_id'
-        ] = get_step_policytc_ids(
+            il_inputs_df['StepTriggerType'] > 0, 'profile_id'
+        ] = get_step_profile_ids(
             il_inputs_df[il_inputs_df['StepTriggerType'] > 0],
-            offset=il_inputs_df['policytc_id'].max(),
+            offset=il_inputs_df['profile_id'].max(),
             idx_cols=['AccNumber', 'PolNumber', 'PortNumber']
         )
     else:
-        il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
-    il_inputs_df['policytc_id'] = il_inputs_df['policytc_id'].astype('uint32')
+        il_inputs_df['profile_id'] = get_profile_ids(il_inputs_df)
+    il_inputs_df['profile_id'] = il_inputs_df['profile_id'].astype('uint32')
 
     il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
@@ -848,7 +848,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'policytc_id', 'orig_level_id']]
+        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'profile_id', 'orig_level_id']]
         fm_policytc_df.loc[fm_policytc_df['orig_level_id'].isin(cross_layer_level), 'layer_id'] = 1  # remove layer for cross layer level
         fm_policytc_df.drop(columns=['orig_level_id']).drop_duplicates().to_csv(
             path_or_buf=fm_policytc_fp,
@@ -911,7 +911,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
         # No step policies
         else:
             # make sure there is no step file in the folder
-            cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
+            cols = ['profile_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
             fm_profile_df = il_inputs_df.loc[:, cols]
 
             fm_profile_df.loc[:, cols[2:]] = fm_profile_df.loc[:, cols[2:]].round(7).values
@@ -931,7 +931,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
 
             fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
 
-            cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
+            cols = ['profile_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
             fm_profile_df.loc[:, cols].to_csv(
                 path_or_buf=fm_profile_fp,
                 encoding='utf-8',

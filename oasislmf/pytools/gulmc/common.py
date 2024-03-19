@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common import areaperil_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_float
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type

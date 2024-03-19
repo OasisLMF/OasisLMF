@@ -101,12 +101,12 @@ def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
                                                      np.logical_or(fm_policytc['layer_id'] == layer_id, fm_policytc['layer_id'] == 1)),
                                       fm_policytc)
                 if policytc.shape[0] > 1:
-                    policytc_id = np.extract(policytc['layer_id'] == layer_id, policytc['policytc_id'])
+                    profile_id = np.extract(policytc['layer_id'] == layer_id, policytc['profile_id'])
                     true_layer = layer_id
                 else:
-                    policytc_id = np.extract(policytc['layer_id'] == 1, policytc['policytc_id'])
+                    profile_id = np.extract(policytc['layer_id'] == 1, policytc['profile_id'])
                     true_layer = 1
-                profile = np.extract(fm_profile['policytc_id'] == policytc_id, fm_profile)
+                profile = np.extract(fm_profile['profile_id'] == profile_id, fm_profile)
                 msg_list.append(str((cur_level, agg_id, true_layer, profile)))
                 cur_level += 1
                 parent = np.extract(np.logical_and(fm_programme['from_agg_id'] == agg_id,

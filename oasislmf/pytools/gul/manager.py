@@ -14,7 +14,7 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.oasis_files.correlations import (
     Correlation, CorrelationsData)
 from oasislmf.pytools.getmodel.common import Keys, oasis_float

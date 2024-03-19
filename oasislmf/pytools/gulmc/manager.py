@@ -16,7 +16,8 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
+from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint

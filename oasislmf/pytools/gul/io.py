@@ -11,7 +11,8 @@ from numba.types import int8 as nb_int8
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.pytools.common import PIPE_CAPACITY, areaperil_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_float
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
                                          ProbMean_size,
                                          areaperil_int_to_int32_size,

@@ -10,7 +10,7 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.pytools.common import nb_areaperil_int
+from oasislmf.pytools.common.data import nb_areaperil_int
 from oasislmf.pytools.getmodel.common import Index_type
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.aggregate import gen_empty_agg_vuln_to_vuln_ids
