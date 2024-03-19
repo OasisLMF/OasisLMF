@@ -1,15 +1,15 @@
 """
 Entry point to the run method of summarypy
-read an event loss stream and aggreagate it into the relevant summary loss stream
+read an event loss stream and aggregate it into the relevant summary loss stream
 
-using numba lastest version 0.59, we are limited is our usage of classes and have to pass each data structure into the diffrent function
+using numba latest version 0.59, we are limited is our usage of classes and have to pass each data structure into the different function
 The attributes are name the same throughout the code, below is their definition
 
 Static intermediary data structure:
     summary_pipes : dict summary_set_id to path then updated to stream when reading starts
     summary_sets_id : array of all summary_set_id that have a stream
     summary_set_id_to_summary_set_index : array mapping summary_set_id => summary_set_index
-    summary_set_index_to_loss_ptr : mapping array summary_set_index => starting index of summary_id loss (first dimention) in the loss_summary table
+    summary_set_index_to_loss_ptr : mapping array summary_set_index => starting index of summary_id loss (first dimension) in the loss_summary table
     item_id_to_summary_id : mapping array item_id => [summary_id for each summary set]
     item_id_to_risks_i : mapping array item_id => risks_i (index of th corresponding risk)
 
@@ -23,7 +23,6 @@ event based intermediary data structure:
     is_risk_affected : array to store in if a risk has already been affected or not in this event
 
 """
-
 
 import numpy as np
 import numba as nb
@@ -53,16 +52,25 @@ SIDX_LOSS_WRITE_SIZE = 2 * (oasis_int_size + oasis_float_size)
 SUPPORTED_SUMMARY_SET_ID = list(range(1, 10))
 
 def extract_risk_info(len_item_id, summary_map):
-    item_to_risks_i = np.empty(len_item_id, oasis_int)
-    nb_risk = nb_extract_risk_info(item_to_risks_i,
+    """
+    extract relevant information regarding item and risk mapping from summary_map
+    Args:
+        len_item_id: number of items
+        summary_map: numpy ndarray view of the summary_map
+
+    Returns:
+        (number of risk, mapping array item_id => risks_i)
+    """
+    item_id_to_risks_i = np.empty(len_item_id, oasis_int)
+    nb_risk = nb_extract_risk_info(item_id_to_risks_i,
                                 summary_map['item_id'].to_numpy(),
                                 summary_map['loc_id'].to_numpy(),
                                 summary_map['building_id'].to_numpy()),
-    return nb_risk, item_to_risks_i
+    return nb_risk, item_id_to_risks_i
 
 
 @nb.njit
-def nb_extract_risk_info(item_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
+def nb_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
     loc_id_to_building_risk = numba.typed.Dict.empty(nb_oasis_int, numba.typed.Dict.empty(nb_oasis_int, nb_oasis_int))
     last_risk_i = 0
     for i in range(summary_map_item_ids.shape[0]):
@@ -76,7 +84,7 @@ def nb_extract_risk_info(item_to_risks_i, summary_map_item_ids, summary_map_loc_
         else:
             risk_i = building_id_to_risk_i[summary_map_building_ids[i]] = last_risk_i
             last_risk_i += 1
-        item_to_risks_i[summary_map_item_ids[i]] = nb_oasis_int(risk_i)
+        item_id_to_risks_i[summary_map_item_ids[i]] = nb_oasis_int(risk_i)
 
     return last_risk_i
 
@@ -86,7 +94,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
-
+    """read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
     while True:
         if item_id:
@@ -298,19 +306,19 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
     summary_sets_id = np.array(list(summary_sets_pipe.keys()))
 
     with ExitStack() as stack:
-        streams_in, (stream_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
+        streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
 
         summary_set_id_to_summary_set_index = get_summary_set_id_to_summary_set_index(summary_sets_id)
 
         # extract item_id to index in the loss summary
-        if stream_type == GUL_STREAM_ID:
+        if stream_source_type == GUL_STREAM_ID:
             summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype)
             summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
                                       usecols = ['loc_id', 'item_id', 'building_id', 'coverage_id'],
                                       dtype=oasis_int)
             has_affected_risk = True
 
-        elif  stream_type == FM_STREAM_ID:
+        elif  stream_source_type == FM_STREAM_ID:
             summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype)
             if os.path.exists(os.path.join(static_path, 'fm_summary_map.csv')):
                 summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
@@ -321,7 +329,7 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
             else:
                 has_affected_risk = None # numba use none to optimise function when some part are not used
         else:
-            raise Exception(f"unsupported stream type {stream_type}")
+            raise Exception(f"unsupported stream type {stream_source_type}")
 
 
         summary_set_index_to_loss_ptr, item_id_to_summary_id = get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index)

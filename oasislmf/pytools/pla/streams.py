@@ -1,124 +1,63 @@
-from numba import njit
+import numba as nb
 import numpy as np
+import logging
 
-from .common import (
-    N_PAIRS,
-    BUFFER_SIZE,
-    DATA_SIZE,
-    event_item_dtype,
-    sidx_loss_dtype
-)
+from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_header_in, stream_info_to_bytes, write_mv_to_stream,
+                                                  mv_read, mv_write, PIPE_CAPACITY)
 
+logger = logging.getLogger(__name__)
 
-@njit(cache=True, fastmath=True)
-def read_and_write_sidx_loss(cursor, factor, sidx_loss_in, sidx_loss_out):
-    """
-    Read sample ID (sidx) and loss from input stream. Write sidx and loss after
-    Post Loss Amplification (PLA) to output stream.
+@nb.jit(cache=True)
+def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
+    if item_id:
+        factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
+    while True:
+        if item_id:
+            if valid_buff -  cursor < (oasis_int_size + oasis_float_size):
+                break
+            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            if sidx:
+                loss, _ = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                loss = 0 if np.isnan(loss) else loss
 
-    Args:
-        cursor (int): position in buffer
-        factor (float): PLA factor
-        sidx_loss_in (numpy.ndarray): input array of sidx-loss pairs
-        sidx_loss_out (numpy.ndarray): output array of sidx-loss pairs
+                ###### do loss read ######
+                cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss * factor)
+                ##########
 
-    Returns:
-        cursor (int): position in buffer
-        sidx (int): sample ID
-    """
-
-    sidx = sidx_loss_in[cursor]['sidx']
-    loss = sidx_loss_in[cursor]['loss'] * factor
-    sidx_loss_out[cursor]['sidx'] = sidx
-    sidx_loss_out[cursor]['loss'] = loss
-    cursor += 1
-
-    return cursor, sidx
-
-
-@njit(cache=True)
-def read_and_write_event_item_ids_and_plafactor(
-    cursor, event_item_in, event_item_out, plafactors, items_amps,
-    default_factor
-):
-    """
-    Read event ID, item ID and Post Loss Amplification (PLA) factor from input
-    stream. Write event ID and item ID to output stream.
-
-    Args:
-        cursor (int): position in buffer
-        event_item_in (numpy.ndarray): input array of event ID-item ID pairs
-        event_item_out (numpy.ndarray): output array of event ID-item ID pairs
-        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary mapped
-          to event ID-item ID pair
-        items_amps (numpy.ndarray): array of amplification IDs, where index
-          corresponds to item ID
-        default_factor (float): post loss reduction/amplification factor to be
-          used if loss factor not found in plafactors
-
-    Returns:
-        cursor (int): position in buffer
-        sidx (int): sample ID
-        factor (float): PLA factor
-    """
-    event_id = event_item_in[cursor]['event_id']
-    item_id = event_item_in[cursor]['item_id']
-    event_item_out[cursor]['event_id'] = event_id
-    event_item_out[cursor]['item_id'] = item_id
-    cursor += 1
-    sidx = -1
-
-    # loss factor defaults to 1.0 if missing (i.e. no change)
-    factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
-
-    return cursor, sidx, factor
-
-
-@njit(cache=True)
-def read_and_write_buffers(
-    cursor, valid_length, sidx, factor, sidx_loss_in, sidx_loss_out,
-    event_item_in, event_item_out, plafactors, items_amps, default_factor
-):
-    """
-    Cycle through data in input buffer. Call functions to extract event IDs,
-    item IDs, sample IDs (sidx) and losses. Call functions to write event IDs,
-    items IDs, sidx and Post Loss Amplification (PLA) losses to output buffer.
-
-    Args:
-        cursor (int): position in buffer
-        valid_length (int): length of buffer as a multiple of DATA_SIZE
-        sidx (int): sample ID
-        factor (float): PLA factor
-        sidx_loss_in (numpy.ndarray): input array of sidx-loss pairs
-        sidx_loss_out (numpy.ndarray): output array of sidx-loss pairs
-        event_item_in (numpy.ndarray): input array of event ID-item ID pairs
-        event_item_out (numpy.ndarray): output array of event ID-item ID pairs
-        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary mapped
-          to event ID-item ID pair
-        items_amps (numpy.ndarray): array of amplification IDs, where index
-          corresponds to item ID
-        default_factor (float): post loss reduction/amplification factor to be
-          used if loss factor not found in plafactors
-
-    Returns:
-        cursor (int): position in buffer
-        sidx (int): sample ID
-        factor (float): PLA factor
-    """
-    while cursor < valid_length:
-
-        if sidx != 0:   # end of samples
-            cursor, sidx = read_and_write_sidx_loss(
-                cursor, factor, sidx_loss_in, sidx_loss_out
-            )
-
+            else:
+                ##### do item exit ####
+                ##########
+                cursor += oasis_float_size
+                item_id = 0
         else:
-            cursor, sidx, factor = read_and_write_event_item_ids_and_plafactor(
-                cursor, event_item_in, event_item_out, plafactors, items_amps,
-                default_factor
-            )
+            if valid_buff -  cursor < 2 * oasis_int_size:
+                break
+            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
 
-    return cursor, sidx, factor
+            ##### do new item setup #####
+            factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
+            ##########
+    out_byte_mv[:cursor] = byte_mv[:cursor]
+    out_cursor[0] =  cursor
+    return cursor, event_id, item_id, 1
+
+
+class PlaReader(EventReader):
+    def __init__(self, items_amps, plafactors, default_factor):
+        self.items_amps = items_amps
+        self.plafactors = plafactors
+        self.default_factor = default_factor
+        self.out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
+        self.out_cursor = np.empty(1, dtype='i4')
+        self.logger = logger
+
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+        return read_buffer(
+            byte_mv, cursor, valid_buff, event_id, item_id,
+            self.items_amps, self.plafactors, self.default_factor, self.out_byte_mv, self.out_cursor
+        )
 
 
 def read_and_write_streams(
@@ -130,18 +69,18 @@ def read_and_write_streams(
     multiply losses by relevant factors, and write to output stream.
 
     Input stream is binary file with layout:
-        stream type (4-byte int), maximum sidx value (4-byte int),
-        event ID 1 (4-byte int), item ID 1 (4-byte int),
-        sample ID/sidx 1 (4-byte int), loss for sidx 1 (4-byte float),
+        stream type (oasis_int), maximum sidx value (oasis_int),
+        event ID 1 (oasis_int), item ID 1 (oasis_int),
+        sample ID/sidx 1 (oasis_int), loss for sidx 1 (oasis_float),
         ...
-        sample ID/sidx n (4-byte int), loss for sidx n (4-byte float),
-        0 (4-byte int), 0.0 (4-byte float),
-        event ID 1 (4-byte int), item ID 2 (4-byte int),
+        sample ID/sidx n (oasis_int), loss for sidx n (oasis_float),
+        0 (oasis_int), 0.0 (4-byte float),
+        event ID 1 (oasis_int), item ID 2 (oasis_int),
         ...
-        event ID M (4-byte int), item ID N (4-byte int),
-        sample ID/sidx 1 (4-byte int), loss for sidx 1 (4-byte float),
+        event ID M (oasis_int), item ID N (oasis_int),
+        sample ID/sidx 1 (oasis_int), loss for sidx 1 (oasis_float),
         ...
-        sample ID/sidx n (4-byte int), loss for sidx n (4-byte float)
+        sample ID/sidx n (oasis_int), loss for sidx n (oasis_float)
 
     Sample ID/sidx of 0 indicates start of next event ID-item ID pair. Output
     stream has same format as input stream.
@@ -155,49 +94,16 @@ def read_and_write_streams(
           factors
         default_factor (float): post loss reduction/amplification factor to be
           used if loss factor not found in plafactors
+
     """
-    # Read and write 8-byte (two 4-byte integers) header
-    stream_type_and_max_sidx_val = stream_in.read(8)
-    stream_out.write(stream_type_and_max_sidx_val)
+    stream_source_type, stream_agg_type, len_sample = get_and_check_header_in(stream_in)
+    stream_out.write(stream_info_to_bytes(stream_source_type, stream_agg_type))
+    stream_out.write(len_sample.tobytes())
 
-    read_buffer = memoryview(bytearray(BUFFER_SIZE))
-    event_item_in = np.ndarray(
-        N_PAIRS, buffer=read_buffer, dtype=event_item_dtype
-    )
-    sidx_loss_in = np.ndarray(
-        N_PAIRS, buffer=read_buffer, dtype=sidx_loss_dtype
-    )
+    pla_reader = PlaReader(items_amps, plafactors, default_factor)
+    for _ in pla_reader.read_streams(stream_in):
+        write_mv_to_stream(stream_out, pla_reader.out_byte_mv, pla_reader.out_cursor[0])
 
-    write_buffer = memoryview(bytearray(N_PAIRS * DATA_SIZE))
-    event_item_out = np.ndarray(
-        N_PAIRS, buffer=write_buffer, dtype=event_item_dtype
-    )
-    sidx_loss_out = np.ndarray(
-        N_PAIRS, buffer=write_buffer, dtype=sidx_loss_dtype
-    )
 
-    cursor = 0
-    valid_buffer = 0
-    sidx = 0
-    factor = 1
-    while True:
-        len_read = stream_in.readinto1(read_buffer[valid_buffer:])
-        valid_buffer += len_read
 
-        if len_read == 0:
-            break
 
-        valid_length = valid_buffer // DATA_SIZE
-
-        cursor, sidx, factor = read_and_write_buffers(
-            cursor, valid_length, sidx, factor, sidx_loss_in, sidx_loss_out,
-            event_item_in, event_item_out, plafactors, items_amps,
-            default_factor
-        )
-
-        stream_out.write(write_buffer[:cursor * DATA_SIZE])
-        valid_buffer = 0
-        cursor = 0
-
-    stream_in.close()
-    stream_out.close()

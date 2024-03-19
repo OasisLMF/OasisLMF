@@ -1,3 +1,7 @@
+"""
+Contain all common function and attribute to help read the event stream containing the losses
+"""
+
 import selectors
 from select import select
 import sys
@@ -68,6 +72,23 @@ def read_stream_info(stream_obj):
     return stream_source_type, stream_agg_type, len_sample
 
 
+def get_streams_in(files_in, stack):
+    if files_in is None:
+        streams_in = [sys.stdin.buffer]
+    elif isinstance(files_in, list):
+        streams_in = [stack.enter_context(open(file_in, 'rb')) for file_in in files_in]
+    else:
+        streams_in = [stack.enter_context(open(files_in, 'rb'))]
+    return streams_in
+
+
+def get_and_check_header_in(streams_in):
+    streams_info = [read_stream_info(stream_in) for stream_in in streams_in]
+    if len(set(streams_info)) > 1:
+        raise IOError(f"multiple stream type detected in streams {dict(enumerate(streams_info))}")
+    return streams_info[0]
+
+
 def init_streams_in(files_in, stack):
     """
     if files_in use stdin as stream in
@@ -79,53 +100,119 @@ def init_streams_in(files_in, stack):
     Returns:
         list of open streams and their info
     """
-    if files_in is None:
-        streams_in = [sys.stdin.buffer]
-    else:
-        streams_in = [stack.enter_context(open(file_in, 'rb')) for file_in in files_in]
+    streams_in = get_streams_in(files_in, stack)
+    return streams_in, get_and_check_header_in(streams_in)
 
-    streams_info = [read_stream_info(stream_in) for stream_in in streams_in]
-    if len(set(streams_info)) > 1:
-        raise IOError(f"multiple stream type detected in streams {dict(enumerate(streams_info))}")
-    return streams_in, streams_info[0]
 
 @nb.jit()
 def mv_read(byte_mv, cursor, _dtype, itemsize):
+    """
+    read a certain dtype from numpy byte view starting at cursor, return the value and the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        _dtype: data type of the object
+        itemsize: size of the data type
+
+    Returns:
+        (object value, end of object index)
+    """
     return byte_mv[cursor:cursor + itemsize].view(_dtype)[0], cursor + itemsize
 
 
 @nb.jit()
-def mv_write(byte_mv, cursor, _dtype, itemsize, value):
+def mv_write(byte_mv, cursor, _dtype, itemsize, value)->int:
+    """
+    load an object into the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        _dtype: data type of the object
+        itemsize: size of the data type
+        value: value to write
+
+    Returns:
+        end of object index
+    """
     byte_mv[cursor:cursor + itemsize].view(_dtype)[0] = value
     return cursor + itemsize
 
+
 @nb.njit()
-def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value):
+def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value)->int:
+    """
+    write a summary header to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        event_id: event id
+        summary_id: summary id
+        exposure_value: exposure value
+
+    Returns:
+        end of object index
+    """
     # print(event_id, summary_id, exposure_value)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, summary_id)
     cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, exposure_value)
     return cursor
+
+
 @nb.njit()
 def mv_write_item_header(byte_mv, cursor, event_id, item_id)->int:
+    """
+    write a item header to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        event_id: event id
+        item_id: item id
+
+    Returns:
+        end of object index
+    """
     # print(event_id, item_id)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, event_id)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, item_id)
     return cursor
 
+
 @nb.njit()
-def mv_write_sidx_loss(byte_mv, cursor, sidx, loss):
+def mv_write_sidx_loss(byte_mv, cursor, sidx, loss)->int:
+    """
+    write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+        sidx: sample id
+        loss: loss
+
+    Returns:
+        end of object index
+    """
     # print('    ', sidx, loss)
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, sidx)
     cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss)
     return cursor
 
+
 @nb.njit()
-def mv_write_delimiter(byte_mv, cursor):
+def mv_write_delimiter(byte_mv, cursor)->int:
+    """
+    write the item delimiter (0,0) to the numpy byte view at index cursor, return the index of the end of the object
+    Args:
+        byte_mv: numpy byte view
+        cursor: index of where the object start
+
+    Returns:
+        end of delimiter index
+    """
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, 0)
     cursor = mv_write(byte_mv, cursor, oasis_float, oasis_int_size, 0)
     # print('end', cursor)
     return cursor
+
 
 class EventReader:
     """
@@ -184,6 +271,14 @@ class EventReader:
         return main_selector, stream_data
 
     def read_streams(self, streams_in):
+        """
+        read multiple stream input, yield each event id and load relevant value according to the specific read_buffer implemented in subclass
+        Args:
+            streams_in: streams to read
+
+        Returns:
+            event id generator
+        """
         try:
             main_selector, stream_data = self.register_streams_in(selectors.DefaultSelector, streams_in)
             self.logger.debug("Streams read with DefaultSelector")
@@ -221,6 +316,21 @@ class EventReader:
             main_selector.close()
 
     def read_event(self, stream_in, main_selector, stream_selector, mv, byte_mv, cursor, valid_buff):
+        """
+        read one event from stream_in
+        close and remove the stream from main_selector when all is read
+        Args:
+            stream_in: stream to read
+            main_selector: selector that contain all the streams
+            stream_selector:  this stream selector
+            mv: buffer memoryview
+            byte_mv: numpy byte view of the buffer
+            cursor: current cursor of the memory view
+            valid_buff: valid data in memory view
+
+        Returns:
+            event_id, cursor, valid_buff
+        """
         event_id = 0
         item_id = 0
 
@@ -262,7 +372,7 @@ class EventReader:
 
 
 ######  read_buffer template,
-######  add you input argument and implement what is needed in the three steps ( 'do loss read', 'do new item setup', 'do item exit')
+######  add you input argument and implement what is needed in the three steps ('do new item setup', 'do loss read', 'do item exit')
 #
 # @nb.jit(cache=True)
 # def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, [array necessary to load and store the event data]):
@@ -302,6 +412,16 @@ class EventReader:
 
 
 def write_mv_to_stream(stream, byte_mv, cursor):
+    """
+    Write numpy byte array view to stream
+    - use select to handle forward pressure
+    - use a while loop in case the stream is non-blocking (meaning the ammount of byte written is not guarantied to be cursor len)
+    Args:
+        stream: stream to write to
+        byte_mv: numpy byte view of the buffer to write
+        cursor: ammount of byte to write
+
+    """
     written = 0
     while written < cursor:
         _, writable, exceptional = select([], [stream], [stream])
