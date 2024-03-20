@@ -14,12 +14,12 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter
 from oasislmf.pytools.data_layer.oasis_files.correlations import (
     Correlation, CorrelationsData)
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
 from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
-from oasislmf.pytools.gul.common import (CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
+from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
                                          ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
                                          TIV_IDX, coverage_type, gul_header,
@@ -38,6 +38,31 @@ from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
+
+
+@njit(cache=True)
+def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
+    """
+    adjust buff size so that the buffer fits the longest coverage
+    Args:
+        byte_mv: numpy byte array
+        max_bytes_per_coverage: max size possible to accommodate all the coverage in byte_mv
+
+    Returns:
+        byte_mv: numpy byte array
+    """
+    #
+    buff_size = byte_mv.shape[0]
+    adjust_size = False
+    while buff_size < max_bytes_per_coverage:
+        buff_size *= 2
+        adjust_size = True
+
+    if adjust_size:
+        # create a new bigger byte_mv
+        byte_mv = np.empty(buff_size, dtype='b')
+
+    return byte_mv
 
 
 def get_coverages(input_path, ignore_file_type=set()):
@@ -213,7 +238,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             raise ValueError(f"Expect alloc_rule to be 0, 1, 2, or 3, got {alloc_rule}")
 
         cursor = 0
-        cursor_bytes = 0
 
         # create the array to store the seeds
         seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
@@ -270,9 +294,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         # create buffer to be reused to store all losses for one coverage
         losses_buffer = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
+        byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
 
         # maximum bytes to be written in the output stream for 1 item
-        max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+        max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
 
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
 
@@ -295,29 +320,22 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             last_processed_coverage_ids_idx = 0
 
             # adjust buff size so that the buffer fits the longest coverage
-            buff_size = PIPE_CAPACITY * 2
-            max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
-            while buff_size < max_bytes_per_coverage:
-                buff_size *= 2
-
-            # define the raw memory view and its int32 view
-            mv_write = memoryview(bytearray(buff_size))
-            int32_mv_write = np.ndarray(buff_size // 4, buffer=mv_write, dtype='i4')
+            byte_mv = adjust_byte_mv_size(byte_mv, np.max(coverages['cur_items']) * max_bytes_per_item)
 
             while last_processed_coverage_ids_idx < compute_i:
-                cursor, cursor_bytes, last_processed_coverage_ids_idx = compute_event_losses(
+                cursor, last_processed_coverage_ids_idx = compute_event_losses(
                     event_id, coverages, compute[:compute_i], items_data,
                     last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr,
                     damage_bins, loss_threshold, losses_buffer, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                     arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf, z_unif, debug,
-                    max_bytes_per_item, buff_size, int32_mv_write, cursor
+                    max_bytes_per_item, byte_mv, cursor
                 )
 
                 # write the losses to the output stream
                 write_start = 0
-                while write_start < cursor_bytes:
+                while write_start < cursor:
                     select([], select_stream_list, select_stream_list)
-                    write_start += stream_out.write(mv_write[write_start:cursor_bytes])
+                    write_start += stream_out.write(byte_mv[write_start:cursor].tobytes())
 
                 cursor = 0
 
@@ -331,7 +349,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                          last_processed_coverage_ids_idx, sample_size, recs, rec_idx_ptr, damage_bins,
                          loss_threshold, losses, alloc_rule, do_correlation, rndms_base, eps_ij, corr_data_by_item_id,
                          arr_min, arr_max, arr_N, norm_inv_cdf, arr_min_cdf, arr_max_cdf, norm_cdf,
-                         z_unif, debug, max_bytes_per_item, buff_size, int32_mv, cursor):
+                         z_unif, debug, max_bytes_per_item, byte_mv, cursor):
     """Compute losses for an event.
 
     Args:
@@ -354,12 +372,11 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         debug (bool): if True, for each random sample, print to the output stream the random value
           instead of the loss.
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
-        buff_size (int): size in bytes of the output buffer.
-        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
+        byte_mv (numpy.array): byte view of where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
 
     Returns:
-        int, int, int: updated value of cursor, updated value of cursor_bytes, last last_processed_coverage_ids_idx
+        int, int: updated value of cursor, last last_processed_coverage_ids_idx
     """
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
@@ -370,13 +387,12 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
         # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
         # number of records of type gulSampleslevelRec_size is sample_size + 5 (negative sidx) + 1 (terminator line)
-        cursor_bytes = cursor * int32_mv.itemsize
         est_cursor_bytes = Nitem_ids * max_bytes_per_item
 
         # return before processing this coverage if the number of free bytes left in the buffer
         # is not sufficient to write out the full coverage
-        if cursor_bytes + est_cursor_bytes > buff_size:
-            return cursor, cursor_bytes, last_processed_coverage_ids_idx
+        if cursor + est_cursor_bytes > byte_mv.shape[0]:
+            return cursor, last_processed_coverage_ids_idx
 
         items = items_data[coverage['start_items']: coverage['start_items'] + coverage['cur_items']]
 
@@ -456,17 +472,17 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             losses[sample_idx, item_i] = 0
 
         cursor = write_losses(event_id, sample_size, loss_threshold, losses[:, :items.shape[0]], items['item_id'], alloc_rule, tiv,
-                              int32_mv, cursor)
+                              byte_mv, cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    return cursor, cursor * int32_mv.itemsize, last_processed_coverage_ids_idx
+    return cursor, last_processed_coverage_ids_idx
 
 
 @njit(cache=True, fastmath=True)
 def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_rule, tiv,
-                 int32_mv, cursor):
+                 byte_mv, cursor):
     """Write the computed losses.
 
     Args:
@@ -477,7 +493,7 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
         item_ids (numpy.array[ITEM_ID_TYPE]): ids of items whose losses are in `losses`.
         alloc_rule (int): back-allocation rule.
         tiv (oasis_float): total insured value.
-        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
+        byte_mv (numpy.ndarray): byte view of where the output is buffered.
         cursor (int): index of int32_mv where to start writing.
 
     Returns:
@@ -504,26 +520,18 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, alloc_
     for item_j in range(item_ids.shape[0]):
 
         # write header
-        cursor = write_sample_header(
-            event_id, item_ids[item_j], int32_mv, cursor)
+        cursor = mv_write_item_header(byte_mv, cursor, event_id, item_ids[item_j])
 
         # write negative sidx
-        cursor = write_negative_sidx(
-            MAX_LOSS_IDX, losses[MAX_LOSS_IDX, item_j],
-            CHANCE_OF_LOSS_IDX, losses[CHANCE_OF_LOSS_IDX, item_j],
-            TIV_IDX, losses[TIV_IDX, item_j],
-            STD_DEV_IDX, losses[STD_DEV_IDX, item_j],
-            MEAN_IDX, losses[MEAN_IDX, item_j],
-            int32_mv, cursor
-        )
+        for sample_idx in SPECIAL_SIDX:
+            cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, losses[sample_idx, item_j])
 
         # write the random samples (only those with losses above the threshold)
         for sample_idx in range(1, sample_size + 1):
             if losses[sample_idx, item_j] >= loss_threshold:
-                cursor = write_sample_rec(
-                    sample_idx, losses[sample_idx, item_j], int32_mv, cursor)
+                cursor = mv_write_sidx_loss(byte_mv, cursor, sample_idx, losses[sample_idx, item_j])
 
         # write terminator for the samples for this item
-        cursor = write_sample_rec(0, 0., int32_mv, cursor)
+        cursor = mv_write_delimiter(byte_mv, cursor)
 
     return cursor

@@ -5,7 +5,8 @@ This file defines the data types that are loaded from the data files.
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import areaperil_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_int, oasis_float
+from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -37,14 +38,9 @@ coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
 
 NP_BASE_ARRAY_SIZE = 8
 
-# negative sidx (definition)
-MEAN_IDX = -1
-STD_DEV_IDX = -2
-TIV_IDX = -3
-CHANCE_OF_LOSS_IDX = -4
-MAX_LOSS_IDX = -5
-
-NUM_IDX = 5
+# Gul stream special sample idx
+SPECIAL_SIDX = np.array([MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX], dtype=oasis_int)
+NUM_IDX = SPECIAL_SIDX.shape[0]
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
 ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 3)

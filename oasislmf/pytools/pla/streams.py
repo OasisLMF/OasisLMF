@@ -10,6 +10,24 @@ logger = logging.getLogger(__name__)
 
 @nb.jit(cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
+    """
+    read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer
+    This modified version of the read_buffer template return result when the whole input buffer is read and not when an event is read.
+    therefore it cannot be used to read multiple stream at a time because events would be mixed up.
+
+    Args:
+        byte_mv: input byte array
+        cursor: read cursor
+        valid_buff: valid part of input array
+        event_id: last event id
+        item_id: last item_id
+        items_amps (numpy array): amplification IDs where indexes correspond to item IDs
+        plafactors (dict): event ID and amplification ID pairs mapped to loss factors
+        default_factor (float): post loss reduction/amplification factor to be used if loss factor not found in plafactors
+        out_byte_mv: output byte arrau
+        out_cursor: single value array to store valid part of out_byte_mv
+
+    """
     if item_id:
         factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
     while True:
@@ -49,7 +67,7 @@ class PlaReader(EventReader):
         self.items_amps = items_amps
         self.plafactors = plafactors
         self.default_factor = default_factor
-        self.out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
+        self.out_byte_mv = np.empty(PIPE_CAPACITY, dtype='b')
         self.out_cursor = np.empty(1, dtype='i4')
         self.logger = logger
 
@@ -88,12 +106,9 @@ def read_and_write_streams(
     Args:
         stream_in (buffer): input stream
         stream_out (buffer): output stream
-        items_amps (numpy array): amplification IDs where indexes correspond to
-          item IDs
-        plafactors (dict): event ID and amplification ID pairs mapped to loss
-          factors
-        default_factor (float): post loss reduction/amplification factor to be
-          used if loss factor not found in plafactors
+        items_amps (numpy array): amplification IDs where indexes correspond to item IDs
+        plafactors (dict): event ID and amplification ID pairs mapped to loss factors
+        default_factor (float): post loss reduction/amplification factor to be used if loss factor not found in plafactors
 
     """
     stream_source_type, stream_agg_type, len_sample = get_and_check_header_in(stream_in)

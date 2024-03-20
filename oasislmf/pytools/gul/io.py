@@ -12,7 +12,7 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasislmf.pytools.common.data import areaperil_int, oasis_float
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, mv_write_sidx_loss
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
                                          ProbMean_size,
                                          areaperil_int_to_int32_size,
@@ -346,7 +346,7 @@ def write_sample_rec(sidx, loss, int32_mv, cursor):
 @njit(cache=True, fastmath=True)
 def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_loss,
                         tiv_idx, tiv, std_dev_idx, std_dev, mean_idx, gul_mean,
-                        int32_mv, cursor):
+                        byte_mv, cursor):
     """Write to buffer the negative sidx samples.
 
     Args:
@@ -366,6 +366,7 @@ def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_lo
     Returns:
         int: updated values of cursor
     """
+    cursor = mv_write_sidx_loss(byte_mv, cursor, max_loss_idx, max_loss)
     int32_mv[cursor], cursor = max_loss_idx, cursor + 1
     int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = max_loss
     cursor += oasis_float_to_int32_size
