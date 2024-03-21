@@ -16,10 +16,10 @@ PIPE_CAPACITY = 65536  # bytes
 
 # stream source type
 CDF_STREAM_ID = 0
-GUL_STREAM_ID = 1
-FM_STREAM_ID = 2
+GUL_STREAM_ID = 1 # deprecated use LOSS_STREAM_ID
+FM_STREAM_ID = 2 # deprecated use LOSS_STREAM_ID
+LOSS_STREAM_ID = 2
 SUMMARY_STREAM_ID = 3
-
 
 # stream aggregation type (represent the time of aggregation used
 ITEM_STREAM = 1
@@ -44,7 +44,7 @@ def stream_info_to_bytes(stream_source_type, stream_agg_type):
     Returns:
         return bytes
     """
-    return np.int8(stream_agg_type).tobytes() + np.array([stream_source_type], '>i4').tobytes()[1:]
+    return np.array([stream_agg_type], '>i4').tobytes()[1:] + np.int8(stream_source_type).tobytes()
 
 
 def bytes_to_stream_types(stream_header):
@@ -56,7 +56,7 @@ def bytes_to_stream_types(stream_header):
     Returns:
         (stream source type (np.int32), stream aggregation type (np.int32))
     """
-    return np.frombuffer(b'\x00' + stream_header[1:], '>i4')[0], np.frombuffer(stream_header[:1], 'i1')[0]
+    return np.frombuffer(stream_header[3:], 'i1')[0], np.frombuffer(b'\x00' + stream_header[:3], '>i4')[0]
 
 
 def read_stream_info(stream_obj):

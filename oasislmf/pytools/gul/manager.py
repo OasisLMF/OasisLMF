@@ -14,22 +14,21 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter
-from oasislmf.pytools.data_layer.oasis_files.correlations import (
-    Correlation, CorrelationsData)
+from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
+                                                  stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
+from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, CorrelationsData
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
 from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
 from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
                                          ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
-                                         TIV_IDX, coverage_type, gul_header,
+                                         TIV_IDX, coverage_type,
                                          gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
                                        split_tiv_classic,
                                        split_tiv_multiplicative)
-from oasislmf.pytools.gul.io import (read_getmodel_stream, write_negative_sidx,
-                                     write_sample_header, write_sample_rec)
+from oasislmf.pytools.gul.io import read_getmodel_stream
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector,
@@ -53,12 +52,10 @@ def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
     """
     #
     buff_size = byte_mv.shape[0]
-    adjust_size = False
     while buff_size < max_bytes_per_coverage:
         buff_size *= 2
-        adjust_size = True
 
-    if adjust_size:
+    if byte_mv.shape[0] < buff_size:
         # create a new bigger byte_mv
         byte_mv = np.empty(buff_size, dtype='b')
 
@@ -228,7 +225,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         select_stream_list = [stream_out]
 
         # prepare output buffer, write stream header
-        stream_out.write(gul_header)
+        stream_out.write(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM))
         stream_out.write(np.int32(sample_size).tobytes())
 
         # set the random generator function

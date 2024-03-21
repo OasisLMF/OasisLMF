@@ -11,13 +11,11 @@ from numba.types import int8 as nb_int8
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
-from oasislmf.pytools.common.data import areaperil_int, oasis_float
-from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, mv_write_sidx_loss
+from oasislmf.pytools.common.data import areaperil_int, areaperil_int_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, bytes_to_stream_types, mv_read, CDF_STREAM_ID
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
                                          ProbMean_size,
-                                         areaperil_int_to_int32_size,
-                                         damagecdfrec_stream, items_data_type,
-                                         oasis_float_to_int32_size)
+                                         damagecdfrec_stream, items_data_type)
 from oasislmf.pytools.gul.random import generate_hash
 
 
@@ -75,11 +73,11 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
 
     """
     # determine stream type
-    stream_type = np.frombuffer(stream_in.read(4), dtype='i4')
+    stream_source_type, stream_agg_type = bytes_to_stream_types(stream_in.read(4))
 
     # see https://github.com/OasisLMF/ktools/blob/master/docs/md/CoreComponents.md
-    if stream_type[0] != 1:
-        raise ValueError(f"FATAL: Invalid stream type: expect 1, got {stream_type[0]}.")
+    if stream_source_type != CDF_STREAM_ID:
+        raise ValueError(f"FATAL: Invalid stream type: expect {CDF_STREAM_ID}, got {stream_source_type}.")
 
     # maximum number of entries is buff_size divided by the minimum entry size
     # (corresponding to a 1-bin only cdf)
@@ -90,9 +88,8 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
 
     # init the memory view to store the stream
     mv = memoryview(bytearray(buff_size))
-    int32_mv = np.ndarray(buff_size // 4, buffer=mv, dtype='i4')
+    byte_mv = np.frombuffer(buffer=mv, dtype='b')
 
-    cursor = 0
     valid_buf = 0
     last_event_id = -1
     len_read = 1
@@ -130,7 +127,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
 
         # read the streamed data into formatted data
         cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
-            int32_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
+            byte_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
             damagecdf_i, rec_idx_ptr
         )
@@ -160,23 +157,20 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
             coverages['cur_items'].fill(0)
             recs = []
 
-        # convert cursor to bytes
-        cursor_buf = cursor * int32_mv.itemsize
-
         # move the un-read data to the beginning of the memoryview
-        mv[:valid_buf - cursor_buf] = mv[cursor_buf:valid_buf]
+        mv[:valid_buf - cursor] = mv[cursor:valid_buf]
 
         # update the length of the valid data
-        valid_buf -= cursor_buf
+        valid_buf -= cursor
 
 
 @njit(cache=True, fastmath=True)
-def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
+def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
                    compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:
-        int32_mv (ndarray): int32 view of the buffer
+        byte_mv (ndarray): byte view of the buffer
         valid_buf (int): number of bytes with valid data
         size_cdf_entry (int): size (in bytes) of a single record
         last_event_id (int): event_id of the last event that was completed
@@ -215,46 +209,44 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
     last_rec_idx_ptr = 0
     rec_valid_len = 0
 
-    while cursor * int32_mv.itemsize + size_cdf_entry <= valid_buf:
+    while cursor + size_cdf_entry <= valid_buf:
 
-        event_id, cursor = int32_mv[cursor], cursor + 1
+        event_cursor = cursor
+        event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
 
         if event_id != last_event_id:
             # a new event has started
             if last_event_id > 0:
                 # if this is not the beginning of the very first event, yield the event that was just completed
                 yield_event = True
-                cursor -= 1
+                cursor = event_cursor
                 break
 
             last_event_id = event_id
 
-        areaperil_id, cursor = int32_mv[cursor:cursor +
-                                        areaperil_int_to_int32_size].view(areaperil_int)[0], cursor + areaperil_int_to_int32_size
-        vulnerability_id, cursor = int32_mv[cursor], cursor + 1
-        Nbins_to_read, cursor = int32_mv[cursor], cursor + 1
 
-        if cursor * int32_mv.itemsize + Nbins_to_read * ProbMean_size > valid_buf:
+        areaperil_id, cursor = mv_read(byte_mv, cursor, areaperil_int, areaperil_int_size)
+        vulnerability_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+        Nbins_to_read, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+
+        if cursor + Nbins_to_read * ProbMean_size > valid_buf:
             # if the next cdf record is not fully contained in the valid buf, then
             # get more data in the buffer and put cursor back at the beginning of this cdf
-            cursor -= areaperil_int_to_int32_size + 3
+            cursor = event_cursor
             break
 
         # peril filter
         if valid_area_peril_dict is not None:
             if areaperil_id not in valid_area_peril_dict:
-                cursor += 2 * oasis_float_to_int32_size * Nbins_to_read
+                cursor += ProbMean_size * Nbins_to_read
                 continue
 
         # read damage cdf bins
         start_rec = last_rec_idx_ptr
         end_rec = start_rec + Nbins_to_read
         for j in range(start_rec, end_rec, 1):
-            rec[j]['prob_to'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int32_size
-
-            rec[j]['bin_mean'] = int32_mv[cursor: cursor + oasis_float_to_int32_size].view(oasis_float)[0]
-            cursor += oasis_float_to_int32_size
+            rec[j]['prob_to'], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+            rec[j]['bin_mean'], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
 
         rec_idx_ptr.append(rec_idx_ptr[-1] + Nbins_to_read)
         last_rec_idx_ptr = end_rec
@@ -302,89 +294,3 @@ def stream_to_data(int32_mv, valid_buf, size_cdf_entry, last_event_id, item_map,
         damagecdf_i += 1
 
     return cursor, yield_event, event_id, rec[:rec_valid_len], rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
-
-
-@njit(cache=True, fastmath=True)
-def write_sample_header(event_id, item_id, int32_mv, cursor):
-    """Write to buffer the header for the samples of this (event, item).
-
-    Args:
-        event_id (int32): event id.
-        item_id (int32): item id.
-        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
-        cursor (int): index of int32_mv where to start writing.
-
-    Returns:
-        int: updated values of cursor
-    """
-    int32_mv[cursor], cursor = event_id, cursor + 1
-    int32_mv[cursor], cursor = item_id, cursor + 1
-
-    return cursor
-
-
-@njit(cache=True, fastmath=True)
-def write_sample_rec(sidx, loss, int32_mv, cursor):
-    """Write to buffer a (sidx, loss) sample record.
-
-    Args:
-        sidx (int32): sidx number.
-        loss (oasis_float): loss.
-        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
-        cursor (int): index of int32_mv where to start writing.
-
-    Returns:
-        int: updated values of cursor
-    """
-    int32_mv[cursor], cursor = sidx, cursor + 1
-    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = loss
-    cursor += oasis_float_to_int32_size
-
-    return cursor
-
-
-@njit(cache=True, fastmath=True)
-def write_negative_sidx(max_loss_idx, max_loss, chance_of_loss_idx, chance_of_loss,
-                        tiv_idx, tiv, std_dev_idx, std_dev, mean_idx, gul_mean,
-                        byte_mv, cursor):
-    """Write to buffer the negative sidx samples.
-
-    Args:
-        max_loss_idx (int32): max_loss_idx sidx number.
-        max_loss (oasis_float): max_loss.
-        chance_of_loss_idx (int32): chance_of_loss_idx sidx number.
-        chance_of_loss_idx (oasis_float): chance_of_loss
-        tiv_idx (int32): tiv_idx sidx number.
-        tiv (oasis_float): tiv.
-        std_dev_idx (int32): std_dev_idx sidx number.
-        std_dev (oasis_float): std_dev.
-        mean_idx (int32): mean_idx sidx number.
-        gul_mean (oasis_float): gul_mean.
-        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
-        cursor (int): index of int32_mv where to start writing.
-
-    Returns:
-        int: updated values of cursor
-    """
-    cursor = mv_write_sidx_loss(byte_mv, cursor, max_loss_idx, max_loss)
-    int32_mv[cursor], cursor = max_loss_idx, cursor + 1
-    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = max_loss
-    cursor += oasis_float_to_int32_size
-
-    int32_mv[cursor], cursor = chance_of_loss_idx, cursor + 1
-    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = chance_of_loss
-    cursor += oasis_float_to_int32_size
-
-    int32_mv[cursor], cursor = tiv_idx, cursor + 1
-    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = tiv
-    cursor += oasis_float_to_int32_size
-
-    int32_mv[cursor], cursor = std_dev_idx, cursor + 1
-    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = std_dev
-    cursor += oasis_float_to_int32_size
-
-    int32_mv[cursor], cursor = mean_idx, cursor + 1
-    int32_mv[cursor:cursor + oasis_float_to_int32_size].view(oasis_float)[:] = gul_mean
-    cursor += oasis_float_to_int32_size
-
-    return cursor

@@ -5,7 +5,7 @@ import numpy as np
 import numba as nb
 import logging
 
-from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
+from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX,
                                                   mv_read, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter, write_mv_to_stream)
 from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float, oasis_float_size
@@ -251,7 +251,7 @@ class EventWriterSparse:
         else:
             self.stream_out = open(self.files_out, 'wb')
         # prepare output buffer
-        self.stream_out.write(stream_info_to_bytes(FM_STREAM_ID, ITEM_STREAM))
+        self.stream_out.write(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM))
         self.stream_out.write(np.int32(self.len_sample).tobytes())
         return self
 

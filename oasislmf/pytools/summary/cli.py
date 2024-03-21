@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-i', '--files-in', help='names of the input file_path', nargs='+')
+parser.add_argument('-t', '--source-type', help='stream source type', choices=['gul', 'fm'], nargs='+')
 parser.add_argument('-m', '--low-memory', help='reduce downstream memory use with index file(s)', action='store_true')
 parser.add_argument('-p', '--static-path', help='path to the folder containing the static files', default='input')
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',

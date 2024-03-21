@@ -37,7 +37,7 @@ from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_i
                                           null_index, summary_xref_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
-                                                  GUL_STREAM_ID, FM_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
+                                                  GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
                                                   MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX)
 from oasislmf.pytools.utils import redirect_logging
 
@@ -275,7 +275,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
 
 
 @redirect_logging('summarypy')
-def run(files_in, static_path, low_memory, output_zeros, **kwargs):
+def run(files_in, source_type, static_path, low_memory, output_zeros, **kwargs):
     """
     Static intermediary data structure:
         summary_pipes : dict summary_set_id to path then updated to stream when reading starts
@@ -296,6 +296,7 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
 
     Args:
         files_in: list of file path to read event from
+        source_type: type of the source that is sending the stream
         static_path: path to the static files
         low_memory: if true output summary index file
         output_zeros: if true output 0 loss
@@ -310,15 +311,18 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
 
         summary_set_id_to_summary_set_index = get_summary_set_id_to_summary_set_index(summary_sets_id)
 
+        if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
+            raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
+
         # extract item_id to index in the loss summary
-        if stream_source_type == GUL_STREAM_ID:
+        if source_type == 'gul':
             summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype)
             summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
                                       usecols = ['loc_id', 'item_id', 'building_id', 'coverage_id'],
                                       dtype=oasis_int)
             has_affected_risk = True
 
-        elif  stream_source_type == FM_STREAM_ID:
+        elif  source_type == 'fm':
             summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype)
             if os.path.exists(os.path.join(static_path, 'fm_summary_map.csv')):
                 summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
@@ -329,7 +333,7 @@ def run(files_in, static_path, low_memory, output_zeros, **kwargs):
             else:
                 has_affected_risk = None # numba use none to optimise function when some part are not used
         else:
-            raise Exception(f"unsupported stream type {stream_source_type}")
+            raise Exception(f"unsupported source type {stream_source_type}")
 
 
         summary_set_index_to_loss_ptr, item_id_to_summary_id = get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index)
