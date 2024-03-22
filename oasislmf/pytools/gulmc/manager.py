@@ -20,7 +20,7 @@ from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict, convert_vuln_id_to_index
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
@@ -210,18 +210,8 @@ def run(run_dir,
         Nperil_correlation_groups = unique_peril_correlation_groups.shape[0]
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
-        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, vuln_id_to_vuln_idx_arr, areaperil_dict, used_agg_vuln_ids = process_items(
+        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns, areaperil_dict, used_agg_vuln_ids = process_items(
             items, valid_area_peril_id, agg_vuln_to_vuln_id)
-
-        logger.debug('reconstruct aggregate vulnerability definitions and weights')
-        # map each vulnerability_id composing aggregate vulnerabilities to the indices where they are stored in vuln_array
-        # here we filter out aggregate vulnerability that are not used in this portfolio, therefore
-        # agg_vuln_to_vuln_idxs can contain less aggregate vulnerability ids compared to agg_vuln_to_vuln_id
-        agg_vuln_to_vuln_idxs = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
-
-        # remap (areaperil, vuln_id) to weights to (areaperil, vuln_idx) to weights
-        areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
-            areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
 
         logger.debug('import footprint')
         footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=model_df_engine))
@@ -235,6 +225,17 @@ def run(run_dir,
         vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
         vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
+        convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
+
+        logger.debug('reconstruct aggregate vulnerability definitions and weights')
+        # map each vulnerability_id composing aggregate vulnerabilities to the indices where they are stored in vuln_array
+        # here we filter out aggregate vulnerability that are not used in this portfolio, therefore
+        # agg_vuln_to_vuln_idxs can contain less aggregate vulnerability ids compared to agg_vuln_to_vuln_id
+        agg_vuln_to_vuln_idxs = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
+
+        # remap (areaperil, vuln_id) to weights to (areaperil, vuln_idx) to weights
+        areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
+            areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
 
         # set up streams
         if file_out is None or file_out == '-':
@@ -344,7 +345,7 @@ def run(run_dir,
                     event_footprint, vuln_array,
                     areaperil_to_vulns_idx_dict,
                     areaperil_to_vulns_idx_array,
-                    vuln_id_to_vuln_idx_arr)
+                    areaperil_to_vulns)
 
                 if Nhaz_cdf_this_event == 0:
                     # no items to be computed for this event
@@ -1056,7 +1057,7 @@ def process_areaperils_in_footprint(event_footprint,
                                     vuln_array,
                                     areaperil_to_vulns_idx_dict,
                                     areaperil_to_vulns_idx_array,
-                                    vuln_id_to_vuln_idx_arr):
+                                    areaperil_to_vulns):
     """
     Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions,
     computing the hazard intensity cdf for each of those areaperil_id.
@@ -1066,7 +1067,7 @@ def process_areaperils_in_footprint(event_footprint,
         vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
         areaperil_to_vulns_idx_dict (dict[int, int]): areaperil to vulnerability index dictionary.
         areaperil_to_vulns_idx_array (List[IndexType]]): areaperil ID to vulnerability index array.
-        vuln_id_to_vuln_idx_arr (dict[int, dict[int, int]]): vuln id to vuln idx for each vulnerability in each areaperil.
+        areaperil_to_vulns (np.array ): vuln indexes for each area perils
 
     Returns:
         areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
@@ -1141,7 +1142,7 @@ def process_areaperils_in_footprint(event_footprint,
                         while damage_bin_i < Ndamage_bins_max:
                             for haz_bin_i in range(Nhaz_bins_to_read):
                                 eff_vuln_cdf_cumsum += vuln_array[
-                                    vuln_id_to_vuln_idx_arr[vuln_idx], damage_bin_i, haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] - 1] * haz_pdf[cdf_start + haz_bin_i]
+                                    areaperil_to_vulns[vuln_idx], damage_bin_i, haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] - 1] * haz_pdf[cdf_start + haz_bin_i]
 
                             eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
                             damage_bin_i += 1
@@ -1150,7 +1151,7 @@ def process_areaperils_in_footprint(event_footprint,
 
                         Ndamage_bins = damage_bin_i
 
-                        areaperil_to_eff_vuln_cdf[(last_areaperil_id, vuln_id_to_vuln_idx_arr[vuln_idx])] = (
+                        areaperil_to_eff_vuln_cdf[(last_areaperil_id, areaperil_to_vulns[vuln_idx])] = (
                             nb_int32(eff_vuln_cdf_start), nb_int32(Ndamage_bins))
                         eff_vuln_cdf_start += Ndamage_bins
 
@@ -1197,7 +1198,7 @@ def process_areaperils_in_footprint(event_footprint,
             while damage_bin_i < Ndamage_bins_max:
                 for haz_bin_i in range(Nhaz_bins_to_read):
                     eff_vuln_cdf_cumsum += vuln_array[
-                        vuln_id_to_vuln_idx_arr[vuln_idx], damage_bin_i, haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] - 1] * haz_pdf[cdf_start + haz_bin_i]
+                        areaperil_to_vulns[vuln_idx], damage_bin_i, haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] - 1] * haz_pdf[cdf_start + haz_bin_i]
 
                 eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
                 damage_bin_i += 1
@@ -1205,7 +1206,7 @@ def process_areaperils_in_footprint(event_footprint,
                     break
 
             Ndamage_bins = damage_bin_i
-            areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_id_to_vuln_idx_arr[vuln_idx])] = (nb_int32(eff_vuln_cdf_start), nb_int32(Ndamage_bins))
+            areaperil_to_eff_vuln_cdf[(areaperil_id, areaperil_to_vulns[vuln_idx])] = (nb_int32(eff_vuln_cdf_start), nb_int32(Ndamage_bins))
             eff_vuln_cdf_start += Ndamage_bins
 
         haz_cdf_ptr.append(cdf_end)
