@@ -207,7 +207,10 @@ def prepare_run_directory(
                         os.replace(destfile + ".tmp", destfile)
 
         if model_storage_config_fp:
-            shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
+            try:
+                shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
+            except shutil.SameFileError as e:
+                pass
 
         if user_data_dir and os.path.exists(user_data_dir):
             for sourcefile in glob.glob(os.path.join(user_data_dir, '*')):
