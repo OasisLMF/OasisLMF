@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.28.7`_
+ ---------
+* [#1471](https://github.com/OasisLMF/OasisLMF/pull/1472) - number_of_samples = 0 not working in oasislmf
+* [#1473](https://github.com/OasisLMF/OasisLMF/pull/1473) - ajust vuln index after vuln_dict has the updated indexes
+* [#1474](https://github.com/OasisLMF/OasisLMF/pull/1474) - Use billiard package for keys multiprocess if available
+* [#1477](https://github.com/OasisLMF/OasisLMF/pull/1477) - CI - Fix broken symlinks in test_generate_losses  (1.28.x)
+* [#1437](https://github.com/OasisLMF/OasisLMF/pull/1437) - Release 1.28.6
+.. _`1.28.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.6...1.28.7
+
 `1.28.6`_
  ---------
 * [#1460](https://github.com/OasisLMF/OasisLMF/pull/1463) - Occurrence file not found when requesting output from ktools component aalcalcmeanonly
