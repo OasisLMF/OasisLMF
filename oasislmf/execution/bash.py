@@ -163,7 +163,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "${p}_[0-9]*.log" | wc -l)
@@ -840,12 +840,13 @@ def do_summarycalcs(
     analysis_settings,
     process_id,
     filename,
+    summarypy,
     fifo_dir='fifo/',
     stderr_guard=True,
     num_reinsurance_iterations=0,
     gul_legacy_stream=None,
     gul_full_correlation=False,
-    ri_inuring_priority=None
+    ri_inuring_priority=None,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -855,14 +856,17 @@ def do_summarycalcs(
     if process_id == 1:
         print_command(filename, '')
 
-    summarycalc_switch = '-f'
-    if runtype == RUNTYPE_GROUNDUP_LOSS:
-        if gul_legacy_stream:
-            # gul coverage stream
-            summarycalc_switch = '-g'
-        else:
-            # Accept item stream only
-            summarycalc_switch = '-i'
+    if summarypy:
+        summarycalc_switch = f'-t {runtype}'
+    else:
+        summarycalc_switch = '-f'
+        if runtype == RUNTYPE_GROUNDUP_LOSS:
+            if gul_legacy_stream:
+                # gul coverage stream
+                summarycalc_switch = '-g'
+            else:
+                # Accept item stream only
+                summarycalc_switch = '-i'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
@@ -881,7 +885,8 @@ def do_summarycalcs(
 
     # Use -m flag to create summary index files
     # This is likely to become default in future ktools releases
-    cmd = 'summarycalc -m {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
+    cmd = 'summarypy' if summarypy else 'summarycalc'
+    cmd = f'{cmd} -m {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
@@ -1138,6 +1143,7 @@ def ri(
     filename,
     process_counter,
     num_reinsurance_iterations,
+    summarypy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1170,6 +1176,7 @@ def ri(
 
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
+                summarypy=summarypy,
                 runtype=RUNTYPE_REINSURANCE_LOSS,
                 analysis_settings=analysis_settings,
                 process_id=process_id,
@@ -1181,7 +1188,7 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, summarypy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
@@ -1193,6 +1200,7 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='f
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
+            summarypy=summarypy,
             runtype=RUNTYPE_INSURED_LOSS,
             analysis_settings=analysis_settings,
             process_id=process_id,
@@ -1207,6 +1215,7 @@ def do_gul(
     max_process_id,
     filename,
     process_counter,
+    summarypy,
     fifo_dir='fifo/',
     work_dir='work/',
     gul_legacy_stream=None,
@@ -1225,6 +1234,7 @@ def do_gul(
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
+            summarypy=summarypy,
             runtype=RUNTYPE_GROUNDUP_LOSS,
             analysis_settings=analysis_settings,
             process_id=process_id,
@@ -1756,6 +1766,7 @@ def bash_params(
     remove_working_files=True,
     model_run_dir='',
     model_py_server=False,
+    summarypy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1794,6 +1805,7 @@ def bash_params(
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
 
     bash_params["model_py_server"] = model_py_server
+    bash_params['summarypy'] = summarypy if not gul_legacy_stream else False # summarypy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2004,6 +2016,7 @@ def create_bash_analysis(
     gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
+    summarypy,
     gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     **kwargs
@@ -2171,6 +2184,7 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
+                    'summarypy': summarypy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2189,6 +2203,7 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
+                    'summarypy': summarypy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
@@ -2206,6 +2221,7 @@ def create_bash_analysis(
                     'max_process_id': num_gul_output,
                     'filename': filename,
                     'process_counter': process_counter,
+                    'summarypy': summarypy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'gul_legacy_stream': gul_legacy_stream,
@@ -2605,6 +2621,7 @@ def genbash(
     gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
+    summarypy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
 ):
@@ -2686,6 +2703,7 @@ def genbash(
         gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
+        summarypy=summarypy,
         model_df_engine=model_df_engine,
     )
 

@@ -44,7 +44,7 @@ def stream_info_to_bytes(stream_source_type, stream_agg_type):
     Returns:
         return bytes
     """
-    return np.array([stream_agg_type], '>i4').tobytes()[1:] + np.int8(stream_source_type).tobytes()
+    return np.array([stream_agg_type], '<i4').tobytes()[:3] + np.int8(stream_source_type).tobytes()
 
 
 def bytes_to_stream_types(stream_header):
@@ -56,7 +56,7 @@ def bytes_to_stream_types(stream_header):
     Returns:
         (stream source type (np.int32), stream aggregation type (np.int32))
     """
-    return np.frombuffer(stream_header[3:], 'i1')[0], np.frombuffer(b'\x00' + stream_header[:3], '>i4')[0]
+    return np.frombuffer(stream_header[3:], 'i1')[0], np.frombuffer(stream_header[:3] + b'\x00', '<i4')[0]
 
 
 def read_stream_info(stream_obj):

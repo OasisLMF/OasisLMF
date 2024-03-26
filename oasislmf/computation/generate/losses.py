@@ -23,16 +23,18 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
 import pandas as pd
+import numpy as np
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 
 from ...execution import bash, runner
-from ...execution.bash import get_fmcmd
+from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
+from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (fast_zip_dataframe_columns, get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
@@ -342,6 +344,20 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
 
+        if self.summarypy:
+            for runtype, is_running in {RUNTYPE_GROUNDUP_LOSS: True, RUNTYPE_INSURED_LOSS: il, RUNTYPE_REINSURANCE_LOSS: ri}.items():
+                if is_running:
+                    summaries = analysis_settings.get('{}_summaries'.format(runtype), [])
+                    summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
+                    if summary_sets_id:
+                        if runtype == RUNTYPE_REINSURANCE_LOSS:
+                            summary_dirs = [os.path.join(self.model_run_dir, ri_sub_dir) for ri_sub_dir in ri_dirs]
+                        else:
+                            summary_dirs = [os.path.join(self.model_run_dir, 'input')]
+                        for summary_dir in summary_dirs:
+                            self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
+                            create_summary_object_file(summary_dir, runtype, summary_sets_id)
+
         self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
         return analysis_settings
 
@@ -387,6 +403,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
@@ -449,6 +466,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
             peril_filter=self._get_peril_filter(self.analysis_settings),
+            summarypy=self.summarypy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
         )
@@ -600,6 +618,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -651,6 +670,7 @@ class GenerateLosses(GenerateLossesDir):
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(analysis_settings),
+                        summarypy=self.summarypy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                     )
                 except TypeError:
