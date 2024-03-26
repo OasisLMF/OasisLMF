@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.27.9`_
+ ---------
+* [#1471](https://github.com/OasisLMF/OasisLMF/pull/1472) - number_of_samples = 0 not working in oasislmf
+* [#1474](https://github.com/OasisLMF/OasisLMF/pull/1474) - Use billiard package for keys multiprocess if available
+* [#1428](https://github.com/OasisLMF/OasisLMF/pull/1428) - Release 1.27.8
+.. _`1.27.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.8...1.27.9
+
 .. _`1.27.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.7...1.27.8
 
 `1.27.7`_
