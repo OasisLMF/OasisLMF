@@ -66,7 +66,7 @@ def create_summary_object_file(static_path, run_type, summary_sets_id):
 
 def load_summary_object(static_path, run_type, summary_sets_id):
     """load already prepare summary data structure if present otherwise create them"""
-    if os.path.isfile(os.path.join(static_path, run_type, f'summary_info.npy')):
+    if os.path.isfile(os.path.join(static_path, run_type, 'summary_info.npy')):
         return read_summary_objects(static_path, run_type)
     else:
         return get_summary_object(static_path, run_type, summary_sets_id)
@@ -78,18 +78,18 @@ def get_summary_object(static_path, run_type, summary_sets_id):
 
     # extract item_id to index in the loss summary
     if run_type == RUNTYPE_GROUNDUP_LOSS:
-        summary_xref = load_as_ndarray(static_path, f'gulsummaryxref', summary_xref_dtype)
-        summary_map = pd.read_csv(os.path.join(static_path, f'gul_summary_map.csv'),
+        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype)
+        summary_map = pd.read_csv(os.path.join(static_path,'gul_summary_map.csv'),
                                   usecols=['loc_id', 'item_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int)
     elif run_type == RUNTYPE_INSURED_LOSS:
-        summary_xref = load_as_ndarray(static_path, f'fmsummaryxref', summary_xref_dtype)
-        summary_map = pd.read_csv(os.path.join(static_path, f'fm_summary_map.csv'),
+        summary_xref = load_as_ndarray(static_path,'fmsummaryxref', summary_xref_dtype)
+        summary_map = pd.read_csv(os.path.join(static_path,'fm_summary_map.csv'),
                                   usecols=['loc_id', 'output_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int,
                                   ).rename(columns={'output_id': 'item_id'})
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
-        summary_xref = load_as_ndarray(static_path, f'fmsummaryxref', summary_xref_dtype)
+        summary_xref = load_as_ndarray(static_path,'fmsummaryxref', summary_xref_dtype)
         summary_map = None  # numba use none to optimise function when some part are not used
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
@@ -111,17 +111,17 @@ def get_summary_object(static_path, run_type, summary_sets_id):
 
 def write_summary_objects(static_path, run_type, summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i):
     os.makedirs(os.path.join(static_path, run_type), exist_ok=True)
-    np.save(os.path.join(static_path, run_type, f'summary_info'), summary_info)
-    np.save(os.path.join(static_path, run_type, f'summary_set_index_to_loss_ptr'), summary_set_index_to_loss_ptr)
-    np.save(os.path.join(static_path, run_type, f'item_id_to_summary_id'), item_id_to_summary_id)
-    np.save(os.path.join(static_path, run_type, f'item_id_to_risks_i'), item_id_to_risks_i)
+    np.save(os.path.join(static_path, run_type,'summary_info'), summary_info)
+    np.save(os.path.join(static_path, run_type,'summary_set_index_to_loss_ptr'), summary_set_index_to_loss_ptr)
+    np.save(os.path.join(static_path, run_type,'item_id_to_summary_id'), item_id_to_summary_id)
+    np.save(os.path.join(static_path, run_type,'item_id_to_risks_i'), item_id_to_risks_i)
 
 
 def read_summary_objects(static_path, run_type):
-    summary_info = np.load(os.path.join(static_path, run_type, f'summary_info.npy'), mmap_mode='r')
-    summary_set_index_to_loss_ptr = np.load(os.path.join(static_path, run_type, f'summary_set_index_to_loss_ptr.npy'), mmap_mode='r')
-    item_id_to_summary_id = np.load(os.path.join(static_path, run_type, f'item_id_to_summary_id.npy'), mmap_mode='r')
-    item_id_to_risks_i = np.load(os.path.join(static_path, run_type, f'item_id_to_risks_i.npy'), mmap_mode='r')
+    summary_info = np.load(os.path.join(static_path, run_type,'summary_info.npy'), mmap_mode='r')
+    summary_set_index_to_loss_ptr = np.load(os.path.join(static_path, run_type,'summary_set_index_to_loss_ptr.npy'), mmap_mode='r')
+    item_id_to_summary_id = np.load(os.path.join(static_path, run_type,'item_id_to_summary_id.npy'), mmap_mode='r')
+    item_id_to_risks_i = np.load(os.path.join(static_path, run_type,'item_id_to_risks_i.npy'), mmap_mode='r')
     return summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
 
 
