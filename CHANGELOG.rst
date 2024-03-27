@@ -1,6 +1,17 @@
 OasisLMF Changelog
 ==================
 
+`2.3.2`_
+ ---------
+* [#1471](https://github.com/OasisLMF/OasisLMF/pull/1472) - number_of_samples = 0 not working in oasislmf
+* [#1473](https://github.com/OasisLMF/OasisLMF/pull/1473) - ajust vuln index after vuln_dict has the updated indexes
+* [#1474](https://github.com/OasisLMF/OasisLMF/pull/1474) - Use billiard package for keys multiprocess if available
+* [#1481](https://github.com/OasisLMF/OasisLMF/pull/1481) - Set ktools to 3.12.1
+* [#1461](https://github.com/OasisLMF/OasisLMF/pull/1461) - Release 2.3.1
+* [#1464](https://github.com/OasisLMF/OasisLMF/pull/1464) - Feature/add fm tests
+* [#732](https://github.com/OasisLMF/OasisLMF/pull/1465) - Align FM and RI column headers 
+.. _`2.3.2`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.1...2.3.2
+
 `2.3.1`_
  ---------
 * [#1444](https://github.com/OasisLMF/OasisLMF/pull/1444) - support for pandas 3
