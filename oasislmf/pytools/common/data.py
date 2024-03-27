@@ -136,6 +136,8 @@ def load_as_array(dir_path, name, _dtype, must_exist=True):
 
 
 float_equal_precision = np.finfo(oasis_float).eps
+
+
 @nb.njit(cache=True)
 def almost_equal(a, b):
     return abs(a - b) < float_equal_precision
