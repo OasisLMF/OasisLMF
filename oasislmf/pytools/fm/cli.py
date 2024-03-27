@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .fm import manager, logger
+from . import manager, logger
 
 import argparse
 import logging

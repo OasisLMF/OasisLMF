@@ -9,7 +9,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasislmf.pytools.common import oasis_float
+from oasislmf.pytools.common.data import oasis_float
 
 logger = logging.getLogger(__name__)
 

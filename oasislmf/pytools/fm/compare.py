@@ -1,7 +1,8 @@
 import numpy as np
 from numpy.testing import assert_allclose
-from .stream import event_agg_dtype, sidx_loss_dtype, EXTRA_VALUES
-from .common import np_oasis_float
+from oasislmf.pytools.common.data import oasis_float
+from .stream_sparse import event_agg_dtype, sidx_loss_dtype
+from .common import EXTRA_VALUES
 from .financial_structure import load_static
 
 
@@ -36,7 +37,7 @@ def stream_to_dict_array(stream_obj):
             #         break
             #     else:
             #         event_id_last = event_id
-            cur_array = np.zeros(len_sample + EXTRA_VALUES, dtype=np_oasis_float)
+            cur_array = np.zeros(len_sample + EXTRA_VALUES, dtype=oasis_float)
             dict_array[(event_id, agg_id)] = cur_array
 
     return stream_type, len_sample, dict_array

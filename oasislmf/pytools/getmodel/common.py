@@ -4,7 +4,7 @@ This file defines the data types that are loaded from the data files.
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common import areaperil_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_float
 
 # Footprint file formats in order of priority
 fp_format_priorities = ['parquet', 'binZ', 'bin', 'csv']

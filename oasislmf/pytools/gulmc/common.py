@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common import areaperil_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_float
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -37,14 +37,6 @@ coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
 
 NP_BASE_ARRAY_SIZE = 8
 
-# negative sidx (definition)
-MEAN_IDX = -1
-STD_DEV_IDX = -2
-TIV_IDX = -3
-CHANCE_OF_LOSS_IDX = -4
-MAX_LOSS_IDX = -5
-
-NUM_IDX = 5
 
 ITEM_MAP_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
 # ITEM_MAP_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 1)

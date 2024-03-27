@@ -124,8 +124,13 @@ class TestGenLosses(ComputationChecker):
         PLA_SETTINGS['pla_secondary_factor'] = 0.5
 
         self.write_json(self.tmp_files.get('analysis_settings_json'), PLA_SETTINGS)
-        self.manager.generate_files(**self.args_gen_files_gul)
-        self.manager.generate_losses(**self.min_args)
+        try:
+            self.manager.generate_files(**self.args_gen_files_gul)
+            self.manager.generate_losses(**self.min_args)
+        except:
+            print(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err'))
+            print(open(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err')).read())
+            raise
 
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)

@@ -9,16 +9,18 @@ import logging
 import os
 
 import numpy as np
-import pandas as pd
 from numba import from_dtype, njit, types
 from numba.typed import Dict, List
 
-from .common import (allowed_allocation_rule, almost_equal, fm_policytc_dtype,
-                     fm_profile_csv_col_map, fm_profile_dtype,
-                     fm_profile_step_dtype, fm_programme_dtype,
-                     fm_xref_csv_col_map, fm_xref_dtype, items_dtype,
-                     nb_oasis_int, need_extras, need_tiv_policy,
-                     np_oasis_float, np_oasis_int, null_index)
+
+from oasislmf.pytools.common.data import (load_as_ndarray, load_as_array, almost_equal,
+                                          fm_policytc_dtype,
+                                          fm_profile_csv_col_map, fm_profile_dtype, fm_profile_step_dtype,
+                                          fm_programme_dtype,
+                                          fm_xref_csv_col_map, fm_xref_dtype,
+                                          items_dtype,
+                                          oasis_int, nb_oasis_int, oasis_float, null_index)
+from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
 
 logger = logging.getLogger(__name__)
 
@@ -29,39 +31,39 @@ layer_type = types.UniTuple(nb_oasis_int, 3)
 
 # financial structure processed array
 nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
-                                         ('level_id', np_oasis_int),
-                                         ('agg_id', np_oasis_int),
-                                         ('layer_len', np_oasis_int),
-                                         ('cross_layer_profile', np_oasis_int),
-                                         ('profile_len', np_oasis_int),
-                                         ('profiles', np_oasis_int),
-                                         ('loss', np_oasis_int),
-                                         ('net_loss', np_oasis_int),
-                                         ('extra', np_oasis_int),
+                                         ('level_id', oasis_int),
+                                         ('agg_id', oasis_int),
+                                         ('layer_len', oasis_int),
+                                         ('cross_layer_profile', oasis_int),
+                                         ('profile_len', oasis_int),
+                                         ('profiles', oasis_int),
+                                         ('loss', oasis_int),
+                                         ('net_loss', oasis_int),
+                                         ('extra', oasis_int),
                                          ('is_reallocating', np.uint8),
-                                         ('parent_len', np_oasis_int),
-                                         ('parent', np_oasis_int),
-                                         ('children', np_oasis_int),
-                                         ('output_ids', np_oasis_int),
+                                         ('parent_len', oasis_int),
+                                         ('parent', oasis_int),
+                                         ('children', oasis_int),
+                                         ('output_ids', oasis_int),
                                          ]))
 
-compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
-                                          ('max_level', np_oasis_int),
-                                          ('max_layer', np_oasis_int),
-                                          ('node_len', np_oasis_int),
-                                          ('children_len', np_oasis_int),
-                                          ('parents_len', np_oasis_int),
-                                          ('profile_len', np_oasis_int),
-                                          ('loss_len', np_oasis_int),
-                                          ('extra_len', np_oasis_int),
-                                          ('compute_len', np_oasis_int),
-                                          ('start_level', np_oasis_int),
-                                          ('items_len', np_oasis_int),
-                                          ('output_len', np_oasis_int),
+compute_info_dtype = from_dtype(np.dtype([('allocation_rule', oasis_int),
+                                          ('max_level', oasis_int),
+                                          ('max_layer', oasis_int),
+                                          ('node_len', oasis_int),
+                                          ('children_len', oasis_int),
+                                          ('parents_len', oasis_int),
+                                          ('profile_len', oasis_int),
+                                          ('loss_len', oasis_int),
+                                          ('extra_len', oasis_int),
+                                          ('compute_len', oasis_int),
+                                          ('start_level', oasis_int),
+                                          ('items_len', oasis_int),
+                                          ('output_len', oasis_int),
                                           ('stepped', np.bool_),
                                           ]))
-profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
-                                           ('i_end', np_oasis_int),
+profile_index_dtype = from_dtype(np.dtype([('i_start', oasis_int),
+                                           ('i_end', oasis_int),
                                            ]))
 
 
@@ -71,10 +73,6 @@ def load_static(static_path):
     first check if .bin file is present then try .cvs
     try loading profile_step before falling back to normal profile,
 
-    # TODO: handle profile_step
-    # profile_step = load_file('fm_profile_step', fm_profile_step_dtype, must_exist=False)
-    # profile = profile_step if profile_step else load_file('fm_profile', fm_profile_dtype)
-
     :param static_path: str
             static_path
     :return:
@@ -82,49 +80,27 @@ def load_static(static_path):
         policytc : info on layer
         profile : policy profile can be profile_step or profile
         xref : node to output_id
+        items : items (item_id and coverage_id mapping)
+        coverages : Tiv value for each coverage id
     :raise:
         FileNotFoundError if one of the static is missing
     """
-    def load_file(name, _dtype, must_exist=True, col_map=None):
-        if os.path.isfile(os.path.join(static_path, name + '.bin')):
-            return np.fromfile(os.path.join(static_path, name + '.bin'), dtype=_dtype)
-        elif must_exist or os.path.isfile(os.path.join(static_path, name + '.csv')):
-            # in csv column cam be out of order and have different name,
-            # we load with pandas and write each column to the ndarray
-            if col_map is None:
-                col_map = {}
-            with open(os.path.join(static_path, name + '.csv')) as file_in:
-                cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
-                df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype)
-                res = np.empty(df.shape[0], dtype=_dtype)
-                for name in _dtype.names:
-                    res[name] = df[col_map.get(name, name)]
-                return res
-
-    programme = load_file('fm_programme', fm_programme_dtype)
-    policytc = load_file('fm_policytc', fm_policytc_dtype)
-    profile = load_file('fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
-    if profile is None:
-        profile = load_file('fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)
+    programme = load_as_ndarray(static_path, 'fm_programme', fm_programme_dtype)
+    policytc = load_as_ndarray(static_path, 'fm_policytc', fm_policytc_dtype)
+    profile = load_as_ndarray(static_path, 'fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
+    if len(profile) == 0:
+        profile = load_as_ndarray(static_path, 'fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)
         stepped = None
     else:
         stepped = True
-    xref = load_file('fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
+    xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
 
-    try:  # try to load items and coverage if present for TIV base policies (not used in re-insurance)
-        items = load_file('items', items_dtype)[['item_id', 'coverage_id']]
-
-        # coverage has a different structure whether it comes for the csv or the bin file
-        fp = os.path.join(static_path, 'coverages.bin')
-        if os.path.isfile(fp):
-            coverages = np.fromfile(fp, dtype=np_oasis_float)
-        else:
-            fp = os.path.join(static_path, 'coverages.csv')
-            with open(fp) as file_in:
-                coverages = np.loadtxt(file_in, dtype=np_oasis_float, delimiter=',', skiprows=1, usecols=1)
-    except FileNotFoundError:
+    items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
+    coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
+    if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
+        # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
-        coverages = np.empty(0, dtype=np_oasis_float)
+        coverages = np.empty(0, dtype=oasis_float)
 
     return programme, policytc, profile, stepped, xref, items, coverages
 
@@ -338,11 +314,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     # policies may have multiple step, crate a mapping between profile_id and the start and end index in fm_profile file
     max_profile_id = np.max(fm_profile['profile_id'])
     profile_id_to_profile_index = np.empty(max_profile_id + 1, dtype=profile_index_dtype)
-    has_tiv_policy = Dict.empty(np_oasis_int, np_oasis_int)
+    has_tiv_policy = Dict.empty(nb_oasis_int, nb_oasis_int)
     last_profile_id = 0  # real profile_id start at 1
     for i in range(fm_profile.shape[0]):
         if fm_profile[i]['calcrule_id'] in need_tiv_policy:
-            has_tiv_policy[fm_profile[i]['profile_id']] = np_oasis_int(0)
+            has_tiv_policy[fm_profile[i]['profile_id']] = nb_oasis_int(0)
         profile_id_to_profile_index[fm_profile[i]['profile_id']]['i_end'] = i + 1
         if last_profile_id != fm_profile[i]['profile_id']:
             profile_id_to_profile_index[fm_profile[i]['profile_id']]['i_start'] = i
@@ -350,7 +326,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     # in fm_programme check if multi-peril and get size of each levels
     max_level = np.max(fm_programme['level_id'])
-    level_node_len = np.zeros(max_level + 1, dtype=np_oasis_int)
+    level_node_len = np.zeros(max_level + 1, dtype=oasis_int)
     multi_peril = False
     for i in range(fm_programme.shape[0]):
         programme = fm_programme[i]
@@ -370,9 +346,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     new_fm_profile_list = List.empty_list(np.int64)
     for i in range(fm_policytc.shape[0]):
         policytc = fm_policytc[i]
-        programme_node = (np_oasis_int(policytc['level_id']), np_oasis_int(policytc['agg_id']))
-        i_start = profile_id_to_profile_index[np_oasis_int(policytc['profile_id'])]['i_start']
-        i_end = profile_id_to_profile_index[np_oasis_int(policytc['profile_id'])]['i_end']
+        programme_node = (nb_oasis_int(policytc['level_id']), nb_oasis_int(policytc['agg_id']))
+        i_start = profile_id_to_profile_index[nb_oasis_int(policytc['profile_id'])]['i_start']
+        i_end = profile_id_to_profile_index[nb_oasis_int(policytc['profile_id'])]['i_end']
 
         if policytc['profile_id'] in has_tiv_policy:
             if has_tiv_policy[policytc['profile_id']]:
@@ -381,9 +357,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 i_start, i_end = i_new_fm_profile, i_new_fm_profile + i_end - i_start
                 i_new_fm_profile = i_end
             else:
-                has_tiv_policy[policytc['profile_id']] = np_oasis_int(1)
+                has_tiv_policy[policytc['profile_id']] = nb_oasis_int(1)
 
-        layer = (np_oasis_int(policytc['layer_id']), np_oasis_int(i_start), np_oasis_int(i_end))
+        layer = (nb_oasis_int(policytc['layer_id']), nb_oasis_int(i_start), nb_oasis_int(i_end))
 
         if programme_node not in programme_node_to_layers:
             _list = List.empty_list(layer_type)
@@ -402,15 +378,15 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     # fm_xref
     if multi_peril:  # if single peril we can skip item level computation (level 0)
-        start_level = np_oasis_int(0)
+        start_level = nb_oasis_int(0)
     else:
-        start_level = np_oasis_int(1)
+        start_level = nb_oasis_int(1)
 
     if start_level == max_level:  # there is only one level we can switch the computation as if it were a0
         allocation_rule = 0
 
     if allocation_rule == 0:
-        out_level = np_oasis_int(max_level)
+        out_level = nb_oasis_int(max_level)
     else:
         out_level = start_level
 
@@ -423,25 +399,25 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         xref = fm_xref[i]
         programme_node = (out_level, xref['agg_id'])
         if output_len < xref['output_id']:
-            output_len = np_oasis_int(xref['output_id'])
+            output_len = nb_oasis_int(xref['output_id'])
 
         if programme_node in node_to_output_id:
-            node_to_output_id[programme_node].append((np_oasis_int(xref['layer_id']), np_oasis_int(xref['output_id'])))
+            node_to_output_id[programme_node].append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id'])))
         else:
             _list = List.empty_list(output_type)
-            _list.append((np_oasis_int(xref['layer_id']), np_oasis_int(xref['output_id'])))
+            _list.append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id'])))
             node_to_output_id[programme_node] = _list
 
     ##### programme ####
     # node_layers will contain the number of layer for each nodes
-    node_layers = Dict.empty(node_type, np_oasis_int)
-    node_cross_layers = Dict.empty(node_type, np_oasis_int)
+    node_layers = Dict.empty(node_type, nb_oasis_int)
+    node_cross_layers = Dict.empty(node_type, nb_oasis_int)
 
     # fill up node_layers with the number of policies for each node
     for programme in fm_programme:
-        parent = (np_oasis_int(programme['level_id']), np_oasis_int(programme['to_agg_id']))
+        parent = (nb_oasis_int(programme['level_id']), nb_oasis_int(programme['to_agg_id']))
         if parent not in node_layers:
-            node_layers[parent] = np_oasis_int(len(programme_node_to_layers[parent]))
+            node_layers[parent] = nb_oasis_int(len(programme_node_to_layers[parent]))
 
     # create 2 mapping to get the parents and the childs of each nodes
     # update the number of layer for nodes based on the number of layer of their parents
@@ -456,12 +432,12 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for level in range(max_level, start_level, -1):
         for programme in fm_programme:
             if programme['level_id'] == level:
-                parent = (np_oasis_int(programme['level_id']), np_oasis_int(programme['to_agg_id']))
+                parent = (nb_oasis_int(programme['level_id']), nb_oasis_int(programme['to_agg_id']))
 
                 if programme['from_agg_id'] > 0:  # level of node is programme['level_id'] - 1
-                    child_programme = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
+                    child_programme = (nb_oasis_int(programme['level_id'] - 1), nb_oasis_int(programme['from_agg_id']))
                 else:  # negative agg_id level is item level
-                    child_programme = (start_level, np_oasis_int(-programme['from_agg_id']))
+                    child_programme = (start_level, nb_oasis_int(-programme['from_agg_id']))
 
                 if parent not in parent_to_children:
                     children_len += 2
@@ -487,11 +463,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                     grand_parents = get_all_parent(child_to_parents, [parent], max_level)
                     for grand_parent in grand_parents:
                         if node_layers[grand_parent] < node_layers[child_programme]:
-                            node_cross_layers[grand_parent] = np_oasis_int(1)
+                            node_cross_layers[grand_parent] = nb_oasis_int(1)
                             node_layers[parent] = node_layers[child_programme]
 
     # compute number of steps (steps), max size of each level node_level_start, max size of node to compute (compute_len)
-    node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
+    node_level_start = np.zeros(level_node_len.shape[0] + 1, oasis_int)
     for i in range(start_level, level_node_len.shape[0]):
         node_level_start[i + 1] = node_level_start[i] + level_node_len[i]
     steps = max_level + (1 - start_level)
@@ -503,9 +479,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             output_array_size += layer_size
 
     nodes_array = np.empty(node_level_start[-1] + 1, dtype=nodes_array_dtype)
-    node_parents_array = np.empty(parents_len, dtype=np_oasis_int)
+    node_parents_array = np.empty(parents_len, dtype=oasis_int)
     node_profiles_array = np.zeros(fm_policytc.shape[0] + 1, dtype=profile_index_dtype)
-    output_array = np.zeros(output_array_size, dtype=np_oasis_int)
+    output_array = np.zeros(output_array_size, dtype=oasis_int)
 
     node_i = 1
     children_i = 1
@@ -517,7 +493,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     for level in range(start_level, max_level + 1):
         for agg_id in range(1, level_node_len[level] + 1):
-            node_programme = (np_oasis_int(level), np_oasis_int(agg_id))
+            node_programme = (nb_oasis_int(level), nb_oasis_int(agg_id))
             node = nodes_array[node_i]
             node['node_id'] = node_i
             node_i += 1
@@ -547,7 +523,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 node['parent_len'] = len(parents)
                 node['parent'] = parents_i
                 for parent in parents:
-                    node_parents_array[parents_i], parents_i = node_level_start[parent[0]] + parent[1], np_oasis_int(parents_i + 1)
+                    node_parents_array[parents_i], parents_i = node_level_start[parent[0]] + parent[1], nb_oasis_int(parents_i + 1)
             else:
                 node['parent_len'] = 0
 
