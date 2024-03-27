@@ -9,7 +9,7 @@ from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_hea
 logger = logging.getLogger(__name__)
 
 
-@nb.jit(cache=True)
+@nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
     """
     read the gul loss stream, apply the post loss amplification factor and load it into out_byte_mv buffer

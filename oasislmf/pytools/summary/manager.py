@@ -161,7 +161,7 @@ def extract_risk_info(len_item_id, summary_map):
     return nb_risk, item_id_to_risks_i
 
 
-@nb.jit(cache=True)
+@nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
                 loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
