@@ -27,7 +27,11 @@ from ..utils.status import OASIS_KEYS_STATUS
 from .builtin import PerilCoveredDeterministicLookup
 from .builtin import Lookup as NewLookup
 
-from multiprocessing import cpu_count, Queue, Process
+try:
+    from billiard import cpu_count, Queue, Process
+except ImportError:
+    from multiprocessing import cpu_count, Queue, Process
+
 from queue import Empty, Full
 
 # add pickling support for traceback object

@@ -980,7 +980,7 @@ class FMPolicyTCFile(FMFile):
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
             ('layer_id', 'i'), ('level_id', 'i'), ('agg_id', 'i'),
-            ('policytc_id', 'i')
+            ('profile_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location + num_layers
         self.file_name = os.path.join(directory, 'fm_policytc.bin')
@@ -993,12 +993,12 @@ class FMPolicyTCFile(FMFile):
             level (int): level ID.
             agg_id (int): aggregate ID.
             layer (int): layer ID.
-            policytc_id (int): profile/policyTC ID.
+            profile_id (int): profile ID.
         """
         # Site coverage #1 & policy layer #10 FM levels
         levels = [1, 10]
         levels = range(1, len(levels) + 1)
-        policytc_id = 1
+        profile_id = 1
         for level in levels:
             # Site coverage FM level
             if level == 1:
@@ -1006,13 +1006,13 @@ class FMPolicyTCFile(FMFile):
                     1, self.num_locations * self.coverages_per_location + 1
                 ):
                     # One layer in site coverage FM level
-                    yield level, agg_id, 1, policytc_id
-                policytc_id += 1   # Next policytc_id
+                    yield level, agg_id, 1, profile_id
+                profile_id += 1   # Next profile_id
             # Policy layer FM level
             elif level == len(levels):
                 for layer in range(self.num_layers):
-                    yield level, 1, layer + 1, policytc_id
-                    policytc_id += 1   # Next policytc_id
+                    yield level, 1, layer + 1, profile_id
+                    profile_id += 1   # Next profile_id
 
 
 class FMProfileFile(ModelFile):
@@ -1037,7 +1037,7 @@ class FMProfileFile(ModelFile):
         """
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
-            ('policytc_id', 'i'), ('calcrule_id', 'i'), ('deductible1', 'f'),
+            ('profile_id', 'i'), ('calcrule_id', 'i'), ('deductible1', 'f'),
             ('deductible2', 'f'), ('deductible3', 'f'), ('attachment1', 'f'),
             ('limit1', 'f'), ('share1', 'f'), ('share2', 'f'), ('share3', 'f')
         ])
@@ -1050,7 +1050,7 @@ class FMProfileFile(ModelFile):
         Generate Financial Model Profile dummy model file data.
 
         Yields:
-            policytc_id (int): profile/policyTC ID.
+            profile_id (int): profile ID.
             calculation rule ID (int): calculation rule ID (2 or 100).
             first deductible (float): first deductible (fixed at 0.0).
             second deductible (float): second deductible (fixed at 0.0).
@@ -1067,12 +1067,12 @@ class FMProfileFile(ModelFile):
         # Pass through for level 1
         profile_rows = [(1, 100, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)]
         # First policy
-        init_policytc_id = 2
+        init_profile_id = 2
         init_attachment1 = 500000.0
         attachment1_offset = 5000000.0
         max_limit1 = 100000000.0
         for layer in range(self.num_layers):
-            policytc_id = init_policytc_id + layer
+            profile_id = init_profile_id + layer
             attachment1 = init_attachment1 + attachment1_offset * layer
             # Set limit1 at maximum for last layer
             if (layer + 1) == self.num_layers:
@@ -1080,7 +1080,7 @@ class FMProfileFile(ModelFile):
             else:
                 limit1 = attachment1_offset * (layer + 1)
             profile_rows.append(
-                (policytc_id, 2, 0.0, 0.0, 0.0, attachment1, limit1, 0.3, 0.0, 0.0)
+                (profile_id, 2, 0.0, 0.0, 0.0, attachment1, limit1, 0.3, 0.0, 0.0)
             )
         for row in profile_rows:
             yield row
