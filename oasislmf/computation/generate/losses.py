@@ -196,6 +196,7 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'check_missing_inputs', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
 

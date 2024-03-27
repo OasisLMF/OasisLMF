@@ -23,7 +23,6 @@ event based intermediary data structure:
     is_risk_affected : array to store in if a risk has already been affected or not in this event
 
 """
-
 import numpy as np
 import numba as nb
 from numba.typed import Dict as nb_dict
@@ -126,6 +125,7 @@ def read_summary_objects(static_path, run_type):
     item_id_to_risks_i = np.load(os.path.join(static_path, run_type, f'item_id_to_risks_i.npy'), mmap_mode='r')
     return summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
 
+
 @nb.njit()
 def nb_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
     """for some reason this doesn't work in our pytest (tests/computation/test_generate_losses.py) and hangs forever"""
@@ -154,26 +154,12 @@ def extract_risk_info(len_item_id, summary_map):
     """
 
     item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
-    nb_risk = py_extract_risk_info(
+    nb_risk = nb_extract_risk_info(
         item_id_to_risks_i,
         summary_map['item_id'].astype(oasis_int).to_numpy(),
         summary_map['loc_id'].astype(oasis_int).to_numpy(),
         summary_map['building_id'].astype(oasis_int).to_numpy())
     return nb_risk, item_id_to_risks_i
-
-
-def py_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
-    loc_id_building_id_to_building_risk = {}
-    last_risk_i = 0
-    for i in range(summary_map_item_ids.shape[0]):
-        loc_id_building_id = (nb_oasis_int(summary_map_loc_ids[i]), nb_oasis_int(summary_map_building_ids[i]))
-        if loc_id_building_id in loc_id_building_id_to_building_risk:
-            risk_i = loc_id_building_id_to_building_risk[loc_id_building_id]
-        else:
-            risk_i = last_risk_i
-            last_risk_i += 1
-        item_id_to_risks_i[summary_map_item_ids[i]] = nb_oasis_int(risk_i)
-    return last_risk_i
 
 
 @nb.jit(cache=True)
@@ -378,6 +364,11 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
     with ExitStack() as stack:
         summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
 
+        if low_memory:
+            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'w'))
+                                       for summary_set_id, setpath in summary_sets_path.items()}
+
+
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
 
         if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
@@ -405,10 +396,6 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         # data for index file (low_memory==True)
         summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
         summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=np.dtype([('summary_id', oasis_int), ('offset', np.int64)]))
-
-        if low_memory:
-            summary_sets_index_pipe = {summary_set_id: stack.enter_context(open(setpath.rsplit('.', 1)[0] + '.idx', 'w'))
-                                       for summary_set_id, setpath in summary_sets_path.items()}
 
         for summary_set_index, summary_set_id in enumerate(summary_sets_id):
             summary_pipe = summary_sets_pipe[summary_set_id]
