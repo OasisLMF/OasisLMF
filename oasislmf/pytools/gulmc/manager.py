@@ -571,7 +571,6 @@ def compute_event_losses(event_id,
 
         # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
-        #cursor_bytes = cursor * int32_mv.itemsize
         est_cursor_bytes = Nitems * max_bytes_per_item
 
         # return before processing this coverage if the number of free bytes left in the buffer

@@ -175,7 +175,6 @@ def load_event(byte_mv, event_id, nodes_array,
             output_id = output_array[node['output_ids'] + layer]
             node_loss_start = loss_indptr[node['loss'] + layer]
 
-            #### mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter
             # print('output_id', output_id)
             # print('    ', sidx_val[node_sidx_start: node_sidx_end])
             # print('    ', loss_val[node_loss_start: node_loss_start + node_val_len])
