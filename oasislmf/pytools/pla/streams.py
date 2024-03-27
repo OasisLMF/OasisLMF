@@ -8,6 +8,7 @@ from oasislmf.pytools.common.event_stream import (EventReader, get_and_check_hea
 
 logger = logging.getLogger(__name__)
 
+
 @nb.jit(cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
     """
@@ -32,7 +33,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
         factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
     while True:
         if item_id:
-            if valid_buff -  cursor < (oasis_int_size + oasis_float_size):
+            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
                 break
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx:
@@ -49,7 +50,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
                 cursor += oasis_float_size
                 item_id = 0
         else:
-            if valid_buff -  cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < 2 * oasis_int_size:
                 break
             event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
@@ -58,7 +59,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
             factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
             ##########
     out_byte_mv[:cursor] = byte_mv[:cursor]
-    out_cursor[0] =  cursor
+    out_cursor[0] = cursor
     return cursor, event_id, item_id, 1
 
 
@@ -118,7 +119,3 @@ def read_and_write_streams(
     pla_reader = PlaReader(items_amps, plafactors, default_factor)
     for _ in pla_reader.read_streams(stream_in):
         write_mv_to_stream(stream_out, pla_reader.out_byte_mv, pla_reader.out_cursor[0])
-
-
-
-

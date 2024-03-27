@@ -109,6 +109,7 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     else:
         return np.empty(0, dtype=_dtype)
 
+
 def load_as_array(dir_path, name, _dtype, must_exist=True):
     """
     load file as a single numpy array,

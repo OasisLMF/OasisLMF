@@ -224,7 +224,6 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
 
             last_event_id = event_id
 
-
         areaperil_id, cursor = mv_read(byte_mv, cursor, areaperil_int, areaperil_int_size)
         vulnerability_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
         Nbins_to_read, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)

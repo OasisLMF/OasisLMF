@@ -22,7 +22,7 @@ remove_empty = False
 # number_size = 8
 # nb_number = buff_size // number_size
 
-SPECIAL_SIDX_COUNT = 6 # 0 is included as a special sidx
+SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
 ITEM_HEADER_SIZE = 2 * oasis_int_size + SPECIAL_SIDX_COUNT * (oasis_int_size + oasis_float_size)
 SIDX_LOSS_WRITE_SIZE = oasis_int_size + oasis_float_size
 
@@ -60,6 +60,7 @@ def add_new_loss(sidx, loss, compute_i, sidx_indptr, sidx_val, loss_val):
 def event_log_msg(event_id, sidx_indptr, len_array, node_count):
     return f"event_id: {event_id}, node_count: {node_count}, sparsity: {100 * sidx_indptr[node_count] / node_count / len_array}"
 
+
 @nb.njit(cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
@@ -68,7 +69,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
     last_event_id = event_id
     while True:
         if item_id:
-            if valid_buff -  cursor < (oasis_int_size + oasis_float_size):
+            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
                 break
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx:
@@ -91,13 +92,13 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 cursor += oasis_float_size
                 item_id = 0
         else:
-            if valid_buff -  cursor < 2 * oasis_int_size:
+            if valid_buff - cursor < 2 * oasis_int_size:
                 break
             event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if event_id != last_event_id:
-                if last_event_id: # we have a new event we return the one we just finished
+                if last_event_id:  # we have a new event we return the one we just finished
                     return cursor - oasis_int_size, last_event_id, 0, 1
-                else: # first pass we store the event we are reading
+                else:  # first pass we store the event we are reading
                     last_event_id = event_id
             item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
 
@@ -152,6 +153,7 @@ class FMReader(EventReader):
 
     def event_read_log(self, event_id):
         logger.debug(event_log_msg(event_id, self.sidx_indptr, self.len_array, self.compute_idx['next_compute_i']))
+
 
 @nb.jit(cache=True, nopython=True)
 def load_event(byte_mv, event_id, nodes_array,

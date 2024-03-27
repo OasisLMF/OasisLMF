@@ -13,23 +13,23 @@ items_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
                                           ('rng_index', oasis_int)
                                           ]))
 
-items_MC_data_type = nb.from_dtype(np.dtype([('item_id',oasis_int),
+items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
                                              ('areaperil_id', areaperil_int),
-                                             ('vulnerability_id',oasis_int),
-                                             ('hazcdf_i',oasis_int),
-                                             ('rng_index',oasis_int),
-                                             ('hazard_rng_index',oasis_int),
-                                             ('eff_vuln_cdf_i',oasis_int),
-                                             ('eff_vuln_cdf_Ndamage_bins',oasis_int)
+                                             ('vulnerability_id', oasis_int),
+                                             ('hazcdf_i', oasis_int),
+                                             ('rng_index', oasis_int),
+                                             ('hazard_rng_index', oasis_int),
+                                             ('eff_vuln_cdf_i', oasis_int),
+                                             ('eff_vuln_cdf_Ndamage_bins', oasis_int)
                                              ]))
 
-VulnCdfLookup = nb.from_dtype(np.dtype([('start',oasis_int), ('length',oasis_int)]))
+VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int), ('length', oasis_int)]))
 
 
 coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
-                                        ('max_items',oasis_int),
-                                        ('start_items',oasis_int),
-                                        ('cur_items',oasis_int)
+                                        ('max_items', oasis_int),
+                                        ('start_items', oasis_int),
+                                        ('cur_items', oasis_int)
                                         ]))
 
 NP_BASE_ARRAY_SIZE = 8

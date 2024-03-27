@@ -16,8 +16,8 @@ PIPE_CAPACITY = 65536  # bytes
 
 # stream source type
 CDF_STREAM_ID = 0
-GUL_STREAM_ID = 1 # deprecated use LOSS_STREAM_ID
-FM_STREAM_ID = 2 # deprecated use LOSS_STREAM_ID
+GUL_STREAM_ID = 1  # deprecated use LOSS_STREAM_ID
+FM_STREAM_ID = 2  # deprecated use LOSS_STREAM_ID
 LOSS_STREAM_ID = 2
 SUMMARY_STREAM_ID = 3
 
@@ -121,7 +121,7 @@ def mv_read(byte_mv, cursor, _dtype, itemsize):
 
 
 @nb.jit()
-def mv_write(byte_mv, cursor, _dtype, itemsize, value)->int:
+def mv_write(byte_mv, cursor, _dtype, itemsize, value) -> int:
     """
     load an object into the numpy byte view at index cursor, return the index of the end of the object
     Args:
@@ -139,7 +139,7 @@ def mv_write(byte_mv, cursor, _dtype, itemsize, value)->int:
 
 
 @nb.njit()
-def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value)->int:
+def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_value) -> int:
     """
     write a summary header to the numpy byte view at index cursor, return the index of the end of the object
     Args:
@@ -160,7 +160,7 @@ def mv_write_summary_header(byte_mv, cursor, event_id, summary_id, exposure_valu
 
 
 @nb.njit()
-def mv_write_item_header(byte_mv, cursor, event_id, item_id)->int:
+def mv_write_item_header(byte_mv, cursor, event_id, item_id) -> int:
     """
     write a item header to the numpy byte view at index cursor, return the index of the end of the object
     Args:
@@ -179,7 +179,7 @@ def mv_write_item_header(byte_mv, cursor, event_id, item_id)->int:
 
 
 @nb.njit()
-def mv_write_sidx_loss(byte_mv, cursor, sidx, loss)->int:
+def mv_write_sidx_loss(byte_mv, cursor, sidx, loss) -> int:
     """
     write sidx and loss to the numpy byte view at index cursor, return the index of the end of the object
     Args:
@@ -198,7 +198,7 @@ def mv_write_sidx_loss(byte_mv, cursor, sidx, loss)->int:
 
 
 @nb.njit()
-def mv_write_delimiter(byte_mv, cursor)->int:
+def mv_write_delimiter(byte_mv, cursor) -> int:
     """
     write the item delimiter (0,0) to the numpy byte view at index cursor, return the index of the end of the object
     Args:
@@ -370,9 +370,8 @@ class EventReader:
         pass
 
 
-
-######  read_buffer template,
-######  add you input argument and implement what is needed in the three steps ('do new item setup', 'do loss read', 'do item exit')
+# read_buffer template,
+# add you input argument and implement what is needed in the three steps ('do new item setup', 'do loss read', 'do item exit')
 #
 # @nb.jit(cache=True)
 # def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, [array necessary to load and store the event data]):

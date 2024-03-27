@@ -1805,7 +1805,7 @@ def bash_params(
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
 
     bash_params["model_py_server"] = model_py_server
-    bash_params['summarypy'] = summarypy if not gul_legacy_stream else False # summarypy doesn't support gul_legacy_stream
+    bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
