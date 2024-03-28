@@ -23,7 +23,7 @@ except ImportError:
     from urllib2 import URLError
 
 
-KTOOLS_VERSION = '3.12.1'
+KTOOLS_VERSION = '3.12.0'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
