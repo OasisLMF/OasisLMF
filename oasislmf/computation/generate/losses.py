@@ -347,8 +347,8 @@ class GenerateLossesDir(GenerateLossesBase):
                 create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
 
         if self.summarypy:
-            for runtype, is_running in {RUNTYPE_GROUNDUP_LOSS: True, RUNTYPE_INSURED_LOSS: il, RUNTYPE_REINSURANCE_LOSS: ri}.items():
-                if is_running:
+            for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
+                if analysis_settings.get(f'{runtype}_output'):
                     summaries = analysis_settings.get('{}_summaries'.format(runtype), [])
                     summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                     if summary_sets_id:
