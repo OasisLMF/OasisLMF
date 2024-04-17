@@ -303,18 +303,8 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, storage: BaseStorage, 
             ]
 
         for fname in targets:
-            if storage.isfile(fname):
+            if storage.exists(fname):
                 storage.get(fname, bin_fp)
-
-        # if not setting_val:
-        #     model_data_bin_fp = os.path.join(run_dir, 'static', '{}.{}'.format(bin_name, extension))
-        # else:
-        #     # 'verbatim' -  Try setting value as given
-        #     model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, str(setting_val), extension))
-        #     if not os.path.isfile(model_data_bin_fp):
-        #         # 'compatibility' - Fallback name formatting to keep existing conversion
-        #         setting_val = str(setting_val).replace(' ', '_').lower()
-        #         model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, setting_val, extension))
 
         if not os.path.exists(bin_fp):
             raise OasisException('Could not find {} data file: {}'.format(bin_name, targets))
