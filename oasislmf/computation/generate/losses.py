@@ -210,15 +210,14 @@ class GenerateLossesDir(GenerateLossesBase):
             os.path.join(self.model_run_dir, "static"),
         )
 
-        # if not local test the connection to remote storage FS 
+        # if not local test the connection to remote storage FS
         if not isinstance(model_storage, LocalStorage):
             try:
                 model_storage.listdir()
             except Exception as e:
                 raise OasisException('Error: Storage Manager connection issue', e)
-              
 
-        return model_storage        
+        return model_storage
 
     def __check_for_parquet_output(self, analysis_settings, runtypes):
         """
