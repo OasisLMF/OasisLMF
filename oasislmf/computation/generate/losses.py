@@ -25,6 +25,8 @@ from subprocess import CalledProcessError, check_call
 import pandas as pd
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasis_data_manager.filestore.backends.local import LocalStorage
+
 from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 
 from ...execution import bash, runner
@@ -202,6 +204,22 @@ class GenerateLossesDir(GenerateLossesBase):
 
     ]
 
+    def _get_storage_manager(self):
+        model_storage = get_storage_from_config_path(
+            self.model_storage_json,
+            os.path.join(self.model_run_dir, "static"),
+        )
+
+        # if not local test the connection to remote storage FS 
+        if not isinstance(model_storage, LocalStorage):
+            try:
+                model_storage.listdir()
+            except Exception as e:
+                raise OasisException('Error: Storage Manager connection issue', e)
+              
+
+        return model_storage        
+
     def __check_for_parquet_output(self, analysis_settings, runtypes):
         """
         Private method to check whether ktools components were linked to third
@@ -227,11 +245,7 @@ class GenerateLossesDir(GenerateLossesBase):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
         analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
-
-        model_storage = get_storage_from_config_path(
-            self.model_storage_json,
-            os.path.join(self.model_run_dir, "static"),
-        )
+        model_storage = self._get_storage_manager()
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
