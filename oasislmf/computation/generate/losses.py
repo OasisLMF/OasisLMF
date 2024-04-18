@@ -351,14 +351,14 @@ class GenerateLossesDir(GenerateLossesBase):
                 if analysis_settings.get(f'{runtype}_output'):
                     summaries = analysis_settings.get('{}_summaries'.format(runtype), [])
                     summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
-                    if summary_sets_id:
+                    if summary_sets_id.shape[0]:
                         if runtype == RUNTYPE_REINSURANCE_LOSS:
                             summary_dirs = [os.path.join(self.model_run_dir, ri_sub_dir) for ri_sub_dir in ri_dirs]
                         else:
                             summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                         for summary_dir in summary_dirs:
                             self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
-                            create_summary_object_file(summary_dir, runtype, summary_sets_id)
+                            create_summary_object_file(summary_dir, runtype)
 
         self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
         return analysis_settings

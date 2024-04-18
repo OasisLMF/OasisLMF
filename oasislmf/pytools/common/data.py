@@ -1,7 +1,7 @@
 import os
 import numba as nb
 import numpy as np
-
+import pandas as pd
 
 oasis_int = np.dtype(os.environ.get('OASIS_FLOAT', 'i4'))
 nb_oasis_int = nb.from_dtype(oasis_int)

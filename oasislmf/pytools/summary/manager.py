@@ -14,9 +14,9 @@ Static intermediary data structure:
     item_id_to_risks_i : mapping array item_id => risks_i (index of th corresponding risk)
 
 event based intermediary data structure:
-    summary_id_count_per_summary_set : copy of summary_set_index_to_loss_ptr that store the end of list of summary_id for each summary set
+    summary_set_index_to_present_loss_ptr_end : copy of summary_set_index_to_loss_ptr that store the end of list of summary_id for each summary set
     present_summary_id : array that store all the summary_id found in the event
-                         each summary set start at summary_set_index_to_loss_ptr and ends at summary_id_count_per_summary_set
+                         each summary set start at summary_set_index_to_loss_ptr and ends at summary_set_index_to_present_loss_ptr_end
     loss_index : store the index in loss_summary of each summary corresponding to an item for quick lookup on read
     loss_summary : 2D array of losses for each summary
                    loss_summary[loss_index[summary_set_index], sidx] = loss
@@ -31,6 +31,7 @@ import pandas as pd
 from contextlib import ExitStack
 import logging
 import os
+from itertools import zip_longest
 
 from oasislmf.execution.bash import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
@@ -58,42 +59,48 @@ summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
 SUPPORTED_RUN_TYPE = [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]
 
 
-def create_summary_object_file(static_path, run_type, summary_sets_id):
+def create_summary_object_file(static_path, run_type):
     """create and write summary object into static path"""
-    summary_objects = get_summary_object(static_path, run_type, summary_sets_id)
+    summary_objects = get_summary_object(static_path, run_type)
     write_summary_objects(static_path, run_type, *summary_objects)
 
 
-def load_summary_object(static_path, run_type, summary_sets_id):
+def load_summary_object(static_path, run_type):
     """load already prepare summary data structure if present otherwise create them"""
     if os.path.isfile(os.path.join(static_path, run_type, 'summary_info.npy')):
         return read_summary_objects(static_path, run_type)
     else:
-        return get_summary_object(static_path, run_type, summary_sets_id)
+        return get_summary_object(static_path, run_type)
 
 
-def get_summary_object(static_path, run_type, summary_sets_id):
+def get_summary_object(static_path, run_type):
     """read static files to get summary static data structure"""
-    summary_set_id_to_summary_set_index = get_summary_set_id_to_summary_set_index(summary_sets_id)
 
     # extract item_id to index in the loss summary
     if run_type == RUNTYPE_GROUNDUP_LOSS:
-        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype)
+        summary_xref_csv_col_map = {'summary_set_id': 'summaryset_id'}
+        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype, col_map=summary_xref_csv_col_map)
         summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
                                   usecols=['loc_id', 'item_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int)
     elif run_type == RUNTYPE_INSURED_LOSS:
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype)
+        summary_xref_csv_col_map = {'summary_set_id': 'summaryset_id',
+                                    'item_id': 'output'}
+        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype, col_map=summary_xref_csv_col_map)
         summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
                                   usecols=['loc_id', 'output_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int,
                                   ).rename(columns={'output_id': 'item_id'})
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype)
+        summary_xref_csv_col_map = {'summary_set_id': 'summaryset_id',
+                                    'item_id': 'output'}
+        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype, col_map=summary_xref_csv_col_map)
         summary_map = None  # numba use none to optimise function when some part are not used
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
+    summary_sets_id = np.sort(np.unique(summary_xref['summary_set_id']))
+    summary_set_id_to_summary_set_index = get_summary_set_id_to_summary_set_index(summary_sets_id)
     summary_set_index_to_loss_ptr, item_id_to_summary_id = get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index)
 
     if summary_map is not None:
@@ -106,12 +113,14 @@ def get_summary_object(static_path, run_type, summary_sets_id):
     info = summary_info[0]
     info['nb_risk'] = nb_risk
 
-    return summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
+    return summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
 
 
-def write_summary_objects(static_path, run_type, summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i):
+def write_summary_objects(static_path, run_type, summary_info, summary_set_id_to_summary_set_index,
+                          summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i):
     os.makedirs(os.path.join(static_path, run_type), exist_ok=True)
     np.save(os.path.join(static_path, run_type, 'summary_info'), summary_info)
+    np.save(os.path.join(static_path, run_type, 'summary_set_id_to_summary_set_index'), summary_set_id_to_summary_set_index)
     np.save(os.path.join(static_path, run_type, 'summary_set_index_to_loss_ptr'), summary_set_index_to_loss_ptr)
     np.save(os.path.join(static_path, run_type, 'item_id_to_summary_id'), item_id_to_summary_id)
     np.save(os.path.join(static_path, run_type, 'item_id_to_risks_i'), item_id_to_risks_i)
@@ -119,15 +128,15 @@ def write_summary_objects(static_path, run_type, summary_info, summary_set_index
 
 def read_summary_objects(static_path, run_type):
     summary_info = np.load(os.path.join(static_path, run_type, 'summary_info.npy'), mmap_mode='r')
+    summary_set_id_to_summary_set_index = np.load(os.path.join(static_path, run_type, 'summary_set_id_to_summary_set_index.npy'), mmap_mode='r')
     summary_set_index_to_loss_ptr = np.load(os.path.join(static_path, run_type, 'summary_set_index_to_loss_ptr.npy'), mmap_mode='r')
     item_id_to_summary_id = np.load(os.path.join(static_path, run_type, 'item_id_to_summary_id.npy'), mmap_mode='r')
     item_id_to_risks_i = np.load(os.path.join(static_path, run_type, 'item_id_to_risks_i.npy'), mmap_mode='r')
-    return summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
+    return summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def nb_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
-    """for some reason this doesn't work in our pytest (tests/computation/test_generate_losses.py) and hangs forever"""
     loc_id_building_id_to_building_risk = nb_dict.empty(risk_key_type, nb_oasis_int)
     last_risk_i = 0
     for i in range(summary_map_item_ids.shape[0]):
@@ -135,7 +144,7 @@ def nb_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_l
         if loc_id_building_id in loc_id_building_id_to_building_risk:
             risk_i = loc_id_building_id_to_building_risk[loc_id_building_id]
         else:
-            risk_i = last_risk_i
+            loc_id_building_id_to_building_risk[loc_id_building_id] = risk_i = nb_oasis_int(last_risk_i)
             last_risk_i += 1
         item_id_to_risks_i[summary_map_item_ids[i]] = nb_oasis_int(risk_i)
     return last_risk_i
@@ -164,7 +173,7 @@ def extract_risk_info(len_item_id, summary_map):
 @nb.jit(nopython=True, cache=True)
 def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-                loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
+                loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
                 item_id_to_risks_i, is_risk_affected, has_affected_risk):
     """read valid part of byte_mv and load relevant data for one event"""
     last_event_id = event_id
@@ -185,6 +194,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
             else:
                 ##### do item exit ####
+                for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
+                    summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
+                    summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
+                    present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
                 ##########
                 cursor += oasis_float_size
                 item_id = 0
@@ -215,8 +228,9 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 # print('loss_index[summary_set_index]', loss_index[summary_set_index])
                 # print('loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX]', loss_summary[loss_index[summary_set_index], -4])
                 if loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] == 0:  # we use sidx 0 to check if this summary_id has already been seen
-                    present_summary_id[summary_id_count_per_summary_set[summary_set_index]] = item_id_to_summary_id[item_id, summary_set_index]
-                    summary_id_count_per_summary_set[summary_set_index] += 1
+                    present_summary_id[summary_set_index_to_present_loss_ptr_end[summary_set_index]
+                                       ] = item_id_to_summary_id[item_id, summary_set_index]
+                    summary_set_index_to_present_loss_ptr_end[summary_set_index] += 1
                     loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] = 1
 
                 elif has_affected_risk is not None:
@@ -228,7 +242,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 @nb.njit(cache=True)
 def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
                    output_zeros, has_affected_risk,
-                   summary_set_index, summary_set_index_to_loss_ptr, summary_id_count_per_summary_set, present_summary_id, loss_summary,
+                   summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id, loss_summary,
                    summary_index_cursor, summary_sets_cursor, summary_stream_index):
     """
         load event summary loss into byte_mv
@@ -244,9 +258,8 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
     """
     cursor = 0
     for loss_summary_index in range(max(summary_set_index_to_loss_ptr[summary_set_index], last_loss_summary_index),
-                                    summary_id_count_per_summary_set[summary_set_index]):
+                                    summary_set_index_to_present_loss_ptr_end[summary_set_index]):
         summary_id = present_summary_id[loss_summary_index]
-
         losses = loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1]
 
         if not output_zeros and losses[TIV_IDX] == 0:
@@ -288,7 +301,7 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
 
 class SummaryReader(EventReader):
     def __init__(self, summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-                 loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
+                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
                  item_id_to_risks_i, is_risk_affected, has_affected_risk):
         self.summary_sets_id = summary_sets_id
         self.summary_set_index_to_loss_ptr = summary_set_index_to_loss_ptr
@@ -296,7 +309,7 @@ class SummaryReader(EventReader):
         self.loss_index = loss_index
         self.loss_summary = loss_summary
         self.present_summary_id = present_summary_id
-        self.summary_id_count_per_summary_set = summary_id_count_per_summary_set
+        self.summary_set_index_to_present_loss_ptr_end = summary_set_index_to_present_loss_ptr_end
         self.item_id_to_risks_i = item_id_to_risks_i
         self.is_risk_affected = is_risk_affected
         self.has_affected_risk = has_affected_risk
@@ -306,7 +319,7 @@ class SummaryReader(EventReader):
         return read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.summary_sets_id, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
-            self.loss_index, self.loss_summary, self.present_summary_id, self.summary_id_count_per_summary_set,
+            self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
             self.item_id_to_risks_i, self.is_risk_affected, self.has_affected_risk
         )
 
@@ -359,7 +372,16 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         **kwargs:
 
     """
-    summary_sets_path = {i: kwargs[str(i)] for i in SUPPORTED_SUMMARY_SET_ID if kwargs.get(str(i))}
+    summary_sets_path = {}
+    error_msg = (f"summary_sets_output expected format is a list of -summary_set_id summary_set_path (ex: -1 S1.bin -2 S2.bin')"
+                 f", found '{' '.join(kwargs['summary_sets_output'])}'")
+    for summary_set_id, summary_set_path in zip_longest(*[iter(kwargs['summary_sets_output'])] * 2):
+        if summary_set_id[0] != '-' or summary_set_path is None:
+            raise Exception(error_msg)
+        try:
+            summary_sets_path[int(summary_set_id[1:])] = summary_set_path
+        except ValueError:
+            raise Exception(error_msg)
     summary_sets_id = np.array(list(summary_sets_path.keys()))
 
     with ExitStack() as stack:
@@ -374,21 +396,31 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
         if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        summary_object = load_summary_object(static_path, run_type, summary_sets_id)
-        summary_info, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i = summary_object
+        summary_object = load_summary_object(static_path, run_type)
+        summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id, item_id_to_risks_i = summary_object
+
+        # check all summary_set_id required are defined in summaryxref
+        invalid_summary_sets_id = []
+        for summary_set_id in summary_sets_id:
+            if summary_set_id > summary_set_id_to_summary_set_index.shape[0] or summary_set_id_to_summary_set_index[summary_set_id] == null_index:
+                invalid_summary_sets_id.append(summary_set_id)
+        if invalid_summary_sets_id:
+            raise ValueError(
+                f'summary_set_ids {invalid_summary_sets_id} not found in summaryxref available summary_set_id '
+                f'{[summary_set_id for summary_set_id, summary_set_index in enumerate(summary_set_id_to_summary_set_index) if summary_set_index != null_index]}')
 
         has_affected_risk = True if summary_info[0]['nb_risk'] > 0 else None
 
         # init temporary
         present_summary_id = np.zeros(summary_set_index_to_loss_ptr[-1], oasis_int)
         loss_index = np.empty(summary_sets_id.shape[0], oasis_int)
-        summary_id_count_per_summary_set = np.array(summary_set_index_to_loss_ptr)
+        summary_set_index_to_present_loss_ptr_end = np.array(summary_set_index_to_loss_ptr)
         loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
         is_risk_affected = np.zeros(summary_info[0]['nb_risk'], dtype=oasis_int)
 
         summary_reader = SummaryReader(
             summary_sets_id, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-            loss_index, loss_summary, present_summary_id, summary_id_count_per_summary_set,
+            loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
             item_id_to_risks_i, is_risk_affected, has_affected_risk)
 
         out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
@@ -413,7 +445,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                     cursor, loss_summary_index, last_sidx, summary_index_cursor = mv_write_event(
                         out_byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
                         output_zeros, has_affected_risk,
-                        summary_set_index, summary_set_index_to_loss_ptr, summary_id_count_per_summary_set, present_summary_id,
+                        summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
                         loss_summary,
                         summary_index_cursor, summary_sets_cursor, summary_stream_index
                     )
@@ -428,14 +460,13 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
             loss_summary.fill(0)
             present_summary_id.fill(0)
-            summary_id_count_per_summary_set.fill(0)
+            summary_set_index_to_present_loss_ptr_end[:] = summary_set_index_to_loss_ptr
             is_risk_affected.fill(0)
 
 
 @redirect_logging(exec_name='summarypy')
 def main(create_summarypy_files, static_path, run_type, **kwargs):
     if create_summarypy_files:
-        summary_sets_id = np.array(kwargs['summary_sets_id'])
-        create_summary_object_file(static_path, run_type, summary_sets_id)
+        create_summary_object_file(static_path, run_type)
     else:
         run(static_path=static_path, run_type=run_type, **kwargs)
