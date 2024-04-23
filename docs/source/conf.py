@@ -42,6 +42,7 @@ ROOT_PATH = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pard
 
 sys.path.append(ROOT_PATH)
 from oasislmf import __version__  # noqa
+from oasislmf.cli.model import RunCmd
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -251,7 +252,6 @@ epub_exclude_files = ['search.html']
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
-from oasislmf.cli.model import RunCmd
 
 def list_options():
     cmd_opts = RunCmd().arg_parser._actions
