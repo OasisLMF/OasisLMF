@@ -442,7 +442,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                 last_loss_summary_index = 0
                 last_sidx = 0
                 while True:
-                    cursor, loss_summary_index, last_sidx, summary_index_cursor = mv_write_event(
+                    cursor, last_loss_summary_index, last_sidx, summary_index_cursor = mv_write_event(
                         out_byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
                         output_zeros, has_affected_risk,
                         summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
@@ -450,7 +450,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                         summary_index_cursor, summary_sets_cursor, summary_stream_index
                     )
                     write_mv_to_stream(summary_pipe, out_byte_mv, cursor)
-                    if loss_summary_index == -1:
+                    if last_loss_summary_index == -1:
                         break
                 if low_memory:
                     # write the summary.idx file
