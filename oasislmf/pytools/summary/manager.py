@@ -194,10 +194,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
 
             else:
                 ##### do item exit ####
-                for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
-                    summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
-                    summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
-                    present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
                 ##########
                 cursor += oasis_float_size
                 item_id = 0
@@ -207,6 +203,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
             event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if event_id != last_event_id:
                 if last_event_id:  # we have a new event we return the one we just finished
+                    for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
+                        summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
+                        summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
+                        present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
                     return cursor - oasis_int_size, last_event_id, 0, 1
                 else:  # first pass we store the event we are reading
                     last_event_id = event_id
