@@ -236,6 +236,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                 elif has_affected_risk is not None:
                     loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] += new_risk
             ##########
+    for summary_set_index in range(summary_sets_id.shape[0]):  # reorder summary_id for each summary set
+        summary_set_start = summary_set_index_to_loss_ptr[summary_set_index]
+        summary_set_end = summary_set_index_to_present_loss_ptr_end[summary_set_index]
+        present_summary_id[summary_set_start: summary_set_end] = np.sort(present_summary_id[summary_set_start: summary_set_end])
     return cursor, event_id, item_id, 0
 
 
