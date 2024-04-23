@@ -251,6 +251,33 @@ epub_exclude_files = ['search.html']
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
+from oasislmf.cli.model import RunCmd
+
+def list_options():
+    cmd_opts = RunCmd().arg_parser._actions
+    # cmd_opts.pop(0)
+
+    rst_output = []
+
+    for opt in cmd_opts:
+        rst_output.extend([
+            f'{opt.dest}',
+            '=' * len(opt.dest),
+            '',
+            f'Description: {opt.help}',
+            f'Default value: ``{opt.default}``',
+            '',
+            'Example use:',
+            '.. code-block:: json',
+            '',
+            f'    {{',
+            f'        "{opt.dest}": <value>',
+            f'    }}',
+            '',
+        ])
+
+    with open('options.rst', 'w') as f:
+        f.write('\n'.join(rst_output))
 
 class CliDocumenter(autodoc.ClassDocumenter):
     objtype = "cli"
@@ -265,3 +292,4 @@ class CliDocumenter(autodoc.ClassDocumenter):
 
 def setup(app):
     app.add_autodocumenter(CliDocumenter)
+    list_options()
