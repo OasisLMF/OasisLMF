@@ -421,4 +421,4 @@ FAKE_PRE_ANALYSIS_MODULE = os.path.join(os.path.dirname(__file__), 'fake_pre_ana
 FAKE_MODEL_RUNNER = os.path.join(os.path.dirname(__file__), 'fake_model_runner')
 FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_runner__old')
 
-ALL_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script.sh')
+ALL_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script_{0}.sh')

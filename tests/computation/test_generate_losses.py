@@ -3,6 +3,7 @@ import pathlib
 import os
 import logging
 import shutil
+import pytest
 
 from unittest import mock
 from unittest.mock import patch, Mock, ANY
@@ -20,6 +21,8 @@ from .test_computation import ComputationChecker
 
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
+
+summary_types = ['summarycalc', 'summarypy']
 
 
 class TestGenLosses(ComputationChecker):
@@ -124,8 +127,13 @@ class TestGenLosses(ComputationChecker):
         PLA_SETTINGS['pla_secondary_factor'] = 0.5
 
         self.write_json(self.tmp_files.get('analysis_settings_json'), PLA_SETTINGS)
-        self.manager.generate_files(**self.args_gen_files_gul)
-        self.manager.generate_losses(**self.min_args)
+        try:
+            self.manager.generate_files(**self.args_gen_files_gul)
+            self.manager.generate_losses(**self.min_args)
+        except:
+            print(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err'))
+            print(open(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err')).read())
+            raise
 
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)
@@ -165,25 +173,27 @@ class TestGenLosses(ComputationChecker):
 
     @patch('subprocess.check_output')
     def test_losses__run_ri__all_outputs__check_bash_script(self, sub_process_run):
-        with self.tmp_dir() as model_run_dir:
-            self.manager.generate_files(**self.args_gen_files_ri)
-            run_settings = self.tmp_files.get('analysis_settings_json')
-            self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
-            call_args = {
-                **self.min_args,
-                'ktools_num_processes': 2,
-                'ktools_fifo_relative': True,
-                'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
-                'model_run_dir': model_run_dir,
-            }
-            self.manager.generate_losses(**call_args)
+        for summary_type in summary_types:
+            with self.tmp_dir() as model_run_dir, self.subTest(summary_type):
+                self.manager.generate_files(summarypy=summary_type == 'summarypy', **self.args_gen_files_ri)
+                run_settings = self.tmp_files.get('analysis_settings_json')
+                self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
+                call_args = {
+                    **self.min_args,
+                    'ktools_num_processes': 2,
+                    'ktools_fifo_relative': True,
+                    'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                    'model_run_dir': model_run_dir,
+                    'summarypy': summary_type == 'summarypy'
+                }
+                self.manager.generate_losses(**call_args)
 
-            # Check bash script vs reference
-            self.assertTrue(sub_process_run.called)
-            bash_script_path = sub_process_run.call_args.args[0][1]
-            result_script = self.read_file(bash_script_path).decode()
-            expected_script = self.read_file(ALL_EXPECTED_SCRIPT).decode()
-            self.assertEqual(expected_script, result_script)
+                # Check bash script vs reference
+                self.assertTrue(sub_process_run.called)
+                bash_script_path = sub_process_run.call_args.args[0][1]
+                result_script = self.read_file(bash_script_path).decode()
+                expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
+                self.assertEqual(expected_script, result_script)
 
     def test_losses__chucked_workflow(self):
         num_chunks = 5

@@ -1,6 +1,7 @@
+from oasislmf.pytools.common.data import oasis_float, oasis_int, null_index
 from .policy import calc
 from .policy_extras import calc as calc_extra
-from .common import np_oasis_float, np_oasis_int, EXTRA_VALUES, null_index, compute_idx_dtype, DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
+from .common import EXTRA_VALUES, compute_idx_dtype, DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
 from .back_allocation import back_alloc_a2, back_alloc_extra_a2, back_alloc_layer, back_alloc_layer_extra
 
 from numba import njit
@@ -348,34 +349,34 @@ def compute_event(compute_info,
     compute_idx['compute_i'] = 0
 
     # dense array to store if sample id has value for this node
-    temp_node_sidx = np.zeros(len_array, dtype=np_oasis_int)
+    temp_node_sidx = np.zeros(len_array, dtype=oasis_int)
 
     # sparse array to store the loss after profile is applied
-    temp_node_loss_sparse = np.zeros(len_array, dtype=np_oasis_float)
+    temp_node_loss_sparse = np.zeros(len_array, dtype=oasis_float)
 
     # sparse array to store the merged loss of all layer
-    temp_node_loss_layer_merge = np.zeros(len_array, dtype=np_oasis_float)
+    temp_node_loss_layer_merge = np.zeros(len_array, dtype=oasis_float)
 
     # sparse array to loss after layer back alloc
-    temp_node_loss_layer_ba = np.zeros((compute_info['max_layer'], len_array), dtype=np_oasis_float)
+    temp_node_loss_layer_ba = np.zeros((compute_info['max_layer'], len_array), dtype=oasis_float)
 
     # temp_node_loss: dense array storing the sum of children loss, then the loss factor in children back alloc
     temp_node_loss = np.zeros((compute_info['max_layer'], len_array), dtype=np.float64)
 
     # temp_node_extras: dense array storing the sum of children extra, then the loss factor in children back alloc
-    temp_node_extras = np.zeros((compute_info['max_layer'], len_array, 3), dtype=np_oasis_float)
+    temp_node_extras = np.zeros((compute_info['max_layer'], len_array, 3), dtype=oasis_float)
 
     # temp_node_extras_layer_merge: sparse array to store the merged extra of all layer
-    temp_node_extras_layer_merge = np.zeros((len_array, 3), dtype=np_oasis_float)
+    temp_node_extras_layer_merge = np.zeros((len_array, 3), dtype=oasis_float)
 
     # temp_node_extras_layer_merge_save: sparse array to keep the value of extra when profile is apply on merged layer
-    temp_node_extras_layer_merge_save = np.zeros((len_array, 3), dtype=np_oasis_float)
+    temp_node_extras_layer_merge_save = np.zeros((len_array, 3), dtype=oasis_float)
 
     # temp_children_queue: array storing all the base children of the node
-    temp_children_queue = np.empty(nodes_array.shape[0], dtype=np_oasis_int)
+    temp_children_queue = np.empty(nodes_array.shape[0], dtype=oasis_int)
 
     # create all sidx array
-    all_sidx = np.empty(max_sidx_val + EXTRA_VALUES, dtype=np_oasis_int)
+    all_sidx = np.empty(max_sidx_val + EXTRA_VALUES, dtype=oasis_int)
     all_sidx[0] = -5
     all_sidx[1] = -3
     all_sidx[2] = -1
@@ -728,25 +729,25 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
 
     if low_memory:
         sidx_val = np.memmap(os.path.join(temp_dir, "sidx_val.bin"), mode='w+',
-                             shape=(compute_info['node_len'] * max_sidx_count), dtype=np_oasis_int)
+                             shape=(compute_info['node_len'] * max_sidx_count), dtype=oasis_int)
         loss_val = np.memmap(os.path.join(temp_dir, "loss_val.bin"), mode='w+',
-                             shape=(compute_info['loss_len'] * max_sidx_count), dtype=np_oasis_float)
+                             shape=(compute_info['loss_len'] * max_sidx_count), dtype=oasis_float)
         extras_val = np.memmap(os.path.join(temp_dir, "extras_val.bin"), mode='w+',
-                               shape=(compute_info['extra_len'] * max_sidx_count, 3), dtype=np_oasis_float)
+                               shape=(compute_info['extra_len'] * max_sidx_count, 3), dtype=oasis_float)
     else:
-        sidx_val = np.zeros((compute_info['node_len'] * max_sidx_count), dtype=np_oasis_int)
-        loss_val = np.zeros((compute_info['loss_len'] * max_sidx_count), dtype=np_oasis_float)
-        extras_val = np.zeros((compute_info['extra_len'] * max_sidx_count, 3), dtype=np_oasis_float)
+        sidx_val = np.zeros((compute_info['node_len'] * max_sidx_count), dtype=oasis_int)
+        loss_val = np.zeros((compute_info['loss_len'] * max_sidx_count), dtype=oasis_float)
+        extras_val = np.zeros((compute_info['extra_len'] * max_sidx_count, 3), dtype=oasis_float)
 
     sidx_indptr = np.zeros(compute_info['node_len'] + 1, dtype=np.int64)
     loss_indptr = np.zeros(compute_info['loss_len'] + 1, dtype=np.int64)
     extras_indptr = np.zeros(compute_info['extra_len'] + 1, dtype=np.int64)
 
-    sidx_indexes = np.empty(compute_info['node_len'], dtype=np_oasis_int)
+    sidx_indexes = np.empty(compute_info['node_len'], dtype=oasis_int)
     children = np.zeros(compute_info['children_len'], dtype=np.uint32)
     computes = np.zeros(compute_info['compute_len'], dtype=np.uint32)
 
-    pass_through = np.zeros(compute_info['items_len'] + 1, dtype=np_oasis_float)
+    pass_through = np.zeros(compute_info['items_len'] + 1, dtype=oasis_float)
     item_parent_i = np.ones(compute_info['items_len'] + 1, dtype=np.uint32)
 
     compute_idx = np.empty(1, dtype=compute_idx_dtype)[0]
