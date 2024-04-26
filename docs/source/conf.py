@@ -255,7 +255,7 @@ intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
 def list_options():
     cmd_opts = RunCmd().arg_parser._actions
-    # cmd_opts.pop(0)
+    cmd_opts.pop(0)
 
     rst_output = []
 
@@ -276,7 +276,7 @@ def list_options():
             '',
         ])
 
-    with open('options.rst', 'w') as f:
+    with open('./source/generated_options.rst', 'w') as f:
         f.write('\n'.join(rst_output))
 
 class CliDocumenter(autodoc.ClassDocumenter):
