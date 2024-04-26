@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.testing import assert_array_almost_equal
-from oasislmf.pytools.fm.common import fm_profile_dtype
+from oasislmf.pytools.common.data import fm_profile_dtype
 from oasislmf.pytools.fm.policy import calc
 
 

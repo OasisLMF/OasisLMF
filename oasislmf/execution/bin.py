@@ -40,10 +40,7 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
-from oasislmf.pytools.getmodel.common import fp_format_priorities
-from oasislmf.pytools.getmodel.footprint import (
-    FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv
-)
+from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
 logger = logging.getLogger(__name__)
@@ -207,7 +204,10 @@ def prepare_run_directory(
                         os.replace(destfile + ".tmp", destfile)
 
         if model_storage_config_fp:
-            shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
+            try:
+                shutil.copy(model_storage_config_fp, os.path.join(run_dir, "model_storage.json"))
+            except shutil.SameFileError as e:
+                pass
 
         if user_data_dir and os.path.exists(user_data_dir):
             for sourcefile in glob.glob(os.path.join(user_data_dir, '*')):
@@ -300,18 +300,8 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, storage: BaseStorage, 
             ]
 
         for fname in targets:
-            if storage.isfile(fname):
+            if storage.exists(fname):
                 storage.get(fname, bin_fp)
-
-        # if not setting_val:
-        #     model_data_bin_fp = os.path.join(run_dir, 'static', '{}.{}'.format(bin_name, extension))
-        # else:
-        #     # 'verbatim' -  Try setting value as given
-        #     model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, str(setting_val), extension))
-        #     if not os.path.isfile(model_data_bin_fp):
-        #         # 'compatibility' - Fallback name formatting to keep existing conversion
-        #         setting_val = str(setting_val).replace(' ', '_').lower()
-        #         model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.{}'.format(bin_name, setting_val, extension))
 
         if not os.path.exists(bin_fp):
             raise OasisException('Could not find {} data file: {}'.format(bin_name, targets))
@@ -436,11 +426,7 @@ def set_footprint_set(setting_val, run_dir):
     :param run_dir: model run directory
     :type run_dir: string
     """
-    format_to_class = {
-        'parquet': FootprintParquet, 'binZ': FootprintBinZ,
-        'bin': FootprintBin, 'csv': FootprintCsv
-    }
-    priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
+    priorities = Footprint.get_footprint_fmt_priorities()
     setting_val = str(setting_val)
 
     for footprint_class in priorities:

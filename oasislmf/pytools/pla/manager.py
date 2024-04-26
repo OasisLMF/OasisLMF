@@ -10,6 +10,7 @@ from .structure import (
 )
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.pytools.common.event_stream import get_streams_in
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +49,7 @@ def run(
     default_factor = 1.0 if uniform_factor == 0.0 else uniform_factor
 
     with ExitStack() as stack:
-        if file_in is None:
-            stream_in = sys.stdin.buffer
-        else:
-            stream_in = stack.enter_context(open(file_in, 'rb'))
+        streams_in = get_streams_in(file_in, stack)
 
         if file_out is None:
             stream_out = sys.stdout.buffer
@@ -59,7 +57,7 @@ def run(
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
         read_and_write_streams(
-            stream_in, stream_out, items_amps, plafactors, default_factor
+            streams_in, stream_out, items_amps, plafactors, default_factor
         )
 
     return 0
