@@ -14,7 +14,7 @@ from numba.types import uint32 as nb_uint32
 from numba.types import float32 as nb_float32
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasislmf.pytools.common import areaperil_int
+from oasislmf.pytools.common.data import areaperil_int
 
 logger = logging.getLogger(__name__)
 
