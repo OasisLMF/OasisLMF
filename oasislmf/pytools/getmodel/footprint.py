@@ -68,6 +68,21 @@ class Footprint:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
 
+    @staticmethod
+    def get_footprint_fmt_priorities():
+        """
+        Get list of footprint file format classes in order of priority.
+
+        Returns: (list) footprint file format classes
+        """
+        format_to_class = {
+            'parquet': FootprintParquet, 'csv': FootprintCsv,
+            'binZ': FootprintBinZ, 'bin': FootprintBin,
+        }
+        priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
+
+        return priorities
+
     @classmethod
     def load(
         cls,
@@ -98,13 +113,7 @@ class Footprint:
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
-        format_to_class = {
-            'parquet': FootprintParquet, 'csv': FootprintCsv,
-            'binZ': FootprintBinZ, 'bin': FootprintBin,
-        }
-        priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
-
-        for footprint_class in priorities:
+        for footprint_class in cls.get_footprint_fmt_priorities():
             for filename in footprint_class.footprint_filenames:
                 if (not storage.exists(filename)
                         or filename.rsplit('.', 1)[-1] in ignore_file_type):
