@@ -9,13 +9,14 @@ from unittest import TestCase
 
 from oasislmf.pytools.pla.common import (
     DATA_SIZE,
-    event_item_dtype,
-    sidx_loss_dtype,
     event_count_dtype,
     amp_factor_dtype,
     AMPLIFICATIONS_FILE_NAME,
     LOSS_FACTORS_FILE_NAME
 )
+from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM,
+                                                  mv_write_item_header, mv_write_sidx_loss)
+
 from oasislmf.pytools.pla.manager import run
 from oasislmf.pytools.pla.structure import get_items_amplifications
 
@@ -63,32 +64,24 @@ class TestPostLossAmplification(TestCase):
             gul_file (tempfile): temporary file object to be written
         """
         # Write file headers
-        gul_file.write(np.int32(2 << 24).tobytes())   # FM stream type
+        gul_file.write(stream_info_to_bytes(FM_STREAM_ID, ITEM_STREAM))   # FM stream type
         gul_file.write(np.int32(2).tobytes())   # number of samples
 
         # Write data
         write_buffer = memoryview(bytearray(n_pairs * DATA_SIZE))
-        event_item = np.ndarray(
-            n_pairs, buffer=write_buffer, dtype=event_item_dtype
-        )
-        sidx_loss = np.ndarray(
-            n_pairs, buffer=write_buffer, dtype=sidx_loss_dtype
-        )
+        write_byte_mv = np.frombuffer(buffer=write_buffer, dtype='b')
+
         current_event_id = 0
         current_item_id = 0
         max_sidx = 3
         cursor = 0
         for entry in it:
             if current_event_id != it.multi_index[0] + 1 or current_item_id != it.multi_index[1] + 1:
-                event_item[cursor]['event_id'] = it.multi_index[0] + 1
                 current_event_id = it.multi_index[0] + 1
-                event_item[cursor]['item_id'] = it.multi_index[1] + 1
                 current_item_id = it.multi_index[1] + 1
-                cursor += 1
-            sidx_loss[cursor]['sidx'] = (it.multi_index[2] + 1) % max_sidx
-            sidx_loss[cursor]['loss'] = entry
-            cursor += 1
-        gul_file.write(write_buffer[:])
+                cursor = mv_write_item_header(write_byte_mv, cursor, current_event_id, current_item_id)
+            cursor = mv_write_sidx_loss(write_byte_mv, cursor, (it.multi_index[2] + 1) % max_sidx, entry)
+        gul_file.write(write_buffer[:cursor])
 
     def setUp(self):
         """

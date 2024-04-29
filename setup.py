@@ -23,7 +23,7 @@ except ImportError:
     from urllib2 import URLError
 
 
-KTOOLS_VERSION = '3.12.1'
+KTOOLS_VERSION = '3.12.2'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -378,14 +378,15 @@ setup(
             "correlationtobin=oasislmf.pytools.correlationtobin:main",
             "correlationtocsv=oasislmf.pytools.correlationtocsv:main",
             'dfcompare=oasislmf.pytools.dfcompare:main',
-            'fmpy=oasislmf.pytools.fmpy:main',
+            'fmpy=oasislmf.pytools.fm.cli:main',
             'gulmc=oasislmf.pytools.gulmc.cli:main',
             'gulpy=oasislmf.pytools.gulpy:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'modelpy=oasislmf.pytools.modelpy:main',
             'oasislmf=oasislmf.cli.root:main',
-            'plapy=oasislmf.pytools.plapy:main',
+            'plapy=oasislmf.pytools.pla.cli:main',
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
+            'summarypy=oasislmf.pytools.summary.cli:main',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
         ]
     },
