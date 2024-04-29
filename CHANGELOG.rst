@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`2.3.4`_
+ ---------
+* [#1476](https://github.com/OasisLMF/OasisLMF/pull/1476) - Release 2.3.2
+* [#1480](https://github.com/OasisLMF/OasisLMF/pull/1480) -  Storage Manager fixes for Platform Lot3
+* [#1481](https://github.com/OasisLMF/OasisLMF/pull/1481) - Set ktools to 3.12.1
+* [#1487](https://github.com/OasisLMF/OasisLMF/pull/1482) - Remove or enable to change the limit of output summaries(currently set to 9)
+* [#1355](https://github.com/OasisLMF/OasisLMF/pull/1486) - Refactor footprint file format priorities
+.. _`2.3.4`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.2...2.3.4
+
 `2.3.2`_
  ---------
 * [#1471](https://github.com/OasisLMF/OasisLMF/pull/1472) - number_of_samples = 0 not working in oasislmf
