@@ -35,7 +35,7 @@ jobs:
     uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
     secrets: inherit
     with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'stable/3.2.x' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
 
   unittest:
     if: ${{ ! failure() || ! cancelled() }}
