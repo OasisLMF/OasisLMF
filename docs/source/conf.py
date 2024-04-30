@@ -270,14 +270,13 @@ def list_options():
             'Example use:',
             '.. code-block:: json',
             '',
-            f'    {{',
-            f'        "{opt.dest}": <value>',
-            f'    }}',
+            f'    {{"{opt.dest}": <value>   }}',
             '',
         ])
 
     with open('./source/generated_options.rst', 'w') as f:
         f.write('\n'.join(rst_output))
+
 
 class CliDocumenter(autodoc.ClassDocumenter):
     objtype = "cli"
