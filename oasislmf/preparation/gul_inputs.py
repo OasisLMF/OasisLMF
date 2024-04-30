@@ -41,7 +41,9 @@ VALID_OASIS_GROUP_COLS = [
     'peril_id',
     'coverage_id',
     'coverage_type_id',
-    'peril_correlation_group'
+    'peril_correlation_group',
+    'building_id',
+    'risk_id'
 ]
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
