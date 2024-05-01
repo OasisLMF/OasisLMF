@@ -5,4 +5,4 @@ Options for the JSON Configuration File
    :maxdepth: 1
    :hidden:
 
-   options
+   generated_options
