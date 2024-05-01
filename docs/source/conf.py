@@ -268,7 +268,6 @@ def list_options():
             f'Default value: ``{opt.default}``',
             '',
             'Example use:',
-            '.. code-block:: json',
             '',
             f'    {{"{opt.dest}": <value>   }}',
             '',
