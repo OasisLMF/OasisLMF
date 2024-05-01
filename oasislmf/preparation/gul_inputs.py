@@ -367,6 +367,11 @@ def get_gul_input_items(
 
         gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
 
+    # add risk_id to gul_inputs_df
+    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
+    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
+
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
         pd.concat(gul_inputs_reformatted_chunks)

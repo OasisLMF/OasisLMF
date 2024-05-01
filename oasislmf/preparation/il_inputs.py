@@ -472,9 +472,6 @@ def get_il_input_items(
     gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
     # adjust tiv columns and name them as their coverage id
     gul_inputs_df.rename(columns=tiv_terms, inplace=True)
-    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
-    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
-    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
     # initialization
     agg_keys = set()
