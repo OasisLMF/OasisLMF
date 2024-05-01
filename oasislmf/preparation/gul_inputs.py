@@ -367,11 +367,6 @@ def get_gul_input_items(
 
         gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
 
-    # add risk_id to gul_inputs_df
-    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
-    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
-    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
-
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
         pd.concat(gul_inputs_reformatted_chunks)
@@ -386,6 +381,11 @@ def get_gul_input_items(
         **{'is_bi_coverage': 'bool'}
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+
+    # add risk_id to gul_inputs_df
+    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
+    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
     # set 'disagg_id', `item_id` and `coverage_id`
     gul_inputs_df['item_id'] = factorize_ndarray(
