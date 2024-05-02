@@ -204,6 +204,15 @@ class BasicKeyServer:
         ('model_data', 'ModelData'),
     ])
 
+    dynamic_model_data_heading_row = OrderedDict([
+        ('loc_id', 'LocID'),
+        ('peril_id', 'PerilID'),
+        ('coverage_type', 'CoverageTypeID'),
+        ('area_peril_id', 'AreaPerilID'),
+        ('vulnerability_id', 'VulnerabilityID'),
+        ('model_data', 'ModelData'),
+    ])
+
     key_success_heading_row = OrderedDict([
         ('loc_id', 'LocID'),
         ('peril_id', 'PerilID'),
@@ -389,7 +398,10 @@ class BasicKeyServer:
                 yield res
 
     def get_success_heading_row(self, keys, keys_success_msg):
-        if 'model_data' in keys:
+
+        if 'model_data' in keys and 'area_peril_id' in keys and 'vulnerability_id' in keys:
+            return self.dynamic_model_data_heading_row
+        elif 'model_data' in keys:
             return self.model_data_heading_row
         elif keys_success_msg:
             if 'amplification_id' in keys:

@@ -277,6 +277,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         ]
         if 'amplification_id' in locations.columns:
             key_columns += ['amplification_id']
+        if 'model_data' in locations.columns:
+            key_columns += ['model_data']
         locations = locations[key_columns]
 
         # check all ids are of the good type
@@ -613,3 +615,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
 
         return simple_pivot
+    
+    @staticmethod
+    def build_model_data(columns):
+        """
+        to do
+        """
+        tmp_dict = {}
+        for c in columns:
+            tmp_dict[c]="0"
+        def model_data(locations):
+            locations['model_data'] = str(tmp_dict)
+            return locations
+        
+        return model_data
+            
+

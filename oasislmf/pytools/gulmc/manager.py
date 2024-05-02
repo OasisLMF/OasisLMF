@@ -20,7 +20,8 @@ from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict, convert_vuln_id_to_index
+from oasislmf.pytools.getmodel.manager import (get_damage_bins, get_vulns, get_vuln_rngadj_dict, 
+                                               convert_vuln_id_to_index, get_intensity_bin_dict)
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
@@ -87,6 +88,7 @@ def run(run_dir,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+        dynamic_footprint=False,
         **kwargs):
     """Execute the main gulmc worklow.
 
@@ -332,6 +334,11 @@ def run(run_dir,
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
+        #if dynamic_footprint:
+        intensity_bin_dict = get_intensity_bin_dict('static')
+            #to do - intensity adjustment
+            #intensity_adjustment = get_intensity_adjustment()
+
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -447,7 +454,10 @@ def run(run_dir,
                                                                                                                        max_bytes_per_item,
                                                                                                                        buff_size,
                                                                                                                        int32_mv,
-                                                                                                                       cursor)
+                                                                                                                       cursor,
+                                                                                                                       dynamic_footprint,
+                                                                                                                       intensity_bin_dict
+                                                                                                                       )
 
                     # write the losses to the output stream
                     write_start = 0
@@ -506,7 +516,9 @@ def compute_event_losses(event_id,
                          max_bytes_per_item,
                          buff_size,
                          int32_mv,
-                         cursor):
+                         cursor,
+                         dynamic_footprint,
+                         intensity_bin_dict):
     """Compute losses for an event.
 
     Args:
@@ -919,7 +931,11 @@ def compute_event_losses(event_id,
                                     haz_bin_idx = nb_int32(binary_search(haz_rval, haz_cdf_prob, Nhaz_bins))
 
                             # 2) get the hazard intensity bin id
-                            haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
+                            if dynamic_footprint:
+                                haz_int_val = haz_cdf_bin_id[haz_bin_idx]
+                                haz_int_bin_id = intensity_bin_dict[haz_int_val]
+                            else:
+                                haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
 
                             # 3) get the individual vulnerability cdf
                             vuln_i = vuln_dict[vulnerability_id]
