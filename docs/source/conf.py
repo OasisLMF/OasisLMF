@@ -260,16 +260,26 @@ def list_options():
     rst_output = []
 
     for opt in cmd_opts:
+        expected_type = opt.type
+        if expected_type is None:
+            expected_type = 'string'
+        elif isinstance(expected_type, type):
+            expected_type = expected_type.__name__
+        else:
+            expected_type = str(expected_type)
+
+        if "<function str2bool at" in expected_type:
+            expected_type = "yes/no, true/false t/f, y/n, or 1/0"
+
         rst_output.extend([
             f'{opt.dest}',
             '=' * len(opt.dest),
             '',
             f'Description: {opt.help}',
+            '',
+            f'Expected type: {expected_type}',
+            '',
             f'Default value: ``{opt.default}``',
-            '',
-            'Example use:',
-            '',
-            f'    {{"{opt.dest}": <value>   }}',
             '',
         ])
 
