@@ -260,7 +260,6 @@ class GenerateLossesDir(GenerateLossesBase):
                     '\nThis can be set using the flag "--summarypy True", or by setting `"summarypy": True` in the oasislmf.json file.'
                 )
 
-
     def run(self):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
@@ -671,7 +670,6 @@ class GenerateLosses(GenerateLossesDir):
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
         ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
-
 
         with setcwd(model_run_fp):
             try:
