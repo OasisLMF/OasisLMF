@@ -1,0 +1,13 @@
+ReinsNumber,ReinsName,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,ReinsCurrency,InuringPriority,ReinsType,AttachmentBasis,PlacedPercent,DeemedPercentPlaced,ReinsFXrate,TreatyShare,UseReinsDates,RiskLevel
+1,Cedant1,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+2,Producer2,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+3,RES,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+4,GB,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+5,ReinsTag5,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+6,LocGroup6,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+101,Cedant1_ctrl,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+102,Producer2_ctrl,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+103,RES_ctrl,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+104,GB_ctrl,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+105,ReinsTag5_ctrl,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
+106,LocGroup6_ctrl,WW1,01/01/2024,31/12/2024,1,0,0,0,0,GBP,1,QS,LO,0.5,1,1,1,No,
