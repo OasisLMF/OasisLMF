@@ -15,12 +15,12 @@ from . import oed
 
 REINS_RISK_LEVEL_XREF_COLUMN_MAP = {
     oed.REINS_RISK_LEVEL_LOCATION_GROUP: ["LocGroup", "PortNumber", "AccNumber", "PolNumber", "LocNumber"],
-    oed.REINS_RISK_LEVEL_LOCATION : ["PortNumber", "AccNumber", "LocNumber", "PolNumber"]
+    oed.REINS_RISK_LEVEL_LOCATION: ["PortNumber", "AccNumber", "LocNumber", "PolNumber"]
 }
 XREF_COLUMN_DEFAULT = ["PortNumber", "AccNumber", "PolNumber", "LocNumber"]
 
 RISK_LEVEL_FIELD_MAP = {
-    oed.REINS_RISK_LEVEL_PORTFOLIO : ['PortNumber'],
+    oed.REINS_RISK_LEVEL_PORTFOLIO: ['PortNumber'],
     oed.REINS_RISK_LEVEL_ACCOUNT: ['PortNumber', 'AccNumber'],
     oed.REINS_RISK_LEVEL_POLICY: ['PortNumber', 'AccNumber', 'PolNumber'],
     oed.REINS_RISK_LEVEL_LOCATION_GROUP: ['LocGroup'],
@@ -42,28 +42,28 @@ NO_LOSS_PROFILE_ID = 1
 PASSTHROUGH_PROFILE_ID = 2
 
 NO_LOSS_PROFILE = dict(
-        calcrule_id=oed.CALCRULE_ID_LIMIT_ONLY,
-        deductible1=0.0,  # Not used
-        deductible2=0.0,  # Not used
-        deductible3=0.0,  # Not used
-        attachment=0.0,   # Not used
-        limit=0.0,
-        share1=0.0,       # Not used
-        share2=0.0,       # Not used
-        share3=0.0        # Not used
-    )
+    calcrule_id=oed.CALCRULE_ID_LIMIT_ONLY,
+    deductible1=0.0,  # Not used
+    deductible2=0.0,  # Not used
+    deductible3=0.0,  # Not used
+    attachment=0.0,   # Not used
+    limit=0.0,
+    share1=0.0,       # Not used
+    share2=0.0,       # Not used
+    share3=0.0        # Not used
+)
 
 PASSTHROUGH_PROFILE = dict(
-        calcrule_id=oed.CALCRULE_ID_DEDUCTIBLE_ONLY,
-        deductible1=0.0,
-        deductible2=0.0,  # Not used
-        deductible3=0.0,  # Not used
-        attachment=0.0,   # Not used
-        limit=0.0,        # Not used
-        share1=0.0,       # Not used
-        share2=0.0,       # Not used
-        share3=0.0        # Not used
-    )
+    calcrule_id=oed.CALCRULE_ID_DEDUCTIBLE_ONLY,
+    deductible1=0.0,
+    deductible2=0.0,  # Not used
+    deductible3=0.0,  # Not used
+    attachment=0.0,   # Not used
+    limit=0.0,        # Not used
+    share1=0.0,       # Not used
+    share2=0.0,       # Not used
+    share3=0.0        # Not used
+)
 
 
 ITEM_LEVEL_ID = 1
@@ -104,7 +104,7 @@ FM_TERMS_PER_REINS_TYPE = {
             'deductible3': {'default': 0.},
             'attachment': {'default': 0.},
             'limit': {'oed_col': 'OccLimit', 'default': oed.LARGE_VALUE, 'to_default': [0.]},
-            'share1':{'default': 0.},
+            'share1': {'default': 0.},
             'share2': {'oed_col': 'PlacedPercent', 'default': 1.},
             'share3': {'default': 1.},
         }
@@ -172,6 +172,7 @@ FM_TERMS_PER_REINS_TYPE = {
     }
 }
 
+
 def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id):
     """
     Create new profile id from reinsurance in ri_df corresponding to reins_type.
@@ -192,7 +193,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
         return fm_profile_df
 
     # create new fm profile from ri terms corresponding to the reins_type
-    ri_term_map = {term_info['oed_col']: term  for term, term_info in FM_TERMS_PER_REINS_TYPE[reins_type].get(fm_level_id, {}).items()
+    ri_term_map = {term_info['oed_col']: term for term, term_info in FM_TERMS_PER_REINS_TYPE[reins_type].get(fm_level_id, {}).items()
                    if 'oed_col' in term_info}
 
     if ri_term_map:
@@ -208,12 +209,12 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
                 cur_fm_profiles[term] = term_info['default']
             else:
                 fill_empty(cur_fm_profiles, [term], term_info['default'])
-                cur_fm_profiles.loc[cur_fm_profiles[term].isin(term_info.get('to_default', [])), term] =  term_info['default']
+                cur_fm_profiles.loc[cur_fm_profiles[term].isin(term_info.get('to_default', [])), term] = term_info['default']
         cur_fm_profiles.drop_duplicates(inplace=True)
         if not cur_fm_profiles.empty:
             fm_profile_df = pd.concat([fm_profile_df, cur_fm_profiles], ignore_index=True)
 
-    else: # No terms at risk level
+    else:  # No terms at risk level
         ri_df.loc[reins_type_filter, 'profile_id'] = PASSTHROUGH_PROFILE_ID
 
     # update profile_map profile_id for filter and risk level
@@ -227,6 +228,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
         filter_df = (these_profile_map_layers[these_profile_map_layers['level_id'] == FILTER_LEVEL_ID]
                      .reset_index()
                      .merge(ri_df[reins_type_filter][ri_filter_fields + ri_filter_valid_fields + ['layer_id']], how='inner', on='layer_id'))
+
         def _match(row):
             for field in ri_filter_fields:
                 if row[f'{field}_valid'] and row[f'{field}_x'] != row[f'{field}_y']:
@@ -265,12 +267,13 @@ def check_ri_scope_filter(ri_df, risk_level):
     column_in = CHECK_RI_SCOPE_MAP.get(risk_level, {}).get('in', [])
     column_out = CHECK_RI_SCOPE_MAP.get(risk_level, {}).get('out', [])
     return (
-            (~ri_df['ReinsType'].isin(REINS_TYPE_EXACT_MATCH))
-            | (
-                    (column_in == [] or (ri_df[column_in] != "").all(axis=1))
-                    & (column_out == [] or (ri_df[column_out] == "").all(axis=1))
-            )
+        (~ri_df['ReinsType'].isin(REINS_TYPE_EXACT_MATCH))
+        | (
+            (column_in == [] or (ri_df[column_in] != "").all(axis=1))
+            & (column_out == [] or (ri_df[column_out] == "").all(axis=1))
+        )
     )
+
 
 def get_xref_df(xref_descriptions_df, risk_level):
     """
@@ -375,7 +378,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
 
             _log_dataframe(logger, df_levels, output_name)
 
-            no_loss_profile = {'profile_id' : NO_LOSS_PROFILE_ID, **NO_LOSS_PROFILE}
+            no_loss_profile = {'profile_id': NO_LOSS_PROFILE_ID, **NO_LOSS_PROFILE}
             pass_through_profile = {'profile_id': PASSTHROUGH_PROFILE_ID, **PASSTHROUGH_PROFILE}
 
             fm_profile_df = pd.DataFrame([no_loss_profile, pass_through_profile])
@@ -428,7 +431,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
 
             logger.debug('Creating risk level and filter level profile IDs:')
             for fm_level_id in [RISK_LEVEL_ID, PROGRAM_LEVEL_ID]:
-                for reins_type in  FM_TERMS_PER_REINS_TYPE:
+                for reins_type in FM_TERMS_PER_REINS_TYPE:
                     logger.debug(f'level_id {fm_level_id}, {reins_type} profiles...')
                     fm_profile_df = create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id)
 
@@ -436,8 +439,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             profile_map_df['profile_id'] = profile_map_df['profile_id'].astype('int64')
             fm_profile_df['profile_id'] = fm_profile_df['profile_id'].astype('int64')
 
-            _log_dataframe(logger,{'ri_df': ri_df, 'profile_map_df': profile_map_df, 'fm_profile_df': fm_profile_df}
-                           , output_name)
+            _log_dataframe(logger, {'ri_df': ri_df, 'profile_map_df': profile_map_df, 'fm_profile_df': fm_profile_df}, output_name)
 
             # create fm df
             fm_programme_df = xref_df[xref_df['agg_id_to'] != 0][['agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
@@ -451,8 +453,8 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             # Net losses across all layers is associated to the max layer ID.
             fm_xref_df['layer_id'] = fm_policytc_df['layer_id'].max()
 
-            _log_dataframe(logger, {'fm_programme_df': fm_programme_df, 'fm_profile_df': fm_profile_df, 'fm_policytc_df': fm_policytc_df}
-                           , output_name)
+            _log_dataframe(logger, {'fm_programme_df': fm_programme_df, 'fm_profile_df': fm_profile_df,
+                                    'fm_policytc_df': fm_policytc_df}, output_name)
 
             # Write out Oasis structure
             ri_output_dir = os.path.join(output_dir, "RI_{}".format(reinsurance_index))
