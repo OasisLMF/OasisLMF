@@ -54,7 +54,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
                 break
             event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-
             ##### do new item setup #####
             factor = plafactors.get((event_id, items_amps[item_id]), default_factor)
             ##########
@@ -70,13 +69,17 @@ class PlaReader(EventReader):
         self.default_factor = default_factor
         self.out_byte_mv = np.empty(PIPE_CAPACITY, dtype='b')
         self.out_cursor = np.empty(1, dtype='i4')
+
+        self.item_id = 0
+
         self.logger = logger
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
-        return read_buffer(
-            byte_mv, cursor, valid_buff, event_id, item_id,
+        cursor, event_id, self.item_id, yield_event = read_buffer(
+            byte_mv, cursor, valid_buff, event_id, self.item_id,
             self.items_amps, self.plafactors, self.default_factor, self.out_byte_mv, self.out_cursor
         )
+        return cursor, event_id, self.item_id, yield_event
 
 
 def read_and_write_streams(
