@@ -43,6 +43,7 @@ ROOT_PATH = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pard
 sys.path.append(ROOT_PATH)
 from oasislmf import __version__  # noqa
 from oasislmf.cli.model import RunCmd
+from oasislmf.computation.run.model import RunModel
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -257,34 +258,67 @@ def list_options():
     cmd_opts = RunCmd().arg_parser._actions
     cmd_opts.pop(0)
 
+    param_info = RunModel.get_params()
+
     rst_output = []
+
+    # Create a dictionary for RunModel params
+    param_info_dict = {param['name']: param for param in param_info}
 
     for opt in cmd_opts:
         expected_type = opt.type
         if expected_type is None:
             expected_type = 'string'
-        elif isinstance(expected_type, type):
-            expected_type = expected_type.__name__
         else:
             expected_type = str(expected_type)
 
-        if "<function str2bool at" in expected_type:
-            expected_type = "yes/no, true/false t/f, y/n, or 1/0"
+        # Check if option is in RunModel params
+        param_name = opt.dest
+        if param_name in param_info_dict:
+            param_entry = param_info_dict[param_name]
+
+            if opt.default is None and 'default' in param_entry:
+                default_value = param_entry['default']
+            else:
+                default_value = opt.default
+
+            if 'type' in param_entry and expected_type is not None:
+                expected_type = param_entry['type']
+
+            # Check if the parameter is a path
+            if param_entry.get('is_path', False):
+                expected_type = "path"
+        else:
+            default_value = opt.default
+
+        expected_type_str = str(expected_type)
+
+        if "<function str2bool at" in expected_type_str:
+            expected_type = "boolean (yes/no, true/false t/f, y/n, or 1/0)"
+
+        if "<oasislmf.utils.path.PathCleaner" in expected_type_str:
+            expected_type = "path"
+
+        if "<class 'int'>" in expected_type_str:
+            expected_type = "integer"
 
         rst_output.extend([
-            f'{opt.dest}',
-            '=' * len(opt.dest),
+            f'{param_name}',
+            '=' * len(param_name),
             '',
             f'Description: {opt.help}',
             '',
             f'Expected type: {expected_type}',
             '',
-            f'Default value: ``{opt.default}``',
+            f'Default value: ``{default_value}``',
+            '',
+            f'Options_strings: {opt.option_strings}',
             '',
         ])
 
     with open('./source/generated_options.rst', 'w') as f:
         f.write('\n'.join(rst_output))
+
 
 
 class CliDocumenter(autodoc.ClassDocumenter):
