@@ -729,6 +729,8 @@ def prepare_location_df(location_df):
 def prepare_account_df(accounts_df):
     if SOURCE_IDX['acc'] not in accounts_df.columns:
         accounts_df[SOURCE_IDX['acc']] = accounts_df.index
+    else:
+        accounts_df[SOURCE_IDX['acc']] = accounts_df[SOURCE_IDX['acc']].astype(int)
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
     accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)
