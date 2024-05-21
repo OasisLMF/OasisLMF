@@ -244,6 +244,22 @@ class GenerateLossesDir(GenerateLossesBase):
                         )
                     return  # Only need to find a single request
 
+    def __check_summary_group_support(self, analysis_settings, runtypes):
+        """
+        Private method to check the max number of summary groups selected.
+        If that value is greater than 9 then ktools 'summarycalc' will crash.
+
+        Stop execution if the summarypy flag is not set as True.
+        """
+        for runtype in runtypes:
+            summary_num = len(analysis_settings.get(f'{runtype}_summaries', []))
+            if summary_num > 9 and not self.summarypy:
+                raise OasisException(
+                    'More than 9 summaries groups are not supported in summarycalc.'
+                    f'\nEither enable summarypy or reduce the number of groups set in "{runtype}_summaries".'
+                    '\nThis can be set using the flag "--summarypy True", or by setting `"summarypy": True` in the oasislmf.json file.'
+                )
+
     def run(self):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
@@ -279,6 +295,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
         self.__check_for_parquet_output(analysis_settings, runtypes)
+        self.__check_summary_group_support(analysis_settings, runtypes)
 
         prepare_run_directory(
             model_run_fp,
