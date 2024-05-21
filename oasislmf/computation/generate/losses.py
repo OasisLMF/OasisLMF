@@ -836,7 +836,7 @@ class GenerateLossesDeterministic(ComputationStep):
             KTOOLS_TIV_SAMPLE_IDX: 1.
         }
 
-        loss_factor_map = {**special_loss_factors, **{i+1: val for i, val in enumerate(self.loss_factor)}}
+        loss_factor_map = {**special_loss_factors, **{i + 1: val for i, val in enumerate(self.loss_factor)}}
 
         guls = items[['item_id', 'tiv']].join(pd.DataFrame({'sidx': gulcalc_sidxs}, dtype='int64'), how='cross').assign(event_id=1)
         guls['loss'] = guls['sidx'].map(loss_factor_map) * guls['tiv']
