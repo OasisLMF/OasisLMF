@@ -17,7 +17,6 @@ import subprocess
 import sys
 import warnings
 from collections import OrderedDict
-from itertools import product
 from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
@@ -37,7 +36,7 @@ from ...execution.bin import (csv_to_bin, prepare_run_directory,
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from oasislmf.pytools.summary.manager import create_summary_object_file
-from ...utils.data import (fast_zip_dataframe_columns, get_dataframe, get_exposure_data, get_json,
+from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
                                KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
