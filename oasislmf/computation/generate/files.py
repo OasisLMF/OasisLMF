@@ -247,10 +247,10 @@ class GenerateFiles(ComputationStep):
             # Assume empty file on read error.
             keys_errors_df = pd.DataFrame(columns=['locid'])
 
-        returned_locid_df = set(keys_errors_df['locid']).union(set(keys_df['locid']))
+        returned_locid = set(keys_errors_df['locid']).union(set(keys_df['locid']))
         del keys_errors_df
 
-        missing_ids = set(location_df['loc_id']).difference(returned_locid_df)
+        missing_ids = set(location_df['loc_id']).difference(returned_locid)
         if len(missing_ids) > 0:
             raise OasisException(f'Lookup error: missing "loc_id" values from keys return: {list(missing_ids)}')
 
