@@ -384,11 +384,12 @@ class GenerateFiles(ComputationStep):
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
-
+        fm_summary_mapping['loc_id'] = fm_summary_mapping['loc_id'].astype(exposure_data.location.dataframe['loc_id'].dtype)
         xref_descriptions_df = merge_oed_to_mapping(
             fm_summary_mapping,
             exposure_data.location.dataframe,
             ['loc_id'], {'LocGroup': '', 'ReinsTag': '', 'CountryCode': ''})
+        xref_descriptions_df[['PortNumber', 'AccNumber', 'PolNumber']] = xref_descriptions_df[['PortNumber', 'AccNumber', 'PolNumber']].astype(str)
         xref_descriptions_df = merge_oed_to_mapping(
             xref_descriptions_df,
             exposure_data.account.dataframe,
