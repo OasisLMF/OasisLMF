@@ -441,6 +441,9 @@ def get_dataframe(
                         precise_float=(True if float_precision == 'high' else False),
                         encoding=use_encoding
                     )
+            except UnicodeDecodeError as e:
+                raise e   
+
             except (ValueError, OSError) as e:
                 error_msg = f'Failed to load "{src_fp}", ' if src_fp else f'Failed to load "{src_buf}", '
                 if empty_data_error_msg:
