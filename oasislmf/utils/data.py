@@ -442,7 +442,7 @@ def get_dataframe(
                         encoding=use_encoding
                     )
             except UnicodeDecodeError as e:
-                raise e   
+                raise e
 
             except (ValueError, OSError) as e:
                 error_msg = f'Failed to load "{src_fp}", ' if src_fp else f'Failed to load "{src_buf}", '
