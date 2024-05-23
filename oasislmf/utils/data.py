@@ -466,7 +466,6 @@ def get_dataframe(
         else:
             raise OasisException('Failed to load DataFrame due to Encoding error', e)
 
-
     if len(df) == 0:
         raise OasisException(empty_data_error_msg)
 
