@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.28.8`_
+ ---------
+* [#1473](https://github.com/OasisLMF/OasisLMF/pull/1473) - ajust vuln index after vuln_dict has the updated indexes
+* [#1509](https://github.com/OasisLMF/OasisLMF/pull/1509) - improve perf of file preparation
+* [#1478](https://github.com/OasisLMF/OasisLMF/pull/1478) - Release 1.28.7
+* [#1498](https://github.com/OasisLMF/OasisLMF/pull/1513) - When LayerParticipation is not present, gross losses are not produced
+* [#1491](https://github.com/OasisLMF/OasisLMF/pull/1494) - Correlation group fields are not generated correctly for disaggregated risks
+.. _`1.28.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.7...1.28.8
+
 `1.28.7`_
  ---------
 * [#1471](https://github.com/OasisLMF/OasisLMF/pull/1472) - number_of_samples = 0 not working in oasislmf
