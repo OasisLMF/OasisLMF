@@ -108,8 +108,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     merge_col = list(set(il_inputs_calc_rules_df.columns).intersection(calc_rules_df.columns).difference({'calcrule_id'}))
 
     calcrule_ids = (
-        il_inputs_calc_rules_df.reset_index()
-        .drop(columns=['calcrule_id'], errors='ignore')
+        il_inputs_calc_rules_df[merge_col].reset_index()
         .merge(calc_rules_df[merge_col + ['calcrule_id']].drop_duplicates(), how='left', on=merge_col)
     ).set_index('index')['calcrule_id'].fillna(0)
 
