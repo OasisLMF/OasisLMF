@@ -319,6 +319,7 @@ def get_gul_input_items(
         cov_type_group.loc[:, ['tiv'] + list(column_mapping_dict.values())]
         terms_found.update(column_mapping_dict.values())
         cov_type_group['coverage_type_id'] = cov_type
+<<<<<<< HEAD
         gul_inputs_reformatted_chunks.append(cov_type_group)
     # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
     # to original code.
@@ -328,6 +329,28 @@ def get_gul_input_items(
     term_int_found = list(set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints)))
     gul_inputs_df[term_int_found] = gul_inputs_df[term_int_found].fillna(0)
     # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
+=======
+        terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
+        if do_disaggregation:
+            # if NumberOfBuildings == 0: still add one entry
+            disagg_df_chunk = (cov_type_group.reset_index()
+                               .join(pd.DataFrame({'building_id': range(1, max(number_of_buildings, 1) + 1)}), how='cross')
+                               .set_index('index'))
+        else:
+            disagg_df_chunk = cov_type_group.copy().assign(building_id=1)
+
+        gul_inputs_reformatted_chunks.append(disagg_df_chunk)
+
+    # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
+    gul_inputs_df = (
+        pd.concat(gul_inputs_reformatted_chunks)
+        .fillna(value={c: 0 for c in terms_found})
+        .sort_index()
+        .reset_index(drop=True)
+        .fillna(value={c: 0 for c in set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints))})
+    )
+    # set default values and data types for BI coverage boolean, TIV, deductibles and limit
+>>>>>>> 728a710ff (improve perf of file preparation (#1509))
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
         **{'is_bi_coverage': 'bool'}

@@ -139,9 +139,20 @@ def set_calc_rule_ids(
         err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
         no_match_keys = il_inputs_calc_rules_df.loc[il_inputs_calc_rules_df.calcrule_id == 0].id_key.unique()
 
+<<<<<<< HEAD
         err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
         for key_id in no_match_keys:
             err_msg += '   {}\n'.format(key_id)
+=======
+    calcrule_ids = (
+        il_inputs_calc_rules_df[merge_col].reset_index()
+        .merge(calc_rules_df[merge_col + ['calcrule_id']].drop_duplicates(), how='left', on=merge_col)
+    ).set_index('index')['calcrule_id'].fillna(0)
+
+    if 0 in calcrule_ids.unique():
+        no_match_keys = il_inputs_calc_rules_df.loc[calcrule_ids == 0, ['PortNumber', 'AccNumber', 'LocNumber'] + merge_col].drop_duplicates()
+        err_msg = 'Calculation Rule mapping error, non-matching keys:\n{}'.format(no_match_keys)
+>>>>>>> 728a710ff (improve perf of file preparation (#1509))
         raise OasisException(err_msg)
 
     return il_inputs_calc_rules_df['calcrule_id'].values

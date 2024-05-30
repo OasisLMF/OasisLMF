@@ -17,7 +17,6 @@ import subprocess
 import sys
 import warnings
 from collections import OrderedDict
-from itertools import product
 from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
@@ -32,6 +31,7 @@ from ...execution.bin import (csv_to_bin, prepare_run_directory,
                               prepare_run_inputs)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
+<<<<<<< HEAD
 from ...utils.data import (fast_zip_dataframe_columns,
                            get_dataframe, get_exposure_data,
                            get_utctimestamp,
@@ -39,6 +39,13 @@ from ...utils.data import (fast_zip_dataframe_columns,
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE,
                                KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
                                KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
+=======
+from oasislmf.pytools.summary.manager import create_summary_object_file
+from ...utils.data import (get_dataframe, get_exposure_data, get_json,
+                           get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes)
+from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
+                               KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
+>>>>>>> 728a710ff (improve perf of file preparation (#1509))
                                KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
                                KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG,
                                KTOOLS_GUL_LEGACY_STREAM,
@@ -762,28 +769,15 @@ class GenerateLossesDeterministic(ComputationStep):
             KTOOLS_TIV_SAMPLE_IDX: 1.
         }
 
-        guls_items = [
-            OrderedDict({
-                'event_id': 1,
-                'item_id': item_id,
-                'sidx': sidx,
-                'loss':
-                    (tiv * special_loss_factors[sidx]) if sidx < 0
-                    else (tiv * self.loss_factor[sidx - 1])
-            })
-            for (item_id, tiv), sidx in product(
-                fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
-            )
-        ]
+        loss_factor_map = {**special_loss_factors, **{i + 1: val for i, val in enumerate(self.loss_factor)}}
 
-        guls = get_dataframe(
-            src_data=guls_items,
-            col_dtypes={
-                'event_id': int,
-                'item_id': int,
-                'sidx': int,
-                'loss': float},
-            lowercase_cols=False)
+        guls = items[['item_id', 'tiv']].join(pd.DataFrame({'sidx': gulcalc_sidxs}, dtype='int64'), how='cross').assign(event_id=1)
+        guls['loss'] = guls['sidx'].map(loss_factor_map) * guls['tiv']
+        guls = guls.astype({
+            'event_id': int,
+            'item_id': int,
+            'sidx': int,
+            'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
