@@ -1,6 +1,20 @@
 OasisLMF Changelog
 ==================
 
+`2.3.5`_
+ ---------
+* [#1503](https://github.com/OasisLMF/OasisLMF/pull/1504) - Add a guard which 'fast fails' runs using more than 9 summary groups + summarycalc 
+* [#1454](https://github.com/OasisLMF/OasisLMF/pull/1505) - RI Scope file filters
+* [#1506](https://github.com/OasisLMF/OasisLMF/pull/1507) - acc_idx read as category type from input/accounts.csv 
+* [#1508](https://github.com/OasisLMF/OasisLMF/pull/1508) - fix pla reader
+* [#1509](https://github.com/OasisLMF/OasisLMF/pull/1509) - improve perf of file preparation
+* [#1510](https://github.com/OasisLMF/OasisLMF/pull/1510) - Fix error handling for failed file loading in 'get_dataframe'
+* [#1498](https://github.com/OasisLMF/OasisLMF/pull/1513) - When LayerParticipation is not present, gross losses are not produced
+* [#1489](https://github.com/OasisLMF/OasisLMF/pull/1489) - Release 2.3.4
+* [#1491](https://github.com/OasisLMF/OasisLMF/pull/1494) - Correlation group fields are not generated correctly for disaggregated risks
+* [#1499](https://github.com/OasisLMF/OasisLMF/pull/1500) - OASISLMF installation issue
+.. _`2.3.5`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.4...2.3.5
+
 `2.3.4`_
  ---------
 * [#1476](https://github.com/OasisLMF/OasisLMF/pull/1476) - Release 2.3.2
