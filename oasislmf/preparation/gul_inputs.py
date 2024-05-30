@@ -41,7 +41,9 @@ VALID_OASIS_GROUP_COLS = [
     'peril_id',
     'coverage_id',
     'coverage_type_id',
-    'peril_correlation_group'
+    'peril_correlation_group',
+    'building_id',
+    'risk_id'
 ]
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
@@ -355,15 +357,15 @@ def get_gul_input_items(
         cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
-        disagg_df_chunk = []
         if do_disaggregation:
             # if NumberOfBuildings == 0: still add one entry
-            for building_id in range(1, max(number_of_buildings, 1) + 1):
-                disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
+            disagg_df_chunk = (cov_type_group.reset_index()
+                               .join(pd.DataFrame({'building_id': range(1, max(number_of_buildings, 1) + 1)}), how='cross')
+                               .set_index('index'))
         else:
-            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=1))
+            disagg_df_chunk = cov_type_group.copy().assign(building_id=1)
 
-        gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
+        gul_inputs_reformatted_chunks.append(disagg_df_chunk)
 
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
@@ -379,6 +381,11 @@ def get_gul_input_items(
         **{'is_bi_coverage': 'bool'}
     }
     gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+
+    # add risk_id to gul_inputs_df
+    gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
+    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
     # set 'disagg_id', `item_id` and `coverage_id`
     gul_inputs_df['item_id'] = factorize_ndarray(
