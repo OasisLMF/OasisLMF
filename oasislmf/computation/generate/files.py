@@ -383,23 +383,28 @@ class GenerateFiles(ComputationStep):
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
+        fm_summary_mapping['loc_id'] = fm_summary_mapping['loc_id'].astype(exposure_data.location.dataframe['loc_id'].dtype)
         xref_descriptions_df = merge_oed_to_mapping(
             fm_summary_mapping,
             exposure_data.location.dataframe,
-            oed_column_set=[loc_grp],
-            defaults={loc_grp: 1}
-        ).sort_values(by='agg_id')
+            ['loc_id'], {'LocGroup': '', 'ReinsTag': '', 'CountryCode': ''})
+        xref_descriptions_df[['PortNumber', 'AccNumber', 'PolNumber']] = xref_descriptions_df[['PortNumber', 'AccNumber', 'PolNumber']].astype(str)
+        xref_descriptions_df = merge_oed_to_mapping(
+            xref_descriptions_df,
+            exposure_data.account.dataframe,
+            ['PortNumber', 'AccNumber', 'PolNumber'], {'CedantName': '', 'ProducerName': '', 'LOB': ''})
+        xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id')
+
         del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info
 
         ri_layers = write_files_for_reinsurance(
-            gul_inputs_df,
-            xref_descriptions_df,
             exposure_data.ri_info.dataframe,
             exposure_data.ri_scope.dataframe,
-            oasis_files['fm_xref'],
+            xref_descriptions_df,
             target_dir,
-            self.write_ri_tree
+            oasis_files['fm_xref'],
+            self.logger
         )
 
         with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
