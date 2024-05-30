@@ -23,7 +23,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
-from ods_tools.oed import fill_empty
+from ods_tools.oed import fill_empty, BLANK_VALUES
 
 from oasislmf.preparation.summaries import get_useful_summary_cols, get_xref_df
 from oasislmf.utils.calc_rules import get_calc_rules
@@ -336,15 +336,22 @@ def get_levels(gul_inputs_df, locations_df, accounts_df):
                 yield accounts_df, group_info['levels'].items(), group_info.get('fm_peril_field')
 
 
-def get_level_term_info(term_df_source, level_column_mapper, level_id, step_level, fm_peril_field):
+def get_level_term_info(term_df_source, level_column_mapper, level_id, step_level, fm_peril_field, oed_schema):
     level_terms = set()
     terms_maps = {}
     coverage_group_map = {}
     fm_group_tiv = {}
+    non_zero_default = {}
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
+        default_value = oed_schema.get_default(ProfileElementName)
         if ProfileElementName not in term_df_source.columns:
-            continue
-        fill_empty(term_df_source, ProfileElementName, 0)
+            if default_value == 0 or default_value in BLANK_VALUES:
+                continue
+            else:
+                non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
+                continue
+        else:
+            fill_empty(term_df_source, ProfileElementName, default_value)
         if 'FMProfileStep' in term_info:
             profile_steps = term_info["FMProfileStep"]
             if isinstance(profile_steps, int):
@@ -399,6 +406,13 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     coverage_group_map[coverage_group_key] = FMTermGroupID
             terms_maps.setdefault(term_key, {fm_peril_field: 'fm_peril'} if fm_peril_field else {})[
                 ProfileElementName] = term_info['FMTermType'].lower()
+    if level_terms:
+        for ProfileElementName, (term, default_value) in non_zero_default.items():
+            term_df_source[ProfileElementName] = default_value
+            level_terms.add(term)
+            for terms_map in terms_maps.values():
+                terms_map[ProfileElementName] = term
+
     return level_terms, terms_maps, coverage_group_map, fm_group_tiv
 
 
@@ -562,8 +576,8 @@ def get_il_input_items(
         for level, level_info in levels:
             level_id = level_info['id']
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
-            level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(term_df_source, level_column_mapper, level_id, step_level,
-                                                                                            fm_peril_field)
+            level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(
+                term_df_source, level_column_mapper, level_id, step_level, fm_peril_field, oed_schema)
             if not terms_maps:  # no terms we skip this level
                 continue
             agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
