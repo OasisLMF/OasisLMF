@@ -336,6 +336,7 @@ class EventReader:
 
         while True:
             if valid_buff < PIPE_CAPACITY:
+                stream_selector.select()
                 len_read = stream_in.readinto1(mv[valid_buff:])
                 valid_buff += len_read
 
@@ -347,18 +348,18 @@ class EventReader:
                         return event_id, cursor, valid_buff
 
                     break
-
             cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id)
 
             if yield_event:
-                if cursor == valid_buff:
-                    valid_buff = 0
+                if 2 * cursor > valid_buff:
+                    mv[:valid_buff - cursor] = mv[cursor: valid_buff]
+                    valid_buff -= cursor
+                    cursor = 0
                 return event_id, cursor, valid_buff
             else:
                 mv[:valid_buff - cursor] = mv[cursor: valid_buff]
                 valid_buff -= cursor
                 cursor = 0
-                stream_selector.select()
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         raise NotImplementedError

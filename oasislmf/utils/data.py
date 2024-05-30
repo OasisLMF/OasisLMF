@@ -413,33 +413,43 @@ def get_dataframe(
         memory_map = memory_map and (use_encoding == 'utf-8')
 
         if src_fp or src_buf:
-            if src_type == 'csv':
-                # Find flexible fields in loc file and set their data types to that of
-                # FlexiLocZZZ
-                if 'FlexiLocZZZ' in col_dtypes.keys():
-                    headers = list(pd.read_csv(src_fp, encoding=use_encoding, low_memory=low_memory).head(0))
-                    for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
-                        col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
-                df = pd.read_csv(
-                    src_fp or src_buf,
-                    float_precision=float_precision,
-                    memory_map=memory_map,
-                    low_memory=low_memory,
-                    keep_default_na=False,
-                    na_values=na_values,
-                    dtype=col_dtypes,
-                    encoding=use_encoding,
-                    quotechar='"',
-                    skipinitialspace=True,
-                )
-            elif src_type == 'parquet':
-                df = pd.read_parquet(src_fp or src_buf)
-            elif src_type == 'json':
-                df = pd.read_json(
-                    src_fp or src_buf,
-                    precise_float=(True if float_precision == 'high' else False),
-                    encoding=use_encoding
-                )
+            try:
+                if src_type == 'csv':
+                    # Find flexible fields in loc file and set their data types to that of
+                    # FlexiLocZZZ
+                    if 'FlexiLocZZZ' in col_dtypes.keys():
+                        headers = list(pd.read_csv(src_fp, encoding=use_encoding, low_memory=low_memory).head(0))
+                        for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
+                            col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
+                    df = pd.read_csv(
+                        src_fp or src_buf,
+                        float_precision=float_precision,
+                        memory_map=memory_map,
+                        low_memory=low_memory,
+                        keep_default_na=False,
+                        na_values=na_values,
+                        dtype=col_dtypes,
+                        encoding=use_encoding,
+                        quotechar='"',
+                        skipinitialspace=True,
+                    )
+                elif src_type == 'parquet':
+                    df = pd.read_parquet(src_fp or src_buf)
+                elif src_type == 'json':
+                    df = pd.read_json(
+                        src_fp or src_buf,
+                        precise_float=(True if float_precision == 'high' else False),
+                        encoding=use_encoding
+                    )
+            except UnicodeDecodeError as e:
+                raise e
+
+            except (ValueError, OSError) as e:
+                error_msg = f'Failed to load "{src_fp}", ' if src_fp else f'Failed to load "{src_buf}", '
+                if empty_data_error_msg:
+                    error_msg += empty_data_error_msg
+                raise OasisException(error_msg, e)
+
         elif isinstance(src_data, list) and src_data:
             df = pd.DataFrame(data=src_data)
         elif isinstance(src_data, pd.DataFrame):
@@ -729,6 +739,8 @@ def prepare_location_df(location_df):
 def prepare_account_df(accounts_df):
     if SOURCE_IDX['acc'] not in accounts_df.columns:
         accounts_df[SOURCE_IDX['acc']] = accounts_df.index
+    else:
+        accounts_df[SOURCE_IDX['acc']] = accounts_df[SOURCE_IDX['acc']].astype(int)
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
     accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)
