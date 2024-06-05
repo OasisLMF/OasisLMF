@@ -1113,6 +1113,7 @@ def process_areaperils_in_footprint(event_footprint,
     eff_vuln_cdf = np.zeros(Nvulns * Ndamage_bins_max, dtype=oasis_float)  # initial size, it is a dynamic array
     cdf_start = 0
     cdf_end = 0
+    areaperil_id = 0
     haz_cdf_ptr = List([0])
     eff_vuln_cdf_start = nb_int32(0)
     areaperil_to_eff_vuln_cdf = Dict.empty(AREAPERIL_TO_EFF_VULN_KEY_TYPE, AREAPERIL_TO_EFF_VULN_VALUE_TYPE)

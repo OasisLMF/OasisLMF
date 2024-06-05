@@ -119,7 +119,6 @@ class Footprint:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
                 return footprint_class(storage, df_engine=df_engine)
-            print(footprint_class,valid)
         else:
             if storage.isfile("footprint.parquet"):
                 raise OasisFootPrintError(
@@ -398,9 +397,16 @@ class FootprintParquetDynamic(Footprint):
             df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_to'])[to_cols].rename(
                 columns={'intensity': 'to_intensity'})
         
-        df_footprint = df_hazard_case_from.merge(df_hazard_case_to,on='areaperil_id')
-        df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
-        df_footprint['probability'] = 1
+        df_footprint = df_hazard_case_from.merge(df_hazard_case_to,on='areaperil_id',how='outer')
+        df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
+        
+        if len(df_footprint.index) > 0:
+            df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
+            df_footprint['probability'] = 1
+        else:
+            df_footprint.loc[:,'intensity_bin_id'] = []
+            df_footprint.loc[:,'probability'] = []
+
 
         numpy_data = self.prepare_df_data(data_frame=df_footprint)
         return numpy_data
