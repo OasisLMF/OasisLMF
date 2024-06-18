@@ -7,7 +7,7 @@ from anytree.exporter import DotExporter
 import collections
 
 PolicyTuple = collections.namedtuple('PolicyTuple', 'layer_id agg_id calc_rules')
-CalcRuleTuple = collections.namedtuple('CalcRuleTuple', 'policytc_id calcrule_id is_step trig_start trig_end')
+CalcRuleTuple = collections.namedtuple('CalcRuleTuple', 'profile_id calcrule_id is_step trig_start trig_end')
 
 
 def load_df(path, required_file=None):
@@ -32,7 +32,7 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
         for _, policy in policytc.iterrows():
 
             # Find calc_rule
-            profile = fm_profile_df.loc[fm_profile_df.policytc_id == policy.policytc_id]
+            profile = fm_profile_df.loc[fm_profile_df.profile_id == policy.profile_id]
             calc_rules = []
             for _, step in profile.iterrows():
                 trig_start = step.trigger_start if hasattr(step, 'trigger_start') else 0
@@ -40,7 +40,7 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                 is_step_rule = (trig_end > 0 or trig_start > 0)
 
                 calc_rules.append(CalcRuleTuple(
-                    policytc_id=int(policy.policytc_id),
+                    profile_id=int(policy.profile_id),
                     calcrule_id=int(step.calcrule_id),
                     is_step=is_step_rule,
                     trig_start=trig_start,
@@ -93,15 +93,15 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                 node_name += "\n\nlayer_id: {}".format(policy.layer_id)
                 for rule in policy.calc_rules:
                     if rule.is_step:
-                        node_name += "\n   policytc_id {}: step_rule:{}, start:{} end:{}".format(
-                            rule.policytc_id,
+                        node_name += "\n   profile_id {}: step_rule:{}, start:{} end:{}".format(
+                            rule.profile_id,
                             rule.calcrule_id,
                             rule.trig_start,
                             rule.trig_end
                         )
                     else:
-                        node_name += "\npolicytc_id: {} \ncalc_rule: {}".format(
-                            rule.policytc_id,
+                        node_name += "\nprofile_id: {} \ncalc_rule: {}".format(
+                            rule.profile_id,
                             rule.calcrule_id,
                         )
 
