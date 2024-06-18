@@ -352,6 +352,7 @@ def _leccalc_selected(analysis_settings):
 
     return any([is_in_gul, is_in_il, is_in_ri])
 
+
 def get_event_range(event_range):
     """
     Parses event range string and returns a list of event ids.
@@ -371,7 +372,7 @@ def get_event_range(event_range):
         else:
             e = int(er)
             lst_events.append(e)
-            
+
     return (lst_events)
 
 
