@@ -26,6 +26,8 @@ class PostAnalysis(ComputationStep):
          'help': 'Analysis settings JSON file path'},
         {'name': 'model_data_dir', 'is_path': True, 'pre_exist': True,
          'help': 'Model data directory path'},
+        {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
+         'help': 'Directory containing additional model data files which varies between analysis runs'},
     ]
 
     run_dir_key = 'post-analysis'
@@ -35,6 +37,7 @@ class PostAnalysis(ComputationStep):
             'model_data_dir': self.model_data_dir,
             'analysis_settings_json': self.analysis_settings_json,
             'model_run_dir': self.model_run_dir,
+            'user_run_dir': self.user_run_dir,
         }
 
         _module = get_custom_module(self.post_analysis_module, 'Post-Analysis module path')
