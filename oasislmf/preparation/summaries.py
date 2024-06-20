@@ -140,7 +140,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     return summary_mapping
 
 
-def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=None):
+def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_join, oed_column_info):
     """
     Create a factorized col (summary ids) based on a list of oed column names
 
@@ -150,8 +150,11 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     :param exposure_df: Summary map file path
     :type exposure_df: pandas.DataFrame
 
-    :param defaults: Dictionary of vaules to fill NaN columns with
-    :type defaults: dict
+    :param oed_column_join: column to join on
+    :type oed_column_join: list
+
+    :param oed_column_info: Dictionary of columns to pick from exposure_df and their default value
+    :type oed_column_info: dict
 
     {'Col_A': 0, 'Col_B': 1, 'Col_C': 2}
 
@@ -159,22 +162,16 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     :rtype: pandas.DataFrame
     """
 
-    column_set = oed_column_set
-    columns_found = [c for c in column_set if c in exposure_df.columns.to_list()]
+    column_set = set(oed_column_info)
+    columns_found = [c for c in column_set if c in exposure_df.columns and c not in summary_map_df.columns]
     columns_missing = list(set(column_set) - set(columns_found))
 
-    # Select DF with matching cols
-    exposure_col_df = exposure_df.loc[:, columns_found + [SOURCE_IDX['loc']]]
-    # Add default value if optional column is missing
-    for col in columns_missing:
-        if col in defaults:
-            exposure_col_df[col] = defaults[col]
-        else:
-            raise OasisException('Column to merge "{}" not in locations dataframe or defined with a default value'.format(col))
+    new_summary_map_df = merge_dataframes(summary_map_df, exposure_df.loc[:, columns_found + oed_column_join], join_on=oed_column_join, how='inner')
+    for col, default in oed_column_info.items():
+        if col in columns_missing:
+            new_summary_map_df[col] = default
+    fill_na_with_categoricals(new_summary_map_df, oed_column_info)
 
-    new_summary_map_df = merge_dataframes(summary_map_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='inner')
-    if defaults:
-        fill_na_with_categoricals(new_summary_map_df, defaults)
     return new_summary_map_df
 
 

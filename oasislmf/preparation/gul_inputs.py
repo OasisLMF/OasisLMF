@@ -357,15 +357,15 @@ def get_gul_input_items(
         cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
         cov_type_group['coverage_type_id'] = cov_type
         terms_found.update(cols_by_cov_type[cov_type]['column_mapping_dict'].values())
-        disagg_df_chunk = []
         if do_disaggregation:
             # if NumberOfBuildings == 0: still add one entry
-            for building_id in range(1, max(number_of_buildings, 1) + 1):
-                disagg_df_chunk.append(cov_type_group.copy().assign(building_id=building_id))
+            disagg_df_chunk = (cov_type_group.reset_index()
+                               .join(pd.DataFrame({'building_id': range(1, max(number_of_buildings, 1) + 1)}), how='cross')
+                               .set_index('index'))
         else:
-            disagg_df_chunk.append(cov_type_group.copy().assign(building_id=1))
+            disagg_df_chunk = cov_type_group.copy().assign(building_id=1)
 
-        gul_inputs_reformatted_chunks.append(pd.concat(disagg_df_chunk))
+        gul_inputs_reformatted_chunks.append(disagg_df_chunk)
 
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
