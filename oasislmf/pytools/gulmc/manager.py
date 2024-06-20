@@ -225,7 +225,7 @@ def run(run_dir,
 
         logger.debug('import vulnerabilities')
         vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
-        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
 
