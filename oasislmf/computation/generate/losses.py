@@ -120,7 +120,7 @@ class GenerateLossesBase(ComputationStep):
         Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()
         """
         ri_layers = 0
-        if analysis_settings.get('ri_output', False):
+        if analysis_settings.get('ri_output', False) or analysis_settings.get('rl_output', False):
             ri_layers = len(get_json(os.path.join(model_run_fp, 'ri_layers.json')))
         return ri_layers
 
@@ -276,24 +276,29 @@ class GenerateLossesDir(GenerateLossesBase):
                    for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
                    if re.match(r"RI_\d+$", fn)
                    ]
-        ri = any(ri_dirs)
+        ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
         il_missing = analysis_settings.get('il_output', False) and not il
-        ri_missing = analysis_settings.get('ri_output', False) and not ri
-        if il_missing or ri_missing:
+        ri_missing = analysis_settings.get('ri_output', False) and not ril
+        rl_missing = analysis_settings.get('rl_output', False) and not ril
+        if il_missing or ri_missing or rl_missing:
             missing_input_files = "{} are enabled in the analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(
                 [
-                    "IL" * il_missing, "RI" * ri_missing])
+                    "IL" * il_missing, "RI" * ri_missing, "RL" * rl_missing
+                ]
+            )
             if self.check_missing_inputs:
                 raise OasisException(missing_input_files)
             else:
                 self.logger.warn(missing_input_files)
 
         gul_item_stream = (not self.ktools_legacy_stream)
-        self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
+        ri = analysis_settings.get('ri_output', False)
+        rl = analysis_settings.get('rl_output', False)
+        self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
-        runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
+        runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
         self.__check_for_parquet_output(analysis_settings, runtypes)
         self.__check_summary_group_support(analysis_settings, runtypes)
 
@@ -303,7 +308,7 @@ class GenerateLossesDir(GenerateLossesBase):
             self.model_data_dir,
             self.analysis_settings_json,
             user_data_dir=self.user_data_dir,
-            ri=ri,
+            ri=ri or rl,
             copy_model_data=self.copy_model_data,
             model_storage_config_fp=self.model_storage_json,
         )
@@ -319,10 +324,11 @@ class GenerateLossesDir(GenerateLossesBase):
             gul_item_stream=gul_item_stream,
             il=il,
             ri=ri,
+            rl=rl,
             fmpy=self.fmpy
         )
 
-        if not ri:
+        if not ri and not rl:
             fp = os.path.join(model_run_fp, 'input')
             csv_to_bin(fp, fp, il=il)
         else:
@@ -337,6 +343,10 @@ class GenerateLossesDir(GenerateLossesBase):
         if not ri:
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
+
+        if not rl:
+            analysis_settings['rl_output'] = False
+            analysis_settings['rl_summaries'] = []
 
         if not any(analysis_settings.get(output) for output in ['gul_output', 'il_output', 'ri_output']):
             raise OasisException(
@@ -356,7 +366,7 @@ class GenerateLossesDir(GenerateLossesBase):
             self.logger.info(f"Loaded samples from model_settings file: 'model_default_samples = {default_model_samples}'")
             analysis_settings['number_of_samples'] = default_model_samples
 
-        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri)
+        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri or rl)
         footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
         if footprint_set_val:
             set_footprint_set(footprint_set_val, model_run_fp)
@@ -370,7 +380,7 @@ class GenerateLossesDir(GenerateLossesBase):
             self.logger.info(f'Creating FMPY structures (IL): {il_target_dir}')
             create_financial_structure(self.ktools_alloc_rule_il, il_target_dir)
 
-        if ri and self.fmpy:
+        if (ri or rl) and self.fmpy:
             for ri_sub_dir in ri_dirs:
                 ri_target_dir = os.path.join(self.model_run_dir, ri_sub_dir)
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')

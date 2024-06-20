@@ -26,8 +26,13 @@ RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
 RUNTYPE_INSURED_LOSS = 'il'
 RUNTYPE_REINSURANCE_LOSS = 'ri'
+RUNTYPE_REINSURANCE_GROSS_LOSS = 'rl'
 RUNTYPE_FULL_CORRELATION = 'fc'
 
+REINSURANCE_RUNTYPES = [
+    RUNTYPE_REINSURANCE_LOSS,
+    RUNTYPE_REINSURANCE_GROSS_LOSS
+]
 INTERMEDIATE_INURING_PRIORITY_PREFIX = 'IP'
 
 WAIT_PROCESSING_SWITCHES = {
@@ -405,13 +410,13 @@ def do_post_wait_processing(
     work_sub_dir='',
     output_dir='output/',
     stderr_guard=True,
-    ri_inuring_priority=None
+    inuring_priority=None
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
 
-    if not ri_inuring_priority:
-        ri_inuring_priority = ''
+    if not inuring_priority:
+        inuring_priority = ''
 
     for summary in analysis_settings['{}_summaries'.format(runtype)]:
         if "id" in summary:
@@ -422,13 +427,13 @@ def do_post_wait_processing(
                 cmd = 'aalcalc -K{}{}_{}S{}_summaryaalcalc'.format(
                     work_sub_dir,
                     runtype,
-                    ri_inuring_priority,
+                    inuring_priority,
                     summary_set
                 )
 
                 process_counter['lpid_monitor_count'] += 1
                 cmd = '{} > {}{}_{}S{}_aalcalc.csv'.format(
-                    cmd, output_dir, runtype, ri_inuring_priority, summary_set
+                    cmd, output_dir, runtype, inuring_priority, summary_set
                 )
                 if stderr_guard:
                     cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
@@ -439,13 +444,13 @@ def do_post_wait_processing(
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd = 'aalcalc -K{}{}_{}S{}_summary_palt'.format(
-                    work_sub_dir, runtype, ri_inuring_priority, summary_set
+                    work_sub_dir, runtype, inuring_priority, summary_set
                 )
                 palt_outfile_stem = '{}{}_{}S{}_palt'.format(
-                    output_dir, runtype, ri_inuring_priority, summary_set
+                    output_dir, runtype, inuring_priority, summary_set
                 )
                 alct_outfile_stem = '{}{}_{}S{}_alct'.format(
-                    output_dir, runtype, ri_inuring_priority, summary_set
+                    output_dir, runtype, inuring_priority, summary_set
                 )
 
                 alct_file_extension = ".csv"
@@ -489,12 +494,12 @@ def do_post_wait_processing(
             # ktools ORIG - aalcalcmeanonly
             if summary.get('aalcalcmeanonly'):
                 cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summaryaalcalcmeanonly'.format(
-                    work_sub_dir, runtype, ri_inuring_priority, summary_set
+                    work_sub_dir, runtype, inuring_priority, summary_set
                 )
 
                 process_counter['lpid_monitor_count'] += 1
                 cmd = '{} > {}{}_{}S{}_aalcalcmeanonly.csv'.format(
-                    cmd, output_dir, runtype, ri_inuring_priority, summary_set
+                    cmd, output_dir, runtype, inuring_priority, summary_set
                 )
                 if stderr_guard:
                     cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
@@ -505,10 +510,10 @@ def do_post_wait_processing(
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
                 cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summary_altmeanonly'.format(
-                    work_sub_dir, runtype, ri_inuring_priority, summary_set
+                    work_sub_dir, runtype, inuring_priority, summary_set
                 )
                 altmeanonly_outfile_stem = '{}{}_{}S{}_altmeanonly'.format(
-                    output_dir, runtype, ri_inuring_priority, summary_set
+                    output_dir, runtype, inuring_priority, summary_set
                 )
 
                 if summary.get('ord_output', {}).get('parquet_format'):
@@ -542,7 +547,7 @@ def do_post_wait_processing(
                     '-r' if ord_outputs.get('return_period_file') else '',
                     work_sub_dir,
                     runtype,
-                    ri_inuring_priority,
+                    inuring_priority,
                     summary_set
                 )
 
@@ -573,13 +578,13 @@ def do_post_wait_processing(
                 if ept_output:
                     cmd = '{} {} {}{}_{}S{}_ept.{}'.format(
                         cmd, ept_output_flag, output_dir, runtype,
-                        ri_inuring_priority, summary_set, outfile_ext
+                        inuring_priority, summary_set, outfile_ext
                     )
 
                 if psept_output:
                     cmd = '{} {} {}{}_{}S{}_psept.{}'.format(
                         cmd, psept_output_flag, output_dir, runtype,
-                        ri_inuring_priority, summary_set, outfile_ext
+                        inuring_priority, summary_set, outfile_ext
                     )
 
                 if stderr_guard:
@@ -595,7 +600,7 @@ def do_post_wait_processing(
                     '-r' if leccalc.get('return_period_file') else '',
                     work_sub_dir,
                     runtype,
-                    ri_inuring_priority,
+                    inuring_priority,
                     summary_set
                 )
 
@@ -609,7 +614,7 @@ def do_post_wait_processing(
                         switch = WAIT_PROCESSING_SWITCHES.get(option, '')
                         cmd = '{} {} {}{}_{}S{}_leccalc_{}.csv'.format(
                             cmd, switch, output_dir, runtype,
-                            ri_inuring_priority, summary_set, option
+                            inuring_priority, summary_set, option
                         )
 
                 if stderr_guard:
@@ -688,15 +693,15 @@ def create_workfolders(
     analysis_settings,
     filename,
     work_dir='work/',
-    ri_inuring_priority=None
+    inuring_priority=None
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    if not ri_inuring_priority:
-        ri_inuring_priority = ''
+    if not inuring_priority:
+        inuring_priority = ''
 
     for summary in summaries:
         if 'id' in summary:
@@ -707,31 +712,31 @@ def create_workfolders(
             if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                 print_command(
                     filename,
-                    'mkdir -p {}{}_{}S{}_summaryleccalc'.format(work_dir, runtype, ri_inuring_priority, summary_set)
+                    'mkdir -p {}{}_{}S{}_summaryleccalc'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
             if summary.get('aalcalc'):
                 print_command(
                     filename,
-                    'mkdir -p {}{}_{}S{}_summaryaalcalc'.format(work_dir, runtype, ri_inuring_priority, summary_set)
+                    'mkdir -p {}{}_{}S{}_summaryaalcalc'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
             if summary.get('ord_output', {}).get('alt_period'):
                 print_command(
                     filename,
-                    'mkdir -p {}{}_{}S{}_summary_palt'.format(work_dir, runtype, ri_inuring_priority, summary_set)
+                    'mkdir -p {}{}_{}S{}_summary_palt'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
             if summary.get('aalcalcmeanonly'):
                 print_command(
                     filename,
-                    'mkdir -p {}{}_{}S{}_summaryaalcalcmeanonly'.format(work_dir, runtype, ri_inuring_priority, summary_set)
+                    'mkdir -p {}{}_{}S{}_summaryaalcalcmeanonly'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
             if summary.get('ord_output', {}).get('alt_meanonly'):
                 print_command(
                     filename,
-                    'mkdir -p {}{}_{}S{}_summary_altmeanonly'.format(work_dir, runtype, ri_inuring_priority, summary_set)
+                    'mkdir -p {}{}_{}S{}_summary_altmeanonly'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
 
@@ -745,14 +750,14 @@ def do_kats(
     output_dir='output/',
     sort_by_event=False,
     process_number=None,
-    ri_inuring_priority=None
+    inuring_priority=None
 ):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return False
 
-    if not ri_inuring_priority:
-        ri_inuring_priority = ''
+    if not inuring_priority:
+        inuring_priority = ''
 
     anykats = False
     for summary in summaries:
@@ -766,13 +771,13 @@ def do_kats(
                 for process_id in process_range(max_process_id, process_number):
 
                     cmd = '{} {}{}_{}S{}_eltcalc_P{}'.format(
-                        cmd, work_dir, runtype, ri_inuring_priority,
+                        cmd, work_dir, runtype, inuring_priority,
                         summary_set, process_id
                     )
 
                 process_counter['kpid_monitor_count'] += 1
                 cmd = '{} > {}{}_{}S{}_eltcalc.csv & kpid{}=$!'.format(
-                    cmd, output_dir, runtype, ri_inuring_priority, summary_set,
+                    cmd, output_dir, runtype, inuring_priority, summary_set,
                     process_counter['kpid_monitor_count']
                 )
                 print_command(filename, cmd)
@@ -783,13 +788,13 @@ def do_kats(
                 cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_{}S{}_pltcalc_P{}'.format(
-                        cmd, work_dir, runtype, ri_inuring_priority,
+                        cmd, work_dir, runtype, inuring_priority,
                         summary_set, process_id
                     )
 
                 process_counter['kpid_monitor_count'] += 1
                 cmd = '{} > {}{}_{}S{}_pltcalc.csv & kpid{}=$!'.format(
-                    cmd, output_dir, runtype, ri_inuring_priority, summary_set,
+                    cmd, output_dir, runtype, inuring_priority, summary_set,
                     process_counter['kpid_monitor_count']
                 )
                 print_command(filename, cmd)
@@ -800,13 +805,13 @@ def do_kats(
                 cmd = 'kat' if sort_by_event else 'kat -u'
                 for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_{}S{}_summarycalc_P{}'.format(
-                        cmd, work_dir, runtype, ri_inuring_priority,
+                        cmd, work_dir, runtype, inuring_priority,
                         summary_set, process_id
                     )
 
                 process_counter['kpid_monitor_count'] += 1
                 cmd = '{} > {}{}_{}S{}_summarycalc.csv & kpid{}=$!'.format(
-                    cmd, output_dir, runtype, ri_inuring_priority, summary_set,
+                    cmd, output_dir, runtype, inuring_priority, summary_set,
                     process_counter['kpid_monitor_count']
                 )
                 print_command(filename, cmd)
@@ -825,10 +830,10 @@ def do_kats(
                             outfile_ext = 'parquet'
 
                         for process_id in process_range(max_process_id, process_number):
-                            cmd = f'{cmd} {work_dir}{runtype}_{ri_inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
+                            cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
 
                         process_counter['kpid_monitor_count'] += 1
-                        cmd = f'{cmd} {outfile_flag} {output_dir}{runtype}_{ri_inuring_priority}S{summary_set}_{v["table_name"]}.{outfile_ext}'
+                        cmd = f'{cmd} {outfile_flag} {output_dir}{runtype}_{inuring_priority}S{summary_set}_{v["table_name"]}.{outfile_ext}'
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
@@ -846,7 +851,7 @@ def do_summarycalcs(
     num_reinsurance_iterations=0,
     gul_legacy_stream=None,
     gul_full_correlation=False,
-    ri_inuring_priority=None,
+    inuring_priority=None,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -871,13 +876,15 @@ def do_summarycalcs(
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
     if runtype == RUNTYPE_REINSURANCE_LOSS:
-        if ri_inuring_priority['level']:
-            summarycalc_directory_switch = f'-p RI_{ri_inuring_priority["level"]}'
-            inuring_priority_text = ri_inuring_priority['text']
-        else:
+        if inuring_priority.get('level'):
             # Net reinsurance losses require zero losses in summarycalc output
-            # Only affects final inuring priority
-            summarycalc_directory_switch = f'-z -p RI_{num_reinsurance_iterations}'
+            # Text field for final inuring priority is empty string
+            summarycalc_directory_switch = f'-z -p RI_{inuring_priority["level"]}'
+            inuring_priority_text = inuring_priority['text']
+    if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
+        # Gross reinsurance losses do not require zero losses in summarycalc output
+        summarycalc_directory_switch = f'-p RI_{inuring_priority["level"]}'
+        inuring_priority_text = inuring_priority['text']
 
     input_filename_component = ''
     if gul_full_correlation:
@@ -911,15 +918,15 @@ def do_tees(
     process_counter,
     fifo_dir='fifo/',
     work_dir='work/',
-    ri_inuring_priority=None
+    inuring_priority=None
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    if not ri_inuring_priority:
-        ri_inuring_priority = ''
+    if not inuring_priority:
+        inuring_priority = ''
 
     if process_id == 1:
         print_command(filename, '')
@@ -929,42 +936,42 @@ def do_tees(
             process_counter['pid_monitor_count'] += 1
             summary_set = summary['id']
 
-            cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"{ri_inuring_priority}S{summary_set}_summary")}'
+            cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_summary")}'
             if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd_idx = cmd + '.idx'
 
             for summary_type in SUMMARY_TYPES:
                 if summary.get(summary_type):
-                    cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{ri_inuring_priority}S{summary_set}_{summary_type}")}'
+                    cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{summary_type}")}'
 
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table in output_switch.keys():
                     if summary.get('ord_output', {}).get(ord_table):
-                        cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{ri_inuring_priority}S{summary_set}_{ord_type}")}'
+                        cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{ord_type}")}'
                         break
 
             if summary.get('aalcalc'):
-                aalcalc_out = f'{work_dir}{runtype}_{ri_inuring_priority}S{summary_set}_summaryaalcalc/P{process_id}'
+                aalcalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalc/P{process_id}'
                 cmd = f'{cmd} {aalcalc_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
 
             if summary.get('ord_output', {}).get('alt_period'):
-                aalcalc_ord_out = f'{work_dir}{runtype}_{ri_inuring_priority}S{summary_set}_summary_palt/P{process_id}'
+                aalcalc_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
 
             if summary.get('aalcalcmeanonly'):
-                aalcalcmeanonly_out = f'{work_dir}{runtype}_{ri_inuring_priority}S{summary_set}_summaryaalcalcmeanonly/P{process_id}'
+                aalcalcmeanonly_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalcmeanonly/P{process_id}'
                 cmd = f'{cmd} {aalcalcmeanonly_out}.bin'
 
             if summary.get('ord_output', {}).get('alt_meanonly'):
-                aalcalcmeanonly_ord_out = f'{work_dir}{runtype}_{ri_inuring_priority}S{summary_set}_summary_altmeanonly/P{process_id}'
+                aalcalcmeanonly_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly/P{process_id}'
                 cmd = f'{cmd} {aalcalcmeanonly_ord_out}.bin'
 
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
             if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
-                leccalc_out = f'{work_dir}{runtype}_{ri_inuring_priority}S{summary_set}_summaryleccalc/P{process_id}'
+                leccalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc/P{process_id}'
                 cmd = f'{cmd} {leccalc_out}.bin'
                 cmd_idx = f'{cmd_idx} {leccalc_out}.idx'
 
@@ -1019,15 +1026,15 @@ def do_ord(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    ri_inuring_priority=None
+    inuring_priority=None
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    if not ri_inuring_priority:
-        ri_inuring_priority = ''
+    if not inuring_priority:
+        inuring_priority = ''
 
     if process_id == 1:
         print_command(filename, '')
@@ -1054,12 +1061,12 @@ def do_ord(
                         else:
                             cmd += f' {flag_proc["csv_flag"]}'
 
-                        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{ri_inuring_priority}S{summary_set}_{ord_table}')
+                        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_table}')
                         if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
-                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{ri_inuring_priority}S{summary_set}_{ord_type}')
+                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
                     if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                         cmd = f'{cmd} > {fifo_out_name}'
@@ -1082,15 +1089,15 @@ def do_any(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    ri_inuring_priority=None
+    inuring_priority=None
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    if not ri_inuring_priority:
-        ri_inuring_priority = ''
+    if not inuring_priority:
+        inuring_priority = ''
 
     if process_id == 1:
         print_command(filename, '')
@@ -1114,8 +1121,8 @@ def do_any(
 
                     process_counter['pid_monitor_count'] += 1
 
-                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{ri_inuring_priority}S{summary_set}_{summary_type}')
-                    fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{ri_inuring_priority}S{summary_set}_{summary_type}')
+                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
+                    fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
                     cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
 
                     if stderr_guard:
@@ -1126,15 +1133,77 @@ def do_any(
                     print_command(filename, cmd)
 
 
-def get_ri_inuring_priorities(analysis_settings):
+def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
     intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
     ri_inuring_priorities = [
-        {'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
-         'level': inuring_priority} for inuring_priority in map(str, intermediate_inuring_priorities)
+        {
+            'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
+            'level': inuring_priority
+        } for inuring_priority in intermediate_inuring_priorities if inuring_priority < num_reinsurance_iterations
     ]
-    ri_inuring_priorities.append({'text': '', 'level': None})   # Final inuring priority
+    ri_inuring_priorities.append({'text': '', 'level': num_reinsurance_iterations})   # Final inuring priority
 
     return ri_inuring_priorities
+
+
+def get_rl_inuring_priorities(num_reinsurance_iterations):
+    rl_inuring_priorities = [
+        {
+            'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
+            'level': inuring_priority
+        } for inuring_priority in range(1, num_reinsurance_iterations + 1)
+    ]
+
+    return rl_inuring_priorities
+
+
+def rl(
+    analysis_settings,
+    max_process_id,
+    filename,
+    process_counter,
+    num_reinsurance_iterations,
+    summarypy,
+    fifo_dir='fifo/',
+    work_dir='work/',
+    stderr_guard=True,
+    process_number=None
+):
+
+    for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        for process_id in process_range(max_process_id, process_number):
+            do_any(
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
+                filename, process_counter, fifo_dir, work_dir, stderr_guard,
+                inuring_priority=inuring_priority['text']
+            )
+
+        for process_id in process_range(max_process_id, process_number):
+            do_ord(
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
+                filename, process_counter, fifo_dir, work_dir, stderr_guard,
+                inuring_priority=inuring_priority['text']
+            )
+
+        for process_id in process_range(max_process_id, process_number):
+            do_tees(
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
+                filename, process_counter, fifo_dir, work_dir,
+                inuring_priority=inuring_priority['text']
+            )
+
+        for process_id in process_range(max_process_id, process_number):
+            do_summarycalcs(
+                summarypy=summarypy,
+                runtype=RUNTYPE_REINSURANCE_GROSS_LOSS,
+                analysis_settings=analysis_settings,
+                process_id=process_id,
+                filename=filename,
+                fifo_dir=fifo_dir,
+                stderr_guard=stderr_guard,
+                num_reinsurance_iterations=num_reinsurance_iterations,
+                inuring_priority=inuring_priority
+            )
 
 
 def ri(
@@ -1150,26 +1219,26 @@ def ri(
     process_number=None
 ):
 
-    for inuring_priority in get_ri_inuring_priorities(analysis_settings):
+    for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
             do_any(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                ri_inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text']
             )
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                ri_inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text']
             )
 
         for process_id in process_range(max_process_id, process_number):
             do_tees(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir,
-                ri_inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text']
             )
 
         # TODO => insert server here
@@ -1184,7 +1253,7 @@ def ri(
                 fifo_dir=fifo_dir,
                 stderr_guard=stderr_guard,
                 num_reinsurance_iterations=num_reinsurance_iterations,
-                ri_inuring_priority=inuring_priority
+                inuring_priority=inuring_priority
             )
 
 
@@ -1485,7 +1554,8 @@ def get_main_cmd_ri_stream(
     fmpy_sort_output=False,
     step_flag='',
     process_counter=None,
-    ri_inuring_priorities=None
+    ri_inuring_priorities=None,
+    rl_inuring_priorities=None
 ):
     """
     Gets the fmcalc ktools command reinsurance stream
@@ -1507,8 +1577,10 @@ def get_main_cmd_ri_stream(
     :type stderr_guard: bool
     :param from_file: must be true if cmd is a file and false if it can be piped
     :type from_file: bool
-    :param ri_inuring_priorities: Inuring priorities where output has been requested
+    :param ri_inuring_priorities: Inuring priorities where net output has been requested
     :type ri_inuring_priorities: dict
+    :param rl_inuring_priorities: Inuring priorities where gross output has been requested
+    :type rl_inuring_priorities: dict
     """
     if from_file:
         main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
@@ -1519,14 +1591,18 @@ def get_main_cmd_ri_stream(
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p RI_{i}"
+        if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
+            main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
+        if i < num_reinsurance_iterations:   # Net output required to process next inuring priority
+            main_cmd += ' -n -'
         if i in ri_inuring_priorities.keys():
-            main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -n - -p RI_{i}"
-            main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
-        else:
-            main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -n -p RI_{i}"
+            if i == num_reinsurance_iterations:   # Final inuring priority always produces net output if ri output requested
+                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
+                main_cmd += f" -n - > {ri_fifo_name}"
+            else:
+                main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
 
-    ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
-    main_cmd += f" > {ri_fifo_name}"
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) &'
 
@@ -1872,17 +1948,19 @@ def bash_params(
 
     # Output depends on being enabled AND having at least one summaries section
     # checking output settings coherence
-    for mod in ['gul', 'il', 'ri']:
+    for mod in ['gul', 'il', 'ri', 'rl']:
         if analysis_settings.get(f'{mod}_output') and not analysis_settings.get(f'{mod}_summaries'):
             logger.warning(f'{mod}_output set to True but there is no {mod}_summaries')
             analysis_settings[f'{mod}_output'] = False
 
-    # additional check for ri, must have num_reinsurance_iterations
-    if analysis_settings.get('ri_output', False) and not num_reinsurance_iterations:
-        logger.warning('ri_output set to True but there is no reinsurance layers')
-        analysis_settings['ri_output'] = False
+    # additional check for ri and rl, must have num_reinsurance_iterations
+    if not num_reinsurance_iterations:
+        for runtype in REINSURANCE_RUNTYPES:
+            if analysis_settings.get(f'{runtype}_output', False):
+                logger.warning(f'{runtype}_output set to True but there are no reinsurance layers')
+                analysis_settings[f'{runtype}_output'] = False
 
-    if not any(analysis_settings.get(f'{mod}_output') for mod in ['gul', 'il', 'ri']):
+    if not any(analysis_settings.get(f'{mod}_output') for mod in ['gul', 'il', 'ri', 'rl']):
         raise OasisException('No valid output settings')
 
     # Get perfecting values from 'analysis_settings' settings)
@@ -1890,8 +1968,9 @@ def bash_params(
     bash_params['gul_output'] = analysis_settings.get('gul_output', False)
     bash_params['il_output'] = analysis_settings.get('il_output', False)
     bash_params['ri_output'] = analysis_settings.get('ri_output', False)
+    bash_params['rl_output'] = analysis_settings.get('rl_output', False)
     bash_params['need_summary_fifo_for_gul'] = bash_params['gul_output'] and (
-        bash_params['il_output'] or bash_params['ri_output']
+        bash_params['il_output'] or bash_params['ri_output'] or bash_params['rl_output']
     )
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
@@ -2005,6 +2084,7 @@ def create_bash_analysis(
     gul_output,
     il_output,
     ri_output,
+    rl_output,
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
@@ -2072,11 +2152,11 @@ def create_bash_analysis(
     print_command(filename, '')
 
     if fmpy:
-        if il_output or ri_output:
+        if il_output or ri_output or rl_output:
             print_command(
                 filename, f'#{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
             )
-        if ri_output:
+        if ri_output or rl_output:
             for i in range(1, num_reinsurance_iterations + 1):
                 print_command(filename, f'#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
@@ -2112,15 +2192,21 @@ def create_bash_analysis(
             )
 
     if ri_output:
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings):
+        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             create_workfolders(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, work_dir,
-                ri_inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text']
             )
         if full_correlation:
             create_workfolders(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings,
                 filename, work_full_correlation_dir
+            )
+    if rl_output:
+        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+            create_workfolders(
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
+                work_dir, inuring_priority=inuring_priority['text']
             )
     print_command(filename, '')
 
@@ -2151,7 +2237,7 @@ def create_bash_analysis(
             do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
             do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number)
         if ri_output:
-            for inuring_priority in get_ri_inuring_priorities(analysis_settings):
+            for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
                 do_fifos_exec(
                     RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
@@ -2160,6 +2246,18 @@ def create_bash_analysis(
                 do_fifos_calc(
                     RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                     filename, fifo_dir, process_number,
+                    consumer_prefix=inuring_priority['text']
+                )
+        if rl_output:
+            for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+                do_fifos_exec(
+                    RUNTYPE_REINSURANCE_GROSS_LOSS, num_fm_output, filename,
+                    fifo_dir, process_number,
+                    consumer=inuring_priority['text'].rstrip('_')
+                )
+                do_fifos_calc(
+                    RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                    num_fm_output, filename, fifo_dir, process_number,
                     consumer_prefix=inuring_priority['text']
                 )
 
@@ -2175,6 +2273,25 @@ def create_bash_analysis(
 
     compute_outputs = []
     for (_fifo_dir, _work_dir) in dirs:  # create Summarycalc
+        if rl_output:
+            rl_computes = {
+                'loss_type': 'reinsurance gross',
+                'compute_fun': rl,
+                'compute_args': {
+                    'analysis_settings': analysis_settings,
+                    'max_process_id': num_fm_output,
+                    'filename': filename,
+                    'process_counter': process_counter,
+                    'summarypy': summarypy,
+                    'num_reinsurance_iterations': num_reinsurance_iterations,
+                    'fifo_dir': _fifo_dir,
+                    'work_dir': _work_dir,
+                    'stderr_guard': stderr_guard,
+                    'process_number': process_number
+                }
+            }
+            compute_outputs.append(rl_computes)
+
         if ri_output:
             ri_computes = {
                 'loss_type': 'reinsurance',
@@ -2377,7 +2494,7 @@ def create_bash_analysis(
                 process_id = i + 1
             #######################################################
 
-            if ri_output:
+            if ri_output or rl_output:
                 main_cmd = get_main_cmd_ri_stream(
                     getmodel_cmd,
                     process_id,
@@ -2393,7 +2510,8 @@ def create_bash_analysis(
                     fmpy_sort_output,
                     step_flag,
                     process_counter=process_counter,
-                    ri_inuring_priorities={int(ip['level']): ip['text'] for ip in get_ri_inuring_priorities(analysis_settings) if ip['level']}
+                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
+                    rl_inuring_priorities={ip['level']: ip['text'] for ip in get_rl_inuring_priorities(num_reinsurance_iterations) if rl_output}
                 )
                 print_command(filename, main_cmd)
 
@@ -2439,7 +2557,9 @@ def create_bash_outputs(
     gul_output,
     il_output,
     ri_output,
+    rl_output,
     analysis_settings,
+    num_reinsurance_iterations,
     num_gul_per_lb,
     num_fm_per_lb,
     max_process_id,
@@ -2465,15 +2585,27 @@ def create_bash_outputs(
         num_gul_output = num_fm_output = max_process_id
 
     # Output Kats
+    if rl_output:
+        print_command(filename, '')
+        print_command(filename, '# --- Do reinsurance gross loss kats ---')
+        print_command(filename, '')
+        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+            do_kats(
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                num_fm_output, filename, process_counter, work_kat_dir,
+                output_dir, kat_sort_by_event,
+                inuring_priority=inuring_priority['text']
+            )
+
     if ri_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss kats ---')
         print_command(filename, '')
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings):
+        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-                ri_inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text']
             )
         if full_correlation:
             print_command(filename, '')
@@ -2534,12 +2666,19 @@ def create_bash_outputs(
 
     # Output calcs
     print_command(filename, '')
+    if rl_output:
+        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+            do_post_wait_processing(
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
+                process_counter, '', output_dir, stderr_guard,
+                inuring_priority=inuring_priority['text']
+            )
     if ri_output:
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings):
+        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                ri_inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text']
             )
     if il_output:
         do_post_wait_processing(
