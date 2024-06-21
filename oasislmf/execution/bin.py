@@ -368,7 +368,7 @@ def get_event_range(event_range):
             rng = er.split('-')
             e_from = int(rng[0])
             e_to = int(rng[1])
-            lst_events.append(range(e_from, e_to + 1))
+            lst_events.extend(range(e_from, e_to + 1))
         else:
             e = int(er)
             lst_events.append(e)
