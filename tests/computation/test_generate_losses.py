@@ -401,7 +401,7 @@ class TestGenLosses(ComputationChecker):
         }
         with self.assertRaises(OasisException) as context:
             self.manager.generate_losses(**call_args)
-        expected_error = "[\'IL\', \'RI\'] are enabled in the analysis_settings without the generated input files"
+        expected_error = "[\'IL\', \'RI\', \'RL\'] are enabled in the analysis_settings without the generated input files"
         self.assertIn(expected_error, str(context.exception))
 
     def test_losses__il_files_missing__output_skipped(self):
@@ -410,7 +410,7 @@ class TestGenLosses(ComputationChecker):
 
         with self._caplog.at_level(logging.WARN):
             self.manager.generate_losses(**self.min_args)
-        expected_warning = "[\'IL\', \'RI\'] are enabled in the analysis_settings without the generated input files"
+        expected_warning = "[\'IL\', \'RI\', \'RL\'] are enabled in the analysis_settings without the generated input files"
         self.assertIn(expected_warning, self._caplog.text)
 
     def test_losses__no_samples_set__expection_raised(self):

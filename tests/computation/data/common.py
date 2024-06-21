@@ -141,6 +141,13 @@ RI_RUN_SETTINGS = {
             "id": 1,
             "eltcalc": True,
         }
+    ],
+    "rl_output": True,
+    "rl_summaries": [
+        {
+            "id": 1,
+            "eltcalc": True,
+        }
     ]
 }
 
