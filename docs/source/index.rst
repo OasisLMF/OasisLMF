@@ -31,6 +31,7 @@ in this process. It includes:
 
    installation
    building-and-running-models
+   options_config_file
 
 Indices and tables
 ==================
