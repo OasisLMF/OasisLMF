@@ -458,7 +458,7 @@ def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, igno
 
         df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
         df_reader_config["engine"]["options"]["storage"] = storage
-        reader = get_df_reader(df_reader_config, filters=[("vulnerability_id", "in", [str(vuln_id) for vuln_id in vuln_dict.keys()])])
+        reader = get_df_reader(df_reader_config, filters=[[('vulnerability_id', '==', vuln_id)] for vuln_id in vuln_dict.keys()])
         df = reader.as_pandas()
         num_damage_bins = meta_data['num_damage_bins']
         vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),
