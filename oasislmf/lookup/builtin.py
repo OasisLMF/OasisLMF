@@ -279,6 +279,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             key_columns += ['amplification_id']
         if 'model_data' in locations.columns:
             key_columns += ['model_data']
+        if 'section_id' in locations.columns:
+            key_columns += ['section_id']
         locations = locations[key_columns]
 
         # check all ids are of the good type
@@ -492,7 +494,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             self.set_id_columns(gdf_loc, id_columns)
 
             # index column are created during the sjoin, we can drop them
-            gdf_loc.drop(columns=['index_right', 'index_left'], errors='ignore')
+            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left'], errors='ignore')
 
             return gdf_loc
 
@@ -619,15 +621,20 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     @staticmethod
     def build_model_data(columns):
         """
-        to do
+        Serialises specified columns from the OED file into a model_data dict
         """
-        tmp_dict = {}
-        for c in columns:
-            tmp_dict[c]="0"
+        lst_model_data = []
         def model_data(locations):
-            locations['model_data'] = str(tmp_dict)
+            # could improve with apply lambda
+            for index,i in locations.iterrows():
+                tmp_dict = {}
+                for col in columns:
+                    tmp_dict[col] = i[col]
+                lst_model_data.append(tmp_dict)
+                
+            locations['model_data'] = lst_model_data
+
             return locations
         
-        return model_data
-            
+        return model_data           
 

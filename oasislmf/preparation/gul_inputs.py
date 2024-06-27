@@ -4,7 +4,8 @@ __all__ = [
     'write_coverages_file',
     'write_gul_input_files',
     'write_items_file',
-    'write_complex_items_file'
+    'write_complex_items_file',
+    'write_sections_file'
 ]
 import copy
 import os
@@ -418,6 +419,8 @@ def get_gul_input_items(
     keyscols = ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id']
     if 'amplification_id' in gul_inputs_df.columns:
         keyscols += ['amplification_id']
+    if 'section_id' in gul_inputs_df.columns:
+        keyscols += ['section_id']  
     usecols = (
         ['loc_id', portfolio_num, acc_num, loc_num] +
         ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
@@ -467,6 +470,29 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
         )
     except (IOError, OSError) as e:
         raise OasisException("Exception raised in 'write_complex_items_file'", e)
+    
+
+@oasis_log
+def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
+    """
+    Writes a section id file based on the input location area perils.
+
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param dynamic_events_fp: events file path to output
+    :type sections_fp: str
+    """
+    try:
+        gul_inputs_df.loc[:, ['section_id']].drop_duplicates().to_csv(
+            path_or_buf=sections_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(sections_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException("Exception raised in 'write_sections_file'", e)
 
 
 @oasis_log
@@ -615,6 +641,11 @@ def write_gul_input_files(
     # prefixes dict
     if 'amplification_id' not in gul_inputs_df:
         oasis_files_prefixes.pop('amplifications', None)
+
+    # If no section IDs then remove corresponding file name from files
+    # prefixes dict
+    if 'section_id' not in gul_inputs_df:
+        oasis_files_prefixes.pop('sections', None)
 
     # A dict of GUL input file names and file paths
     gul_input_files = {

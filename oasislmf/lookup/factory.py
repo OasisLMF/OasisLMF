@@ -211,6 +211,7 @@ class BasicKeyServer:
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID'),
         ('model_data', 'ModelData'),
+        ('section_id', 'section_id'),
     ])
 
     key_success_heading_row = OrderedDict([

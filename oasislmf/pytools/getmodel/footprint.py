@@ -348,7 +348,9 @@ class FootprintParquetDynamic(Footprint):
 
         self.num_intensity_bins = int(meta_data['num_intensity_bins'])
         self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
-        #self.return_periods = meta_data['return_periods']
+
+        self.df_location_sections = pd.read_csv('input/sections.csv')
+        self.location_sections = set(list(self.df_location_sections['section_id']))
 
         return self
     
@@ -369,7 +371,7 @@ class FootprintParquetDynamic(Footprint):
         else:
             intensity = self.from_intensity+((self.to_intensity-self.from_intensity)*self.interpolation)
         return int(round(intensity,0))
-    
+     
     def get_event(self, event_id: int):
         """
         Gets the event data from the partitioned parquet data file.
@@ -381,35 +383,36 @@ class FootprintParquetDynamic(Footprint):
         """
         event_defintion_reader = self.get_df_reader(event_defintion_filename, filters=[("event_id", "==", event_id)])
         df_event_defintion = event_defintion_reader.as_pandas()
-        sections = list(df_event_defintion['section_id'])
+        event_sections = list(df_event_defintion['section_id'])
+        sections = list(set(event_sections) & self.location_sections)
 
-        hazard_case_reader = self.get_df_reader(hazard_case_filename, filters=[("section_id", "in", sections)])
-        df_hazard_case = hazard_case_reader.as_pandas()
+        if len(sections) > 0:
+            hazard_case_reader = self.get_df_reader(hazard_case_filename, filters=[("section_id", "in", sections)])
+            df_hazard_case = hazard_case_reader.as_pandas()
 
-        from_cols = ['areaperil_id','intensity']
-        to_cols = from_cols + ['interpolation']
+            from_cols = ['areaperil_id','intensity']
+            to_cols = from_cols + ['interpolation']
 
-        df_hazard_case_from = df_hazard_case.merge(
-            df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_from'])[from_cols].rename(
-                columns={'intensity': 'from_intensity'})
-        
-        df_hazard_case_to = df_hazard_case.merge(
-            df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_to'])[to_cols].rename(
-                columns={'intensity': 'to_intensity'})
-        
-        df_footprint = df_hazard_case_from.merge(df_hazard_case_to,on='areaperil_id',how='outer')
-        df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
-        
-        if len(df_footprint.index) > 0:
-            df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
-            df_footprint['probability'] = 1
-        else:
-            df_footprint.loc[:,'intensity_bin_id'] = []
-            df_footprint.loc[:,'probability'] = []
+            df_hazard_case_from = df_hazard_case.merge(
+                df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_from'])[from_cols].rename(
+                    columns={'intensity': 'from_intensity'})
+            
+            df_hazard_case_to = df_hazard_case.merge(
+                df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_to'])[to_cols].rename(
+                    columns={'intensity': 'to_intensity'})
+            
+            df_footprint = df_hazard_case_from.merge(df_hazard_case_to,on='areaperil_id',how='outer')
+            df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
+            
+            if len(df_footprint.index) > 0:
+                df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
+                df_footprint['probability'] = 1
+            else:
+                df_footprint.loc[:,'intensity_bin_id'] = []
+                df_footprint.loc[:,'probability'] = []
 
-
-        numpy_data = self.prepare_df_data(data_frame=df_footprint)
-        return numpy_data
+            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id','intensity_bin_id','probability']])
+            return numpy_data
 
 @nb.njit(cache=True)
 def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):

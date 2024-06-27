@@ -202,10 +202,10 @@ def get_intensity_bin_dict(input_path):
              intensity bin dict, with intensity value and bin index
     """
     input_files = set(os.listdir(input_path))
-    intensity_bin_dict = dict()
+    intensity_bin_dict = Dict.empty(nb_int32,nb_int32)
     if "intensity_bin_dict.csv" in input_files:
         logger.debug(f"loading {os.path.join(input_path, 'intensity_bin_dict.csv')}")
-        data = np.loadtxt(os.path.join(input_path, "intensity_bin_dict.csv"), dtype='int32', delimiter=",", skiprows=1, ndmin=1)
+        data = np.loadtxt(os.path.join(input_path, "intensity_bin_dict.csv"), dtype=np.int32, delimiter=",", skiprows=1, ndmin=1)
         for d in data:
             intensity_bin_dict[d[0]]=d[1]
     else:
