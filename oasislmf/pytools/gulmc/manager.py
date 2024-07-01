@@ -511,7 +511,6 @@ def compute_event_losses(event_id,
                          cursor,
                          dynamic_footprint,
                          intensity_bin_dict):
-
     """Compute losses for an event.
 
     Args:
