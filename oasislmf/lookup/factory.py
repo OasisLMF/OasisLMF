@@ -87,10 +87,7 @@ class KeyServerFactory(object):
     @classmethod
     def update_deprecated_args(cls, config_dir, config,
                                complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
-        if (complex_lookup_config_fp
-                or model_keys_data_path
-                or model_version_file_path
-                or lookup_module_path):
+        if (complex_lookup_config_fp or model_keys_data_path or model_version_file_path or lookup_module_path):
             warnings.warn('usage of complex_lookup_config_fp, model_keys_data_path, '
                           'model_version_file_path and lookup_module_path is now deprecated'
                           'those variables now need to be set in lookup config see (key server documentation)')

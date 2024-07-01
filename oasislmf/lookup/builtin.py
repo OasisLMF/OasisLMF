@@ -617,24 +617,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
 
         return simple_pivot
-    
+
     @staticmethod
     def build_model_data(columns):
         """
         Serialises specified columns from the OED file into a model_data dict
         """
         lst_model_data = []
+
         def model_data(locations):
             # could improve with apply lambda
-            for index,i in locations.iterrows():
+            for index, i in locations.iterrows():
                 tmp_dict = {}
                 for col in columns:
                     tmp_dict[col] = i[col]
                 lst_model_data.append(tmp_dict)
-                
+
             locations['model_data'] = lst_model_data
 
             return locations
-        
-        return model_data           
 
+        return model_data
