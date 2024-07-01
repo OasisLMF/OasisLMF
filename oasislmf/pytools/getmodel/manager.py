@@ -273,7 +273,7 @@ def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
         vuln_id = vuln_idx['vulnerability_id']
 
         # Check if current vulnerability id is in the adjustment data
-        while adj_vuln_data is not None and adj_vuln_index < len(adj_vuln_data) and adj_vuln_data[adj_vuln_index]['vulnerability_id'] < vuln_id: 
+        while adj_vuln_data is not None and adj_vuln_index < len(adj_vuln_data) and adj_vuln_data[adj_vuln_index]['vulnerability_id'] < vuln_id:
             adj_vuln_index += 1
 
         if vuln_id in vuln_dict:
