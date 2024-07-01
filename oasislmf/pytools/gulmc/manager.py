@@ -336,7 +336,7 @@ def run(run_dir,
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
         # if dynamic_footprint:
-        intensity_bin_dict = get_intensity_bin_dict('static')
+        intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         # to do - intensity adjustment
         # intensity_adjustment = get_intensity_adjustment()
 
