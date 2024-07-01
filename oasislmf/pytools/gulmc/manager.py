@@ -338,7 +338,8 @@ def run(run_dir,
         if dynamic_footprint:
             intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
-            intensity_bin_dict = {}
+            data = np.empty([1, 2], dtype=np.int32)
+            intensity_bin_dict = dict(data)
         # to do - intensity adjustment
         # intensity_adjustment = get_intensity_adjustment()
 
