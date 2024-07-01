@@ -335,10 +335,10 @@ def run(run_dir,
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
-        #if dynamic_footprint:
+        # if dynamic_footprint:
         intensity_bin_dict = get_intensity_bin_dict('static')
-            #to do - intensity adjustment
-            #intensity_adjustment = get_intensity_adjustment()
+        # to do - intensity adjustment
+        # intensity_adjustment = get_intensity_adjustment()
 
         while True:
             if not streams_in.readinto(event_id_mv):
@@ -450,7 +450,7 @@ def run(run_dir,
                         cursor,
                         dynamic_footprint,
                         intensity_bin_dict
-                        )
+                    )
 
                     # write the losses to the output stream
                     write_start = 0
