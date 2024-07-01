@@ -17,7 +17,7 @@ class {class_name}:
     """
     Example of custom module called by oasislmf/model_preparation/PostAnalysis.py
     """
-    def __init__(self, model_run_dir=None, model_data_dir=None, analysis_settings_json=None):
+    def __init__(self, model_run_dir=None, model_data_dir=None, analysis_settings_json=None, **kwargs):
         self.model_run_dir = Path(model_run_dir)
         self.model_data_dir = Path(model_data_dir)
         self.analysis_settings_json = Path(analysis_settings_json) if analysis_settings_json else None
