@@ -21,7 +21,7 @@ from numba.typed import Dict
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common import PIPE_CAPACITY
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
@@ -483,7 +483,7 @@ def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, igno
 
         df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
         df_reader_config["engine"]["options"]["storage"] = storage
-        reader = get_df_reader(df_reader_config, filters=[("vulnerability_id", "in", [str(vuln_id) for vuln_id in vuln_dict.keys()])])
+        reader = get_df_reader(df_reader_config, filters=[[('vulnerability_id', '==', vuln_id)] for vuln_id in vuln_dict.keys()])
         df = reader.as_pandas()
         num_damage_bins = meta_data['num_damage_bins']
         vuln_array = np.vstack(df['vuln_array'].to_numpy()).reshape(len(df['vuln_array']),

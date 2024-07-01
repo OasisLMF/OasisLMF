@@ -17,23 +17,26 @@ import subprocess
 import sys
 import warnings
 from collections import OrderedDict
-from itertools import product
 from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
 import pandas as pd
+import numpy as np
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasis_data_manager.filestore.backends.local import LocalStorage
+
 from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
 
 from ...execution import bash, runner
-from ...execution.bash import get_fmcmd
+from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
-from ...utils.data import (fast_zip_dataframe_columns, get_dataframe, get_exposure_data, get_json,
+from oasislmf.pytools.summary.manager import create_summary_object_file
+from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
                                KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
@@ -194,6 +197,8 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
+            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'check_missing_inputs', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
 
@@ -201,6 +206,21 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'verbose', 'default': KTOOLS_DEBUG},
 
     ]
+
+    def _get_storage_manager(self):
+        model_storage = get_storage_from_config_path(
+            self.model_storage_json,
+            os.path.join(self.model_run_dir, "static"),
+        )
+
+        # if not local test the connection to remote storage FS
+        if not isinstance(model_storage, LocalStorage):
+            try:
+                model_storage.listdir()
+            except Exception as e:
+                raise OasisException('Error: Storage Manager connection issue', e)
+
+        return model_storage
 
     def __check_for_parquet_output(self, analysis_settings, runtypes):
         """
@@ -223,15 +243,27 @@ class GenerateLossesDir(GenerateLossesBase):
                         )
                     return  # Only need to find a single request
 
+    def __check_summary_group_support(self, analysis_settings, runtypes):
+        """
+        Private method to check the max number of summary groups selected.
+        If that value is greater than 9 then ktools 'summarycalc' will crash.
+
+        Stop execution if the summarypy flag is not set as True.
+        """
+        for runtype in runtypes:
+            summary_num = len(analysis_settings.get(f'{runtype}_summaries', []))
+            if summary_num > 9 and not self.summarypy:
+                raise OasisException(
+                    'More than 9 summaries groups are not supported in summarycalc.'
+                    f'\nEither enable summarypy or reduce the number of groups set in "{runtype}_summaries".'
+                    '\nThis can be set using the flag "--summarypy True", or by setting `"summarypy": True` in the oasislmf.json file.'
+                )
+
     def run(self):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
         analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
-
-        model_storage = get_storage_from_config_path(
-            self.model_storage_json,
-            os.path.join(self.model_run_dir, "static"),
-        )
+        model_storage = self._get_storage_manager()
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
             'fm_policytc.csv',
@@ -262,6 +294,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
         self.__check_for_parquet_output(analysis_settings, runtypes)
+        self.__check_summary_group_support(analysis_settings, runtypes)
 
         prepare_run_directory(
             model_run_fp,
@@ -342,6 +375,20 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
 
+        if self.summarypy:
+            for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
+                if analysis_settings.get(f'{runtype}_output'):
+                    summaries = analysis_settings.get('{}_summaries'.format(runtype), [])
+                    summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
+                    if summary_sets_id.shape[0]:
+                        if runtype == RUNTYPE_REINSURANCE_LOSS:
+                            summary_dirs = [os.path.join(self.model_run_dir, ri_sub_dir) for ri_sub_dir in ri_dirs]
+                        else:
+                            summary_dirs = [os.path.join(self.model_run_dir, 'input')]
+                        for summary_dir in summary_dirs:
+                            self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
+                            create_summary_object_file(summary_dir, runtype)
+
         self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
         return analysis_settings
 
@@ -387,6 +434,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
+            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
@@ -449,6 +498,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
             peril_filter=self._get_peril_filter(self.analysis_settings),
+            summarypy=self.summarypy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
         )
@@ -600,6 +650,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
+        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
+            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -651,6 +703,7 @@ class GenerateLosses(GenerateLossesDir):
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(analysis_settings),
+                        summarypy=self.summarypy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                     )
                 except TypeError:
@@ -782,28 +835,15 @@ class GenerateLossesDeterministic(ComputationStep):
             KTOOLS_TIV_SAMPLE_IDX: 1.
         }
 
-        guls_items = [
-            OrderedDict({
-                'event_id': 1,
-                'item_id': item_id,
-                'sidx': sidx,
-                'loss':
-                    (tiv * special_loss_factors[sidx]) if sidx < 0
-                    else (tiv * self.loss_factor[sidx - 1])
-            })
-            for (item_id, tiv), sidx in product(
-                fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
-            )
-        ]
+        loss_factor_map = {**special_loss_factors, **{i + 1: val for i, val in enumerate(self.loss_factor)}}
 
-        guls = get_dataframe(
-            src_data=guls_items,
-            col_dtypes={
-                'event_id': int,
-                'item_id': int,
-                'sidx': int,
-                'loss': float},
-            lowercase_cols=False)
+        guls = items[['item_id', 'tiv']].join(pd.DataFrame({'sidx': gulcalc_sidxs}, dtype='int64'), how='cross').assign(event_id=1)
+        guls['loss'] = guls['sidx'].map(loss_factor_map) * guls['tiv']
+        guls = guls.astype({
+            'event_id': int,
+            'item_id': int,
+            'sidx': int,
+            'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 

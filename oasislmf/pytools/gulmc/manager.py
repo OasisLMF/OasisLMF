@@ -16,15 +16,15 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common import PIPE_CAPACITY, nb_areaperil_int, oasis_float
+from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float
+from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import (get_damage_bins, get_vulns, get_vuln_rngadj_dict, 
-                                               convert_vuln_id_to_index, get_intensity_bin_dict)
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict, convert_vuln_id_to_index, get_intensity_bin_dict
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
-from oasislmf.pytools.gul.manager import get_coverages, write_losses
+from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval, get_random_generator)
@@ -35,9 +35,9 @@ from oasislmf.pytools.gulmc.aggregate import (
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights)
 from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
-                                           AREAPERIL_TO_EFF_VULN_VALUE_TYPE, CHANCE_OF_LOSS_IDX,
-                                           MAX_LOSS_IDX, MEAN_IDX, NP_BASE_ARRAY_SIZE, NUM_IDX,
-                                           STD_DEV_IDX, TIV_IDX, Item, Keys,
+                                           AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
+                                           NP_BASE_ARRAY_SIZE,
+                                           Item, Keys,
                                            NormInversionParameters, coverage_type, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
                                            haz_cdf_type, items_MC_data_type)
@@ -226,7 +226,7 @@ def run(run_dir,
 
         logger.debug('import vulnerabilities')
         vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
-        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
 
@@ -252,7 +252,6 @@ def run(run_dir,
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
         cursor = 0
-        cursor_bytes = 0
 
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
@@ -315,12 +314,13 @@ def run(run_dir,
                         "sample the hazard intensity first, then sample the damage from the corresponding vulnerability function.")
 
         # create buffers to be reused when computing losses
+        byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
         vuln_cdf_empty = np.zeros(Ndamage_bins_max, dtype=oasis_float)
         weighted_vuln_cdf_empty = np.zeros(Ndamage_bins_max, dtype=oasis_float)
 
         # maximum bytes to be written in the output stream for 1 item
-        max_bytes_per_item = (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size + 2 * gulSampleslevelHeader_size
+        max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
 
         # define vulnerability cdf cache size
         max_cached_vuln_cdf_size_bytes = max_cached_vuln_cdf_size_MB * 1024 * 1024  # cahce size in bytes
@@ -395,15 +395,7 @@ def run(run_dir,
 
                 last_processed_coverage_ids_idx = 0
 
-                # adjust buff size so that the buffer fits the longest coverage
-                buff_size = PIPE_CAPACITY
-                max_bytes_per_coverage = np.max(coverages['cur_items']) * max_bytes_per_item
-                while buff_size < max_bytes_per_coverage:
-                    buff_size *= 2
-
-                # define the raw memory view and its int32 view
-                mv_write = memoryview(bytearray(buff_size))
-                int32_mv = np.ndarray(buff_size // 4, buffer=mv_write, dtype='i4')
+                byte_mv = adjust_byte_mv_size(byte_mv, np.max(coverages['cur_items']) * max_bytes_per_item)
 
                 # create vulnerability cdf cache
                 cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
@@ -454,8 +446,7 @@ def run(run_dir,
                         effective_damageability,
                         debug,
                         max_bytes_per_item,
-                        buff_size,
-                        int32_mv,
+                        byte_mv,
                         cursor,
                         dynamic_footprint,
                         intensity_bin_dict
@@ -463,9 +454,9 @@ def run(run_dir,
 
                     # write the losses to the output stream
                     write_start = 0
-                    while write_start < cursor_bytes:
+                    while write_start < cursor:
                         select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(mv_write[write_start:cursor_bytes])
+                        write_start += stream_out.write(byte_mv[write_start:cursor].tobytes())
 
                     cursor = 0
 
@@ -517,8 +508,10 @@ def compute_event_losses(event_id,
                          debug,
                          max_bytes_per_item,
                          byte_mv,
+                         cursor,
                          dynamic_footprint,
                          intensity_bin_dict):
+
     """Compute losses for an event.
 
     Args:
@@ -572,15 +565,14 @@ def compute_event_losses(event_id,
         debug (int): for each random sample, print to the output stream the random loss (if 0),
           the random value used to draw the hazard intensity sample (if 1), the random value used to draw the damage sample (if 2).
         max_bytes_per_item (int): maximum bytes to be written in the output stream for an item.
-        buff_size (int): size in bytes of the output buffer.
-        int32_mv (numpy.ndarray): int32 view of the memoryview where the output is buffered.
-        cursor (int): index of int32_mv where to start writing.
+        byte_mv (numpy.array): byte view of where the output is buffered.
+        cursor (int): index of byte_mv where to start writing.
 
     Returns:
-        cursor (int): index of int32_mv where to start writing.
-        cursor_bytes (int): updated value of cursor_bytes, the cursor location in bytes.
+        cursor (int): index of byte_mv where to data has been written.
         last_processed_coverage_ids_idx (int): index of the last coverage_id stored in `coverage_ids` that was fully processed
           and printed to the output stream.
+        next_cached_vuln_cdf (int): index of the next free slot in the vuln cdf cache.
     """
     # loop through all the coverages that remain to be computed
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
@@ -591,13 +583,12 @@ def compute_event_losses(event_id,
 
         # estimate max number of bytes needed to output this coverage
         # conservatively assume all random samples are printed (losses>loss_threshold)
-        cursor_bytes = cursor * int32_mv.itemsize
         est_cursor_bytes = Nitems * max_bytes_per_item
 
         # return before processing this coverage if the number of free bytes left in the buffer
         # is not sufficient to write out the full coverage
-        if cursor_bytes + est_cursor_bytes > buff_size:
-            return cursor, cursor_bytes, last_processed_coverage_ids_idx, next_cached_vuln_cdf
+        if cursor + est_cursor_bytes > byte_mv.shape[0]:
+            return cursor, last_processed_coverage_ids_idx, next_cached_vuln_cdf
 
         # compute losses for each item
         for item_j in range(Nitems):
@@ -987,17 +978,13 @@ def compute_event_losses(event_id,
                               items_event_data[coverage['start_items']: coverage['start_items'] + Nitems]['item_id'],
                               alloc_rule,
                               tiv,
-                              int32_mv,
+                              byte_mv,
                               cursor)
 
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    # update cursor_bytes
-    cursor_bytes = cursor * int32_mv.itemsize
-
     return (cursor,
-            cursor_bytes,
             last_processed_coverage_ids_idx,
             next_cached_vuln_cdf)
 

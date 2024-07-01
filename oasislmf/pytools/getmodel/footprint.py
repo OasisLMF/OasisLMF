@@ -85,7 +85,6 @@ class Footprint:
 
         return priorities
 
-
     @classmethod
     def load(
         cls,
