@@ -16,7 +16,7 @@ import numba as nb
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,Event_defintion,Hazard_case,
+from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
                      event_defintion_filename, hazard_case_filename, fp_format_priorities)
@@ -68,7 +68,6 @@ class Footprint:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
 
-
     @staticmethod
     def get_footprint_fmt_priorities():
         """
@@ -119,8 +118,7 @@ class Footprint:
         """
         for footprint_class in cls.get_footprint_fmt_priorities():
             for filename in footprint_class.footprint_filenames:
-                if (not storage.exists(filename)
-                        or filename.rsplit('.', 1)[-1] in ignore_file_type):
+                if (not storage.exists(filename) or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
                     break
             else:
@@ -340,6 +338,7 @@ class FootprintParquet(Footprint):
         numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
         return numpy_data
 
+
 class FootprintParquetDynamic(Footprint):
     """
     This class is responsible for loading event data from parquet dynamic event sets and maps
@@ -363,7 +362,7 @@ class FootprintParquetDynamic(Footprint):
         self.location_sections = set(list(self.df_location_sections['section_id']))
 
         return self
-    
+
     def interpolate_intensity(self, row):
         """
         Gets the interpolated intensity value when the event RP is between those in the model.
@@ -379,9 +378,9 @@ class FootprintParquetDynamic(Footprint):
         if self.from_intensity == self.to_intensity:
             intensity = self.from_intensity
         else:
-            intensity = self.from_intensity+((self.to_intensity-self.from_intensity)*self.interpolation)
-        return int(round(intensity,0))
-     
+            intensity = self.from_intensity + ((self.to_intensity - self.from_intensity) * self.interpolation)
+        return int(round(intensity, 0))
+
     def get_event(self, event_id: int):
         """
         Gets the event data from the partitioned parquet data file.
@@ -400,29 +399,30 @@ class FootprintParquetDynamic(Footprint):
             hazard_case_reader = self.get_df_reader(hazard_case_filename, filters=[("section_id", "in", sections)])
             df_hazard_case = hazard_case_reader.as_pandas()
 
-            from_cols = ['areaperil_id','intensity']
+            from_cols = ['areaperil_id', 'intensity']
             to_cols = from_cols + ['interpolation']
 
             df_hazard_case_from = df_hazard_case.merge(
-                df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_from'])[from_cols].rename(
+                df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from'])[from_cols].rename(
                     columns={'intensity': 'from_intensity'})
-            
+
             df_hazard_case_to = df_hazard_case.merge(
-                df_event_defintion,left_on=['section_id','return_period'],right_on=['section_id','rp_to'])[to_cols].rename(
+                df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to'])[to_cols].rename(
                     columns={'intensity': 'to_intensity'})
-            
-            df_footprint = df_hazard_case_from.merge(df_hazard_case_to,on='areaperil_id',how='outer')
+
+            df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on='areaperil_id', how='outer')
             df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
-            
+
             if len(df_footprint.index) > 0:
                 df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
                 df_footprint['probability'] = 1
             else:
-                df_footprint.loc[:,'intensity_bin_id'] = []
-                df_footprint.loc[:,'probability'] = []
+                df_footprint.loc[:, 'intensity_bin_id'] = []
+                df_footprint.loc[:, 'probability'] = []
 
-            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id','intensity_bin_id','probability']])
+            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id', 'intensity_bin_id', 'probability']])
             return numpy_data
+
 
 @nb.njit(cache=True)
 def stitch_data(areaperil_id, intensity_bin_id, probability, buffer):

@@ -276,7 +276,7 @@ def get_gul_input_items(
 
     # If the keys file relates to a complex/custom model then look for a
     # ``modeldata`` column in the keys file, and ignore the area peril
-    # and vulnerability ID columns, unless it's the dynamic model generator which 
+    # and vulnerability ID columns, unless it's the dynamic model generator which
     # uses them
     if 'model_data' in keys_df and 'areaperil_id' not in keys_df and 'vulnerbaility_id' not in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
@@ -427,7 +427,7 @@ def get_gul_input_items(
     if 'amplification_id' in gul_inputs_df.columns:
         keyscols += ['amplification_id']
     if 'section_id' in gul_inputs_df.columns:
-        keyscols += ['section_id']  
+        keyscols += ['section_id']
     usecols = (
         ['loc_id', portfolio_num, acc_num, loc_num] +
         ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
@@ -477,7 +477,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
         )
     except (IOError, OSError) as e:
         raise OasisException("Exception raised in 'write_complex_items_file'", e)
-    
+
 
 @oasis_log
 def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
