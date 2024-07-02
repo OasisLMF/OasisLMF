@@ -42,6 +42,10 @@ ROOT_PATH = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pard
 
 sys.path.append(ROOT_PATH)
 from oasislmf import __version__  # noqa
+from oasislmf.cli.model import RunCmd
+from oasislmf.computation.run.model import RunModel
+from oasislmf.computation.run.exposure import RunExposure
+from oasislmf.computation.run.platform import PlatformBase, PlatformRun
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -252,6 +256,89 @@ epub_exclude_files = ['search.html']
 intersphinx_mapping = {'python': ('https://docs.python.org/', None)}
 
 
+def list_options():
+    # Get params from RunCmd
+    cmd_opts = RunCmd().arg_parser._actions
+    cmd_opts.pop(0)
+
+    # Retrieve params from all other relevant subcommands
+    runmodel_info = RunModel.get_params()
+    runexposure_info = RunExposure.get_params()
+    platformbase_info = PlatformBase.get_params()
+    platformrun_info = PlatformRun.get_params()
+
+    # Populate a dictionary with all the params from subcommands
+    all_params = {param['name']: param for param in runmodel_info}
+    all_params.update({param['name']: param for param in runexposure_info})
+    all_params.update({param['name']: param for param in platformbase_info})
+    all_params.update({param['name']: param for param in platformrun_info})
+
+    rst_output = []
+
+    # Create a dictionary from cmd_opts
+    cmd_opts_dict = {}
+    for opt in cmd_opts:
+        param_name = opt.dest
+        expected_type = opt.type if opt.type else 'string'
+        cmd_opts_dict[param_name] = {
+            'help': opt.help,
+            'default': opt.default,
+            'expected_type': expected_type,
+            'option_strings': opt.option_strings
+        }
+
+    # Update cmd_opts with details from subcommand params
+    for param_name, param_entry in all_params.items():
+        if param_name in cmd_opts_dict:
+            cmd_opt = cmd_opts_dict[param_name]
+            if cmd_opt['default'] is None and 'default' in param_entry:
+                cmd_opt['default'] = param_entry['default']
+            if 'type' in param_entry:
+                cmd_opt['expected_type'] = param_entry['type']
+            if param_entry.get('is_path', False):
+                cmd_opt['expected_type'] = "path"
+        else:
+            cmd_opts_dict[param_name] = {
+                'help': param_entry.get('help', ''),
+                'default': param_entry.get('default', None),
+                'expected_type': param_entry.get('type', 'string'),
+                'option_strings': []
+            }
+            if param_entry.get('is_path', False):
+                cmd_opts_dict[param_name]['expected_type'] = "path"
+
+    # Remove options that are exclusively passed as data during execution
+    cmd_opts_dict = {k: v for k, v in cmd_opts_dict.items() if k not in ['profile_loc', 'profile_acc', 'profile_fm_agg']}
+
+    # Reformat expected_type
+    for cmd_opt in cmd_opts_dict.values():
+        expected_type_str = str(cmd_opt['expected_type'])
+        if "<function str2bool at" in expected_type_str:
+            cmd_opt['expected_type'] = "boolean (yes/no, true/false t/f, y/n, or 1/0)"
+        elif "<oasislmf.utils.path.PathCleaner" in expected_type_str:
+            cmd_opt['expected_type'] = "path"
+        elif "<class 'int'>" in expected_type_str:
+            cmd_opt['expected_type'] = "integer"
+
+    # Generate RST output
+    rst_output = []
+    for param_name, cmd_opt in cmd_opts_dict.items():
+        rst_output.extend([
+            f'{param_name}',
+            '=' * len(param_name),
+            '',
+            f'Description: {cmd_opt["help"]}',
+            '',
+            f'Expected type: {cmd_opt["expected_type"]}',
+            '',
+            f'Default value: ``{cmd_opt["default"]}``',
+            '',
+        ])
+
+    with open('./source/generated_options.rst', 'w') as f:
+        f.write('\n'.join(rst_output))
+
+
 class CliDocumenter(autodoc.ClassDocumenter):
     objtype = "cli"
 
@@ -265,3 +352,4 @@ class CliDocumenter(autodoc.ClassDocumenter):
 
 def setup(app):
     app.add_autodocumenter(CliDocumenter)
+    list_options()

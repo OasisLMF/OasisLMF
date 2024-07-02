@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from ..base import ComputationStep
 from ..generate.losses import GenerateLosses
+from ..hooks.pre_loss import PreLoss
 from ..hooks.post_analysis import PostAnalysis
 
 
@@ -17,11 +18,14 @@ class GenerateOasisLosses(ComputationStep):
 
     # Override params
     step_params = [
+        {'name': 'pre_loss_module', 'required': False, 'is_path': True, 'pre_exist': True,
+         'help': 'Pre-Loss module path'},
         {'name': 'post_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True,
          'help': 'Post-Analysis module path'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
+        PreLoss,
         GenerateLosses,
         PostAnalysis,
     ]
@@ -34,7 +38,11 @@ class GenerateOasisLosses(ComputationStep):
         self.kwargs['model_run_dir'] = self.model_run_dir
 
         # Run chain
-        cmds = [(GenerateLosses, self.kwargs)]
+        if self.pre_loss_module:
+            cmds = [(PreLoss, self.kwargs)]
+        else:
+            cmds = []
+        cmds += [(GenerateLosses, self.kwargs)]
         if self.post_analysis_module:
             cmds += [(PostAnalysis, self.kwargs)]
 

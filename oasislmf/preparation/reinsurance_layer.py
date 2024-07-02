@@ -98,13 +98,13 @@ FM_TERMS_PER_REINS_TYPE = {
             'share3': {'default': 1.},
         },
         PROGRAM_LEVEL_ID: {
-            'calcrule_id': {'default': oed.CALCRULE_ID_OCCURRENCE_LIMIT_AND_SHARE},
+            'calcrule_id': {'default': oed.CALCRULE_ID_OCCURRENCE_CATASTROPHE_EXCESS_OF_LOSS},
             'deductible1': {'default': 0.},
             'deductible2': {'default': 0.},
             'deductible3': {'default': 0.},
-            'attachment': {'default': 0.},
+            'attachment': {'oed_col': 'OccAttachment', 'default': 0.},
             'limit': {'oed_col': 'OccLimit', 'default': oed.LARGE_VALUE, 'to_default': [0.]},
-            'share1': {'default': 0.},
+            'share1': {'default': 1.},
             'share2': {'oed_col': 'PlacedPercent', 'default': 1.},
             'share3': {'default': 1.},
         }

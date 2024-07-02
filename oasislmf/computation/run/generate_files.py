@@ -10,6 +10,7 @@ from tqdm import tqdm
 from ..base import ComputationStep
 from ..generate.files import GenerateFiles
 from ..hooks.pre_analysis import ExposurePreAnalysis
+from ..hooks.post_file_gen import PostFileGen
 from ...utils.data import get_exposure_data
 
 
@@ -22,9 +23,12 @@ class GenerateOasisFiles(ComputationStep):
     step_params = [
         {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True,
             'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+        {'name': 'post_file_gen_module', 'required': False, 'is_path': True,
+         'pre_exist': True, 'help': 'post-file gen hook module path'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
+        PostFileGen,
         GenerateFiles,
         ExposurePreAnalysis,
     ]
@@ -63,6 +67,9 @@ class GenerateOasisFiles(ComputationStep):
             cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateFiles, self.kwargs)]
         else:
             cmds = [(GenerateFiles, self.kwargs)]
+
+        if self.post_file_gen_module:
+            cmds += [(PostFileGen, self.kwargs)]
 
         with tqdm(total=len(cmds)) as pbar:
             for cmd in cmds:

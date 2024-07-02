@@ -21,6 +21,7 @@ class TestGenerateFiles(ComputationChecker):
         cls.default_args = cls.manager._params_generate_oasis_files()
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
+        cls.post_file_gen_args = cls.manager._params_post_file_gen()
 
     def setUp(self):
         # Tempfiles
@@ -42,6 +43,7 @@ class TestGenerateFiles(ComputationChecker):
         expt_combined_args = self.combine_args([
             self.pre_hook_args,
             self.gen_files_args,
+            self.post_file_gen_args
         ])
         self.assertEqual(expt_combined_args, self.default_args)
 

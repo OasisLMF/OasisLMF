@@ -1,6 +1,8 @@
 __all__ = [
     'GenerateExposurePreAnalysisCmd',
     'GenerateKeysCmd',
+    'GeneratePostFileGenCmd',
+    'GeneratePrelossCmd',
     'GenerateLossesCmd',
     'GenerateLossesPartialCmd',
     'GenerateLossesOutputCmd',
@@ -21,6 +23,24 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'ExposurePreAnalysis'
+
+
+class GeneratePostFileGenCmd(OasisComputationCommand):
+    """
+    Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
+    see ExposurePreAnalysis for more detail
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PostFileGen'
+
+
+class GeneratePrelossCmd(OasisComputationCommand):
+    """
+    Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
+    see ExposurePreAnalysis for more detail
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'PreLoss'
 
 
 class GenerateKeysCmd(OasisComputationCommand):
@@ -101,6 +121,8 @@ class ModelCmd(OasisBaseCommand):
         'generate-exposure-pre-analysis': GenerateExposurePreAnalysisCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
+        'generate-post-file-gen': GeneratePostFileGenCmd,
+        'generate-pre-loss': GeneratePrelossCmd,
         'generate-losses': GenerateLossesCmd,
         'generate-losses-chunk': GenerateLossesPartialCmd,
         'generate-losses-output': GenerateLossesOutputCmd,

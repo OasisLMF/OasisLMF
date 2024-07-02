@@ -87,10 +87,7 @@ class KeyServerFactory(object):
     @classmethod
     def update_deprecated_args(cls, config_dir, config,
                                complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
-        if (complex_lookup_config_fp
-                or model_keys_data_path
-                or model_version_file_path
-                or lookup_module_path):
+        if (complex_lookup_config_fp or model_keys_data_path or model_version_file_path or lookup_module_path):
             warnings.warn('usage of complex_lookup_config_fp, model_keys_data_path, '
                           'model_version_file_path and lookup_module_path is now deprecated'
                           'those variables now need to be set in lookup config see (key server documentation)')
@@ -202,6 +199,16 @@ class BasicKeyServer:
         ('peril_id', 'PerilID'),
         ('coverage_type', 'CoverageTypeID'),
         ('model_data', 'ModelData'),
+    ])
+
+    dynamic_model_data_heading_row = OrderedDict([
+        ('loc_id', 'LocID'),
+        ('peril_id', 'PerilID'),
+        ('coverage_type', 'CoverageTypeID'),
+        ('area_peril_id', 'AreaPerilID'),
+        ('vulnerability_id', 'VulnerabilityID'),
+        ('model_data', 'ModelData'),
+        ('section_id', 'section_id'),
     ])
 
     key_success_heading_row = OrderedDict([
@@ -389,7 +396,10 @@ class BasicKeyServer:
                 yield res
 
     def get_success_heading_row(self, keys, keys_success_msg):
-        if 'model_data' in keys:
+
+        if 'model_data' in keys and 'area_peril_id' in keys and 'vulnerability_id' in keys:
+            return self.dynamic_model_data_heading_row
+        elif 'model_data' in keys:
             return self.model_data_heading_row
         elif keys_success_msg:
             if 'amplification_id' in keys:

@@ -353,6 +353,29 @@ def _leccalc_selected(analysis_settings):
     return any([is_in_gul, is_in_il, is_in_ri])
 
 
+def get_event_range(event_range):
+    """
+    Parses event range string and returns a list of event ids.
+
+    :param event_range: string representation of event range in format '1-5,10,89-100'
+    :type event_range: str
+    """
+    lst_event_range = event_range.split(",")
+    lst_events = []
+
+    for er in lst_event_range:
+        if '-' in er:
+            rng = er.split('-')
+            e_from = int(rng[0])
+            e_to = int(rng[1])
+            lst_events.extend(range(e_from, e_to + 1))
+        else:
+            e = int(er)
+            lst_events.append(e)
+
+    return (lst_events)
+
+
 @oasis_log
 def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, ri=False):
     """
@@ -367,9 +390,16 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
     try:
         model_settings = analysis_settings.get('model_settings', {})
         # Prepare events.bin
-        if analysis_settings.get('event_ids'):
+        if analysis_settings.get('event_ids') or analysis_settings.get('event_ranges'):
             # Create events file from user input
-            _create_events_bin(run_dir, analysis_settings.get('event_ids'))
+            event_ids = []
+            if analysis_settings.get('event_ids'):
+                event_ids.extend(analysis_settings.get('event_ids'))
+            if analysis_settings.get('event_ranges'):
+                event_range = get_event_range(analysis_settings.get('event_ranges'))
+                event_ids.extend(event_range)
+            event_ids = list(set(event_ids))
+            _create_events_bin(run_dir, event_ids)
         else:
             # copy selected event set from static
             _prepare_input_bin(run_dir, 'events', model_settings, model_storage, setting_key='event_set', ri=ri)
