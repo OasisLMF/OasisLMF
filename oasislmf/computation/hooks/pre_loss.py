@@ -43,6 +43,8 @@ class PreLoss(ComputationStep):
                    {'name': 'model_data_dir', 'flag': '-d', 'is_path': True, 'pre_exist': True, 'help': 'Model data directory path'},
                    {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True,
                     'help': 'Analysis settings JSON file path'},
+                   {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
+                    'help': 'Directory containing additional model data files which varies between analysis runs'},
                    ]
 
     run_dir_key = 'pre-loss'
@@ -81,6 +83,7 @@ class PreLoss(ComputationStep):
         kwargs['input_dir'] = input_dir
         kwargs['model_data_dir'] = self.model_data_dir
         kwargs['analysis_settings_json'] = self.analysis_settings_json
+        kwargs['user_data_dir'] = self.user_data_dir
         kwargs['logger'] = self.logger
 
         if self.pre_loss_setting_json:
