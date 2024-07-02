@@ -191,6 +191,34 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
     return load_items(items, valid_area_peril_id)
 
 
+def get_intensity_bin_dict(input_path):
+    """
+    Loads the intensity bin dictionary file and creates a dictionary to map intensities to bins
+    Used in the dynamic footprint generation as intensitys can be adjusted for defences at runtime
+
+    Args:
+        input_path: (str) the path pointing to the file
+
+    Returns: (Dict[int, int])
+             intensity bin dict, with intensity value and bin index
+    """
+    input_files = set(os.listdir(input_path))
+    intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
+    if "intensity_bin_dict.csv" in input_files:
+        logger.debug(f"loading {os.path.join(input_path, 'intensity_bin_dict.csv')}")
+        data = np.loadtxt(os.path.join(input_path, "intensity_bin_dict.csv"), dtype=np.int32, delimiter=",", skiprows=1, ndmin=1)
+        for d in data:
+            intensity_bin_dict[d[0]] = d[1]
+    else:
+        raise FileNotFoundError(f'intensity_bin_dict file not found at {input_path}')
+
+    return intensity_bin_dict
+
+
+def get_intensity_adjustment(input_path):
+    pass
+
+
 @nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                        num_damage_bins, num_intensity_bins, rowsize):
@@ -435,7 +463,8 @@ def get_vuln_rngadj_dict(run_dir, vuln_dict):
     return vuln_adj_numba_dict
 
 
-def get_vulns(storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
+def get_vulns(
+        storage: BaseStorage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type=set(), df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
     """
     Loads the vulnerabilities from the file.
 
