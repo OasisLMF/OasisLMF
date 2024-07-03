@@ -19,7 +19,7 @@ from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
-                     fp_format_priorities)
+                     event_defintion_filename, hazard_case_filename, fp_format_priorities)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ class Footprint:
         format_to_class = {
             'parquet': FootprintParquet, 'csv': FootprintCsv,
             'binZ': FootprintBinZ, 'bin': FootprintBin,
+            'parquet_dynamic': FootprintParquetDynamic,
         }
         priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
 
@@ -94,9 +95,11 @@ class Footprint:
         Loads the loading classes defined in this file checking to see if the files are in the static path
         whilst doing so. The loading goes through the hierarchy with the following order:
 
+        -> parquet
         -> compressed binary file
         -> binary file
         -> CSV file
+        -> parquet (with dynamic generation)
 
         If the compressed binary file is present, this will be loaded. If it is not, then the binary file will be loaded
         and so on.
@@ -115,8 +118,7 @@ class Footprint:
         """
         for footprint_class in cls.get_footprint_fmt_priorities():
             for filename in footprint_class.footprint_filenames:
-                if (not storage.exists(filename)
-                        or filename.rsplit('.', 1)[-1] in ignore_file_type):
+                if (not storage.exists(filename) or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
                     break
             else:
@@ -335,6 +337,91 @@ class FootprintParquet(Footprint):
 
         numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
         return numpy_data
+
+
+class FootprintParquetDynamic(Footprint):
+    """
+    This class is responsible for loading event data from parquet dynamic event sets and maps
+    It will build the footprint from the underlying event defintion and hazard case files
+
+    Attributes (when in context):
+        num_intensity_bins (int): number of intensity bins in the data
+        has_intensity_uncertainty (bool): if the data has uncertainty. Only "no" is supported
+        return periods (list): the list of return periods in the model. Not currently used
+    """
+    footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
+
+    def __enter__(self):
+        with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
+            meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
+
+        self.num_intensity_bins = int(meta_data['num_intensity_bins'])
+        self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
+
+        self.df_location_sections = pd.read_csv('input/sections.csv')
+        self.location_sections = set(list(self.df_location_sections['section_id']))
+
+        return self
+
+    def interpolate_intensity(self, row):
+        """
+        Gets the interpolated intensity value when the event RP is between those in the model.
+
+        Args:
+            row: (dataframe row) a row containeing the from intensity, to intensity and inteerpolation points
+
+        Returns: (int) the interpolated intensity metric
+        """
+        self.from_intensity = row['from_intensity']
+        self.to_intensity = row['to_intensity']
+        self.interpolation = row['interpolation']
+        if self.from_intensity == self.to_intensity:
+            intensity = self.from_intensity
+        else:
+            intensity = self.from_intensity + ((self.to_intensity - self.from_intensity) * self.interpolation)
+        return int(round(intensity, 0))
+
+    def get_event(self, event_id: int):
+        """
+        Gets the event data from the partitioned parquet data file.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (np.array[Event]) the event that was extracted
+        """
+        event_defintion_reader = self.get_df_reader(event_defintion_filename, filters=[("event_id", "==", event_id)])
+        df_event_defintion = event_defintion_reader.as_pandas()
+        event_sections = list(df_event_defintion['section_id'])
+        sections = list(set(event_sections) & self.location_sections)
+
+        if len(sections) > 0:
+            hazard_case_reader = self.get_df_reader(hazard_case_filename, filters=[("section_id", "in", sections)])
+            df_hazard_case = hazard_case_reader.as_pandas()
+
+            from_cols = ['areaperil_id', 'intensity']
+            to_cols = from_cols + ['interpolation']
+
+            df_hazard_case_from = df_hazard_case.merge(
+                df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from'])[from_cols].rename(
+                    columns={'intensity': 'from_intensity'})
+
+            df_hazard_case_to = df_hazard_case.merge(
+                df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to'])[to_cols].rename(
+                    columns={'intensity': 'to_intensity'})
+
+            df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on='areaperil_id', how='outer')
+            df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
+
+            if len(df_footprint.index) > 0:
+                df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
+                df_footprint['probability'] = 1
+            else:
+                df_footprint.loc[:, 'intensity_bin_id'] = []
+                df_footprint.loc[:, 'probability'] = []
+
+            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id', 'intensity_bin_id', 'probability']])
+            return numpy_data
 
 
 @nb.njit(cache=True)
