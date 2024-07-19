@@ -23,6 +23,8 @@ class TestRunModel(ComputationChecker):
         cls.default_args = cls.manager._params_run_model()
         cls.pre_hook_args = cls.manager._params_exposure_pre_analysis()
         cls.gen_files_args = cls.manager._params_generate_files()
+        cls.post_file_gen_args = cls.manager._params_post_file_gen()
+        cls.pre_loss_args = cls.manager._params_pre_loss()
         cls.gen_loss_args = cls.manager._params_generate_losses()
         cls.post_hook_args = cls.manager._params_post_analysis()
 
@@ -50,6 +52,8 @@ class TestRunModel(ComputationChecker):
         expt_combined_args = self.combine_args([
             self.pre_hook_args,
             self.gen_files_args,
+            self.post_file_gen_args,
+            self.pre_loss_args,
             self.gen_loss_args,
             self.post_hook_args,
         ])

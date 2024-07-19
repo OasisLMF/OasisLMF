@@ -1,6 +1,19 @@
 OasisLMF Changelog
 ==================
 
+`2.3.6`_
+ ---------
+* [#1516](https://github.com/OasisLMF/OasisLMF/pull/1516) - Added support for occurrence attachment for Per Risk XL
+* [#1517](https://github.com/OasisLMF/OasisLMF/pull/1517) - event ranges
+* [#1518](https://github.com/OasisLMF/OasisLMF/pull/1518) - Fix/pre analysis user dir
+* [#1520, #1519](https://github.com/OasisLMF/OasisLMF/pull/1521) - get_vulns update
+* [#1258](https://github.com/OasisLMF/OasisLMF/pull/1490) - Document oasislmf.json configuration options 
+* [#1488](https://github.com/OasisLMF/OasisLMF/pull/1524) - Add post input-gen hook and pre exec hook
+* [#1526](https://github.com/OasisLMF/OasisLMF/pull/1496) - Oasis Dynamic Model
+* [#1529](https://github.com/OasisLMF/OasisLMF/pull/1529) - add user_data_dir to all the hooks
+* [#1501](https://github.com/OasisLMF/OasisLMF/pull/1501) - Release 2.3.5 (30th May 2024)
+.. _`2.3.6`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.5...2.3.6
+
 `2.3.5`_
  ---------
 * [#1503](https://github.com/OasisLMF/OasisLMF/pull/1504) - Add a guard which 'fast fails' runs using more than 9 summary groups + summarycalc 

@@ -21,7 +21,7 @@ from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict, convert_vuln_id_to_index
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict, convert_vuln_id_to_index, get_intensity_bin_dict
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
@@ -89,6 +89,7 @@ def run(run_dir,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+        dynamic_footprint=False,
         **kwargs):
     """Execute the main gulmc worklow.
 
@@ -225,7 +226,7 @@ def run(run_dir,
 
         logger.debug('import vulnerabilities')
         vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
-        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type)
+        vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
 
@@ -334,6 +335,13 @@ def run(run_dir,
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
+        if dynamic_footprint:
+            intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
+        else:
+            intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
+        # to do - intensity adjustment
+        # intensity_adjustment = get_intensity_adjustment()
+
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -441,7 +449,10 @@ def run(run_dir,
                         debug,
                         max_bytes_per_item,
                         byte_mv,
-                        cursor)
+                        cursor,
+                        dynamic_footprint,
+                        intensity_bin_dict
+                    )
 
                     # write the losses to the output stream
                     write_start = 0
@@ -499,7 +510,9 @@ def compute_event_losses(event_id,
                          debug,
                          max_bytes_per_item,
                          byte_mv,
-                         cursor):
+                         cursor,
+                         dynamic_footprint,
+                         intensity_bin_dict):
     """Compute losses for an event.
 
     Args:
@@ -910,7 +923,11 @@ def compute_event_losses(event_id,
                                     haz_bin_idx = nb_int32(binary_search(haz_rval, haz_cdf_prob, Nhaz_bins))
 
                             # 2) get the hazard intensity bin id
-                            haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
+                            if dynamic_footprint:
+                                haz_int_val = haz_cdf_bin_id[haz_bin_idx]
+                                haz_int_bin_id = intensity_bin_dict[haz_int_val]
+                            else:
+                                haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
 
                             # 3) get the individual vulnerability cdf
                             vuln_i = vuln_dict[vulnerability_id]
@@ -1084,6 +1101,7 @@ def process_areaperils_in_footprint(event_footprint,
     eff_vuln_cdf = np.zeros(Nvulns * Ndamage_bins_max, dtype=oasis_float)  # initial size, it is a dynamic array
     cdf_start = 0
     cdf_end = 0
+    areaperil_id = 0
     haz_cdf_ptr = List([0])
     eff_vuln_cdf_start = nb_int32(0)
     areaperil_to_eff_vuln_cdf = Dict.empty(AREAPERIL_TO_EFF_VULN_KEY_TYPE, AREAPERIL_TO_EFF_VULN_VALUE_TYPE)

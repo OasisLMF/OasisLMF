@@ -13,6 +13,8 @@ from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
 from ..hooks.post_analysis import PostAnalysis
+from ..hooks.post_file_gen import PostFileGen
+from ..hooks.pre_loss import PreLoss
 
 from ...utils.data import get_exposure_data
 from ...utils.path import empty_dir
@@ -31,10 +33,16 @@ class RunModel(ComputationStep):
             'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
         {'name': 'post_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True,
          'help': 'Post-Analysis module path'},
+        {'name': 'pre_loss_module', 'required': False, 'is_path': True,
+         'pre_exist': True, 'help': 'pre-loss hook module path'},
+        {'name': 'post_file_gen_module', 'required': False, 'is_path': True,
+         'pre_exist': True, 'help': 'post-file gen hook module path'},
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
         GenerateLosses,
+        PostFileGen,
+        PreLoss,
         GenerateFiles,
         ExposurePreAnalysis,
         PostAnalysis,
@@ -77,7 +85,12 @@ class RunModel(ComputationStep):
         cmds = []
         if self.exposure_pre_analysis_module:
             cmds += [(ExposurePreAnalysis, self.kwargs)]
-        cmds += [(GenerateFiles, self.kwargs), (GenerateLosses, self.kwargs)]
+        cmds += [(GenerateFiles, self.kwargs)]
+        if self.post_file_gen_module:
+            cmds += [(PostFileGen, self.kwargs)]
+        if self.pre_loss_module:
+            cmds += [(PreLoss, self.kwargs)]
+        cmds += [(GenerateLosses, self.kwargs)]
         if self.post_analysis_module:
             cmds += [(PostAnalysis, self.kwargs)]
 
