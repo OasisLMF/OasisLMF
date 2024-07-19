@@ -293,8 +293,8 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.warn(missing_input_files)
 
         gul_item_stream = (not self.ktools_legacy_stream)
-        ri = analysis_settings.get('ri_output', False)
-        rl = analysis_settings.get('rl_output', False)
+        ri = analysis_settings.get('ri_output', False) and ril
+        rl = analysis_settings.get('rl_output', False) and ril
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
