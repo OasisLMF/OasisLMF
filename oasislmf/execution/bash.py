@@ -2510,7 +2510,8 @@ def create_bash_analysis(
                     fmpy_sort_output,
                     step_flag,
                     process_counter=process_counter,
-                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
+                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_ri_inuring_priorities(
+                        analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
                     rl_inuring_priorities={ip['level']: ip['text'] for ip in get_rl_inuring_priorities(num_reinsurance_iterations) if rl_output}
                 )
                 print_command(filename, main_cmd)
