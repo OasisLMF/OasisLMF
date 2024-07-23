@@ -24,6 +24,7 @@ import filecmp
 import glob
 import logging
 import os
+import re
 import shutil
 import shutilwhich
 import subprocess
