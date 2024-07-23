@@ -120,7 +120,7 @@ class GenerateLossesBase(ComputationStep):
         """
         ri_layers = 0
         if analysis_settings.get('ri_output', False) or analysis_settings.get('rl_output', False):
-            ri_layers = len(get_json(os.path.join(model_run_fp, 'ri_layers.json')))
+            ri_layers = len(get_json(os.path.join(model_run_fp, 'input', 'ri_layers.json')))
         return ri_layers
 
     def _get_peril_filter(self, analysis_settings):
@@ -381,7 +381,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
         if (ri or rl) and self.fmpy:
             for ri_sub_dir in ri_dirs:
-                ri_target_dir = os.path.join(self.model_run_dir, ri_sub_dir)
+                ri_target_dir = os.path.join(self.model_run_dir, 'input', ri_sub_dir)
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
 
@@ -392,7 +392,7 @@ class GenerateLossesDir(GenerateLossesBase):
                     summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                     if summary_sets_id.shape[0]:
                         if runtype == RUNTYPE_REINSURANCE_LOSS:
-                            summary_dirs = [os.path.join(self.model_run_dir, ri_sub_dir) for ri_sub_dir in ri_dirs]
+                            summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
                         else:
                             summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                         for summary_dir in summary_dirs:
@@ -610,8 +610,8 @@ class GenerateLosses(GenerateLossesDir):
         |-- analysis_settings.json
         |-- fifo
         |-- input
+            |-- RI_1
         |-- output
-        |-- RI_1
         |-- ri_layers.json
         |-- run_ktools.sh
         |-- static

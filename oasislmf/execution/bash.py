@@ -879,11 +879,11 @@ def do_summarycalcs(
         if inuring_priority.get('level'):
             # Net reinsurance losses require zero losses in summarycalc output
             # Text field for final inuring priority is empty string
-            summarycalc_directory_switch = f'-z -p RI_{inuring_priority["level"]}'
+            summarycalc_directory_switch = f"-z -p {os.path.join('input', 'RI_' + str(inuring_priority['level']))}"
             inuring_priority_text = inuring_priority['text']
     if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
         # Gross reinsurance losses do not require zero losses in summarycalc output
-        summarycalc_directory_switch = f'-p RI_{inuring_priority["level"]}'
+        summarycalc_directory_switch = f"-p {os.path.join('input', 'RI_' + str(inuring_priority['level']))}"
         inuring_priority_text = inuring_priority['text']
 
     input_filename_component = ''
@@ -1591,7 +1591,7 @@ def get_main_cmd_ri_stream(
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p RI_{i}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_'+str(i))}"
         if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
             main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
         if i < num_reinsurance_iterations:   # Net output required to process next inuring priority
@@ -2158,7 +2158,8 @@ def create_bash_analysis(
             )
         if ri_output or rl_output:
             for i in range(1, num_reinsurance_iterations + 1):
-                print_command(filename, f'#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
+                print_command(
+                    filename, f"#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_'+str(i))}")
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:

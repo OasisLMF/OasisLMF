@@ -10,6 +10,8 @@ __all__ = [
     'write_mapping_file',
 ]
 
+import pathlib
+
 import io
 import json
 import os
@@ -399,6 +401,7 @@ def write_df_to_csv_file(df, target_dir, filename):
     :type filename:  str
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
+    pathlib.Path(target_dir).mkdir(parents=True, exist_ok=True)
     chunksize = min(2 * 10 ** 5, max(len(df), 1000))
     csv_fp = os.path.join(target_dir, filename)
     try:
@@ -703,7 +706,7 @@ def generate_summaryxref_files(
             'ri'
         )
         # Write Xref file for each inuring priority where output has been requested
-        ri_settings = get_ri_settings(model_run_fp)
+        ri_settings = get_ri_settings(os.path.join(model_run_fp, 'input'))
         ri_layers = {int(x) for x in ri_settings}
         max_layer = max(ri_layers)
         ri_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
@@ -723,7 +726,7 @@ def generate_summaryxref_files(
             ri_inuring_priorities = ri_layers
         for inuring_priority in ri_inuring_priorities:
             summary_ri_fp = os.path.join(
-                model_run_fp, os.path.basename(ri_settings[str(inuring_priority)]['directory']))
+                model_run_fp, 'input', os.path.basename(ri_settings[str(inuring_priority)]['directory']))
             write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
 
         # Write summary_id description files

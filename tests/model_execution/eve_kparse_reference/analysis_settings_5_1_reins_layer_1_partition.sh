@@ -71,8 +71,8 @@ tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & p
 tee < fifo/ri_S1_summary_P2 work/ri_S1_summaryleccalc/P2.bin > /dev/null & pid3=$!
 tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summaryleccalc/P2.idx > /dev/null & pid4=$!
 
-summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
-summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
+summarycalc -m -f -z -p input/RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -m -f -z -p input/RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
 
 # --- Do insured loss computes ---
 
@@ -107,8 +107,8 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 ( eve -R 1 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
 ( eve -R 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
-( fmcalc -a2 < fifo/lb_il_P1 | tee fifo/il_P1 | fmcalc -a2 -p RI_1 -n - > fifo/ri_P1 ) & pid19=$!
-( fmcalc -a2 < fifo/lb_il_P2 | tee fifo/il_P2 | fmcalc -a2 -p RI_1 -n - > fifo/ri_P2 ) & pid20=$!
+( fmcalc -a2 < fifo/lb_il_P1 | tee fifo/il_P1 | fmcalc -a2 -p input/RI_1 -n - > fifo/ri_P1 ) & pid19=$!
+( fmcalc -a2 < fifo/lb_il_P2 | tee fifo/il_P2 | fmcalc -a2 -p input/RI_1 -n - > fifo/ri_P2 ) & pid20=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20
 

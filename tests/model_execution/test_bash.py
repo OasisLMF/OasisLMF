@@ -38,9 +38,10 @@ class Genbash(TestCase):
         cls.fmpy = False
         cls.get_getmodel_cmd = None
 
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+        if cls is Genbash:
+            if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+                shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
     def setUp(self):
         self.temp_reference_file = None
