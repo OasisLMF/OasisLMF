@@ -67,9 +67,9 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_analyses, json=RETURN_ANALYSIS)
                 self.manager.platform_list(**called_args)
 
-            self.assertEqual(self._caplog.messages[2], MODELS_TABLE)
-            self.assertEqual(self._caplog.messages[4], PORT_TABLE)
-            self.assertEqual(self._caplog.messages[6], ANAL_TABLE)
+            self.assertEqual(self._caplog.messages[3], MODELS_TABLE)
+            self.assertEqual(self._caplog.messages[5], PORT_TABLE)
+            self.assertEqual(self._caplog.messages[7], ANAL_TABLE)
 
     def test_list_models__success(self):
         called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
@@ -82,8 +82,8 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_1, json=RETURN_MODELS[0])
                 rsps.get(url_2, json=RETURN_MODELS[1])
                 self.manager.platform_list(**called_args)
-                self.assertIn('Model (id=1):', self._caplog.messages[1])
-                self.assertIn('Model (id=2):', self._caplog.messages[2])
+                self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('Model (id=2):', "\n".join(self._caplog.messages))
 
     def test_list_models__logs_error(self):
         called_args = self.combine_args([self.min_args, {'models': [1, 2]}])
@@ -96,8 +96,8 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_1, json=RETURN_MODELS[0])
                 rsps.get(url_2, json={'error': 'model not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Model (id=1):', self._caplog.messages[1])
-                self.assertIn('{"error": "model not found"}', self._caplog.messages[2])
+                self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('{"error": "model not found"}', "\n".join(self._caplog.messages))
 
     def test_list_portfolios__success(self):
         called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
@@ -110,8 +110,8 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_1, json=RETURN_PORT[0])
                 rsps.get(url_2, json=RETURN_PORT[1])
                 self.manager.platform_list(**called_args)
-                self.assertIn('Portfolio (id=1):', self._caplog.messages[1])
-                self.assertIn('Portfolio (id=2):', self._caplog.messages[2])
+                self.assertIn('Portfolio (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('Portfolio (id=2):', "\n".join(self._caplog.messages))
 
     def test_list_portfolios__logs_error(self):
         called_args = self.combine_args([self.min_args, {'portfolios': [1, 2]}])
@@ -124,8 +124,8 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_1, json=RETURN_PORT[0])
                 rsps.get(url_2, json={'error': 'portfolio not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Portfolio (id=1):', self._caplog.messages[1])
-                self.assertIn('{"error": "portfolio not found"}', self._caplog.messages[2])
+                self.assertIn('Portfolio (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('{"error": "portfolio not found"}', "\n".join(self._caplog.messages))
 
     def test_list_analyses__success(self):
         called_args = self.combine_args([self.min_args, {'analyses': [4]}])
@@ -136,7 +136,7 @@ class TestPlatformList(ComputationChecker):
                 self.add_connection_startup(rsps)
                 rsps.get(url, json=RETURN_ANALYSIS[0])
                 self.manager.platform_list(**called_args)
-                self.assertIn('Analysis (id=4):', self._caplog.messages[1])
+                self.assertIn('Analysis (id=4):', "\n".join(self._caplog.messages))
 
     def test_list_analyses__logs_error__and_model_success(self):
         called_args = self.combine_args([self.min_args, {'models': [1], 'analyses': [4]}])
@@ -149,8 +149,8 @@ class TestPlatformList(ComputationChecker):
                 rsps.get(url_1, json=RETURN_MODELS[0])
                 rsps.get(url_2, json={'error': 'analysis not found'}, status=404)
                 self.manager.platform_list(**called_args)
-                self.assertIn('Model (id=1):', self._caplog.messages[1])
-                self.assertIn('{"error": "analysis not found"}', self._caplog.messages[2])
+                self.assertIn('Model (id=1):', "\n".join(self._caplog.messages))
+                self.assertIn('{"error": "analysis not found"}', "\n".join(self._caplog.messages))
 
 
 class TestPlatformRunInputs(ComputationChecker):
@@ -418,9 +418,9 @@ class TestPlatformRunInputs(ComputationChecker):
                 self.assertEqual(str(context.exception), ' Model selection cancelled')
 
             expected_error_log = "not among the valid ids: ['1', '2'] - ctrl-c to exit"
-            self.assertIn(expected_error_log, self._caplog.messages[3])
-            self.assertIn(expected_error_log, self._caplog.messages[4])
-            self.assertEqual(self._caplog.messages[5], 'Invalid Response: 1.000')
+            self.assertIn(expected_error_log, "\n".join(self._caplog.messages))
+            self.assertIn(expected_error_log, "\n".join(self._caplog.messages))
+            self.assertEqual(self._caplog.messages[6], 'Invalid Response: 1.000')
 
     @patch('oasislmf.computation.run.platform.APIClient.create_analysis', return_value={'id': 1})
     @patch('oasislmf.computation.run.platform.APIClient.run_generate', return_value=True)
@@ -706,9 +706,9 @@ class TestPlatformDelete(ComputationChecker):
             with self._caplog.at_level(logging.INFO):
                 self.manager.platform_delete(models=model_list)
                 expected_err_log = f'Delete error models_id=4 - 404 Client Error: Not Found for url: {self.api_url}/{self.api_ver}/models/4/'
-                self.assertEqual(self._caplog.messages[1], 'Deleted models_id=1')
-                self.assertEqual(self._caplog.messages[2], expected_err_log)
-                self.assertEqual(self._caplog.messages[3], 'Deleted models_id=6')
+                self.assertEqual(self._caplog.messages[2], 'Deleted models_id=1')
+                self.assertEqual(self._caplog.messages[3], expected_err_log)
+                self.assertEqual(self._caplog.messages[4], 'Deleted models_id=6')
 
     @settings(deadline=None, max_examples=25)
     @given(
@@ -771,7 +771,7 @@ class TestPlatformGet(ComputationChecker):
             with self._caplog.at_level(logging.INFO):
                 self.manager.platform_get(**self.min_args, analyses_settings_file=analysis_list)
                 expected_err_log = f'Download failed: - 404 Client Error: Not Found for url: {self.api_url}/{self.api_ver}/analyses/4/settings_file/'
-                self.assertEqual(self._caplog.messages[2], expected_err_log)
+                self.assertEqual(self._caplog.messages[3], expected_err_log)
 
                 filepath_1 = os.path.join(self.min_args['output_dir'], '1_analyses_settings_file.json')
                 filepath_6 = os.path.join(self.min_args['output_dir'], '6_analyses_settings_file.json')
