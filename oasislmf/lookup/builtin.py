@@ -10,7 +10,6 @@ import warnings
 import numba as nb
 import numpy as np
 import pandas as pd
-from pandas.api.types import is_numeric_dtype, is_string_dtype
 from ods_tools.oed import fill_empty, is_empty
 
 try:  # needed for rtree
