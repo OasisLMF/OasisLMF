@@ -238,7 +238,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
                         and row[f'{field}_valid'] and row[f'{field}_x'] != row[f'{field}_y']):
                     return False
             return True
-        profile_map_df.loc[np.unique(filter_df[filter_df.apply(_match, axis=1)]['index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
+        profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
 
     # Risk level
     layer_filter = reins_type_filter
