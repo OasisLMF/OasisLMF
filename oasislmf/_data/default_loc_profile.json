@@ -38,6 +38,15 @@
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
+    "AnnualRevenue": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 10,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
     "LocDed1Building": {
         "ProfileElementName": "LocDed1Building",
         "DeductibleType": "B",

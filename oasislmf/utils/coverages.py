@@ -12,6 +12,7 @@ COVT_CON = 3
 COVT_BIT = 4
 COVT_PDM = 5
 COVT_ALL = 6
+COVT_REV = 10
 
 
 COVERAGE_TYPES = OrderedDict({
@@ -20,11 +21,12 @@ COVERAGE_TYPES = OrderedDict({
     'contents': {'id': COVT_CON, 'desc': 'contents'},
     'bi': {'id': COVT_BIT, 'desc': 'business interruption or other time-based coverage'},
     'pd': {'id': COVT_PDM, 'desc': 'property damage (buildings + other + contents)'},
-    'all': {'id': COVT_ALL, 'desc': 'all (property damage + business interruption)'}
+    'all': {'id': COVT_ALL, 'desc': 'all (property damage + business interruption)'},
+    'ext': {'id': COVT_REV, 'desc': 'Extortion  (ransom amounts, negotiation fees, reward payments)'}
 })
 
 
 SUPPORTED_COVERAGE_TYPES = OrderedDict({
     cov_type: cov_type_dict for cov_type, cov_type_dict in COVERAGE_TYPES.items()
-    if cov_type in ['buildings', 'other', 'contents', 'bi']
+    if cov_type in ['buildings', 'other', 'contents', 'bi', 'ext']
 })
