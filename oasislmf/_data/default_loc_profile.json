@@ -44,7 +44,7 @@
         "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "TIV",
-        "FMTermGroupID": 1,
+        "FMTermGroupID": 10,
         "ProfileType": "Loc"
     },
     "LocDed1Building": {
