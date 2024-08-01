@@ -733,6 +733,10 @@ def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
     location_df[SOURCE_IDX['loc']] = location_df.index
 
+    # TODO: do that in ods_tools
+    if 'AnnualRevenue' in location_df:
+        location_df['AnnualRevenue'] = location_df['AnnualRevenue'].astype('int')
+
     return location_df
 
 
