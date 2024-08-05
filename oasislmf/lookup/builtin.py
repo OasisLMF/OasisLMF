@@ -10,7 +10,7 @@ import warnings
 import numba as nb
 import numpy as np
 import pandas as pd
-from ods_tools.oed import fill_empty
+from ods_tools.oed import fill_empty, is_empty
 
 try:  # needed for rtree
     from shapely.geometry import Point
@@ -253,7 +253,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
                            for useful_col in useful_cols
                            if useful_col.lower() in lower_case_column_map}
-
         locations = locations.rename(columns=useful_cols_map)
         locations = locations[list(useful_cols.intersection(locations.columns))].drop_duplicates()
 
@@ -327,6 +326,37 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 df[col] = df[col].astype('Int64')
                 df.loc[df[col].isna(), col] = OASIS_UNKNOWN_ID
         return df
+
+    def build_interval_to_index(self, value_column_name, sorted_array, index_column_name=None, side='left'):
+        """
+        Allow to map a value column to an index according to it's index in the interval defined by sorted_array.
+        nan value are kept as nan
+        Args:
+            value_column_name: name of the column to map
+            sorted_array: sorted value that define the interval to map to
+            index_column_name: name of the output column
+            side: define what index is returned (left or right) in case of equality with one of the interval boundary
+
+        Returns:
+            function: return the mapping function
+        """
+        if isinstance(sorted_array, list):
+            pass
+        elif isinstance(sorted_array, str):
+            sorted_array = [float(val) for val in open(self.to_abs_filepath(sorted_array)) if val.strip()]
+        else:
+            raise OasisException("sorted_array must be a list of the interval sorted or a path to a csv file containing those interval")
+
+        if index_column_name is None:
+            index_column_name = value_column_name + '_idx'
+
+        def fct(locations):
+            locations[index_column_name] = np.searchsorted(sorted_array, locations[value_column_name], side=side)
+            empty_values = is_empty(locations, value_column_name)
+            locations.loc[empty_values, index_column_name] = locations.loc[empty_values, value_column_name]
+            return locations
+
+        return fct
 
     @staticmethod
     def build_combine(id_columns, strategy):
