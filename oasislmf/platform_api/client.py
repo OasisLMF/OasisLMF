@@ -614,9 +614,9 @@ class APIClient(object):
 
     def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:
-            filename = 'analysis_{}_output'.format(analysis_id)
+            filename = 'analysis_{}_output.tar.gz'.format(analysis_id)
         try:
-            output_file = os.path.join(download_path, filename + '.tar')
+            output_file = os.path.join(download_path, filename)
             self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
             self.logger.info('Analysis Download output: filename={}, (id={})'.format(output_file, analysis_id))
             if clean_up:
