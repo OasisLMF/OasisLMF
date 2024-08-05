@@ -314,8 +314,8 @@ def test_calcrule_19():
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0.75, 15., 50])
     deductible_expected = np.array([10., 10., 10., 20., 20., 20., 16.25, 15., 20])
-    over_limit_expected = np.array([0., 0., 0.25, 20., 15., 0., 0., 10., 10])
-    under_limit_expected = np.array([9.75, 16.75, 10., 0., 0., 5., 0.25, 15., 20.])
+    over_limit_expected = np.array([0., 0., 5, 20., 15., 0., 0., 10., 10])
+    under_limit_expected = np.array([5, 12, 10., 0., 0., 5., 0.25, 15., 20.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)

@@ -384,7 +384,7 @@ def calcrule_19(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         if effective_deductible + deductible[i] > policy['deductible_3'] > 0:
             deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_3'])
         elif effective_deductible + deductible[i] < policy['deductible_2']:
-            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], policy['deductible_1'])
+            deductible_under_min(i, loss_out, loss_in, deductible, over_limit, under_limit, policy['deductible_2'], effective_deductible)
         else:
             if loss_in[i] > effective_deductible:
                 loss_out[i] = loss_in[i] - effective_deductible
