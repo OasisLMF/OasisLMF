@@ -65,11 +65,11 @@ Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ]))
 
 Event_defintion = nb.from_dtype(np.dtype([('section_id', np.int32),
-                                ('return_period', np.int32),
-                                ('rp_from', np.int32),
-                                ('rp_to', np.int32),
-                                ('interpolation', np.int32)
-                                ]))
+                                          ('return_period', np.int32),
+                                          ('rp_from', np.int32),
+                                          ('rp_to', np.int32),
+                                          ('interpolation', np.int32)
+                                          ]))
 
 Hazard_case = nb.from_dtype(np.dtype([('section_id', np.int32),
                                       ('areaperil_id', areaperil_int),
