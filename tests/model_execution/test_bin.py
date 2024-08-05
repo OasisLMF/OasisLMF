@@ -561,7 +561,7 @@ class PrepareRunDirectory(TestCase):
 
             self.assertTrue(Path(run_dir, 'input', 'archived_file').exists())
 
-    def test_inputs_archive_is_supplied_with_ri___archive_is_extracted_into_run_dir(self):
+    def test_inputs_archive_is_supplied_with_ri___archive_is_extracted_into_inputs(self):
         with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
             analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
             Path(analysis_settings_fp).touch()
@@ -571,10 +571,9 @@ class PrepareRunDirectory(TestCase):
                 archived_file_path = Path(oasis_src_fp, 'archived_file')
                 archived_file_path.touch()
                 tar.add(str(archived_file_path), arcname='archived_file')
-
             prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp, inputs_archive=tar_path, ri=True)
 
-            self.assertTrue(Path(run_dir, 'archived_file').exists())
+            self.assertTrue(Path(run_dir, 'input', 'archived_file').exists())
 
     def test_inputs_archive_with_subfolder_is_supplied_no_ri___archive_is_extracted_into_inputs(self):
         with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
