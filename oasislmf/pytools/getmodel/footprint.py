@@ -361,6 +361,8 @@ class FootprintParquetDynamic(Footprint):
         self.df_location_sections = pd.read_csv('input/sections.csv')
         self.location_sections = set(list(self.df_location_sections['section_id']))
 
+        self.location_apids = pd.read_csv('input/keys.csv', usecols=['AreaPerilID']).AreaPerilID.unique()
+
         return self
 
 
@@ -382,6 +384,7 @@ class FootprintParquetDynamic(Footprint):
         if len(sections) > 0:
             hazard_case_reader = self.get_df_reader(hazard_case_filename, filters=[("section_id", "in", sections)])
             df_hazard_case = hazard_case_reader.as_pandas()
+            df_hazard_case = df_hazard_case[df_hazard_case['areaperil_id'].isin(self.location_apids)]
 
             from_cols = ['areaperil_id', 'intensity']
             to_cols = from_cols + ['interpolation']
