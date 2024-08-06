@@ -1,6 +1,19 @@
 OasisLMF Changelog
 ==================
 
+`2.3.7`_
+ ---------
+* [#1533](https://github.com/OasisLMF/OasisLMF/pull/1537) - API client names the downloaded output file .tar instead of .tar.gz
+* [#1530](https://github.com/OasisLMF/OasisLMF/pull/1538) - Short flags unexpectedly changed in 2.3.6
+* [#1539](https://github.com/OasisLMF/OasisLMF/pull/1540) - Allow keys files with both amplification_id and model_data columns
+* [#1542](https://github.com/OasisLMF/OasisLMF/pull/1541) - Time and Memory performance issue for RI contract
+* [#1523](https://github.com/OasisLMF/OasisLMF/pull/1523) - Release 2.3.6 (July 1st 2024)
+* [#1531](https://github.com/OasisLMF/OasisLMF/pull/1531) - fix effective deductible applied in minded calculation for calcrule 19
+* [#1532](https://github.com/OasisLMF/OasisLMF/pull/1532) - make all compute step run command oasis logged
+* [#1468](https://github.com/OasisLMF/OasisLMF/pull/1534) - loss output at intermediate inuring priorities - new features 
+* [#1535](https://github.com/OasisLMF/OasisLMF/pull/1535) - add interval mapping to built in function
+.. _`2.3.7`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.6...2.3.7
+
 `2.3.6`_
  ---------
 * [#1516](https://github.com/OasisLMF/OasisLMF/pull/1516) - Added support for occurrence attachment for Per Risk XL
