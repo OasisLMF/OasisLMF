@@ -363,23 +363,7 @@ class FootprintParquetDynamic(Footprint):
 
         return self
 
-    def interpolate_intensity(self, row):
-        """
-        Gets the interpolated intensity value when the event RP is between those in the model.
 
-        Args:
-            row: (dataframe row) a row containeing the from intensity, to intensity and inteerpolation points
-
-        Returns: (int) the interpolated intensity metric
-        """
-        self.from_intensity = row['from_intensity']
-        self.to_intensity = row['to_intensity']
-        self.interpolation = row['interpolation']
-        if self.from_intensity == self.to_intensity:
-            intensity = self.from_intensity
-        else:
-            intensity = self.from_intensity + ((self.to_intensity - self.from_intensity) * self.interpolation)
-        return int(round(intensity, 0))
 
     def get_event(self, event_id: int):
         """
@@ -414,7 +398,9 @@ class FootprintParquetDynamic(Footprint):
             df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
 
             if len(df_footprint.index) > 0:
-                df_footprint['intensity_bin_id'] = df_footprint.apply(self.interpolate_intensity, axis=1)
+                df_footprint['intensity_bin_id'] = np.floor(df_footprint.from_intensity + (
+                            (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
+                df_footprint['intensity_bin_id'] = df_footprint['intensity_bin_id'].astype('int')
                 df_footprint['probability'] = 1
             else:
                 df_footprint.loc[:, 'intensity_bin_id'] = []
