@@ -16,6 +16,7 @@ __all__ = [
     'set_vulnerability_set'
 ]
 
+import pathlib
 
 import errno
 import csv
@@ -23,7 +24,6 @@ import filecmp
 import glob
 import logging
 import os
-import re
 import shutil
 import shutilwhich
 import subprocess
@@ -85,13 +85,13 @@ def prepare_run_directory(
         <run_directory>
         |-- fifo
         |-- input
-        |-- RI_1
-        |-- RI_2
+            |-- RI_1
+            |-- RI_2
+            |-- ri_layers.json
         |-- ...
         |-- output
         |-- static
         |-- work
-        |-- ri_layers.json
         |-- analysis_settings.json
         `-- run_ktools.sh
 
@@ -146,7 +146,7 @@ def prepare_run_directory(
             Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
-                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir)
+                p = os.path.join(run_dir, 'input')
 
                 def is_within_directory(directory, target):
 
@@ -170,16 +170,19 @@ def prepare_run_directory(
 
         oasis_dst_fp = os.path.join(run_dir, 'input')
 
-        for p in os.listdir(oasis_src_fp):
+        file_to_copy = os.listdir(oasis_src_fp)
+        while file_to_copy:
+            p = file_to_copy.pop()
             src = os.path.join(oasis_src_fp, p)
             if src.endswith('.tar') or src.endswith('.tar.gz'):
                 continue
+            if os.path.isdir(src):
+                pathlib.Path(oasis_dst_fp, p).mkdir(parents=True, exist_ok=True)
+                file_to_copy.extend(os.path.join(p, elm) for elm in os.listdir(src))
+                continue
             dst = os.path.join(oasis_dst_fp, p)
-            if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
-                shutil.copy2(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
-            else:
-                shutil.move(src, run_dir)
-
+            if not (os.path.exists(dst) and filecmp.cmp(src, dst)):
+                shutil.copy2(src, pathlib.Path(dst).parent)
         dst = os.path.join(run_dir, 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
