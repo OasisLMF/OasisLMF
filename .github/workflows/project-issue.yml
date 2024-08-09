@@ -6,6 +6,7 @@ on:
 jobs:
   track_issue:
     runs-on: ubuntu-latest
+    if: github.repository == 'OasisLMF/OasisLMF'
     steps:
       - name: Get project data
         env:
