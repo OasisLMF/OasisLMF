@@ -903,7 +903,6 @@ def get_exposure_summary(
     df_summary = pd.concat(df_summary)
 
     # get all perils
-    exposure_df.to_csv('/tmp/exposure_df.csv',index=False)
     peril_groups_df = get_peril_groups_df()
     exposure_perils_df = exposure_df[['LocPerilsCovered']].drop_duplicates().merge(
         peril_groups_df, left_on='LocPerilsCovered', right_on='peril_group_id')
