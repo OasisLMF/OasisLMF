@@ -1,13 +1,5 @@
 LocID,PerilID,CoverageTypeID,Status,Message
-1,WEC,1,noreturn,unsuported peril_id
-2,WEC,1,noreturn,unsuported peril_id
-3,WEC,1,noreturn,unsuported peril_id
-4,WEC,1,noreturn,unsuported peril_id
 4,WSS,1,fail,area_peril_id has an unknown id
 4,WTC,1,fail,area_peril_id has an unknown id
-1,WEC,3,noreturn,unsuported peril_id
-2,WEC,3,noreturn,unsuported peril_id
-3,WEC,3,noreturn,unsuported peril_id
-4,WEC,3,noreturn,unsuported peril_id
 4,WSS,3,fail,area_peril_id has an unknown id
 4,WTC,3,fail,area_peril_id has an unknown id
