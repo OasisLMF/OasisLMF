@@ -415,8 +415,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
             location = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
-                location.loc[~location['peril_id'].isin(model_perils_covered), ['status', 'message']
-                             ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
+                df_model_perils_covered = pd.Series(model_perils_covered)
+                df_model_perils_covered.name = 'model_perils_covered'
+                location = location.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
             return location
         return fct
 
