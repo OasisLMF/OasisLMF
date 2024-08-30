@@ -8,10 +8,10 @@ import logging
 import json
 import inspect
 from ods_tools.oed import OedSource
-from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
+from ods_tools.oed.settings import Settings
 from collections import OrderedDict
 
-from ..utils.data import get_utctimestamp, settings_loader
+from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
 from oasislmf.utils.log import oasis_log
