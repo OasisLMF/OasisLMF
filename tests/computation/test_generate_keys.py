@@ -19,6 +19,7 @@ TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
 MODEL_SETTINGS = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('model_settings.json')
 
+
 class TestGenKeys(ComputationChecker):
 
     @classmethod
