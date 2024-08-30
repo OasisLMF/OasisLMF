@@ -8,9 +8,10 @@ import logging
 import json
 import inspect
 from ods_tools.oed import OedSource
+from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
 from collections import OrderedDict
 
-from ..utils.data import get_utctimestamp
+from ..utils.data import get_utctimestamp, settings_loader
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
 from oasislmf.utils.log import oasis_log
@@ -37,72 +38,95 @@ class ComputationStep:
          - check path existence (pre_exist)
          - create necessary directories (is_dir, is_path)
         """
+
         self.logger = logging.getLogger(__name__)
-        self.kwargs = kwargs
-        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4, default=str))
+        settings = Settings()
+        step_params = set()
         self.run = oasis_log(self.run)
 
         for param in self.get_params():
-            param_value = kwargs.get(param['name'])
-            if param_value in [None, ""]:
-                if param.get('required'):
-                    raise OasisException(f"parameter {param['name']} is required "
-                                         f"for Computation Step {self.__class__.__name__}")
-                else:
-                    param_value = param.get('default')
+            step_params.add(param['name'])
+            param_value = self._get_init_value(param, kwargs)
+            if kwargs.get(param['name']) not in [None, ""]:
+                settings.add_key(param['name'], param_value, ROOT_USER_ROLE)
+            else:
+                settings.add_key(param['name'], param_value)
 
-            if (getattr(param.get('type'), '__name__', None) == 'str2bool') and (not isinstance(param_value, bool)):
-                try:
-                    param_value = str2bool(param_value)
-                except ArgumentTypeError:
-                    raise OasisException(
-                        f"The parameter '{param.get('name')}' has an invalid value '{param_value}' for boolean. Valid strings are (case insensitive):"
-                        "\n  True:  ['yes', 'true', 't', 'y', '1']"
-                        "\n  False: ['no', 'false', 'f', 'n', '0']"
-                    )
+        for settings_info in self.get_params(param_type="settings"):
+            setting_fp = settings[settings_info['name']]
+            if setting_fp:
+                new_settings = settings_info['loader'](setting_fp)
+                settings.add_settings(new_settings, settings_info.get('user_role'))
 
-            if (param.get('is_path')
-                    and param_value is not None
-                    and not isinstance(param_value, OedSource)):
-                if param.get('pre_exist') and not os.path.exists(param_value):
-                    raise OasisException(
-                        f"The path {param_value} ({param['help']}) "
-                        f"must exist for Computation Step {self.__class__.__name__}")
+        self.settings = {**kwargs, **settings.get_settings()}
+        self.kwargs = kwargs
+        for key, value in self.settings.items():
+            if key in step_params:
+                setattr(self, key, value)
+                self.kwargs[key] = value
+
+        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4, default=str))
+
+    def _get_init_value(self, param, kwargs):
+        param_value = kwargs.get(param['name'])
+        if param_value in [None, ""]:
+            if param.get('required'):
+                raise OasisException(f"parameter {param['name']} is required "
+                                     f"for Computation Step {self.__class__.__name__}")
+            else:
+                param_value = param.get('default')
+
+        if (getattr(param.get('type'), '__name__', None) == 'str2bool') and (not isinstance(param_value, bool)):
+            try:
+                param_value = str2bool(param_value)
+            except ArgumentTypeError:
+                raise OasisException(
+                    f"The parameter '{param.get('name')}' has an invalid value '{param_value}' for boolean. Valid strings are (case insensitive):"
+                    "\n  True:  ['yes', 'true', 't', 'y', '1']"
+                    "\n  False: ['no', 'false', 'f', 'n', '0']"
+                )
+
+        if (param.get('is_path')
+                and param_value is not None
+                and not isinstance(param_value, OedSource)):
+            if param.get('pre_exist') and not os.path.exists(param_value):
+                raise OasisException(
+                    f"The path {param_value} ({param['help']}) "
+                    f"must exist for Computation Step {self.__class__.__name__}")
+            else:
+                if param.get('is_dir'):
+                    pathlib.Path(param_value).mkdir(parents=True, exist_ok=True)
                 else:
-                    if param.get('is_dir'):
-                        pathlib.Path(param_value).mkdir(parents=True, exist_ok=True)
-                    else:
-                        pathlib.Path(os.path.dirname(param_value)).mkdir(parents=True, exist_ok=True)
-            setattr(self, param['name'], param_value)
+                    pathlib.Path(os.path.dirname(param_value)).mkdir(parents=True, exist_ok=True)
+            param_value = str(param_value)
+        return param_value
 
     @classmethod
     def get_default_run_dir(cls):
         return os.path.join(os.getcwd(), 'runs', f'{cls.run_dir_key}-{get_utctimestamp(fmt="%Y%m%d%H%M%S")}')
 
     @classmethod
-    def get_params(cls):
+    def get_params(cls, param_type="step"):
         """
         return all the params of the computation step defined in step_params
         and the params from the sub_computation step in chained_commands
         if two params have the same name, return the param definition of the first param found only
         this allow to overwrite the param definition of sub step if necessary.
         """
-        params = []
-        param_names = set()
+        params = {}
 
         def all_params():
-            for param in cls.step_params:
-                yield param
+            for _param in getattr(cls, f"{param_type}_params", []):
+                yield _param
             for command in cls.chained_commands:
-                for param in command.get_params():
-                    yield param
+                for _param in command.get_params(param_type=param_type):
+                    yield _param
 
         for param in all_params():
-            if param['name'] not in param_names:
-                param_names.add(param['name'])
-                params.append(param)
+            if param['name'] not in params:
+                params[param['name']] = param
 
-        return params
+        return list(params.values())
 
     @classmethod
     def get_arguments(cls, **kwargs):

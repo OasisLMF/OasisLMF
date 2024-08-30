@@ -634,8 +634,8 @@ class TestPlatformRun(ComputationChecker):
 
         run_mock = Mock()
         # run_mock.run.side_effect = lambda *args, **kwargs: 23
-        analysis_id_reutrn = analysis_id if analysis_id else 42
-        run_mock.run.side_effect = lambda *args, **kwargs: analysis_id_reutrn
+        analysis_id_return = analysis_id if analysis_id else 42
+        run_mock.run.side_effect = lambda *args, **kwargs: analysis_id_return
         plat_files_mock = Mock()
         plat_losses_mock = Mock()
 
@@ -652,8 +652,14 @@ class TestPlatformRun(ComputationChecker):
             plat_files_mock.return_value = run_mock
             self.manager.platform_run(**call_args)
 
+        # set call_args to default
+        if call_args['server_version'] in [None, '']:
+            call_args['server_version'] = 'v2'
+        if call_args['output_dir'] in [None, '']:
+            call_args['output_dir'] = './'
+
         plat_files_mock.assert_called_once_with(**call_args)
-        call_args['analysis_id'] = analysis_id_reutrn
+        call_args['analysis_id'] = analysis_id_return
         plat_losses_mock.assert_called_once_with(**call_args)
 
 
