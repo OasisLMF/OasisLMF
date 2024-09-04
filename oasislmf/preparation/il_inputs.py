@@ -32,7 +32,7 @@ from oasislmf.utils.data import (factorize_array, factorize_ndarray,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, SUMMARY_TOP_LEVEL_COLS, assign_defaults_to_il_inputs,
                                      get_default_accounts_profile, get_default_exposure_profile,
-                                     get_default_fm_aggregation_profile)
+                                     get_default_fm_aggregation_profile, SOURCE_IDX)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
                                DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
