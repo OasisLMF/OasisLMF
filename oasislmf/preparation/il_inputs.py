@@ -609,6 +609,7 @@ def get_il_input_items(
                         group_df.rename(columns={ProfileElementName: term}, inplace=True)
                 level_df_list.append(group_df)
             level_df = pd.concat(level_df_list, copy=True)
+            level_df = level_df.drop_duplicates(subset=set(level_df.columns) - set(SOURCE_IDX.values()))
 
             if step_level:
                 # merge with gul_inputs_df needs to be based on 'steptriggertype' and 'coverage_type_id'
