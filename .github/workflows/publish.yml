@@ -195,20 +195,20 @@ jobs:
           --output-path ./RELEASE.md
 
     - name: Download Source package
-      uses: actions/download-artifact@v4.1.7
+      uses: actions/download-artifact@v4
       with:
         name: oasislmf-source-pkg
         path: ${{ github.workspace }}/
 
     - name: Download Linux package
-      uses: actions/download-artifact@v4.1.7
+      uses: actions/download-artifact@v4
       with:
         name: oasislmf-bin-pkg_linux
         path: ${{ github.workspace }}/
 
     - name: Download OSX package
       if: needs.build.outputs.osx_pkg_filename != ''
-      uses: actions/download-artifact@v4.1.7
+      uses: actions/download-artifact@v4
       with:
         name: oasislmf-bin-pkg_darwin
         path: ${{ github.workspace }}/

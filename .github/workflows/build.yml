@@ -102,14 +102,14 @@ jobs:
 
     - name: Download ktools build (Linux)
       if: inputs.ktools_branch != ''
-      uses: actions/download-artifact@v4.1.7
+      uses: actions/download-artifact@v4
       with:
         name: Linux_x86_64
         path: ${{ github.workspace }}/
 
     - name: Download ktools build (Darwin)
       if: inputs.ktools_branch != ''
-      uses: actions/download-artifact@v4.1.7
+      uses: actions/download-artifact@v4
       with:
         name: Darwin_x86_64
         path: ${{ github.workspace }}/
@@ -123,7 +123,7 @@ jobs:
         echo "PKG_SRC_PATH=${TAR_PKG}" >> $GITHUB_ENV
 
     - name: Store - source distribution
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: oasislmf-source-pkg
         path: ${{ env.PKG_SRC_PATH }}
@@ -144,7 +144,7 @@ jobs:
         echo "PKG_LINUX_PATH=${WHL_LINUX}" >> $GITHUB_ENV
 
     - name: Store - binary distribution (Linux)
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: oasislmf-bin-pkg_linux
         path: ${{ env.PKG_LINUX_PATH }}
@@ -167,7 +167,7 @@ jobs:
 
     - name: Store - binary distribution (Darwin)
       if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: oasislmf-bin-pkg_darwin
         path: ${{ env.PKG_DARWIN_PATH }}

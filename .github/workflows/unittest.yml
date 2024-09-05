@@ -79,7 +79,7 @@ jobs:
 
       - name: Download package
         if: matrix.cfg.upload-cov != true
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@v4
         with:
           name: oasislmf-bin-pkg_linux
           path: ${{ github.workspace }}/
@@ -96,7 +96,7 @@ jobs:
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@v4
         with:
           name: bin_package
           path: ${{ github.workspace }}/
