@@ -38,16 +38,14 @@ class ComputationStep:
          - check path existence (pre_exist)
          - create necessary directories (is_dir, is_path)
         """
-
         self.logger = logging.getLogger(__name__)
+        self.kwargs = kwargs
+        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4, default=str))
         self.run = oasis_log(self.run)
-
-        input_kwargs = {key: val for key, val in kwargs.items() if val not in [None, ""]}
 
         # set initial value for mdk params
         for param in self.get_params():
             param_value = self._get_init_value(param, kwargs)
-            kwargs[param['name']] = param_value
             setattr(self, param['name'], param_value)
 
         # read and merge settings files
@@ -58,17 +56,6 @@ class ComputationStep:
                 new_settings = settings_info['loader'](setting_fp)
                 settings.add_settings(new_settings, settings_info.get('user_role'))
         self.settings = settings.get_settings()
-
-        # update settings with cmd line parameter, update other step parameters with settings value if present
-        for key, value in self.settings.items():
-            if key in input_kwargs:
-                self.settings[key] = kwargs[key]
-            elif key in kwargs:
-                kwargs[key] = value
-                setattr(self, key, value)
-        self.kwargs = kwargs
-
-        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4, default=str))
 
     def _get_init_value(self, param, kwargs):
         param_value = kwargs.get(param['name'])

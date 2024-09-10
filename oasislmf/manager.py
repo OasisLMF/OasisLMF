@@ -96,6 +96,7 @@ def __interface_factory(computation_cls):
     OasisManager.computations_params[computation_cls.__name__] = computation_cls.get_params()
     interface.__signature__ = computation_cls.get_signature()
     interface.__doc__ = computation_cls.__doc__
+    interface.get_params = computation_cls.get_params
     return interface
 
 
