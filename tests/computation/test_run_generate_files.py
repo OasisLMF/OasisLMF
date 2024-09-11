@@ -60,7 +60,8 @@ class TestGenerateFiles(ComputationChecker):
         expected_called_kwargs = self.combine_args([call_args, {"oasis_files_dir": files_dir}])
 
         files_mock.assert_called_once()
-        self.assertEqual(files_called_kwargs, expected_called_kwargs)
+        for key, expected_value in expected_called_kwargs.items():
+            self.assertEqual(files_called_kwargs[key], expected_value)
 
     def test_generate__with_pre_analysis(self):
         pre_mock = MagicMock()
@@ -95,7 +96,8 @@ class TestGenerateFiles(ComputationChecker):
         expected_called_kwargs = self.combine_args([call_args])
 
         files_mock.assert_called_once()
-        self.assertEqual(files_called_kwargs, expected_called_kwargs)
+        for key, expected_value in expected_called_kwargs.items():
+            self.assertEqual(files_called_kwargs[key], expected_value)
         self.assertTrue(os.path.isdir(files_dir_obj.name))
 
     def test_generate__return_vaules(self):

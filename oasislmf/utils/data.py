@@ -10,6 +10,9 @@ __all__ = [
     'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
+    'analysis_settings_loader',
+    'model_settings_loader',
+    'settings_loader',
     'prepare_location_df',
     'prepare_account_df',
     'prepare_reinsurance_df',
@@ -37,7 +40,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
-from ods_tools.oed import fill_empty, OedExposure, OdsException
+from ods_tools.oed import fill_empty, OedExposure, OdsException, AnalysisSettingSchema, ModelSettingSchema
 
 try:
     from json import JSONDecodeError
@@ -55,10 +58,24 @@ from tabulate import tabulate
 
 from oasislmf.utils.defaults import SOURCE_IDX
 from oasislmf.utils.exceptions import OasisException
-from ods_tools.oed import AnalysisSettingSchema
 
 
 logger = logging.getLogger(__name__)
+
+analysis_settings_loader = AnalysisSettingSchema().get
+model_settings_loader = ModelSettingSchema().get
+
+
+def settings_loader(name, settings_json, loader, required=False, **kwargs):
+    try:
+        return loader(settings_json, **kwargs)
+    except OdsException as e:
+        if required:
+            raise
+        else:
+            logger.debug(f"error loading {name}: {repr(e)}")
+            return {}
+
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)

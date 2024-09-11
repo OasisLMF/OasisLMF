@@ -49,7 +49,8 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import \
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df, prepare_location_df,
-                                 prepare_reinsurance_df, validate_vulnerability_replacements)
+                                 prepare_reinsurance_df, validate_vulnerability_replacements,
+                                 analysis_settings_loader, model_settings_loader)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
@@ -58,7 +59,6 @@ from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      get_default_fm_aggregation_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
-from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
 
 class GenerateFiles(ComputationStep):
@@ -66,6 +66,9 @@ class GenerateFiles(ComputationStep):
     Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
     """
+    settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
+
     step_params = [
         # Command line options
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
@@ -256,26 +259,22 @@ class GenerateFiles(ComputationStep):
         # Columns from loc file to assign group_id
         model_damage_group_fields = []
         model_hazard_group_fields = []
-        correlations: bool = False
-        model_settings = None
-        correlations_analysis_settings = None
 
         # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
-        if self.analysis_settings_json is not None:
-            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
-        if self.model_settings_json is not None:
-            model_settings = ModelSettingSchema().get(self.model_settings_json)
-            if correlations_analysis_settings is not None:
-                model_settings['correlation_settings'] = correlations_analysis_settings
-            correlations = establish_correlations(model_settings=model_settings)
-            try:
-                model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
-            except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn(f'WARNING: Failed to load "damage_group_fields", file: {self.model_settings_json}, error: {e}')
-            try:
-                model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
-            except (KeyError, AttributeError, OasisException) as e:
-                self.logger.warn(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
+        correlations_analysis_settings = self.settings.get('model_settings', {}).get('correlation_settings', None)
+
+        model_settings = self.settings
+        if correlations_analysis_settings is not None:
+            model_settings['correlation_settings'] = correlations_analysis_settings
+        correlations = establish_correlations(model_settings=model_settings)
+        try:
+            model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
+        except (KeyError, AttributeError, OasisException) as e:
+            self.logger.warn(f'WARNING: Failed to load "damage_group_fields", file: {self.model_settings_json}, error: {e}')
+        try:
+            model_hazard_group_fields = model_settings["data_settings"].get("hazard_group_fields")
+        except (KeyError, AttributeError, OasisException) as e:
+            self.logger.warn(f'WARNING: Failed to load "hazard_group_fields", file: {self.model_settings_json}, error: {e}')
 
         # load group columns from model_settings.json if not set in kwargs (CLI)
         if model_damage_group_fields and not self.kwargs.get('group_id_cols'):
