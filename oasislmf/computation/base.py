@@ -51,7 +51,7 @@ class ComputationStep:
         # read and merge settings files
         settings = Settings()
         for settings_info in self.get_params(param_type="settings"):
-            setting_fp = kwargs[settings_info['name']]
+            setting_fp = kwargs.get(settings_info['name'])
             if setting_fp:
                 new_settings = settings_info['loader'](setting_fp)
                 settings.add_settings(new_settings, settings_info.get('user_role'))
