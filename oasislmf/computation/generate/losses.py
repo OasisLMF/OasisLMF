@@ -32,7 +32,7 @@ from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSche
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set, set_vulnerability_set)
+                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from oasislmf.pytools.summary.manager import create_summary_object_file
@@ -366,12 +366,15 @@ class GenerateLossesDir(GenerateLossesBase):
             analysis_settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri or rl)
-        footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
-        if footprint_set_val:
-            set_footprint_set(footprint_set_val, model_run_fp)
-        vulnerability_set_val = analysis_settings.get('model_settings', {}).get('vulnerability_set')
-        if vulnerability_set_val:
-            set_vulnerability_set(vulnerability_set_val, model_run_fp)
+
+        optional_model_sets = {'footprint_set': set_footprint_set,
+                               'vulnerability_set': set_vulnerability_set,
+                               'loss_factors_set': set_loss_factors_set}
+
+        for model_set, model_setter in optional_model_sets.items():
+            model_set_val = analysis_settings.get('model_settings', {}).get(model_set)
+            if model_set_val:
+                model_setter(model_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:
