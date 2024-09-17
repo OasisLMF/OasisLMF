@@ -223,8 +223,8 @@ def get_intensity_adjustment(input_path):
 @nb.njit(cache=True)
 def load_vuln_probability(vuln_array, vuln, vuln_id):
     if vuln_array.shape[0] < vuln['damage_bin_id']:
-        raise Exception("vulnerability_id " + str(vuln_id)+" has damage_bin_id bigger that expected maximum")
-    if  vuln['intensity_bin_id'] <= vuln_array.shape[1]:  # intensity in vulnerability curve but not in the footprint, we can ignore
+        raise Exception("vulnerability_id " + str(vuln_id) + " has damage_bin_id bigger that expected maximum")
+    if vuln['intensity_bin_id'] <= vuln_array.shape[1]:  # intensity in vulnerability curve but not in the footprint, we can ignore
         vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 
 
@@ -533,10 +533,10 @@ def get_vulns(
 
                 if vuln_adj is not None and len(vuln_adj) > 0:
                     vuln_array, valid_vuln_ids = load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
-                                                             num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize, vuln_adj)
+                                                                             num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize, vuln_adj)
                 else:
                     vuln_array, valid_vuln_ids = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                                                    num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize)
+                                                                    num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize)
             else:
                 with storage.with_fileno("vulnerability.bin") as f:
                     vulns_bin = np.memmap(f, dtype=Vulnerability, offset=4, mode='r')
