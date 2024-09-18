@@ -209,7 +209,7 @@ def mv_write_delimiter(byte_mv, cursor) -> int:
         end of delimiter index
     """
     cursor = mv_write(byte_mv, cursor, oasis_int, oasis_int_size, 0)
-    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_int_size, 0)
+    cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, 0)
     # print('end', cursor)
     return cursor
 
