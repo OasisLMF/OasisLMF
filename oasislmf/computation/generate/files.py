@@ -258,11 +258,13 @@ class GenerateFiles(ComputationStep):
         model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
+        analysis_settings = None
         correlations_analysis_settings = None
 
         # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
         if self.analysis_settings_json is not None:
-            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
+            analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
+            correlations_analysis_settings = analysis_settings.get('model_settings', {}).get('correlation_settings', None)
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             if correlations_analysis_settings is not None:
@@ -290,6 +292,17 @@ class GenerateFiles(ComputationStep):
         # otherwise load group cols from args
         else:
             hazard_group_id_cols = self.hazard_group_id_cols
+
+        # Workaround -- check model_settings and analysis_settings for 'do_disaggregation'
+        # once general mechanism is done to work with any setting, this should be removed
+        # see:  https://github.com/OasisLMF/OasisLMF/pull/1552
+        settings_do_disaggregation = None
+        if analysis_settings:
+            settings_do_disaggregation = analysis_settings.get('do_disaggregation', None)
+        elif model_settings and settings_do_disaggregation is None:
+            settings_do_disaggregation = model_settings.get('model_settings', {}).get('do_disaggregation', None)
+        if settings_do_disaggregation is not None:
+            self.do_disaggregation = settings_do_disaggregation
 
         damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
                                                                 exposure_df_columns=location_df,
