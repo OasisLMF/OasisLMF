@@ -365,8 +365,6 @@ class FootprintParquetDynamic(Footprint):
 
         return self
 
-
-
     def get_event(self, event_id: int):
         """
         Gets the event data from the partitioned parquet data file.
@@ -402,7 +400,7 @@ class FootprintParquetDynamic(Footprint):
 
             if len(df_footprint.index) > 0:
                 df_footprint['intensity_bin_id'] = np.floor(df_footprint.from_intensity + (
-                            (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
+                    (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
                 df_footprint['intensity_bin_id'] = df_footprint['intensity_bin_id'].astype('int')
                 df_footprint['probability'] = 1
             else:
