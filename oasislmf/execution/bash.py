@@ -1719,6 +1719,9 @@ def bash_params(
     if 'full_correlation' in analysis_settings:
         if _get_getmodel_cmd is None and bash_params['gul_item_stream']:
             full_correlation = analysis_settings['full_correlation']
+            if full_correlation and gulmc:
+                full_correlation = False
+                logger.info("full_correlation has been disable as it isn't compatible with gulmc, see oasislmf correlation documentation.")
     bash_params['full_correlation'] = full_correlation
 
     # Output depends on being enabled AND having at least one summaries section
