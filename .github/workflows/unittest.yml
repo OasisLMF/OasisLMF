@@ -57,7 +57,7 @@ jobs:
           python-version: ${{ matrix.cfg.python-version }}
 
       - name: Download package
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: oasislmf-bin-pkg_linux
           path: ${{ github.workspace }}/
@@ -87,7 +87,7 @@ jobs:
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: bin_package
           path: ${{ github.workspace }}/

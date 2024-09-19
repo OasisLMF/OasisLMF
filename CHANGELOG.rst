@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.27.10`_
+ ---------
+* [#1474](https://github.com/OasisLMF/OasisLMF/pull/1474) - Use billiard package for keys multiprocess if available
+* [#1479](https://github.com/OasisLMF/OasisLMF/pull/1479) - Release 1.27.9
+* [#1514](https://github.com/OasisLMF/OasisLMF/pull/1514) - manual merge of PR 1509 improve perf of file preparation
+* [#1547](https://github.com/OasisLMF/OasisLMF/pull/1555) - Running full_correlation + gulmc causes an execution to hang.  
+* [#1556](https://github.com/OasisLMF/OasisLMF/pull/1556) - Fix CI build system failures 
+.. _`1.27.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.27.9...1.27.10
+
 `1.27.9`_
  ---------
 * [#1471](https://github.com/OasisLMF/OasisLMF/pull/1472) - number_of_samples = 0 not working in oasislmf
