@@ -268,7 +268,9 @@ def get_gul_input_items(
             'areaperilid': 'areaperil_id',
             'vulnerabilityid': 'vulnerability_id',
             'amplificationid': 'amplification_id',
-            'modeldata': 'model_data'
+            'modeldata': 'model_data',
+            'intensityadjustment': 'intensity_adjustment',
+            'returnperiod': 'return_period'
         },
         inplace=True,
         copy=False  # Pandas copies column data by default on rename
@@ -424,10 +426,10 @@ def get_gul_input_items(
     # Select only required columns
     # Order here matches test output expectations
     keyscols = ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id']
-    if 'amplification_id' in gul_inputs_df.columns:
-        keyscols += ['amplification_id']
-    if 'section_id' in gul_inputs_df.columns:
-        keyscols += ['section_id']
+    additionalcols = ['amplification_id', 'section_id', 'intensity_adjustment', 'return_period']
+    for col in additionalcols:
+        if col in gul_inputs_df.columns:
+            keyscols += [col]
     usecols = (
         ['loc_id', portfolio_num, acc_num, loc_num] +
         ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +

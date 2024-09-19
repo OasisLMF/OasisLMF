@@ -37,7 +37,7 @@ from oasislmf.pytools.gulmc.aggregate import (
 from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
                                            AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
                                            NP_BASE_ARRAY_SIZE,
-                                           Item, Keys,
+                                           Item, Keys, ItemAdjustment,
                                            NormInversionParameters, coverage_type, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
                                            haz_cdf_type, items_MC_data_type)
@@ -72,6 +72,19 @@ def gen_empty_vuln_cdf_lookup(list_size):
     return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
 
+def get_dynamic_footprint_adjustments(input_path):
+    gul_summary_map_fname = os.path.join(input_path, 'gul_summary_map.csv')
+    logger.debug(f"loading {gul_summary_map_fname}")
+    adjustments_map = pd.read_csv(
+        gul_summary_map_fname, usecols=['item_id', 'intensity_adjustment', 'return_period']).astype('int')
+    adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
+    adjustments_map.to_csv(adjustments_fn, index=False)
+    adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
+    np.save('/tmp/adj.npy', adjustments_tb)
+
+    return adjustments_tb
+
+
 @redirect_logging(exec_name='gulmc')
 def run(run_dir,
         ignore_file_type,
@@ -89,7 +102,7 @@ def run(run_dir,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
-        dynamic_footprint=False,
+        dynamic_footprint=True,
         **kwargs):
     """Execute the main gulmc worklow.
 
@@ -339,8 +352,16 @@ def run(run_dir,
             intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
             intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
-        # to do - intensity adjustment
-        # intensity_adjustment = get_intensity_adjustment()
+
+        # intensity adjustment
+        logger.debug('get dynamic footprint adjustments')
+        if dynamic_footprint:
+            adjustments_tb = get_dynamic_footprint_adjustments(input_path)
+            items = rfn.join_by(
+                'item_id', items, adjustments_tb,
+                jointype='leftouter', usemask=False,
+                defaults={'intensity_adjustment': 0, 'return_period': 0}
+            )
 
         while True:
             if not streams_in.readinto(event_id_mv):
@@ -512,7 +533,8 @@ def compute_event_losses(event_id,
                          byte_mv,
                          cursor,
                          dynamic_footprint,
-                         intensity_bin_dict):
+                         intensity_bin_dict
+                         ):
     """Compute losses for an event.
 
     Args:
@@ -601,6 +623,9 @@ def compute_event_losses(event_id,
             item = items[item_event_data['item_idx']]
             areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
+            if dynamic_footprint:
+                intensity_adjustment = item['intensity_adjustment']
+                return_period = item['return_period']
 
             if not effective_damageability:
                 # get the right hazard cdf from the array containing all hazard cdfs
@@ -608,6 +633,9 @@ def compute_event_losses(event_id,
                 haz_cdf_record = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
                 haz_cdf_prob = haz_cdf_record['probability']
                 haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
+                if dynamic_footprint:
+                    haz_cdf_bin_id = haz_cdf_bin_id - intensity_adjustment
+                    haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, 0, haz_cdf_bin_id)
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
             if vulnerability_id in agg_vuln_to_vuln_id:

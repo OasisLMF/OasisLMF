@@ -207,7 +207,8 @@ class BasicKeyServer:
         ('coverage_type', 'CoverageTypeID'),
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID'),
-        ('model_data', 'ModelData'),
+        ('intensity_adjustment', 'IntensityAdjustment'),
+        ('return_period', 'ReturnPeriod'),
         ('section_id', 'section_id'),
     ])
 
@@ -225,7 +226,8 @@ class BasicKeyServer:
         ('coverage_type', 'CoverageTypeID'),
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID'),
-        ('model_data', 'ModelData'),
+        ('intensity_adjustment', 'IntensityAdjustment'),
+        ('return_period', 'ReturnPeriod'),
         ('section_id', 'section_id'),
         ('amplification_id', 'AmplificationID')
     ])
@@ -416,25 +418,23 @@ class BasicKeyServer:
 
     def get_success_heading_row(self, keys, keys_success_msg):
         has_amplification_id = 'amplification_id' in keys
+        is_dynamic = 'intensity_adjustment' in keys and 'return_period' in keys
+        is_complex = 'model_data' in keys
 
-        if 'model_data' in keys:
-            is_dynamic = 'area_peril_id' in keys and 'vulnerability_id' in keys
-            if has_amplification_id and is_dynamic:
-                return self.dynamic_model_with_amplification_data_heading_row
-            elif has_amplification_id:
-                return self.model_data_with_amplification_heading_row
-            elif is_dynamic:
-                return self.dynamic_model_data_heading_row
-            return self.model_data_heading_row
-
-        if keys_success_msg:
-            if has_amplification_id:
-                return self.key_success_with_amplification_and_message_heading_row
+        if is_complex and has_amplification_id:
+            return self.model_data_with_amplification_heading_row
+        elif has_amplification_id and is_dynamic:
+            return self.dynamic_model_with_amplification_data_heading_row
+        elif is_dynamic:
+            return self.dynamic_model_data_heading_row
+        elif keys_success_msg and has_amplification_id:
+            return self.key_success_with_amplification_and_message_heading_row
+        elif keys_success_msg:
             return self.key_success_with_message_heading_row
-
-        if has_amplification_id:
+        elif has_amplification_id:
             return self.key_success_with_amplification_heading_row
-        return self.key_success_heading_row
+        else:
+            return self.key_success_heading_row
 
     def write_json_keys_file(self, results, keys_success_msg, successes_fp, errors_fp):
         # no streaming implementation for json format

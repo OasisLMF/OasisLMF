@@ -5,6 +5,7 @@ import logging
 import os
 
 import numpy as np
+import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
@@ -20,7 +21,7 @@ from oasislmf.pytools.gulmc.common import (ITEM_MAP_KEY_TYPE,
 logger = logging.getLogger(__name__)
 
 
-def read_items(input_path, ignore_file_type=set(), legacy=False):
+def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, legacy=False):
     """Load the items from the items file.
 
     Args:
