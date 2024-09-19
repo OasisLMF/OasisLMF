@@ -72,15 +72,20 @@ def gen_empty_vuln_cdf_lookup(list_size):
     return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
 
-def get_dynamic_footprint_adjustments(input_path):
+def get_dynamic_footprint_adjustments(input_path, dynamic_footprint):
     gul_summary_map_fname = os.path.join(input_path, 'gul_summary_map.csv')
     logger.debug(f"loading {gul_summary_map_fname}")
-    adjustments_map = pd.read_csv(
-        gul_summary_map_fname, usecols=['item_id', 'intensity_adjustment', 'return_period']).astype('int')
+    adjustment_columns = ['item_id', 'intensity_adjustment', 'return_period']
+    if dynamic_footprint:
+        adjustments_map = pd.read_csv(
+            gul_summary_map_fname, usecols=adjustment_columns)
+    else:
+        adjustments_map = pd.read_csv(gul_summary_map_fname, usecols=['item_id'])
+        adjustments_map['intensity_adjustment'] = 0
+        adjustments_map['return_period'] = 0
     adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
-    adjustments_map.to_csv(adjustments_fn, index=False)
+    adjustments_map[adjustment_columns].astype(int).to_csv(adjustments_fn, index=False)
     adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
-    np.save('/tmp/adj.npy', adjustments_tb)
 
     return adjustments_tb
 
@@ -355,13 +360,12 @@ def run(run_dir,
 
         # intensity adjustment
         logger.debug('get dynamic footprint adjustments')
-        if dynamic_footprint:
-            adjustments_tb = get_dynamic_footprint_adjustments(input_path)
-            items = rfn.join_by(
-                'item_id', items, adjustments_tb,
-                jointype='leftouter', usemask=False,
-                defaults={'intensity_adjustment': 0, 'return_period': 0}
-            )
+        adjustments_tb = get_dynamic_footprint_adjustments(input_path, dynamic_footprint)
+        items = rfn.join_by(
+            'item_id', items, adjustments_tb,
+            jointype='leftouter', usemask=False,
+            defaults={'intensity_adjustment': 0, 'return_period': 0}
+        )
 
         while True:
             if not streams_in.readinto(event_id_mv):
@@ -635,7 +639,7 @@ def compute_event_losses(event_id,
                 haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
                 if dynamic_footprint:
                     haz_cdf_bin_id = haz_cdf_bin_id - intensity_adjustment
-                    haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, 0, haz_cdf_bin_id)
+                    haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, nb_int32(0), haz_cdf_bin_id)
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
             if vulnerability_id in agg_vuln_to_vuln_id:
@@ -1354,6 +1358,8 @@ def reconstruct_coverages(event_id,
                 items_event_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
                 items_event_data[item_i]['rng_index'] = this_rng_index
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
+                items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
+                items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
 
                 coverage['cur_items'] += 1
 

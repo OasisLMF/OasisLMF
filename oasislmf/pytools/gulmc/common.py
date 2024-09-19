@@ -14,9 +14,9 @@ Item = nb.from_dtype(np.dtype([('item_id', np.int32),
                                ('group_id', np.int32)
                                ]))
 
-ItemAdjustment = nb.from_dtype(np.dtype([('intensity_adjustment', np.int32),
-                                         ('return_period', np.int32),
-                                         ('item_id', np.int32)
+ItemAdjustment = nb.from_dtype(np.dtype([('item_id', np.int32),
+                                         ('intensity_adjustment', np.int32),
+                                         ('return_period', np.int32)
                                          ]))
 
 items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
@@ -29,6 +29,8 @@ items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
                                              ('hazcdf_i', np.int32),
                                              ('rng_index', np.int32),
                                              ('hazard_rng_index', np.int32),
+                                             ('intensity_adjustment', np.int32),
+                                             ('return_period', np.int32)
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', np.int32),
