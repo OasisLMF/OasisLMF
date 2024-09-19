@@ -366,6 +366,7 @@ def run(run_dir,
             jointype='leftouter', usemask=False,
             defaults={'intensity_adjustment': 0, 'return_period': 0}
         )
+        items.sort(order=['areaperil_id', 'vulnerability_id'])
 
         while True:
             if not streams_in.readinto(event_id_mv):
@@ -428,7 +429,6 @@ def run(run_dir,
                 cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 next_cached_vuln_cdf = 0
-
                 while last_processed_coverage_ids_idx < compute_i:
 
                     cursor, last_processed_coverage_ids_idx, next_cached_vuln_cdf = compute_event_losses(
@@ -627,9 +627,8 @@ def compute_event_losses(event_id,
             item = items[item_event_data['item_idx']]
             areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
-            if dynamic_footprint:
-                intensity_adjustment = item['intensity_adjustment']
-                return_period = item['return_period']
+            intensity_adjustment = item['intensity_adjustment']
+            return_period = item['return_period']
 
             if not effective_damageability:
                 # get the right hazard cdf from the array containing all hazard cdfs
@@ -637,9 +636,8 @@ def compute_event_losses(event_id,
                 haz_cdf_record = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
                 haz_cdf_prob = haz_cdf_record['probability']
                 haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
-                if dynamic_footprint:
-                    haz_cdf_bin_id = haz_cdf_bin_id - intensity_adjustment
-                    haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, nb_int32(0), haz_cdf_bin_id)
+                haz_cdf_bin_id = haz_cdf_bin_id - intensity_adjustment
+                haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, nb_int32(0), haz_cdf_bin_id)
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
             if vulnerability_id in agg_vuln_to_vuln_id:
@@ -1390,6 +1388,7 @@ if __name__ == '__main__':
         ignore_correlation=False,
         ignore_haz_correlation=False,
         effective_damageability=False,
+        dynamic_footprint=False
     )
 
     # remove temporary file
