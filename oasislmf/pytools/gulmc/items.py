@@ -5,7 +5,6 @@ import logging
 import os
 
 import numpy as np
-import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
