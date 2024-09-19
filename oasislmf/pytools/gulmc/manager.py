@@ -102,7 +102,7 @@ def run(run_dir,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
-        dynamic_footprint=True,
+        dynamic_footprint=False,
         **kwargs):
     """Execute the main gulmc worklow.
 
