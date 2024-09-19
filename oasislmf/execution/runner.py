@@ -24,11 +24,12 @@ def run(analysis_settings,
         gul_legacy_stream=False,
         df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
+        dynamic_footprint=False,
         **kwargs
         ):
     model_df_engine = model_df_engine or df_engine
 
-    ## MOVED into bash_params #########################################
+    #  MOVED into bash_params #########################################
     #  keep here for the moment and refactor after testing
     #
     #  Example:
@@ -101,6 +102,7 @@ def run(analysis_settings,
         custom_gulcalc_log_start=custom_gulcalc_log_start,
         custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         model_df_engine=model_df_engine,
+        dynamic_footprint=dynamic_footprint,
         **kwargs,
     )
     bash_trace = subprocess.check_output(['bash', filename])

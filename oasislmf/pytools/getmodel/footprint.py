@@ -360,6 +360,7 @@ class FootprintParquetDynamic(Footprint):
 
         self.df_location_sections = pd.read_csv('input/sections.csv')
         self.location_sections = set(list(self.df_location_sections['section_id']))
+        self.location_apids = pd.read_csv('input/items.csv', usecols=['areaperil_id']).areaperil_id.unique()
 
         self.location_apids = pd.read_csv('input/keys.csv', usecols=['AreaPerilID']).AreaPerilID.unique()
 
@@ -385,7 +386,7 @@ class FootprintParquetDynamic(Footprint):
             df_hazard_case = df_hazard_case[df_hazard_case['areaperil_id'].isin(self.location_apids)]
 
             from_cols = ['areaperil_id', 'intensity']
-            to_cols = from_cols + ['interpolation']
+            to_cols = from_cols + ['interpolation', 'return_period']
 
             df_hazard_case_from = df_hazard_case.merge(
                 df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from'])[from_cols].rename(
@@ -407,7 +408,7 @@ class FootprintParquetDynamic(Footprint):
                 df_footprint.loc[:, 'intensity_bin_id'] = []
                 df_footprint.loc[:, 'probability'] = []
 
-            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id', 'intensity_bin_id', 'probability']])
+            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id', 'intensity_bin_id', 'probability', 'return_period']])
             return numpy_data
 
 
