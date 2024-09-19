@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.28.9`_
+ ---------
+* [#1518](https://github.com/OasisLMF/OasisLMF/pull/1518) - Fix/pre analysis user dir
+* [#1554](https://github.com/OasisLMF/OasisLMF/pull/1554) - drop duplicate il term lines before merging
+* [#1547](https://github.com/OasisLMF/OasisLMF/pull/1555) - Running full_correlation + gulmc causes an execution to hang.  
+* [#1556](https://github.com/OasisLMF/OasisLMF/pull/1556) - Fix CI build system failures 
+* [#1502](https://github.com/OasisLMF/OasisLMF/pull/1502) - Release 1.28.8 (30th May 2024)
+.. _`1.28.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.8...1.28.9
+
 `1.28.8`_
  ---------
 * [#1473](https://github.com/OasisLMF/OasisLMF/pull/1473) - ajust vuln index after vuln_dict has the updated indexes
