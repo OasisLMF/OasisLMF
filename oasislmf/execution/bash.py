@@ -299,7 +299,7 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
             cmd += f" --vuln-cache-size {gulmc_vuln_cache_size}"
 
         if dynamic_footprint:
-            cmd += f" --dynamic-footprint True"
+            cmd += " --dynamic-footprint True"
     else:
         cmd = 'gulcalc'
 
