@@ -636,8 +636,10 @@ def compute_event_losses(event_id,
                 haz_cdf_record = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
                 haz_cdf_prob = haz_cdf_record['probability']
                 haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
+                # adjust intensity in dynamic footprint
                 haz_cdf_bin_id = haz_cdf_bin_id - intensity_adjustment
                 haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, nb_int32(0), haz_cdf_bin_id)
+
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
             if vulnerability_id in agg_vuln_to_vuln_id:

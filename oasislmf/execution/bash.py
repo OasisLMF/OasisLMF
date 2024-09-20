@@ -272,7 +272,7 @@ def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
         return cpp_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader'):
+def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -297,6 +297,9 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
 
         if gulmc_vuln_cache_size:
             cmd += f" --vuln-cache-size {gulmc_vuln_cache_size}"
+
+        if dynamic_footprint:
+            cmd += f" --dynamic-footprint True"
     else:
         cmd = 'gulcalc'
 
@@ -1411,6 +1414,7 @@ def get_getmodel_itm_cmd(
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
+        dynamic_footprint=False,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1432,7 +1436,7 @@ def get_getmodel_itm_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine, dynamic_footprint=dynamic_footprint)} -S{number_of_samples} -L{gul_threshold}'
 
     else:
         cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
@@ -1476,6 +1480,7 @@ def get_getmodel_cov_cmd(
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
+        dynamic_footprint=False,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1497,7 +1502,7 @@ def get_getmodel_cov_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
+        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,dynamic_footprint=dynamic_footprint)} -S{number_of_samples} -L{gul_threshold}'
 
     else:
         cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
@@ -1846,6 +1851,7 @@ def bash_params(
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+    dynamic_footprint=False,
     **kwargs
 ):
 
@@ -1974,6 +1980,7 @@ def bash_params(
     )
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
+    bash_params['dynamic_footprint'] = dynamic_footprint
 
     return bash_params
 
@@ -2099,6 +2106,7 @@ def create_bash_analysis(
     summarypy,
     gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
+    dynamic_footprint=False,
     **kwargs
 ):
 
@@ -2379,6 +2387,7 @@ def create_bash_analysis(
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
             "model_df_engine": model_df_engine,
+            'dynamic_footprint': dynamic_footprint
         }
 
         # Establish whether items to amplifications map file is present
@@ -2765,6 +2774,7 @@ def genbash(
     summarypy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
+    dynamic_footprint=False
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -2846,6 +2856,7 @@ def genbash(
         peril_filter=peril_filter,
         summarypy=summarypy,
         model_df_engine=model_df_engine,
+        dynamic_footprint=dynamic_footprint
     )
 
     # remove the file if it already exists
