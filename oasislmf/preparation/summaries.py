@@ -40,7 +40,6 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
-from ..utils.peril import get_peril_groups_df
 
 MAP_SUMMARY_DTYPES = {
     'loc_id': 'int',
