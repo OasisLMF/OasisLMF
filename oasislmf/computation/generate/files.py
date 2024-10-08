@@ -458,7 +458,7 @@ class GenerateDummyModelFiles(ComputationStep):
          'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0,
          'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
-        {'name': 'num_amplifications', 'flag': '-m', 'requried': False, 'type': int, 'default': 0, 'help': 'Number of amplifications'},
+        {'name': 'num_amplifications', 'flag': '-m', 'required': False, 'type': int, 'default': 0, 'help': 'Number of amplifications'},
         {'name': 'min_pla_factor', 'flag': '-f', 'required': False, 'type': float, 'default': 0.875,
          'help': 'Minimum Post Loss Amplification Factor'},
         {'name': 'max_pla_factor', 'flag': '-F', 'required': False, 'type': float, 'default': 1.5,
