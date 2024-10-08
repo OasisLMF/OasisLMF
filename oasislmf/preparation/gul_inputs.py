@@ -505,6 +505,29 @@ def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
 
 
 @oasis_log
+def write_item_adjustments_file(gul_inputs_df, item_adjustments_fp, chunksize=100000):
+    """
+    Writes a item_adjustments id file based on the gul inputs.
+
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param item_adjustments_fp: item_adjustments file path to output
+    :type sections_fp: str
+    """
+    try:
+        gul_inputs_df.loc[:, ['item_id', 'intensity_adjustment', 'return_period']].drop_duplicates().to_csv(
+            path_or_buf=item_adjustments_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(item_adjustments_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException("Exception raised in 'write_item_adjustments_file'", e)
+
+
+@oasis_log
 def write_amplifications_file(gul_inputs_df, amplifications_fp, chunksize=100000):
     """
     Writes an amplifications file. This is the mapping between item IDs and
@@ -655,6 +678,11 @@ def write_gul_input_files(
     # prefixes dict
     if 'section_id' not in gul_inputs_df:
         oasis_files_prefixes.pop('sections', None)
+
+    # If no adjustments data then remove corresponding file name from files
+    # prefixes dict
+    if 'intensity_adjustment' not in gul_inputs_df:
+        oasis_files_prefixes.pop('intensity_adjustment', None)
 
     # A dict of GUL input file names and file paths
     gul_input_files = {

@@ -72,19 +72,16 @@ def gen_empty_vuln_cdf_lookup(list_size):
     return cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys
 
 
-def get_dynamic_footprint_adjustments(input_path, dynamic_footprint):
-    gul_summary_map_fname = os.path.join(input_path, 'gul_summary_map.csv')
-    logger.debug(f"loading {gul_summary_map_fname}")
-    adjustment_columns = ['item_id', 'intensity_adjustment', 'return_period']
-    if dynamic_footprint:
-        adjustments_map = pd.read_csv(
-            gul_summary_map_fname, usecols=adjustment_columns)
-    else:
-        adjustments_map = pd.read_csv(gul_summary_map_fname, usecols=['item_id'])
-        adjustments_map['intensity_adjustment'] = 0
-        adjustments_map['return_period'] = 0
+def get_dynamic_footprint_adjustments(input_path):
+    """Generate intensity adjustment array for dynamic footprint models.
+
+    Args:
+        input_path (str): location of the generated adjustments file.
+
+    Returns:
+        numpy array with itemid and adjustment factors
+    """
     adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
-    adjustments_map[adjustment_columns].astype(int).to_csv(adjustments_fn, index=False)
     adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
 
     return adjustments_tb
@@ -360,7 +357,7 @@ def run(run_dir,
 
         # intensity adjustment
         logger.debug('get dynamic footprint adjustments')
-        adjustments_tb = get_dynamic_footprint_adjustments(input_path, dynamic_footprint)
+        adjustments_tb = get_dynamic_footprint_adjustments(input_path)
         items = rfn.join_by(
             'item_id', items, adjustments_tb,
             jointype='leftouter', usemask=False,
