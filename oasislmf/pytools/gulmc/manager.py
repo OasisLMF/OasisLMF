@@ -82,7 +82,12 @@ def get_dynamic_footprint_adjustments(input_path):
         numpy array with itemid and adjustment factors
     """
     adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
-    adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
+    if os.path.isfile('item_adjustments.csv'):
+        adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
+    else:
+        items_fp = os.path.join(input_path, 'items.csv')
+        items_tb = np.loadtxt(items_fp, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+        adjustments_tb = np.array([(i[0], 0, 0) for i in items_tb], dtype=ItemAdjustment)
 
     return adjustments_tb
 

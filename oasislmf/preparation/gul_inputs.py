@@ -662,7 +662,6 @@ def write_gul_input_files(
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
     chunksize = chunksize or min(chunksize, len(gul_inputs_df))
-
     # If no complex model data present then remove the corresponding file
     # name from the files prefixes dict, which is used for writing the
     # GUl input files
@@ -682,7 +681,7 @@ def write_gul_input_files(
     # If no adjustments data then remove corresponding file name from files
     # prefixes dict
     if 'intensity_adjustment' not in gul_inputs_df:
-        oasis_files_prefixes.pop('intensity_adjustment', None)
+        oasis_files_prefixes.pop('item_adjustments', None)
 
     # A dict of GUL input file names and file paths
     gul_input_files = {
