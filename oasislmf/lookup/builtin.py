@@ -274,12 +274,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
             'vulnerability_id', 'status', 'message'
         ]
-        if 'amplification_id' in locations.columns:
-            key_columns += ['amplification_id']
-        if 'model_data' in locations.columns:
-            key_columns += ['model_data']
-        if 'section_id' in locations.columns:
-            key_columns += ['section_id']
+        additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
+        for col in additional_columns:
+            if col in locations.columns:
+                key_columns += [col]
+
         locations = locations[key_columns]
 
         # check all ids are of the good type
@@ -415,8 +414,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
             location = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
-                location.loc[~location['peril_id'].isin(model_perils_covered), ['status', 'message']
-                             ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
+                df_model_perils_covered = pd.Series(model_perils_covered)
+                df_model_perils_covered.name = 'model_perils_covered'
+                location = location.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
             return location
         return fct
 
@@ -668,3 +668,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
 
         return model_data
+
+    @staticmethod
+    def build_dynamic_model_adjustment(intensity_adjustment_col, return_period_col):
+        """
+        Converts specified columns from the OED file into intensity adjustments and
+        return period protection.
+        """
+        lst_intensity_adjustment = []
+        lst_return_period = []
+
+        def adjustments(locations):
+            for index, row in locations.iterrows():
+                intensity_adjustment = row[intensity_adjustment_col]
+                return_period = row[return_period_col]
+                lst_intensity_adjustment.append(intensity_adjustment)
+                lst_return_period.append(return_period)
+
+            locations['intensity_adjustment'] = lst_intensity_adjustment
+            locations['return_period'] = lst_return_period
+            return locations
+
+        return adjustments

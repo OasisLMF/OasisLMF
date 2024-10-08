@@ -13,7 +13,8 @@ __all__ = [
     'prepare_run_directory',
     'prepare_run_inputs',
     'set_footprint_set',
-    'set_vulnerability_set'
+    'set_vulnerability_set',
+    'set_loss_factors_set'
 ]
 
 import pathlib
@@ -42,6 +43,7 @@ from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
+from oasislmf.pytools.pla.common import LOSS_FACTORS_FILE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -434,7 +436,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
         elif _calc_selected(analysis_settings, [
-            'pltcalc', 'aalcalc', 'aalcalcmeanonly', 'alt_period', 'elt_moment', 'elt_quantile',
+            'pltcalc', 'aalcalc', 'aalcalcmeanonly', 'alt_period', 'alt_meanonly', 'elt_moment', 'elt_quantile',
             'elt_sample', 'plt_moment', 'plt_quantile', 'plt_sample'
         ]):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
@@ -524,6 +526,20 @@ def set_vulnerability_set(setting_val, run_dir):
                 logger.debug(f'{vulnerability_fp} not found, trying next format')
 
     raise OasisException(f'Could not find vulnerability data files with identifier "{setting_val}"')
+
+
+@oasis_log
+def set_loss_factors_set(setting_val, run_dir):
+    setting_val = str(setting_val)
+    stem, extension = LOSS_FACTORS_FILE_NAME.split('.', 1)
+    loss_factors_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
+    loss_factors_target_fp = os.path.join(run_dir, 'static', LOSS_FACTORS_FILE_NAME)
+    if os.path.isfile(loss_factors_target_fp):
+        os.rename(loss_factors_target_fp, os.path.join(run_dir, 'static', f'{stem}_default.{extension}'))
+    if os.path.isfile(loss_factors_fp):
+        os.symlink(loss_factors_fp, loss_factors_target_fp)
+        return
+    raise OasisException(f'Could not find loss factors files with identifier "{setting_val}"')
 
 
 @oasis_log
