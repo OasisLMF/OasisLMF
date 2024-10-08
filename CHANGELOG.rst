@@ -1,6 +1,17 @@
 OasisLMF Changelog
 ==================
 
+`2.3.9`_
+ ---------
+* [#1567](https://github.com/OasisLMF/OasisLMF/pull/1568) - Occurrence file not found when requesting output from ktools component alt_meanonly
+* [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
+* [#1379](https://github.com/OasisLMF/OasisLMF/pull/1550) - Performance issue in get_exposure_summary
+* [#1557](https://github.com/OasisLMF/OasisLMF/pull/1557) - Release 2.3.8
+* [#1558](https://github.com/OasisLMF/OasisLMF/pull/1558) - support for having several pla sets
+* [#1560](https://github.com/OasisLMF/OasisLMF/pull/1560) - add check for vulnerability id and intensity bin boundary
+* [#1566](https://github.com/OasisLMF/OasisLMF/pull/1565) - Fiona package vulnerability issue
+.. _`2.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.8...2.3.9
+
 `2.3.8`_
  ---------
 * [#1536](https://github.com/OasisLMF/OasisLMF/pull/1536) - Release 2.3.7 (Aug 6)
