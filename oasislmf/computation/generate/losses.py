@@ -369,7 +369,7 @@ class GenerateLossesDir(GenerateLossesBase):
 
         optional_model_sets = {'footprint_set': set_footprint_set,
                                'vulnerability_set': set_vulnerability_set,
-                               'loss_factors_set': set_loss_factors_set}
+                               'pla_loss_factors_set': set_loss_factors_set}
 
         for model_set, model_setter in optional_model_sets.items():
             model_set_val = analysis_settings.get('model_settings', {}).get(model_set)
