@@ -454,6 +454,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
         {'name': 'model_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
+        {'name': 'dynamic_footprint', 'default': False,
+            'help': 'Dynamic Footprint'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -514,6 +516,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             summarypy=self.summarypy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
+            dynamic_footprint=self.dynamic_footprint
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -672,6 +675,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'dynamic_footprint', 'default': False,
+            'help': 'Dynamic Footprint'},
     ]
 
     def run(self):
@@ -718,6 +723,7 @@ class GenerateLosses(GenerateLossesDir):
                         peril_filter=self._get_peril_filter(analysis_settings),
                         summarypy=self.summarypy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
+                        dynamic_footprint=self.dynamic_footprint
                     )
                 except TypeError:
                     warnings.simplefilter("always")

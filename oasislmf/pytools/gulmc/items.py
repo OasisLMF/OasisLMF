@@ -20,7 +20,7 @@ from oasislmf.pytools.gulmc.common import (ITEM_MAP_KEY_TYPE,
 logger = logging.getLogger(__name__)
 
 
-def read_items(input_path, ignore_file_type=set(), legacy=False):
+def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, legacy=False):
     """Load the items from the items file.
 
     Args:
