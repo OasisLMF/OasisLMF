@@ -256,7 +256,6 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
 
             return True
         profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
-        import pdb; pdb.set_trace()
 
     # Risk level
     layer_filter = reins_type_filter
