@@ -225,20 +225,38 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
     if fm_level_id == RISK_LEVEL_ID:
         ri_filter_fields = RISK_LEVEL_ALL_FIELDS + [field for field in FILTER_LEVEL_EXTRA_FIELDS if field in ri_df]
         ri_filter_valid_fields = [field + '_valid' for field in ri_filter_fields]
+        ri_date_fields = ['ReinsInceptionDate', 'ReinsExpiryDate', 'UseReinsDates']
         merge_on = ['layer_id']
         if reins_type in REINS_TYPE_EXACT_MATCH:
             merge_on += RISK_LEVEL_FIELD_MAP[risk_level]
-        filter_df = (these_profile_map_layers[these_profile_map_layers['level_id'] == FILTER_LEVEL_ID]
-                     .reset_index()
-                     .merge(ri_df[reins_type_filter][ri_filter_fields + ri_filter_valid_fields + ['layer_id']], how='inner', on=merge_on))
+        filter_df = (
+            these_profile_map_layers[these_profile_map_layers['level_id'] == FILTER_LEVEL_ID]
+            .reset_index()
+            .merge(
+                ri_df[reins_type_filter][ri_filter_fields + ri_filter_valid_fields + ['layer_id'] + ri_date_fields],
+                how='inner',
+                on=merge_on
+            )
+        )
 
         def _match(row):
             for field in ri_filter_fields:
                 if (field not in merge_on
                         and row[f'{field}_valid'] and row[f'{field}_x'] != row[f'{field}_y']):
                     return False
+
+            # Risk Attaching filter for reinsurance
+            if "UseReinsDates" in row and row["UseReinsDates"] == "Y":
+                if (
+                    row["ReinsInceptionDate"] != "" and
+                    row["PolInceptionDate"] != "" and
+                    row["PolInceptionDate"] < row["ReinsInceptionDate"]
+                ):
+                    return False
+
             return True
         profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
+        import pdb; pdb.set_trace()
 
     # Risk level
     layer_filter = reins_type_filter

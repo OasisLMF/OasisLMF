@@ -114,7 +114,10 @@ RI_INFO_DEFAULTS = {
     'RiskAttachment': 0.0,
     'OccLimit': 0.0,
     'OccAttachment': 0.0,
-    'TreatyShare': 1.0
+    'TreatyShare': 1.0,
+    'UseReinsDates': 'N',
+    'ReinsInceptionDate': '',
+    'ReinsExpiryDate': '',
 }
 
 RI_SCOPE_DEFAULTS = {

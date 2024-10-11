@@ -405,7 +405,15 @@ class GenerateFiles(ComputationStep):
         xref_descriptions_df = merge_oed_to_mapping(
             xref_descriptions_df,
             exposure_data.account.dataframe,
-            ['PortNumber', 'AccNumber', 'PolNumber'], {'CedantName': '', 'ProducerName': '', 'LOB': ''})
+            ['PortNumber', 'AccNumber', 'PolNumber'],
+            {
+                'CedantName': '',
+                'ProducerName': '',
+                'LOB': '',
+                'PolInceptionDate': '',
+                'PolExpiryDate': '',
+            }
+        )
         xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id')
 
         del fm_summary_mapping
