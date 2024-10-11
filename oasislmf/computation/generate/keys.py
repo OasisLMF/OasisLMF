@@ -175,8 +175,7 @@ class GenerateKeysDeterministic(KeyComputationStep):
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
-        {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
-         'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'help': 'Select List of supported coverage_types [1, .. ,15]'},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
          'help': 'List of peril covered by the model'}
     ]
@@ -193,6 +192,15 @@ class GenerateKeysDeterministic(KeyComputationStep):
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
+
+        if self.supported_oed_coverage_types is None:
+            coverage_values = exposure_data.oed_schema.schema['CoverageValues']
+            cob_coverage = list(
+                coverage_info['CoverageID'] for coverage_info in coverage_values.values()
+                    if not coverage_info['SubCoverages']
+                        and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
+            self.supported_oed_coverage_types = cob_coverage
+
         config = {'builtin_lookup_type': 'peril_covered_deterministic',
                   'model': {"supplier_id": "OasisLMF",
                             "model_id": "Deterministic",
@@ -204,8 +212,9 @@ class GenerateKeysDeterministic(KeyComputationStep):
             lookup_config=config,
             output_directory=output_dir
         )
+
         return lookup.generate_key_files(
-            location_df=exposure_data.location.dataframe,
+            location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=keys_fp,
             format='oasis',
         )

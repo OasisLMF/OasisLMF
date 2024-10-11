@@ -53,7 +53,7 @@ import pytz
 from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
 
-from oasislmf.utils.defaults import SOURCE_IDX
+from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
 from oasislmf.utils.exceptions import OasisException
 from ods_tools.oed import AnalysisSettingSchema
 
@@ -725,14 +725,8 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
 
 
 def prepare_location_df(location_df):
-    # Set interal location id index
-    if 'loc_id' not in location_df.columns:
-        location_df['loc_id'] = get_ids(location_df, ['PortNumber', 'AccNumber', 'LocNumber'])
-    else:
-        location_df['loc_id'] = location_df['loc_id'].astype(int)
     # Add file Index column to extract OED columns for summary grouping
     location_df[SOURCE_IDX['loc']] = location_df.index
-
     return location_df
 
 
@@ -814,6 +808,13 @@ def get_exposure_data(computation_step, add_internal_col=False):
                     use_field=True)
 
             if add_internal_col:
+                sar_df = exposure_data.get_subject_at_risk_source().dataframe
+                if sar_df is not None:
+                    if SAR_ID not in sar_df.columns:
+                        sar_df[SAR_ID] = get_ids(sar_df, exposure_data.class_of_business_info['subject_at_risk_id_fields'])
+                    else:
+                        sar_df[SAR_ID] = sar_df[SAR_ID].astype(int)
+
                 if exposure_data.location:
                     exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
                 if exposure_data.account:

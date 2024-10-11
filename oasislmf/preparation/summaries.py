@@ -892,7 +892,7 @@ def get_exposure_summary(
 
     for field in exposure_profile:
         if 'FMTermType' in exposure_profile[field].keys():
-            if exposure_profile[field]['FMTermType'] == 'TIV':
+            if exposure_profile[field]['FMTermType'] == 'TIV' and exposure_profile[field]['ProfileElementName'] in exposure_df.columns:
                 cov_name = exposure_profile[field]['ProfileElementName']
                 coverage_type_id = exposure_profile[field]['CoverageTypeID']
                 tmp_df = exposure_df[['loc_id', cov_name]]
