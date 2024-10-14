@@ -54,7 +54,7 @@ read_buffer_state_dtype = np.dtype([
 class ELTReader(EventReader):
     def __init__(self, len_sample, compute_selt, compute_melt):
         self.logger = logger
-        self.selt_data = np.zeros(10000000, dtype=SELT_dtype)  # write buffer for SELT
+        self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
@@ -64,7 +64,7 @@ class ELTReader(EventReader):
         self.state["compute_melt"] = compute_melt
 
         # Buffer for MELT data
-        self.melt_data = np.zeros(10000000, dtype=MELT_dtype)  # write buffer for MELT
+        self.melt_data = np.zeros(100000, dtype=MELT_dtype)  # write buffer for MELT
         self.melt_idx = np.zeros(1, dtype=np.int64)
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
@@ -98,16 +98,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
-
-                # if state["compute_melt"]:
-                #     # Reset MELT variables
-                #     state["sumloss"] = 0.0
-                #     state["sumlosssqr"] = 0.0
-                #     state["non_zero_samples"] = 0
-                #     state["max_loss"] = 0.0
-                #     state["mean_impacted_exposure"] = 0.0
-                #     state["max_impacted_exposure"] = 0.0
-                #     state["analytical_mean"] = 0.0
 
             else:
                 # Not enough for whole summary header
@@ -170,7 +160,6 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                             mean_imp_exp = state["impacted_exposure"] * chance_of_loss
 
                             # MELT data
-                            # analytical mean
                             melt_data[midx]['EventId'] = event_id
                             melt_data[midx]['SummaryId'] = state["summary_id"]
                             melt_data[midx]['SampleType'] = 1
@@ -268,7 +257,7 @@ def run(files_in, selt_output_file=None, melt_output_file=None):
                 # Extract MELT data
                 melt_data = elt_reader.melt_data[:elt_reader.melt_idx[0]]
                 if output_files['melt'] is not None and melt_data.size > 0:
-                    np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.4f,%.2f,%.6f,%.6f,%.2f,%.2f,%.2f,%.2f')
+                    np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
                 elt_reader.melt_idx[0] = 0
 
 
