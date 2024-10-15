@@ -152,7 +152,7 @@ class GenerateKeys(KeyComputationStep):
         )
 
         res = key_server.generate_key_files(
-            location_df=exposure_data.location.dataframe,
+            location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             format=self.keys_format,
