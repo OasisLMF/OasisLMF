@@ -173,7 +173,7 @@ FM_TERMS_PER_REINS_TYPE = {
 }
 
 
-def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id):
+def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger):
     """
     Create new profile id from reinsurance in ri_df corresponding to reins_type.
     Add them to fm_profile_df and match the profile_ids in ri_df and profile_map_df
@@ -225,7 +225,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
     if fm_level_id == RISK_LEVEL_ID:
         ri_filter_fields = RISK_LEVEL_ALL_FIELDS + [field for field in FILTER_LEVEL_EXTRA_FIELDS if field in ri_df]
         ri_filter_valid_fields = [field + '_valid' for field in ri_filter_fields]
-        ri_date_fields = ['ReinsInceptionDate', 'ReinsExpiryDate', 'UseReinsDates']
+        ri_date_fields = ['ReinsInceptionDate', 'ReinsExpiryDate', 'AttachmentBasis']
         merge_on = ['layer_id']
         if reins_type in REINS_TYPE_EXACT_MATCH:
             merge_on += RISK_LEVEL_FIELD_MAP[risk_level]
@@ -246,13 +246,12 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
                     return False
 
             # Risk Attaching filter for reinsurance
-            if "UseReinsDates" in row and row["UseReinsDates"] == "Y":
-                if (
-                    row["ReinsInceptionDate"] != "" and
-                    row["PolInceptionDate"] != "" and
-                    row["PolInceptionDate"] < row["ReinsInceptionDate"]
-                ):
-                    return False
+            if "AttachmentBasis" in row and row["AttachmentBasis"] == "RA":
+                if row["ReinsInceptionDate"] != "" and row["PolInceptionDate"] != "":
+                    if row["PolInceptionDate"] < row["ReinsInceptionDate"]:
+                        return False
+                else:
+                    logger.warning(f"ReinsInceptionDate or PolInceptionDate missing for index: {row["index"]}, cannot use AttachmentBasis [RA], ignoring dates")
 
             return True
         profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
@@ -454,7 +453,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             for fm_level_id in [RISK_LEVEL_ID, PROGRAM_LEVEL_ID]:
                 for reins_type in FM_TERMS_PER_REINS_TYPE:
                     logger.debug(f'level_id {fm_level_id}, {reins_type} profiles...')
-                    fm_profile_df = create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id)
+                    fm_profile_df = create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger)
 
             ri_df['profile_id'] = ri_df['profile_id'].astype('int64')
             profile_map_df['profile_id'] = profile_map_df['profile_id'].astype('int64')

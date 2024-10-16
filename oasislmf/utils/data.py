@@ -115,7 +115,7 @@ RI_INFO_DEFAULTS = {
     'OccLimit': 0.0,
     'OccAttachment': 0.0,
     'TreatyShare': 1.0,
-    'UseReinsDates': 'N',
+    'AttachmentBasis': 'LO',
     'ReinsInceptionDate': '',
     'ReinsExpiryDate': '',
 }
