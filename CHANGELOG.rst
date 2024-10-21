@@ -1,6 +1,31 @@
 OasisLMF Changelog
 ==================
 
+`2.3.9`_
+ ---------
+* [#1567](https://github.com/OasisLMF/OasisLMF/pull/1568) - Occurrence file not found when requesting output from ktools component alt_meanonly
+* [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
+* [#1379](https://github.com/OasisLMF/OasisLMF/pull/1550) - Performance issue in get_exposure_summary
+* [#1557](https://github.com/OasisLMF/OasisLMF/pull/1557) - Release 2.3.8
+* [#1558](https://github.com/OasisLMF/OasisLMF/pull/1558) - support for having several pla sets
+* [#1560](https://github.com/OasisLMF/OasisLMF/pull/1560) - add check for vulnerability id and intensity bin boundary
+* [#1566](https://github.com/OasisLMF/OasisLMF/pull/1565) - Fiona package vulnerability issue
+.. _`2.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.8...2.3.9
+
+`2.3.8`_
+ ---------
+* [#1536](https://github.com/OasisLMF/OasisLMF/pull/1536) - Release 2.3.7 (Aug 6)
+* [#1544](https://github.com/OasisLMF/OasisLMF/pull/1545) - dynamic footprint - slow performance for large hazard case
+* [#1546](https://github.com/OasisLMF/OasisLMF/pull/1546) - Combus changes: 20240807
+* [#1554](https://github.com/OasisLMF/OasisLMF/pull/1554) - drop duplicate il term lines before merging
+* [#1547](https://github.com/OasisLMF/OasisLMF/pull/1555) - Running full_correlation + gulmc causes an execution to hang.  
+* [#1556](https://github.com/OasisLMF/OasisLMF/pull/1556) - Fix CI build system failures 
+* [#1559](https://github.com/OasisLMF/OasisLMF/pull/1559) - Read do_disaggregation from settings files
+* [#1560](https://github.com/OasisLMF/OasisLMF/pull/1560) - add check for vulnerability id and intensity bin boundary
+* [#1561](https://github.com/OasisLMF/OasisLMF/pull/1561) - Set Ktools 3.12.4
+* [#1531](https://github.com/OasisLMF/OasisLMF/pull/1531) - fix effective deductible applied in minded calculation for calcrule 19
+.. _`2.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.7...2.3.8
+
 `2.3.7`_
  ---------
 * [#1533](https://github.com/OasisLMF/OasisLMF/pull/1537) - API client names the downloaded output file .tar instead of .tar.gz

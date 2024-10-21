@@ -270,7 +270,8 @@ OASIS_FILES_PREFIXES = OrderedDict({
         'items': 'items',
         'coverages': 'coverages',
         'amplifications': 'amplifications',
-        'sections': 'sections'
+        'sections': 'sections',
+        'item_adjustments': 'item_adjustments'
     },
     'il': {
         'fm_policytc': 'fm_policytc',

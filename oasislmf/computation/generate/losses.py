@@ -30,7 +30,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set, set_vulnerability_set)
+                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from oasislmf.pytools.summary.manager import create_summary_object_file
@@ -102,7 +102,7 @@ class GenerateLossesBase(ComputationStep):
             'gulpy_random_generator': 1}
 
         for rule in rule_ranges:
-            rule_val = getattr(self, rule)
+            rule_val = int(getattr(self, rule))
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
 
@@ -367,12 +367,15 @@ class GenerateLossesDir(GenerateLossesBase):
             self.settings['number_of_samples'] = default_model_samples
 
         prepare_run_inputs(self.settings, model_run_fp, model_storage, ri=ri or rl)
-        footprint_set_val = self.settings.get('model_settings', {}).get('footprint_set')
-        if footprint_set_val:
-            set_footprint_set(footprint_set_val, model_run_fp)
-        vulnerability_set_val = self.settings.get('model_settings', {}).get('vulnerability_set')
-        if vulnerability_set_val:
-            set_vulnerability_set(vulnerability_set_val, model_run_fp)
+
+        optional_model_sets = {'footprint_set': set_footprint_set,
+                               'vulnerability_set': set_vulnerability_set,
+                               'pla_loss_factors_set': set_loss_factors_set}
+
+        for model_set, model_setter in optional_model_sets.items():
+            model_set_val = self.settings.get('model_settings', {}).get(model_set)
+            if model_set_val:
+                model_setter(model_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:
@@ -451,6 +454,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
         {'name': 'model_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
+        {'name': 'dynamic_footprint', 'default': False,
+            'help': 'Dynamic Footprint'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -513,6 +518,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             summarypy=self.summarypy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
+            dynamic_footprint=self.dynamic_footprint
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -673,6 +679,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'dynamic_footprint', 'default': False,
+            'help': 'Dynamic Footprint'},
     ]
 
     def run(self):
@@ -719,6 +727,7 @@ class GenerateLosses(GenerateLossesDir):
                         peril_filter=self._get_peril_filter(self.settings),
                         summarypy=self.summarypy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
+                        dynamic_footprint=self.dynamic_footprint
                     )
                 except TypeError:
                     warnings.simplefilter("always")
