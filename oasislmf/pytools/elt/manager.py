@@ -4,6 +4,7 @@ import argparse
 import logging
 import numpy as np
 import numba as nb
+import os
 from contextlib import ExitStack
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
@@ -34,11 +35,19 @@ MELT_dtype = np.dtype([
     ('MaxImpactedExposure', oasis_float)
 ])
 
+QELT_dtype = np.dtype([
+    ('EventId', oasis_int),
+    ('SummaryId', oasis_int),
+    ('Quantile', oasis_float),
+    ('Loss', oasis_float)
+])
+
 read_buffer_state_dtype = np.dtype([
     ('len_sample', np.int32),
     ('reading_losses', np.bool_),
     ('compute_selt', np.bool_),
     ('compute_melt', np.bool_),
+    ('compute_qelt', np.bool_),
     ('summary_id', np.int32),
     ('impacted_exposure', np.float64),
     ('sumloss', np.float64),
@@ -52,7 +61,7 @@ read_buffer_state_dtype = np.dtype([
 
 
 class ELTReader(EventReader):
-    def __init__(self, len_sample, compute_selt, compute_melt):
+    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt):
         self.logger = logger
         self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
@@ -62,10 +71,15 @@ class ELTReader(EventReader):
         self.state["reading_losses"] = False
         self.state["compute_selt"] = compute_selt
         self.state["compute_melt"] = compute_melt
+        self.state["compute_qelt"] = compute_qelt
 
         # Buffer for MELT data
         self.melt_data = np.zeros(100000, dtype=MELT_dtype)  # write buffer for MELT
         self.melt_idx = np.zeros(1, dtype=np.int64)
+
+        # Buffer for QELT data
+        self.qelt_data = np.zeros(100000, dtype=QELT_dtype)
+        self.qelt_idx = np.zeros(1, dtype=np.int64)
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         # Pass state variables to read_buffer
@@ -269,10 +283,12 @@ def read_event_rates_occurrence(occurrence_file):
     return unique_event_ids, event_rates_values
 
 
-def run(files_in, selt_output_file=None, melt_output_file=None):
+def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None):
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
-    er = read_event_rates_occurrence("/home/oasis-user/coderoot/OasisLMF/oasislmf/pytools/elt/input/occurrence.bin")
+    compute_qelt = qelt_output_file is not None
+    er = read_event_rates_occurrence(os.path.join(run_dir, "input/occurrence.bin"))
+
     if not compute_selt and not compute_melt:
         logger.warning("No output files specified")
 
@@ -281,7 +297,7 @@ def run(files_in, selt_output_file=None, melt_output_file=None):
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        elt_reader = ELTReader(len_sample, compute_selt, compute_melt)
+        elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt)
 
         output_files = {}
         if selt_output_file is not None:
@@ -298,6 +314,13 @@ def run(files_in, selt_output_file=None, melt_output_file=None):
         else:
             output_files['melt'] = None
 
+        if qelt_output_file is not None:
+            qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
+            qelt_file.write('EventId,SummaryId,Quantile,Loss\n')
+            output_files['qelt'] = qelt_file
+        else:
+            output_files['qelt'] = None
+
         for event_id in elt_reader.read_streams(streams_in):
             if compute_selt:
                 # Extract SELT data
@@ -312,16 +335,31 @@ def run(files_in, selt_output_file=None, melt_output_file=None):
                 if output_files['melt'] is not None and melt_data.size > 0:
                     np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
                 elt_reader.melt_idx[0] = 0
+            
+            if compute_qelt:
+                # Extract QELT data
+                qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
+                if output_files['qelt'] is not None and qelt_data.size > 0:
+                    np.savetxt(output_files['qelt'], data, delimiter=',', fmt='%d,%d,%.2f,%.2f')
+                elt_reader.qelt_idx[0] = 0
 
 
 def main():
     parser = argparse.ArgumentParser(description='Process event loss table stream')
-    parser.add_argument('--files_in', nargs='+', required=True, help='Input files')
-    parser.add_argument('--selt_output_file', default=None, help='Output SELT CSV file')
-    parser.add_argument('--melt_output_file', default=None, help='Output MELT CSV file')
+    parser.add_argument('--run_dir', type=str, required=True, default='.', help='path to the run directory')
+    parser.add_argument('--files_in', type=str, nargs='+', required=True, help='Input files')
+    parser.add_argument('--selt_output_file', type=str, default=None, help='Output SELT CSV file')
+    parser.add_argument('--melt_output_file', type=str, default=None, help='Output MELT CSV file')
+    parser.add_argument('--qelt_output_file', type=str, default=None, help='Output QELT CSV file')
 
     args = parser.parse_args()
-    run(args.files_in, selt_output_file=args.selt_output_file, melt_output_file=args.melt_output_file)
+    run(
+        args.run_dir,
+        args.files_in,
+        selt_output_file=args.selt_output_file,
+        melt_output_file=args.melt_output_file,
+        qelt_output_file=args.qelt_output_file
+    )
 
 
 if __name__ == "__main__":
