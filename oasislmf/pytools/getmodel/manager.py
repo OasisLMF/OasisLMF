@@ -494,9 +494,10 @@ def get_vulns(
     vuln_adj = get_vulnerability_replacements(run_dir, vuln_dict)
 
     if vulnerability_dataset in input_files and "parquet" not in ignore_file_type:
+        source_url = storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]
         with storage.open(parquetvulnerability_meta_filename, 'r') as outfile:
             meta_data = json.load(outfile)
-        logger.debug(f"loading {storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]}")
+        logger.debug(f"loading {source_url}")
 
         df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
         df_reader_config["engine"]["options"]["storage"] = storage
@@ -510,7 +511,7 @@ def get_vulns(
         missing_vuln_ids = set(vuln_dict).difference(vuln_ids)
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
-                            f" from {storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]}")
+                            f" from {source_url}")
         update_vulns_dictionary(vuln_dict, vuln_ids)
         # update vulnerability array with adjustment data if present
         if vuln_adj is not None and len(vuln_adj) > 0:
@@ -518,7 +519,8 @@ def get_vulns(
 
     else:
         if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
-            logger.debug(f"loading {storage.get_storage_url('vulnerability.bin', encode_params=False)[1]}")
+            source_url = storage.get_storage_url('vulnerability.bin', encode_params=False)[1]
+            logger.debug(f"loading {source_url}")
             with storage.open("vulnerability.bin", 'rb') as f:
                 header = np.frombuffer(f.read(8), 'i4')
                 num_damage_bins = header[0]
@@ -546,7 +548,8 @@ def get_vulns(
                     vuln_array, valid_vuln_ids = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
-            logger.debug(f"loading {storage.get_storage_url('vulnerability.csv', encode_params=False)[1]}")
+            source_url = storage.get_storage_url('vulnerability.csv', encode_params=False)[1]
+            logger.debug(f"loading {source_url}")
             with storage.open("vulnerability.csv") as f:
                 vuln_csv = np.loadtxt(f, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
@@ -559,7 +562,7 @@ def get_vulns(
         missing_vuln_ids = set(vuln_dict).difference(valid_vuln_ids)
         if missing_vuln_ids:
             raise Exception(f"Vulnerability_ids {missing_vuln_ids} are missing"
-                            f" from {storage.get_storage_url(vulnerability_dataset, encode_params=False)[1]}")
+                            f" from {source_url}")
         vuln_ids = create_vulns_id(vuln_dict)
 
     return vuln_array, vuln_ids, num_damage_bins
