@@ -8,6 +8,7 @@ import os
 import struct
 from contextlib import ExitStack
 
+from oasislmf.computation.generate import losses
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, mv_write,
                                                   mv_read, SUMMARY_STREAM_ID, PIPE_CAPACITY)
@@ -93,16 +94,25 @@ class ELTReader(EventReader):
         # Pass state variables to read_buffer
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id, self.selt_data, self.selt_idx,
-            self.state, self.melt_data, self.melt_idx, self.intervals
+            self.state, self.melt_data, self.melt_idx, self.qelt_data, self.qelt_idx, self.intervals
         )
         return cursor, event_id, item_id, ret
 
 
 @nb.jit(nopython=True, cache=True)
-def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_idx, state, melt_data, melt_idx, intervals):
+def read_buffer(
+        byte_mv, cursor, valid_buff, event_id, item_id,
+        selt_data, selt_idx, state,
+        melt_data, melt_idx,
+        qelt_data, qelt_idx, intervals
+    ):
     last_event_id = event_id
     idx = selt_idx[0]
     midx = melt_idx[0]
+    qidx = qelt_idx[0]
+
+    # Initialise losses_vec for QELT calculation
+    losses_vec = np.zeros(state["len_sample"])
 
     while cursor < valid_buff:
 
@@ -115,6 +125,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                     # New event, return to process the previous event
                     selt_idx[0] = idx
                     melt_idx[0] = midx
+                    qelt_idx[0] = qidx
                     return cursor - (2 * oasis_int_size), last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
@@ -145,6 +156,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                                 # Output array is full
                                 selt_idx[0] = idx
                                 melt_idx[0] = midx
+                                qelt_idx[0] = qidx
                                 return cursor, event_id, item_id, 1
                         if state["compute_melt"]:
                             # Update MELT variables
@@ -153,6 +165,9 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                                 state["sumlosssqr"] += loss * loss
                                 if loss > 0.0:
                                     state["non_zero_samples"] += 1
+                        if state["compute_qelt"]:
+                            if sidx > 0:
+                                losses_vec[sidx-1] = loss
                     else:
                         # sidx == -5, MaxLoss
                         if state["compute_melt"]:
@@ -213,7 +228,40 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                                 # Output array is full
                                 selt_idx[0] = idx
                                 melt_idx[0] = midx
+                                qelt_idx[0] = qidx
                                 return cursor, event_id, item_id, 1
+                    
+                    if state["compute_qelt"]:
+                        losses_vec.sort()
+                        for i in range(len(intervals)):
+                            q = intervals[i]["q"]
+                            ipart = intervals[i]["integer_part"]
+                            fpart = intervals[i]["fractional_part"]
+                            if ipart == len(losses_vec):
+                                loss = losses_vec[ipart - 1]
+                            else:
+                                loss = (losses_vec[ipart] - losses_vec[ipart - 1]) * fpart + losses_vec[ipart - 1]
+
+                            qelt_data[qidx]['EventId'] = event_id
+                            qelt_data[qidx]['SummaryId'] = state['summary_id']
+                            qelt_data[qidx]['Quantile'] = q
+                            qelt_data[qidx]['Loss'] = loss
+
+                            qidx += 1
+                            if qidx >= qelt_data.shape[0]:
+                                # Output array is full
+                                selt_idx[0] = idx
+                                melt_idx[0] = midx
+                                qelt_idx[0] = qidx
+                                return cursor, event_id, item_id, 1
+                        losses_vec.fill(0)
+
+                        if qidx >= qelt_data.shape[0]:
+                            # Output array is full
+                            selt_idx[0] = idx
+                            melt_idx[0] = midx
+                            qelt_idx[0] = qidx
+                            return cursor, event_id, item_id, 1
 
                     # Reset variables
                     sample_mean = 0.0
@@ -235,6 +283,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
     # Update the indices
     selt_idx[0] = idx
     melt_idx[0] = midx
+    qelt_idx[0] = qidx
     return cursor, event_id, item_id, 0
 
 
@@ -383,7 +432,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 # Extract QELT data
                 qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
                 if output_files['qelt'] is not None and qelt_data.size > 0:
-                    np.savetxt(output_files['qelt'], data, delimiter=',', fmt='%d,%d,%.2f,%.2f')
+                    np.savetxt(output_files['qelt'], qelt_data, delimiter=',', fmt='%d,%d,%.6f,%.6f')
                 elt_reader.qelt_idx[0] = 0
 
 
