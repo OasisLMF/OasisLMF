@@ -163,7 +163,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                             melt_data[midx]['EventId'] = event_id
                             melt_data[midx]['SummaryId'] = state["summary_id"]
                             melt_data[midx]['SampleType'] = 1
-                            melt_data[midx]['EventRate'] = 0.0  # WHATTT
+                            melt_data[midx]['EventRate'] = 0.0  # Must be added from occurrence or event rate file
                             melt_data[midx]['ChanceOfLoss'] = 0
                             melt_data[midx]['MeanLoss'] = state["analytical_mean"]
                             melt_data[midx]['SDLoss'] = 0.0
@@ -177,7 +177,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
                             melt_data[midx]['EventId'] = event_id
                             melt_data[midx]['SummaryId'] = state["summary_id"]
                             melt_data[midx]['SampleType'] = 2
-                            melt_data[midx]['EventRate'] = 0.0  # WHAT?!
+                            melt_data[midx]['EventRate'] = 0.0  # Must be added from occurrence or event rate file
                             melt_data[midx]['ChanceOfLoss'] = chance_of_loss
                             melt_data[midx]['MeanLoss'] = sample_mean
                             melt_data[midx]['SDLoss'] = std_dev
@@ -216,10 +216,63 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_
     return cursor, event_id, item_id, 0
 
 
+def read_event_rates_occurrence(occurrence_file):
+    """_summary_
+
+    Args:
+        occurrence_file (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    import struct
+    with open(occurrence_file, 'rb') as f:
+        date_opts_bytes = f.read(4)
+        if not date_opts_bytes or len(date_opts_bytes) < 4:
+            logger.error("Occurrence file is empty or corrupted")
+            return {}
+
+        no_of_periods_bytes = f.read(4)
+        if not no_of_periods_bytes or len(no_of_periods_bytes) < 4:
+            logger.error("Occurrence file is empty or corrupted")
+            return {}
+        no_of_periods = int.from_bytes(no_of_periods_bytes, byteorder='little', signed=True)
+
+        record_size = 12
+
+        data = f.read()
+
+    num_records = len(data) // record_size
+    if num_records * record_size != len(data):
+        logger.warning("File size does not align with expected record size.")
+
+    event_ids = np.empty(num_records, dtype=np.int32)
+    period_nos = np.empty(num_records, dtype=np.int32)
+
+    for i in range(num_records):
+        offset = i * record_size
+        record_bytes = data[offset:offset+record_size]
+        if len(record_bytes) < record_size:
+            break
+
+        event_id, period_no, occ_date_id = struct.unpack('<iii', record_bytes)
+        event_ids[i] = event_id
+        period_nos[i] = period_no
+
+    max_period_no = np.max(period_nos)
+    if max_period_no > no_of_periods:
+        logger.error("Maximum period number in occurrence file exceeds that in header.")
+
+    unique_event_ids, counts = np.unique(event_ids, return_counts=True)
+    event_rates_values = counts / no_of_periods
+
+    return unique_event_ids, event_rates_values
+
+
 def run(files_in, selt_output_file=None, melt_output_file=None):
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
-
+    er = read_event_rates_occurrence("/home/oasis-user/coderoot/OasisLMF/oasislmf/pytools/elt/input/occurrence.bin")
     if not compute_selt and not compute_melt:
         logger.warning("No output files specified")
 
