@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import numba as nb
 import os
+import struct
 from contextlib import ExitStack
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
@@ -42,6 +43,12 @@ QELT_dtype = np.dtype([
     ('Loss', oasis_float)
 ])
 
+quantile_interval_dtype = np.dtype([
+    ('q', np.float32),
+    ('integer_part', np.int32),
+    ('fractional_part', np.float32),
+])
+
 read_buffer_state_dtype = np.dtype([
     ('len_sample', np.int32),
     ('reading_losses', np.bool_),
@@ -61,7 +68,7 @@ read_buffer_state_dtype = np.dtype([
 
 
 class ELTReader(EventReader):
-    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt):
+    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, intervals=None):
         self.logger = logger
         self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
@@ -80,18 +87,19 @@ class ELTReader(EventReader):
         # Buffer for QELT data
         self.qelt_data = np.zeros(100000, dtype=QELT_dtype)
         self.qelt_idx = np.zeros(1, dtype=np.int64)
+        self.intervals = intervals
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         # Pass state variables to read_buffer
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id, self.selt_data, self.selt_idx,
-            self.state, self.melt_data, self.melt_idx
+            self.state, self.melt_data, self.melt_idx, self.intervals
         )
         return cursor, event_id, item_id, ret
 
 
 @nb.jit(nopython=True, cache=True)
-def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_idx, state, melt_data, melt_idx):
+def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, selt_data, selt_idx, state, melt_data, melt_idx, intervals):
     last_event_id = event_id
     idx = selt_idx[0]
     midx = melt_idx[0]
@@ -239,7 +247,6 @@ def read_event_rates_occurrence(occurrence_file):
     Returns:
         _type_: _description_
     """
-    import struct
     with open(occurrence_file, 'rb') as f:
         date_opts_bytes = f.read(4)
         if not date_opts_bytes or len(date_opts_bytes) < 4:
@@ -283,38 +290,74 @@ def read_event_rates_occurrence(occurrence_file):
     return unique_event_ids, event_rates_values
 
 
+def read_quantile_get_intervals(sample_size, fp):
+    intervals_dict = {}
+    
+    try:
+        with open(fp, "rb") as fin:
+            while True:
+                data = fin.read(4)  # Reading 4 bytes for a float (32-bit)
+                if not data:
+                    break
+
+                q = struct.unpack('f', data)[0]
+
+                # Calculate interval index and fractional part
+                pos = (sample_size - 1) * q + 1
+                integer_part = int(pos)
+                fractional_part = pos - integer_part
+
+                intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
+    
+    except FileNotFoundError:
+        logger.error(f"FATAL: Error opening file {fp}")
+        raise FileNotFoundError(f"FATAL: Error opening file {fp}")
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise RuntimeError(f"An error occurred: {str(e)}")
+    
+    intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
+    for i, (k, v) in enumerate(intervals_dict.items()):
+        intervals[i] = (k, v['integer_part'], v['fractional_part']) 
+
+    return intervals
+
 def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None):
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
     compute_qelt = qelt_output_file is not None
-    er = read_event_rates_occurrence(os.path.join(run_dir, "input/occurrence.bin"))
+    er = read_event_rates_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
 
-    if not compute_selt and not compute_melt:
+    if not compute_selt and not compute_melt and not compute_qelt:
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
+        
+        intervals = None
+        if compute_qelt:
+            intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
 
-        elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt)
+        elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, intervals)
 
         output_files = {}
-        if selt_output_file is not None:
+        if compute_selt:
             selt_file = stack.enter_context(open(selt_output_file, 'w'))
             selt_file.write('EventId,SummaryId,SampleId,Loss,ImpactedExposure\n')
             output_files['selt'] = selt_file
         else:
             output_files['selt'] = None
 
-        if melt_output_file is not None:
+        if compute_melt:
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
             melt_file.write('EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
 
-        if qelt_output_file is not None:
+        if compute_qelt:
             qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
             qelt_file.write('EventId,SummaryId,Quantile,Loss\n')
             output_files['qelt'] = qelt_file
@@ -346,7 +389,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
 def main():
     parser = argparse.ArgumentParser(description='Process event loss table stream')
-    parser.add_argument('--run_dir', type=str, required=True, default='.', help='path to the run directory')
+    parser.add_argument('--run_dir', type=str, default='.', help='path to the run directory')
     parser.add_argument('--files_in', type=str, nargs='+', required=True, help='Input files')
     parser.add_argument('--selt_output_file', type=str, default=None, help='Output SELT CSV file')
     parser.add_argument('--melt_output_file', type=str, default=None, help='Output MELT CSV file')
