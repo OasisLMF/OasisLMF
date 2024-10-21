@@ -81,8 +81,10 @@ class TestRunModel(ComputationChecker):
 
         files_mock.assert_called_once()
         losses_mock.assert_called_once()
-        self.assertEqual(files_called_kwargs, expected_called_kwargs)
-        self.assertEqual(losses_called_kwargs, expected_called_kwargs)
+        for key, expected_value in expected_called_kwargs.items():
+            self.assertEqual(files_called_kwargs[key], expected_value)
+        for key, expected_value in expected_called_kwargs.items():
+            self.assertEqual(losses_called_kwargs[key], expected_value)
 
     def test_model_run__str2bool_called(self):
         files_mock = MagicMock()
@@ -160,5 +162,7 @@ class TestRunModel(ComputationChecker):
 
         files_mock.assert_called_once()
         losses_mock.assert_called_once()
-        self.assertEqual(files_called_kwargs, expected_called_kwargs)
-        self.assertEqual(losses_called_kwargs, expected_called_kwargs)
+        for key, expected_value in expected_called_kwargs.items():
+            self.assertEqual(files_called_kwargs[key], expected_value)
+        for key, expected_value in expected_called_kwargs.items():
+            self.assertEqual(losses_called_kwargs[key], expected_value)

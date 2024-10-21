@@ -8,6 +8,7 @@ import os
 import sys
 
 from argparsetree import BaseCommand
+from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
 
 from ..utils.path import PathCleaner
 from ..utils.inputs import InputValues, str2bool
@@ -128,6 +129,30 @@ class OasisComputationCommand(OasisBaseCommand):
                 else:
                     parser.add_argument(arg_name, **add_argument_kwargs)
 
+    @classmethod
+    def get_arguments(cls, args, manager_method):
+        inputs = InputValues(args)
+
+        def get_kwargs_item(param):
+            return param['name'], inputs.get(param['name'], required=param.get('required'), is_path=param.get('is_path'), dtype=param.get('type'))
+
+        settings_args = {param['name'] for param in manager_method.get_params(param_type="settings")}
+
+        _kwargs = dict(get_kwargs_item(param) for param in manager_method.get_params()
+                       if param['name'] in settings_args)
+
+        # read and merge computation settings files
+        computation_settings = Settings()
+        computation_settings.add_settings(inputs.config, ROOT_USER_ROLE)
+        for settings_info in manager_method.get_params(param_type="settings"):
+            setting_fp = _kwargs.get(settings_info['name'])
+            if setting_fp:
+                new_settings = settings_info['loader'](setting_fp)
+                computation_settings.add_settings(new_settings.pop('computation_settings', {}), settings_info.get('user_role'))
+        inputs.config = computation_settings.get_settings()
+
+        return {**dict(get_kwargs_item(param) for param in manager_method.get_params()), **_kwargs}
+
     def action(self, args):
         """
         Generic method that call the correct manager method from the child class computation_name
@@ -135,16 +160,12 @@ class OasisComputationCommand(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        inputs = InputValues(args)
-
-        _kwargs = {
-            param['name']: inputs.get(param['name'], required=param.get('required'), is_path=param.get('is_path'), dtype=param.get('type')) for
-            param in om.computations_params[self.computation_name]}
+        manager_method = getattr(om(), om.computation_name_to_method(self.computation_name))
+        _kwargs = self.get_arguments(args, manager_method)
 
         # Override logger setup from kwargs
         if 'verbose' in _kwargs:
             self.logger.level = logging.DEBUG if str2bool(_kwargs.get('verbose')) else logging.INFO
 
-        self.logger.info(f'\nStating oasislmf command - {self.computation_name}')
-        manager_method = getattr(om(), om.computation_name_to_method(self.computation_name))
+        self.logger.info(f'\nStarting oasislmf command - {self.computation_name}')
         manager_method(**_kwargs)
