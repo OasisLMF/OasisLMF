@@ -69,7 +69,7 @@ read_buffer_state_dtype = np.dtype([
 
 
 class ELTReader(EventReader):
-    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, intervals=None):
+    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, intervals):
         self.logger = logger
         self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
@@ -385,7 +385,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
         
-        intervals = None
+        intervals = np.array([], dtype=quantile_interval_dtype)
         if compute_qelt:
             intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
 
