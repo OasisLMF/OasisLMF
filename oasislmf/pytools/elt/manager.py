@@ -55,7 +55,7 @@ class ELTReader(EventReader):
         self.logger = logger
         self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
-        
+
         read_buffer_state_dtype = np.dtype([
             ('len_sample', np.int32),
             ('reading_losses', np.bool_),
@@ -73,7 +73,7 @@ class ELTReader(EventReader):
             ('analytical_mean', np.float64),
             ('losses_vec', np.float32, (len_sample,)),
         ])
-        
+
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
         self.state["len_sample"] = len_sample
         self.state["reading_losses"] = False
@@ -185,7 +185,7 @@ def read_buffer(
                             sample_mean = state["sumloss"] / state["len_sample"]
                             if state["non_zero_samples"] > 1:
                                 variance = (state["sumlosssqr"] - (state["sumloss"] * state["sumloss"]) / state["len_sample"]) / (state["len_sample"] - 1)
-                                if variance < 1e-7:
+                                if variance / state["sumlosssqr"] < 1e-7:
                                     variance = 0.0
                                 std_dev = np.sqrt(variance)
                             else:
@@ -228,7 +228,7 @@ def read_buffer(
                                 melt_idx[0] = midx
                                 qelt_idx[0] = qidx
                                 return cursor, event_id, item_id, 1
-                    
+
                     if state["compute_qelt"]:
                         state["losses_vec"].sort()
                         for i in range(len(intervals)):
@@ -339,7 +339,7 @@ def read_event_rates_occurrence(occurrence_file):
 
 def read_quantile_get_intervals(sample_size, fp):
     intervals_dict = {}
-    
+
     try:
         with open(fp, "rb") as fin:
             while True:
@@ -355,19 +355,20 @@ def read_quantile_get_intervals(sample_size, fp):
                 fractional_part = pos - integer_part
 
                 intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
-    
+
     except FileNotFoundError:
         logger.error(f"FATAL: Error opening file {fp}")
         raise FileNotFoundError(f"FATAL: Error opening file {fp}")
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
-    
+
     intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
     for i, (k, v) in enumerate(intervals_dict.items()):
         intervals[i] = (k, v['integer_part'], v['fractional_part']) 
 
     return intervals
+
 
 def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None):
     compute_selt = selt_output_file is not None
@@ -382,7 +383,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
-        
+
         intervals = np.array([], dtype=quantile_interval_dtype)
         if compute_qelt:
             intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
@@ -425,7 +426,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 if output_files['melt'] is not None and melt_data.size > 0:
                     np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
                 elt_reader.melt_idx[0] = 0
-            
+
             if compute_qelt:
                 # Extract QELT data
                 qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
