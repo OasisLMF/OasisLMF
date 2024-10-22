@@ -169,7 +169,7 @@ def read_buffer(
                                     state["non_zero_samples"] += 1
                         if state["compute_qelt"]:
                             if sidx > 0:
-                                state["losses_vec"][sidx-1] = loss
+                                state["losses_vec"][sidx - 1] = loss
                     else:
                         # sidx == -5, MaxLoss
                         if state["compute_melt"]:
@@ -188,7 +188,8 @@ def read_buffer(
                         if state["non_zero_samples"] > 0:
                             sample_mean = state["sumloss"] / state["len_sample"]
                             if state["non_zero_samples"] > 1:
-                                variance = (state["sumlosssqr"] - (state["sumloss"] * state["sumloss"]) / state["len_sample"]) / (state["len_sample"] - 1)
+                                variance = (state["sumlosssqr"] - (state["sumloss"] * state["sumloss"]) /
+                                            state["len_sample"]) / (state["len_sample"] - 1)
                                 if variance / state["sumlosssqr"] < 1e-7:
                                     variance = 0.0
                                 std_dev = np.sqrt(variance)
@@ -282,10 +283,8 @@ def read_buffer(
                     state["analytical_mean"] = 0.0
 
             else:
-                # Not enough data, break
                 break
         else:
-            # Should not reach here, check?
             pass
 
     # Update the indices
@@ -329,7 +328,7 @@ def read_event_rates_occurrence(occurrence_file):
 
     for i in range(num_records):
         offset = i * record_size
-        record_bytes = data[offset:offset+record_size]
+        record_bytes = data[offset:offset + record_size]
         if len(record_bytes) < record_size:
             break
 
@@ -380,7 +379,7 @@ def read_quantile_get_intervals(sample_size, fp):
 
     intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
     for i, (k, v) in enumerate(intervals_dict.items()):
-        intervals[i] = (k, v['integer_part'], v['fractional_part']) 
+        intervals[i] = (k, v['integer_part'], v['fractional_part'])
 
     return intervals
 
@@ -420,7 +419,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
         if compute_melt:
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
-            melt_file.write('EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+            melt_file.write(
+                'EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
