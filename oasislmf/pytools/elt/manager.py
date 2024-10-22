@@ -1,6 +1,5 @@
 # elt/manager.py
 
-import argparse
 import logging
 import numpy as np
 import numba as nb
@@ -8,10 +7,10 @@ import os
 import struct
 from contextlib import ExitStack
 
-from oasislmf.computation.generate import losses
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, mv_write,
-                                                  mv_read, SUMMARY_STREAM_ID, PIPE_CAPACITY)
+from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in,
+                                                  mv_read, SUMMARY_STREAM_ID)
+from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +49,9 @@ quantile_interval_dtype = np.dtype([
     ('fractional_part', np.float32),
 ])
 
+
 class ELTReader(EventReader):
-    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, intervals):
+    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger
         self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
@@ -80,6 +80,8 @@ class ELTReader(EventReader):
         self.state["compute_selt"] = compute_selt
         self.state["compute_melt"] = compute_melt
         self.state["compute_qelt"] = compute_qelt
+        self.unique_event_ids = unique_event_ids.astype(np.int32)
+        self.event_rates = event_rates.astype(np.float32)
         self.state["losses_vec"] = np.zeros(len_sample)
 
         # Buffer for MELT data
@@ -95,7 +97,8 @@ class ELTReader(EventReader):
         # Pass state variables to read_buffer
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id, self.selt_data, self.selt_idx,
-            self.state, self.melt_data, self.melt_idx, self.qelt_data, self.qelt_idx, self.intervals
+            self.state, self.melt_data, self.melt_idx, self.qelt_data, self.qelt_idx, self.intervals,
+            self.unique_event_ids, self.event_rates
         )
         return cursor, event_id, item_id, ret
 
@@ -105,8 +108,9 @@ def read_buffer(
         byte_mv, cursor, valid_buff, event_id, item_id,
         selt_data, selt_idx, state,
         melt_data, melt_idx,
-        qelt_data, qelt_idx, intervals
-    ):
+        qelt_data, qelt_idx, intervals,
+        unique_event_ids, event_rates
+):
     last_event_id = event_id
     idx = selt_idx[0]
     midx = melt_idx[0]
@@ -194,11 +198,17 @@ def read_buffer(
                             chance_of_loss = state["non_zero_samples"] / state["len_sample"]
                             mean_imp_exp = state["impacted_exposure"] * chance_of_loss
 
+                            idx_ev = np.searchsorted(unique_event_ids, event_id)
+                            if idx_ev < unique_event_ids.shape[0] and unique_event_ids[idx_ev] == event_id:
+                                event_rate = event_rates[idx_ev]
+                            else:
+                                event_rate = 0.0
+
                             # MELT data
                             melt_data[midx]['EventId'] = event_id
                             melt_data[midx]['SummaryId'] = state["summary_id"]
                             melt_data[midx]['SampleType'] = 1
-                            melt_data[midx]['EventRate'] = 0.0  # Must be added from occurrence or event rate file
+                            melt_data[midx]['EventRate'] = event_rate
                             melt_data[midx]['ChanceOfLoss'] = 0
                             melt_data[midx]['MeanLoss'] = state["analytical_mean"]
                             melt_data[midx]['SDLoss'] = 0.0
@@ -212,7 +222,7 @@ def read_buffer(
                             melt_data[midx]['EventId'] = event_id
                             melt_data[midx]['SummaryId'] = state["summary_id"]
                             melt_data[midx]['SampleType'] = 2
-                            melt_data[midx]['EventRate'] = 0.0  # Must be added from occurrence or event rate file
+                            melt_data[midx]['EventRate'] = event_rate
                             melt_data[midx]['ChanceOfLoss'] = chance_of_loss
                             melt_data[midx]['MeanLoss'] = sample_mean
                             melt_data[midx]['SDLoss'] = std_dev
@@ -323,7 +333,7 @@ def read_event_rates_occurrence(occurrence_file):
         if len(record_bytes) < record_size:
             break
 
-        event_id, period_no, occ_date_id = struct.unpack('<iii', record_bytes)
+        event_id, period_no, _ = struct.unpack('<iii', record_bytes)
         event_ids[i] = event_id
         period_nos[i] = period_no
 
@@ -334,7 +344,12 @@ def read_event_rates_occurrence(occurrence_file):
     unique_event_ids, counts = np.unique(event_ids, return_counts=True)
     event_rates_values = counts / no_of_periods
 
-    return unique_event_ids, event_rates_values
+    # make sure the event ids are sorted
+    sort_idx = np.argsort(unique_event_ids)
+    unique_event_ids = unique_event_ids[sort_idx]
+    event_rates_values = event_rates_values[sort_idx]
+
+    return unique_event_ids.astype(np.int32), event_rates_values.astype(np.float32)
 
 
 def read_quantile_get_intervals(sample_size, fp):
@@ -374,7 +389,6 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
     compute_qelt = qelt_output_file is not None
-    er = read_event_rates_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
 
     if not compute_selt and not compute_melt and not compute_qelt:
         logger.warning("No output files specified")
@@ -388,7 +402,13 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_qelt:
             intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
 
-        elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, intervals)
+        if compute_melt:
+            unique_event_ids, event_rates = read_event_rates_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
+        else:
+            unique_event_ids = np.array([], dtype=np.int32)
+            event_rates = np.array([], dtype=np.float32)
+
+        elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals)
 
         output_files = {}
         if compute_selt:
@@ -435,23 +455,12 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 elt_reader.qelt_idx[0] = 0
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Process event loss table stream')
-    parser.add_argument('--run_dir', type=str, default='.', help='path to the run directory')
-    parser.add_argument('--files_in', type=str, nargs='+', required=True, help='Input files')
-    parser.add_argument('--selt_output_file', type=str, default=None, help='Output SELT CSV file')
-    parser.add_argument('--melt_output_file', type=str, default=None, help='Output MELT CSV file')
-    parser.add_argument('--qelt_output_file', type=str, default=None, help='Output QELT CSV file')
-
-    args = parser.parse_args()
+@redirect_logging(exec_name='eltpy')
+def main(run_dir='.', files_in=None, selt_output_file=None, melt_output_file=None, qelt_output_file=None, **kwargs):
     run(
-        args.run_dir,
-        args.files_in,
-        selt_output_file=args.selt_output_file,
-        melt_output_file=args.melt_output_file,
-        qelt_output_file=args.qelt_output_file
+        run_dir,
+        files_in,
+        selt_output_file=selt_output_file,
+        melt_output_file=melt_output_file,
+        qelt_output_file=qelt_output_file
     )
-
-
-if __name__ == "__main__":
-    main()
