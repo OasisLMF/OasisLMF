@@ -146,7 +146,8 @@ tests/assets/test_summarypy/**/error_files/
 !tests/assets/test_summarypy/*.bin
 !tests/assets/test_summarypy/single_summary_set/*.bin
 !tests/assets/test_summarypy/**/*.bin
-
+!tests/assets/test_eltpy/*.bin
+!tests/assets/test_eltpy/**/*.bin
 
 
 # pycharm
