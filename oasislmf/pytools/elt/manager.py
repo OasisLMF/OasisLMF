@@ -44,9 +44,9 @@ QELT_dtype = np.dtype([
 ])
 
 quantile_interval_dtype = np.dtype([
-    ('q', np.float32),
-    ('integer_part', np.int32),
-    ('fractional_part', np.float32),
+    ('q', oasis_float),
+    ('integer_part', oasis_int),
+    ('fractional_part', oasis_float),
 ])
 
 
@@ -57,21 +57,21 @@ class ELTReader(EventReader):
         self.selt_idx = np.zeros(1, dtype=np.int64)
 
         read_buffer_state_dtype = np.dtype([
-            ('len_sample', np.int32),
+            ('len_sample', oasis_int),
             ('reading_losses', np.bool_),
             ('compute_selt', np.bool_),
             ('compute_melt', np.bool_),
             ('compute_qelt', np.bool_),
-            ('summary_id', np.int32),
-            ('impacted_exposure', np.float32),
-            ('sumloss', np.float32),
-            ('sumlosssqr', np.float32),
-            ('non_zero_samples', np.int32),
-            ('max_loss', np.float32),
-            ('mean_impacted_exposure', np.float32),
-            ('max_impacted_exposure', np.float32),
-            ('analytical_mean', np.float32),
-            ('losses_vec', np.float32, (len_sample,)),
+            ('summary_id', oasis_int),
+            ('impacted_exposure', oasis_float),
+            ('sumloss', oasis_float),
+            ('sumlosssqr', oasis_float),
+            ('non_zero_samples', oasis_int),
+            ('max_loss', oasis_float),
+            ('mean_impacted_exposure', oasis_float),
+            ('max_impacted_exposure', oasis_float),
+            ('analytical_mean', oasis_float),
+            ('losses_vec', oasis_float, (len_sample,)),
         ])
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
@@ -80,8 +80,8 @@ class ELTReader(EventReader):
         self.state["compute_selt"] = compute_selt
         self.state["compute_melt"] = compute_melt
         self.state["compute_qelt"] = compute_qelt
-        self.unique_event_ids = unique_event_ids.astype(np.int32)
-        self.event_rates = event_rates.astype(np.float32)
+        self.unique_event_ids = unique_event_ids.astype(oasis_int)
+        self.event_rates = event_rates.astype(oasis_float)
         self.state["losses_vec"] = np.zeros(len_sample)
 
         # Buffer for MELT data
@@ -323,8 +323,8 @@ def read_event_rates_occurrence(occurrence_file):
     if num_records * record_size != len(data):
         logger.warning("File size does not align with expected record size.")
 
-    event_ids = np.empty(num_records, dtype=np.int32)
-    period_nos = np.empty(num_records, dtype=np.int32)
+    event_ids = np.empty(num_records, dtype=oasis_int)
+    period_nos = np.empty(num_records, dtype=oasis_int)
 
     for i in range(num_records):
         offset = i * record_size
@@ -348,7 +348,7 @@ def read_event_rates_occurrence(occurrence_file):
     unique_event_ids = unique_event_ids[sort_idx]
     event_rates_values = event_rates_values[sort_idx]
 
-    return unique_event_ids.astype(np.int32), event_rates_values.astype(np.float32)
+    return unique_event_ids.astype(oasis_int), event_rates_values.astype(oasis_float)
 
 
 def read_quantile_get_intervals(sample_size, fp):
@@ -404,8 +404,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_melt:
             unique_event_ids, event_rates = read_event_rates_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
         else:
-            unique_event_ids = np.array([], dtype=np.int32)
-            event_rates = np.array([], dtype=np.float32)
+            unique_event_ids = np.array([], dtype=oasis_int)
+            event_rates = np.array([], dtype=oasis_float)
 
         elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals)
 
