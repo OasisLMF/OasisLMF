@@ -240,8 +240,11 @@ def read_buffer(
                                 qelt_idx[0] = qidx
                                 return cursor, event_id, item_id, 1
 
+                    # Compute QELT statistics and store them
                     if state["compute_qelt"]:
                         state["losses_vec"].sort()
+
+                        # Calculate loss for per quantile interval
                         for i in range(len(intervals)):
                             q = intervals[i]["q"]
                             ipart = intervals[i]["integer_part"]
@@ -295,13 +298,13 @@ def read_buffer(
 
 
 def read_event_rates_occurrence(occurrence_file):
-    """_summary_
+    """Generate event rate and event id arrays
 
     Args:
-        occurrence_file (_type_): _description_
+        occurrence_file (str): Occurrence bin file path
 
     Returns:
-        _type_: _description_
+        (ndarray, ndarray): unique event id and event rates
     """
     with open(occurrence_file, 'rb') as f:
         date_opts_bytes = f.read(4)
@@ -352,12 +355,21 @@ def read_event_rates_occurrence(occurrence_file):
 
 
 def read_quantile_get_intervals(sample_size, fp):
+    """Generate a quantile interval Dictionary based on sample size and quantile binary file
+
+    Args:
+        sample_size (int): Sample size
+        fp (str): File path to quantile binary input
+
+    Returns:
+        quantile_interval_dtype: Numpy array emulating a dictionary for numba
+    """
     intervals_dict = {}
 
     try:
         with open(fp, "rb") as fin:
             while True:
-                data = fin.read(4)  # Reading 4 bytes for a float (32-bit)
+                data = fin.read(4)  # Reading 4 bytes for a float32
                 if not data:
                     break
 
@@ -377,6 +389,7 @@ def read_quantile_get_intervals(sample_size, fp):
         logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
 
+    # Convert to numpy array
     intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
     for i, (k, v) in enumerate(intervals_dict.items()):
         intervals[i] = (k, v['integer_part'], v['fractional_part'])
@@ -397,10 +410,12 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
+        # Initialise intervals array
         intervals = np.array([], dtype=quantile_interval_dtype)
         if compute_qelt:
             intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
 
+        # Initialise event rate data
         if compute_melt:
             unique_event_ids, event_rates = read_event_rates_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
         else:
@@ -408,7 +423,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             event_rates = np.array([], dtype=oasis_float)
 
         elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals)
-
+        
+        # Initialise csv column names for ELT files
         output_files = {}
         if compute_selt:
             selt_file = stack.enter_context(open(selt_output_file, 'w'))
