@@ -423,7 +423,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             event_rates = np.array([], dtype=oasis_float)
 
         elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals)
-        
+
         # Initialise csv column names for ELT files
         output_files = {}
         if compute_selt:
