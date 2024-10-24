@@ -1,0 +1,71 @@
+{
+  "location": {
+    "cur_version_name": "_csv",
+    "sources": {
+      "curr": {
+        "source_type": "filepath",
+        "filepath": "/home/anish/Documents/github/OasisLMF/validation/reinsurance4/location.csv",
+        "read_param": {},
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      },
+      "_csv": {
+        "source_type": "filepath",
+        "filepath": "location.csv",
+        "extension": "csv",
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      }
+    }
+  },
+  "account": {
+    "cur_version_name": "_csv",
+    "sources": {
+      "curr": {
+        "source_type": "filepath",
+        "filepath": "/home/anish/Documents/github/OasisLMF/validation/reinsurance4/account.csv",
+        "read_param": {},
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      },
+      "_csv": {
+        "source_type": "filepath",
+        "filepath": "account.csv",
+        "extension": "csv",
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      }
+    }
+  },
+  "ri_info": {
+    "cur_version_name": "_csv",
+    "sources": {
+      "curr": {
+        "source_type": "filepath",
+        "filepath": "/home/anish/Documents/github/OasisLMF/validation/reinsurance4/ri_info.csv",
+        "read_param": {},
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      },
+      "_csv": {
+        "source_type": "filepath",
+        "filepath": "ri_info.csv",
+        "extension": "csv",
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      }
+    }
+  },
+  "ri_scope": {
+    "cur_version_name": "_csv",
+    "sources": {
+      "curr": {
+        "source_type": "filepath",
+        "filepath": "/home/anish/Documents/github/OasisLMF/validation/reinsurance4/ri_scope.csv",
+        "read_param": {},
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      },
+      "_csv": {
+        "source_type": "filepath",
+        "filepath": "ri_scope.csv",
+        "extension": "csv",
+        "engine": "oasis_data_manager.df_reader.reader.OasisPandasReader"
+      }
+    }
+  },
+  "oed_schema_info": "/home/anish/anaconda3/envs/oasis_dev/lib/python3.12/site-packages/ods_tools/data/OpenExposureData_Spec.json"
+}
