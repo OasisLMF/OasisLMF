@@ -35,7 +35,8 @@ def case_runner(test_name):
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(Path(actual_csv),
                             Path(error_path, csv_name))
-            raise Exception(f"running 'eltpy {' '.join([f"{k}={v}" for k, v in kwargs.items()])}' led to diff, see files at {error_path}") from e
+            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
+            raise Exception(f"running 'eltpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
 def test_selt_output():
