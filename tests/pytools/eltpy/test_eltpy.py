@@ -3,6 +3,7 @@ import shutil
 from tempfile import TemporaryDirectory
 import numpy as np
 from pathlib import Path
+from unittest.mock import patch
 
 from oasislmf.pytools.elt.manager import main, read_quantile_get_intervals, quantile_interval_dtype, read_event_rate_csv
 from oasislmf.pytools.common.data import (oasis_int, oasis_float)
@@ -10,10 +11,13 @@ from oasislmf.pytools.common.data import (oasis_int, oasis_float)
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
 
 
-def case_runner(test_name):
+def case_runner(test_name, with_event_rate=False):
     csv_name = f"py_{test_name}.csv"
     summary_bin_input = Path(TESTS_ASSETS_DIR, "summarypy.bin")
-    expected_csv = Path(TESTS_ASSETS_DIR, csv_name)
+    if with_event_rate:
+        expected_csv = Path(TESTS_ASSETS_DIR, f"py_{test_name}_er.csv")
+    else:
+        expected_csv = Path(TESTS_ASSETS_DIR, csv_name)
     with TemporaryDirectory() as tmp_result_dir_str:
         actual_csv = Path(tmp_result_dir_str, csv_name)
 
@@ -27,7 +31,13 @@ def case_runner(test_name):
         else:
             raise Exception(f"Invalid or unimplemented test case {test_name} for eltpy")
 
-        main(**kwargs)
+        if with_event_rate:
+            eids, ers = read_event_rate_csv(Path(TESTS_ASSETS_DIR, "input", "er.csv"))
+            with patch('oasislmf.pytools.elt.manager.read_event_rate_csv', return_value=(eids, ers)):
+                main(**kwargs)
+        else:
+            with patch('oasislmf.pytools.elt.manager.read_event_rate_csv', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+                main(**kwargs)
 
         try:
             assert filecmp.cmp(expected_csv, actual_csv, shallow=False)
@@ -46,6 +56,10 @@ def test_selt_output():
 
 def test_melt_output():
     case_runner("melt")
+
+
+def test_melt_output_with_event_rate_csv():
+    case_runner("melt", with_event_rate=True)
 
 
 def test_qelt_output():
