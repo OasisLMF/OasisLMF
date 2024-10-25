@@ -199,11 +199,14 @@ def read_buffer(
                             chance_of_loss = state["non_zero_samples"] / state["len_sample"]
                             mean_imp_exp = state["impacted_exposure"] * chance_of_loss
 
-                            idx_ev = np.searchsorted(unique_event_ids, event_id)
-                            if idx_ev < unique_event_ids.shape[0] and unique_event_ids[idx_ev] == event_id:
-                                event_rate = event_rates[idx_ev]
+                            if unique_event_ids.size > 0:
+                                idx_ev = np.searchsorted(unique_event_ids, event_id)
+                                if idx_ev < unique_event_ids.size and unique_event_ids[idx_ev] == event_id:
+                                    event_rate = event_rates[idx_ev]
+                                else:
+                                    event_rate = np.nan
                             else:
-                                event_rate = 0.0
+                                event_rate = np.nan
 
                             # MELT data
                             melt_data[midx]['EventId'] = event_id
@@ -297,61 +300,34 @@ def read_buffer(
     return cursor, event_id, item_id, 0
 
 
-def read_event_rates_occurrence(occurrence_file):
-    """Generate event rate and event id arrays
+def read_event_rate_csv(event_rate_file):
+    """Reads event rates from a CSV file
 
     Args:
-        occurrence_file (str): Occurrence bin file path
+        event_rate_file (str): Path to the event rate CSV file
 
     Returns:
         (ndarray, ndarray): unique event id and event rates
     """
-    with open(occurrence_file, 'rb') as f:
-        date_opts_bytes = f.read(4)
-        if not date_opts_bytes or len(date_opts_bytes) < 4:
-            logger.error("Occurrence file is empty or corrupted")
-            return {}
+    try:
+        data = np.genfromtxt(event_rate_file, delimiter=',', skip_header=1, dtype=[('event_id', oasis_int), ('rate', oasis_float)])
+        if data is None or data.size == 0:
+            logger.info(f"Event rate file {event_rate_file} is empty, proceeding without event rates.")
+            return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
+        unique_event_ids = data['event_id']
+        event_rates = data['rate']
 
-        no_of_periods_bytes = f.read(4)
-        if not no_of_periods_bytes or len(no_of_periods_bytes) < 4:
-            logger.error("Occurrence file is empty or corrupted")
-            return {}
-        no_of_periods = int.from_bytes(no_of_periods_bytes, byteorder='little', signed=True)
-
-        record_size = 12
-
-        data = f.read()
-
-    num_records = len(data) // record_size
-    if num_records * record_size != len(data):
-        logger.warning("File size does not align with expected record size.")
-
-    event_ids = np.empty(num_records, dtype=oasis_int)
-    period_nos = np.empty(num_records, dtype=oasis_int)
-
-    for i in range(num_records):
-        offset = i * record_size
-        record_bytes = data[offset:offset + record_size]
-        if len(record_bytes) < record_size:
-            break
-
-        event_id, period_no, _ = struct.unpack('<iii', record_bytes)
-        event_ids[i] = event_id
-        period_nos[i] = period_no
-
-    max_period_no = np.max(period_nos)
-    if max_period_no > no_of_periods:
-        logger.error("Maximum period number in occurrence file exceeds that in header.")
-
-    unique_event_ids, counts = np.unique(event_ids, return_counts=True)
-    event_rates_values = counts / no_of_periods
-
-    # make sure the event ids are sorted
-    sort_idx = np.argsort(unique_event_ids)
-    unique_event_ids = unique_event_ids[sort_idx]
-    event_rates_values = event_rates_values[sort_idx]
-
-    return unique_event_ids.astype(oasis_int), event_rates_values.astype(oasis_float)
+        # Make sure event_ids are sorted
+        sort_idx = np.argsort(unique_event_ids)
+        unique_event_ids = unique_event_ids[sort_idx]
+        event_rates = event_rates[sort_idx]
+        return unique_event_ids, event_rates
+    except FileNotFoundError:
+        logger.info(f"Event rate file {event_rate_file} not found, proceeding without event rates.")
+        return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
+    except Exception as e:
+        logger.warning(f"An error occurred while reading event rate file: {str(e)}")
+        return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
 
 
 def read_quantile_get_intervals(sample_size, fp):
@@ -417,10 +393,12 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
         # Initialise event rate data
         if compute_melt:
-            unique_event_ids, event_rates = read_event_rates_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
+            unique_event_ids, event_rates = read_event_rate_csv(os.path.join(run_dir, "input", "event_rates.csv"))
+            include_event_rate = unique_event_ids.size > 0
         else:
             unique_event_ids = np.array([], dtype=oasis_int)
             event_rates = np.array([], dtype=oasis_float)
+            include_event_rate = False
 
         elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals)
 
@@ -435,8 +413,12 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
         if compute_melt:
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
-            melt_file.write(
-                'EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+            if include_event_rate:
+                melt_file.write(
+                    'EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+            else:
+                melt_file.write(
+                    'EventId,SummaryId,SampleType,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
@@ -460,7 +442,13 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 # Extract MELT data
                 melt_data = elt_reader.melt_data[:elt_reader.melt_idx[0]]
                 if output_files['melt'] is not None and melt_data.size > 0:
-                    np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
+                    if include_event_rate:
+                        np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
+                    else:
+                        melt_data = melt_data[['EventId', 'SummaryId', 'SampleType', 'ChanceOfLoss',
+                                              'MeanLoss', 'SDLoss', 'MaxLoss', 'FootprintExposure',
+                                               'MeanImpactedExposure', 'MaxImpactedExposure']]
+                        np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
                 elt_reader.melt_idx[0] = 0
 
             if compute_qelt:
