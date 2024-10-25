@@ -1,14 +1,57 @@
+import filecmp
+import shutil
+from tempfile import TemporaryDirectory
 import numpy as np
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
-from oasislmf.pytools.elt.manager import read_quantile_get_intervals, quantile_interval_dtype
+from oasislmf.pytools.elt.manager import main, read_quantile_get_intervals, quantile_interval_dtype
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
 
 
+def case_runner(test_name):
+    csv_name = f"py_{test_name}.csv"
+    summary_bin_input = Path(TESTS_ASSETS_DIR, "summarypy.bin")
+    expected_csv = Path(TESTS_ASSETS_DIR, csv_name)
+    with TemporaryDirectory() as tmp_result_dir_str:
+        actual_csv = Path(tmp_result_dir_str, csv_name)
+
+        kwargs = {
+            "run_dir": TESTS_ASSETS_DIR,
+            "files_in": summary_bin_input,
+        }
+
+        if test_name in ["selt", "melt", "qelt"]:
+            kwargs[f"{test_name}_output_file"] = actual_csv
+        else:
+            raise Exception(f"Invalid or unimplemented test case {test_name} for eltpy")
+
+        main(**kwargs)
+
+        try:
+            assert filecmp.cmp(expected_csv, actual_csv, shallow=False)
+        except Exception as e:
+            error_path = TESTS_ASSETS_DIR.joinpath('error_files')
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(Path(actual_csv),
+                            Path(error_path, csv_name))
+            raise Exception(f"running 'eltpy {' '.join([f"{k}={v}" for k, v in kwargs.items()])}' led to diff, see files at {error_path}") from e
+
+
+def test_selt_output():
+    case_runner("selt")
+
+
+def test_melt_output():
+    case_runner("melt")
+
+
+def test_qelt_output():
+    case_runner("qelt")
+
+
 def test_read_quantile_get_intervals():
-    fp = Path(TESTS_ASSETS_DIR, "quantile.bin")
+    fp = Path(TESTS_ASSETS_DIR, "input", "quantile.bin")
     sample_size = 100
 
     intervals_actual = read_quantile_get_intervals(sample_size, fp)
