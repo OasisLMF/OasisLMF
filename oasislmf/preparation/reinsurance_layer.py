@@ -247,13 +247,18 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
 
             # Risk Attaching filter for reinsurance
             if "AttachmentBasis" in row and row["AttachmentBasis"] == "RA":
-                if row["ReinsInceptionDate"] != "" and row["PolInceptionDate"] != "":
-                    if row["PolInceptionDate"] < row["ReinsInceptionDate"]:
-                        return False
+                if row["ReinsInceptionDate"] == "" or row["ReinsExpiryDate"] == "":
+                    error_msg = f"Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
+                    logger.error(error_msg)
+                    raise OasisException(error_msg)                    
+                elif row["PolInceptionDate"] == "":
+                    acc_info = {field: row[f'{field}_x'] for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]}
+                    error_msg = f"Error: PolInceptionDate missing for {acc_info}, cannot use AttachmentBasis [RA]. Please check the account file"
+                    logger.error(error_msg)
+                    raise OasisException(error_msg)
                 else:
-                    logger.warning(
-                        f"ReinsInceptionDate or PolInceptionDate missing for index: {row['index']}, cannot use AttachmentBasis [RA], ignoring dates"
-                    )
+                    if row["PolInceptionDate"] < row["ReinsInceptionDate"] or row["ReinsExpiryDate"] < row["PolInceptionDate"]:
+                        return False
 
             return True
         profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID

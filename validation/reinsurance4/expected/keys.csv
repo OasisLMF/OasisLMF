@@ -23,3 +23,7 @@ LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 6,WTC,2,22,22
 6,WTC,3,23,23
 6,WTC,4,24,24
+7,WTC,1,25,25
+7,WTC,2,26,26
+7,WTC,3,27,27
+7,WTC,4,28,28
