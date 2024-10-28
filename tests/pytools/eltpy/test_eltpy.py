@@ -27,7 +27,7 @@ def case_runner(test_name, with_event_rate=False):
         }
 
         if test_name in ["selt", "melt", "qelt"]:
-            kwargs[f"{test_name}_output_file"] = actual_csv
+            kwargs[f"{test_name}"] = actual_csv
         else:
             raise Exception(f"Invalid or unimplemented test case {test_name} for eltpy")
 

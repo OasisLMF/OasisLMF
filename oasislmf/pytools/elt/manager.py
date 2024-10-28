@@ -460,11 +460,11 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
 
 @redirect_logging(exec_name='eltpy')
-def main(run_dir='.', files_in=None, selt_output_file=None, melt_output_file=None, qelt_output_file=None, **kwargs):
+def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, **kwargs):
     run(
         run_dir,
         files_in,
-        selt_output_file=selt_output_file,
-        melt_output_file=melt_output_file,
-        qelt_output_file=qelt_output_file
+        selt_output_file=selt,
+        melt_output_file=melt,
+        qelt_output_file=qelt
     )
