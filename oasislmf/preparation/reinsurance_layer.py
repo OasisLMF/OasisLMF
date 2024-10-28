@@ -248,7 +248,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
             # Risk Attaching filter for reinsurance
             if "AttachmentBasis" in row and row["AttachmentBasis"] == "RA":
                 if row["ReinsInceptionDate"] == "" or row["ReinsExpiryDate"] == "":
-                    error_msg = f"Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
+                    error_msg = "Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
                     logger.error(error_msg)
                     raise OasisException(error_msg)
                 elif row["PolInceptionDate"] == "":
