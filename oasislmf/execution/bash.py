@@ -163,7 +163,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy eltpy"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "${p}_[0-9]*.log" | wc -l)
@@ -841,6 +841,7 @@ def do_summarycalcs(
     process_id,
     filename,
     summarypy,
+    eltpy,
     fifo_dir='fifo/',
     stderr_guard=True,
     num_reinsurance_iterations=0,
@@ -1019,7 +1020,8 @@ def do_ord(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    ri_inuring_priority=None
+    ri_inuring_priority=None,
+    eltpy=False
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -1035,7 +1037,55 @@ def do_ord(
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            for ord_type, output_switch in OUTPUT_SWITCHES.items():
+
+            # flags are different for eltpy, so we handle that separately
+            if eltpy:
+
+                for ord_type in ['selt_ord', 'elt_ord']:
+                    output_switch = OUTPUT_SWITCHES.get(ord_type, {})
+                    cmd = 'eltpy'
+                    flags_collected = False
+                    if process_id != 1:
+                        cmd += ' -H'
+
+                    for ord_table, flag_proc in output_switch.items():
+                        if summary.get('ord_output', {}).get(ord_table):
+
+                            flag = flag_proc['kat_flag']
+                            fifo_out_name = get_fifo_name(
+                                f'{work_dir}kat/',
+                                runtype,
+                                process_id,
+                                f'{ri_inuring_priority}S{summary_set}_{ord_table}'
+                            )
+                            cmd += f' {flag} {fifo_out_name}'
+                            flags_collected = True
+
+                    if flags_collected:
+                        fifo_in_name = get_fifo_name(
+                            fifo_dir,
+                            runtype,
+                            process_id,
+                            f'{ri_inuring_priority}S{summary_set}_{ord_type}'
+                        )
+                        cmd += f' < {fifo_in_name}'
+
+                        process_counter['pid_monitor_count'] += 1
+
+                        if stderr_guard:
+                            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+                        else:
+                            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+
+                        print_command(filename, cmd)
+
+            ord_types_to_process = list(OUTPUT_SWITCHES.keys())
+            # if we are running eltpy, we skip the selt_ord and elt_ord that are handled above
+            if eltpy:
+                ord_types_to_process = [ot for ot in ord_types_to_process if ot not in ['selt_ord', 'elt_ord']]
+
+            for ord_type in ord_types_to_process:
+                output_switch = OUTPUT_SWITCHES[ord_type]
                 cmd = ''
                 fifo_out_name = ''
                 skip_line = True
@@ -1054,17 +1104,29 @@ def do_ord(
                         else:
                             cmd += f' {flag_proc["csv_flag"]}'
 
-                        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{ri_inuring_priority}S{summary_set}_{ord_table}')
+                        fifo_out_name = get_fifo_name(
+                            f'{work_dir}kat/',
+                            runtype,
+                            process_id,
+                            f'{ri_inuring_priority}S{summary_set}_{ord_table}'
+                        )
                         if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
-                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{ri_inuring_priority}S{summary_set}_{ord_type}')
-                    cmd = f'{cmd} < {fifo_in_name}'
+                    fifo_in_name = get_fifo_name(
+                        fifo_dir,
+                        runtype,
+                        process_id,
+                        f'{ri_inuring_priority}S{summary_set}_{ord_type}'
+                    )
+                    cmd = f'{flag_proc["ktools_exe"]}{cmd} < {fifo_in_name}'
+
                     if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                         cmd = f'{cmd} > {fifo_out_name}'
+
                     process_counter['pid_monitor_count'] += 1
-                    cmd = f'{flag_proc["ktools_exe"]}{cmd}'
+
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
@@ -1143,6 +1205,7 @@ def ri(
     filename,
     process_counter,
     num_reinsurance_iterations,
+    eltpy,
     summarypy,
     fifo_dir='fifo/',
     work_dir='work/',
@@ -1162,7 +1225,7 @@ def ri(
             do_ord(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                ri_inuring_priority=inuring_priority['text']
+                ri_inuring_priority=inuring_priority['text'], eltpy=eltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1176,6 +1239,7 @@ def ri(
 
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
+                eltpy=eltpy,
                 summarypy=summarypy,
                 runtype=RUNTYPE_REINSURANCE_LOSS,
                 analysis_settings=analysis_settings,
@@ -1188,18 +1252,19 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, summarypy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, eltpy, summarypy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
+            eltpy=eltpy,
             summarypy=summarypy,
             runtype=RUNTYPE_INSURED_LOSS,
             analysis_settings=analysis_settings,
@@ -1216,6 +1281,7 @@ def do_gul(
     filename,
     process_counter,
     summarypy,
+    eltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     gul_legacy_stream=None,
@@ -1227,13 +1293,14 @@ def do_gul(
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
+            eltpy=eltpy,
             summarypy=summarypy,
             runtype=RUNTYPE_GROUNDUP_LOSS,
             analysis_settings=analysis_settings,
@@ -1767,6 +1834,7 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     summarypy=False,
+    eltpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1806,6 +1874,7 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
+    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2017,6 +2086,7 @@ def create_bash_analysis(
     model_py_server,
     peril_filter,
     summarypy,
+    eltpy,
     gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     **kwargs
@@ -2185,6 +2255,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2204,6 +2275,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
@@ -2222,6 +2294,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'gul_legacy_stream': gul_legacy_stream,
@@ -2573,7 +2646,7 @@ def create_bash_outputs(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
-    if remove_working_files:
+    if remove_working_files and False:
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
         if fifo_tmp_dir:
@@ -2622,6 +2695,7 @@ def genbash(
     model_py_server=False,
     peril_filter=[],
     summarypy=False,
+    eltpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
 ):
@@ -2704,6 +2778,7 @@ def genbash(
         model_py_server=model_py_server,
         peril_filter=peril_filter,
         summarypy=summarypy,
+        eltpy=eltpy,
         model_df_engine=model_df_engine,
     )
 
