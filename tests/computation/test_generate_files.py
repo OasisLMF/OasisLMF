@@ -254,7 +254,8 @@ class TestGenFiles(ComputationChecker):
             self.manager.generate_files(**call_args)
             establish_correlations.assert_called_once()
             used_correlations = establish_correlations.call_args.kwargs['model_settings']
-            self.assertEqual(used_correlations['model_settings']['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
+            self.assertEqual(used_correlations['model_settings']['correlation_settings'],
+                             MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
 
     @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
     def test_files__given_legacy_correlation_settings__correlation_csv_file_created(self, mock_output_dir):
