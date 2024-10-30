@@ -18,7 +18,8 @@ def map_data(data: Optional[dict], logger) -> Optional[pd.DataFrame]:
     """
     if data is not None:
         supported_perils = data.get("lookup_settings", {}).get("supported_perils", [])
-        correlation_settings = data.get("correlation_settings", [])
+        correlations_legacy = data.get("correlation_settings", [])
+        correlation_settings = data.get("model_settings", {}).get("correlation_settings", correlations_legacy)
 
         for supported_peril in supported_perils:
             supported_peril["peril_correlation_group"] = supported_peril.get("peril_correlation_group", 0)
