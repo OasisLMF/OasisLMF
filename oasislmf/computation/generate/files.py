@@ -268,7 +268,7 @@ class GenerateFiles(ComputationStep):
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             if correlations_analysis_settings is not None:
-                model_settings['correlation_settings'] = correlations_analysis_settings
+                model_settings['model_settings']['correlation_settings'] = correlations_analysis_settings
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
