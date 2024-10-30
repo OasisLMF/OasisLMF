@@ -53,7 +53,7 @@ quantile_interval_dtype = np.dtype([
 class ELTReader(EventReader):
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger
-        self.selt_data = np.zeros(100000, dtype=SELT_dtype)  # write buffer for SELT
+        self.selt_data = np.zeros(1000000, dtype=SELT_dtype)  # write buffer for SELT
         self.selt_idx = np.zeros(1, dtype=np.int64)
 
         read_buffer_state_dtype = np.dtype([
@@ -85,11 +85,11 @@ class ELTReader(EventReader):
         self.state["losses_vec"] = np.zeros(len_sample)
 
         # Buffer for MELT data
-        self.melt_data = np.zeros(100000, dtype=MELT_dtype)  # write buffer for MELT
+        self.melt_data = np.zeros(1000000, dtype=MELT_dtype)  # write buffer for MELT
         self.melt_idx = np.zeros(1, dtype=np.int64)
 
         # Buffer for QELT data
-        self.qelt_data = np.zeros(100000, dtype=QELT_dtype)
+        self.qelt_data = np.zeros(1000000, dtype=QELT_dtype)
         self.qelt_idx = np.zeros(1, dtype=np.int64)
         self.intervals = intervals
 
@@ -373,10 +373,12 @@ def read_quantile_get_intervals(sample_size, fp):
     return intervals
 
 
-def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None):
+def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None, noheader=False):
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
     compute_qelt = qelt_output_file is not None
+    if run_dir is None:
+        run_dir = './work'
 
     if not compute_selt and not compute_melt and not compute_qelt:
         logger.warning("No output files specified")
@@ -406,26 +408,29 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         output_files = {}
         if compute_selt:
             selt_file = stack.enter_context(open(selt_output_file, 'w'))
-            selt_file.write('EventId,SummaryId,SampleId,Loss,ImpactedExposure\n')
+            if not noheader:
+                selt_file.write('EventId,SummaryId,SampleId,Loss,ImpactedExposure\n')
             output_files['selt'] = selt_file
         else:
             output_files['selt'] = None
 
         if compute_melt:
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
-            if include_event_rate:
-                melt_file.write(
-                    'EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
-            else:
-                melt_file.write(
-                    'EventId,SummaryId,SampleType,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+            if not noheader:
+                if include_event_rate:
+                    melt_file.write(
+                        'EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+                else:
+                    melt_file.write(
+                        'EventId,SummaryId,SampleType,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
 
         if compute_qelt:
             qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
-            qelt_file.write('EventId,SummaryId,Quantile,Loss\n')
+            if not noheader:
+                qelt_file.write('EventId,SummaryId,Quantile,Loss\n')
             output_files['qelt'] = qelt_file
         else:
             output_files['qelt'] = None
@@ -460,11 +465,12 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
 
 @redirect_logging(exec_name='eltpy')
-def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, **kwargs):
+def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=None, **kwargs):
     run(
         run_dir,
         files_in,
         selt_output_file=selt,
         melt_output_file=melt,
-        qelt_output_file=qelt
+        qelt_output_file=qelt,
+        noheader=noheader
     )
