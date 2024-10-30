@@ -256,6 +256,99 @@ class TestGenFiles(ComputationChecker):
             used_correlations = establish_correlations.call_args.kwargs['model_settings']
             self.assertEqual(used_correlations['correlation_settings'], MIN_RUN_CORRELATIONS_SETTINGS['model_settings']['correlation_settings'])
 
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__given_legacy_correlation_settings__correlation_csv_file_created(self, mock_output_dir):
+        LEGACY_CORRELATIONS_SETTINGS = {
+            "version": "3",
+            "model_settings": {},
+            "correlation_settings": [
+                {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
+                {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}
+            ],
+            "lookup_settings": {
+                "supported_perils": [
+                    {"id": "WSS", "desc": "Single Peril: Storm Surge", "peril_correlation_group": 1},
+                    {"id": "WTC", "desc": "Single Peril: Tropical Cyclone", "peril_correlation_group": 2},
+                    {"id": "WW1", "desc": "Group Peril: Windstorm with storm surge"},
+                    {"id": "WW2", "desc": "Group Peril: Windstorm w/o storm surge"}
+                ]
+            },
+            "model_default_samples": 10,
+            "data_settings": {
+                "damage_group_fields": ["PortNumber", "AccNumber", "LocNumber"],
+                "hazard_group_fields": ["PortNumber", "AccNumber", "LocNumber"]
+            }
+        }
+        model_settings_file = self.tmp_files.get('model_settings_json')
+        self.write_json(model_settings_file, LEGACY_CORRELATIONS_SETTINGS)
+
+        with self.tmp_dir() as t_dir:
+            # Run
+            expected_run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+            mock_output_dir.return_value = expected_run_dir
+            call_args = {
+                **self.ri_args,
+                'model_settings_json': model_settings_file.name
+            }
+            file_gen_return = self.manager.generate_files(**call_args)
+
+            # check correlations files exist
+            correlations_csv_path = os.path.join(expected_run_dir, 'correlations.csv')
+            correlations_bin_path = os.path.join(expected_run_dir, 'correlations.bin')
+            self.assertTrue(os.path.exists(correlations_csv_path))
+            self.assertTrue(os.path.exists(correlations_bin_path))
+
+            # check correlations csv content
+            correlations_csv_data = self.read_file(correlations_csv_path)
+            self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
+
+    @patch('oasislmf.computation.generate.files.GenerateFiles._get_output_dir')
+    def test_files__given_new_correlation_settings__correlation_csv_file_created(self, mock_output_dir):
+        NEW_CORRELATIONS_SETTINGS = {
+            "version": "3",
+            "model_settings": {
+                "correlation_settings": [
+                    {"peril_correlation_group": 1, "damage_correlation_value": "0.7", "hazard_correlation_value": "0.4"},
+                    {"peril_correlation_group": 2, "damage_correlation_value": "0.5", "hazard_correlation_value": "0.2"}
+                ],
+            },
+            "lookup_settings": {
+                "supported_perils": [
+                    {"id": "WSS", "desc": "Single Peril: Storm Surge", "peril_correlation_group": 1},
+                    {"id": "WTC", "desc": "Single Peril: Tropical Cyclone", "peril_correlation_group": 2},
+                    {"id": "WW1", "desc": "Group Peril: Windstorm with storm surge"},
+                    {"id": "WW2", "desc": "Group Peril: Windstorm w/o storm surge"}
+                ]
+            },
+            "model_default_samples": 10,
+            "data_settings": {
+                "damage_group_fields": ["PortNumber", "AccNumber", "LocNumber"],
+                "hazard_group_fields": ["PortNumber", "AccNumber", "LocNumber"]
+            }
+        }
+        model_settings_file = self.tmp_files.get('model_settings_json')
+        self.write_json(model_settings_file, NEW_CORRELATIONS_SETTINGS)
+
+        with self.tmp_dir() as t_dir:
+            # Run
+            expected_run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
+            mock_output_dir.return_value = expected_run_dir
+            call_args = {
+                **self.ri_args,
+                'model_settings_json': model_settings_file.name
+            }
+            file_gen_return = self.manager.generate_files(**call_args)
+
+            # check correlations files exist
+            correlations_csv_path = os.path.join(expected_run_dir, 'correlations.csv')
+            correlations_bin_path = os.path.join(expected_run_dir, 'correlations.bin')
+            self.assertTrue(os.path.exists(correlations_csv_path))
+            self.assertTrue(os.path.exists(correlations_bin_path))
+
+            # check correlations csv content
+            correlations_csv_data = self.read_file(correlations_csv_path)
+            self.assertEqual(EXPECTED_CORRELATION_CSV, correlations_csv_data)
+
 
 class TestGenDummyModelFiles(ComputationChecker):
 
