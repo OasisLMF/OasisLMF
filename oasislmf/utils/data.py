@@ -261,7 +261,9 @@ def establish_correlations(model_settings: dict) -> bool:
 
     Returns: (bool) True if correlations, False if not
     """
-    correlations: Optional[List[dict]] = model_settings.get("correlation_settings")
+    key = 'correlation_settings'
+    correlations_legacy: Optional[List[dict]] = model_settings.get(key, [])
+    correlations: Optional[List[dict]] = model_settings.get("model_settings", {}).get(key, correlations_legacy)
 
     if correlations is None:
         return False
