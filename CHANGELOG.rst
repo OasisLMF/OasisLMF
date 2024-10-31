@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`2.3.10`_
+ ---------
+* [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
+* [#1572](https://github.com/OasisLMF/OasisLMF/pull/1572) - Release 2.3.9
+* [#1585, #1575](https://github.com/OasisLMF/OasisLMF/pull/1574) - Fix missing complex keys return without amplification
+* [#1578](https://github.com/OasisLMF/OasisLMF/pull/1578) - fix: point to the correct source in error message for vulnerabiity_id…
+* [#1580](https://github.com/OasisLMF/OasisLMF/pull/1584) - Hazard correlation defaults to 100% if missing
+* [#1581](https://github.com/OasisLMF/OasisLMF/pull/1587) - oasislmf code uses legacy correlation settings location in model settings
+.. _`2.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.9...2.3.10
+
 `2.3.9`_
  ---------
 * [#1567](https://github.com/OasisLMF/OasisLMF/pull/1568) - Occurrence file not found when requesting output from ktools component alt_meanonly
