@@ -423,6 +423,8 @@ class BasicKeyServer:
 
         if is_complex and has_amplification_id:
             return self.model_data_with_amplification_heading_row
+        elif is_complex:
+            return self.model_data_heading_row
         elif has_amplification_id and is_dynamic:
             return self.dynamic_model_with_amplification_data_heading_row
         elif is_dynamic:
