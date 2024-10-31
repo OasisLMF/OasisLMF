@@ -134,6 +134,23 @@ def read_buffer(
         mplt_idx[0] = mi
         qplt_idx[0] = qi
 
+    def _get_dates(occ_date_id):
+        # NOTE: Currently does not support granular dates
+        g = occ_date_id
+
+        # Function void d(long long g, int& y, int& mm, int& dd) taken from pltcalc.cpp
+        y = (10000 * g + 14780) // 3652425
+        ddd = g - (365 * y + y // 4 - y // 100 + y // 400)
+        if ddd < 0:
+            y = y - 1
+            ddd = g - (365 * y + y // 4 - y // 100 + y // 400)
+        mi = (100 * ddd + 52) // 3060
+        mm = (mi + 2) % 12 + 1
+        y = y + (mi + 2) // 12
+        dd = ddd - (mi * 306 + 5) // 10 + 1
+
+        return y, mm, dd, 0, 0
+
     while cursor < valid_buff:
         if not state["reading_losses"]:
             if valid_buff - cursor >= 3 * oasis_int_size + oasis_float_size:
@@ -161,15 +178,28 @@ def read_buffer(
                     loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                     if sidx >= MEAN_IDX:
                         if state["compute_splt"]:
-                            splt_data[si]["EventId"] = event_id
-                            splt_data[si]["SampleId"] = sidx
-                            splt_data[si]["Loss"] = loss
-                            si += 1
-                            if si >= splt_data.shape[0]:
-                                # Output array full
-                                _update_idxs()
-                                return cursor, event_id, item_id, 1
+                            filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
+                            for record in filtered_occ_map:
+                                year, month, day, hour, minute = _get_dates(record["occ_date_id"])
+                                splt_data[si]["Period"] = record["period_no"]
+                                splt_data[si]["PeriodWeight"] = 0
+                                splt_data[si]["EventId"] = event_id
+                                splt_data[si]["Year"] = year
+                                splt_data[si]["Month"] = month
+                                splt_data[si]["Day"] = day
+                                splt_data[si]["Hour"] = hour
+                                splt_data[si]["Minute"] = minute
+                                splt_data[si]["SummaryId"] = state["summary_id"]
+                                splt_data[si]["SampleId"] = sidx
+                                splt_data[si]["Loss"] = loss
+                                splt_data[si]["ImpactedExposure"] = state["impacted_exposure"] * (loss > 0)
+                                si += 1
+                                if si >= splt_data.shape[0]:
+                                    # Output array full
+                                    _update_idxs()
+                                    return cursor, event_id, item_id, 1
                 else:
+                    # sidx == 0, end of record
                     state["reading_losses"] = False
             else:
                 break
@@ -182,6 +212,14 @@ def read_buffer(
 
 
 def read_occurrence(occurrence_fp):
+    """Read the occurrence binary file and returns an occurrence map
+
+    Args:
+        occurrence_fp (str): Path to the occurrence binary file
+
+    Returns:
+        occ_map_dtype: numpy map of event_id, period_no, occ_date_id from the occurrence file
+    """
     try:
         with open(occurrence_fp, "rb") as fin:
             # Extract Date Options
