@@ -3,10 +3,12 @@
 import logging
 import numpy as np
 import numba as nb
+import os
+import struct
 from contextlib import ExitStack
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in,
+from oasislmf.pytools.common.event_stream import (MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.utils import redirect_logging
 
@@ -63,7 +65,7 @@ QPLT_output = [
 
 
 class PLTReader(EventReader):
-    def __init__(self, len_sample, compute_splt, compute_mplt, compute_qplt):
+    def __init__(self, len_sample, compute_splt, compute_mplt, compute_qplt, occ_map):
         self.logger = logger
 
         SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
@@ -98,6 +100,7 @@ class PLTReader(EventReader):
         self.state["compute_splt"] = compute_splt
         self.state["compute_mplt"] = compute_mplt
         self.state["compute_qplt"] = compute_qplt
+        self.occ_map = occ_map
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         # Pass state variables to read_buffer
@@ -106,7 +109,8 @@ class PLTReader(EventReader):
             self.state,
             self.splt_data, self.splt_idx,
             self.mplt_data, self.mplt_idx,
-            self.qplt_data, self.qplt_idx
+            self.qplt_data, self.qplt_idx,
+            self.occ_map
         )
         return cursor, event_id, item_id, ret
 
@@ -117,12 +121,18 @@ def read_buffer(
         state,
         splt_data, splt_idx,
         mplt_data, mplt_idx,
-        qplt_data, qplt_idx
+        qplt_data, qplt_idx,
+        occ_map
 ):
     last_event_id = event_id
-    idx = splt_idx[0]
-    midx = mplt_idx[0]
-    qidx = qplt_idx[0]
+    si = splt_idx[0]
+    mi = mplt_idx[0]
+    qi = qplt_idx[0]
+
+    def _update_idxs():
+        splt_idx[0] = si
+        mplt_idx[0] = mi
+        qplt_idx[0] = qi
 
     while cursor < valid_buff:
         if not state["reading_losses"]:
@@ -132,9 +142,7 @@ def read_buffer(
                 event_id_new, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
-                    splt_idx[0] = idx
-                    mplt_idx[0] = midx
-                    qplt_idx[0] = qidx
+                    _update_idxs()
                     return cursor - (2 * oasis_int_size), last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
@@ -147,18 +155,86 @@ def read_buffer(
 
         if state["reading_losses"]:
             if valid_buff - cursor >= oasis_int_size + oasis_float_size:
-                # TODO: READ LOSSES
-                cursor += oasis_float_size
+                # Read sidx and loss
+                sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                if sidx != 0:
+                    loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                    if sidx >= MEAN_IDX:
+                        if state["compute_splt"]:
+                            splt_data[si]["EventId"] = event_id
+                            splt_data[si]["SampleId"] = sidx
+                            splt_data[si]["Loss"] = loss
+                            si += 1
+                            if si >= splt_data.shape[0]:
+                                # Output array full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
+                else:
+                    state["reading_losses"] = False
             else:
                 break
         else:
             pass  # Should never reach here anyways
 
     # Update the indices
-    splt_idx[0] = idx
-    mplt_idx[0] = midx
-    qplt_idx[0] = qidx
+    _update_idxs()
     return cursor, event_id, item_id, 0
+
+
+def read_occurrence(occurrence_fp):
+    try:
+        with open(occurrence_fp, "rb") as fin:
+            # Extract Date Options
+            date_opts = fin.read(4)
+            if not date_opts or len(date_opts) < 4:
+                logger.error("Occurrence file is empty or currupted")
+                raise RuntimeError("Occurrence file is empty or currupted")
+            date_opts = int.from_bytes(date_opts, byteorder="little", signed=True)
+
+            data_algorithm = date_opts & 1  # Unused as granular_date not supported
+            granular_date = date_opts >> 1
+
+            # Currently does not support granular_date (hour/minute)
+            if granular_date:
+                logger.error("Granular date currently not supported by pltpy")
+                raise RuntimeError("Granular date currently not supported by pltpy")
+
+            # Extract no_of_periods
+            no_of_periods = fin.read(4)
+            if not no_of_periods or len(no_of_periods) < 4:
+                logger.error("Occurrence file is empty or currupted")
+                raise RuntimeError("Occurrence file is empty or currupted")
+            no_of_periods = int.from_bytes(no_of_periods, byteorder="little", signed=True)
+
+            record_size = 12  # Non granular record size
+            data = fin.read()
+
+        num_records = len(data) // record_size
+        if num_records % record_size != 0:
+            logger.warning("Occurrence File size does not align with expected record size")
+
+        occ_map_dtype = np.dtype([
+            ("event_id", np.int32),
+            ("period_no", np.int32),
+            ("occ_date_id", np.int32),
+        ])
+        occ_map = np.zeros(num_records, dtype=occ_map_dtype)
+
+        for i in range(num_records):
+            offset = i * record_size
+            curr_data = data[offset:offset + record_size]
+            if len(curr_data) < record_size:
+                break
+            event_id, period_no, occ_date_id = struct.unpack('<iii', curr_data)
+            occ_map[i] = (event_id, period_no, occ_date_id)
+
+        return occ_map
+    except FileNotFoundError:
+        logger.error(f"FATAL: Error opening file {occurrence_fp}")
+        raise FileNotFoundError(f"FATAL: Error opening file {occurrence_fp}")
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise RuntimeError(f"An error occurred: {str(e)}")
 
 
 def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None):
@@ -183,7 +259,8 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        plt_reader = PLTReader(len_sample, compute_splt, compute_mplt, compute_qplt)
+        occ_map = read_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
+        plt_reader = PLTReader(len_sample, compute_splt, compute_mplt, compute_qplt, occ_map)
 
         # Initialise csv column names for PLT files
         output_files = {}
