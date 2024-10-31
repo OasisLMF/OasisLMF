@@ -224,8 +224,7 @@ class PlatformRunInputs(PlatformBase):
             portfolios = self.server.portfolios.get().json()
             if self.portfolio_id not in [p['id'] for p in portfolios]:
                 raise OasisException(f'Portfolio "{self.portfolio_id}" not found in API: {self.server_url}')
-
-        elif self.oed_location_csv:
+        else:
             portfolio = self.server.upload_inputs(
                 portfolio_id=None,
                 location_fp=self.oed_location_csv,
