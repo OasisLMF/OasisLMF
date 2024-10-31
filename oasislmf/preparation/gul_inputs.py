@@ -413,6 +413,8 @@ def get_gul_input_items(
     if correlations:
         # do merge with peril correlation df
         gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
+    else:
+        gul_inputs_df[["peril_correlation_group", "damage_correlation_value", "hazard_correlation_value"]] = 0
     gul_inputs_df["group_id"] = (
         pd.util.hash_pandas_object(
             gul_inputs_df.rename(columns=damage_group_id_cols_map)[sorted(list(damage_group_id_cols_map.values()))], index=False).to_numpy() >> 33
@@ -439,7 +441,7 @@ def get_gul_input_items(
         # disagg_id is needed for fm_summary_map
         ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         tiv_cols +
-        (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
+        ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"]
     )
 
     usecols = [col for col in usecols if col in gul_inputs_df]
