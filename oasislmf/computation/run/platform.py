@@ -204,10 +204,6 @@ class PlatformRunInputs(PlatformBase):
             except HTTPError as e:
                 raise OasisException(f'Error running analysis ({self.analysis_id}) - {e}')
 
-        # Create Portfolio and Ananlysis, then run
-        if (not self.portfolio_id) and (not self.oed_location_csv):
-            raise OasisException('Error: Either select a "portfolio_id" or a location file is required.')
-
         # when no model is selected prompt user for choice
         if not self.model_id:
             models = self.server.models.get().json()
