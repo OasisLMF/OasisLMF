@@ -65,7 +65,7 @@ QPLT_output = [
 
 
 class PLTReader(EventReader):
-    def __init__(self, len_sample, compute_splt, compute_mplt, compute_qplt, occ_map):
+    def __init__(self, len_sample, compute_splt, compute_mplt, compute_qplt, occ_map, period_weights):
         self.logger = logger
 
         SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
@@ -101,6 +101,7 @@ class PLTReader(EventReader):
         self.state["compute_mplt"] = compute_mplt
         self.state["compute_qplt"] = compute_qplt
         self.occ_map = occ_map
+        self.period_weights = period_weights
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         # Pass state variables to read_buffer
@@ -110,7 +111,8 @@ class PLTReader(EventReader):
             self.splt_data, self.splt_idx,
             self.mplt_data, self.mplt_idx,
             self.qplt_data, self.qplt_idx,
-            self.occ_map
+            self.occ_map,
+            self.period_weights,
         )
         return cursor, event_id, item_id, ret
 
@@ -122,7 +124,8 @@ def read_buffer(
         splt_data, splt_idx,
         mplt_data, mplt_idx,
         qplt_data, qplt_idx,
-        occ_map
+        occ_map,
+        period_weights,
 ):
     last_event_id = event_id
     si = splt_idx[0]
@@ -178,11 +181,12 @@ def read_buffer(
                     loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                     if sidx >= MEAN_IDX:
                         if state["compute_splt"]:
+                            # Update SELT data
                             filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                             for record in filtered_occ_map:
                                 year, month, day, hour, minute = _get_dates(record["occ_date_id"])
                                 splt_data[si]["Period"] = record["period_no"]
-                                splt_data[si]["PeriodWeight"] = 0
+                                splt_data[si]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
                                 splt_data[si]["EventId"] = event_id
                                 splt_data[si]["Year"] = year
                                 splt_data[si]["Month"] = month
@@ -218,7 +222,7 @@ def read_occurrence(occurrence_fp):
         occurrence_fp (str): Path to the occurrence binary file
 
     Returns:
-        occ_map_dtype: numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
     """
     try:
         with open(occurrence_fp, "rb") as fin:
@@ -229,7 +233,7 @@ def read_occurrence(occurrence_fp):
                 raise RuntimeError("Occurrence file is empty or currupted")
             date_opts = int.from_bytes(date_opts, byteorder="little", signed=True)
 
-            data_algorithm = date_opts & 1  # Unused as granular_date not supported
+            date_algorithm = date_opts & 1  # Unused as granular_date not supported
             granular_date = date_opts >> 1
 
             # Currently does not support granular_date (hour/minute)
@@ -266,13 +270,92 @@ def read_occurrence(occurrence_fp):
             event_id, period_no, occ_date_id = struct.unpack('<iii', curr_data)
             occ_map[i] = (event_id, period_no, occ_date_id)
 
-        return occ_map
+        return occ_map, date_algorithm, granular_date, no_of_periods
     except FileNotFoundError:
         logger.error(f"FATAL: Error opening file {occurrence_fp}")
         raise FileNotFoundError(f"FATAL: Error opening file {occurrence_fp}")
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
+
+
+def read_periods(periods_fp, no_of_periods):
+    """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
+
+    Args:
+        periods_fp (str): Path to periods binary file
+        no_of_periods (int): Number of periods
+
+    Returns:
+        period_weights (ndarray[period_weights_dtype]): Returns the period weights
+    """
+    period_weights_dtype = np.dtype([
+        ("period_no", np.int32),
+        ("weighting", np.float64),
+    ])
+
+    period_weights = np.zeros(no_of_periods, dtype=period_weights_dtype)
+
+    try:
+        with open(periods_fp, "rb") as fin:
+            record_format = "<id"  # int, double
+            record_size = struct.calcsize(record_format)
+            prev_period_no = None
+            while True:
+                record_data = fin.read(record_size)
+
+                if not record_data:
+                    break
+
+                period_no, weighting = struct.unpack(record_format, record_data)
+
+                # Checks for gaps in periods
+                if prev_period_no is not None and prev_period_no + 1 != period_no:
+                    error_msg = f"ERROR: Missing period_no in period binary file {periods_fp}."
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                period_weights[period_no - 1] = (period_no, weighting)
+                prev_period_no = period_no
+
+            if prev_period_no != no_of_periods:
+                error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+    except FileNotFoundError:
+        # If no periods binary file found, the revert to using period weights reciprocal to no_of_periods
+        logger.warning(f"Periods file not found at {periods_fp}, using reciprocal calculated period weights based on no_of_periods {no_of_periods}")
+        period_weights = np.array(
+            [(i + 1, 1 / no_of_periods) for i in range(no_of_periods)],
+            dtype=period_weights_dtype
+        )
+        return period_weights
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise RuntimeError(f"An error occurred: {str(e)}")
+
+    return period_weights
+
+
+def read_input_files(run_dir):
+    """Reads all input files and returns a dict of relevant data
+
+    Args:
+        run_dir (str): Path to directory containing required files structure
+
+    Returns:
+        file_data (Dict[str, Any]): A dict of relevent data extracted from files
+    """
+    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
+    period_weights = read_periods(os.path.join(run_dir, "input", "periods.bin"), no_of_periods)
+
+    file_data = {
+        "occ_map": occ_map,
+        "date_algorithm": date_algorithm,
+        "granular_date": granular_date,
+        "no_of_periods": no_of_periods,
+        "period_weights": period_weights,
+    }
+    return file_data
 
 
 def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None):
@@ -297,8 +380,15 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        occ_map = read_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
-        plt_reader = PLTReader(len_sample, compute_splt, compute_mplt, compute_qplt, occ_map)
+        file_data = read_input_files(run_dir)
+        plt_reader = PLTReader(
+            len_sample,
+            compute_splt,
+            compute_mplt,
+            compute_qplt,
+            file_data["occ_map"],
+            file_data["period_weights"],
+        )
 
         # Initialise csv column names for PLT files
         output_files = {}
