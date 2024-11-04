@@ -65,7 +65,16 @@ QPLT_output = [
 
 
 class PLTReader(EventReader):
-    def __init__(self, len_sample, compute_splt, compute_mplt, compute_qplt, occ_map, period_weights):
+    def __init__(
+        self,
+        len_sample,
+        compute_splt,
+        compute_mplt,
+        compute_qplt,
+        occ_map,
+        period_weights,
+        granular_date,
+    ):
         self.logger = logger
 
         SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
@@ -102,6 +111,7 @@ class PLTReader(EventReader):
         self.state["compute_qplt"] = compute_qplt
         self.occ_map = occ_map
         self.period_weights = period_weights
+        self.granular_date = granular_date
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         # Pass state variables to read_buffer
@@ -113,6 +123,7 @@ class PLTReader(EventReader):
             self.qplt_data, self.qplt_idx,
             self.occ_map,
             self.period_weights,
+            self.granular_date,
         )
         return cursor, event_id, item_id, ret
 
@@ -126,6 +137,7 @@ def read_buffer(
         qplt_data, qplt_idx,
         occ_map,
         period_weights,
+        granular_date,
 ):
     last_event_id = event_id
     si = splt_idx[0]
@@ -138,21 +150,24 @@ def read_buffer(
         qplt_idx[0] = qi
 
     def _get_dates(occ_date_id):
-        # NOTE: Currently does not support granular dates
-        g = occ_date_id
+        days = occ_date_id / (1440 - 1439 * (not granular_date))
 
         # Function void d(long long g, int& y, int& mm, int& dd) taken from pltcalc.cpp
-        y = (10000 * g + 14780) // 3652425
-        ddd = g - (365 * y + y // 4 - y // 100 + y // 400)
+        y = (10000 * days + 14780) // 3652425
+        ddd = days - (365 * y + y // 4 - y // 100 + y // 400)
         if ddd < 0:
             y = y - 1
-            ddd = g - (365 * y + y // 4 - y // 100 + y // 400)
+            ddd = days - (365 * y + y // 4 - y // 100 + y // 400)
         mi = (100 * ddd + 52) // 3060
         mm = (mi + 2) % 12 + 1
         y = y + (mi + 2) // 12
         dd = ddd - (mi * 306 + 5) // 10 + 1
 
-        return y, mm, dd, 0, 0
+        minutes = (occ_date_id % 1440) * granular_date
+        occ_hour = minutes // 60
+        occ_minutes = minutes % 60
+
+        return y, mm, dd, occ_hour, occ_minutes
 
     while cursor < valid_buff:
         if not state["reading_losses"]:
@@ -229,26 +244,35 @@ def read_occurrence(occurrence_fp):
             # Extract Date Options
             date_opts = fin.read(4)
             if not date_opts or len(date_opts) < 4:
-                logger.error("Occurrence file is empty or currupted")
-                raise RuntimeError("Occurrence file is empty or currupted")
+                error_msg = "Occurrence file is empty or currupted"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
             date_opts = int.from_bytes(date_opts, byteorder="little", signed=True)
 
             date_algorithm = date_opts & 1  # Unused as granular_date not supported
             granular_date = date_opts >> 1
 
-            # Currently does not support granular_date (hour/minute)
+            # (event_id: int, period_no: int, occ_date_id: int)
+            record_format = "<iii"
+            # (event_id: int, period_no: int, occ_date_id: long long)
             if granular_date:
-                logger.error("Granular date currently not supported by pltpy")
-                raise RuntimeError("Granular date currently not supported by pltpy")
+                record_format = "<iiq"
+            record_size = struct.calcsize(record_format)
+
+            # Should not get here
+            if not date_algorithm and granular_date:
+                error_msg = "FATAL: Unknown date algorithm"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             # Extract no_of_periods
             no_of_periods = fin.read(4)
             if not no_of_periods or len(no_of_periods) < 4:
-                logger.error("Occurrence file is empty or currupted")
-                raise RuntimeError("Occurrence file is empty or currupted")
+                error_msg = "Occurrence file is empty or currupted"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
             no_of_periods = int.from_bytes(no_of_periods, byteorder="little", signed=True)
 
-            record_size = 12  # Non granular record size
             data = fin.read()
 
         num_records = len(data) // record_size
@@ -260,6 +284,13 @@ def read_occurrence(occurrence_fp):
             ("period_no", np.int32),
             ("occ_date_id", np.int32),
         ])
+        if granular_date:
+            occ_map_dtype = np.dtype([
+                ("event_id", np.int32),
+                ("period_no", np.int32),
+                ("occ_date_id", np.int64),
+            ])
+
         occ_map = np.zeros(num_records, dtype=occ_map_dtype)
 
         for i in range(num_records):
@@ -267,16 +298,18 @@ def read_occurrence(occurrence_fp):
             curr_data = data[offset:offset + record_size]
             if len(curr_data) < record_size:
                 break
-            event_id, period_no, occ_date_id = struct.unpack('<iii', curr_data)
+            event_id, period_no, occ_date_id = struct.unpack(record_format, curr_data)
             occ_map[i] = (event_id, period_no, occ_date_id)
 
         return occ_map, date_algorithm, granular_date, no_of_periods
     except FileNotFoundError:
-        logger.error(f"FATAL: Error opening file {occurrence_fp}")
-        raise FileNotFoundError(f"FATAL: Error opening file {occurrence_fp}")
+        error_msg = f"FATAL: Error opening file {occurrence_fp}"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-        raise RuntimeError(f"An error occurred: {str(e)}")
+        error_msg = f"An error occurred: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 
 def read_periods(periods_fp, no_of_periods):
@@ -388,6 +421,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
             compute_qplt,
             file_data["occ_map"],
             file_data["period_weights"],
+            file_data["granular_date"],
         )
 
         # Initialise csv column names for PLT files
