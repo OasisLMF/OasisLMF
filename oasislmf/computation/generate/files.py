@@ -181,7 +181,6 @@ class GenerateFiles(ComputationStep):
         location_profile = get_json(src_fp=self.profile_loc_json) if self.profile_loc_json else self.profile_loc
         accounts_profile = get_json(src_fp=self.profile_acc_json) if self.profile_acc_json else self.profile_acc
         oed_hierarchy = get_oed_hierarchy(location_profile, accounts_profile)
-        loc_grp = oed_hierarchy['locgrp']['ProfileElementName']
 
         fm_aggregation_profile = get_json(src_fp=self.profile_fm_agg_json) if self.profile_fm_agg_json else self.profile_fm_agg
 
@@ -268,7 +267,7 @@ class GenerateFiles(ComputationStep):
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             if correlations_analysis_settings is not None:
-                model_settings['correlation_settings'] = correlations_analysis_settings
+                model_settings['model_settings']['correlation_settings'] = correlations_analysis_settings
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
@@ -307,11 +306,9 @@ class GenerateFiles(ComputationStep):
         damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
                                                                 exposure_df_columns=location_df,
                                                                 has_correlation_groups=correlations)
-
         hazard_group_id_cols: List[str] = process_group_id_cols(group_id_cols=hazard_group_id_cols,
                                                                 exposure_df_columns=location_df,
                                                                 has_correlation_groups=correlations)
-
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
@@ -343,7 +340,7 @@ class GenerateFiles(ComputationStep):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS] if correlations is True else None,
+            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS],
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
