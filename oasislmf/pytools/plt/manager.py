@@ -3,9 +3,9 @@
 import logging
 import numpy as np
 import numba as nb
-import os
 import struct
 from contextlib import ExitStack
+from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, EventReader, init_streams_in,
@@ -149,6 +149,9 @@ def read_buffer(
         mplt_idx[0] = mi
         qplt_idx[0] = qi
 
+    def _reset_state():
+        state["reading_losses"] = False
+
     def _get_dates(occ_date_id):
         days = occ_date_id / (1440 - 1439 * (not granular_date))
 
@@ -219,7 +222,7 @@ def read_buffer(
                                     return cursor, event_id, item_id, 1
                 else:
                     # sidx == 0, end of record
-                    state["reading_losses"] = False
+                    _reset_state()
             else:
                 break
         else:
@@ -234,7 +237,7 @@ def read_occurrence(occurrence_fp):
     """Read the occurrence binary file and returns an occurrence map
 
     Args:
-        occurrence_fp (str): Path to the occurrence binary file
+        occurrence_fp (str | os.PathLike): Path to the occurrence binary file
 
     Returns:
         occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
@@ -316,7 +319,7 @@ def read_periods(periods_fp, no_of_periods):
     """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
 
     Args:
-        periods_fp (str): Path to periods binary file
+        periods_fp (str | os.PathLike): Path to periods binary file
         no_of_periods (int): Number of periods
 
     Returns:
@@ -333,7 +336,7 @@ def read_periods(periods_fp, no_of_periods):
         with open(periods_fp, "rb") as fin:
             record_format = "<id"  # int, double
             record_size = struct.calcsize(record_format)
-            prev_period_no = None
+            num_read = 0
             while True:
                 record_data = fin.read(record_size)
 
@@ -343,14 +346,22 @@ def read_periods(periods_fp, no_of_periods):
                 period_no, weighting = struct.unpack(record_format, record_data)
 
                 # Checks for gaps in periods
-                if prev_period_no is not None and prev_period_no + 1 != period_no:
+                if num_read + 1 != period_no:
                     error_msg = f"ERROR: Missing period_no in period binary file {periods_fp}."
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
-                period_weights[period_no - 1] = (period_no, weighting)
-                prev_period_no = period_no
+                num_read += 1
 
-            if prev_period_no != no_of_periods:
+                # More data than no_of_periods
+                if num_read > no_of_periods:
+                    error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+
+                period_weights[period_no - 1] = (period_no, weighting)
+
+            # Less data than no_of_periods
+            if num_read != no_of_periods:
                 error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
@@ -373,13 +384,13 @@ def read_input_files(run_dir):
     """Reads all input files and returns a dict of relevant data
 
     Args:
-        run_dir (str): Path to directory containing required files structure
+        run_dir (str | os.PathLike): Path to directory containing required files structure
 
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(os.path.join(run_dir, "input", "occurrence.bin"))
-    period_weights = read_periods(os.path.join(run_dir, "input", "periods.bin"), no_of_periods)
+    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input", "occurrence.bin"))
+    period_weights = read_periods(Path(run_dir, "input", "periods.bin"), no_of_periods)
 
     file_data = {
         "occ_map": occ_map,
@@ -395,8 +406,8 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
     """Runs PLT calculations
 
     Args:
-        run_dir (str): Path to directory containing required files structure
-        files_in (str): Path to summary binary input file
+        run_dir (str | os.PathLike): Path to directory containing required files structure
+        files_in (str | os.PathLike): Path to summary binary input file
         splt_output_file (str, optional): Path to SPLT output file. Defaults to None.
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
