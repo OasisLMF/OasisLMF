@@ -639,9 +639,11 @@ def compute_event_losses(event_id,
                 haz_cdf_record = haz_cdf[haz_cdf_ptr[hazcdf_i]:haz_cdf_ptr[hazcdf_i + 1]]
                 haz_cdf_prob = haz_cdf_record['probability']
                 haz_cdf_bin_id = haz_cdf_record['intensity_bin_id']
-                # adjust intensity in dynamic footprint
-                haz_cdf_bin_id = haz_cdf_bin_id - intensity_adjustment
-                haz_cdf_bin_id = np.where(haz_cdf_bin_id < 0, nb_int32(0), haz_cdf_bin_id)
+                if dynamic_footprint:
+                    # adjust intensity in dynamic footprint
+                    haz_cdf_intensity = haz_cdf_record['intensity']
+                    haz_cdf_intensity = haz_cdf_intensity - intensity_adjustment
+                    haz_cdf_intensity = np.where(haz_cdf_intensity < 0, nb_int32(0), haz_cdf_intensity)
 
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
@@ -959,7 +961,7 @@ def compute_event_losses(event_id,
 
                             # 2) get the hazard intensity bin id
                             if dynamic_footprint:
-                                haz_int_val = haz_cdf_bin_id[haz_bin_idx]
+                                haz_int_val = haz_cdf_intensity[haz_bin_idx]
                                 haz_int_bin_id = intensity_bin_dict[haz_int_val]
                             else:
                                 haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
