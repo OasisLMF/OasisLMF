@@ -282,7 +282,6 @@ def read_buffer(
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
-
             else:
                 # Not enough for whole summary header
                 break
@@ -291,7 +290,7 @@ def read_buffer(
             if valid_buff - cursor < oasis_int_size + oasis_float_size:
                 # Not enough for whole record
                 break
-            
+
             # Read sidx
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx == 0:  # sidx == 0, end of record
