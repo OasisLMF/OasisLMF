@@ -400,11 +400,15 @@ class FootprintParquetDynamic(Footprint):
             df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
 
             if len(df_footprint.index) > 0:
-                df_footprint['intensity_bin_id'] = np.floor(df_footprint.from_intensity + (
+                df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                     (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-                df_footprint['intensity_bin_id'] = df_footprint['intensity_bin_id'].astype('int')
+                df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+                intensity_bin_dict = pd.read_csv('static/intensity_bin_dict.csv')
+                intensity_bin_dict.rename(columns={'intensity_bin': 'intensity_bin_id'}, inplace=True)
+                df_footprint = df_footprint.merge(intensity_bin_dict, on='intensity')
                 df_footprint['probability'] = 1
             else:
+                df_footprint.loc[:, 'intensity'] = []
                 df_footprint.loc[:, 'intensity_bin_id'] = []
                 df_footprint.loc[:, 'probability'] = []
 
