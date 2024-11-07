@@ -57,8 +57,9 @@ def test_splt_output():
 def test_mplt_output():
     """Tests mplt outputs
     """
-    # case_runner("mplt")
-    pass
+    case_runner("all_files", "mplt")
+    case_runner("no_files", "mplt")
+    case_runner("occ_gran_files", "mplt")
 
 
 def test_qplt_output():

@@ -8,11 +8,15 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (MEAN_IDX, EventReader, init_streams_in,
+from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
+
+
+MEAN_TYPE_ANALYTICAL = 1
+MEAN_TYPE_SAMPLE = 2
 
 SPLT_output = [
     ('Period', oasis_int, '%d'),
@@ -100,7 +104,14 @@ class PLTReader(EventReader):
             ('compute_mplt', np.bool_),
             ('compute_qplt', np.bool_),
             ('summary_id', oasis_int),
-            ('impacted_exposure', oasis_float),
+            ('exposure_value', oasis_float),
+            ('max_loss', oasis_float),
+            ('mean_impacted_exposure', oasis_float),
+            ('max_impacted_exposure', oasis_float),
+            ('chance_of_loss', oasis_float),
+            ('vrec', oasis_float, (len_sample,)),
+            ('sumloss', oasis_float),
+            ('sumlosssqr', oasis_float),
         ])
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
@@ -139,11 +150,13 @@ def read_buffer(
         period_weights,
         granular_date,
 ):
+    # Initialise idxs
     last_event_id = event_id
     si = splt_idx[0]
     mi = mplt_idx[0]
     qi = qplt_idx[0]
 
+    # Helper functions
     def _update_idxs():
         splt_idx[0] = si
         mplt_idx[0] = mi
@@ -151,6 +164,13 @@ def read_buffer(
 
     def _reset_state():
         state["reading_losses"] = False
+        state["max_loss"] = 0
+        state["mean_impacted_exposure"] = 0
+        state["max_impacted_exposure"] = 0
+        state["chance_of_loss"] = 0
+        state["vrec"].fill(0)
+        state["sumloss"] = 0
+        state["sumlosssqr"] = 0
 
     def _get_dates(occ_date_id):
         days = occ_date_id / (1440 - 1439 * (not granular_date))
@@ -172,6 +192,7 @@ def read_buffer(
 
         return y, mm, dd, occ_hour, occ_minutes
 
+    # Read input loop
     while cursor < valid_buff:
         if not state["reading_losses"]:
             if valid_buff - cursor >= 3 * oasis_int_size + oasis_float_size:
@@ -184,7 +205,7 @@ def read_buffer(
                     return cursor - (2 * oasis_int_size), last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
-                state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
 
             else:
@@ -197,9 +218,14 @@ def read_buffer(
                 sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 if sidx != 0:
                     loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                    impacted_exposure = 0
+                    if sidx == NUMBER_OF_AFFECTED_RISK_IDX:
+                        # TODO: is this the correct thing to do?
+                        continue
                     if sidx >= MEAN_IDX:
+                        impacted_exposure = state["exposure_value"] * (loss > 0)
+                        # Update SELT data
                         if state["compute_splt"]:
-                            # Update SELT data
                             filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                             for record in filtered_occ_map:
                                 year, month, day, hour, minute = _get_dates(record["occ_date_id"])
@@ -214,14 +240,107 @@ def read_buffer(
                                 splt_data[si]["SummaryId"] = state["summary_id"]
                                 splt_data[si]["SampleId"] = sidx
                                 splt_data[si]["Loss"] = loss
-                                splt_data[si]["ImpactedExposure"] = state["impacted_exposure"] * (loss > 0)
+                                splt_data[si]["ImpactedExposure"] = impacted_exposure
                                 si += 1
+
                                 if si >= splt_data.shape[0]:
                                     # Output array full
                                     _update_idxs()
                                     return cursor, event_id, item_id, 1
-                else:
-                    # sidx == 0, end of record
+                    if sidx == MAX_LOSS_IDX:
+                        state["max_loss"] = loss
+                    elif sidx == MEAN_IDX:
+                        # Update MELT data (analytical mean)
+                        if state["compute_mplt"]:
+                            filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
+                            for record in filtered_occ_map:
+                                year, month, day, hour, minute = _get_dates(record["occ_date_id"])
+                                mplt_data[mi]["Period"] = record["period_no"]
+                                mplt_data[mi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
+                                mplt_data[mi]["EventId"] = event_id
+                                mplt_data[mi]["Year"] = year
+                                mplt_data[mi]["Month"] = month
+                                mplt_data[mi]["Day"] = day
+                                mplt_data[mi]["Hour"] = hour
+                                mplt_data[mi]["Minute"] = minute
+                                mplt_data[mi]["SummaryId"] = state["summary_id"]
+                                mplt_data[mi]["SampleType"] = MEAN_TYPE_ANALYTICAL
+                                mplt_data[mi]["ChanceOfLoss"] = 0
+                                mplt_data[mi]["MeanLoss"] = loss
+                                mplt_data[mi]["SDLoss"] = 0
+                                mplt_data[mi]["MaxLoss"] = state["max_loss"]
+                                mplt_data[mi]["FootprintExposure"] = state["exposure_value"]
+                                mplt_data[mi]["MeanImpactedExposure"] = state["exposure_value"]
+                                mplt_data[mi]["MaxImpactedExposure"] = state["exposure_value"]
+                                mi += 1
+
+                                if mi >= mplt_data.shape[0]:
+                                    # Output array full
+                                    _update_idxs()
+                                    return cursor, event_id, item_id, 1
+                    else:
+                        # Update mplt variable
+                        if sidx > 0:
+                            state["vrec"][sidx - 1] = loss
+                        state["mean_impacted_exposure"] += impacted_exposure / state["len_sample"]
+                        if impacted_exposure > state["max_impacted_exposure"]:
+                            state["max_impacted_exposure"] = impacted_exposure
+                        state["chance_of_loss"] += (loss > 0) / state["len_sample"]
+                else:  # sidx == 0, end of record
+                    # Update MELT data (sample mean)
+                    if state["compute_mplt"]:
+                        filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
+                        hasrec = False
+                        firsttime = True
+
+                        for record in filtered_occ_map:
+                            if firsttime:
+                                for l in state["vrec"]:
+                                    hasrec = True
+                                    state["sumloss"] += l
+                                    state["sumlosssqr"] += l * l
+                                firsttime = False
+                            if hasrec:
+                                meanloss = state["sumloss"] / state["len_sample"]
+                                if state["len_sample"] != 1:
+                                    variance = (
+                                        state["sumlosssqr"] - (
+                                            (state["sumloss"] * state["sumloss"]) / state["len_sample"]
+                                        )
+                                    ) / (state["len_sample"] - 1)
+
+                                    # Tolerance check
+                                    if variance / state["sumlosssqr"] < 1e-7:
+                                        variance = 0
+                                    sdloss = np.sqrt(variance)
+                                else:
+                                    sdloss = 0
+                                if meanloss > 0 or sdloss > 0:
+                                    year, month, day, hour, minute = _get_dates(record["occ_date_id"])
+                                    mplt_data[mi]["Period"] = record["period_no"]
+                                    mplt_data[mi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
+                                    mplt_data[mi]["EventId"] = event_id
+                                    mplt_data[mi]["Year"] = year
+                                    mplt_data[mi]["Month"] = month
+                                    mplt_data[mi]["Day"] = day
+                                    mplt_data[mi]["Hour"] = hour
+                                    mplt_data[mi]["Minute"] = minute
+                                    mplt_data[mi]["SummaryId"] = state["summary_id"]
+                                    mplt_data[mi]["SampleType"] = MEAN_TYPE_SAMPLE
+                                    mplt_data[mi]["ChanceOfLoss"] = state["chance_of_loss"]
+                                    mplt_data[mi]["MeanLoss"] = meanloss
+                                    mplt_data[mi]["SDLoss"] = sdloss
+                                    mplt_data[mi]["MaxLoss"] = state["max_loss"]
+                                    mplt_data[mi]["FootprintExposure"] = state["exposure_value"]
+                                    mplt_data[mi]["MeanImpactedExposure"] = state["mean_impacted_exposure"]
+                                    mplt_data[mi]["MaxImpactedExposure"] = state["max_impacted_exposure"]
+                                    mi += 1
+
+                                    if mi >= mplt_data.shape[0]:
+                                        # Output array full
+                                        _update_idxs()
+                                        return cursor, event_id, item_id, 1
+
                     _reset_state()
             else:
                 break
