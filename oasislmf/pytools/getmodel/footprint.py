@@ -16,7 +16,7 @@ import numba as nb
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
+from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV, EventDynamic,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
                      event_defintion_filename, hazard_case_filename, fp_format_priorities)
@@ -412,7 +412,21 @@ class FootprintParquetDynamic(Footprint):
                 df_footprint.loc[:, 'intensity_bin_id'] = []
                 df_footprint.loc[:, 'probability'] = []
 
-            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id', 'intensity_bin_id', 'probability', 'return_period']])
+            areaperil_id = df_footprint["areaperil_id"].to_numpy()
+            intensity_bin_id = df_footprint["intensity_bin_id"].to_numpy()
+            intensity = df_footprint["intensity"].to_numpy()
+            return_period = df_footprint["return_period"].to_numpy()
+            probability = df_footprint["probability"].to_numpy()
+
+            buffer = np.empty(len(areaperil_id), dtype=EventDynamic)
+            for x in range(0, len(buffer)):
+                buffer[x]['areaperil_id'] = areaperil_id[x]
+                buffer[x]['intensity_bin_id'] = intensity_bin_id[x]
+                buffer[x]['intensity'] = intensity[x]
+                buffer[x]['probability'] = probability[x]
+                buffer[x]['return_period'] = return_period[x]
+            numpy_data = np.array(buffer, dtype=EventDynamic)
+            
             return numpy_data
 
 
