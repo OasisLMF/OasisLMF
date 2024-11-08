@@ -78,6 +78,7 @@ class PLTReader(EventReader):
         occ_map,
         period_weights,
         granular_date,
+        intervals,
     ):
         self.logger = logger
 
@@ -123,6 +124,7 @@ class PLTReader(EventReader):
         self.occ_map = occ_map
         self.period_weights = period_weights
         self.granular_date = granular_date
+        self.intervals = intervals
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         # Pass state variables to read_buffer
@@ -135,6 +137,7 @@ class PLTReader(EventReader):
             self.occ_map,
             self.period_weights,
             self.granular_date,
+            self.intervals,
         )
         return cursor, event_id, item_id, ret
 
@@ -235,6 +238,31 @@ def _update_mplt_data(
 
 
 @nb.jit(nopython=True, cache=True)
+def _update_qplt_data(
+    qplt_data, qi, period_weights, granular_date,
+    record,
+    event_id,
+    summary_id,
+    quantile,
+    loss,
+):
+    """updates mplt_data to write to output
+    """
+    year, month, day, hour, minute = _get_dates(record["occ_date_id"], granular_date)
+    qplt_data[qi]["Period"] = record["period_no"]
+    qplt_data[qi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
+    qplt_data[qi]["EventId"] = event_id
+    qplt_data[qi]["Year"] = year
+    qplt_data[qi]["Month"] = month
+    qplt_data[qi]["Day"] = day
+    qplt_data[qi]["Hour"] = hour
+    qplt_data[qi]["Minute"] = minute
+    qplt_data[qi]["SummaryId"] = summary_id
+    qplt_data[qi]["Quantile"] = quantile
+    qplt_data[qi]["Loss"] = loss
+
+
+@nb.jit(nopython=True, cache=True)
 def read_buffer(
         byte_mv, cursor, valid_buff, event_id, item_id,
         state,
@@ -244,6 +272,7 @@ def read_buffer(
         occ_map,
         period_weights,
         granular_date,
+        intervals,
 ):
     # Initialise idxs
     last_event_id = event_id
@@ -267,6 +296,23 @@ def read_buffer(
         state["sumloss"] = 0
         state["sumlosssqr"] = 0
 
+    def _get_mean_and_sd_loss():
+        meanloss = state["sumloss"] / state["len_sample"]
+        if state["len_sample"] != 1:
+            variance = (
+                state["sumlosssqr"] - (
+                    (state["sumloss"] * state["sumloss"]) / state["len_sample"]
+                )
+            ) / (state["len_sample"] - 1)
+
+            # Tolerance check
+            if variance / state["sumlosssqr"] < 1e-7:
+                variance = 0
+            sdloss = np.sqrt(variance)
+        else:
+            sdloss = 0
+        return meanloss, sdloss
+
     # Read input loop
     while cursor < valid_buff:
         if not state["reading_losses"]:
@@ -283,18 +329,16 @@ def read_buffer(
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
             else:
-                # Not enough for whole summary header
-                break
+                break  # Not enough for whole summary header
 
         if state["reading_losses"]:
             if valid_buff - cursor < oasis_int_size + oasis_float_size:
-                # Not enough for whole record
-                break
+                break  # Not enough for whole record
 
             # Read sidx
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx == 0:  # sidx == 0, end of record
-                # Update MELT data (sample mean)
+                # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
                     filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                     hasrec = False
@@ -308,20 +352,7 @@ def read_buffer(
                                 state["sumlosssqr"] += l * l
                             firsttime = False
                         if hasrec:
-                            meanloss = state["sumloss"] / state["len_sample"]
-                            if state["len_sample"] != 1:
-                                variance = (
-                                    state["sumlosssqr"] - (
-                                        (state["sumloss"] * state["sumloss"]) / state["len_sample"]
-                                    )
-                                ) / (state["len_sample"] - 1)
-
-                                # Tolerance check
-                                if variance / state["sumlosssqr"] < 1e-7:
-                                    variance = 0
-                                sdloss = np.sqrt(variance)
-                            else:
-                                sdloss = 0
+                            meanloss, sdloss = _get_mean_and_sd_loss()
                             if meanloss > 0 or sdloss > 0:
                                 _update_mplt_data(
                                     mplt_data, mi, period_weights, granular_date,
@@ -342,7 +373,36 @@ def read_buffer(
                                     # Output array full
                                     _update_idxs()
                                     return cursor, event_id, item_id, 1
-                # TODO: update_qplt_data here
+
+                # Update QPLT data (sample mean)
+                if state["compute_qplt"]:
+                    state["vrec"].sort()
+                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
+                    for record in filtered_occ_map:
+                        for i in range(len(intervals)):
+                            q = intervals[i]["q"]
+                            ipart = intervals[i]["integer_part"]
+                            fpart = intervals[i]["fractional_part"]
+                            if ipart == len(state["vrec"]):
+                                loss = state["vrec"][ipart - 1]
+                            else:
+                                loss = (
+                                    (state["vrec"][ipart] - state["vrec"][ipart - 1]) *
+                                    fpart + state["vrec"][ipart - 1]
+                                )
+                            _update_qplt_data(
+                                qplt_data, qi, period_weights, granular_date,
+                                record=record,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                quantile=q,
+                                loss=loss
+                            )
+                            qi += 1
+                            if qi >= qplt_data.shape[0]:
+                                # Output array full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
                 _reset_state()
                 continue
 
@@ -354,7 +414,7 @@ def read_buffer(
                 continue
             if sidx >= MEAN_IDX:
                 impacted_exposure = state["exposure_value"] * (loss > 0)
-                # Update SELT data
+                # Update SPLT data
                 if state["compute_splt"]:
                     filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                     for record in filtered_occ_map:
@@ -375,7 +435,7 @@ def read_buffer(
             if sidx == MAX_LOSS_IDX:
                 state["max_loss"] = loss
             elif sidx == MEAN_IDX:
-                # Update MELT data (analytical mean)
+                # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
                     filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                     for record in filtered_occ_map:
@@ -561,17 +621,62 @@ def read_periods(periods_fp, no_of_periods):
     return period_weights
 
 
-def read_input_files(run_dir):
+def read_quantile(quantile_fp, sample_size):
+    """Generate a quantile interval Dictionary based on sample size and quantile binary file
+    Args:
+        sample_size (int): Sample size
+        fp (str): File path to quantile binary input
+    Returns:
+        intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
+    """
+    intervals_dict = {}
+    quantile_interval_dtype = np.dtype([
+        ('q', oasis_float),
+        ('integer_part', oasis_int),
+        ('fractional_part', oasis_float),
+    ])
+
+    try:
+        with open(quantile_fp, "rb") as fin:
+            while True:
+                data = fin.read(4)  # Reading 4 bytes for a float32
+                if not data:
+                    break
+                q = struct.unpack('f', data)[0]
+
+                # Calculate interval index and fractional part
+                pos = (sample_size - 1) * q + 1
+                integer_part = int(pos)
+                fractional_part = pos - integer_part
+
+                intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
+    except FileNotFoundError:
+        logger.error(f"FATAL: Error opening file {quantile_fp}")
+        raise FileNotFoundError(f"FATAL: Error opening file {quantile_fp}")
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise RuntimeError(f"An error occurred: {str(e)}")
+
+    # Convert to numpy array
+    intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
+    for i, (k, v) in enumerate(intervals_dict.items()):
+        intervals[i] = (k, v['integer_part'], v['fractional_part'])
+    return intervals
+
+
+def read_input_files(run_dir, sample_size):
     """Reads all input files and returns a dict of relevant data
 
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
+        sample_size (int): Sample size
 
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input", "occurrence.bin"))
     period_weights = read_periods(Path(run_dir, "input", "periods.bin"), no_of_periods)
+    intervals = read_quantile(Path(run_dir, "input", "quantile.bin"), sample_size)
 
     file_data = {
         "occ_map": occ_map,
@@ -579,6 +684,7 @@ def read_input_files(run_dir):
         "granular_date": granular_date,
         "no_of_periods": no_of_periods,
         "period_weights": period_weights,
+        "intervals": intervals,
     }
     return file_data
 
@@ -605,7 +711,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        file_data = read_input_files(run_dir)
+        file_data = read_input_files(run_dir, len_sample)
         plt_reader = PLTReader(
             len_sample,
             compute_splt,
@@ -614,6 +720,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
             file_data["occ_map"],
             file_data["period_weights"],
             file_data["granular_date"],
+            file_data["intervals"],
         )
 
         # Initialise csv column names for PLT files

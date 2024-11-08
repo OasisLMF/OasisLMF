@@ -1,11 +1,12 @@
 import filecmp
-import shutil
-from tempfile import TemporaryDirectory
 import numpy as np
-from pathlib import Path
-
-from oasislmf.pytools.plt.manager import main, read_occurrence, read_periods
 import pytest
+import shutil
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from oasislmf.pytools.common.data import (oasis_int, oasis_float)
+from oasislmf.pytools.plt.manager import main, read_occurrence, read_periods, read_quantile
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_pltpy")
 
@@ -49,24 +50,25 @@ def case_runner(sub_folder, test_name):
 def test_splt_output():
     """Tests splt outputs
     """
-    case_runner("all_files", "splt")
-    case_runner("no_files", "splt")
-    case_runner("occ_gran_files", "splt")
+    case_runner("all_files", "splt")  # All optional input files present
+    case_runner("no_files", "splt")  # No optional input files present
+    case_runner("occ_gran_files", "splt")  # Granular occurrence input file present
 
 
 def test_mplt_output():
     """Tests mplt outputs
     """
-    case_runner("all_files", "mplt")
-    case_runner("no_files", "mplt")
+    case_runner("all_files", "mplt")  # All optional input files present
+    case_runner("no_files", "mplt")  # No optional input files present
     case_runner("occ_gran_files", "mplt")
 
 
 def test_qplt_output():
     """Tests qplt outputs
     """
-    # case_runner("qplt")
-    pass
+    case_runner("all_files", "qplt")  # All optional input files present
+    case_runner("no_files", "qplt")  # No optional input files present
+    case_runner("occ_gran_files", "qplt")  # Granular occurrence input file present
 
 
 def test_read_occurrence():
@@ -177,3 +179,34 @@ def test_read_periods_wrong_period_no():
 
     with pytest.raises(RuntimeError, match="no_of_periods does not match total period_no"):
         read_periods(periods_fp, no_of_periods + 1)
+
+
+def test_read_quantile_get_intervals():
+    quantile_fp = Path(TESTS_ASSETS_DIR, "input_file_tests", "quantile.bin")
+    sample_size = 100
+    quantile_interval_dtype = np.dtype([
+        ('q', oasis_float),
+        ('integer_part', oasis_int),
+        ('fractional_part', oasis_float),
+    ])
+
+    intervals_actual = read_quantile(quantile_fp, sample_size)
+    intervals_expected = np.zeros(6, dtype=quantile_interval_dtype)
+    intervals_expected[0] = (0.0, 1, 0.0)
+    intervals_expected[1] = (0.2, 20, 0.8)
+    intervals_expected[2] = (0.4, 40, 0.6)
+    intervals_expected[3] = (0.5, 50, 0.5)
+    intervals_expected[4] = (0.75, 75, 0.25)
+    intervals_expected[5] = (1.0, 100, 0.0)
+
+    qs_actual = intervals_actual[:]["q"]
+    iparts_actual = intervals_actual[:]["integer_part"]
+    fparts_actual = intervals_actual[:]["fractional_part"]
+
+    qs_expected = intervals_expected[:]["q"]
+    iparts_expected = intervals_expected[:]["integer_part"]
+    fparts_expected = intervals_expected[:]["fractional_part"]
+
+    np.testing.assert_array_almost_equal(qs_actual, qs_expected, decimal=3, verbose=True)
+    np.testing.assert_array_almost_equal(iparts_actual, iparts_expected, decimal=3, verbose=True)
+    np.testing.assert_array_almost_equal(fparts_actual, fparts_expected, decimal=3, verbose=True)
