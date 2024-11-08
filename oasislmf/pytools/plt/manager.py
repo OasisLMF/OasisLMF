@@ -688,7 +688,7 @@ def read_input_files(run_dir, sample_size):
     return file_data
 
 
-def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None):
+def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None, noheader=False):
     """Runs PLT calculations
 
     Args:
@@ -697,6 +697,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         splt_output_file (str, optional): Path to SPLT output file. Defaults to None.
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
+        noheader (bool): Boolean value to skip header in output file
     """
     compute_splt = splt_output_file is not None
     compute_mplt = mplt_output_file is not None
@@ -725,25 +726,28 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         # Initialise csv column names for PLT files
         output_files = {}
         if compute_splt:
-            SPLT_headers = ','.join([c[0] for c in SPLT_output])
             splt_file = stack.enter_context(open(splt_output_file, 'w'))
-            splt_file.write(SPLT_headers + '\n')
+            if not noheader:
+                SPLT_headers = ','.join([c[0] for c in SPLT_output])
+                splt_file.write(SPLT_headers + '\n')
             output_files['splt'] = splt_file
         else:
             output_files['splt'] = None
 
         if compute_mplt:
-            MPLT_headers = ','.join([c[0] for c in MPLT_output])
             mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
-            mplt_file.write(MPLT_headers + '\n')
+            if not noheader:
+                MPLT_headers = ','.join([c[0] for c in MPLT_output])
+                mplt_file.write(MPLT_headers + '\n')
             output_files['mplt'] = mplt_file
         else:
             output_files['mplt'] = None
 
         if compute_qplt:
-            QPLT_headers = ','.join([c[0] for c in QPLT_output])
             qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
-            qplt_file.write(QPLT_headers + '\n')
+            if not noheader:
+                QPLT_headers = ','.join([c[0] for c in QPLT_output])
+                qplt_file.write(QPLT_headers + '\n')
             output_files['qplt'] = qplt_file
         else:
             output_files['qplt'] = None
@@ -776,11 +780,12 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
 
 
 @redirect_logging(exec_name='pltpy')
-def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, **kwargs):
+def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, **kwargs):
     run(
         run_dir,
         files_in,
         splt_output_file=splt,
         mplt_output_file=mplt,
-        qplt_output_file=qplt
+        qplt_output_file=qplt,
+        noheader=noheader,
     )

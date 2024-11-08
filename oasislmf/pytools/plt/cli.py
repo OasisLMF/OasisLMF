@@ -15,6 +15,7 @@ def main():
     parser.add_argument('-q', '--qplt', type=str, default=None, help='Output QPLT CSV file')
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
+    parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
 
     args = parser.parse_args()
     kwargs = vars(args)
