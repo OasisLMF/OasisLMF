@@ -13,6 +13,7 @@ from collections import OrderedDict
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
 from ..utils.inputs import update_config, str2bool, has_oasis_env, get_oasis_env, ArgumentTypeError
+from oasislmf.utils.log import oasis_log
 
 
 class ComputationStep:
@@ -39,6 +40,7 @@ class ComputationStep:
         self.logger = logging.getLogger(__name__)
         self.kwargs = kwargs
         self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4, default=str))
+        self.run = oasis_log(self.run)
 
         for param in self.get_params():
             param_value = kwargs.get(param['name'])

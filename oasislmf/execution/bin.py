@@ -13,9 +13,11 @@ __all__ = [
     'prepare_run_directory',
     'prepare_run_inputs',
     'set_footprint_set',
-    'set_vulnerability_set'
+    'set_vulnerability_set',
+    'set_loss_factors_set'
 ]
 
+import pathlib
 
 import errno
 import csv
@@ -23,7 +25,6 @@ import filecmp
 import glob
 import logging
 import os
-import re
 import shutil
 import shutilwhich
 import subprocess
@@ -42,6 +43,7 @@ from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
+from oasislmf.pytools.pla.common import LOSS_FACTORS_FILE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -85,13 +87,13 @@ def prepare_run_directory(
         <run_directory>
         |-- fifo
         |-- input
-        |-- RI_1
-        |-- RI_2
+            |-- RI_1
+            |-- RI_2
+            |-- ri_layers.json
         |-- ...
         |-- output
         |-- static
         |-- work
-        |-- ri_layers.json
         |-- analysis_settings.json
         `-- run_ktools.sh
 
@@ -146,7 +148,7 @@ def prepare_run_directory(
             Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
-                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir)
+                p = os.path.join(run_dir, 'input')
 
                 def is_within_directory(directory, target):
 
@@ -170,16 +172,19 @@ def prepare_run_directory(
 
         oasis_dst_fp = os.path.join(run_dir, 'input')
 
-        for p in os.listdir(oasis_src_fp):
+        file_to_copy = os.listdir(oasis_src_fp)
+        while file_to_copy:
+            p = file_to_copy.pop()
             src = os.path.join(oasis_src_fp, p)
             if src.endswith('.tar') or src.endswith('.tar.gz'):
                 continue
+            if os.path.isdir(src):
+                pathlib.Path(oasis_dst_fp, p).mkdir(parents=True, exist_ok=True)
+                file_to_copy.extend(os.path.join(p, elm) for elm in os.listdir(src))
+                continue
             dst = os.path.join(oasis_dst_fp, p)
-            if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
-                shutil.copy2(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
-            else:
-                shutil.move(src, run_dir)
-
+            if not (os.path.exists(dst) and filecmp.cmp(src, dst)):
+                shutil.copy2(src, pathlib.Path(dst).parent)
         dst = os.path.join(run_dir, 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
@@ -431,7 +436,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
         elif _calc_selected(analysis_settings, [
-            'pltcalc', 'aalcalc', 'aalcalcmeanonly', 'alt_period', 'elt_moment', 'elt_quantile',
+            'pltcalc', 'aalcalc', 'aalcalcmeanonly', 'alt_period', 'alt_meanonly', 'elt_moment', 'elt_quantile',
             'elt_sample', 'plt_moment', 'plt_quantile', 'plt_sample'
         ]):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
@@ -521,6 +526,20 @@ def set_vulnerability_set(setting_val, run_dir):
                 logger.debug(f'{vulnerability_fp} not found, trying next format')
 
     raise OasisException(f'Could not find vulnerability data files with identifier "{setting_val}"')
+
+
+@oasis_log
+def set_loss_factors_set(setting_val, run_dir):
+    setting_val = str(setting_val)
+    stem, extension = LOSS_FACTORS_FILE_NAME.split('.', 1)
+    loss_factors_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
+    loss_factors_target_fp = os.path.join(run_dir, 'static', LOSS_FACTORS_FILE_NAME)
+    if os.path.isfile(loss_factors_target_fp):
+        os.rename(loss_factors_target_fp, os.path.join(run_dir, 'static', f'{stem}_default.{extension}'))
+    if os.path.isfile(loss_factors_fp):
+        os.symlink(loss_factors_fp, loss_factors_target_fp)
+        return
+    raise OasisException(f'Could not find loss factors files with identifier "{setting_val}"')
 
 
 @oasis_log

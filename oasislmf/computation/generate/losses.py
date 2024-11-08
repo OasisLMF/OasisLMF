@@ -32,7 +32,7 @@ from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSche
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
-                              prepare_run_inputs, set_footprint_set, set_vulnerability_set)
+                              prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from oasislmf.pytools.summary.manager import create_summary_object_file
@@ -103,7 +103,7 @@ class GenerateLossesBase(ComputationStep):
             'gulpy_random_generator': 1}
 
         for rule in rule_ranges:
-            rule_val = getattr(self, rule)
+            rule_val = int(getattr(self, rule))
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
 
@@ -119,8 +119,8 @@ class GenerateLossesBase(ComputationStep):
         Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()
         """
         ri_layers = 0
-        if analysis_settings.get('ri_output', False):
-            ri_layers = len(get_json(os.path.join(model_run_fp, 'ri_layers.json')))
+        if analysis_settings.get('ri_output', False) or analysis_settings.get('rl_output', False):
+            ri_layers = len(get_json(os.path.join(model_run_fp, 'input', 'ri_layers.json')))
         return ri_layers
 
     def _get_peril_filter(self, analysis_settings):
@@ -275,24 +275,29 @@ class GenerateLossesDir(GenerateLossesBase):
                    for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
                    if re.match(r"RI_\d+$", fn)
                    ]
-        ri = any(ri_dirs)
+        ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
         il_missing = analysis_settings.get('il_output', False) and not il
-        ri_missing = analysis_settings.get('ri_output', False) and not ri
-        if il_missing or ri_missing:
+        ri_missing = analysis_settings.get('ri_output', False) and not ril
+        rl_missing = analysis_settings.get('rl_output', False) and not ril
+        if il_missing or ri_missing or rl_missing:
             missing_input_files = "{} are enabled in the analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(
                 [
-                    "IL" * il_missing, "RI" * ri_missing])
+                    "IL" * il_missing, "RI" * ri_missing, "RL" * rl_missing
+                ]
+            )
             if self.check_missing_inputs:
                 raise OasisException(missing_input_files)
             else:
                 self.logger.warn(missing_input_files)
 
         gul_item_stream = (not self.ktools_legacy_stream)
-        self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
+        ri = analysis_settings.get('ri_output', False) and ril
+        rl = analysis_settings.get('rl_output', False) and ril
+        self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
-        runtypes = ['gul'] + ['il'] * il + ['ri'] * ri
+        runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
         self.__check_for_parquet_output(analysis_settings, runtypes)
         self.__check_summary_group_support(analysis_settings, runtypes)
 
@@ -302,7 +307,7 @@ class GenerateLossesDir(GenerateLossesBase):
             self.model_data_dir,
             self.analysis_settings_json,
             user_data_dir=self.user_data_dir,
-            ri=ri,
+            ri=ri or rl,
             copy_model_data=self.copy_model_data,
             model_storage_config_fp=self.model_storage_json,
         )
@@ -318,10 +323,11 @@ class GenerateLossesDir(GenerateLossesBase):
             gul_item_stream=gul_item_stream,
             il=il,
             ri=ri,
+            rl=rl,
             fmpy=self.fmpy
         )
 
-        if not ri:
+        if not ri and not rl:
             fp = os.path.join(model_run_fp, 'input')
             csv_to_bin(fp, fp, il=il)
         else:
@@ -336,6 +342,10 @@ class GenerateLossesDir(GenerateLossesBase):
         if not ri:
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
+
+        if not rl:
+            analysis_settings['rl_output'] = False
+            analysis_settings['rl_summaries'] = []
 
         if not any(analysis_settings.get(output) for output in ['gul_output', 'il_output', 'ri_output']):
             raise OasisException(
@@ -355,13 +365,16 @@ class GenerateLossesDir(GenerateLossesBase):
             self.logger.info(f"Loaded samples from model_settings file: 'model_default_samples = {default_model_samples}'")
             analysis_settings['number_of_samples'] = default_model_samples
 
-        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri)
-        footprint_set_val = analysis_settings.get('model_settings', {}).get('footprint_set')
-        if footprint_set_val:
-            set_footprint_set(footprint_set_val, model_run_fp)
-        vulnerability_set_val = analysis_settings.get('model_settings', {}).get('vulnerability_set')
-        if vulnerability_set_val:
-            set_vulnerability_set(vulnerability_set_val, model_run_fp)
+        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri or rl)
+
+        optional_model_sets = {'footprint_set': set_footprint_set,
+                               'vulnerability_set': set_vulnerability_set,
+                               'pla_loss_factors_set': set_loss_factors_set}
+
+        for model_set, model_setter in optional_model_sets.items():
+            model_set_val = analysis_settings.get('model_settings', {}).get(model_set)
+            if model_set_val:
+                model_setter(model_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
         if il and self.fmpy:
@@ -369,9 +382,9 @@ class GenerateLossesDir(GenerateLossesBase):
             self.logger.info(f'Creating FMPY structures (IL): {il_target_dir}')
             create_financial_structure(self.ktools_alloc_rule_il, il_target_dir)
 
-        if ri and self.fmpy:
+        if (ri or rl) and self.fmpy:
             for ri_sub_dir in ri_dirs:
-                ri_target_dir = os.path.join(self.model_run_dir, ri_sub_dir)
+                ri_target_dir = os.path.join(self.model_run_dir, 'input', ri_sub_dir)
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
 
@@ -382,7 +395,7 @@ class GenerateLossesDir(GenerateLossesBase):
                     summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                     if summary_sets_id.shape[0]:
                         if runtype == RUNTYPE_REINSURANCE_LOSS:
-                            summary_dirs = [os.path.join(self.model_run_dir, ri_sub_dir) for ri_sub_dir in ri_dirs]
+                            summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
                         else:
                             summary_dirs = [os.path.join(self.model_run_dir, 'input')]
                         for summary_dir in summary_dirs:
@@ -442,6 +455,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
         {'name': 'model_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes model data (default: same as --base-df-engine)'},
+        {'name': 'dynamic_footprint', 'default': False,
+            'help': 'Dynamic Footprint'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
@@ -503,6 +518,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             eltpy=self.eltpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
+            dynamic_footprint=self.dynamic_footprint
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -602,8 +618,8 @@ class GenerateLosses(GenerateLossesDir):
         |-- analysis_settings.json
         |-- fifo
         |-- input
+            |-- RI_1
         |-- output
-        |-- RI_1
         |-- ri_layers.json
         |-- run_ktools.sh
         |-- static
@@ -662,6 +678,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'The engine to use when loading model data dataframes (default: --base-df-engine if not set)'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
+        {'name': 'dynamic_footprint', 'default': False,
+            'help': 'Dynamic Footprint'},
     ]
 
     def run(self):
@@ -709,6 +727,7 @@ class GenerateLosses(GenerateLossesDir):
                         summarypy=self.summarypy,
                         eltpy=self.eltpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
+                        dynamic_footprint=self.dynamic_footprint
                     )
                 except TypeError:
                     warnings.simplefilter("always")

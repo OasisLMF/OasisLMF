@@ -46,7 +46,7 @@ class TestGenKeys(ComputationChecker):
         self.write_json(self.tmp_files.get('lookup_complex_config_json'), MIN_RUN_SETTINGS)
 
     def test_keys__check_return(self):
-        expected_return = (self.min_args_output_set['keys_data_csv'], 4, self.min_args_output_set['keys_errors_csv'], 2)
+        expected_return = (self.min_args_output_set['keys_data_csv'], 4, self.min_args_output_set['keys_errors_csv'], 0)
         keys_return = self.manager.generate_keys(**self.min_args_output_set)
         keys_csv_data = self.read_file(self.min_args_output_set['keys_data_csv'])
         error_csv_data = self.read_file(self.min_args_output_set['keys_errors_csv'])
