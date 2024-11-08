@@ -374,7 +374,7 @@ def read_buffer(
                                     _update_idxs()
                                     return cursor, event_id, item_id, 1
 
-                # Update QPLT data (sample mean)
+                # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
                     filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
@@ -410,7 +410,6 @@ def read_buffer(
             loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
             impacted_exposure = 0
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX:
-                # TODO: is this the correct thing to do?
                 continue
             if sidx >= MEAN_IDX:
                 impacted_exposure = state["exposure_value"] * (loss > 0)
