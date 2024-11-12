@@ -77,34 +77,100 @@ ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
 
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
-        'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
-        'parquet_flag': '-s', 'kat_flag': '-S', 'skip_header_flag': '-H'
+        'table_name': 'splt',
+        'kat_flag': '-S',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-S',
+            'parquet_flag': '-s',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-s',
+            'skip_header_flag': '-H'
+        },
     },
     "plt_quantile": {
-        'csv_flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt',
-        'parquet_flag': '-q', 'kat_flag': '-Q', 'skip_header_flag': '-H'
+        'table_name': 'qplt',
+        'kat_flag': '-Q',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-Q',
+            'parquet_flag': '-q',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-q',
+            'skip_header_flag': '-H'
+        },
     },
     "plt_moment": {
-        'csv_flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt',
-        'parquet_flag': '-m', 'kat_flag': '-M', 'skip_header_flag': '-H'
+        'table_name': 'mplt',
+        'kat_flag': '-M',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-M',
+            'parquet_flag': '-m',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-m',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
-        'csv_flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
-        'parquet_flag': '-q', 'kat_flag': '-q', 'skip_header_flag': '-s'
+        'table_name': 'qelt',
+        'kat_flag': '-q',
+        'ktools': {
+            'executable': 'eltcalc',
+            'csv_flag': '-Q',
+            'parquet_flag': '-q',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-q',
+            'skip_header_flag': '-H'
+        },
     },
     "elt_moment": {
-        'csv_flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
-        'parquet_flag': '-m', 'kat_flag': '-m', 'skip_header_flag': '-s'
+        'table_name': 'melt',
+        'kat_flag': '-m',
+        'ktools': {
+            'executable': 'eltcalc',
+            'csv_flag': '-M',
+            'parquet_flag': '-m',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-m',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
-        'csv_flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
-        'parquet_flag': '-p', 'kat_flag': '-s', 'skip_header_flag': '-s'
+        'table_name': 'selt',
+        'kat_flag': '-s',
+        'ktools': {
+            'executable': 'summarycalctocsv',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-s',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
@@ -1053,13 +1119,13 @@ def do_ord(
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            cmd += f' {flag_proc["skip_header_flag"]}'
+                            cmd += f' {flag_proc["ktools"]["skip_header_flag"]}'
                             skip_line = False
 
                         if summary.get('ord_output', {}).get('parquet_format'):
-                            cmd += f' {flag_proc["parquet_flag"]}'
+                            cmd += f' {flag_proc["ktools"]["parquet_flag"]}'
                         else:
-                            cmd += f' {flag_proc["csv_flag"]}'
+                            cmd += f' {flag_proc["ktools"]["csv_flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_table}')
                         if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
@@ -1071,7 +1137,7 @@ def do_ord(
                     if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                         cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
-                    cmd = f'{flag_proc["ktools_exe"]}{cmd}'
+                    cmd = f'{flag_proc["ktools"]["executable"]}{cmd}'
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
