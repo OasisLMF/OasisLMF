@@ -78,33 +78,33 @@ ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
         'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
-        'parquet_flag': '-s', 'kat_flag': '-S'
+        'parquet_flag': '-s', 'kat_flag': '-S', 'skip_header_flag': '-H'
     },
     "plt_quantile": {
         'csv_flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt',
-        'parquet_flag': '-q', 'kat_flag': '-Q'
+        'parquet_flag': '-q', 'kat_flag': '-Q', 'skip_header_flag': '-H'
     },
     "plt_moment": {
         'csv_flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt',
-        'parquet_flag': '-m', 'kat_flag': '-M'
+        'parquet_flag': '-m', 'kat_flag': '-M', 'skip_header_flag': '-H'
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
         'csv_flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
-        'parquet_flag': '-q', 'kat_flag': '-q'
+        'parquet_flag': '-q', 'kat_flag': '-q', 'skip_header_flag': '-s'
     },
     "elt_moment": {
         'csv_flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
-        'parquet_flag': '-m', 'kat_flag': '-m'
+        'parquet_flag': '-m', 'kat_flag': '-m', 'skip_header_flag': '-s'
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
         'csv_flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
-        'parquet_flag': '-p', 'kat_flag': '-s'
+        'parquet_flag': '-p', 'kat_flag': '-s', 'skip_header_flag': '-s'
     }
 }
 
@@ -1053,10 +1053,7 @@ def do_ord(
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            if ord_type == 'plt_ord':
-                                cmd += ' -H'
-                            else:
-                                cmd += ' -s'
+                            cmd += f' {flag_proc["skip_header_flag"]}'
                             skip_line = False
 
                         if summary.get('ord_output', {}).get('parquet_format'):
