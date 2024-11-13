@@ -142,7 +142,7 @@ class PLTReader(EventReader):
         return cursor, event_id, item_id, ret
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.njit(cache=True)
 def _get_dates(occ_date_id, granular_date):
     """Returns date as year, month, day, hour, minute from occ_date_id
 
@@ -173,7 +173,7 @@ def _get_dates(occ_date_id, granular_date):
     return y, mm, dd, occ_hour, occ_minutes
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.njit(cache=True)
 def _update_splt_data(
     splt_data, si, period_weights, granular_date,
     record,
@@ -200,7 +200,7 @@ def _update_splt_data(
     splt_data[si]["ImpactedExposure"] = impacted_exposure
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.njit(cache=True)
 def _update_mplt_data(
     mplt_data, mi, period_weights, granular_date,
     record,
@@ -237,7 +237,7 @@ def _update_mplt_data(
     mplt_data[mi]["MaxImpactedExposure"] = max_impacted_exposure
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.njit(cache=True)
 def _update_qplt_data(
     qplt_data, qi, period_weights, granular_date,
     record,
@@ -262,7 +262,7 @@ def _update_qplt_data(
     qplt_data[qi]["Loss"] = loss
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.njit(cache=True, error_model="numpy")
 def read_buffer(
         byte_mv, cursor, valid_buff, event_id, item_id,
         state,
