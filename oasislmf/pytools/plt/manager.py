@@ -519,8 +519,10 @@ def read_occurrence(occurrence_fp):
             data = fin.read()
 
         num_records = len(data) // record_size
-        if num_records % record_size != 0:
-            logger.warning("Occurrence File size does not align with expected record size")
+        if len(data) % record_size != 0:
+            logger.warning(
+                f"Occurrence File size (num_records: {num_records}) does not align with expected record size (record_size: {record_size})"
+            )
 
         occ_map_dtype = np.dtype([
             ("event_id", np.int32),
