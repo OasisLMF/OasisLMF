@@ -103,7 +103,7 @@ class ELTReader(EventReader):
         return cursor, event_id, item_id, ret
 
 
-@nb.jit(nopython=True, cache=True)
+@nb.njit(cache=True, error_model="numpy")
 def read_buffer(
         byte_mv, cursor, valid_buff, event_id, item_id,
         selt_data, selt_idx, state,
