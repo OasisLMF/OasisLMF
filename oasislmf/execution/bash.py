@@ -1128,7 +1128,7 @@ def do_ord(
 
                         if summary.get('ord_output', {}).get('parquet_format'):
                             if exec_type == "pytools":
-                                raise OasisException(f'ERROR: pytools executable does not support parquet_format output')
+                                raise OasisException('ERROR: pytools executable does not support parquet_format output')
                             cmd += f' {flag_proc[exec_type]["parquet_flag"]}'
                         else:
                             cmd += f' {flag_proc[exec_type]["csv_flag"]}'
