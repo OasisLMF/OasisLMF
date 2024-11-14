@@ -190,7 +190,7 @@ def test_read_quantile_get_intervals():
         ('fractional_part', oasis_float),
     ])
 
-    intervals_actual = read_quantile(quantile_fp, sample_size)
+    intervals_actual = read_quantile(quantile_fp, sample_size, True)
     intervals_expected = np.zeros(6, dtype=quantile_interval_dtype)
     intervals_expected[0] = (0.0, 1, 0.0)
     intervals_expected[1] = (0.2, 20, 0.8)

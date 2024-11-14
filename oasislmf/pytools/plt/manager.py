@@ -624,11 +624,12 @@ def read_periods(periods_fp, no_of_periods):
     return period_weights
 
 
-def read_quantile(quantile_fp, sample_size):
+def read_quantile(quantile_fp, sample_size, compute_qplt):
     """Generate a quantile interval Dictionary based on sample size and quantile binary file
     Args:
         sample_size (int): Sample size
         fp (str): File path to quantile binary input
+        compute_qplt (bool): Compute QPLT bool
     Returns:
         intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
     """
@@ -638,6 +639,8 @@ def read_quantile(quantile_fp, sample_size):
         ('integer_part', oasis_int),
         ('fractional_part', oasis_float),
     ])
+    if not compute_qplt:
+        return np.array([], dtype=quantile_interval_dtype)
 
     try:
         with open(quantile_fp, "rb") as fin:
@@ -667,11 +670,12 @@ def read_quantile(quantile_fp, sample_size):
     return intervals
 
 
-def read_input_files(run_dir, sample_size):
+def read_input_files(run_dir, compute_qplt, sample_size):
     """Reads all input files and returns a dict of relevant data
 
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
+        compute_qplt (bool): Compute QPLT bool
         sample_size (int): Sample size
 
     Returns:
@@ -679,7 +683,7 @@ def read_input_files(run_dir, sample_size):
     """
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input", "occurrence.bin"))
     period_weights = read_periods(Path(run_dir, "input", "periods.bin"), no_of_periods)
-    intervals = read_quantile(Path(run_dir, "input", "quantile.bin"), sample_size)
+    intervals = read_quantile(Path(run_dir, "input", "quantile.bin"), sample_size, compute_qplt)
 
     file_data = {
         "occ_map": occ_map,
@@ -715,7 +719,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        file_data = read_input_files(run_dir, len_sample)
+        file_data = read_input_files(run_dir, compute_qplt, len_sample)
         plt_reader = PLTReader(
             len_sample,
             compute_splt,
