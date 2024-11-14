@@ -87,15 +87,15 @@ class PLTReader(EventReader):
         QPLT_dtype = np.dtype([(c[0], c[1]) for c in QPLT_output])
 
         # Buffer for SPLT data
-        self.splt_data = np.zeros(100000, dtype=SPLT_dtype)
+        self.splt_data = np.zeros(1000000, dtype=SPLT_dtype)
         self.splt_idx = np.zeros(1, dtype=np.int64)
 
         # Buffer for MPLT data
-        self.mplt_data = np.zeros(100000, dtype=MPLT_dtype)
+        self.mplt_data = np.zeros(1000000, dtype=MPLT_dtype)
         self.mplt_idx = np.zeros(1, dtype=np.int64)
 
         # Buffer for QPLT data
-        self.qplt_data = np.zeros(100000, dtype=QPLT_dtype)
+        self.qplt_data = np.zeros(1000000, dtype=QPLT_dtype)
         self.qplt_idx = np.zeros(1, dtype=np.int64)
 
         read_buffer_state_dtype = np.dtype([
@@ -113,6 +113,7 @@ class PLTReader(EventReader):
             ('vrec', oasis_float, (len_sample,)),
             ('sumloss', oasis_float),
             ('sumlosssqr', oasis_float),
+            ('hasrec', np.bool_),
         ])
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
@@ -121,6 +122,7 @@ class PLTReader(EventReader):
         self.state["compute_splt"] = compute_splt
         self.state["compute_mplt"] = compute_mplt
         self.state["compute_qplt"] = compute_qplt
+        self.state["hasrec"] = False
         self.occ_map = occ_map
         self.period_weights = period_weights
         self.granular_date = granular_date
@@ -295,6 +297,7 @@ def read_buffer(
         state["vrec"].fill(0)
         state["sumloss"] = 0
         state["sumlosssqr"] = 0
+        state["hasrec"] = False
 
     def _get_mean_and_sd_loss():
         meanloss = state["sumloss"] / state["len_sample"]
@@ -341,17 +344,15 @@ def read_buffer(
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
                     filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    hasrec = False
                     firsttime = True
 
                     for record in filtered_occ_map:
                         if firsttime:
                             for l in state["vrec"]:
-                                hasrec = True
                                 state["sumloss"] += l
                                 state["sumlosssqr"] += l * l
                             firsttime = False
-                        if hasrec:
+                        if state["hasrec"]:
                             meanloss, sdloss = _get_mean_and_sd_loss()
                             if meanloss > 0 or sdloss > 0:
                                 _update_mplt_data(
@@ -461,6 +462,7 @@ def read_buffer(
                 # Update state variables
                 if sidx > 0:
                     state["vrec"][sidx - 1] = loss
+                    state["hasrec"] = True
                 state["mean_impacted_exposure"] += impacted_exposure / state["len_sample"]
                 if impacted_exposure > state["max_impacted_exposure"]:
                     state["max_impacted_exposure"] = impacted_exposure
