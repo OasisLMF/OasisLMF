@@ -110,10 +110,45 @@ def read_buffer(
         qelt_data, qelt_idx, intervals,
         unique_event_ids, event_rates
 ):
+    # Initialise idxs
     last_event_id = event_id
-    idx = selt_idx[0]
-    midx = melt_idx[0]
-    qidx = qelt_idx[0]
+    si = selt_idx[0]
+    mi = melt_idx[0]
+    qi = qelt_idx[0]
+
+    # Helper functions
+    def _update_idxs():
+        selt_idx[0] = si
+        melt_idx[0] = mi
+        qelt_idx[0] = qi
+
+    def _reset_state():
+        state["reading_losses"] = False
+        state["non_zero_samples"] = 0
+        state["max_loss"] = 0
+        state["mean_impacted_exposure"] = 0
+        state["max_impacted_exposure"] = 0
+        state["analytical_mean"] = 0
+        state["losses_vec"].fill(0)
+        state["sumloss"] = 0
+        state["sumlosssqr"] = 0
+
+    def _get_mean_and_sd_loss():
+        meanloss = state["sumloss"] / state["len_sample"]
+        if state["non_zero_samples"] > 1:
+            variance = (
+                state["sumlosssqr"] - (
+                    (state["sumloss"] * state["sumloss"]) / state["len_sample"]
+                )
+            ) / (state["len_sample"] - 1)
+
+            # Tolerance check
+            if variance / state["sumlosssqr"] < 1e-7:
+                variance = 0
+            sdloss = np.sqrt(variance)
+        else:
+            sdloss = 0
+        return meanloss, sdloss
 
     while cursor < valid_buff:
         if not state["reading_losses"]:
@@ -123,9 +158,7 @@ def read_buffer(
                 event_id_new, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
-                    selt_idx[0] = idx
-                    melt_idx[0] = midx
-                    qelt_idx[0] = qidx
+                    _update_idxs()
                     return cursor - (2 * oasis_int_size), last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
@@ -144,19 +177,7 @@ def read_buffer(
                 if state["compute_melt"]:
                     # Compute MELT statistics and store them
                     if state["non_zero_samples"] > 0:
-                        sample_mean = state["sumloss"] / state["len_sample"]
-                        if state["non_zero_samples"] > 1:
-                            variance = (
-                                state["sumlosssqr"] - (
-                                    (state["sumloss"] * state["sumloss"]) / state["len_sample"]
-                                )
-                            ) / (state["len_sample"] - 1)
-                            if variance / state["sumlosssqr"] < 1e-7:
-                                variance = 0
-                            std_dev = np.sqrt(variance)
-                        else:
-                            std_dev = 0
-
+                        meanloss, sdloss = _get_mean_and_sd_loss()
                         chance_of_loss = state["non_zero_samples"] / state["len_sample"]
                         mean_imp_exp = state["impacted_exposure"] * chance_of_loss
 
@@ -170,38 +191,36 @@ def read_buffer(
                             event_rate = np.nan
 
                         # Update MELT data (analytical mean)
-                        melt_data[midx]['EventId'] = event_id
-                        melt_data[midx]['SummaryId'] = state["summary_id"]
-                        melt_data[midx]['SampleType'] = 1
-                        melt_data[midx]['EventRate'] = event_rate
-                        melt_data[midx]['ChanceOfLoss'] = 0
-                        melt_data[midx]['MeanLoss'] = state["analytical_mean"]
-                        melt_data[midx]['SDLoss'] = 0
-                        melt_data[midx]['MaxLoss'] = state["max_loss"]
-                        melt_data[midx]['FootprintExposure'] = state["impacted_exposure"]
-                        melt_data[midx]['MeanImpactedExposure'] = state["impacted_exposure"]
-                        melt_data[midx]['MaxImpactedExposure'] = state["impacted_exposure"]
-                        midx += 1
+                        melt_data[mi]['EventId'] = event_id
+                        melt_data[mi]['SummaryId'] = state["summary_id"]
+                        melt_data[mi]['SampleType'] = 1
+                        melt_data[mi]['EventRate'] = event_rate
+                        melt_data[mi]['ChanceOfLoss'] = 0
+                        melt_data[mi]['MeanLoss'] = state["analytical_mean"]
+                        melt_data[mi]['SDLoss'] = 0
+                        melt_data[mi]['MaxLoss'] = state["max_loss"]
+                        melt_data[mi]['FootprintExposure'] = state["impacted_exposure"]
+                        melt_data[mi]['MeanImpactedExposure'] = state["impacted_exposure"]
+                        melt_data[mi]['MaxImpactedExposure'] = state["impacted_exposure"]
+                        mi += 1
 
                         # Update MELT data (sample mean)
-                        melt_data[midx]['EventId'] = event_id
-                        melt_data[midx]['SummaryId'] = state["summary_id"]
-                        melt_data[midx]['SampleType'] = 2
-                        melt_data[midx]['EventRate'] = event_rate
-                        melt_data[midx]['ChanceOfLoss'] = chance_of_loss
-                        melt_data[midx]['MeanLoss'] = sample_mean
-                        melt_data[midx]['SDLoss'] = std_dev
-                        melt_data[midx]['MaxLoss'] = state["max_loss"]
-                        melt_data[midx]['FootprintExposure'] = state["impacted_exposure"]
-                        melt_data[midx]['MeanImpactedExposure'] = mean_imp_exp
-                        melt_data[midx]['MaxImpactedExposure'] = state["impacted_exposure"]
-                        midx += 1
+                        melt_data[mi]['EventId'] = event_id
+                        melt_data[mi]['SummaryId'] = state["summary_id"]
+                        melt_data[mi]['SampleType'] = 2
+                        melt_data[mi]['EventRate'] = event_rate
+                        melt_data[mi]['ChanceOfLoss'] = chance_of_loss
+                        melt_data[mi]['MeanLoss'] = meanloss
+                        melt_data[mi]['SDLoss'] = sdloss
+                        melt_data[mi]['MaxLoss'] = state["max_loss"]
+                        melt_data[mi]['FootprintExposure'] = state["impacted_exposure"]
+                        melt_data[mi]['MeanImpactedExposure'] = mean_imp_exp
+                        melt_data[mi]['MaxImpactedExposure'] = state["impacted_exposure"]
+                        mi += 1
 
-                        if midx >= melt_data.shape[0]:
+                        if mi >= melt_data.shape[0]:
                             # Output array is full
-                            selt_idx[0] = idx
-                            melt_idx[0] = midx
-                            qelt_idx[0] = qidx
+                            _update_idxs()
                             return cursor, event_id, item_id, 1
 
                 # Update QELT data
@@ -218,37 +237,19 @@ def read_buffer(
                         else:
                             loss = (state["losses_vec"][ipart] - state["losses_vec"][ipart - 1]) * fpart + state["losses_vec"][ipart - 1]
 
-                        qelt_data[qidx]['EventId'] = event_id
-                        qelt_data[qidx]['SummaryId'] = state['summary_id']
-                        qelt_data[qidx]['Quantile'] = q
-                        qelt_data[qidx]['Loss'] = loss
+                        qelt_data[qi]['EventId'] = event_id
+                        qelt_data[qi]['SummaryId'] = state['summary_id']
+                        qelt_data[qi]['Quantile'] = q
+                        qelt_data[qi]['Loss'] = loss
 
-                        qidx += 1
-                        if qidx >= qelt_data.shape[0]:
+                        qi += 1
+                        if qi >= qelt_data.shape[0]:
                             # Output array is full
-                            selt_idx[0] = idx
-                            melt_idx[0] = midx
-                            qelt_idx[0] = qidx
+                            _update_idxs()
                             return cursor, event_id, item_id, 1
 
-                    if qidx >= qelt_data.shape[0]:
-                        # Output array is full
-                        selt_idx[0] = idx
-                        melt_idx[0] = midx
-                        qelt_idx[0] = qidx
-                        return cursor, event_id, item_id, 1
-
                 # Reset variables
-                sample_mean = 0
-                state["sumloss"] = 0
-                state["sumlosssqr"] = 0
-                state["non_zero_samples"] = 0
-                state["max_loss"] = 0
-                state["mean_impacted_exposure"] = 0
-                state["max_impacted_exposure"] = 0
-                state["analytical_mean"] = 0
-                state["losses_vec"].fill(0)
-                state["reading_losses"] = False
+                _reset_state()
                 continue
 
             # Read loss
@@ -259,17 +260,15 @@ def read_buffer(
             else:  # Normal data record
                 # Update SELT data
                 if state["compute_selt"]:
-                    selt_data[idx]['EventId'] = event_id
-                    selt_data[idx]['SummaryId'] = state["summary_id"]
-                    selt_data[idx]['SampleId'] = sidx
-                    selt_data[idx]['Loss'] = loss
-                    selt_data[idx]['ImpactedExposure'] = state["impacted_exposure"]
-                    idx += 1
-                    if idx >= selt_data.shape[0]:
+                    selt_data[si]['EventId'] = event_id
+                    selt_data[si]['SummaryId'] = state["summary_id"]
+                    selt_data[si]['SampleId'] = sidx
+                    selt_data[si]['Loss'] = loss
+                    selt_data[si]['ImpactedExposure'] = state["impacted_exposure"]
+                    si += 1
+                    if si >= selt_data.shape[0]:
                         # Output array is full
-                        selt_idx[0] = idx
-                        melt_idx[0] = midx
-                        qelt_idx[0] = qidx
+                        _update_idxs()
                         return cursor, event_id, item_id, 1
                 # Update MELT variables
                 if state["compute_melt"]:
@@ -291,9 +290,7 @@ def read_buffer(
             pass  # Should never reach here anyways
 
     # Update the indices
-    selt_idx[0] = idx
-    melt_idx[0] = midx
-    qelt_idx[0] = qidx
+    _update_idxs()
     return cursor, event_id, item_id, 0
 
 
