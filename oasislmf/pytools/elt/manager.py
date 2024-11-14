@@ -14,6 +14,10 @@ from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
+
+_MEAN_TYPE_ANALYTICAL = 1
+_MEAN_TYPE_SAMPLE = 2
+
 SELT_output = [
     ('EventId', oasis_int, '%d'),
     ('SummaryId', oasis_int, '%d'),
@@ -100,6 +104,58 @@ class ELTReader(EventReader):
             self.unique_event_ids, self.event_rates
         )
         return cursor, event_id, item_id, ret
+
+
+@nb.njit(cache=True)
+def _update_selt_data(
+    selt_data, si, event_id, summary_id,
+    sample_id,
+    loss,
+    impacted_exposure,
+):
+    selt_data[si]['EventId'] = event_id
+    selt_data[si]['SummaryId'] = summary_id
+    selt_data[si]['SampleId'] = sample_id
+    selt_data[si]['Loss'] = loss
+    selt_data[si]['ImpactedExposure'] = impacted_exposure
+
+
+@nb.njit(cache=True)
+def _update_melt_data(
+    melt_data, mi, event_id, summary_id,
+    sample_type,
+    event_rate,
+    chance_of_loss,
+    meanloss,
+    sdloss,
+    maxloss,
+    footprint_exposure,
+    mean_impacted_exposure,
+    max_impacted_exposure
+):
+    melt_data[mi]['EventId'] = event_id
+    melt_data[mi]['SummaryId'] = summary_id
+    melt_data[mi]['SampleType'] = sample_type
+    melt_data[mi]['EventRate'] = event_rate
+    melt_data[mi]['ChanceOfLoss'] = chance_of_loss
+    melt_data[mi]['MeanLoss'] = meanloss
+    melt_data[mi]['SDLoss'] = sdloss
+    melt_data[mi]['MaxLoss'] = maxloss
+    melt_data[mi]["FootprintExposure"] = footprint_exposure
+    melt_data[mi]["MeanImpactedExposure"] = mean_impacted_exposure
+    melt_data[mi]["MaxImpactedExposure"] = max_impacted_exposure
+
+
+@nb.njit(cache=True)
+def _update_qelt_data(
+    qelt_data, qi, event_id, summary_id,
+    quantile,
+    loss,
+):
+    qelt_data[qi]["EventId"] = event_id
+    qelt_data[qi]["SummaryId"] = summary_id
+    qelt_data[qi]["Quantile"] = quantile
+    qelt_data[qi]["Loss"] = loss
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -191,31 +247,37 @@ def read_buffer(
                             event_rate = np.nan
 
                         # Update MELT data (analytical mean)
-                        melt_data[mi]['EventId'] = event_id
-                        melt_data[mi]['SummaryId'] = state["summary_id"]
-                        melt_data[mi]['SampleType'] = 1
-                        melt_data[mi]['EventRate'] = event_rate
-                        melt_data[mi]['ChanceOfLoss'] = 0
-                        melt_data[mi]['MeanLoss'] = state["analytical_mean"]
-                        melt_data[mi]['SDLoss'] = 0
-                        melt_data[mi]['MaxLoss'] = state["max_loss"]
-                        melt_data[mi]['FootprintExposure'] = state["impacted_exposure"]
-                        melt_data[mi]['MeanImpactedExposure'] = state["impacted_exposure"]
-                        melt_data[mi]['MaxImpactedExposure'] = state["impacted_exposure"]
+                        _update_melt_data(
+                            melt_data, mi,
+                            event_id=event_id,
+                            summary_id=state["summary_id"],
+                            sample_type=_MEAN_TYPE_ANALYTICAL,
+                            event_rate=event_rate,
+                            chance_of_loss=0,
+                            meanloss=state["analytical_mean"],
+                            sdloss=0,
+                            maxloss=state["max_loss"],
+                            footprint_exposure=state["impacted_exposure"],
+                            mean_impacted_exposure=state["impacted_exposure"],
+                            max_impacted_exposure=state["impacted_exposure"]
+                        )
                         mi += 1
 
                         # Update MELT data (sample mean)
-                        melt_data[mi]['EventId'] = event_id
-                        melt_data[mi]['SummaryId'] = state["summary_id"]
-                        melt_data[mi]['SampleType'] = 2
-                        melt_data[mi]['EventRate'] = event_rate
-                        melt_data[mi]['ChanceOfLoss'] = chance_of_loss
-                        melt_data[mi]['MeanLoss'] = meanloss
-                        melt_data[mi]['SDLoss'] = sdloss
-                        melt_data[mi]['MaxLoss'] = state["max_loss"]
-                        melt_data[mi]['FootprintExposure'] = state["impacted_exposure"]
-                        melt_data[mi]['MeanImpactedExposure'] = mean_imp_exp
-                        melt_data[mi]['MaxImpactedExposure'] = state["impacted_exposure"]
+                        _update_melt_data(
+                            melt_data, mi,
+                            event_id=event_id,
+                            summary_id=state["summary_id"],
+                            sample_type=_MEAN_TYPE_SAMPLE,
+                            event_rate=event_rate,
+                            chance_of_loss=chance_of_loss,
+                            meanloss=meanloss,
+                            sdloss=sdloss,
+                            maxloss=state["max_loss"],
+                            footprint_exposure=state["impacted_exposure"],
+                            mean_impacted_exposure=mean_imp_exp,
+                            max_impacted_exposure=state["impacted_exposure"]
+                        )
                         mi += 1
 
                         if mi >= melt_data.shape[0]:
@@ -237,11 +299,13 @@ def read_buffer(
                         else:
                             loss = (state["losses_vec"][ipart] - state["losses_vec"][ipart - 1]) * fpart + state["losses_vec"][ipart - 1]
 
-                        qelt_data[qi]['EventId'] = event_id
-                        qelt_data[qi]['SummaryId'] = state['summary_id']
-                        qelt_data[qi]['Quantile'] = q
-                        qelt_data[qi]['Loss'] = loss
-
+                        _update_qelt_data(
+                            qelt_data, qi,
+                            event_id=event_id,
+                            summary_id=state['summary_id'],
+                            quantile=q,
+                            loss=loss
+                        )
                         qi += 1
                         if qi >= qelt_data.shape[0]:
                             # Output array is full
@@ -260,11 +324,14 @@ def read_buffer(
             else:  # Normal data record
                 # Update SELT data
                 if state["compute_selt"]:
-                    selt_data[si]['EventId'] = event_id
-                    selt_data[si]['SummaryId'] = state["summary_id"]
-                    selt_data[si]['SampleId'] = sidx
-                    selt_data[si]['Loss'] = loss
-                    selt_data[si]['ImpactedExposure'] = state["impacted_exposure"]
+                    _update_selt_data(
+                        selt_data, si,
+                        event_id=event_id,
+                        summary_id=state["summary_id"],
+                        sample_id=sidx,
+                        loss=loss,
+                        impacted_exposure=state["impacted_exposure"]
+                    )
                     si += 1
                     if si >= selt_data.shape[0]:
                         # Output array is full
@@ -396,7 +463,6 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
         "intervals": intervals,
     }
     return file_data
-    
 
 
 def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None, noheader=False):
