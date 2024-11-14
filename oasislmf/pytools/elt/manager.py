@@ -14,47 +14,55 @@ from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
-SELT_dtype = np.dtype([
-    ('EventId', oasis_int),
-    ('SummaryId', oasis_int),
-    ('SampleId', oasis_int),
-    ('Loss', oasis_float),
-    ('ImpactedExposure', oasis_float)
-])
+SELT_output = [
+    ('EventId', oasis_int, '%d'),
+    ('SummaryId', oasis_int, '%d'),
+    ('SampleId', oasis_int, '%d'),
+    ('Loss', oasis_float, '%.2f'),
+    ('ImpactedExposure', oasis_float, '%.2f'),
+]
 
-MELT_dtype = np.dtype([
-    ('EventId', oasis_int),
-    ('SummaryId', oasis_int),
-    ('SampleType', oasis_int),
-    ('EventRate', oasis_float),
-    ('ChanceOfLoss', oasis_float),
-    ('MeanLoss', oasis_float),
-    ('SDLoss', oasis_float),
-    ('MaxLoss', oasis_float),
-    ('FootprintExposure', oasis_float),
-    ('MeanImpactedExposure', oasis_float),
-    ('MaxImpactedExposure', oasis_float)
-])
+MELT_output = [
+    ('EventId', oasis_int, '%d'),
+    ('SummaryId', oasis_int, '%d'),
+    ('SampleType', oasis_int, '%d'),
+    ('EventRate', oasis_float, '%.6f'),
+    ('ChanceOfLoss', oasis_float, '%.6f'),
+    ('MeanLoss', oasis_float, '%.6f'),
+    ('SDLoss', oasis_float, '%.6f'),
+    ('MaxLoss', oasis_float, '%.6f'),
+    ('FootprintExposure', oasis_float, '%.6f'),
+    ('MeanImpactedExposure', oasis_float, '%.6f'),
+    ('MaxImpactedExposure', oasis_float, '%.6f'),
+]
 
-QELT_dtype = np.dtype([
-    ('EventId', oasis_int),
-    ('SummaryId', oasis_int),
-    ('Quantile', oasis_float),
-    ('Loss', oasis_float)
-])
-
-quantile_interval_dtype = np.dtype([
-    ('q', oasis_float),
-    ('integer_part', oasis_int),
-    ('fractional_part', oasis_float),
-])
+QELT_output = [
+    ('EventId', oasis_int, '%d'),
+    ('SummaryId', oasis_int, '%d'),
+    ('Quantile', oasis_float, '%.6f'),
+    ('Loss', oasis_float, '%.6f'),
+]
 
 
 class ELTReader(EventReader):
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger
-        self.selt_data = np.zeros(1000000, dtype=SELT_dtype)  # write buffer for SELT
+
+        SELT_dtype = np.dtype([(c[0], c[1]) for c in SELT_output])
+        MELT_dtype = np.dtype([(c[0], c[1]) for c in MELT_output])
+        QELT_dtype = np.dtype([(c[0], c[1]) for c in QELT_output])
+
+        # Buffer for SELT data
+        self.selt_data = np.zeros(1000000, dtype=SELT_dtype)
         self.selt_idx = np.zeros(1, dtype=np.int64)
+
+        # Buffer for MELT data
+        self.melt_data = np.zeros(1000000, dtype=MELT_dtype)
+        self.melt_idx = np.zeros(1, dtype=np.int64)
+
+        # Buffer for QELT data
+        self.qelt_data = np.zeros(1000000, dtype=QELT_dtype)
+        self.qelt_idx = np.zeros(1, dtype=np.int64)
 
         read_buffer_state_dtype = np.dtype([
             ('len_sample', oasis_int),
@@ -82,15 +90,6 @@ class ELTReader(EventReader):
         self.state["compute_qelt"] = compute_qelt
         self.unique_event_ids = unique_event_ids.astype(oasis_int)
         self.event_rates = event_rates.astype(oasis_float)
-        self.state["losses_vec"] = np.zeros(len_sample)
-
-        # Buffer for MELT data
-        self.melt_data = np.zeros(1000000, dtype=MELT_dtype)  # write buffer for MELT
-        self.melt_idx = np.zeros(1, dtype=np.int64)
-
-        # Buffer for QELT data
-        self.qelt_data = np.zeros(1000000, dtype=QELT_dtype)
-        self.qelt_idx = np.zeros(1, dtype=np.int64)
         self.intervals = intervals
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
@@ -339,6 +338,11 @@ def read_quantile_get_intervals(sample_size, fp):
         quantile_interval_dtype: Numpy array emulating a dictionary for numba
     """
     intervals_dict = {}
+    quantile_interval_dtype = np.dtype([
+        ('q', oasis_float),
+        ('integer_part', oasis_int),
+        ('fractional_part', oasis_float),
+    ])
 
     try:
         with open(fp, "rb") as fin:
@@ -387,6 +391,11 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
         # Initialise intervals array
+        quantile_interval_dtype = np.dtype([
+            ('q', oasis_float),
+            ('integer_part', oasis_int),
+            ('fractional_part', oasis_float),
+        ])
         intervals = np.array([], dtype=quantile_interval_dtype)
         if compute_qelt:
             intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
@@ -407,7 +416,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_selt:
             selt_file = stack.enter_context(open(selt_output_file, 'w'))
             if not noheader:
-                selt_file.write('EventId,SummaryId,SampleId,Loss,ImpactedExposure\n')
+                SELT_headers = ','.join([c[0] for c in SELT_output])
+                selt_file.write(SELT_headers + '\n')
             output_files['selt'] = selt_file
         else:
             output_files['selt'] = None
@@ -416,11 +426,11 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
             if not noheader:
                 if include_event_rate:
-                    melt_file.write(
-                        'EventId,SummaryId,SampleType,EventRate,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+                    MELT_headers = ','.join([c[0] for c in MELT_output])
+                    melt_file.write(MELT_headers + '\n')
                 else:
-                    melt_file.write(
-                        'EventId,SummaryId,SampleType,ChanceOfLoss,MeanLoss,SDLoss,MaxLoss,FootprintExposure,MeanImpactedExposure,MaxImpactedExposure\n')
+                    MELT_headers = ','.join([c[0] for c in MELT_output if c[0] != "EventRate"])
+                    melt_file.write(MELT_headers + '\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
@@ -428,17 +438,25 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_qelt:
             qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
             if not noheader:
-                qelt_file.write('EventId,SummaryId,Quantile,Loss\n')
+                QELT_headers = ','.join([c[0] for c in QELT_output])
+                qelt_file.write(QELT_headers + '\n')
             output_files['qelt'] = qelt_file
         else:
             output_files['qelt'] = None
+
+        SELT_fmt = ','.join([c[2] for c in SELT_output])
+        if include_event_rate:
+            MELT_fmt = ','.join([c[2] for c in MELT_output])
+        else:
+            MELT_fmt = ','.join([c[2] for c in MELT_output if c[0] != "EventRate"])
+        QELT_fmt = ','.join([c[2] for c in QELT_output])
 
         for event_id in elt_reader.read_streams(streams_in):
             if compute_selt:
                 # Extract SELT data
                 data = elt_reader.selt_data[:elt_reader.selt_idx[0]]
                 if output_files['selt'] is not None and data.size > 0:
-                    np.savetxt(output_files['selt'], data, delimiter=',', fmt='%d,%d,%d,%.2f,%.2f')
+                    np.savetxt(output_files['selt'], data, delimiter=',', fmt=SELT_fmt)
                 elt_reader.selt_idx[0] = 0
 
             if compute_melt:
@@ -446,19 +464,18 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 melt_data = elt_reader.melt_data[:elt_reader.melt_idx[0]]
                 if output_files['melt'] is not None and melt_data.size > 0:
                     if include_event_rate:
-                        np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
+                        MELT_cols = [c[0] for c in MELT_output]
                     else:
-                        melt_data = melt_data[['EventId', 'SummaryId', 'SampleType', 'ChanceOfLoss',
-                                              'MeanLoss', 'SDLoss', 'MaxLoss', 'FootprintExposure',
-                                               'MeanImpactedExposure', 'MaxImpactedExposure']]
-                        np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt='%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f')
+                        MELT_cols = [c[0] for c in MELT_output if c[0] != "EventRate"]
+                    melt_data = melt_data[MELT_cols]
+                    np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt=MELT_fmt)
                 elt_reader.melt_idx[0] = 0
 
             if compute_qelt:
                 # Extract QELT data
                 qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
                 if output_files['qelt'] is not None and qelt_data.size > 0:
-                    np.savetxt(output_files['qelt'], qelt_data, delimiter=',', fmt='%d,%d,%.6f,%.6f')
+                    np.savetxt(output_files['qelt'], qelt_data, delimiter=',', fmt=QELT_fmt)
                 elt_reader.qelt_idx[0] = 0
 
 

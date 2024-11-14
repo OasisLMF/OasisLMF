@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import patch
 
-from oasislmf.pytools.elt.manager import main, read_quantile_get_intervals, quantile_interval_dtype, read_event_rate_csv
+from oasislmf.pytools.elt.manager import main, read_quantile_get_intervals, read_event_rate_csv
 from oasislmf.pytools.common.data import (oasis_int, oasis_float)
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
@@ -69,6 +69,11 @@ def test_qelt_output():
 def test_read_quantile_get_intervals():
     fp = Path(TESTS_ASSETS_DIR, "input", "quantile.bin")
     sample_size = 100
+    quantile_interval_dtype = np.dtype([
+        ('q', oasis_float),
+        ('integer_part', oasis_int),
+        ('fractional_part', oasis_float),
+    ])
 
     intervals_actual = read_quantile_get_intervals(sample_size, fp)
     intervals_expected = np.zeros(6, dtype=quantile_interval_dtype)
