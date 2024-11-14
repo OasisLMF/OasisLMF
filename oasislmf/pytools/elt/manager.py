@@ -319,8 +319,7 @@ def read_buffer(
             # Read loss
             loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
             if sidx == MAX_LOSS_IDX:
-                if state["compute_melt"]:
-                    state["max_loss"] = loss
+                state["max_loss"] = loss
             else:  # Normal data record
                 # Update SELT data
                 if state["compute_selt"]:
@@ -337,22 +336,18 @@ def read_buffer(
                         # Output array is full
                         _update_idxs()
                         return cursor, event_id, item_id, 1
-                # Update MELT variables
-                if state["compute_melt"]:
-                    if sidx > 0:
-                        state["sumloss"] += loss
-                        state["sumlosssqr"] += loss * loss
-                        if loss > 0:
-                            state["non_zero_samples"] += 1
-                # Update QELT variables
-                if state["compute_qelt"]:
-                    if sidx > 0:
-                        state["losses_vec"][sidx - 1] = loss
 
+                if sidx > 0:
+                    # Update MELT variables
+                    state["sumloss"] += loss
+                    state["sumlosssqr"] += loss * loss
+                    if loss > 0:
+                        state["non_zero_samples"] += 1
+                    # Update QELT variables
+                    state["losses_vec"][sidx - 1] = loss
             if sidx == MEAN_IDX:
                 # Update MELT variables
-                if state["compute_melt"]:
-                    state["analytical_mean"] = loss
+                state["analytical_mean"] = loss
         else:
             pass  # Should never reach here anyways
 
