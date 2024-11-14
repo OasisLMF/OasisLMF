@@ -3,9 +3,9 @@
 import logging
 import numpy as np
 import numba as nb
-import os
 import struct
 from contextlib import ExitStack
+from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
@@ -297,12 +297,10 @@ def read_buffer(
     return cursor, event_id, item_id, 0
 
 
-def read_event_rate_csv(event_rate_file):
+def read_event_rate(event_rate_file):
     """Reads event rates from a CSV file
-
     Args:
         event_rate_file (str): Path to the event rate CSV file
-
     Returns:
         (ndarray, ndarray): unique event id and event rates
     """
@@ -327,15 +325,13 @@ def read_event_rate_csv(event_rate_file):
         return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
 
 
-def read_quantile_get_intervals(sample_size, fp):
+def read_quantile(quantile_fp, sample_size, compute_qelt):
     """Generate a quantile interval Dictionary based on sample size and quantile binary file
-
     Args:
         sample_size (int): Sample size
         fp (str): File path to quantile binary input
-
     Returns:
-        quantile_interval_dtype: Numpy array emulating a dictionary for numba
+        intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
     """
     intervals_dict = {}
     quantile_interval_dtype = np.dtype([
@@ -344,13 +340,15 @@ def read_quantile_get_intervals(sample_size, fp):
         ('fractional_part', oasis_float),
     ])
 
+    if not compute_qelt:
+        return np.array([], dtype=quantile_interval_dtype)
+
     try:
-        with open(fp, "rb") as fin:
+        with open(quantile_fp, "rb") as fin:
             while True:
                 data = fin.read(4)  # Reading 4 bytes for a float32
                 if not data:
                     break
-
                 q = struct.unpack('f', data)[0]
 
                 # Calculate interval index and fractional part
@@ -361,8 +359,8 @@ def read_quantile_get_intervals(sample_size, fp):
                 intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
 
     except FileNotFoundError:
-        logger.error(f"FATAL: Error opening file {fp}")
-        raise FileNotFoundError(f"FATAL: Error opening file {fp}")
+        logger.error(f"FATAL: Error opening file {quantile_fp}")
+        raise FileNotFoundError(f"FATAL: Error opening file {quantile_fp}")
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
@@ -375,7 +373,45 @@ def read_quantile_get_intervals(sample_size, fp):
     return intervals
 
 
+def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
+    """Reads all input files and returns a dict of relevant data
+    Args:
+        run_dir (str | os.PathLike): Path to directory containing required files structure
+        compute_melt (bool): Compute MELT bool
+        compute_qelt (bool): Compute QELT bool
+        sample_size (int): Sample size
+    Returns:
+        file_data (Dict[str, Any]): A dict of relevent data extracted from files
+    """
+    unique_event_ids = np.array([], dtype=oasis_int)
+    event_rates = np.array([], dtype=oasis_float)
+    include_event_rate = False
+    if compute_melt:
+        unique_event_ids, event_rates = read_event_rate(Path(run_dir, "input", "event_rates.csv"))
+        include_event_rate = unique_event_ids.size > 0
+
+    intervals = read_quantile(Path(run_dir, "input", "quantile.bin"), sample_size, compute_qelt)
+
+    file_data = {
+        "unique_event_ids": unique_event_ids,
+        "event_rates": event_rates,
+        "include_event_rate": include_event_rate,
+        "intervals": intervals,
+    }
+    return file_data
+    
+
+
 def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None, noheader=False):
+    """Runs ELT calculations
+    Args:
+        run_dir (str | os.PathLike): Path to directory containing required files structure
+        files_in (str | os.PathLike): Path to summary binary input file
+        selt_output_file (str, optional): Path to SPLT output file. Defaults to None.
+        melt_output_file (str, optional): Path to MPLT output file. Defaults to None.
+        qelt_output_file (str, optional): Path to QPLT output file. Defaults to None.
+        noheader (bool): Boolean value to skip header in output file
+    """
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
     compute_qelt = qelt_output_file is not None
@@ -390,26 +426,17 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        # Initialise intervals array
-        quantile_interval_dtype = np.dtype([
-            ('q', oasis_float),
-            ('integer_part', oasis_int),
-            ('fractional_part', oasis_float),
-        ])
-        intervals = np.array([], dtype=quantile_interval_dtype)
-        if compute_qelt:
-            intervals = read_quantile_get_intervals(len_sample, os.path.join(run_dir, "input", "quantile.bin"))
-
-        # Initialise event rate data
-        if compute_melt:
-            unique_event_ids, event_rates = read_event_rate_csv(os.path.join(run_dir, "input", "event_rates.csv"))
-            include_event_rate = unique_event_ids.size > 0
-        else:
-            unique_event_ids = np.array([], dtype=oasis_int)
-            event_rates = np.array([], dtype=oasis_float)
-            include_event_rate = False
-
-        elt_reader = ELTReader(len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals)
+        file_data = read_input_files(run_dir, compute_melt, compute_qelt, len_sample)
+        include_event_rate = file_data["include_event_rate"]
+        elt_reader = ELTReader(
+            len_sample,
+            compute_selt,
+            compute_melt,
+            compute_qelt,
+            file_data["unique_event_ids"],
+            file_data["event_rates"],
+            file_data["intervals"]
+        )
 
         # Initialise csv column names for ELT files
         output_files = {}

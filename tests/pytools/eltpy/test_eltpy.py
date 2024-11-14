@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import patch
 
-from oasislmf.pytools.elt.manager import main, read_quantile_get_intervals, read_event_rate_csv
+from oasislmf.pytools.elt.manager import main, read_quantile, read_event_rate
 from oasislmf.pytools.common.data import (oasis_int, oasis_float)
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
@@ -32,11 +32,11 @@ def case_runner(test_name, with_event_rate=False):
             raise Exception(f"Invalid or unimplemented test case {test_name} for eltpy")
 
         if with_event_rate:
-            eids, ers = read_event_rate_csv(Path(TESTS_ASSETS_DIR, "input", "er.csv"))
-            with patch('oasislmf.pytools.elt.manager.read_event_rate_csv', return_value=(eids, ers)):
+            eids, ers = read_event_rate(Path(TESTS_ASSETS_DIR, "input", "er.csv"))
+            with patch('oasislmf.pytools.elt.manager.read_event_rate', return_value=(eids, ers)):
                 main(**kwargs)
         else:
-            with patch('oasislmf.pytools.elt.manager.read_event_rate_csv', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            with patch('oasislmf.pytools.elt.manager.read_event_rate', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
                 main(**kwargs)
 
         try:
@@ -58,7 +58,7 @@ def test_melt_output():
     case_runner("melt")
 
 
-def test_melt_output_with_event_rate_csv():
+def test_melt_output_with_event_rate():
     case_runner("melt", with_event_rate=True)
 
 
@@ -67,7 +67,7 @@ def test_qelt_output():
 
 
 def test_read_quantile_get_intervals():
-    fp = Path(TESTS_ASSETS_DIR, "input", "quantile.bin")
+    quantile_fp = Path(TESTS_ASSETS_DIR, "input", "quantile.bin")
     sample_size = 100
     quantile_interval_dtype = np.dtype([
         ('q', oasis_float),
@@ -75,7 +75,7 @@ def test_read_quantile_get_intervals():
         ('fractional_part', oasis_float),
     ])
 
-    intervals_actual = read_quantile_get_intervals(sample_size, fp)
+    intervals_actual = read_quantile(quantile_fp, sample_size, True)
     intervals_expected = np.zeros(6, dtype=quantile_interval_dtype)
     intervals_expected[0] = (0.0, 1, 0.0)
     intervals_expected[1] = (0.2, 20, 0.8)
@@ -97,13 +97,13 @@ def test_read_quantile_get_intervals():
     np.testing.assert_array_almost_equal(fparts_actual, fparts_expected, decimal=3, verbose=True)
 
 
-def test_read_event_rate_csv_missing_file():
-    unique_event_ids, event_rates = read_event_rate_csv('nonexistent.csv')
+def test_read_event_rate_missing_file():
+    unique_event_ids, event_rates = read_event_rate('nonexistent.csv')
     assert unique_event_ids.size == 0
     assert event_rates.size == 0
 
 
-def test_read_event_rate_csv():
+def test_read_event_rate():
     with TemporaryDirectory() as tmp_dir:
         tmp_dir_path = Path(tmp_dir)
 
@@ -116,7 +116,7 @@ def test_read_event_rate_csv():
                             """
         test_csv_file.write_text(test_csv_content)
 
-        unique_event_ids, event_rates = read_event_rate_csv(test_csv_file)
+        unique_event_ids, event_rates = read_event_rate(test_csv_file)
 
         assert unique_event_ids.size == 3, f"Expected 3 event IDs, got {unique_event_ids.size}"
         assert event_rates.size == 3, f"Expected 3 event rates, got {event_rates.size}"
