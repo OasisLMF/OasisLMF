@@ -80,8 +80,6 @@ class ELTReader(EventReader):
             ('sumlosssqr', oasis_float),
             ('non_zero_samples', oasis_int),
             ('max_loss', oasis_float),
-            ('mean_impacted_exposure', oasis_float),
-            ('max_impacted_exposure', oasis_float),
             ('analytical_mean', oasis_float),
             ('losses_vec', oasis_float, (len_sample,)),
         ])
@@ -182,8 +180,6 @@ def read_buffer(
         state["reading_losses"] = False
         state["non_zero_samples"] = 0
         state["max_loss"] = 0
-        state["mean_impacted_exposure"] = 0
-        state["max_impacted_exposure"] = 0
         state["analytical_mean"] = 0
         state["losses_vec"].fill(0)
         state["sumloss"] = 0
