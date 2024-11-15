@@ -15,8 +15,8 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
-MEAN_TYPE_ANALYTICAL = 1
-MEAN_TYPE_SAMPLE = 2
+_MEAN_TYPE_ANALYTICAL = 1
+_MEAN_TYPE_SAMPLE = 2
 
 SPLT_output = [
     ('Period', oasis_int, '%d'),
@@ -360,7 +360,7 @@ def read_buffer(
                                     record=record,
                                     event_id=event_id,
                                     summary_id=state["summary_id"],
-                                    sample_type=MEAN_TYPE_SAMPLE,
+                                    sample_type=_MEAN_TYPE_SAMPLE,
                                     chance_of_loss=state["chance_of_loss"],
                                     meanloss=meanloss,
                                     sdloss=sdloss,
@@ -444,7 +444,7 @@ def read_buffer(
                             record=record,
                             event_id=event_id,
                             summary_id=state["summary_id"],
-                            sample_type=MEAN_TYPE_ANALYTICAL,
+                            sample_type=_MEAN_TYPE_ANALYTICAL,
                             chance_of_loss=0,
                             meanloss=loss,
                             sdloss=0,
