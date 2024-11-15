@@ -650,7 +650,7 @@ def get_il_input_items(
             # make sure agg_id without term still have the same amount of layer
             no_term_filter = level_df['layer_id'].isna()
             level_df_no_term = level_df[no_term_filter]
-            level_df_no_term = level_df_no_term.drop(columns = ['layer_id']).merge(
+            level_df_no_term = level_df_no_term.drop(columns=['layer_id']).merge(
                 prev_level_df[prev_level_df['gul_input_id'].isin(set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']],
                 how='left'
             )
