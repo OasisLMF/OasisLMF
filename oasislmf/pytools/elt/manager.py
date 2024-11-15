@@ -461,9 +461,9 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         files_in (str | os.PathLike): Path to summary binary input file
-        selt_output_file (str, optional): Path to SPLT output file. Defaults to None.
-        melt_output_file (str, optional): Path to MPLT output file. Defaults to None.
-        qelt_output_file (str, optional): Path to QPLT output file. Defaults to None.
+        selt_output_file (str, optional): Path to SELT output file. Defaults to None.
+        melt_output_file (str, optional): Path to MELT output file. Defaults to None.
+        qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
         noheader (bool): Boolean value to skip header in output file
     """
     compute_selt = selt_output_file is not None
