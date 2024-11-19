@@ -11,8 +11,8 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
-class PLTReader(EventReader):
-    def __init__(self, len_sample, compute_splt, compute_mplt, compute_qplt):
+class AALReader(EventReader):
+    def __init__(self, len_sample):
         self.logger = logger
 
         read_buffer_state_dtype = np.dtype([
@@ -91,7 +91,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False):
     pass
 
 
-@redirect_logging(exec_name='pltpy')
+@redirect_logging(exec_name='aalpy')
 def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False,):
     run(
         run_dir,
