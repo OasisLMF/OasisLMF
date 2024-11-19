@@ -388,6 +388,7 @@ setup(
             "servedata=oasislmf.pytools.data_layer.footprint_layer:main",
             'summarypy=oasislmf.pytools.summary.cli:main',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
+            'aalpy=oasislmf.pytools.aal.cli:main',
         ]
     },
     license='BSD 3-Clause',
