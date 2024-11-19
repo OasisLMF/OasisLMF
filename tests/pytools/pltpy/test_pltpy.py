@@ -83,7 +83,7 @@ def test_read_occurrence():
 
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(occurrence_fp)
     assert isinstance(occ_map, np.ndarray)
-    assert occ_map.dtype == occ_map.dtype
+    assert occ_map.dtype == occ_map_dtype
     assert date_algorithm == True
     assert granular_date == False
     assert no_of_periods == 9
@@ -101,7 +101,7 @@ def test_read_occurrence_granular():
 
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(occurrence_fp)
     assert isinstance(occ_map, np.ndarray)
-    assert occ_map.dtype == occ_map.dtype
+    assert occ_map.dtype == occ_map_dtype
     assert date_algorithm == True
     assert granular_date == True
     assert no_of_periods == 9
