@@ -489,9 +489,7 @@ def read_occurrence(occurrence_fp):
             # Extract Date Options
             date_opts = fin.read(4)
             if not date_opts or len(date_opts) < 4:
-                error_msg = "Occurrence file is empty or currupted"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError("Occurrence file is empty or currupted")
             date_opts = int.from_bytes(date_opts, byteorder="little", signed=True)
 
             date_algorithm = date_opts & 1  # Unused as granular_date not supported
@@ -506,16 +504,12 @@ def read_occurrence(occurrence_fp):
 
             # Should not get here
             if not date_algorithm and granular_date:
-                error_msg = "FATAL: Unknown date algorithm"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError("FATAL: Unknown date algorithm")
 
             # Extract no_of_periods
             no_of_periods = fin.read(4)
             if not no_of_periods or len(no_of_periods) < 4:
-                error_msg = "Occurrence file is empty or currupted"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError("Occurrence file is empty or currupted")
             no_of_periods = int.from_bytes(no_of_periods, byteorder="little", signed=True)
 
             data = fin.read()
@@ -550,13 +544,9 @@ def read_occurrence(occurrence_fp):
 
         return occ_map, date_algorithm, granular_date, no_of_periods
     except FileNotFoundError:
-        error_msg = f"FATAL: Error opening file {occurrence_fp}"
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
+        raise FileNotFoundError(f"FATAL: Error opening file {occurrence_fp}")
     except Exception as e:
-        error_msg = f"An error occurred: {str(e)}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+        raise RuntimeError(f"An error occurred: {str(e)}")
 
 
 def read_periods(periods_fp, no_of_periods):
@@ -591,24 +581,18 @@ def read_periods(periods_fp, no_of_periods):
 
                 # Checks for gaps in periods
                 if num_read + 1 != period_no:
-                    error_msg = f"ERROR: Missing period_no in period binary file {periods_fp}."
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(f"ERROR: Missing period_no in period binary file {periods_fp}.")
                 num_read += 1
 
                 # More data than no_of_periods
                 if num_read > no_of_periods:
-                    error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")
 
                 period_weights[period_no - 1] = (period_no, weighting)
 
             # Less data than no_of_periods
             if num_read != no_of_periods:
-                error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")
     except FileNotFoundError:
         # If no periods binary file found, the revert to using period weights reciprocal to no_of_periods
         logger.warning(f"Periods file not found at {periods_fp}, using reciprocal calculated period weights based on no_of_periods {no_of_periods}")
@@ -618,7 +602,6 @@ def read_periods(periods_fp, no_of_periods):
         )
         return period_weights
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
 
     return period_weights
@@ -657,10 +640,8 @@ def read_quantile(quantile_fp, sample_size, compute_qplt):
 
                 intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
     except FileNotFoundError:
-        logger.error(f"FATAL: Error opening file {quantile_fp}")
         raise FileNotFoundError(f"FATAL: Error opening file {quantile_fp}")
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
 
     # Convert to numpy array
