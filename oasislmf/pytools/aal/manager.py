@@ -4,13 +4,30 @@ import logging
 import numpy as np
 import numba as nb
 import struct
+from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (EventReader, mv_read)
+from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, mv_read)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
+
+
+_AAL_REC_DTYPE = np.dtype([
+    ('summary_id', np.int32),
+    ('type', np.int32),
+    ('mean', np.float64),
+    ('mean_squared', np.float64),
+])
+
+_AAL_REC_PERIOD_DTYPE = np.dtype(
+    _AAL_REC_DTYPE.descr + [('mean_period', np.float64)]
+)
+
+_VECS_SAMPLE_AAL_DTYPE = np.dtype(
+    [('subset_size', np.int32)] + _AAL_REC_PERIOD_DTYPE.descr
+)
 
 
 class AALReader(EventReader):
@@ -93,9 +110,7 @@ def read_occurrence(occurrence_fp):
             # Extract Date Options
             date_opts = fin.read(4)
             if not date_opts or len(date_opts) < 4:
-                error_msg = "Occurrence file is empty or currupted"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError("Occurrence file is empty or currupted")
             date_opts = int.from_bytes(date_opts, byteorder="little", signed=True)
 
             date_algorithm = date_opts & 1  # Unused as granular_date not supported
@@ -110,16 +125,12 @@ def read_occurrence(occurrence_fp):
 
             # Should not get here
             if not date_algorithm and granular_date:
-                error_msg = "FATAL: Unknown date algorithm"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError("FATAL: Unknown date algorithm")
 
             # Extract no_of_periods
             no_of_periods = fin.read(4)
             if not no_of_periods or len(no_of_periods) < 4:
-                error_msg = "Occurrence file is empty or currupted"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError("Occurrence file is empty or currupted")
             no_of_periods = int.from_bytes(no_of_periods, byteorder="little", signed=True)
 
             data = fin.read()
@@ -154,13 +165,9 @@ def read_occurrence(occurrence_fp):
 
         return occ_map, date_algorithm, granular_date, no_of_periods
     except FileNotFoundError:
-        error_msg = f"FATAL: Error opening file {occurrence_fp}"
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
+        raise FileNotFoundError(f"FATAL: Error opening file {occurrence_fp}")
     except Exception as e:
-        error_msg = f"An error occurred: {str(e)}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+        raise RuntimeError(f"An error occurred: {str(e)}")
 
 
 def read_periods(periods_fp, no_of_periods):
@@ -193,24 +200,18 @@ def read_periods(periods_fp, no_of_periods):
 
                 # Checks for gaps in periods
                 if num_read + 1 != period_no:
-                    error_msg = f"ERROR: Missing period_no in period binary file {periods_fp}."
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(f"ERROR: Missing period_no in period binary file {periods_fp}.")
                 num_read += 1
 
                 # More data than no_of_periods
                 if num_read > no_of_periods:
-                    error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")
 
                 period_weights[period_no - 1] = (period_no, weighting)
 
             # Less data than no_of_periods
             if num_read != no_of_periods:
-                error_msg = f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}."
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")
     except FileNotFoundError:
         # If no periods binary file found, the revert to using period weights reciprocal to no_of_periods
         logger.warning(f"Periods file not found at {periods_fp}, using reciprocal calculated period weights based on no_of_periods {no_of_periods}")
@@ -220,17 +221,15 @@ def read_periods(periods_fp, no_of_periods):
         )
         return period_weights
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
 
     return period_weights
 
 
-def read_input_files(run_dir, sample_size):
+def read_input_files(run_dir):
     """Reads all input files and returns a dict of relevant data
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
-        sample_size (int): Sample size
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
@@ -247,24 +246,93 @@ def read_input_files(run_dir, sample_size):
     return file_data
 
 
-def run(run_dir, subfolder, aal=None, alct=None, meanonly=False):
+def get_max_summary_id(workspace_folder):
+    """Get the max summary id from the max_summary_id.idx file
+    Args:
+        workspace_folder (str| os.PathLike): location of the workspace folder
+    Returns:
+        max_summary_id (int): max summary id int
+    """
+    filename = Path(workspace_folder, "max_summary_id.idx")
+
+    try:
+        with open(filename, "r") as fin:
+            line = fin.readline()
+            if not line:
+                raise ValueError("File is empty or missing data")
+            try:
+                max_summary_id = int(line.strip())
+                return max_summary_id
+            except ValueError:
+                raise ValueError(f"Invalid data in file: {line.strip()}")
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Cannot open {filename}")
+    except Exception as e:
+        raise RuntimeError(f"An error occurred: {str(e)}")
+
+
+def get_sample_sizes(alct, sample_size, max_summary_id):
+    """Generates Sample AAL np map for subset sizes up to sample_size
+    Args:
+        alct (bool): Boolean for ALCT output
+        sample_size (int): Sample size
+        max_summary_id (int): Max summary ID
+    Returns:
+        vec_sample_aal (ndarray[vec_sample_aal_dtype]): A numpy dict for sample AAL values per subset size up to sample_size
+    """
+    entries = []
+    if alct and sample_size > 1:
+        i = 0
+        while ((1 << i) + ((1 << i) - 1)) <= sample_size:
+            data = np.zeros(max_summary_id + 1, dtype=_VECS_SAMPLE_AAL_DTYPE)
+            data['subset_size'][:] = [1 << i]
+            entries.append(data)
+            i += 1
+
+    data = np.zeros(max_summary_id + 1, dtype=_VECS_SAMPLE_AAL_DTYPE)
+    data['subset_size'][:] = sample_size
+    entries.append(data)
+
+    vecs_sample_aal = np.concatenate(entries, axis=0)
+    return vecs_sample_aal
+
+
+def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         subfolder (str): Workspace subfolder inside <run_dir>/work/<subfolder>
         aal (str, optional): Path to AAL output file. Defaults to None
         alct (str, optional): Path to ALCT output file. Defaults to None
-        meanonly (bool): Output AAL with mean only
+        meanonly (bool): Boolean value to output AAL with mean only
+        noheader (bool): Boolean value to skip header in output file
     """
-    pass
+    with ExitStack() as stack:
+        workspace_folder = Path(run_dir, "work", subfolder)
+        files_in = [file for file in workspace_folder.glob("*.bin")]
+        streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files_in, stack)
+
+        file_data = read_input_files(run_dir)
+        max_summary_id = get_max_summary_id(workspace_folder)
+        vecs_sample_aal = get_sample_sizes(alct, sample_size, max_summary_id)
+        vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
+        vec_analytical_aal = np.zeros(max_summary_id + 1, dtype=_AAL_REC_DTYPE)
+
+        print(sample_size)
+        print(file_data["occ_map"])
+        print(max_summary_id)
+        print(vecs_sample_aal)
+        print(vec_sample_sum_loss)
+        print(vec_analytical_aal)
 
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False,):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, **kwargs):
     run(
         run_dir,
         subfolder,
         aal=aal,
         meanonly=meanonly,
         alct=alct,
+        noheader=noheader,
     )
