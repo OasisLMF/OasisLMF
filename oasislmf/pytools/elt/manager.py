@@ -414,10 +414,8 @@ def read_quantile(quantile_fp, sample_size, compute_qelt):
                 intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
 
     except FileNotFoundError:
-        logger.error(f"FATAL: Error opening file {quantile_fp}")
         raise FileNotFoundError(f"FATAL: Error opening file {quantile_fp}")
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
         raise RuntimeError(f"An error occurred: {str(e)}")
 
     # Convert to numpy array
