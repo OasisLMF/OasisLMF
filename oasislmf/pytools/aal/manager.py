@@ -246,17 +246,17 @@ def read_input_files(run_dir):
     return file_data
 
 
-def get_max_summary_id(workspace_folder):
-    """Get the max summary id from the max_summary_id.idx file
+def read_max_summary_idx(workspace_folder):
+    """Get the max summary id and summary file list from idx files
     Args:
         workspace_folder (str| os.PathLike): location of the workspace folder
     Returns:
         max_summary_id (int): max summary id int
     """
-    filename = Path(workspace_folder, "max_summary_id.idx")
+    max_summary_id_file = Path(workspace_folder, "max_summary_id.idx")
 
     try:
-        with open(filename, "r") as fin:
+        with open(max_summary_id_file, "r") as fin:
             line = fin.readline()
             if not line:
                 raise ValueError("File is empty or missing data")
@@ -266,9 +266,39 @@ def get_max_summary_id(workspace_folder):
             except ValueError:
                 raise ValueError(f"Invalid data in file: {line.strip()}")
     except FileNotFoundError:
-        raise FileNotFoundError(f"Cannot open {filename}")
+        raise FileNotFoundError(f"Cannot open {max_summary_id_file}")
     except Exception as e:
         raise RuntimeError(f"An error occurred: {str(e)}")
+
+
+def read_filelist_idx(workspace_folder):
+    """Get the max summary id and summary file list from idx files
+    Args:
+        workspace_folder (str| os.PathLike): location of the workspace folder
+    Returns:
+        filelist (List[str]): list of summary binary files
+    """
+    filelist_file = Path(workspace_folder, "filelist.idx")
+    filelist = []
+
+    try:
+        with open(filelist_file, "r") as fin:
+            line = fin.readline()
+            if not line:
+                raise ValueError("File is empty or missing data")
+            while line:
+                try:
+                    filename = str(line.strip())
+                    filelist.append(filename)
+                    line = fin.readline()
+                except ValueError:
+                    raise ValueError(f"Invalid data in file: {line.strip()}")
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Cannot open {filelist_file}")
+    except Exception as e:
+        raise RuntimeError(f"An error occurred: {str(e)}")
+
+    return filelist
 
 
 def get_sample_sizes(alct, sample_size, max_summary_id):
@@ -309,21 +339,28 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
     """
     with ExitStack() as stack:
         workspace_folder = Path(run_dir, "work", subfolder)
-        files_in = [file for file in workspace_folder.glob("*.bin")]
+        max_summary_id = read_max_summary_idx(workspace_folder)
+        filelist = read_filelist_idx(workspace_folder)
+        
+        files_in = [Path(workspace_folder, file) for file in filelist]
         streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files_in, stack)
 
         file_data = read_input_files(run_dir)
-        max_summary_id = get_max_summary_id(workspace_folder)
         vecs_sample_aal = get_sample_sizes(alct, sample_size, max_summary_id)
         vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
         vec_analytical_aal = np.zeros(max_summary_id + 1, dtype=_AAL_REC_DTYPE)
 
+        # TODO: remove these
         print(sample_size)
         print(file_data["occ_map"])
         print(max_summary_id)
+        print(filelist)
         print(vecs_sample_aal)
         print(vec_sample_sum_loss)
         print(vec_analytical_aal)
+
+        # TODO: read summaries.idx and update above vecs loop
+        # TODO: output csvs
 
 
 @redirect_logging(exec_name='aalpy')
