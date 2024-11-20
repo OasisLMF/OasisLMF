@@ -249,12 +249,10 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
             if "AttachmentBasis" in row and row["AttachmentBasis"] == "RA":
                 if row["ReinsInceptionDate"] == "" or row["ReinsExpiryDate"] == "":
                     error_msg = "Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
-                    logger.error(error_msg)
                     raise OasisException(error_msg)
                 elif row["PolInceptionDate"] == "":
                     acc_info = {field: row[f'{field}_x'] for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]}
                     error_msg = f"Error: PolInceptionDate missing for {acc_info}, cannot use AttachmentBasis [RA]. Please check the account file"
-                    logger.error(error_msg)
                     raise OasisException(error_msg)
                 else:
                     if row["PolInceptionDate"] < row["ReinsInceptionDate"] or row["ReinsExpiryDate"] < row["PolInceptionDate"]:
