@@ -101,6 +101,7 @@ class PLTReader(EventReader):
         read_buffer_state_dtype = np.dtype([
             ('len_sample', oasis_int),
             ('reading_losses', np.bool_),
+            ('read_summary_set_id', np.bool_),
             ('compute_splt', np.bool_),
             ('compute_mplt', np.bool_),
             ('compute_qplt', np.bool_),
@@ -118,6 +119,7 @@ class PLTReader(EventReader):
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
         self.state["reading_losses"] = False  # Set to true after reading header in read_buffer
+        self.state["read_summary_set_id"] = False
         self.state["len_sample"] = len_sample
         self.state["compute_splt"] = compute_splt
         self.state["compute_mplt"] = compute_mplt
@@ -319,14 +321,17 @@ def read_buffer(
     # Read input loop
     while cursor < valid_buff:
         if not state["reading_losses"]:
+            # Read summary header
             if valid_buff - cursor >= 3 * oasis_int_size + oasis_float_size:
-                # Read summary header
-                _, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                # Need to read summary_set_id from summary info first
+                if not state["read_summary_set_id"]:
+                    _, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                    state["read_summary_set_id"] = True
                 event_id_new, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     _update_idxs()
-                    return cursor - (2 * oasis_int_size), last_event_id, item_id, 1
+                    return cursor - oasis_int_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
@@ -341,6 +346,7 @@ def read_buffer(
             # Read sidx
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx == 0:  # sidx == 0, end of record
+                cursor += oasis_float_size  # Read extra 0 for end of record
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
                     filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
