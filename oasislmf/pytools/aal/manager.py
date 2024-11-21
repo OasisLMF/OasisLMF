@@ -360,6 +360,55 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
         print(vec_analytical_aal)
 
         # TODO: read summaries.idx and update above vecs loop
+        summaries_file = Path(workspace_folder, "summaries.idx")
+
+        lineno = 1
+        curr_summary_id = 0
+        last_summary_id = -1
+        last_period_no = -1
+        last_file_idx = -1
+        summary_fin = None
+        with open(summaries_file, "r") as fin:
+            line = fin.readline()
+            if not line:
+                raise ValueError("File is empty or missing data")
+            while line:
+                try:
+                    summary_id, file_idx, period_no, file_offset = [int(i) for i in line.strip().replace(" ", "").split(",")]
+                except ValueError:
+                    raise ValueError(f"Invalid data in file: {line.strip()} at line {lineno}")
+                
+                if last_summary_id != summary_id:
+                    if last_summary_id != -1:
+                        # TODO: do_calc_end
+                        pass
+                    last_period_no = -1
+                    curr_summary_id = summary_id
+                    last_summary_id = summary_id
+                if last_period_no != period_no:
+                    if last_period_no != -1:
+                        # TODO: do_calc_end
+                        pass
+                    last_period_no = period_no
+                if last_file_idx != file_idx:
+                    last_file_idx - file_idx
+                    # TODO: fix summary_fin path, and is this the correct way?
+                    summary_fin = open(filelist[file_idx], "rb")
+
+                # TODO: fix summary_fin path, and is this the correct way?
+                if summary_fin != None:
+                    # TODO: Read summary file here do_calc_by_period
+                    pass
+                else:
+                    raise RuntimeError("summary_fin is None")
+                
+                line = fin.readline()
+                lineno += 1
+        
+        curr_summary_id = last_summary_id
+        if last_summary_id != -1:
+            # TODO: do_calc_end
+            pass
         # TODO: output csvs
 
 
