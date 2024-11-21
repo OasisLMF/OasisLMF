@@ -70,6 +70,7 @@ class ELTReader(EventReader):
 
         read_buffer_state_dtype = np.dtype([
             ('len_sample', oasis_int),
+            ('read_summary_set_id', np.bool_),
             ('reading_losses', np.bool_),
             ('compute_selt', np.bool_),
             ('compute_melt', np.bool_),
@@ -87,6 +88,7 @@ class ELTReader(EventReader):
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
         self.state["len_sample"] = len_sample
         self.state["reading_losses"] = False
+        self.state["read_summary_set_id"] = False
         self.state["compute_selt"] = compute_selt
         self.state["compute_melt"] = compute_melt
         self.state["compute_qelt"] = compute_qelt
@@ -204,14 +206,17 @@ def read_buffer(
 
     while cursor < valid_buff:
         if not state["reading_losses"]:
+            # Read summary header
             if valid_buff - cursor >= 3 * oasis_int_size + oasis_float_size:
-                # Read summary header
-                _, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                # Need to read summary_set_id from summary info first
+                if not state["read_summary_set_id"]:
+                    _, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+                    state["read_summary_set_id"] = True
                 event_id_new, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 if last_event_id != 0 and event_id_new != last_event_id:
                     # New event, return to process the previous event
                     _update_idxs()
-                    return cursor - (2 * oasis_int_size), last_event_id, item_id, 1
+                    return cursor - oasis_int_size, last_event_id, item_id, 1
                 event_id = event_id_new
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["impacted_exposure"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
@@ -226,6 +231,7 @@ def read_buffer(
             # Read sidx
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx == 0:  # sidx == 0, end of record
+                cursor += oasis_float_size  # Read extra 0 for end of record
                 if state["compute_melt"]:
                     # Compute MELT statistics and store them
                     if state["non_zero_samples"] > 0:
