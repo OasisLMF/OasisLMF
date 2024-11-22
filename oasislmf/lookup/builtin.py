@@ -564,7 +564,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 curr_locs_peril = curr_grid_fct(curr_locs_peril)
                 curr_locs_peril['area_peril_id'] += start_index
 
-                start_index = curr_locs_peril["area_peril_id"].max() + 1
+                start_index = curr_locs_peril["area_peril_id"].max()
 
                 locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
             return locs_peril
@@ -603,7 +603,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             area_peril_id = np.empty_like(lat, dtype=np.int64)
             for i in range(lat.shape[0]):
                 if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
-                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat)
+                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat + 1)
                 else:
                     area_peril_id[i] = OASIS_UNKNOWN_ID
             return area_peril_id
