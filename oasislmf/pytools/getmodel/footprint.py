@@ -412,20 +412,9 @@ class FootprintParquetDynamic(Footprint):
                 df_footprint.loc[:, 'intensity_bin_id'] = []
                 df_footprint.loc[:, 'probability'] = []
 
-            areaperil_id = df_footprint["areaperil_id"].to_numpy()
-            intensity_bin_id = df_footprint["intensity_bin_id"].to_numpy()
-            intensity = df_footprint["intensity"].to_numpy()
-            return_period = df_footprint["return_period"].to_numpy()
-            probability = df_footprint["probability"].to_numpy()
-
-            buffer = np.empty(len(areaperil_id), dtype=EventDynamic)
-            for x in range(0, len(buffer)):
-                buffer[x]['areaperil_id'] = areaperil_id[x]
-                buffer[x]['intensity_bin_id'] = intensity_bin_id[x]
-                buffer[x]['intensity'] = intensity[x]
-                buffer[x]['probability'] = probability[x]
-                buffer[x]['return_period'] = return_period[x]
-            numpy_data = np.array(buffer, dtype=EventDynamic)
+            numpy_data = np.empty(len(df_footprint), dtype=EventDynamic)
+            for column in ['areaperil_id', 'intensity_bin_id', 'intensity', 'probability', 'return_period']:
+                numpy_data[:][column] = df_footprint[column].to_numpy()
             
             return numpy_data
 
