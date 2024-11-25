@@ -882,7 +882,7 @@ def do_summarycalcs(
         if inuring_priority.get('level'):
             # Net reinsurance losses require zero losses in summarycalc output
             # Text field for final inuring priority is empty string
-            summarycalc_directory_switch = f"-z -p {os.path.join('input', 'RI_' + str(inuring_priority['level']))}"
+            summarycalc_directory_switch = f"-p {os.path.join('input', 'RI_' + str(inuring_priority['level']))}"
             inuring_priority_text = inuring_priority['text']
     if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
         # Gross reinsurance losses do not require zero losses in summarycalc output
