@@ -14,6 +14,9 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
+_MEAN_TYPE_ANALYTICAL = 1
+_MEAN_TYPE_SAMPLE = 2
+
 _AAL_REC_DTYPE = np.dtype([
     ('summary_id', np.int32),
     ('type', np.int32),
@@ -326,6 +329,68 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
     vecs_sample_aal = np.concatenate(entries, axis=0)
     return vecs_sample_aal
 
+@nb.njit(cache=True, error_model="numpy")
+def do_calc_end(
+        period_no,
+        no_of_periods,
+        period_weights,
+        sample_size,
+        curr_summary_id,
+        vec_analytical_aal,
+        vecs_sample_aal,
+        vec_sample_sum_loss,
+    ):
+    # Get weighting
+    weighting = 1
+    if no_of_periods > 0:
+        # period_no in period_weights
+        if period_no > 0 and period_no <= no_of_periods:
+            weighting = period_weights[period_no - 1][1] * no_of_periods
+        else:
+            weighting = 0
+
+    mean = vec_sample_sum_loss[0]
+    aa = vec_analytical_aal[curr_summary_id]
+    aa["summary_id"] = curr_summary_id
+    aa["type"] = _MEAN_TYPE_ANALYTICAL
+    aa["mean"] += mean * weighting
+    aa["mean_squared"] += mean * mean * weighting
+
+    vec_sample_aal_ = vecs_sample_aal[vecs_sample_aal["subset_size"] == sample_size]
+    a_total = vec_sample_aal_[curr_summary_id]
+    a_total["type"] = _MEAN_TYPE_SAMPLE
+    a_total["summary_id"] = curr_summary_id if sample_size != 0 else 0
+
+    total_mean_by_period = 0
+    for sidx in range(1, sample_size + 1):
+        for iter in vecs_sample_aal:
+            if iter["subset_size"] == sample_size:
+                break
+            mean_by_period = 0
+            for sidx in range(iter["subset_size"], iter["subset_size"] << 1):
+                mean = vec_sample_sum_loss[sidx]
+                iter["type"] = _MEAN_TYPE_SAMPLE
+                iter["summary_id"] = curr_summary_id
+                iter["mean"] += mean * weighting
+                iter["mean_squared"] += mean * mean * weighting
+                
+                a_total["mean"] += mean * weighting
+                a_total["mean_squared"] += mean * mean * weighting
+                
+                mean_by_period += mean * weighting
+                total_mean_by_period += mean * weighting
+            iter["mean_period"] += mean_by_period * mean_by_period
+        
+        mean = vec_sample_sum_loss[sidx]
+        total_mean_by_period += mean * weighting
+        a_total["mean"] += mean * weighting
+        a_total["mean_squared"] += mean * mean * weighting
+    a_total["mean_period"] += mean_by_period * mean_by_period
+
+
+
+
+
 
 def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
     """Runs AAL calculations
@@ -380,20 +445,36 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                 
                 if last_summary_id != summary_id:
                     if last_summary_id != -1:
-                        # TODO: do_calc_end
-                        pass
+                        do_calc_end(
+                            last_period_no,
+                            file_data["no_of_periods"],
+                            file_data["period_weights"],
+                            sample_size,
+                            curr_summary_id,
+                            vec_analytical_aal,
+                            vecs_sample_aal,
+                            vec_sample_sum_loss,
+                        )
                     last_period_no = -1
                     curr_summary_id = summary_id
                     last_summary_id = summary_id
                 if last_period_no != period_no:
                     if last_period_no != -1:
-                        # TODO: do_calc_end
-                        pass
+                        do_calc_end(
+                            last_period_no,
+                            file_data["no_of_periods"],
+                            file_data["period_weights"],
+                            sample_size,
+                            curr_summary_id,
+                            vec_analytical_aal,
+                            vecs_sample_aal,
+                            vec_sample_sum_loss,
+                        )
                     last_period_no = period_no
                 if last_file_idx != file_idx:
                     last_file_idx - file_idx
                     # TODO: fix summary_fin path, and is this the correct way?
-                    summary_fin = open(filelist[file_idx], "rb")
+                    summary_fin = open(Path(workspace_folder, filelist[file_idx]), "rb")
 
                 # TODO: fix summary_fin path, and is this the correct way?
                 if summary_fin != None:
@@ -410,7 +491,10 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
             # TODO: do_calc_end
             pass
         # TODO: output csvs
-
+        print("#" * 50)
+        print(vecs_sample_aal)
+        print(vec_sample_sum_loss)
+        print(vec_analytical_aal)
 
 @redirect_logging(exec_name='aalpy')
 def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, **kwargs):
