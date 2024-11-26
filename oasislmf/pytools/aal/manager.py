@@ -390,10 +390,19 @@ def do_calc_end(
         a_total["mean"] += mean * weighting
         a_total["mean_squared"] += mean * mean * weighting
     a_total["mean_period"] += mean_by_period * mean_by_period
+    vec_sample_sum_loss.fill(0)
 
-
-def do_calc_by_period():
-    pass
+@nb.njit(cache=True, error_model="numpy")
+def do_calc_by_period(
+        vrec,
+        vec_sample_sum_loss,
+    ):
+    for rec in vrec:
+        loss = rec["loss"]
+        if loss > 0:
+            type_idx = rec["sidx"] != -1
+            sidx = rec["sidx"] if type_idx != 0 else 0
+            vec_sample_sum_loss[sidx] += loss
 
 
 def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
@@ -483,10 +492,8 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                         raise RuntimeError(f"Error: Could not read {filelist[file_idx]} - {str(e)}")
                         
                 summary_fin.seek(file_offset)
-                # Read summary header values
-                sh_event_id = summary_fin.read(oasis_int_size)
-                sh_summary_id = summary_fin.read(oasis_int_size)
-                sh_expval = summary_fin.read(oasis_float_size)
+                # Read summary header values (event_id, summary_id, expval)
+                _ = summary_fin.read(oasis_int_size + oasis_int_size + oasis_float_size)
 
                 vrec = []
                 while True:
@@ -504,7 +511,10 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                         continue
                     vrec.append((sidx, loss))
                 vrec = np.array(vrec, dtype=_VREC_DTYPE)
-                # do_calc_by_period(sh_event_id, sh_summary_id, sh_expval, vrec)
+                do_calc_by_period(
+                    vrec,
+                    vec_sample_sum_loss,
+                )
                 
                 line = fin.readline()
                 lineno += 1
