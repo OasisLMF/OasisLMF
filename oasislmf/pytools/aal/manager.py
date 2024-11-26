@@ -8,7 +8,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, mv_read)
+from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in, mv_read)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,10 @@ _VECS_SAMPLE_AAL_DTYPE = np.dtype(
     [('subset_size', np.int32)] + _AAL_REC_PERIOD_DTYPE.descr
 )
 
+_VREC_DTYPE = np.dtype([
+    ('sidx', oasis_int),
+    ('loss', oasis_float),
+])
 
 class AALReader(EventReader):
     def __init__(self, len_sample):
@@ -388,8 +392,8 @@ def do_calc_end(
     a_total["mean_period"] += mean_by_period * mean_by_period
 
 
-
-
+def do_calc_by_period():
+    pass
 
 
 def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
@@ -473,23 +477,50 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                     last_period_no = period_no
                 if last_file_idx != file_idx:
                     last_file_idx - file_idx
-                    # TODO: fix summary_fin path, and is this the correct way?
-                    summary_fin = open(Path(workspace_folder, filelist[file_idx]), "rb")
+                    try:
+                        summary_fin = open(Path(workspace_folder, filelist[file_idx]), "rb")
+                    except Exception as e:
+                        raise RuntimeError(f"Error: Could not read {filelist[file_idx]} - {str(e)}")
+                        
+                summary_fin.seek(file_offset)
+                # Read summary header values
+                sh_event_id = summary_fin.read(oasis_int_size)
+                sh_summary_id = summary_fin.read(oasis_int_size)
+                sh_expval = summary_fin.read(oasis_float_size)
 
-                # TODO: fix summary_fin path, and is this the correct way?
-                if summary_fin != None:
-                    # TODO: Read summary file here do_calc_by_period
-                    pass
-                else:
-                    raise RuntimeError("summary_fin is None")
+                vrec = []
+                while True:
+                    sidx_data = summary_fin.read(oasis_int_size)
+                    if len(sidx_data) < oasis_int_size:
+                        raise RuntimeError("Error: broken summary file, not enough data")
+                    sidx = struct.unpack("<i", sidx_data)[0]
+                    loss_data = summary_fin.read(oasis_float_size)
+                    if len(loss_data) < oasis_float_size:
+                        raise RuntimeError("Error: broken summary file, not enough data")
+                    loss = struct.unpack("<f", loss_data)[0]
+                    if sidx == 0:
+                        break
+                    if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
+                        continue
+                    vrec.append((sidx, loss))
+                vrec = np.array(vrec, dtype=_VREC_DTYPE)
+                # do_calc_by_period(sh_event_id, sh_summary_id, sh_expval, vrec)
                 
                 line = fin.readline()
                 lineno += 1
         
         curr_summary_id = last_summary_id
         if last_summary_id != -1:
-            # TODO: do_calc_end
-            pass
+            do_calc_end(
+                last_period_no,
+                file_data["no_of_periods"],
+                file_data["period_weights"],
+                sample_size,
+                curr_summary_id,
+                vec_analytical_aal,
+                vecs_sample_aal,
+                vec_sample_sum_loss,
+            )
         # TODO: output csvs
         print("#" * 50)
         print(vecs_sample_aal)
