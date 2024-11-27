@@ -1,6 +1,7 @@
 # aal/manager.py
 
 import logging
+import os
 import numpy as np
 import numba as nb
 import struct
@@ -360,8 +361,9 @@ def do_calc_end(
     aa["mean"] += mean * weighting
     aa["mean_squared"] += mean * mean * weighting
 
-    vec_sample_aal_ = vecs_sample_aal[vecs_sample_aal["subset_size"] == sample_size]
-    a_total = vec_sample_aal_[curr_summary_id]
+    idxs = np.where(vecs_sample_aal["subset_size"] == sample_size)[0]
+    a_total_idx = idxs[curr_summary_id]
+    a_total = vecs_sample_aal[a_total_idx]
     a_total["type"] = _MEAN_TYPE_SAMPLE
     a_total["summary_id"] = curr_summary_id if sample_size != 0 else 0
 
@@ -491,7 +493,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                     except Exception as e:
                         raise RuntimeError(f"Error: Could not read {filelist[file_idx]} - {str(e)}")
                         
-                summary_fin.seek(file_offset)
+                summary_fin.seek(file_offset, os.SEEK_SET)
                 # Read summary header values (event_id, summary_id, expval)
                 _ = summary_fin.read(oasis_int_size + oasis_int_size + oasis_float_size)
 
@@ -511,6 +513,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                         continue
                     vrec.append((sidx, loss))
                 vrec = np.array(vrec, dtype=_VREC_DTYPE)
+                summary_fin.close()
                 do_calc_by_period(
                     vrec,
                     vec_sample_sum_loss,
@@ -531,11 +534,15 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                 vecs_sample_aal,
                 vec_sample_sum_loss,
             )
-        # TODO: output csvs
+
+        # TODO: remove these
         print("#" * 50)
         print(vecs_sample_aal)
         print(vec_sample_sum_loss)
         print(vec_analytical_aal)
+
+        # TODO: output csvs
+
 
 @redirect_logging(exec_name='aalpy')
 def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, **kwargs):
