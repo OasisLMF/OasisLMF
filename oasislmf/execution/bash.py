@@ -878,16 +878,11 @@ def do_summarycalcs(
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
-    if runtype == RUNTYPE_REINSURANCE_LOSS:
+    if runtype == RUNTYPE_REINSURANCE_LOSS or runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
         if inuring_priority.get('level'):
-            # Net reinsurance losses require zero losses in summarycalc output
-            # Text field for final inuring priority is empty string
             summarycalc_directory_switch = f"-p {os.path.join('input', 'RI_' + str(inuring_priority['level']))}"
+            # Text field for final inuring priority is empty string
             inuring_priority_text = inuring_priority['text']
-    if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
-        # Gross reinsurance losses do not require zero losses in summarycalc output
-        summarycalc_directory_switch = f"-p {os.path.join('input', 'RI_' + str(inuring_priority['level']))}"
-        inuring_priority_text = inuring_priority['text']
 
     input_filename_component = ''
     if gul_full_correlation:
