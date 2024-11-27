@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.28.10`_
+ ---------
+* [#1506](https://github.com/OasisLMF/OasisLMF/pull/1507) - acc_idx read as category type from input/accounts.csv 
+* [#1556](https://github.com/OasisLMF/OasisLMF/pull/1556) - Fix CI build system failures 
+* [#1566](https://github.com/OasisLMF/OasisLMF/pull/1565) - Fiona package vulnerability issue
+* [#1599](https://github.com/OasisLMF/OasisLMF/pull/1599) - Fixes for CI testing stable 1.28.x
+.. _`1.28.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.9...1.28.10
+
 `1.28.9`_
  ---------
 * [#1518](https://github.com/OasisLMF/OasisLMF/pull/1518) - Fix/pre analysis user dir
