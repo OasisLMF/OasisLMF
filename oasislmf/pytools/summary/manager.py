@@ -266,7 +266,7 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
         summary_id = present_summary_id[loss_summary_index]
         losses = loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1]
 
-        if not output_zeros and losses[TIV_IDX] == 0 and losses[MEAN_IDX]:
+        if not output_zeros and losses[TIV_IDX] == 0:
             continue
 
         summary_stream_index[summary_index_cursor]['summary_id'] = summary_id
