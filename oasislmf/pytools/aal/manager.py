@@ -2,6 +2,8 @@
 
 import logging
 import os
+from sys import byteorder
+from line_profiler import profile
 import numpy as np
 import numba as nb
 import struct
@@ -407,6 +409,29 @@ def do_calc_by_period(
             vec_sample_sum_loss[sidx] += loss
 
 
+@nb.njit(cache=True, error_model="numpy")
+def read_losses(summary_fin, data_offset):
+    vrec = []
+    while True:
+        sidx_data = summary_fin[data_offset: data_offset + oasis_int_size]
+        if len(sidx_data) < oasis_int_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
+        sidx = np.frombuffer(sidx_data, dtype='<i4')[0]
+        data_offset += oasis_int_size
+
+        loss_data = summary_fin[data_offset:data_offset + oasis_float_size]
+        if len(loss_data) < oasis_float_size:
+            raise RuntimeError("Error: broken summary file, not enough data")
+        loss = np.frombuffer(loss_data, dtype='<f4')[0]
+        data_offset += oasis_float_size
+
+        if sidx == 0:
+            break
+        if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
+            continue
+        vrec.append((sidx, loss))
+    return vrec
+
 def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
     """Runs AAL calculations
     Args:
@@ -423,6 +448,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
         filelist = read_filelist_idx(workspace_folder)
         
         files_in = [Path(workspace_folder, file) for file in filelist]
+        files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files_in]
         streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files_in, stack)
 
         file_data = read_input_files(run_dir)
@@ -448,79 +474,66 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
         last_period_no = -1
         last_file_idx = -1
         summary_fin = None
-        with open(summaries_file, "r") as fin:
-            line = fin.readline()
-            if not line:
-                raise ValueError("File is empty or missing data")
-            while line:
+        #TODO: redo loop in a separate numba function with memmaps for file data?
+        fin = open(summaries_file, "r")
+        line = fin.readline()
+        if not line:
+            raise ValueError("File is empty or missing data")
+        while line:
+            try:
+                summary_id, file_idx, period_no, file_offset = [int(i) for i in line.strip().replace(" ", "").split(",")]
+            except ValueError:
+                raise ValueError(f"Invalid data in file: {line.strip()} at line {lineno}")
+            
+            if last_summary_id != summary_id:
+                if last_summary_id != -1:
+                    do_calc_end(
+                        last_period_no,
+                        file_data["no_of_periods"],
+                        file_data["period_weights"],
+                        sample_size,
+                        curr_summary_id,
+                        vec_analytical_aal,
+                        vecs_sample_aal,
+                        vec_sample_sum_loss,
+                    )
+                last_period_no = -1
+                curr_summary_id = summary_id
+                last_summary_id = summary_id
+            if last_period_no != period_no:
+                if last_period_no != -1:
+                    do_calc_end(
+                        last_period_no,
+                        file_data["no_of_periods"],
+                        file_data["period_weights"],
+                        sample_size,
+                        curr_summary_id,
+                        vec_analytical_aal,
+                        vecs_sample_aal,
+                        vec_sample_sum_loss,
+                    )
+                last_period_no = period_no
+            if last_file_idx != file_idx:
+                last_file_idx - file_idx
                 try:
-                    summary_id, file_idx, period_no, file_offset = [int(i) for i in line.strip().replace(" ", "").split(",")]
-                except ValueError:
-                    raise ValueError(f"Invalid data in file: {line.strip()} at line {lineno}")
-                
-                if last_summary_id != summary_id:
-                    if last_summary_id != -1:
-                        do_calc_end(
-                            last_period_no,
-                            file_data["no_of_periods"],
-                            file_data["period_weights"],
-                            sample_size,
-                            curr_summary_id,
-                            vec_analytical_aal,
-                            vecs_sample_aal,
-                            vec_sample_sum_loss,
-                        )
-                    last_period_no = -1
-                    curr_summary_id = summary_id
-                    last_summary_id = summary_id
-                if last_period_no != period_no:
-                    if last_period_no != -1:
-                        do_calc_end(
-                            last_period_no,
-                            file_data["no_of_periods"],
-                            file_data["period_weights"],
-                            sample_size,
-                            curr_summary_id,
-                            vec_analytical_aal,
-                            vecs_sample_aal,
-                            vec_sample_sum_loss,
-                        )
-                    last_period_no = period_no
-                if last_file_idx != file_idx:
-                    last_file_idx - file_idx
-                    try:
-                        summary_fin = open(Path(workspace_folder, filelist[file_idx]), "rb")
-                    except Exception as e:
-                        raise RuntimeError(f"Error: Could not read {filelist[file_idx]} - {str(e)}")
-                        
-                summary_fin.seek(file_offset, os.SEEK_SET)
-                # Read summary header values (event_id, summary_id, expval)
-                _ = summary_fin.read(oasis_int_size + oasis_int_size + oasis_float_size)
+                    summary_fin = files_handles[file_idx]
+                except Exception as e:
+                    raise RuntimeError(f"Error: Could not read {filelist[file_idx]} - {str(e)}")
+                    
+            header_offset = file_offset
+            # Read summary header values (event_id, summary_id, expval)
+            data_offset = header_offset + (2 * oasis_int_size) + oasis_float_size
 
-                vrec = []
-                while True:
-                    sidx_data = summary_fin.read(oasis_int_size)
-                    if len(sidx_data) < oasis_int_size:
-                        raise RuntimeError("Error: broken summary file, not enough data")
-                    sidx = struct.unpack("<i", sidx_data)[0]
-                    loss_data = summary_fin.read(oasis_float_size)
-                    if len(loss_data) < oasis_float_size:
-                        raise RuntimeError("Error: broken summary file, not enough data")
-                    loss = struct.unpack("<f", loss_data)[0]
-                    if sidx == 0:
-                        break
-                    if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
-                        continue
-                    vrec.append((sidx, loss))
-                vrec = np.array(vrec, dtype=_VREC_DTYPE)
-                summary_fin.close()
-                do_calc_by_period(
-                    vrec,
-                    vec_sample_sum_loss,
-                )
-                
-                line = fin.readline()
-                lineno += 1
+            vrec = read_losses(summary_fin, data_offset)
+            vrec = np.array(vrec, dtype=_VREC_DTYPE)
+            
+            do_calc_by_period(
+                vrec,
+                vec_sample_sum_loss,
+            )
+            
+            line = fin.readline()
+            lineno += 1
         
         curr_summary_id = last_summary_id
         if last_summary_id != -1:
@@ -534,6 +547,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
                 vecs_sample_aal,
                 vec_sample_sum_loss,
             )
+        fin.close()
 
         # TODO: remove these
         print("#" * 50)
