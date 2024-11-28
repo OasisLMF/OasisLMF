@@ -542,6 +542,35 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
 
     @staticmethod
+    def build_fixed_size_geo_grid_multi_peril(perils_dict):
+        """
+        Create multiple grids of varying resolution, one per peril, and
+        associate an id to each square of the grid using the
+        `fixed_size_geo_grid` method.
+
+        Parameters
+        ----------
+        perils_dict: dict
+                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        """
+        def fct(locs_peril):
+            start_index = 0
+            locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
+            for peril_id, fixed_geo_grid_params in perils_dict.items():
+                curr_grid_fct = Lookup.build_fixed_size_geo_grid(**fixed_geo_grid_params)
+
+                curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
+                curr_locs_peril = curr_grid_fct(curr_locs_peril)
+                curr_locs_peril['area_peril_id'] += start_index
+
+                start_index = curr_locs_peril["area_peril_id"].max()
+
+                locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
+            return locs_peril
+        return fct
+
+    @staticmethod
     def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
         """
         associate an id to each square of the grid define by the limit of lat and lon
@@ -574,7 +603,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             area_peril_id = np.empty_like(lat, dtype=np.int64)
             for i in range(lat.shape[0]):
                 if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
-                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat)
+                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat + 1)
                 else:
                     area_peril_id[i] = OASIS_UNKNOWN_ID
             return area_peril_id
