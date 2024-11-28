@@ -173,7 +173,7 @@ FM_TERMS_PER_REINS_TYPE = {
 }
 
 
-def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id):
+def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger):
     """
     Create new profile id from reinsurance in ri_df corresponding to reins_type.
     Add them to fm_profile_df and match the profile_ids in ri_df and profile_map_df
@@ -225,18 +225,39 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
     if fm_level_id == RISK_LEVEL_ID:
         ri_filter_fields = RISK_LEVEL_ALL_FIELDS + [field for field in FILTER_LEVEL_EXTRA_FIELDS if field in ri_df]
         ri_filter_valid_fields = [field + '_valid' for field in ri_filter_fields]
+        ri_date_fields = ['ReinsInceptionDate', 'ReinsExpiryDate', 'AttachmentBasis']
         merge_on = ['layer_id']
         if reins_type in REINS_TYPE_EXACT_MATCH:
             merge_on += RISK_LEVEL_FIELD_MAP[risk_level]
-        filter_df = (these_profile_map_layers[these_profile_map_layers['level_id'] == FILTER_LEVEL_ID]
-                     .reset_index()
-                     .merge(ri_df[reins_type_filter][ri_filter_fields + ri_filter_valid_fields + ['layer_id']], how='inner', on=merge_on))
+        filter_df = (
+            these_profile_map_layers[these_profile_map_layers['level_id'] == FILTER_LEVEL_ID]
+            .reset_index()
+            .merge(
+                ri_df[reins_type_filter][ri_filter_fields + ri_filter_valid_fields + ['layer_id'] + ri_date_fields],
+                how='inner',
+                on=merge_on
+            )
+        )
 
         def _match(row):
             for field in ri_filter_fields:
                 if (field not in merge_on
                         and row[f'{field}_valid'] and row[f'{field}_x'] != row[f'{field}_y']):
                     return False
+
+            # Risk Attaching filter for reinsurance
+            if "AttachmentBasis" in row and row["AttachmentBasis"] == "RA":
+                if row["ReinsInceptionDate"] == "" or row["ReinsExpiryDate"] == "":
+                    error_msg = "Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
+                    raise OasisException(error_msg)
+                elif row["PolInceptionDate"] == "":
+                    acc_info = {field: row[f'{field}_x'] for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]}
+                    error_msg = f"Error: PolInceptionDate missing for {acc_info}, cannot use AttachmentBasis [RA]. Please check the account file"
+                    raise OasisException(error_msg)
+                else:
+                    if row["PolInceptionDate"] < row["ReinsInceptionDate"] or row["ReinsExpiryDate"] < row["PolInceptionDate"]:
+                        return False
+
             return True
         profile_map_df.loc[np.unique(filter_df.loc[filter_df.apply(_match, axis=1), 'index']), 'profile_id'] = PASSTHROUGH_PROFILE_ID
 
@@ -437,7 +458,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             for fm_level_id in [RISK_LEVEL_ID, PROGRAM_LEVEL_ID]:
                 for reins_type in FM_TERMS_PER_REINS_TYPE:
                     logger.debug(f'level_id {fm_level_id}, {reins_type} profiles...')
-                    fm_profile_df = create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id)
+                    fm_profile_df = create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_type, risk_level, fm_level_id, logger)
 
             ri_df['profile_id'] = ri_df['profile_id'].astype('int64')
             profile_map_df['profile_id'] = profile_map_df['profile_id'].astype('int64')
