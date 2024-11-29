@@ -28,12 +28,9 @@ _AAL_REC_DTYPE = np.dtype([
     ('mean_squared', np.float64),
 ])
 
+# Similar to aal_rec_period
 _AAL_REC_PERIOD_DTYPE = np.dtype(
     _AAL_REC_DTYPE.descr + [('mean_period', np.float64)]
-)
-
-_VECS_SAMPLE_AAL_DTYPE = np.dtype(
-    [('subset_size', np.int32)] + _AAL_REC_PERIOD_DTYPE.descr  # TODO: remove this as can be infered from modulo?
 )
 
 _VREC_DTYPE = np.dtype([
@@ -257,15 +254,20 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
     Example: sample_size[10], max_summary_id[2] generates following ndarray
     [   
         #   subset_size, mean,  mean_squared, mean_period
-        [1, 0, 0, 0],   # summary_id = 1
-        [1, 0, 0, 0],   # summary_id = 2
-        [2, 0, 0, 0],   # summary_id = 1
-        [2, 0, 0, 0],   # summary_id = 2
-        [4, 0, 0, 0],   # summary_id = 1
-        [4, 0, 0, 0],   # summary_id = 2
-        [10, 0, 0, 0],  # summary_id = 1, subset_size = sample_size
-        [10, 0, 0, 0],  # summary_id = 2, subset_size = sample_size
+        [0, 0, 0],  # subset_size = 1 , summary_id = 1
+        [0, 0, 0],  # subset_size = 1 , summary_id = 2
+        [0, 0, 0],  # subset_size = 2 , summary_id = 1
+        [0, 0, 0],  # subset_size = 2 , summary_id = 2
+        [0, 0, 0],  # subset_size = 4 , summary_id = 1
+        [0, 0, 0],  # subset_size = 4 , summary_id = 2
+        [0, 0, 0],  # subset_size = 10 , summary_id = 1, subset_size = sample_size
+        [0, 0, 0],  # subset_size = 10 , summary_id = 2, subset_size = sample_size
     ]
+    Subset_size is implicit based on position in array, grouped by max_summary_id
+    So first two arrays are subset_size 2^0 = 1
+    The next two arrays are subset_size 2^1 = 2
+    The next two arrays are subset_size 2^2 = 4
+    The last two arrays are subset_size = sample_size = 10
     Doesn't generate one with subset_size 8 as double that is larger than sample_size
 
     Args:
@@ -279,13 +281,11 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
     if alct and sample_size > 1:
         i = 0
         while ((1 << i) + ((1 << i) - 1)) <= sample_size:
-            data = np.zeros(max_summary_id, dtype=_VECS_SAMPLE_AAL_DTYPE)
-            data['subset_size'][:] = [1 << i]
+            data = np.zeros(max_summary_id, dtype=_AAL_REC_PERIOD_DTYPE)
             entries.append(data)
             i += 1
 
-    data = np.zeros(max_summary_id, dtype=_VECS_SAMPLE_AAL_DTYPE)
-    data['subset_size'][:] = sample_size
+    data = np.zeros(max_summary_id, dtype=_AAL_REC_PERIOD_DTYPE)
     entries.append(data)
 
     vecs_sample_aal = np.concatenate(entries, axis=0)
@@ -298,10 +298,24 @@ def do_calc_end(
         period_weights,
         sample_size,
         curr_summary_id,
+        max_summary_id,
         vec_analytical_aal,
         vecs_sample_aal,
         vec_sample_sum_loss,
     ):
+    """Updates Analytical and Sample AAL vectors from sample sum losses
+
+    Args:
+        period_no (int): Period Number
+        no_of_periods (int): Number of periods
+        period_weights (ndarray[period_weights_dtype]): Period Weights
+        sample_size (int): Sample Size
+        curr_summary_id (int): Current summary_id
+        max_summary_id (int): Max summary_id
+        vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
+        vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+    """
     # Get weighting
     weighting = 1
     if no_of_periods > 0:
@@ -311,39 +325,57 @@ def do_calc_end(
         else:
             weighting = 0
 
+    # Update Analytical AAL
     mean = vec_sample_sum_loss[0]
-    aa = vec_analytical_aal[curr_summary_id - 1]
-    aa["mean"] += mean * weighting
-    aa["mean_squared"] += mean * mean * weighting
+    vec_analytical_aal[curr_summary_id - 1]["mean"] += mean * weighting
+    vec_analytical_aal[curr_summary_id - 1]["mean_squared"] += mean * mean * weighting
 
-    idxs = np.where(vecs_sample_aal["subset_size"] == sample_size)[0]
-    a_total_idx = idxs[curr_summary_id - 1]
-    a_total = vecs_sample_aal[a_total_idx]
+    # Update Sample AAL
+    # Get relevant indexes for curr_summary_id
+    len_sample_aal = len(vecs_sample_aal)
+    idxs = [i * max_summary_id + (curr_summary_id - 1) for i in range(len_sample_aal // max_summary_id)]
+    
+    # Get sample aal idx for sample_size
+    last_sample_aal = vecs_sample_aal[idxs[-1]]
 
-    # TODO: fix this loop, inner loop does not use curr_summary_id
     total_mean_by_period = 0
-    for sidx in range(1, sample_size + 1):
-        for iter in vecs_sample_aal:
-            if iter["subset_size"] == sample_size:
-                break
+    sidx = 1
+    aal_idx = 0
+    while sidx < sample_size + 1:
+        # Iterate through aal_idx except the last one which is subset_size == sample_size
+        while aal_idx < len(idxs) - 1:
+            curr_sample_idx = idxs[aal_idx]
+            curr_sample_aal = vecs_sample_aal[curr_sample_idx]
+            # Calculate the subset_size and assign to sidx
+            subset_size = 2 ** (curr_sample_idx // max_summary_id)
+            sidx = subset_size
+            end_sidx = subset_size << 1
+            
             mean_by_period = 0
-            for sidx in range(iter["subset_size"], iter["subset_size"] << 1):
+            # Traverse sidx == subset_size to sidx == subset_size * 2
+            while sidx < end_sidx:
                 mean = vec_sample_sum_loss[sidx]
-                iter["mean"] += mean * weighting
-                iter["mean_squared"] += mean * mean * weighting
+                # Update current Sample AAL
+                curr_sample_aal["mean"] += mean * weighting
+                curr_sample_aal["mean_squared"] += mean * mean * weighting
                 
-                a_total["mean"] += mean * weighting
-                a_total["mean_squared"] += mean * mean * weighting
+                last_sample_aal["mean"] += mean * weighting
+                last_sample_aal["mean_squared"] += mean * mean * weighting
                 
                 mean_by_period += mean * weighting
                 total_mean_by_period += mean * weighting
-            iter["mean_period"] += mean_by_period * mean_by_period
-        
+                sidx += 1
+            # Update current Sample AAL mean_period
+            curr_sample_aal["mean_period"] += mean_by_period * mean_by_period
+            aal_idx += 1
+        # Update sample size Sample AAL
         mean = vec_sample_sum_loss[sidx]
         total_mean_by_period += mean * weighting
-        a_total["mean"] += mean * weighting
-        a_total["mean_squared"] += mean * mean * weighting
-    a_total["mean_period"] += mean_by_period * mean_by_period
+        last_sample_aal["mean"] += mean * weighting
+        last_sample_aal["mean_squared"] += mean * mean * weighting    
+        sidx += 1
+    # Update sample size Sample AAL mean_period
+    last_sample_aal["mean_period"] += mean_by_period * mean_by_period
     vec_sample_sum_loss.fill(0)
 
 
@@ -393,7 +425,7 @@ def run_aal(
         no_of_periods,
         period_weights,
         sample_size,
-        filelist,
+        max_summary_id,
         files_handles,
         vec_analytical_aal,
         vecs_sample_aal,
@@ -422,6 +454,7 @@ def run_aal(
                     period_weights,
                     sample_size,
                     curr_summary_id,
+                    max_summary_id,
                     vec_analytical_aal,
                     vecs_sample_aal,
                     vec_sample_sum_loss,
@@ -437,6 +470,7 @@ def run_aal(
                     period_weights,
                     sample_size,
                     curr_summary_id,
+                    max_summary_id,
                     vec_analytical_aal,
                     vecs_sample_aal,
                     vec_sample_sum_loss,
@@ -466,12 +500,13 @@ def run_aal(
             period_weights,
             sample_size,
             curr_summary_id,
+            max_summary_id,
             vec_analytical_aal,
             vecs_sample_aal,
             vec_sample_sum_loss,
         )
 
-@profile
+
 def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
     """Runs AAL calculations
     Args:
@@ -519,7 +554,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
             file_data["no_of_periods"],
             file_data["period_weights"],
             sample_size,
-            filelist,
+            max_summary_id,
             files_handles,
             vec_analytical_aal,
             vecs_sample_aal,
