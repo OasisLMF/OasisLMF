@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 _MEAN_TYPE_ANALYTICAL = 1
 _MEAN_TYPE_SAMPLE = 2
 
+# Similar to aal_rec in ktools
+# summary_id can be infered from index
+# type can be infered from which array is using it
 _AAL_REC_DTYPE = np.dtype([
-    ('summary_id', np.int32),  # TODO: remove this as can be infered from max_summary_id
-    ('type', np.int32),  # TODO: remove this as can be infered from which array is being used
     ('mean', np.float64),
     ('mean_squared', np.float64),
 ])
@@ -253,6 +254,20 @@ def read_filelist_idx(workspace_folder):
 
 def get_sample_sizes(alct, sample_size, max_summary_id):
     """Generates Sample AAL np map for subset sizes up to sample_size
+    Example: sample_size[10], max_summary_id[2] generates following ndarray
+    [   
+        #   subset_size, mean,  mean_squared, mean_period
+        [1, 0, 0, 0],   # summary_id = 1
+        [1, 0, 0, 0],   # summary_id = 2
+        [2, 0, 0, 0],   # summary_id = 1
+        [2, 0, 0, 0],   # summary_id = 2
+        [4, 0, 0, 0],   # summary_id = 1
+        [4, 0, 0, 0],   # summary_id = 2
+        [10, 0, 0, 0],  # summary_id = 1, subset_size = sample_size
+        [10, 0, 0, 0],  # summary_id = 2, subset_size = sample_size
+    ]
+    Doesn't generate one with subset_size 8 as double that is larger than sample_size
+
     Args:
         alct (bool): Boolean for ALCT output
         sample_size (int): Sample size
@@ -264,12 +279,12 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
     if alct and sample_size > 1:
         i = 0
         while ((1 << i) + ((1 << i) - 1)) <= sample_size:
-            data = np.zeros(max_summary_id + 1, dtype=_VECS_SAMPLE_AAL_DTYPE)
+            data = np.zeros(max_summary_id, dtype=_VECS_SAMPLE_AAL_DTYPE)
             data['subset_size'][:] = [1 << i]
             entries.append(data)
             i += 1
 
-    data = np.zeros(max_summary_id + 1, dtype=_VECS_SAMPLE_AAL_DTYPE)
+    data = np.zeros(max_summary_id, dtype=_VECS_SAMPLE_AAL_DTYPE)
     data['subset_size'][:] = sample_size
     entries.append(data)
 
@@ -297,17 +312,13 @@ def do_calc_end(
             weighting = 0
 
     mean = vec_sample_sum_loss[0]
-    aa = vec_analytical_aal[curr_summary_id]
-    aa["summary_id"] = curr_summary_id
-    aa["type"] = _MEAN_TYPE_ANALYTICAL
+    aa = vec_analytical_aal[curr_summary_id - 1]
     aa["mean"] += mean * weighting
     aa["mean_squared"] += mean * mean * weighting
 
     idxs = np.where(vecs_sample_aal["subset_size"] == sample_size)[0]
-    a_total_idx = idxs[curr_summary_id]
+    a_total_idx = idxs[curr_summary_id - 1]
     a_total = vecs_sample_aal[a_total_idx]
-    a_total["type"] = _MEAN_TYPE_SAMPLE
-    a_total["summary_id"] = curr_summary_id if sample_size != 0 else 0
 
     # TODO: fix this loop, inner loop does not use curr_summary_id
     total_mean_by_period = 0
@@ -318,8 +329,6 @@ def do_calc_end(
             mean_by_period = 0
             for sidx in range(iter["subset_size"], iter["subset_size"] << 1):
                 mean = vec_sample_sum_loss[sidx]
-                iter["type"] = _MEAN_TYPE_SAMPLE
-                iter["summary_id"] = curr_summary_id
                 iter["mean"] += mean * weighting
                 iter["mean_squared"] += mean * mean * weighting
                 
@@ -346,8 +355,9 @@ def do_calc_by_period(
     for rec in vrec:
         loss = rec["loss"]
         if loss > 0:
-            type_idx = rec["sidx"] != -1
-            sidx = rec["sidx"] if type_idx != 0 else 0
+            sidx = rec["sidx"]
+            if rec["sidx"] == -1:  # MEAN_SIDX
+                sidx = 0    
             vec_sample_sum_loss[sidx] += loss
 
 
@@ -377,7 +387,6 @@ def read_losses(summary_fin, cursor, sample_size):
     return vrec[:idx]
 
 
-# @profile
 @nb.njit(cache=True, error_model="numpy")
 def run_aal(
         summaries, 
@@ -483,9 +492,12 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
         streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files_in, stack)
 
         file_data = read_input_files(run_dir)
+        
         vecs_sample_aal = get_sample_sizes(alct, sample_size, max_summary_id)
+        # Index 0 is mean
         vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
-        vec_analytical_aal = np.zeros(max_summary_id + 1, dtype=_AAL_REC_DTYPE)
+        # Indexed on summary_id - 1
+        vec_analytical_aal = np.zeros(max_summary_id, dtype=_AAL_REC_DTYPE)
 
         # TODO: remove these
         print(sample_size)
