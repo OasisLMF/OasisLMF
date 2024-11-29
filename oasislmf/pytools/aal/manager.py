@@ -11,7 +11,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in, mv_read)
+from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in, mv_read)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -21,8 +21,8 @@ _MEAN_TYPE_ANALYTICAL = 1
 _MEAN_TYPE_SAMPLE = 2
 
 _AAL_REC_DTYPE = np.dtype([
-    ('summary_id', np.int32),
-    ('type', np.int32),
+    ('summary_id', np.int32),  # TODO: remove this as can be infered from max_summary_id
+    ('type', np.int32),  # TODO: remove this as can be infered from which array is being used
     ('mean', np.float64),
     ('mean_squared', np.float64),
 ])
@@ -32,13 +32,21 @@ _AAL_REC_PERIOD_DTYPE = np.dtype(
 )
 
 _VECS_SAMPLE_AAL_DTYPE = np.dtype(
-    [('subset_size', np.int32)] + _AAL_REC_PERIOD_DTYPE.descr
+    [('subset_size', np.int32)] + _AAL_REC_PERIOD_DTYPE.descr  # TODO: remove this as can be infered from modulo?
 )
 
 _VREC_DTYPE = np.dtype([
     ('sidx', oasis_int),
     ('loss', oasis_float),
 ])
+
+_SUMMARIES_DTYPE = np.dtype([
+    ("summary_id", np.int32),
+    ("file_idx", np.int32),
+    ("period_no", np.int32),
+    ("file_offset", np.int64),
+])
+
 
 class AALReader(EventReader):
     def __init__(self, len_sample):
@@ -63,6 +71,7 @@ class AALReader(EventReader):
         return cursor, event_id, item_id, ret
 
 
+# @profile
 @nb.njit(cache=True, error_model="numpy")
 def read_buffer(
         byte_mv, cursor, valid_buff, event_id, item_id,
@@ -369,6 +378,7 @@ def do_calc_end(
     a_total["type"] = _MEAN_TYPE_SAMPLE
     a_total["summary_id"] = curr_summary_id if sample_size != 0 else 0
 
+    # TODO: fix this loop, inner loop does not use curr_summary_id
     total_mean_by_period = 0
     for sidx in range(1, sample_size + 1):
         for iter in vecs_sample_aal:
@@ -396,6 +406,7 @@ def do_calc_end(
     a_total["mean_period"] += mean_by_period * mean_by_period
     vec_sample_sum_loss.fill(0)
 
+
 @nb.njit(cache=True, error_model="numpy")
 def do_calc_by_period(
         vrec,
@@ -410,28 +421,117 @@ def do_calc_by_period(
 
 
 @nb.njit(cache=True, error_model="numpy")
-def read_losses(summary_fin, data_offset):
-    vrec = []
+def read_losses(summary_fin, cursor, sample_size):
+    # Max losses is sample_size + num special sidxs
+    vrec = np.zeros(sample_size + NUM_SPECIAL_SIDX, dtype=_VREC_DTYPE)
+    valid_buff = len(summary_fin)
+    idx = 0
     while True:
-        sidx_data = summary_fin[data_offset: data_offset + oasis_int_size]
-        if len(sidx_data) < oasis_int_size:
+        if valid_buff - cursor < oasis_int_size:
             raise RuntimeError("Error: broken summary file, not enough data")
-        sidx = np.frombuffer(sidx_data, dtype='<i4')[0]
-        data_offset += oasis_int_size
-
-        loss_data = summary_fin[data_offset:data_offset + oasis_float_size]
-        if len(loss_data) < oasis_float_size:
+        sidx, cursor = mv_read(summary_fin, cursor, oasis_int, oasis_int_size)
+        
+        if valid_buff - cursor < oasis_float_size:
             raise RuntimeError("Error: broken summary file, not enough data")
-        loss = np.frombuffer(loss_data, dtype='<f4')[0]
-        data_offset += oasis_float_size
+        loss, cursor = mv_read(summary_fin, cursor, oasis_float, oasis_float_size)
 
         if sidx == 0:
             break
         if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
             continue
-        vrec.append((sidx, loss))
-    return vrec
 
+        vrec[idx]["sidx"] = sidx
+        vrec[idx]["loss"] = loss
+        idx += 1
+    return vrec[:idx]
+
+
+# @profile
+@nb.njit(cache=True, error_model="numpy")
+def run_aal(
+        summaries, 
+        no_of_periods,
+        period_weights,
+        sample_size,
+        filelist,
+        files_handles,
+        vec_analytical_aal,
+        vecs_sample_aal,
+        vec_sample_sum_loss,
+    ):
+    if len(summaries) == 0:
+        raise ValueError("File is empty or missing data")
+
+    lineno = 1
+    curr_summary_id = 0
+    last_summary_id = -1
+    last_period_no = -1
+    last_file_idx = -1
+    summary_fin = None
+    for line in summaries:
+        summary_id = line["summary_id"]
+        file_idx = line["file_idx"]
+        period_no = line["period_no"]
+        file_offset = line["file_offset"]
+
+        if last_summary_id != summary_id:
+            if last_summary_id != -1:
+                do_calc_end(
+                    last_period_no,
+                    no_of_periods,
+                    period_weights,
+                    sample_size,
+                    curr_summary_id,
+                    vec_analytical_aal,
+                    vecs_sample_aal,
+                    vec_sample_sum_loss,
+                )
+            last_period_no = -1
+            curr_summary_id = summary_id
+            last_summary_id = summary_id
+        if last_period_no != period_no:
+            if last_period_no != -1:
+                do_calc_end(
+                    last_period_no,
+                    no_of_periods,
+                    period_weights,
+                    sample_size,
+                    curr_summary_id,
+                    vec_analytical_aal,
+                    vecs_sample_aal,
+                    vec_sample_sum_loss,
+                )
+            last_period_no = period_no
+        if last_file_idx != file_idx:
+            last_file_idx - file_idx
+            summary_fin = files_handles[file_idx]
+                
+        # Read summary header values (event_id, summary_id, expval)
+        cursor = file_offset + (2 * oasis_int_size) + oasis_float_size
+
+        vrec = read_losses(summary_fin, cursor, sample_size)
+        
+        do_calc_by_period(
+            vrec,
+            vec_sample_sum_loss,
+        )
+        
+        lineno += 1
+
+    curr_summary_id = last_summary_id
+    if last_summary_id != -1:
+        do_calc_end(
+            last_period_no,
+            no_of_periods,
+            period_weights,
+            sample_size,
+            curr_summary_id,
+            vec_analytical_aal,
+            vecs_sample_aal,
+            vec_sample_sum_loss,
+        )
+
+@profile
 def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
     """Runs AAL calculations
     Args:
@@ -467,87 +567,21 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
 
         # TODO: read summaries.idx and update above vecs loop
         summaries_file = Path(workspace_folder, "summaries.idx")
-
-        lineno = 1
-        curr_summary_id = 0
-        last_summary_id = -1
-        last_period_no = -1
-        last_file_idx = -1
-        summary_fin = None
-        #TODO: redo loop in a separate numba function with memmaps for file data?
-        fin = open(summaries_file, "r")
-        line = fin.readline()
-        if not line:
-            raise ValueError("File is empty or missing data")
-        while line:
-            try:
-                summary_id, file_idx, period_no, file_offset = [int(i) for i in line.strip().replace(" ", "").split(",")]
-            except ValueError:
-                raise ValueError(f"Invalid data in file: {line.strip()} at line {lineno}")
-            
-            if last_summary_id != summary_id:
-                if last_summary_id != -1:
-                    do_calc_end(
-                        last_period_no,
-                        file_data["no_of_periods"],
-                        file_data["period_weights"],
-                        sample_size,
-                        curr_summary_id,
-                        vec_analytical_aal,
-                        vecs_sample_aal,
-                        vec_sample_sum_loss,
-                    )
-                last_period_no = -1
-                curr_summary_id = summary_id
-                last_summary_id = summary_id
-            if last_period_no != period_no:
-                if last_period_no != -1:
-                    do_calc_end(
-                        last_period_no,
-                        file_data["no_of_periods"],
-                        file_data["period_weights"],
-                        sample_size,
-                        curr_summary_id,
-                        vec_analytical_aal,
-                        vecs_sample_aal,
-                        vec_sample_sum_loss,
-                    )
-                last_period_no = period_no
-            if last_file_idx != file_idx:
-                last_file_idx - file_idx
-                try:
-                    summary_fin = files_handles[file_idx]
-                except Exception as e:
-                    raise RuntimeError(f"Error: Could not read {filelist[file_idx]} - {str(e)}")
-                    
-            header_offset = file_offset
-            # Read summary header values (event_id, summary_id, expval)
-            data_offset = header_offset + (2 * oasis_int_size) + oasis_float_size
-
-            vrec = read_losses(summary_fin, data_offset)
-            vrec = np.array(vrec, dtype=_VREC_DTYPE)
-            
-            do_calc_by_period(
-                vrec,
-                vec_sample_sum_loss,
-            )
-            
-            line = fin.readline()
-            lineno += 1
+        summaries = np.loadtxt(summaries_file, delimiter=",", dtype=_SUMMARIES_DTYPE)
         
-        curr_summary_id = last_summary_id
-        if last_summary_id != -1:
-            do_calc_end(
-                last_period_no,
-                file_data["no_of_periods"],
-                file_data["period_weights"],
-                sample_size,
-                curr_summary_id,
-                vec_analytical_aal,
-                vecs_sample_aal,
-                vec_sample_sum_loss,
-            )
-        fin.close()
+        if len(summaries) == 0:
+            raise RuntimeError("Error: summaries file empty")
+        run_aal(
+            summaries,
+            file_data["no_of_periods"],
+            file_data["period_weights"],
+            sample_size,
+            filelist,
+            files_handles,
+            vec_analytical_aal,
+            vecs_sample_aal,
+            vec_sample_sum_loss,
+        )
 
         # TODO: remove these
         print("#" * 50)
