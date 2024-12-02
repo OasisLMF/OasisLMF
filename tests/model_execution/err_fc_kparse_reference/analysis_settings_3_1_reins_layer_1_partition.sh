@@ -144,7 +144,7 @@ mkfifo fifo/full_correlation/ri_S1_pltcalc_P1
 tee < fifo/ri_S1_summary_P1 fifo/ri_S1_eltcalc_P1 fifo/ri_S1_summarycalc_P1 fifo/ri_S1_pltcalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryaalcalc/P1.idx > /dev/null & pid5=$!
 
-( summarycalc -m -f -z -p input/RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f -p input/RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do insured loss computes ---
 
@@ -180,7 +180,7 @@ tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryaalcalc/P1.idx > /dev/null &
 tee < fifo/full_correlation/ri_S1_summary_P1 fifo/full_correlation/ri_S1_eltcalc_P1 fifo/full_correlation/ri_S1_summarycalc_P1 fifo/full_correlation/ri_S1_pltcalc_P1 work/full_correlation/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid19=$!
 tee < fifo/full_correlation/ri_S1_summary_P1.idx work/full_correlation/ri_S1_summaryaalcalc/P1.idx > /dev/null & pid20=$!
 
-( summarycalc -m -f -z -p input/RI_1 -1 fifo/full_correlation/ri_S1_summary_P1 < fifo/full_correlation/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarycalc -m -f -p input/RI_1 -1 fifo/full_correlation/ri_S1_summary_P1 < fifo/full_correlation/ri_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do insured loss computes ---
 

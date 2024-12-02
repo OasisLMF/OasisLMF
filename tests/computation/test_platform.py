@@ -201,7 +201,8 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertEqual(str(context.exception), 'Error: Either select a "portfolio_id" or a location file is required.')
+        self.assertEqual(str(context.exception),
+                         'Error: At least one of the following inputs is required [portfolio_id, oed_location_csv, oed_accounts_csv]')
 
     @patch('builtins.input', side_effect=['AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
