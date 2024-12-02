@@ -22,8 +22,10 @@ _MEAN_TYPE_SAMPLE = 2
 
 # Similar to aal_rec in ktools
 # summary_id can be infered from index
+# we have a use_id boolean to store whether this summary_id/index is used
 # type can be infered from which array is using it
 _AAL_REC_DTYPE = np.dtype([
+    ('use_id', np.bool_),
     ('mean', np.float64),
     ('mean_squared', np.float64),
 ])
@@ -44,6 +46,30 @@ _SUMMARIES_DTYPE = np.dtype([
     ("period_no", np.int32),
     ("file_offset", np.int64),
 ])
+
+AAL_output = [
+    ('SummaryId', oasis_int, '%d'),
+    ('SampleType', oasis_int, '%d'),
+    ('MeanLoss', oasis_float, '%.6f'),
+    ('SDLoss', oasis_float, '%.6f'),
+]
+
+ALCT_output = [
+    ("SummaryId", oasis_float, '%.6f'),
+    ("MeanLoss", oasis_float, '%.6f'),
+    ("SDLoss", oasis_float, '%.6f'),
+    ("SampleSize", oasis_float, '%.6f'),
+    ("LowerCI", oasis_float, '%.6f'),
+    ("UpperCI", oasis_float, '%.6f'),
+    ("StandardError", oasis_float, '%.6f'),
+    ("RelativeError", oasis_float, '%.6f'),
+    ("VarElementHaz", oasis_float, '%.6f'),
+    ("StandardErrorHaz", oasis_float, '%.6f'),
+    ("RelativeErrorHaz", oasis_float, '%.6f'),
+    ("VarElementVuln", oasis_float, '%.6f'),
+    ("StandardErrorVuln", oasis_float, '%.6f'),
+    ("RelativeErrorVuln", oasis_float, '%.6f'),
+]
 
 
 def read_occurrence(occurrence_fp):
@@ -327,6 +353,7 @@ def do_calc_end(
 
     # Update Analytical AAL
     mean = vec_sample_sum_loss[0]
+    vec_analytical_aal[curr_summary_id - 1]["use_id"] = True
     vec_analytical_aal[curr_summary_id - 1]["mean"] += mean * weighting
     vec_analytical_aal[curr_summary_id - 1]["mean_squared"] += mean * mean * weighting
 
@@ -337,6 +364,7 @@ def do_calc_end(
     
     # Get sample aal idx for sample_size
     last_sample_aal = vecs_sample_aal[idxs[-1]]
+    last_sample_aal["use_id"] = True
 
     total_mean_by_period = 0
     sidx = 1
@@ -356,6 +384,7 @@ def do_calc_end(
             while sidx < end_sidx:
                 mean = vec_sample_sum_loss[sidx]
                 # Update current Sample AAL
+                curr_sample_aal["use_id"] = True
                 curr_sample_aal["mean"] += mean * weighting
                 curr_sample_aal["mean_squared"] += mean * mean * weighting
                 
@@ -507,16 +536,75 @@ def run_aal(
         )
 
 
-def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False):
+@nb.njit(cache=True, fastmath=True)
+def calculate_mean_stddev(
+        vec_mean,
+        vec_mean_squared,
+        sample_size,
+        no_of_periods,
+    ):
+    p1 = no_of_periods * sample_size
+    p2 = p1 - 1
+    mean = vec_mean / sample_size
+    mean_squared = vec_mean * vec_mean
+    s1 = vec_mean_squared - mean_squared / p1
+    s2 = s1 / p2
+    std = np.sqrt(s2)
+    mean = mean / no_of_periods
+    return mean, std
+
+
+def get_aal_data(
+        vec_analytical_aal,
+        vecs_sample_aal,
+        meanonly,
+        sample_size,
+        no_of_periods
+    ):
+    aal_data = []
+
+    for idx, v_iter in enumerate(vec_analytical_aal):
+        if v_iter["use_id"]:
+            mean, std = calculate_mean_stddev(
+                v_iter["mean"],
+                v_iter["mean_squared"],
+                1,
+                no_of_periods,
+            )
+            if not meanonly:
+                aal_data.append([idx + 1, _MEAN_TYPE_ANALYTICAL, mean, std])
+            else:
+                aal_data.append([idx + 1, _MEAN_TYPE_ANALYTICAL, mean])
+    
+    for idx, v_iter in enumerate(vecs_sample_aal):
+        if v_iter["use_id"]:
+            mean, std = calculate_mean_stddev(
+                v_iter["mean"],
+                v_iter["mean_squared"],
+                sample_size,
+                no_of_periods,
+            )
+            if not meanonly:
+                aal_data.append([idx + 1, _MEAN_TYPE_SAMPLE, mean, std])
+            else:
+                aal_data.append([idx + 1, _MEAN_TYPE_SAMPLE, mean])
+
+    return aal_data
+
+
+def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
         subfolder (str): Workspace subfolder inside <run_dir>/work/<subfolder>
-        aal (str, optional): Path to AAL output file. Defaults to None
-        alct (str, optional): Path to ALCT output file. Defaults to None
+        aal_output_file (str, optional): Path to AAL output file. Defaults to None
+        alct_output_file (str, optional): Path to ALCT output file. Defaults to None
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
     """
+    output_aal = aal_output_file is not None
+    output_alct = alct_output_file is not None
+
     with ExitStack() as stack:
         workspace_folder = Path(run_dir, "work", subfolder)
         max_summary_id = read_max_summary_idx(workspace_folder)
@@ -528,7 +616,7 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
 
         file_data = read_input_files(run_dir)
         
-        vecs_sample_aal = get_sample_sizes(alct, sample_size, max_summary_id)
+        vecs_sample_aal = get_sample_sizes(output_alct, sample_size, max_summary_id)
         # Index 0 is mean
         vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
         # Indexed on summary_id - 1
@@ -567,16 +655,56 @@ def run(run_dir, subfolder, aal=None, alct=None, meanonly=False, noheader=False)
         print(vec_sample_sum_loss)
         print(vec_analytical_aal)
 
-        # TODO: output csvs
+        # Initialise csv column names for output files
+        output_files = {}
+        if output_aal:
+            aal_file = stack.enter_context(open(aal_output_file, "w"))
+            if not noheader:
+                if not meanonly:
+                    AAL_headers = ",".join([c[0] for c in AAL_output])
+                    aal_file.write(AAL_headers + "\n")
+                else:
+                    AAL_headers = ",".join([c[0] for c in AAL_output if c[0] != "SDLoss"])
+                    aal_file.write(AAL_headers + "\n")
+            output_files["aal"] = aal_file
+        if output_alct:
+            alct_file = stack.enter_context(open(alct_output_file, "w"))
+            if not noheader:
+                if not meanonly:
+                    ALCT_headers = ",".join([c[0] for c in ALCT_output])
+                    alct_file.write(ALCT_headers + "\n")
+            output_files["alct"] = alct_file
+        
+        # Output file data
+        if not meanonly:
+            AAL_fmt = ','.join([c[2] for c in AAL_output])
+        else:
+            AAL_fmt = ','.join([c[2] for c in AAL_output if c[0] != "SDLoss"])
+        ALCT_fmt = ','.join([c[2] for c in ALCT_output])
 
+        if output_aal:
+            # Get Sample AAL data for subset_size == sample_size (last group of arrays)
+            num_groups = len(vecs_sample_aal) // max_summary_id
+            start_idx = (num_groups - 1) * max_summary_id
+            end_idx = len(vecs_sample_aal)
+            aal_data = get_aal_data(
+                vec_analytical_aal,
+                vecs_sample_aal[start_idx:end_idx],
+                meanonly,
+                sample_size,
+                file_data["no_of_periods"],
+            )
+            np.savetxt(output_files["aal"], aal_data, delimiter=",", fmt=AAL_fmt)
+        if output_alct:
+            pass
 
 @redirect_logging(exec_name='aalpy')
 def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, **kwargs):
     run(
         run_dir,
         subfolder,
-        aal=aal,
+        aal_output_file=aal,
         meanonly=meanonly,
-        alct=alct,
+        alct_output_file=alct,
         noheader=noheader,
     )
