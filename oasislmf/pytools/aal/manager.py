@@ -536,24 +536,32 @@ def run_aal(
         )
 
 
-@nb.njit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
 def calculate_mean_stddev(
-        vec_mean,
-        vec_mean_squared,
-        sample_size,
-        no_of_periods,
+        observable_sum,
+        observable_squared_sum,
+        number_of_observations
     ):
-    p1 = no_of_periods * sample_size
-    p2 = p1 - 1
-    mean = vec_mean / sample_size
-    mean_squared = vec_mean * vec_mean
-    s1 = vec_mean_squared - mean_squared / p1
-    s2 = s1 / p2
-    std = np.sqrt(s2)
-    mean = mean / no_of_periods
+    """Compute the mean and standard deviation from the sum and squared sum of an observable
+    Args:
+        observable_sum (ndarray[oasis_float]): Observable sum
+        observable_squared_sum (ndarray[oasis_float]): Observable squared sum
+        number_of_observations (int): number of observations
+    Returns:
+        mean (ndarray[oasis_float]): Mean
+        std (ndarray[oasis_float]): Standard Deviation
+    """
+    mean = observable_sum / number_of_observations
+    std = np.sqrt(
+        (
+            observable_squared_sum - (observable_sum * observable_sum)
+            / number_of_observations
+        ) / (number_of_observations - 1)
+    )
     return mean, std
 
 
+@nb.njit(cache=True, error_model="numpy")
 def get_aal_data(
         vec_analytical_aal,
         vecs_sample_aal,
@@ -562,33 +570,32 @@ def get_aal_data(
         no_of_periods
     ):
     aal_data = []
+    mean_analytical, std_analytical = calculate_mean_stddev(
+        vec_analytical_aal["mean"],
+        vec_analytical_aal["mean_squared"],
+        no_of_periods,
+    )
 
-    for idx, v_iter in enumerate(vec_analytical_aal):
-        if v_iter["use_id"]:
-            mean, std = calculate_mean_stddev(
-                v_iter["mean"],
-                v_iter["mean_squared"],
-                1,
-                no_of_periods,
-            )
-            if not meanonly:
-                aal_data.append([idx + 1, _MEAN_TYPE_ANALYTICAL, mean, std])
-            else:
-                aal_data.append([idx + 1, _MEAN_TYPE_ANALYTICAL, mean])
+    mean_sample, std_sample = calculate_mean_stddev(
+        vecs_sample_aal["mean"],
+        vecs_sample_aal["mean_squared"],
+        no_of_periods * sample_size,
+    )
+
+    for i in range(len(vec_analytical_aal)):
+        if not vec_analytical_aal[i]["use_id"]: continue
+        if not meanonly:
+            aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i], std_analytical[i]])
+        else:
+            aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i]])
     
-    for idx, v_iter in enumerate(vecs_sample_aal):
-        if v_iter["use_id"]:
-            mean, std = calculate_mean_stddev(
-                v_iter["mean"],
-                v_iter["mean_squared"],
-                sample_size,
-                no_of_periods,
-            )
-            if not meanonly:
-                aal_data.append([idx + 1, _MEAN_TYPE_SAMPLE, mean, std])
-            else:
-                aal_data.append([idx + 1, _MEAN_TYPE_SAMPLE, mean])
-
+    for i in range(len(vecs_sample_aal)):
+        if not vecs_sample_aal[i]["use_id"]: continue
+        if not meanonly:
+            aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i], std_sample[i]])
+        else:
+            aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i]])
+    
     return aal_data
 
 
