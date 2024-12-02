@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`2.3.11`_
+ ---------
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
+* [#1250](https://github.com/OasisLMF/OasisLMF/pull/1576) - Support Risk Attaching 'RA' basis in reinsurance
+* [#1581](https://github.com/OasisLMF/OasisLMF/pull/1587) - oasislmf code uses legacy correlation settings location in model settings
+* [#1589](https://github.com/OasisLMF/OasisLMF/pull/1589) - Update platform API client for Cyber models 
+* [#1594](https://github.com/OasisLMF/OasisLMF/pull/1594) - improve the memory performance of il layer number continuity step
+* [#1595](https://github.com/OasisLMF/OasisLMF/pull/1596) - Allow process perils with different resolution grids 
+.. _`2.3.11`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.10...2.3.11
+
 `2.3.10`_
  ---------
 * [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
