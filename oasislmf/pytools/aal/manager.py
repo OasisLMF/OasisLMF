@@ -55,10 +55,10 @@ AAL_output = [
 ]
 
 ALCT_output = [
-    ("SummaryId", oasis_float, '%.6f'),
+    ("SummaryId", oasis_float, '%d'),
     ("MeanLoss", oasis_float, '%.6f'),
     ("SDLoss", oasis_float, '%.6f'),
-    ("SampleSize", oasis_float, '%.6f'),
+    ("SampleSize", oasis_float, '%d'),
     ("LowerCI", oasis_float, '%.6f'),
     ("UpperCI", oasis_float, '%.6f'),
     ("StandardError", oasis_float, '%.6f'),
@@ -404,7 +404,7 @@ def do_calc_end(
         last_sample_aal["mean_squared"] += mean * mean * weighting    
         sidx += 1
     # Update sample size Sample AAL mean_period
-    last_sample_aal["mean_period"] += mean_by_period * mean_by_period
+    last_sample_aal["mean_period"] += total_mean_by_period * total_mean_by_period
     vec_sample_sum_loss.fill(0)
 
 
@@ -546,7 +546,7 @@ def calculate_mean_stddev(
     Args:
         observable_sum (ndarray[oasis_float]): Observable sum
         observable_squared_sum (ndarray[oasis_float]): Observable squared sum
-        number_of_observations (int): number of observations
+        number_of_observations (int | ndarray[int]): number of observations
     Returns:
         mean (ndarray[oasis_float]): Mean
         std (ndarray[oasis_float]): Standard Deviation
@@ -598,8 +598,90 @@ def get_aal_data(
     
     return aal_data
 
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def calculate_confidence_interval(std_err, confidence_level):
+    """Calculate the confidence interval based on standard error and confidence level.
+    Args:
+        std_err (float): The standard error.
+        confidence_level (float): The confidence level (e.g., 0.95 for 95%).
+    Returns:
+        confidence interval (float): The confidence interval.
+    """
+    # Compute p-value above 0.5
+    p_value = (1 + confidence_level) / 2
+    p_value = np.sqrt(-2 * np.log(1 - p_value))
+    
+    # Approximation formula for z-value from Abramowitz & Stegun, Handbook
+	# of Mathematical Functions: with Formulas, Graphs, and Mathematical
+	# Tables, Dover Publications (1965), eq. 26.2.23
+	# Also see John D. Cook Consulting, https://www.johndcook.com/blog/cpp_phi_inverse/
+    c = np.array([2.515517, 0.802853, 0.010328])
+    d = np.array([1.432788, 0.189269, 0.001308])
+    z_value = p_value - (
+        ((c[2] * p_value + c[1]) * p_value + c[0]) /
+        (((d[2] * p_value + d[1]) * p_value + d[0]) * p_value + 1)
+    )
+    # Return the confidence interval
+    return std_err * z_value
 
-def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False):
+
+@nb.njit(cache=True, error_model="numpy")
+def get_alct_data(
+        vecs_sample_aal,
+        max_summary_id,
+        sample_size,
+        no_of_periods,
+        confidence,
+    ):
+    aclt_data = []
+
+    num_subsets = len(vecs_sample_aal) // max_summary_id
+    # Generate the subset sizes (last one is always sample_size)
+    subset_sizes = np.array([2 ** i for i in range(num_subsets)])
+    subset_sizes[-1] = sample_size
+    
+    for summary_id in range(1, max_summary_id + 1):
+        # Get idxs for summary_id across all subset_sizes
+        idxs = np.array([i * max_summary_id + (summary_id - 1) for i in range(num_subsets)])
+        v_curr = vecs_sample_aal[idxs]
+        
+        mean, std = calculate_mean_stddev(
+            v_curr["mean"],
+            v_curr["mean_squared"],
+            subset_sizes * no_of_periods,
+        )
+        mean_period = v_curr["mean_period"] / (subset_sizes * subset_sizes)
+        var_vuln = (
+            (v_curr["mean_squared"] - subset_sizes * mean_period)
+            / (subset_sizes * no_of_periods - subset_sizes)
+        ) / (subset_sizes * no_of_periods)
+        var_haz = (
+            subset_sizes * (mean_period - no_of_periods * mean * mean)
+            / (no_of_periods - 1)
+        ) / (subset_sizes * no_of_periods)
+        std_err = np.sqrt(var_vuln)
+        ci = calculate_confidence_interval(std_err, confidence)
+        std_err_haz = np.sqrt(var_haz)
+        std_err_vuln = np.sqrt(var_vuln)
+        lower_ci = np.where(ci > 0, mean - ci, 0)
+        upper_ci = np.where(ci > 0, mean + ci, 0)
+        
+        curr_data = np.column_stack((
+            np.array([summary_id] * num_subsets),
+            mean,
+            std,
+            subset_sizes,
+            lower_ci,
+            upper_ci,
+            std_err, std_err / mean,
+            var_haz, std_err_haz, std_err_haz / mean,
+            var_vuln, std_err_vuln, std_err_vuln / mean,
+        ))
+        for row in curr_data:
+            aclt_data.append(row)
+    return aclt_data
+
+def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -608,6 +690,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         alct_output_file (str, optional): Path to ALCT output file. Defaults to None
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
+        confidence (float): Confidence level between 0 and 1, default 0.95
     """
     output_aal = aal_output_file is not None
     output_alct = alct_output_file is not None
@@ -703,10 +786,18 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             )
             np.savetxt(output_files["aal"], aal_data, delimiter=",", fmt=AAL_fmt)
         if output_alct:
-            pass
+            alct_data = get_alct_data(
+                vecs_sample_aal,
+                max_summary_id,
+                sample_size,
+                file_data["no_of_periods"],
+                confidence
+            )
+            np.savetxt(output_files["alct"], alct_data, delimiter=",", fmt=ALCT_fmt)
+
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, **kwargs):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, **kwargs):
     run(
         run_dir,
         subfolder,
@@ -714,4 +805,5 @@ def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, nohea
         meanonly=meanonly,
         alct_output_file=alct,
         noheader=noheader,
+        confidence=confidence,
     )
