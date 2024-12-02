@@ -70,6 +70,9 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance3(self):
         self.run_test('reinsurance3', model_perils_covered=['WTC'], fmpy=True)
 
+    def test_reinsurance4(self):
+        self.run_test('reinsurance4', model_perils_covered=['WTC'], fmpy=True)
+
     def test_issues(self):
         self.run_test('issues', model_perils_covered=['WTC'], fmpy=True)
 
