@@ -221,7 +221,7 @@ def read_input_files(run_dir):
 
 
 def read_max_summary_idx(workspace_folder):
-    """Get the max summary id and summary file list from idx files
+    """Get the max summary id
     Args:
         workspace_folder (str| os.PathLike): location of the workspace folder
     Returns:
@@ -246,7 +246,7 @@ def read_max_summary_idx(workspace_folder):
 
 
 def read_filelist_idx(workspace_folder):
-    """Get the max summary id and summary file list from idx files
+    """Get the summary file list
     Args:
         workspace_folder (str| os.PathLike): location of the workspace folder
     Returns:
@@ -295,7 +295,6 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
     The next two arrays are subset_size 2^2 = 4
     The last two arrays are subset_size = sample_size = 10
     Doesn't generate one with subset_size 8 as double that is larger than sample_size
-
     Args:
         alct (bool): Boolean for ALCT output
         sample_size (int): Sample size
@@ -358,7 +357,6 @@ def do_calc_end(
         vec_sample_sum_loss,
     ):
     """Updates Analytical and Sample AAL vectors from sample sum losses
-
     Args:
         period_no (int): Period Number
         no_of_periods (int): Number of periods
@@ -446,6 +444,11 @@ def do_calc_by_period(
         vrec,
         vec_sample_sum_loss,
     ):
+    """Populate vec_sample_sum_loss
+    Args:
+        vrec (ndarray[_VREC_DTYPE]): array of sidx and losses
+        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+    """
     for rec in vrec:
         loss = rec["loss"]
         if loss > 0:
@@ -457,6 +460,14 @@ def do_calc_by_period(
 
 @nb.njit(cache=True, error_model="numpy")
 def read_losses(summary_fin, cursor, sample_size):
+    """Read losses from summary_fin starting at cursor
+    Args:
+        summary_fin (memmap): summary file memmap
+        cursor (int): data offset for reading binary files
+        sample_size (int): Sample Size
+    Returns:
+        vrec (ndarray[_VREC_DTYPE]): array of sidx and losses
+    """
     # Max losses is sample_size + num special sidxs
     vrec = np.zeros(sample_size + NUM_SPECIAL_SIDX, dtype=_VREC_DTYPE)
     valid_buff = len(summary_fin)
@@ -493,6 +504,18 @@ def run_aal(
         vecs_sample_aal,
         vec_sample_sum_loss,
     ):
+    """Run AAL calculation loop to populate vec data
+    Args:
+        summaries (ndarray[_SUMMARIES_DTYPE]): summaries.idx data
+        no_of_periods (int): Number of periods
+        period_weights (ndarray[period_weights_dtype]): Period Weights
+        sample_size (int): Sample Size
+        max_summary_id (int): Max summary_id
+        files_handles (List[memmap]): List of memmaps for summary files data
+        vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
+        vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+    """
     if len(summaries) == 0:
         raise ValueError("File is empty or missing data")
 
@@ -602,6 +625,16 @@ def get_aal_data(
         sample_size,
         no_of_periods
     ):
+    """Generate AAL csv data
+    Args:
+        vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
+        vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        meanonly (bool): Boolean value to output AAL with mean only
+        sample_size (int): Sample Size
+        no_of_periods (int): Number of periods
+    Returns:
+        aal_data (List[List]): AAL csv data
+    """
     aal_data = []
     assert len(vec_analytical_aal) == len(vecs_sample_aal), \
         f"Lengths of analytical ({len(vec_analytical_aal)}) and sample ({len(vecs_sample_aal)}) aal data differ"
@@ -632,6 +665,7 @@ def get_aal_data(
             aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i]])
 
     return aal_data
+
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def calculate_confidence_interval(std_err, confidence_level):
@@ -668,7 +702,17 @@ def get_alct_data(
         no_of_periods,
         confidence,
     ):
-    aclt_data = []
+    """Generate ALCT csv data
+    Args:
+        vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        max_summary_id (int): Max summary_id
+        sample_size (int): Sample Size
+        no_of_periods (int): Number of periods
+        confidence (float): Confidence level between 0 and 1, default 0.95
+    Returns:
+        alct_data (List[List]): ALCT csv data
+    """
+    alct_data = []
 
     num_subsets = len(vecs_sample_aal) // max_summary_id
     # Generate the subset sizes (last one is always sample_size)
@@ -686,6 +730,7 @@ def get_alct_data(
             subset_sizes * no_of_periods,
         )
         mean_period = v_curr["mean_period"] / (subset_sizes * subset_sizes)
+        
         var_vuln = (
             (v_curr["mean_squared"] - subset_sizes * mean_period)
             / (subset_sizes * no_of_periods - subset_sizes)
@@ -694,10 +739,13 @@ def get_alct_data(
             subset_sizes * (mean_period - no_of_periods * mean * mean)
             / (no_of_periods - 1)
         ) / (subset_sizes * no_of_periods)
+        
         std_err = np.sqrt(var_vuln)
         ci = calculate_confidence_interval(std_err, confidence)
+        
         std_err_haz = np.sqrt(var_haz)
         std_err_vuln = np.sqrt(var_vuln)
+        
         lower_ci = np.where(ci > 0, mean - ci, 0)
         upper_ci = np.where(ci > 0, mean + ci, 0)
         
@@ -713,8 +761,8 @@ def get_alct_data(
             var_vuln, std_err_vuln, std_err_vuln / mean,
         ))
         for row in curr_data:
-            aclt_data.append(row)
-    return aclt_data
+            alct_data.append(row)
+    return alct_data
 
 def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
     """Runs AAL calculations
@@ -747,21 +795,13 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         # Indexed on summary_id - 1
         vec_analytical_aal = np.zeros(max_summary_id, dtype=_AAL_REC_DTYPE)
 
-        # TODO: remove these
-        print(sample_size)
-        print(file_data["occ_map"])
-        print(max_summary_id)
-        print(filelist)
-        print(vecs_sample_aal)
-        print(vec_sample_sum_loss)
-        print(vec_analytical_aal)
-
-        # TODO: read summaries.idx and update above vecs loop
+        # Load summaries list
         summaries_file = Path(workspace_folder, "summaries.idx")
         summaries = np.loadtxt(summaries_file, delimiter=",", dtype=_SUMMARIES_DTYPE)
-        
         if len(summaries) == 0:
             raise RuntimeError("Error: summaries file empty")
+
+        # Run AAL calculations, populate above vecs
         run_aal(
             summaries,
             file_data["no_of_periods"],
@@ -773,12 +813,6 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             vecs_sample_aal,
             vec_sample_sum_loss,
         )
-
-        # TODO: remove these
-        print("#" * 50)
-        print(vecs_sample_aal)
-        print(vec_sample_sum_loss)
-        print(vec_analytical_aal)
 
         # Initialise csv column names for output files
         output_files = {}
