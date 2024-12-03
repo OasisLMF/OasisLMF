@@ -1,9 +1,6 @@
 # aal/manager.py
 
 import logging
-import os
-from sys import byteorder
-from line_profiler import profile
 import numpy as np
 import numba as nb
 import struct
@@ -11,7 +8,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in, mv_read)
+from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, init_streams_in, mv_read)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -319,11 +316,11 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def get_weighted_means(
-        vec_sample_sum_loss,
-        weighting,
-        sidx,
-        end_sidx,
-    ):
+    vec_sample_sum_loss,
+    weighting,
+    sidx,
+    end_sidx,
+):
     """Get sum of weighted mean and weighted mean_squared
     Args:
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
@@ -346,16 +343,16 @@ def get_weighted_means(
 
 @nb.njit(cache=True, error_model="numpy")
 def do_calc_end(
-        period_no,
-        no_of_periods,
-        period_weights,
-        sample_size,
-        curr_summary_id,
-        max_summary_id,
-        vec_analytical_aal,
-        vecs_sample_aal,
-        vec_sample_sum_loss,
-    ):
+    period_no,
+    no_of_periods,
+    period_weights,
+    sample_size,
+    curr_summary_id,
+    max_summary_id,
+    vec_analytical_aal,
+    vecs_sample_aal,
+    vec_sample_sum_loss,
+):
     """Updates Analytical and Sample AAL vectors from sample sum losses
     Args:
         period_no (int): Period Number
@@ -388,7 +385,7 @@ def do_calc_end(
     len_sample_aal = len(vecs_sample_aal)
     num_subsets = len_sample_aal // max_summary_id
     idxs = [i * max_summary_id + (curr_summary_id - 1) for i in range(num_subsets)]
-    
+
     # Get sample aal idx for sample_size
     last_sample_aal = vecs_sample_aal[idxs[-1]]
     last_sample_aal["use_id"] = True
@@ -402,12 +399,12 @@ def do_calc_end(
             curr_sample_idx = idxs[aal_idx]
             curr_sample_aal = vecs_sample_aal[curr_sample_idx]
             curr_sample_aal["use_id"] = True
-            
+
             # Calculate the subset_size and assign to sidx
             subset_size = 2 ** (curr_sample_idx // max_summary_id)
             sidx = subset_size
             end_sidx = subset_size << 1
-            
+
             # Traverse sidx == subset_size to sidx == subset_size * 2
             weighted_mean, weighted_mean_squared = get_weighted_means(
                 vec_sample_sum_loss,
@@ -418,10 +415,10 @@ def do_calc_end(
             sidx = end_sidx
             curr_sample_aal["mean"] += weighted_mean
             curr_sample_aal["mean_squared"] += weighted_mean_squared
-            
+
             last_sample_aal["mean"] += weighted_mean
             last_sample_aal["mean_squared"] += weighted_mean_squared
-            
+
             mean_by_period = weighted_mean
             total_mean_by_period += weighted_mean
             sidx = end_sidx
@@ -432,7 +429,7 @@ def do_calc_end(
         mean = vec_sample_sum_loss[sidx]
         total_mean_by_period += mean * weighting
         last_sample_aal["mean"] += mean * weighting
-        last_sample_aal["mean_squared"] += mean * mean * weighting    
+        last_sample_aal["mean_squared"] += mean * mean * weighting
         sidx += 1
     # Update sample size Sample AAL mean_period
     last_sample_aal["mean_period"] += total_mean_by_period * total_mean_by_period
@@ -441,9 +438,9 @@ def do_calc_end(
 
 @nb.njit(cache=True, error_model="numpy")
 def do_calc_by_period(
-        vrec,
-        vec_sample_sum_loss,
-    ):
+    vrec,
+    vec_sample_sum_loss,
+):
     """Populate vec_sample_sum_loss
     Args:
         vrec (ndarray[_VREC_DTYPE]): array of sidx and losses
@@ -454,7 +451,7 @@ def do_calc_by_period(
         if loss > 0:
             sidx = rec["sidx"]
             if rec["sidx"] == -1:  # MEAN_SIDX
-                sidx = 0    
+                sidx = 0
             vec_sample_sum_loss[sidx] += loss
 
 
@@ -476,7 +473,7 @@ def read_losses(summary_fin, cursor, sample_size):
         if valid_buff - cursor < oasis_int_size:
             raise RuntimeError("Error: broken summary file, not enough data")
         sidx, cursor = mv_read(summary_fin, cursor, oasis_int, oasis_int_size)
-        
+
         if valid_buff - cursor < oasis_float_size:
             raise RuntimeError("Error: broken summary file, not enough data")
         loss, cursor = mv_read(summary_fin, cursor, oasis_float, oasis_float_size)
@@ -494,16 +491,16 @@ def read_losses(summary_fin, cursor, sample_size):
 
 @nb.njit(cache=True, error_model="numpy")
 def run_aal(
-        summaries, 
-        no_of_periods,
-        period_weights,
-        sample_size,
-        max_summary_id,
-        files_handles,
-        vec_analytical_aal,
-        vecs_sample_aal,
-        vec_sample_sum_loss,
-    ):
+    summaries,
+    no_of_periods,
+    period_weights,
+    sample_size,
+    max_summary_id,
+    files_handles,
+    vec_analytical_aal,
+    vecs_sample_aal,
+    vec_sample_sum_loss,
+):
     """Run AAL calculation loop to populate vec data
     Args:
         summaries (ndarray[_SUMMARIES_DTYPE]): summaries.idx data
@@ -564,17 +561,17 @@ def run_aal(
         if last_file_idx != file_idx:
             last_file_idx - file_idx
             summary_fin = files_handles[file_idx]
-                
+
         # Read summary header values (event_id, summary_id, expval)
         cursor = file_offset + (2 * oasis_int_size) + oasis_float_size
 
         vrec = read_losses(summary_fin, cursor, sample_size)
-        
+
         do_calc_by_period(
             vrec,
             vec_sample_sum_loss,
         )
-        
+
         lineno += 1
 
     curr_summary_id = last_summary_id
@@ -594,10 +591,10 @@ def run_aal(
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def calculate_mean_stddev(
-        observable_sum,
-        observable_squared_sum,
-        number_of_observations
-    ):
+    observable_sum,
+    observable_squared_sum,
+    number_of_observations
+):
     """Compute the mean and standard deviation from the sum and squared sum of an observable
     Args:
         observable_sum (ndarray[oasis_float]): Observable sum
@@ -619,12 +616,12 @@ def calculate_mean_stddev(
 
 @nb.njit(cache=True, error_model="numpy")
 def get_aal_data(
-        vec_analytical_aal,
-        vecs_sample_aal,
-        meanonly,
-        sample_size,
-        no_of_periods
-    ):
+    vec_analytical_aal,
+    vecs_sample_aal,
+    meanonly,
+    sample_size,
+    no_of_periods
+):
     """Generate AAL csv data
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
@@ -652,16 +649,20 @@ def get_aal_data(
 
     if not meanonly:
         for i in range(len(vec_analytical_aal)):
-            if not vec_analytical_aal[i]["use_id"]: continue
+            if not vec_analytical_aal[i]["use_id"]:
+                continue
             aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i], std_analytical[i]])
         for i in range(len(vecs_sample_aal)):
-            if not vecs_sample_aal[i]["use_id"]: continue
+            if not vecs_sample_aal[i]["use_id"]:
+                continue
             aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i], std_sample[i]])
     else:  # For some reason aalmeanonlycalc orders data differently
         for i in range(len(vec_analytical_aal)):
-            if not vec_analytical_aal[i]["use_id"]: continue
+            if not vec_analytical_aal[i]["use_id"]:
+                continue
             aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i]])
-            if not vecs_sample_aal[i]["use_id"]: continue
+            if not vecs_sample_aal[i]["use_id"]:
+                continue
             aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i]])
 
     return aal_data
@@ -679,11 +680,11 @@ def calculate_confidence_interval(std_err, confidence_level):
     # Compute p-value above 0.5
     p_value = (1 + confidence_level) / 2
     p_value = np.sqrt(-2 * np.log(1 - p_value))
-    
+
     # Approximation formula for z-value from Abramowitz & Stegun, Handbook
-	# of Mathematical Functions: with Formulas, Graphs, and Mathematical
-	# Tables, Dover Publications (1965), eq. 26.2.23
-	# Also see John D. Cook Consulting, https://www.johndcook.com/blog/cpp_phi_inverse/
+    # of Mathematical Functions: with Formulas, Graphs, and Mathematical
+    # Tables, Dover Publications (1965), eq. 26.2.23
+    # Also see John D. Cook Consulting, https://www.johndcook.com/blog/cpp_phi_inverse/
     c = np.array([2.515517, 0.802853, 0.010328])
     d = np.array([1.432788, 0.189269, 0.001308])
     z_value = p_value - (
@@ -696,12 +697,12 @@ def calculate_confidence_interval(std_err, confidence_level):
 
 @nb.njit(cache=True, error_model="numpy")
 def get_alct_data(
-        vecs_sample_aal,
-        max_summary_id,
-        sample_size,
-        no_of_periods,
-        confidence,
-    ):
+    vecs_sample_aal,
+    max_summary_id,
+    sample_size,
+    no_of_periods,
+    confidence,
+):
     """Generate ALCT csv data
     Args:
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
@@ -718,19 +719,19 @@ def get_alct_data(
     # Generate the subset sizes (last one is always sample_size)
     subset_sizes = np.array([2 ** i for i in range(num_subsets)])
     subset_sizes[-1] = sample_size
-    
+
     for summary_id in range(1, max_summary_id + 1):
         # Get idxs for summary_id across all subset_sizes
         idxs = np.array([i * max_summary_id + (summary_id - 1) for i in range(num_subsets)])
         v_curr = vecs_sample_aal[idxs]
-        
+
         mean, std = calculate_mean_stddev(
             v_curr["mean"],
             v_curr["mean_squared"],
             subset_sizes * no_of_periods,
         )
         mean_period = v_curr["mean_period"] / (subset_sizes * subset_sizes)
-        
+
         var_vuln = (
             (v_curr["mean_squared"] - subset_sizes * mean_period)
             / (subset_sizes * no_of_periods - subset_sizes)
@@ -739,16 +740,16 @@ def get_alct_data(
             subset_sizes * (mean_period - no_of_periods * mean * mean)
             / (no_of_periods - 1)
         ) / (subset_sizes * no_of_periods)
-        
+
         std_err = np.sqrt(var_vuln)
         ci = calculate_confidence_interval(std_err, confidence)
-        
+
         std_err_haz = np.sqrt(var_haz)
         std_err_vuln = np.sqrt(var_vuln)
-        
+
         lower_ci = np.where(ci > 0, mean - ci, 0)
         upper_ci = np.where(ci > 0, mean + ci, 0)
-        
+
         curr_data = np.column_stack((
             np.array([summary_id] * num_subsets),
             mean,
@@ -763,6 +764,7 @@ def get_alct_data(
         for row in curr_data:
             alct_data.append(row)
     return alct_data
+
 
 def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
     """Runs AAL calculations
@@ -782,13 +784,13 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         workspace_folder = Path(run_dir, "work", subfolder)
         max_summary_id = read_max_summary_idx(workspace_folder)
         filelist = read_filelist_idx(workspace_folder)
-        
+
         files_in = [Path(workspace_folder, file) for file in filelist]
         files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files_in]
         streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files_in, stack)
 
         file_data = read_input_files(run_dir)
-        
+
         vecs_sample_aal = get_sample_sizes(output_alct, sample_size, max_summary_id)
         # Index 0 is mean
         vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
@@ -833,7 +835,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
                     ALCT_headers = ",".join([c[0] for c in ALCT_output])
                     alct_file.write(ALCT_headers + "\n")
             output_files["alct"] = alct_file
-        
+
         # Output file data
         if not meanonly:
             AAL_fmt = ','.join([c[2] for c in AAL_output])
