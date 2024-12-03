@@ -317,6 +317,34 @@ def get_sample_sizes(alct, sample_size, max_summary_id):
     vecs_sample_aal = np.concatenate(entries, axis=0)
     return vecs_sample_aal
 
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_weighted_means(
+        vec_sample_sum_loss,
+        weighting,
+        sidx,
+        end_sidx,
+    ):
+    """Get sum of weighted mean and weighted mean_squared
+    Args:
+        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
+        weighting (float): Weighting value
+        sidx (int): start index
+        end_sidx (int): end index
+    Returns:
+        weighted_mean (float): Sum weighted mean
+        weighted_mean_squared (float): Sum weighted mean squared
+    """
+    weighted_mean = 0
+    weighted_mean_squared = 0
+    while sidx < end_sidx:
+        sumloss = vec_sample_sum_loss[sidx]
+        weighted_mean += sumloss * weighting
+        weighted_mean_squared += sumloss * sumloss * weighting
+        sidx += 1
+    return weighted_mean, weighted_mean_squared
+
+
 @nb.njit(cache=True, error_model="numpy")
 def do_calc_end(
         period_no,
@@ -360,7 +388,8 @@ def do_calc_end(
     # Update Sample AAL
     # Get relevant indexes for curr_summary_id
     len_sample_aal = len(vecs_sample_aal)
-    idxs = [i * max_summary_id + (curr_summary_id - 1) for i in range(len_sample_aal // max_summary_id)]
+    num_subsets = len_sample_aal // max_summary_id
+    idxs = [i * max_summary_id + (curr_summary_id - 1) for i in range(num_subsets)]
     
     # Get sample aal idx for sample_size
     last_sample_aal = vecs_sample_aal[idxs[-1]]
@@ -371,29 +400,33 @@ def do_calc_end(
     aal_idx = 0
     while sidx < sample_size + 1:
         # Iterate through aal_idx except the last one which is subset_size == sample_size
-        while aal_idx < len(idxs) - 1:
+        while aal_idx < num_subsets - 1:
             curr_sample_idx = idxs[aal_idx]
             curr_sample_aal = vecs_sample_aal[curr_sample_idx]
+            curr_sample_aal["use_id"] = True
+            
             # Calculate the subset_size and assign to sidx
             subset_size = 2 ** (curr_sample_idx // max_summary_id)
             sidx = subset_size
             end_sidx = subset_size << 1
             
-            mean_by_period = 0
             # Traverse sidx == subset_size to sidx == subset_size * 2
-            while sidx < end_sidx:
-                mean = vec_sample_sum_loss[sidx]
-                # Update current Sample AAL
-                curr_sample_aal["use_id"] = True
-                curr_sample_aal["mean"] += mean * weighting
-                curr_sample_aal["mean_squared"] += mean * mean * weighting
-                
-                last_sample_aal["mean"] += mean * weighting
-                last_sample_aal["mean_squared"] += mean * mean * weighting
-                
-                mean_by_period += mean * weighting
-                total_mean_by_period += mean * weighting
-                sidx += 1
+            weighted_mean, weighted_mean_squared = get_weighted_means(
+                vec_sample_sum_loss,
+                weighting,
+                sidx,
+                end_sidx
+            )
+            sidx = end_sidx
+            curr_sample_aal["mean"] += weighted_mean
+            curr_sample_aal["mean_squared"] += weighted_mean_squared
+            
+            last_sample_aal["mean"] += weighted_mean
+            last_sample_aal["mean_squared"] += weighted_mean_squared
+            
+            mean_by_period = weighted_mean
+            total_mean_by_period += weighted_mean
+            sidx = end_sidx
             # Update current Sample AAL mean_period
             curr_sample_aal["mean_period"] += mean_by_period * mean_by_period
             aal_idx += 1
