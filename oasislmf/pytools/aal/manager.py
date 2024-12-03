@@ -570,6 +570,8 @@ def get_aal_data(
         no_of_periods
     ):
     aal_data = []
+    assert len(vec_analytical_aal) == len(vecs_sample_aal), \
+        f"Lengths of analytical ({len(vec_analytical_aal)}) and sample ({len(vecs_sample_aal)}) aal data differ"
     mean_analytical, std_analytical = calculate_mean_stddev(
         vec_analytical_aal["mean"],
         vec_analytical_aal["mean_squared"],
@@ -582,20 +584,20 @@ def get_aal_data(
         no_of_periods * sample_size,
     )
 
-    for i in range(len(vec_analytical_aal)):
-        if not vec_analytical_aal[i]["use_id"]: continue
-        if not meanonly:
+    if not meanonly:
+        for i in range(len(vec_analytical_aal)):
+            if not vec_analytical_aal[i]["use_id"]: continue
             aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i], std_analytical[i]])
-        else:
-            aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i]])
-    
-    for i in range(len(vecs_sample_aal)):
-        if not vecs_sample_aal[i]["use_id"]: continue
-        if not meanonly:
+        for i in range(len(vecs_sample_aal)):
+            if not vecs_sample_aal[i]["use_id"]: continue
             aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i], std_sample[i]])
-        else:
+    else:  # For some reason aalmeanonlycalc orders data differently
+        for i in range(len(vec_analytical_aal)):
+            if not vec_analytical_aal[i]["use_id"]: continue
+            aal_data.append([i + 1, _MEAN_TYPE_ANALYTICAL, mean_analytical[i]])
+            if not vecs_sample_aal[i]["use_id"]: continue
             aal_data.append([i + 1, _MEAN_TYPE_SAMPLE, mean_sample[i]])
-    
+
     return aal_data
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
