@@ -28,7 +28,8 @@ def case_runner(sub_folder, test_name, meanonly=False):
         kwargs = {
             "run_dir": Path(TESTS_ASSETS_DIR, "all_files"),
             "subfolder": sub_folder,
-            "meanonly": meanonly
+            "skip_idxs": True,
+            "meanonly": meanonly,
         }
 
         if test_name in ["aal", "alct"]:

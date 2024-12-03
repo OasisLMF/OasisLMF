@@ -4,11 +4,13 @@ import logging
 import numpy as np
 import numba as nb
 import struct
+from collections import defaultdict
 from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, init_streams_in, mv_read)
+from oasislmf.pytools.common.event_stream import (
+    MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,86 @@ ALCT_output = [
     ("StandardErrorVuln", oasis_float, '%.6f'),
     ("RelativeErrorVuln", oasis_float, '%.6f'),
 ]
+
+
+class SummaryPeriod:
+    def __init__(self, summary_id, fileindex, period_no):
+        self.summary_id = summary_id
+        self.fileindex = fileindex
+        self.period_no = period_no
+
+    def __hash__(self):
+        return hash((self.summary_id, self.fileindex, self.period_no))
+
+    def __eq__(self, other):
+        return (self.summary_id, self.fileindex, self.period_no) == (other.summary_id, other.fileindex, other.period_no)
+
+
+def summary_index(path, occ_map, skip_idxs, stack):
+    files = [file for file in path.glob("*.bin")]
+    filelist = [str(file.name) for file in files]
+    files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
+    streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
+    if stream_source_type != SUMMARY_STREAM_ID:
+        raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
+
+    if skip_idxs:
+        return files_handles, sample_size
+
+    summaryfileperiod_to_offset = defaultdict(list)
+
+    for file_index, bin_path in enumerate(files):
+        idx_path = bin_path.with_suffix(".idx")
+        if not idx_path.exists():
+            # idx file does not exist, create idx file for bin file
+            fbin = files_handles[file_index]
+
+            # offset by summary stream header size (stream_source, sample_size, summary_set_id)
+            offset = oasis_int_size * 3
+            while offset < len(fbin):
+                cursor = offset
+                event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
+                summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
+                matching_rows = occ_map[occ_map["event_id"] == event_id]
+                for row in matching_rows:
+                    period_no = row["period_no"]
+                    key = SummaryPeriod(summary_id, file_index, period_no)
+                    summaryfileperiod_to_offset[key].append(offset)
+                offset = cursor
+                # Read expval
+                _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
+                # Read through losses
+                _, offset = read_losses(fbin, offset, sample_size)
+        else:
+            # idx file exists, read and update summaryfileperiod_to_offset
+            with open(idx_path, "r") as idx_file:
+                fbin = files_handles[file_index]
+                for line in idx_file:
+                    summary_id, offset = map(int, line.strip().split(","))
+                    event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
+                    matching_rows = occ_map[occ_map["event_id"] == event_id]
+                    for row in matching_rows:
+                        period_no = row["period_no"]
+                        key = SummaryPeriod(summary_id, file_index, period_no)
+                        summaryfileperiod_to_offset[key].append(offset)
+
+    # Write filelist.idx
+    with open(Path(path, "filelist.idx"), "w") as filelist_fp:
+        filelist_fp.write("\n".join(filelist) + "\n")
+
+    # Write summaries.idx
+    max_summary_id = 0
+    with open(Path(path, "summaries.idx"), "w") as summaries_fp:
+        for key in sorted(summaryfileperiod_to_offset.keys(), key=lambda k: (k.summary_id, k.period_no, k.fileindex)):
+            max_summary_id = max(max_summary_id, key.summary_id)
+            for offset in summaryfileperiod_to_offset[key]:
+                summaries_fp.write(f"{key.summary_id}, {key.fileindex}, {key.period_no}, {offset}\n")
+
+    # Write max_summary_id.idx
+    with open(Path(path, "max_summary_id.idx"), "w") as max_summary_id_fp:
+        max_summary_id_fp.write(str(max_summary_id))
+
+    return files_handles, sample_size
 
 
 def read_occurrence(occurrence_fp):
@@ -240,36 +322,6 @@ def read_max_summary_idx(workspace_folder):
         raise FileNotFoundError(f"Cannot open {max_summary_id_file}")
     except Exception as e:
         raise RuntimeError(f"An error occurred: {str(e)}")
-
-
-def read_filelist_idx(workspace_folder):
-    """Get the summary file list
-    Args:
-        workspace_folder (str| os.PathLike): location of the workspace folder
-    Returns:
-        filelist (List[str]): list of summary binary files
-    """
-    filelist_file = Path(workspace_folder, "filelist.idx")
-    filelist = []
-
-    try:
-        with open(filelist_file, "r") as fin:
-            line = fin.readline()
-            if not line:
-                raise ValueError("File is empty or missing data")
-            while line:
-                try:
-                    filename = str(line.strip())
-                    filelist.append(filename)
-                    line = fin.readline()
-                except ValueError:
-                    raise ValueError(f"Invalid data in file: {line.strip()}")
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Cannot open {filelist_file}")
-    except Exception as e:
-        raise RuntimeError(f"An error occurred: {str(e)}")
-
-    return filelist
 
 
 def get_sample_sizes(alct, sample_size, max_summary_id):
@@ -486,7 +538,7 @@ def read_losses(summary_fin, cursor, sample_size):
         vrec[idx]["sidx"] = sidx
         vrec[idx]["loss"] = loss
         idx += 1
-    return vrec[:idx]
+    return vrec[:idx], cursor
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -565,7 +617,7 @@ def run_aal(
         # Read summary header values (event_id, summary_id, expval)
         cursor = file_offset + (2 * oasis_int_size) + oasis_float_size
 
-        vrec = read_losses(summary_fin, cursor, sample_size)
+        vrec, _ = read_losses(summary_fin, cursor, sample_size)
 
         do_calc_by_period(
             vrec,
@@ -766,7 +818,7 @@ def get_alct_data(
     return alct_data
 
 
-def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
+def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95, skip_idxs=False):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -776,20 +828,19 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
         confidence (float): Confidence level between 0 and 1, default 0.95
+        skip_idxs (bool): Boolean value to skip generating idxs files
     """
     output_aal = aal_output_file is not None
     output_alct = alct_output_file is not None
 
     with ExitStack() as stack:
         workspace_folder = Path(run_dir, "work", subfolder)
-        max_summary_id = read_max_summary_idx(workspace_folder)
-        filelist = read_filelist_idx(workspace_folder)
-
-        files_in = [Path(workspace_folder, file) for file in filelist]
-        files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files_in]
-        streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files_in, stack)
+        if not workspace_folder.is_dir():
+            raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
 
         file_data = read_input_files(run_dir)
+        files_handles, sample_size = summary_index(workspace_folder, file_data["occ_map"], skip_idxs, stack)
+        max_summary_id = read_max_summary_idx(workspace_folder)
 
         vecs_sample_aal = get_sample_sizes(output_alct, sample_size, max_summary_id)
         # Index 0 is mean
@@ -868,7 +919,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
 
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, **kwargs):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, skip_idxs=False, **kwargs):
     run(
         run_dir,
         subfolder,
@@ -877,4 +928,5 @@ def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, nohea
         alct_output_file=alct,
         noheader=noheader,
         confidence=confidence,
+        skip_idxs=skip_idxs,
     )
