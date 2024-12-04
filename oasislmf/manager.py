@@ -4,7 +4,6 @@ __all__ = [
 
 import re
 
-from oasislmf.computation.generate.doc import GenerateModelDocumentation
 from oasislmf.computation.generate.files import (GenerateDummyModelFiles,
                                                  GenerateDummyOasisFiles,
                                                  GenerateFiles)
