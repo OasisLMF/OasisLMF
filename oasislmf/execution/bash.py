@@ -2742,17 +2742,17 @@ def create_bash_outputs(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
-    # if remove_working_files:
-    #     print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
+    if remove_working_files:
+        print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
-    #     if fifo_tmp_dir:
-    #         # workaround to match bash tests
-    #         if fifo_queue_dir.endswith('fifo/'):
-    #             print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
-    #         else:
-    #             print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
-    #     else:
-    #         print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
+        if fifo_tmp_dir:
+            # workaround to match bash tests
+            if fifo_queue_dir.endswith('fifo/'):
+                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
+            else:
+                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+        else:
+            print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
 
 
 # ========================================================================== #
