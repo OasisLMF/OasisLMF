@@ -39,6 +39,11 @@ _VREC_DTYPE = np.dtype([
     ('loss', oasis_float),
 ])
 
+_SUMMARY_DTYPE = np.dtype([
+    ("summary_id", np.int32),
+    ("file_offset", np.int64),
+])
+
 _SUMMARIES_DTYPE = np.dtype([
     ("summary_id", np.int32),
     ("file_idx", np.int32),
@@ -71,84 +76,60 @@ ALCT_output = [
 ]
 
 
-class SummaryPeriod:
-    def __init__(self, summary_id, fileindex, period_no):
-        self.summary_id = summary_id
-        self.fileindex = fileindex
-        self.period_no = period_no
-
-    def __hash__(self):
-        return hash((self.summary_id, self.fileindex, self.period_no))
-
-    def __eq__(self, other):
-        return (self.summary_id, self.fileindex, self.period_no) == (other.summary_id, other.fileindex, other.period_no)
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_max_summary_id(files_idx):
+    return np.max(files_idx["summary_id"])
 
 
 def summary_index(path, occ_map, skip_idxs, stack):
     files = [file for file in path.glob("*.bin")]
     filelist = [str(file.name) for file in files]
-    files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
+    files_bin = [np.memmap(file, mode="r", dtype="u1") for file in files]
     streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
     if stream_source_type != SUMMARY_STREAM_ID:
         raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
     if skip_idxs:
-        return files_handles, sample_size
+        return files_bin, sample_size
 
-    summaryfileperiod_to_offset = defaultdict(list)
-
+    files_idx = []
     for file_index, bin_path in enumerate(files):
         idx_path = bin_path.with_suffix(".idx")
         if not idx_path.exists():
-            # idx file does not exist, create idx file for bin file
-            fbin = files_handles[file_index]
+            raise RuntimeError(f"Error: missing idx file: {idx_path}")
+        files_idx.append(np.loadtxt(idx_path, delimiter=",", dtype=_SUMMARY_DTYPE))
+    np.concatenate(files_idx)
+    max_summary_id = get_max_summary_id(np.concatenate(files_idx))
 
-            # offset by summary stream header size (stream_source, sample_size, summary_set_id)
-            offset = oasis_int_size * 3
-            while offset < len(fbin):
+    summaries_fp = open(Path(path, "summaries.idx"), "w")
+    for summary_id in range(1, max_summary_id + 1):
+        event_id_offset_map = defaultdict(list)
+        for fileindex, file_idx_data in enumerate(files_idx):
+            for row in file_idx_data:
+                offset = row["file_offset"]
                 cursor = offset
-                event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
-                summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
-                matching_rows = occ_map[occ_map["event_id"] == event_id]
-                for row in matching_rows:
-                    period_no = row["period_no"]
-                    key = SummaryPeriod(summary_id, file_index, period_no)
-                    summaryfileperiod_to_offset[key].append(offset)
-                offset = cursor
-                # Read expval
-                _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
-                # Read through losses
-                _, offset = read_losses(fbin, offset, sample_size)
-        else:
-            # idx file exists, read and update summaryfileperiod_to_offset
-            with open(idx_path, "r") as idx_file:
-                fbin = files_handles[file_index]
-                for line in idx_file:
-                    summary_id, offset = map(int, line.strip().split(","))
-                    event_id, _ = mv_read(fbin, offset, oasis_int, oasis_int_size)
-                    matching_rows = occ_map[occ_map["event_id"] == event_id]
-                    for row in matching_rows:
-                        period_no = row["period_no"]
-                        key = SummaryPeriod(summary_id, file_index, period_no)
-                        summaryfileperiod_to_offset[key].append(offset)
+                event_id, cursor = mv_read(files_bin[fileindex], cursor, oasis_int, oasis_int_size)
+                curr_summary_id, cursor = mv_read(files_bin[fileindex], cursor, oasis_int, oasis_int_size)
+                if curr_summary_id == summary_id:
+                    event_id_offset_map[event_id].append((offset, fileindex))
+        for event_id, vals in event_id_offset_map.items():
+            matching_rows = occ_map[occ_map["event_id"] == event_id]
+            for row in matching_rows:
+                period_no = row["period_no"]
+                for offset_fileidx in vals:
+                    # print(summary_id, offset_fileidx[1], period_no, offset_fileidx[0])
+                    summaries_fp.write(f"{summary_id}, {offset_fileidx[1]}, {period_no}, {offset_fileidx[0]}\n")
+    summaries_fp.close()
 
     # Write filelist.idx
     with open(Path(path, "filelist.idx"), "w") as filelist_fp:
         filelist_fp.write("\n".join(filelist) + "\n")
 
-    # Write summaries.idx
-    max_summary_id = 0
-    with open(Path(path, "summaries.idx"), "w") as summaries_fp:
-        for key in sorted(summaryfileperiod_to_offset.keys(), key=lambda k: (k.summary_id, k.period_no, k.fileindex)):
-            max_summary_id = max(max_summary_id, key.summary_id)
-            for offset in summaryfileperiod_to_offset[key]:
-                summaries_fp.write(f"{key.summary_id}, {key.fileindex}, {key.period_no}, {offset}\n")
-
     # Write max_summary_id.idx
     with open(Path(path, "max_summary_id.idx"), "w") as max_summary_id_fp:
         max_summary_id_fp.write(str(max_summary_id))
 
-    return files_handles, sample_size
+    return files_bin, sample_size
 
 
 def read_occurrence(occurrence_fp):
@@ -850,6 +831,8 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
 
         # Load summaries list
         summaries_file = Path(workspace_folder, "summaries.idx")
+        if not summaries_file.exists():
+            raise RuntimeError(f"Error: missing summaries.idx file: {summaries_file}")
         summaries = np.loadtxt(summaries_file, delimiter=",", dtype=_SUMMARIES_DTYPE)
         if len(summaries) == 0:
             raise RuntimeError("Error: summaries file empty")
