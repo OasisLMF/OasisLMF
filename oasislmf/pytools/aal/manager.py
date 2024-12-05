@@ -23,7 +23,7 @@ def _get_default_oasis_aal_memory():
         (float): Default OASIS_AAL_MEMORY size, default size 4GB
     """
     system = platform.system()
-    logger.info(f"OASIS_AAL_MEMORY not set, setting to half of available memory")
+    logger.info("OASIS_AAL_MEMORY not set, setting to half of available memory")
     total_memory = 4
     if system == "Linux" or system == "Darwin":  # Linux or macOS
         total_memory = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
