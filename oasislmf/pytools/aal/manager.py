@@ -3,18 +3,45 @@
 import logging
 import numpy as np
 import numba as nb
+import os
+import platform
 import struct
-from collections import defaultdict
 from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (
-    MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read)
+from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
+                                                  init_streams_in, mv_read)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
+
+def _get_default_oasis_aal_memory():
+    """Return half the system memory available to account for lexsort memory requirements
+    Returns:
+        (float): Default OASIS_AAL_MEMORY size, default size 4GB
+    """
+    system = platform.system()
+    logger.info(f"OASIS_AAL_MEMORY not set, setting to half of available memory")
+    total_memory = 4
+    if system == "Linux" or system == "Darwin":  # Linux or macOS
+        total_memory = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
+    elif system == "Windows":  # Windows
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        c_ulonglong = ctypes.c_ulonglong
+        memory_status = ctypes.create_string_buffer(64)
+        kernel32.GlobalMemoryStatusEx(ctypes.byref(memory_status))
+        total_memory = c_ulonglong.from_buffer(memory_status[8:16]).value
+    else:
+        logger.warning(f"Unknown system platform {system}. Setting Default OASIS_AAL_MEMORY to 4GB")
+        return total_memory
+    return total_memory / (1024**3)
+
+
+# Total amount of memory AAL summary index should use before raising an error (GB)
+OASIS_AAL_MEMORY = float(os.environ["OASIS_AAL_MEMORY"]) if "OASIS_AAL_MEMORY" in os.environ else _get_default_oasis_aal_memory()
 
 _MEAN_TYPE_ANALYTICAL = 1
 _MEAN_TYPE_SAMPLE = 2
@@ -39,17 +66,13 @@ _VREC_DTYPE = np.dtype([
     ('loss', oasis_float),
 ])
 
-_SUMMARY_DTYPE = np.dtype([
-    ("summary_id", np.int32),
-    ("file_offset", np.int64),
-])
-
 _SUMMARIES_DTYPE = np.dtype([
     ("summary_id", np.int32),
     ("file_idx", np.int32),
     ("period_no", np.int32),
     ("file_offset", np.int64),
 ])
+_SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
 
 AAL_output = [
     ('SummaryId', oasis_int, '%d'),
@@ -77,59 +100,122 @@ ALCT_output = [
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_max_summary_id(files_idx):
-    return np.max(files_idx["summary_id"])
+def process_bin_file(
+    fbin,
+    offset,
+    occ_map,
+    summaries_data,
+    summaries_idx,
+    file_index,
+    sample_size
+):
+    """Reads summary<n>.bin file event_ids and summary_ids to populate summaries_data
+    Args:
+        fbin (np.memmap): summary binary memmap
+        offset (int): file offset to read from
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
+        summaries_idx (int): current index reached in summaries_data
+        file_index (int): Summary bin file index
+        sample_size (int): Sample size
+    Returns:
+        summaries_idx (int): current index reached in summaries_data
+        resize_flag (bool): flag to indicate whether to resize summaries_data when full
+        offset (int): file offset to read from
+    """
+    while offset < len(fbin):
+        cursor = offset
+        event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
+        summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
+
+        for row in occ_map:
+            if row["event_id"] == event_id:
+                if summaries_idx >= len(summaries_data):
+                    # Resize array as full
+                    return summaries_idx, True, offset
+
+                summaries_data[summaries_idx]["summary_id"] = summary_id
+                summaries_data[summaries_idx]["file_idx"] = file_index
+                summaries_data[summaries_idx]["period_no"] = row["period_no"]
+                summaries_data[summaries_idx]["file_offset"] = offset
+                summaries_idx += 1
+
+        offset = cursor
+        # Read Expval
+        _, offset = mv_read(fbin, offset, oasis_float, oasis_float_size)
+        # Skip over losses
+        _, offset = read_losses(fbin, offset, sample_size)
+
+    return summaries_idx, False, offset
 
 
-def summary_index(path, occ_map, skip_idxs, stack):
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_summaries_data(files_handles, occ_map, sample_size, aal_max_memory):
+    """Gets the indexed summaries data unordered
+    Args:
+        files_handles (List[np.memmap]): List of memmaps for summary files data
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        sample_size (int): Sample size
+        aal_ma_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
+    Returns:
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
+        max_summary_id (int): Max summary ID
+    """
+    summaries_data = np.zeros(1000000, dtype=_SUMMARIES_DTYPE)
+    summaries_idx = 0
+    for file_index in range(len(files_handles)):
+        offset = oasis_int_size * 3  # Summary stream header size
+        while True:
+            summaries_idx, resize_flag, offset = process_bin_file(
+                files_handles[file_index],
+                offset,
+                occ_map,
+                summaries_data,
+                summaries_idx,
+                file_index,
+                sample_size
+            )
+            if not resize_flag:
+                # No resizing needed, continue to the next file
+                break
+
+            # Resize summaries_data, double the size
+            new_size = len(summaries_data) * 2
+            if (new_size * _SUMMARIES_DTYPE_size) > (aal_max_memory * (1024**3)):
+                raise RuntimeError(
+                    "Error: Ran out of memory while indexing summaries. Try increasing environment variable OASIS_AAL_MEMORY or using a smaller occurrence file")
+            temp = np.zeros(new_size, dtype=_SUMMARIES_DTYPE)
+            temp[:len(summaries_data)] = summaries_data
+            summaries_data = temp
+
+    summaries_data = summaries_data[:summaries_idx]
+    max_summary_id = np.max(summaries_data["summary_id"])
+    return summaries_data, max_summary_id
+
+
+def summary_index(path, occ_map, stack):
+    """Index the summary binary outputs
+    Args:
+        path (os.PathLike): Path to the workspace folder containing summary binaries
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        stack (ExitStack): Exit stack
+    Returns:
+        files_handles (List[np.memmap]): List of memmaps for summary files data
+        sample_size (int): Sample size
+        max_summary_id (int): Max summary ID
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
+    """
+    # Find summary binary files
     files = [file for file in path.glob("*.bin")]
-    filelist = [str(file.name) for file in files]
-    files_bin = [np.memmap(file, mode="r", dtype="u1") for file in files]
+    files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
+
     streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
     if stream_source_type != SUMMARY_STREAM_ID:
         raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
-    if skip_idxs:
-        return files_bin, sample_size
-
-    files_idx = []
-    for file_index, bin_path in enumerate(files):
-        idx_path = bin_path.with_suffix(".idx")
-        if not idx_path.exists():
-            raise RuntimeError(f"Error: missing idx file: {idx_path}")
-        files_idx.append(np.loadtxt(idx_path, delimiter=",", dtype=_SUMMARY_DTYPE))
-    np.concatenate(files_idx)
-    max_summary_id = get_max_summary_id(np.concatenate(files_idx))
-
-    summaries_fp = open(Path(path, "summaries.idx"), "w")
-    for summary_id in range(1, max_summary_id + 1):
-        event_id_offset_map = defaultdict(list)
-        for fileindex, file_idx_data in enumerate(files_idx):
-            for row in file_idx_data:
-                offset = row["file_offset"]
-                cursor = offset
-                event_id, cursor = mv_read(files_bin[fileindex], cursor, oasis_int, oasis_int_size)
-                curr_summary_id, cursor = mv_read(files_bin[fileindex], cursor, oasis_int, oasis_int_size)
-                if curr_summary_id == summary_id:
-                    event_id_offset_map[event_id].append((offset, fileindex))
-        for event_id, vals in event_id_offset_map.items():
-            matching_rows = occ_map[occ_map["event_id"] == event_id]
-            for row in matching_rows:
-                period_no = row["period_no"]
-                for offset_fileidx in vals:
-                    # print(summary_id, offset_fileidx[1], period_no, offset_fileidx[0])
-                    summaries_fp.write(f"{summary_id}, {offset_fileidx[1]}, {period_no}, {offset_fileidx[0]}\n")
-    summaries_fp.close()
-
-    # Write filelist.idx
-    with open(Path(path, "filelist.idx"), "w") as filelist_fp:
-        filelist_fp.write("\n".join(filelist) + "\n")
-
-    # Write max_summary_id.idx
-    with open(Path(path, "max_summary_id.idx"), "w") as max_summary_id_fp:
-        max_summary_id_fp.write(str(max_summary_id))
-
-    return files_bin, sample_size
+    summaries_data, max_summary_id = get_summaries_data(files_handles, occ_map, sample_size, OASIS_AAL_MEMORY)
+    summaries_data = summaries_data[np.lexsort((summaries_data["file_idx"], summaries_data["period_no"], summaries_data["summary_id"]))]
+    return files_handles, sample_size, max_summary_id, summaries_data
 
 
 def read_occurrence(occurrence_fp):
@@ -278,31 +364,6 @@ def read_input_files(run_dir):
         "period_weights": period_weights,
     }
     return file_data
-
-
-def read_max_summary_idx(workspace_folder):
-    """Get the max summary id
-    Args:
-        workspace_folder (str| os.PathLike): location of the workspace folder
-    Returns:
-        max_summary_id (int): max summary id int
-    """
-    max_summary_id_file = Path(workspace_folder, "max_summary_id.idx")
-
-    try:
-        with open(max_summary_id_file, "r") as fin:
-            line = fin.readline()
-            if not line:
-                raise ValueError("File is empty or missing data")
-            try:
-                max_summary_id = int(line.strip())
-                return max_summary_id
-            except ValueError:
-                raise ValueError(f"Invalid data in file: {line.strip()}")
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Cannot open {max_summary_id_file}")
-    except Exception as e:
-        raise RuntimeError(f"An error occurred: {str(e)}")
 
 
 def get_sample_sizes(alct, sample_size, max_summary_id):
@@ -492,7 +553,7 @@ def do_calc_by_period(
 def read_losses(summary_fin, cursor, sample_size):
     """Read losses from summary_fin starting at cursor
     Args:
-        summary_fin (memmap): summary file memmap
+        summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
         sample_size (int): Sample Size
     Returns:
@@ -541,7 +602,7 @@ def run_aal(
         period_weights (ndarray[period_weights_dtype]): Period Weights
         sample_size (int): Sample Size
         max_summary_id (int): Max summary_id
-        files_handles (List[memmap]): List of memmaps for summary files data
+        files_handles (List[np.memmap]): List of memmaps for summary files data
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
@@ -799,7 +860,7 @@ def get_alct_data(
     return alct_data
 
 
-def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95, skip_idxs=False):
+def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -809,7 +870,6 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
         confidence (float): Confidence level between 0 and 1, default 0.95
-        skip_idxs (bool): Boolean value to skip generating idxs files
     """
     output_aal = aal_output_file is not None
     output_alct = alct_output_file is not None
@@ -820,8 +880,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
 
         file_data = read_input_files(run_dir)
-        files_handles, sample_size = summary_index(workspace_folder, file_data["occ_map"], skip_idxs, stack)
-        max_summary_id = read_max_summary_idx(workspace_folder)
+        files_handles, sample_size, max_summary_id, summaries_data = summary_index(workspace_folder, file_data["occ_map"], stack)
 
         vecs_sample_aal = get_sample_sizes(output_alct, sample_size, max_summary_id)
         # Index 0 is mean
@@ -829,17 +888,9 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         # Indexed on summary_id - 1
         vec_analytical_aal = np.zeros(max_summary_id, dtype=_AAL_REC_DTYPE)
 
-        # Load summaries list
-        summaries_file = Path(workspace_folder, "summaries.idx")
-        if not summaries_file.exists():
-            raise RuntimeError(f"Error: missing summaries.idx file: {summaries_file}")
-        summaries = np.loadtxt(summaries_file, delimiter=",", dtype=_SUMMARIES_DTYPE)
-        if len(summaries) == 0:
-            raise RuntimeError("Error: summaries file empty")
-
         # Run AAL calculations, populate above vecs
         run_aal(
-            summaries,
+            summaries_data,
             file_data["no_of_periods"],
             file_data["period_weights"],
             sample_size,
@@ -902,7 +953,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
 
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, skip_idxs=False, **kwargs):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, **kwargs):
     run(
         run_dir,
         subfolder,
@@ -911,5 +962,4 @@ def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, nohea
         alct_output_file=alct,
         noheader=noheader,
         confidence=confidence,
-        skip_idxs=skip_idxs,
     )
