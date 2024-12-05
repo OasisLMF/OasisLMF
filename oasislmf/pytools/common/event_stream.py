@@ -27,6 +27,7 @@ COVERAGE_STREAM = 2
 
 
 # special sample id
+NUM_SPECIAL_SIDX = 5
 MEAN_IDX = -1
 STD_DEV_IDX = -2
 TIV_IDX = -3
