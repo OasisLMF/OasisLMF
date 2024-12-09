@@ -485,7 +485,6 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
         file_data = read_input_files(run_dir, compute_melt, compute_qelt, len_sample)
-        include_event_rate = file_data["include_event_rate"]
         elt_reader = ELTReader(
             len_sample,
             compute_selt,
@@ -510,12 +509,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_melt:
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
             if not noheader:
-                if include_event_rate:
-                    MELT_headers = ','.join([c[0] for c in MELT_output])
-                    melt_file.write(MELT_headers + '\n')
-                else:
-                    MELT_headers = ','.join([c[0] for c in MELT_output if c[0] != "EventRate"])
-                    melt_file.write(MELT_headers + '\n')
+                MELT_headers = ','.join([c[0] for c in MELT_output])
+                melt_file.write(MELT_headers + '\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
@@ -530,10 +525,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             output_files['qelt'] = None
 
         SELT_fmt = ','.join([c[2] for c in SELT_output])
-        if include_event_rate:
-            MELT_fmt = ','.join([c[2] for c in MELT_output])
-        else:
-            MELT_fmt = ','.join([c[2] for c in MELT_output if c[0] != "EventRate"])
+        MELT_fmt = ','.join([c[2] for c in MELT_output])
         QELT_fmt = ','.join([c[2] for c in QELT_output])
 
         for event_id in elt_reader.read_streams(streams_in):
@@ -548,10 +540,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 # Extract MELT data
                 melt_data = elt_reader.melt_data[:elt_reader.melt_idx[0]]
                 if output_files['melt'] is not None and melt_data.size > 0:
-                    if include_event_rate:
-                        MELT_cols = [c[0] for c in MELT_output]
-                    else:
-                        MELT_cols = [c[0] for c in MELT_output if c[0] != "EventRate"]
+                    MELT_cols = [c[0] for c in MELT_output]
                     melt_data = melt_data[MELT_cols]
                     np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt=MELT_fmt)
                 elt_reader.melt_idx[0] = 0
