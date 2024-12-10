@@ -299,7 +299,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     Args:
         no_of_periods (int): Number of periods
         run_dir (str | os.PathLike): Path to input files dir
-        filename (str | os.PathLike): occurrence binary file name
+        filename (str | os.PathLike): periods binary file name
     Returns:
         period_weights (ndarray[period_weights_dtype]): Returns the period weights
     """
