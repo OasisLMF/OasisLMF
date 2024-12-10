@@ -86,6 +86,12 @@ items_dtype = np.dtype([('item_id', 'i4'),
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
 
+# Input file names (input/<file_name>)
+EVENTRATES_FILE = "event_rates.csv"
+OCCURRENCE_FILE = "occurrence.bin"
+PERIODS_FILE = "periods.bin"
+QUANTILE_FILE = "quantile.bin"
+
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
@@ -152,7 +158,7 @@ def almost_equal(a, b):
     return abs(a - b) < float_equal_precision
 
 
-def read_event_rates(run_dir, filename="event_rates.csv"):
+def read_event_rates(run_dir, filename=EVENTRATES_FILE):
     """Reads event rates from a CSV file
     Args:
         run_dir (str | os.PathLike): Path to input files dir
@@ -181,7 +187,7 @@ def read_event_rates(run_dir, filename="event_rates.csv"):
         return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
 
 
-def read_quantile(sample_size, run_dir, filename="quantile.bin", return_empty=False):
+def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=False):
     """Generate a quantile interval Dictionary based on sample size and quantile binary file
     Args:
         sample_size (int): Sample size
@@ -216,7 +222,7 @@ def read_quantile(sample_size, run_dir, filename="quantile.bin", return_empty=Fa
     return intervals
 
 
-def read_occurrence(run_dir, filename="occurrence.bin"):
+def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
     """Read the occurrence binary file and returns an occurrence map
     Args:
         run_dir (str | os.PathLike): Path to input files dir
@@ -288,7 +294,7 @@ def read_occurrence(run_dir, filename="occurrence.bin"):
         raise RuntimeError(f"An error occurred: {str(e)}")
 
 
-def read_periods(no_of_periods, run_dir, filename="periods.bin"):
+def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
     Args:
         no_of_periods (int): Number of periods
