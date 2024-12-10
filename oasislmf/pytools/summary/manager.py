@@ -319,7 +319,7 @@ class SummaryReader(EventReader):
         self.has_affected_risk = has_affected_risk
         self.logger = logger
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         return read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.summary_sets_id, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
@@ -458,9 +458,9 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                         break
                 if low_memory:
                     # write the summary.idx file
-                    np.savetxt(summary_sets_index_pipe[summary_set_id],
+                    np.savetxt(event_id, summary_sets_index_pipe[summary_set_id],
                                summary_stream_index[:summary_index_cursor],
-                               fmt="%i,%i")
+                               fmt="%i,%i,%i")
 
             loss_summary.fill(0)
             present_summary_id.fill(0)

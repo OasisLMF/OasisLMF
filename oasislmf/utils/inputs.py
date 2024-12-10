@@ -11,6 +11,7 @@ import os
 import json
 import logging
 
+import ods_tools.oed.setting_schema
 from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 from json.decoder import JSONDecodeError

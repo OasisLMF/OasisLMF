@@ -162,6 +162,87 @@ class ComputationStep:
             # ignore any errors in signature creation and return blank
             return None
 
+    @classmethod
+    def get_computation_settings_json_schema(cls):
+        """
+import json
+from oasislmf.computation.run.model import RunModel
+RunModel.get_computation_settings_json_schema()
+
+import json
+from ods_tools.oed import settings
+jba_model_settings = json.load(open("/home/sstruzik/Downloads/JBA-FLY_model_settings.json"))
+jba_settings = settings.Settings()
+jba_settings.add_settings(jba_model_settings)
+#jba_settings.get_settings()
+a = jba_settings.to_json_schema()
+
+
+[x] modify generic model setting to allow computation settings
+[x] create a computation settings schema to validate model settings from the mdk perspective.
+[x] create a function to convert model_setting into schema part for each setting to validate analysis_setting
+    (same as) create model_level computation_settings_schema and model_settings_schema from parameters for analysis settings
+[x] I also need to manage config_compatibility_profile that need to be publish allow the mdk schema.
+[] create an ods_tool method that take analysis setting schema and model setting and validate the analysis setting
+[] check where to put the computation settings schema
+[add visible, editable in model settings]
+
+next step
+
+[] see how to validate a subpart of json
+[] move the compatibility update logic to ods_tools and merge it with the analysis one
+[] what does that do =>
+    if ver.parse(settings_data.get('version', '0')) >= ver.parse('3'):
+        return settings_data
+
+remove the base setting schema with my setting by merge
+create correct subclass for analysisis and model
+        Returns:
+
+        """
+
+        arg_type_to_json_type = {
+            str: "string",
+            int: "number",
+            float: "number",
+            str2bool: "boolean",
+        }
+        def get_json_type(_param):
+            if  _param.get('type') in arg_type_to_json_type:
+                return arg_type_to_json_type[_param.get('type')]
+            elif _param.get('is_path'):
+                return "string"
+            elif _param.get('default') in [True, False]:
+                return "boolean"
+            elif isinstance(_param.get('default'), dict):
+                return "object"
+            elif isinstance(_param.get('default'), list):
+                return "array"
+            elif isinstance(_param.get('default'), str):
+                return "string"
+            else:
+                return "string"
+
+
+        json_types = ["object", "array", "number", "string", "boolean"]
+        json_schema = {
+            "$schema": "http://oasislmf.org/computation_settings/draft/schema#",
+            "type": "object",
+            "title": "Computation settings.",
+            "description": "Specifies the computation settings and outputs for an analysis.",
+            "additionalProperties": False,
+            "properties": {}
+        }
+        for param in cls.get_params():
+            param_schema =  {"type": get_json_type(param)}
+            if param.get('help'):
+                param_schema["description"] = param['help']
+            if  param.get('choices'):
+                param_schema["enum"] = param.get('choices')
+            json_schema[ "properties"][param['name']] = param_schema
+        return json_schema
+
+
     def run(self):
         """method that will be call by all the interface to execute the computation step"""
         raise NotImplemented(f'Methode run must be implemented in {self.__class__.__name__}')

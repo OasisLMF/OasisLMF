@@ -113,6 +113,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
 
     def process_locations(self, locations):
         peril_groups_df = get_peril_groups_df()
+
         model_perils_covered = np.unique(pd.DataFrame({'peril_group_id': self.config['model_perils_covered']})
                                          .merge(peril_groups_df)['peril_id'])
         split_df = locations['LocPerilsCovered'].str.split(';').apply(pd.Series).stack()
