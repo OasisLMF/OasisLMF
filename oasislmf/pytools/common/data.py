@@ -77,6 +77,9 @@ items_dtype = np.dtype([('item_id', 'i4'),
                         ('vulnerability_id', 'i4'),
                         ('group_id', 'i4')])
 
+# Mean type numbers for outputs (SampleType)
+MEAN_TYPE_ANALYTICAL = 1
+MEAN_TYPE_SAMPLE = 2
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
