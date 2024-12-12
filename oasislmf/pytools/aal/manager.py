@@ -1,10 +1,10 @@
 # aal/manager.py
 
+import heapq
 import logging
 import numpy as np
 import numba as nb
 import os
-import platform
 import struct
 from contextlib import ExitStack
 from pathlib import Path
@@ -17,31 +17,8 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
-def _get_default_oasis_aal_memory():
-    """Return half the system memory available to account for lexsort memory requirements
-    Returns:
-        (float): Default OASIS_AAL_MEMORY size, default size 4GB
-    """
-    system = platform.system()
-    logger.info("OASIS_AAL_MEMORY not set, setting to half of available memory")
-    total_memory = 4
-    if system == "Linux" or system == "Darwin":  # Linux or macOS
-        total_memory = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
-    elif system == "Windows":  # Windows
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        c_ulonglong = ctypes.c_ulonglong
-        memory_status = ctypes.create_string_buffer(64)
-        kernel32.GlobalMemoryStatusEx(ctypes.byref(memory_status))
-        total_memory = c_ulonglong.from_buffer(memory_status[8:16]).value
-    else:
-        logger.warning(f"Unknown system platform {system}. Setting Default OASIS_AAL_MEMORY to 4GB")
-        return total_memory
-    return total_memory / (1024**3)
-
-
 # Total amount of memory AAL summary index should use before raising an error (GB)
-OASIS_AAL_MEMORY = float(os.environ["OASIS_AAL_MEMORY"]) if "OASIS_AAL_MEMORY" in os.environ else _get_default_oasis_aal_memory()
+OASIS_AAL_MEMORY = float(os.environ["OASIS_AAL_MEMORY"]) if "OASIS_AAL_MEMORY" in os.environ else 4
 
 _MEAN_TYPE_ANALYTICAL = 1
 _MEAN_TYPE_SAMPLE = 2
@@ -161,7 +138,8 @@ def get_summaries_data(files_handles, occ_map, sample_size, aal_max_memory):
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
         max_summary_id (int): Max summary ID
     """
-    summaries_data = np.zeros(1000000, dtype=_SUMMARIES_DTYPE)
+    max_buffer_size = int((aal_max_memory * (1024**3)) // _SUMMARIES_DTYPE_size)
+    summaries_data = np.empty(1000000, dtype=_SUMMARIES_DTYPE)
     summaries_idx = 0
     for file_index in range(len(files_handles)):
         offset = oasis_int_size * 3  # Summary stream header size
@@ -175,13 +153,14 @@ def get_summaries_data(files_handles, occ_map, sample_size, aal_max_memory):
                 file_index,
                 sample_size
             )
+
+            # No resizing needed, continue to the next file
             if not resize_flag:
-                # No resizing needed, continue to the next file
                 break
 
             # Resize summaries_data, double the size
             new_size = len(summaries_data) * 2
-            if (new_size * _SUMMARIES_DTYPE_size) > (aal_max_memory * (1024**3)):
+            if new_size > max_buffer_size:
                 raise RuntimeError(
                     "Error: Ran out of memory while indexing summaries. Try increasing environment variable OASIS_AAL_MEMORY or using a smaller occurrence file")
             temp = np.zeros(new_size, dtype=_SUMMARIES_DTYPE)
@@ -193,17 +172,137 @@ def get_summaries_data(files_handles, occ_map, sample_size, aal_max_memory):
     return summaries_data, max_summary_id
 
 
-def summary_index(path, occ_map, stack):
+def sort_and_save_chunk(summaries_data, temp_file_path):
+    """Sort a chunk of summaries data and save it to a temporary file.
+    Args:
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Indexed summary data
+        temp_file_path (str | os.PathLike): Path to temporary file
+    """
+    sort_columns = ["file_idx", "period_no", "summary_id"]
+    sorted_indices = np.lexsort([summaries_data[col] for col in sort_columns])
+    sorted_chunk = summaries_data[sorted_indices]
+    sorted_chunk.tofile(temp_file_path)
+
+
+def merge_sorted_chunks(temp_files, output_file, buffer_size):
+    """Merge sorted chunks using a k-way merge algorithm and save to the output file.
+    Args:
+        temp_files (str | os.PathLike): List of temporary file paths
+        output_file (str | os.PathLike): Path to final sorted output file for indexed summaries
+        buffer_size (int): Size of buffer to sort and store before writing to output file
+    Returns:
+        max_summary_id (int): Max summary ID
+    """
+    sort_columns = ["summary_id", "period_no", "file_idx"]  # Reverse order to lexsort for heaps
+    memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
+
+    max_summary_id = 0
+    buffer = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
+    buffer_index = 0
+    with open(output_file, 'wb') as out:
+        min_heap = []
+        # Initialize the min_heap with the first row of each memmap
+        for i, mmap in enumerate(memmaps):
+            if mmap.shape[0] > 0:
+                first_row = mmap[0]
+                max_summary_id = max(max_summary_id, first_row["summary_id"])
+                heapq.heappush(min_heap, (tuple(first_row[sort_columns]), i, 0))
+
+        # Perform the k-way merge
+        while min_heap:
+            # The min heap will store the smallest row at the top when popped
+            _, i, idx = heapq.heappop(min_heap)
+            smallest_row = memmaps[i][idx]
+            buffer[buffer_index] = smallest_row
+            buffer_index += 1
+
+            # If the buffer is full, look for max_summary_id, write to file, and reset
+            if buffer_index == buffer_size:
+                max_summary_id = max(max_summary_id, np.max(buffer["summary_id"]))
+                out.write(buffer.tobytes())
+                buffer_index = 0
+
+            next_idx = idx + 1
+            # Push the next row from the same file into the heap if the there are any more rows
+            if next_idx < memmaps[i].shape[0]:
+                next_row = memmaps[i][next_idx]
+                heapq.heappush(min_heap, (tuple(next_row[sort_columns]), i, next_idx))
+
+        # Check for max_summary_id in remaining rows and write to file
+        if buffer_index > 0:
+            max_summary_id = max(max_summary_id, np.max(buffer[:buffer_index]["summary_id"]))
+            out.write(buffer[:buffer_index].tobytes())
+
+    # Clean up temporary files
+    for temp_file in temp_files:
+        os.remove(temp_file)
+
+    return max_summary_id
+
+
+def get_summaries_data_lm(path, files_handles, occ_map, sample_size, aal_max_memory):
+    """Gets the indexed summaries data, ordered with k-way merge for low memory
+    Args:
+        path (os.PathLike): Path to the workspace folder containing summary binaries
+        files_handles (List[np.memmap]): List of memmaps for summary files data
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        sample_size (int): Sample size
+        aal_ma_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
+    Returns:
+        summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
+        max_summary_id (int): Max summary ID
+    """
+    buffer_size = int(((aal_max_memory * (1024**3) // _SUMMARIES_DTYPE_size)))
+    temp_files = []
+    chunk_index = 0
+
+    for file_index, fbin in enumerate(files_handles):
+        offset = oasis_int_size * 3  # Summary stream header size
+        summaries_data = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
+        summaries_idx = 0
+
+        while True:
+            summaries_idx, resize_flag, offset = process_bin_file(
+                fbin,
+                offset,
+                occ_map,
+                summaries_data,
+                summaries_idx,
+                file_index,
+                sample_size
+            )
+
+            # Write new summaries partial file when buffer size or end of summary file reached
+            if resize_flag or offset >= len(fbin):
+                temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
+                sort_and_save_chunk(summaries_data[:summaries_idx], temp_file_path)
+                temp_files.append(temp_file_path)
+                summaries_data = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
+                chunk_index += 1
+                summaries_idx = 0
+
+            # End of file, move to next file
+            if offset >= len(fbin):
+                break
+
+    summaries_file = Path(path, "indexed_summaries.bdat")
+    max_summary_id = merge_sorted_chunks(temp_files, summaries_file, buffer_size)
+    summaries_data = np.memmap(summaries_file, mode="r", dtype=_SUMMARIES_DTYPE)
+    return summaries_data, max_summary_id
+
+
+def summary_index(path, occ_map, stack, low_memory=False):
     """Index the summary binary outputs
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
         stack (ExitStack): Exit stack
+        low_memory (bool): Boolean value to use low memory indexed summaries
     Returns:
         files_handles (List[np.memmap]): List of memmaps for summary files data
         sample_size (int): Sample size
         max_summary_id (int): Max summary ID
-        summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
+        summaries_data (ndarray[_SUMMARIES_DTYPE] | np.memmap[_SUMMARIES_DTYPE]): Index summary data
     """
     # Find summary binary files
     files = [file for file in path.glob("*.bin")]
@@ -213,8 +312,12 @@ def summary_index(path, occ_map, stack):
     if stream_source_type != SUMMARY_STREAM_ID:
         raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
-    summaries_data, max_summary_id = get_summaries_data(files_handles, occ_map, sample_size, OASIS_AAL_MEMORY)
-    summaries_data = summaries_data[np.lexsort((summaries_data["file_idx"], summaries_data["period_no"], summaries_data["summary_id"]))]
+    if low_memory:
+        summaries_data, max_summary_id = get_summaries_data_lm(path, files_handles, occ_map, sample_size, OASIS_AAL_MEMORY)
+    else:
+        summaries_data, max_summary_id = get_summaries_data(files_handles, occ_map, sample_size, OASIS_AAL_MEMORY)
+        sort_columns = ["file_idx", "period_no", "summary_id"]
+        summaries_data = summaries_data[np.lexsort([summaries_data[col] for col in sort_columns])]
     return files_handles, sample_size, max_summary_id, summaries_data
 
 
@@ -860,7 +963,7 @@ def get_alct_data(
     return alct_data
 
 
-def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
+def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95, low_memory=False):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -870,6 +973,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
         confidence (float): Confidence level between 0 and 1, default 0.95
+        low_memory (bool): Boolean value to use low memory indexed summaries
     """
     output_aal = aal_output_file is not None
     output_alct = alct_output_file is not None
@@ -880,7 +984,8 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
 
         file_data = read_input_files(run_dir)
-        files_handles, sample_size, max_summary_id, summaries_data = summary_index(workspace_folder, file_data["occ_map"], stack)
+        files_handles, sample_size, max_summary_id, summaries_data = summary_index(
+            workspace_folder, file_data["occ_map"], stack, low_memory=low_memory)
 
         vecs_sample_aal = get_sample_sizes(output_alct, sample_size, max_summary_id)
         # Index 0 is mean
@@ -953,7 +1058,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
 
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, **kwargs):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, low_memory=False, **kwargs):
     run(
         run_dir,
         subfolder,
@@ -962,4 +1067,5 @@ def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, nohea
         alct_output_file=alct,
         noheader=noheader,
         confidence=confidence,
+        low_memory=low_memory,
     )
