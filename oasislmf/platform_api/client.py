@@ -134,6 +134,11 @@ class FileEndpoint(object):
             content_type = self._set_content_type(file_path)
         return self.session.upload(self._build_url(ID), file_path, content_type)
 
+    def upload_byte(self, ID, file_bytes, filename, content_type=None):
+        if not content_type:
+            content_type = self._set_content_type(filename)
+        return self.session.upload_byte(self._build_url(ID), file_bytes, filename, content_type)
+
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
         dir_fp = os.path.dirname(abs_fp)

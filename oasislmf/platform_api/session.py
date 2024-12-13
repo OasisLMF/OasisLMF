@@ -142,6 +142,26 @@ class APISession(Session):
                     raise e
             return r
 
+    def upload_byte(self, url, file_bytes, filename, content_type, **kwargs):
+        counter = 0
+        while True:
+            counter += 1
+            try:
+                m = MultipartEncoder(fields={'file': (filename, file_bytes, content_type)})
+                r = super(APISession, self).post(url, data=m,
+                                                 headers={'Content-Type':m.content_type},
+                                                 timeout=self.timeout,
+                                                 **kwargs)
+                r.raise_for_status()
+                time.sleep(self.request_interval)
+            except (HTTPError, ConnectionError, ReadTimeout) as e:
+                if self.__recoverable(e, url, 'GET', counter):
+                    continue
+                else:
+                    self.logger.debug(f'Unrecoverable error: {e}')
+                    raise e
+            return r
+
     def get(self, url, **kwargs):
         counter = 0
         while True:
