@@ -3,6 +3,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
+
 oasis_int = np.dtype(os.environ.get('OASIS_INT', 'i4'))
 nb_oasis_int = nb.from_dtype(oasis_int)
 oasis_int_size = oasis_int.itemsize
@@ -76,6 +77,10 @@ items_dtype = np.dtype([('item_id', 'i4'),
                         ('areaperil_id', areaperil_int),
                         ('vulnerability_id', 'i4'),
                         ('group_id', 'i4')])
+
+# Mean type numbers for outputs (SampleType)
+MEAN_TYPE_ANALYTICAL = 1
+MEAN_TYPE_SAMPLE = 2
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
