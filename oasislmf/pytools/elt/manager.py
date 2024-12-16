@@ -3,20 +3,17 @@
 import logging
 import numpy as np
 import numba as nb
-import struct
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
+from oasislmf.pytools.common.input_files import read_event_rates, read_quantile
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
-
-_MEAN_TYPE_ANALYTICAL = 1
-_MEAN_TYPE_SAMPLE = 2
 
 SELT_output = [
     ('EventId', oasis_int, '%d'),
@@ -96,7 +93,7 @@ class ELTReader(EventReader):
         self.event_rates = event_rates.astype(oasis_float)
         self.intervals = intervals
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
         # Pass state variables to read_buffer
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id, self.selt_data, self.selt_idx,
@@ -253,7 +250,7 @@ def read_buffer(
                             melt_data, mi,
                             event_id=event_id,
                             summary_id=state["summary_id"],
-                            sample_type=_MEAN_TYPE_ANALYTICAL,
+                            sample_type=MEAN_TYPE_ANALYTICAL,
                             event_rate=event_rate,
                             chance_of_loss=0,
                             meanloss=state["analytical_mean"],
@@ -270,7 +267,7 @@ def read_buffer(
                             melt_data, mi,
                             event_id=event_id,
                             summary_id=state["summary_id"],
-                            sample_type=_MEAN_TYPE_SAMPLE,
+                            sample_type=MEAN_TYPE_SAMPLE,
                             event_rate=event_rate,
                             chance_of_loss=chance_of_loss,
                             meanloss=meanloss,
@@ -358,80 +355,6 @@ def read_buffer(
     return cursor, event_id, item_id, 0
 
 
-def read_event_rate(event_rate_file):
-    """Reads event rates from a CSV file
-    Args:
-        event_rate_file (str): Path to the event rate CSV file
-    Returns:
-        (ndarray, ndarray): unique event id and event rates
-    """
-    try:
-        data = np.genfromtxt(event_rate_file, delimiter=',', skip_header=1, dtype=[('event_id', oasis_int), ('rate', oasis_float)])
-        if data is None or data.size == 0:
-            logger.info(f"Event rate file {event_rate_file} is empty, proceeding without event rates.")
-            return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
-        unique_event_ids = data['event_id']
-        event_rates = data['rate']
-
-        # Make sure event_ids are sorted
-        sort_idx = np.argsort(unique_event_ids)
-        unique_event_ids = unique_event_ids[sort_idx]
-        event_rates = event_rates[sort_idx]
-        return unique_event_ids, event_rates
-    except FileNotFoundError:
-        logger.info(f"Event rate file {event_rate_file} not found, proceeding without event rates.")
-        return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
-    except Exception as e:
-        logger.warning(f"An error occurred while reading event rate file: {str(e)}")
-        return np.array([], dtype=oasis_int), np.array([], dtype=oasis_float)
-
-
-def read_quantile(quantile_fp, sample_size, compute_qelt):
-    """Generate a quantile interval Dictionary based on sample size and quantile binary file
-    Args:
-        sample_size (int): Sample size
-        fp (str): File path to quantile binary input
-    Returns:
-        intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
-    """
-    intervals_dict = {}
-    quantile_interval_dtype = np.dtype([
-        ('q', oasis_float),
-        ('integer_part', oasis_int),
-        ('fractional_part', oasis_float),
-    ])
-
-    if not compute_qelt:
-        return np.array([], dtype=quantile_interval_dtype)
-
-    try:
-        with open(quantile_fp, "rb") as fin:
-            while True:
-                data = fin.read(4)  # Reading 4 bytes for a float32
-                if not data:
-                    break
-                q = struct.unpack('f', data)[0]
-
-                # Calculate interval index and fractional part
-                pos = (sample_size - 1) * q + 1
-                integer_part = int(pos)
-                fractional_part = pos - integer_part
-
-                intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
-
-    except FileNotFoundError:
-        raise FileNotFoundError(f"FATAL: Error opening file {quantile_fp}")
-    except Exception as e:
-        raise RuntimeError(f"An error occurred: {str(e)}")
-
-    # Convert to numpy array
-    intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
-    for i, (k, v) in enumerate(intervals_dict.items()):
-        intervals[i] = (k, v['integer_part'], v['fractional_part'])
-
-    return intervals
-
-
 def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     """Reads all input files and returns a dict of relevant data
     Args:
@@ -446,10 +369,10 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     event_rates = np.array([], dtype=oasis_float)
     include_event_rate = False
     if compute_melt:
-        unique_event_ids, event_rates = read_event_rate(Path(run_dir, "input", "event_rates.csv"))
+        unique_event_ids, event_rates = read_event_rates(Path(run_dir, "input"))
         include_event_rate = unique_event_ids.size > 0
 
-    intervals = read_quantile(Path(run_dir, "input", "quantile.bin"), sample_size, compute_qelt)
+    intervals = read_quantile(sample_size, Path(run_dir, "input"), return_empty=not compute_qelt)
 
     file_data = {
         "unique_event_ids": unique_event_ids,
