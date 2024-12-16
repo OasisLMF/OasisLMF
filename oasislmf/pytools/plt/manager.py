@@ -3,20 +3,17 @@
 import logging
 import numpy as np
 import numba as nb
-import struct
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
+from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_quantile
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
-
-_MEAN_TYPE_ANALYTICAL = 1
-_MEAN_TYPE_SAMPLE = 2
 
 SPLT_output = [
     ('Period', oasis_int, '%d'),
@@ -130,7 +127,7 @@ class PLTReader(EventReader):
         self.granular_date = granular_date
         self.intervals = intervals
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
         # Pass state variables to read_buffer
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
@@ -366,7 +363,7 @@ def read_buffer(
                                     record=record,
                                     event_id=event_id,
                                     summary_id=state["summary_id"],
-                                    sample_type=_MEAN_TYPE_SAMPLE,
+                                    sample_type=MEAN_TYPE_SAMPLE,
                                     chance_of_loss=state["chance_of_loss"],
                                     meanloss=meanloss,
                                     sdloss=sdloss,
@@ -450,7 +447,7 @@ def read_buffer(
                             record=record,
                             event_id=event_id,
                             summary_id=state["summary_id"],
-                            sample_type=_MEAN_TYPE_ANALYTICAL,
+                            sample_type=MEAN_TYPE_ANALYTICAL,
                             chance_of_loss=0,
                             meanloss=loss,
                             sdloss=0,
@@ -481,182 +478,6 @@ def read_buffer(
     return cursor, event_id, item_id, 0
 
 
-def read_occurrence(occurrence_fp):
-    """Read the occurrence binary file and returns an occurrence map
-
-    Args:
-        occurrence_fp (str | os.PathLike): Path to the occurrence binary file
-
-    Returns:
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
-    """
-    try:
-        with open(occurrence_fp, "rb") as fin:
-            # Extract Date Options
-            date_opts = fin.read(4)
-            if not date_opts or len(date_opts) < 4:
-                raise RuntimeError("Occurrence file is empty or currupted")
-            date_opts = int.from_bytes(date_opts, byteorder="little", signed=True)
-
-            date_algorithm = date_opts & 1  # Unused as granular_date not supported
-            granular_date = date_opts >> 1
-
-            # (event_id: int, period_no: int, occ_date_id: int)
-            record_format = "<iii"
-            # (event_id: int, period_no: int, occ_date_id: long long)
-            if granular_date:
-                record_format = "<iiq"
-            record_size = struct.calcsize(record_format)
-
-            # Should not get here
-            if not date_algorithm and granular_date:
-                raise RuntimeError("FATAL: Unknown date algorithm")
-
-            # Extract no_of_periods
-            no_of_periods = fin.read(4)
-            if not no_of_periods or len(no_of_periods) < 4:
-                raise RuntimeError("Occurrence file is empty or currupted")
-            no_of_periods = int.from_bytes(no_of_periods, byteorder="little", signed=True)
-
-            data = fin.read()
-
-        num_records = len(data) // record_size
-        if len(data) % record_size != 0:
-            logger.warning(
-                f"Occurrence File size (num_records: {num_records}) does not align with expected record size (record_size: {record_size})"
-            )
-
-        occ_map_dtype = np.dtype([
-            ("event_id", np.int32),
-            ("period_no", np.int32),
-            ("occ_date_id", np.int32),
-        ])
-        if granular_date:
-            occ_map_dtype = np.dtype([
-                ("event_id", np.int32),
-                ("period_no", np.int32),
-                ("occ_date_id", np.int64),
-            ])
-
-        occ_map = np.zeros(num_records, dtype=occ_map_dtype)
-
-        for i in range(num_records):
-            offset = i * record_size
-            curr_data = data[offset:offset + record_size]
-            if len(curr_data) < record_size:
-                break
-            event_id, period_no, occ_date_id = struct.unpack(record_format, curr_data)
-            occ_map[i] = (event_id, period_no, occ_date_id)
-
-        return occ_map, date_algorithm, granular_date, no_of_periods
-    except FileNotFoundError:
-        raise FileNotFoundError(f"FATAL: Error opening file {occurrence_fp}")
-    except Exception as e:
-        raise RuntimeError(f"An error occurred: {str(e)}")
-
-
-def read_periods(periods_fp, no_of_periods):
-    """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
-
-    Args:
-        periods_fp (str | os.PathLike): Path to periods binary file
-        no_of_periods (int): Number of periods
-
-    Returns:
-        period_weights (ndarray[period_weights_dtype]): Returns the period weights
-    """
-    period_weights_dtype = np.dtype([
-        ("period_no", np.int32),
-        ("weighting", np.float64),
-    ])
-
-    period_weights = np.zeros(no_of_periods, dtype=period_weights_dtype)
-
-    try:
-        with open(periods_fp, "rb") as fin:
-            record_format = "<id"  # int, double
-            record_size = struct.calcsize(record_format)
-            num_read = 0
-            while True:
-                record_data = fin.read(record_size)
-
-                if not record_data:
-                    break
-
-                period_no, weighting = struct.unpack(record_format, record_data)
-
-                # Checks for gaps in periods
-                if num_read + 1 != period_no:
-                    raise RuntimeError(f"ERROR: Missing period_no in period binary file {periods_fp}.")
-                num_read += 1
-
-                # More data than no_of_periods
-                if num_read > no_of_periods:
-                    raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")
-
-                period_weights[period_no - 1] = (period_no, weighting)
-
-            # Less data than no_of_periods
-            if num_read != no_of_periods:
-                raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")
-    except FileNotFoundError:
-        # If no periods binary file found, the revert to using period weights reciprocal to no_of_periods
-        logger.warning(f"Periods file not found at {periods_fp}, using reciprocal calculated period weights based on no_of_periods {no_of_periods}")
-        period_weights = np.array(
-            [(i + 1, 1 / no_of_periods) for i in range(no_of_periods)],
-            dtype=period_weights_dtype
-        )
-        return period_weights
-    except Exception as e:
-        raise RuntimeError(f"An error occurred: {str(e)}")
-
-    return period_weights
-
-
-def read_quantile(quantile_fp, sample_size, compute_qplt):
-    """Generate a quantile interval Dictionary based on sample size and quantile binary file
-    Args:
-        sample_size (int): Sample size
-        fp (str): File path to quantile binary input
-        compute_qplt (bool): Compute QPLT bool
-    Returns:
-        intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
-    """
-    intervals_dict = {}
-    quantile_interval_dtype = np.dtype([
-        ('q', oasis_float),
-        ('integer_part', oasis_int),
-        ('fractional_part', oasis_float),
-    ])
-    if not compute_qplt:
-        return np.array([], dtype=quantile_interval_dtype)
-
-    try:
-        with open(quantile_fp, "rb") as fin:
-            while True:
-                data = fin.read(4)  # Reading 4 bytes for a float32
-                if not data:
-                    break
-                q = struct.unpack('f', data)[0]
-
-                # Calculate interval index and fractional part
-                pos = (sample_size - 1) * q + 1
-                integer_part = int(pos)
-                fractional_part = pos - integer_part
-
-                intervals_dict[q] = {"integer_part": integer_part, "fractional_part": fractional_part}
-    except FileNotFoundError:
-        raise FileNotFoundError(f"FATAL: Error opening file {quantile_fp}")
-    except Exception as e:
-        raise RuntimeError(f"An error occurred: {str(e)}")
-
-    # Convert to numpy array
-    intervals = np.zeros(len(intervals_dict), dtype=quantile_interval_dtype)
-    for i, (k, v) in enumerate(intervals_dict.items()):
-        intervals[i] = (k, v['integer_part'], v['fractional_part'])
-    return intervals
-
-
 def read_input_files(run_dir, compute_qplt, sample_size):
     """Reads all input files and returns a dict of relevant data
 
@@ -668,9 +489,9 @@ def read_input_files(run_dir, compute_qplt, sample_size):
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
     """
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input", "occurrence.bin"))
-    period_weights = read_periods(Path(run_dir, "input", "periods.bin"), no_of_periods)
-    intervals = read_quantile(Path(run_dir, "input", "quantile.bin"), sample_size, compute_qplt)
+    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
+    period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
+    intervals = read_quantile(sample_size, Path(run_dir, "input"), return_empty=not compute_qplt)
 
     file_data = {
         "occ_map": occ_map,
