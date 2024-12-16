@@ -147,7 +147,7 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_summarypy/*.bin
 !tests/assets/test_summarypy/single_summary_set/*.bin
 !tests/assets/test_summarypy/**/*.bin
-!tests/assets/tesT_common/*.bin
+!tests/assets/test_common/*.bin
 !tests/assets/test_common/**/*.bin
 
 
