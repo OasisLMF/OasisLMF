@@ -127,7 +127,17 @@ class PLTReader(EventReader):
         self.granular_date = granular_date
         self.intervals = intervals
 
+        self.curr_file_idx = None  # Current summary file idx being read
+
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
+        # Check for new file idx to read summary_set_id at the start of each summary file stream
+        # This is not done by init_streams_in as the summary_set_id is unique to the summary_stream only
+        if self.curr_file_idx is not None and self.curr_file_idx != file_idx:
+            self.curr_file_idx = file_idx
+            self.state["read_summary_set_id"] = False
+        else:
+            self.curr_file_idx = file_idx
+
         # Pass state variables to read_buffer
         cursor, event_id, item_id, ret = read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
