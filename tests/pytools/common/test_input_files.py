@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from oasislmf.pytools.common.data import oasis_int, oasis_float, read_event_rates, read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.data import oasis_int, oasis_float
+from oasislmf.pytools.common.input_files import read_event_rates, read_occurrence, read_periods, read_quantile
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_common")
 
