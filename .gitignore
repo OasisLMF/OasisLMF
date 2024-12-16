@@ -150,7 +150,7 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_summarypy/**/*.bin
 !tests/assets/test_eltpy/*.bin
 !tests/assets/test_eltpy/**/*.bin
-!tests/assets/tesT_common/*.bin
+!tests/assets/test_common/*.bin
 !tests/assets/test_common/**/*.bin
 
 
