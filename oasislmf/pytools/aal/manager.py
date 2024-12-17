@@ -193,42 +193,49 @@ def merge_sorted_chunks(temp_files, output_file, buffer_size):
     sort_columns = ["summary_id", "period_no", "file_idx"]  # Reverse order to lexsort for heaps
     memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
 
+    # Create a memmap for the output file with enough space for the merged data
+    total_size = sum(mmap.shape[0] for mmap in memmaps)
+    output_mmap = np.memmap(output_file, mode="w+", dtype=_SUMMARIES_DTYPE, shape=(total_size,))
+
     max_summary_id = 0
     buffer = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
     buffer_index = 0
-    with open(output_file, 'wb') as out:
-        min_heap = []
-        # Initialize the min_heap with the first row of each memmap
-        for i, mmap in enumerate(memmaps):
-            if mmap.shape[0] > 0:
-                first_row = mmap[0]
-                max_summary_id = max(max_summary_id, first_row["summary_id"])
-                heapq.heappush(min_heap, (tuple(first_row[sort_columns]), i, 0))
+    output_index = 0
 
-        # Perform the k-way merge
-        while min_heap:
-            # The min heap will store the smallest row at the top when popped
-            _, i, idx = heapq.heappop(min_heap)
-            smallest_row = memmaps[i][idx]
-            buffer[buffer_index] = smallest_row
-            buffer_index += 1
+    min_heap = []
+    # Initialize the min_heap with the first row of each memmap
+    for i, mmap in enumerate(memmaps):
+        if mmap.shape[0] > 0:
+            first_row = mmap[0]
+            max_summary_id = max(max_summary_id, first_row["summary_id"])
+            heapq.heappush(min_heap, (tuple(first_row[sort_columns]), i, 0))
 
-            # If the buffer is full, look for max_summary_id, write to file, and reset
-            if buffer_index == buffer_size:
-                max_summary_id = max(max_summary_id, np.max(buffer["summary_id"]))
-                out.write(buffer.tobytes())
-                buffer_index = 0
+    # Perform the k-way merge
+    while min_heap:
+        # The min heap will store the smallest row at the top when popped
+        _, i, idx = heapq.heappop(min_heap)
+        smallest_row = memmaps[i][idx]
+        buffer[buffer_index] = smallest_row
+        buffer_index += 1
 
-            next_idx = idx + 1
-            # Push the next row from the same file into the heap if the there are any more rows
-            if next_idx < memmaps[i].shape[0]:
-                next_row = memmaps[i][next_idx]
-                heapq.heappush(min_heap, (tuple(next_row[sort_columns]), i, next_idx))
+        # If the buffer is full, look for max_summary_id, write to the memmap, and reset
+        if buffer_index == buffer_size:
+            max_summary_id = max(max_summary_id, np.max(buffer["summary_id"]))
+            # Write buffer to the output memmap
+            output_mmap[output_index:output_index + buffer_index] = buffer[:buffer_index]
+            output_index += buffer_index
+            buffer_index = 0
 
-        # Check for max_summary_id in remaining rows and write to file
-        if buffer_index > 0:
-            max_summary_id = max(max_summary_id, np.max(buffer[:buffer_index]["summary_id"]))
-            out.write(buffer[:buffer_index].tobytes())
+        next_idx = idx + 1
+        # Push the next row from the same file into the heap if there are any more rows
+        if next_idx < memmaps[i].shape[0]:
+            next_row = memmaps[i][next_idx]
+            heapq.heappush(min_heap, (tuple(next_row[sort_columns]), i, next_idx))
+
+    # Check for max_summary_id in remaining rows and write to memmap
+    if buffer_index > 0:
+        max_summary_id = max(max_summary_id, np.max(buffer[:buffer_index]["summary_id"]))
+        output_mmap[output_index:output_index + buffer_index] = buffer[:buffer_index]
 
     # Clean up temporary files
     for temp_file in temp_files:
