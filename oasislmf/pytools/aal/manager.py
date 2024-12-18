@@ -185,9 +185,9 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
 def merge_sorted_chunks(output_mmap, buffer_size, memmaps):
     """Merge sorted chunks using a k-way merge algorithm and save to the output file.
     Args:
-        temp_files (str | os.PathLike): List of temporary file paths
-        output_file (str | os.PathLike): Path to final sorted output file for indexed summaries
+        output_mmap (np.memmap): Memmap for final sorted output file for indexed summaries
         buffer_size (int): Size of buffer to sort and store before writing to output file
+        memmaps (List[np.memmap]): List of temporary file memmaps
     Returns:
         max_summary_id (int): Max summary ID
     """
