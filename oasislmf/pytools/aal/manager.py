@@ -1,6 +1,5 @@
 # aal/manager.py
 
-import heapq
 import logging
 import numpy as np
 import numba as nb
@@ -8,6 +7,7 @@ import os
 from contextlib import ExitStack
 from pathlib import Path
 
+from oasislmf.pytools.aal.utils import heap_pop, heap_push, init_heap
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
@@ -181,7 +181,8 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
     sorted_chunk.tofile(temp_file_path)
 
 
-def merge_sorted_chunks(temp_files, output_file, buffer_size):
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def merge_sorted_chunks(output_mmap, buffer_size, memmaps):
     """Merge sorted chunks using a k-way merge algorithm and save to the output file.
     Args:
         temp_files (str | os.PathLike): List of temporary file paths
@@ -190,30 +191,29 @@ def merge_sorted_chunks(temp_files, output_file, buffer_size):
     Returns:
         max_summary_id (int): Max summary ID
     """
-    sort_columns = ["summary_id", "period_no", "file_idx"]  # Reverse order to lexsort for heaps
-    memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
-
-    # Create a memmap for the output file with enough space for the merged data
-    total_size = sum(mmap.shape[0] for mmap in memmaps)
-    output_mmap = np.memmap(output_file, mode="w+", dtype=_SUMMARIES_DTYPE, shape=(total_size,))
-
     max_summary_id = 0
     buffer = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
     buffer_index = 0
     output_index = 0
 
-    min_heap = []
+    min_heap = init_heap()
+    size = 0
     # Initialize the min_heap with the first row of each memmap
     for i, mmap in enumerate(memmaps):
         if mmap.shape[0] > 0:
             first_row = mmap[0]
             max_summary_id = max(max_summary_id, first_row["summary_id"])
-            heapq.heappush(min_heap, (tuple(first_row[sort_columns]), i, 0))
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [first_row["summary_id"], first_row["period_no"], first_row["summary_id"], i, 0],
+                dtype=np.int32
+            ))
 
     # Perform the k-way merge
-    while min_heap:
+    while size > 0:
         # The min heap will store the smallest row at the top when popped
-        _, i, idx = heapq.heappop(min_heap)
+        element, min_heap, size = heap_pop(min_heap, size)
+        i = element[3]
+        idx = element[4]
         smallest_row = memmaps[i][idx]
         buffer[buffer_index] = smallest_row
         buffer_index += 1
@@ -230,16 +230,15 @@ def merge_sorted_chunks(temp_files, output_file, buffer_size):
         # Push the next row from the same file into the heap if there are any more rows
         if next_idx < memmaps[i].shape[0]:
             next_row = memmaps[i][next_idx]
-            heapq.heappush(min_heap, (tuple(next_row[sort_columns]), i, next_idx))
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [next_row["summary_id"], next_row["period_no"], next_row["summary_id"], i, next_idx],
+                dtype=np.int32
+            ))
 
     # Check for max_summary_id in remaining rows and write to memmap
     if buffer_index > 0:
         max_summary_id = max(max_summary_id, np.max(buffer[:buffer_index]["summary_id"]))
         output_mmap[output_index:output_index + buffer_index] = buffer[:buffer_index]
-
-    # Clean up temporary files
-    for temp_file in temp_files:
-        os.remove(temp_file)
 
     return max_summary_id
 
@@ -290,7 +289,15 @@ def get_summaries_data_lm(path, files_handles, occ_map, sample_size, aal_max_mem
                 break
 
     summaries_file = Path(path, "indexed_summaries.bdat")
-    max_summary_id = merge_sorted_chunks(temp_files, summaries_file, buffer_size)
+    memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
+
+    # Create a memmap for the output file with enough space for the merged data
+    total_size = sum([mmap.shape[0] for mmap in memmaps])
+    output_mmap = np.memmap(summaries_file, mode="w+", dtype=_SUMMARIES_DTYPE, shape=(total_size,))
+    max_summary_id = merge_sorted_chunks(output_mmap, buffer_size, memmaps)
+    # Clean up temporary files
+    for temp_file in temp_files:
+        os.remove(temp_file)
     summaries_data = np.memmap(summaries_file, mode="r", dtype=_SUMMARIES_DTYPE)
     return summaries_data, max_summary_id
 
