@@ -253,7 +253,6 @@ def get_summaries_data(path, files_handles, occ_map, sample_size, aal_max_memory
         # If only one file, rename and return data
         os.rename(temp_files[0], summaries_file)
         max_summary_id = np.max(summaries_data["summary_id"])
-        return summaries_data, max_summary_id
     else:
         # If multiple files, merge chunks into one file
         memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]

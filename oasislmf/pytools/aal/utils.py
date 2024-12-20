@@ -8,9 +8,9 @@ A custom heap is required for summaries index as we need to store and sort
 based on a tuple of 3 np.int32s. This complex datatype is currently not supported
 by numba for standard python heapq.
 
-Stores 5 ints, and sorts lexographically on the first 3 ints.
+Stores 5 ints, and sorts lexographically on the first 3 ints, then next 2 ints
 First 3 ints are summary_index, period_no, file_idx
-Last 2 ints are file_idx, row_number in file[file_idx]
+Last 2 ints are partial_file_idx, row_number in file[file_idx]
 """
 
 
@@ -97,12 +97,13 @@ def heap_pop(heap, size):
     """Heapq heappop"""
     if size <= 0:
         raise ValueError("Heap underflow: Cannot pop from an empty heap.")
-    # The root element is the minimum
-    min_element = heap[0].copy()
-    # Move the last element to the root
-    heap[0] = heap[size - 1]
-    _sift_up(heap, 0, size - 1)
-    return min_element, heap, size - 1
+    lastelt = heap[size - 1].copy()
+    if size - 1 > 0:
+        returnitem = heap[0].copy()
+        heap[0] = lastelt
+        _sift_up(heap, 0, size - 1)
+        return returnitem, heap, size - 1
+    return lastelt, heap, size - 1
 
 
 @nb.njit(cache=True, error_model="numpy")
