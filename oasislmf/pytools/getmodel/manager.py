@@ -22,13 +22,12 @@ from oasis_data_manager.df_reader.config import get_df_reader, clean_config, Inp
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
-from oasislmf.utils.data import validate_vulnerability_replacements
+from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
                                               oasis_float)
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
-from ods_tools.oed import AnalysisSettingSchema
 
 from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from ..common.data import null_index
@@ -461,8 +460,7 @@ def get_vuln_rngadj_dict(run_dir, vuln_dict):
     if not os.path.exists(settings_path):
         logger.debug(f"analysis_settings.json not found in {run_dir}.")
         return vuln_adj_numba_dict
-    vulnerability_adjustments_field = None
-    vulnerability_adjustments_field = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments', None)
+    vulnerability_adjustments_field = analysis_settings_loader(settings_path).get('vulnerability_adjustments', None)
     if vulnerability_adjustments_field is not None:
         adjustments = vulnerability_adjustments_field.get('adjustments', None)
     else:
@@ -584,8 +582,7 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
     if not validate_vulnerability_replacements(settings_path):
         return None
 
-    vulnerability_replacements_key = None
-    vulnerability_replacements_key = AnalysisSettingSchema().get(settings_path, {}).get('vulnerability_adjustments')
+    vulnerability_replacements_key = analysis_settings_loader(settings_path).get('vulnerability_adjustments')
 
     # Inputting the data directly into the analysis_settings.json file takes precedence over the file path
     vulnerability_replacements_field = vulnerability_replacements_key.get('replace_data', None)

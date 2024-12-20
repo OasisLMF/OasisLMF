@@ -40,7 +40,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
-from ods_tools.oed import fill_empty, OedExposure, OdsException, AnalysisSettingSchema, ModelSettingSchema
+from ods_tools.oed import fill_empty, OedExposure, OdsException, AnalysisSettingHandler, ModelSettingHandler
 
 try:
     from json import JSONDecodeError
@@ -62,8 +62,8 @@ from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
-analysis_settings_loader = AnalysisSettingSchema().get
-model_settings_loader = ModelSettingSchema().get
+analysis_settings_loader = AnalysisSettingHandler.make().load
+model_settings_loader = ModelSettingHandler.make().load
 
 
 def settings_loader(name, settings_json, loader, required=False, **kwargs):
@@ -1003,8 +1003,7 @@ def validate_vulnerability_replacements(analysis_settings_json):
     if analysis_settings_json is None:
         return False
 
-    vulnerability_adjustments_key = None
-    vulnerability_adjustments_key = AnalysisSettingSchema().get(analysis_settings_json, {}).get('vulnerability_adjustments')
+    vulnerability_adjustments_key = analysis_settings_loader(analysis_settings_json).get('vulnerability_adjustments')
     if vulnerability_adjustments_key is None:
         return False
 
