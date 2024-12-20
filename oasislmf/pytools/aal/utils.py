@@ -14,20 +14,23 @@ Last 2 ints are file_idx, row_number in file[file_idx]
 """
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def _resize_heap(heap, current_capacity):
     """Doubles the heap capacity"""
     new_capacity = current_capacity * 2
-    new_heap = np.zeros((new_capacity, heap.shape[1]), dtype=heap.dtype)
+    new_heap = np.zeros((new_capacity, 5), dtype=heap.dtype)
     for i in range(current_capacity):
         new_heap[i] = heap[i]
     return new_heap
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _lex_compare(a, b, n):
-    """Performs lexicographical comparison for first n elements in arrays a and b"""
-    for i in range(n):
+@nb.njit(cache=True, error_model="numpy")
+def _lex_compare(a, b):
+    """Performs lexicographical comparison for all elements in arrays a and b.
+    We compare all elements, and not just the first 3, as we also need to order
+    by file_offset when summary_id, period_no, file_idx, which the partial_file_idx
+    and row_num values do"""
+    for i in range(5):
         if a[i] < b[i]:
             return True
         elif a[i] > b[i]:
@@ -35,30 +38,30 @@ def _lex_compare(a, b, n):
     return False
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def _swap_rows(heap, i, j):
     """Swap rows i and j in heap"""
-    for k in range(heap.shape[1]):
+    for k in range(5):
         temp = heap[i, k]
         heap[i, k] = heap[j, k]
         heap[j, k] = temp
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def _sift_down(heap, startpos, pos):
     """Heapq _siftdown"""
     # Follow the path to the root, moving parents down until finding a place
     # newitem fits.
     while pos > startpos:
-        parentpos = (pos - 1) >> 2
-        if _lex_compare(heap[pos], heap[parentpos], 3):
+        parentpos = (pos - 1) >> 1
+        if _lex_compare(heap[pos], heap[parentpos]):
             _swap_rows(heap, pos, parentpos)
             pos = parentpos
             continue
         break
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def _sift_up(heap, pos, endpos):
     """Heapq _siftup"""
     startpos = pos
@@ -67,7 +70,7 @@ def _sift_up(heap, pos, endpos):
     while childpos < endpos:
         # Set childpos to index of smaller child.
         rightpos = childpos + 1
-        if rightpos < endpos and not _lex_compare(heap[childpos], heap[rightpos], 3):
+        if rightpos < endpos and not _lex_compare(heap[childpos], heap[rightpos]):
             childpos = rightpos
         # Move the smaller child up.
         if pos != childpos:
@@ -79,17 +82,17 @@ def _sift_up(heap, pos, endpos):
     _sift_down(heap, startpos, pos)
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def heap_push(heap, size, element):
     """Heapq heappush"""
-    if size >= heap.shape[0]:
-        heap = _resize_heap(heap, heap.shape[0])
+    if size >= len(heap):
+        heap = _resize_heap(heap, len(heap))
     heap[size] = element
     _sift_down(heap, 0, size)
     return heap, size + 1
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def heap_pop(heap, size):
     """Heapq heappop"""
     if size <= 0:
@@ -102,7 +105,7 @@ def heap_pop(heap, size):
     return min_element, heap, size - 1
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
+@nb.njit(cache=True, error_model="numpy")
 def init_heap(num_rows=4):
     """Initialise heap"""
     return np.zeros((num_rows, 5), dtype=np.int32)

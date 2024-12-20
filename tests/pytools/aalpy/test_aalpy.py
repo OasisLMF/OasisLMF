@@ -1,5 +1,5 @@
-
 import filecmp
+import os
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,17 +16,30 @@ def case_runner(sub_folder, test_name, meanonly=False):
         sub_folder (str | os.PathLike): path to workspace sub folder
         test_name (str): test name
     """
+    print("HERE")
     csv_name = f"py_{test_name}{sub_folder}.csv"
     if meanonly:
         csv_name = f"py_{test_name}meanonly{sub_folder}.csv"
     expected_csv = Path(TESTS_ASSETS_DIR, "all_files", csv_name)
     with TemporaryDirectory() as tmp_result_dir_str:
-        actual_csv = Path(tmp_result_dir_str, csv_name)
+        tmp_workspace_dir = Path(tmp_result_dir_str) / "workspace"
+        shutil.copytree(Path(TESTS_ASSETS_DIR, "all_files"), tmp_workspace_dir)
+
+        out_dir = tmp_workspace_dir / "out"
+        out_dir.mkdir()
+
+        actual_csv = out_dir / csv_name
+        print("Workspace directory structure:")
+        for root, dirs, files in os.walk(tmp_workspace_dir):
+            print(f"Root: {root}")
+            for d in dirs:
+                print(f"  Dir: {d}")
+            for f in files:
+                print(f"  File: {f}")
 
         kwargs = {
-            "run_dir": Path(TESTS_ASSETS_DIR, "all_files"),
+            "run_dir": tmp_workspace_dir,
             "subfolder": sub_folder,
-            "skip_idxs": True,
             "meanonly": meanonly,
         }
 
@@ -42,8 +55,7 @@ def case_runner(sub_folder, test_name, meanonly=False):
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, "all_files", "error_files")
             error_path.mkdir(exist_ok=True)
-            shutil.copyfile(Path(actual_csv),
-                            Path(error_path, csv_name))
+            shutil.copyfile(actual_csv, Path(error_path, csv_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
             raise Exception(f"running 'pltpy {arg_str}' led to diff, see files at {error_path}") from e
 
