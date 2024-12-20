@@ -102,12 +102,17 @@ def process_bin_file(
         event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
         summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
 
+        n_rows = 0
         for row in occ_map:
             if row["event_id"] == event_id:
-                if summaries_idx >= len(summaries_data):
-                    # Resize array as full
-                    return summaries_idx, True, offset
+                n_rows += 1
 
+        if summaries_idx + n_rows >= len(summaries_data):
+            # Resize array as full
+            return summaries_idx, True, offset
+
+        for row in occ_map:
+            if row["event_id"] == event_id:
                 summaries_data[summaries_idx]["summary_id"] = summary_id
                 summaries_data[summaries_idx]["file_idx"] = file_index
                 summaries_data[summaries_idx]["period_no"] = row["period_no"]
