@@ -159,27 +159,22 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
 
 
 @nb.njit(cache=True, error_model="numpy")
-def merge_sorted_chunks(output_mmap, buffer_size, memmaps):
-    """Merge sorted chunks using a k-way merge algorithm and save to the output file.
+def merge_sorted_chunks(memmaps):
+    """
+    Merge sorted chunks using a k-way merge algorithm and save to the output file.
     Args:
         output_mmap (np.memmap): Memmap for final sorted output file for indexed summaries
         buffer_size (int): Size of buffer to sort and store before writing to output file
         memmaps (List[np.memmap]): List of temporary file memmaps
-    Returns:
-        max_summary_id (int): Max summary ID
+    Yields:
+        smallest_row (ndarray[_SUMMARIES_DTYPE]): yields the next smallest row from sorted summaries partial files
     """
-    max_summary_id = 0
-    buffer = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
-    buffer_index = 0
-    output_index = 0
-
     min_heap = init_heap()
     size = 0
     # Initialize the min_heap with the first row of each memmap
     for i, mmap in enumerate(memmaps):
         if len(mmap) > 0:
             first_row = mmap[0]
-            max_summary_id = max(max_summary_id, first_row["summary_id"])
             min_heap, size = heap_push(min_heap, size, np.array(
                 [first_row["summary_id"], first_row["period_no"], first_row["file_idx"], i, 0],
                 dtype=np.int32
@@ -192,16 +187,7 @@ def merge_sorted_chunks(output_mmap, buffer_size, memmaps):
         file_idx = element[3]
         row_num = element[4]
         smallest_row = memmaps[file_idx][row_num]
-        buffer[buffer_index] = smallest_row
-        buffer_index += 1
-
-        # If the buffer is full, look for max_summary_id, write to the memmap, and reset
-        if buffer_index == buffer_size:
-            max_summary_id = max(max_summary_id, np.max(buffer["summary_id"]))
-            # Write buffer to the output memmap
-            output_mmap[output_index:output_index + buffer_index] = buffer[:buffer_index]
-            output_index += buffer_index
-            buffer_index = 0
+        yield smallest_row
 
         # Push the next row from the same file into the heap if there are any more rows
         if row_num + 1 < len(memmaps[file_idx]):
@@ -210,13 +196,6 @@ def merge_sorted_chunks(output_mmap, buffer_size, memmaps):
                 [next_row["summary_id"], next_row["period_no"], next_row["file_idx"], file_idx, row_num + 1],
                 dtype=np.int32
             ))
-
-    # Check for max_summary_id in remaining rows and write to memmap
-    if buffer_index > 0:
-        max_summary_id = max(max_summary_id, np.max(buffer[:buffer_index]["summary_id"]))
-        output_mmap[output_index:output_index + buffer_index] = buffer[:buffer_index]
-
-    return max_summary_id
 
 
 def get_summaries_data(
@@ -241,12 +220,17 @@ def get_summaries_data(
         summaries_data (np.memmap[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
         max_summary_id (int): Max summary ID
     """
+    # Remove existing temp bdat files if exists
+    for temp_file in path.glob("indexed_summaries.part*.bdat"):
+        os.remove(temp_file)
+
     buffer_size = int(((aal_max_memory * (1024**3) // _SUMMARIES_DTYPE_size)))
     temp_files = []
     chunk_index = 0
 
     summaries_data = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
     summaries_idx = 0
+    max_summary_id = 0
     for file_index, fbin in enumerate(files_handles):
         offset = oasis_int_size * 3  # Summary stream header size
 
@@ -266,10 +250,12 @@ def get_summaries_data(
             # Write new summaries partial file when buffer size or end of summary file reached
             if resize_flag:
                 temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
-                sort_and_save_chunk(summaries_data[:summaries_idx], temp_file_path)
+                summaries_data = summaries_data[:summaries_idx]
+                sort_and_save_chunk(summaries_data, temp_file_path)
                 temp_files.append(temp_file_path)
                 chunk_index += 1
                 summaries_idx = 0
+                max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
 
             # End of file, move to next file
             if offset >= len(fbin):
@@ -279,30 +265,12 @@ def get_summaries_data(
     temp_file_path = Path(path, f"indexed_summaries.part{chunk_index}.bdat")
     summaries_data = summaries_data[:summaries_idx]
     sort_and_save_chunk(summaries_data, temp_file_path)
+    max_summary_id = max(max_summary_id, np.max(summaries_data["summary_id"]))
     temp_files.append(temp_file_path)
 
-    # Final summaries_index file
-    summaries_file = Path(path, "indexed_summaries.bdat")
+    memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
 
-    if len(temp_files) == 1:
-        # If only one file, rename and return data
-        os.rename(temp_files[0], summaries_file)
-        max_summary_id = np.max(summaries_data["summary_id"])
-    else:
-        # If multiple files, merge chunks into one file
-        memmaps = [np.memmap(temp_file, mode="r", dtype=_SUMMARIES_DTYPE) for temp_file in temp_files]
-
-        # Create a memmap for the output file with enough space for the merged data
-        total_size = sum([len(mmap) for mmap in memmaps])
-        output_mmap = np.memmap(summaries_file, mode="w+", dtype=_SUMMARIES_DTYPE, shape=(total_size,))
-        max_summary_id = merge_sorted_chunks(output_mmap, buffer_size, memmaps)
-
-        # Clean up temporary files
-        for temp_file in temp_files:
-            os.remove(temp_file)
-
-    summaries_data = np.memmap(summaries_file, mode="r", dtype=_SUMMARIES_DTYPE)
-    return summaries_data, max_summary_id
+    return memmaps, max_summary_id
 
 
 def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
@@ -327,7 +295,7 @@ def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
     if stream_source_type != SUMMARY_STREAM_ID:
         raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
-    summaries_data, max_summary_id = get_summaries_data(
+    memmaps, max_summary_id = get_summaries_data(
         path,
         files_handles,
         occ_map,
@@ -336,7 +304,7 @@ def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
         sample_size,
         OASIS_AAL_MEMORY
     )
-    return files_handles, sample_size, max_summary_id, summaries_data
+    return files_handles, sample_size, max_summary_id, memmaps
 
 
 def read_input_files(run_dir):
@@ -592,7 +560,7 @@ def read_losses(summary_fin, cursor, sample_size):
 
 @nb.njit(cache=True, error_model="numpy")
 def run_aal(
-    summaries,
+    memmaps,
     no_of_periods,
     period_weights,
     sample_size,
@@ -604,7 +572,7 @@ def run_aal(
 ):
     """Run AAL calculation loop to populate vec data
     Args:
-        summaries (np.memmap[_SUMMARIES_DTYPE]): summaries.idx data
+        memmaps (List[np.memmap]): List of temporary file memmaps
         no_of_periods (int): Number of periods
         period_weights (ndarray[period_weights_dtype]): Period Weights
         sample_size (int): Sample Size
@@ -614,7 +582,7 @@ def run_aal(
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
     """
-    if len(summaries) == 0:
+    if len(memmaps) == 0:
         raise ValueError("File is empty or missing data")
 
     lineno = 1
@@ -623,7 +591,7 @@ def run_aal(
     last_period_no = -1
     last_file_idx = -1
     summary_fin = None
-    for line in summaries:
+    for line in merge_sorted_chunks(memmaps):
         summary_id = line["summary_id"]
         file_idx = line["file_idx"]
         period_no = line["period_no"]
@@ -887,7 +855,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
 
         file_data = read_input_files(run_dir)
-        files_handles, sample_size, max_summary_id, summaries_data = summary_index(
+        files_handles, sample_size, max_summary_id, memmaps = summary_index(
             workspace_folder,
             file_data["occ_map"],
             file_data["unique_event_ids"],
@@ -903,7 +871,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
 
         # Run AAL calculations, populate above vecs
         run_aal(
-            summaries_data,
+            memmaps,
             file_data["no_of_periods"],
             file_data["period_weights"],
             sample_size,
