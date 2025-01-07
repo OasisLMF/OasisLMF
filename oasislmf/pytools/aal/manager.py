@@ -161,10 +161,8 @@ def sort_and_save_chunk(summaries_data, temp_file_path):
 @nb.njit(cache=True, error_model="numpy")
 def merge_sorted_chunks(memmaps):
     """
-    Merge sorted chunks using a k-way merge algorithm and save to the output file.
+    Merge sorted chunks using a k-way merge algorithm and yield next smallest row
     Args:
-        output_mmap (np.memmap): Memmap for final sorted output file for indexed summaries
-        buffer_size (int): Size of buffer to sort and store before writing to output file
         memmaps (List[np.memmap]): List of temporary file memmaps
     Yields:
         smallest_row (ndarray[_SUMMARIES_DTYPE]): yields the next smallest row from sorted summaries partial files
@@ -215,9 +213,9 @@ def get_summaries_data(
         unique_event_ids (ndarray[np.int32]): List of unique event_ids
         event_id_counts (ndarray[np.int32]): List of the counts of occurrences for each unique event_id in occ_map
         sample_size (int): Sample size
-        aal_ma_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
+        aal_max_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
     Returns:
-        summaries_data (np.memmap[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
+        memmaps (List[np.memmap]): List of temporary file memmaps
         max_summary_id (int): Max summary ID
     """
     # Remove existing temp bdat files if exists
@@ -285,7 +283,7 @@ def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
         files_handles (List[np.memmap]): List of memmaps for summary files data
         sample_size (int): Sample size
         max_summary_id (int): Max summary ID
-        summaries_data (np.memmap[_SUMMARIES_DTYPE]): Index summary data
+        memmaps (List[np.memmap]): List of temporary file memmaps
     """
     # Find summary binary files
     files = [file for file in path.glob("*.bin")]
@@ -482,6 +480,7 @@ def do_calc_end(
                 end_sidx
             )
             sidx = end_sidx
+            # Update current Sample AAL
             curr_sample_aal["mean"] += weighted_mean
             curr_sample_aal["mean_squared"] += weighted_mean_squared
 
@@ -533,6 +532,7 @@ def read_losses(summary_fin, cursor, sample_size):
         sample_size (int): Sample Size
     Returns:
         vrec (ndarray[_VREC_DTYPE]): array of sidx and losses
+        cursor (int): data offset for reading binary files
     """
     # Max losses is sample_size + num special sidxs
     vrec = np.zeros(sample_size + NUM_SPECIAL_SIDX, dtype=_VREC_DTYPE)
@@ -725,7 +725,7 @@ def get_aal_data(
             if not vecs_sample_aal[i]["use_id"]:
                 continue
             aal_data.append([i + 1, MEAN_TYPE_SAMPLE, mean_sample[i], std_sample[i]])
-    else:  # For some reason aalmeanonlycalc orders data differently
+    else:  # aalmeanonlycalc orders output data differently, this if condition is here to match the output to the ktools output
         for i in range(len(vec_analytical_aal)):
             if not vec_analytical_aal[i]["use_id"]:
                 continue
