@@ -20,6 +20,7 @@ def main():
     parser.add_argument('-w', '--occ_wheatsheaf', action='store_true', help='Occurrence Wheatsheaf')
     parser.add_argument('-s', '--occ_sample_mean', action='store_true', help='Occurrence Sample Mean')
     parser.add_argument('-m', '--occ_wheatsheaf_mean', action='store_true', help='Occurrence Wheatsheaf Mean')
+    parser.add_argument('-r', '--use_return_period', action='store_true', help='Use Return Period file')
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')

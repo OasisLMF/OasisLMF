@@ -13,6 +13,7 @@ EVENTRATES_FILE = "event_rates.csv"
 OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
+RETURNPERIODS_FILE = "returnperiods.bin"
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):
@@ -184,3 +185,31 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     if len(missing_periods) > 0:
         raise RuntimeError(f"ERROR: Missing period_no in period binary file {periods_fp}.")
     return period_weights
+
+
+def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
+    """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
+    Args:
+        use_return_period_file (bool): Bool to use Return Period File
+    Returns:
+        return_periods (ndarray[np.int32]): Returns the period weights
+        use_return_period_file (bool): Bool to use Return Period File
+    """
+    if not use_return_period_file:
+        return None, use_return_period_file
+    returnperiods_fp = Path(run_dir, filename)
+
+    if not returnperiods_fp.exists():
+        raise RuntimeError(f"ERROR: Return Periods file not found at {returnperiods_fp}.")
+
+    returnperiods = load_as_ndarray(
+        run_dir,
+        filename[:-4],
+        np.int32,
+        must_exist=False
+    )
+
+    if len(returnperiods) == 0:
+        logger.warning(f"WARNING: Empty return periods file at {returnperiods_fp}. Running without defined return periods option")
+        return None, False
+    return returnperiods, use_return_period_file
