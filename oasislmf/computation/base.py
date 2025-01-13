@@ -7,7 +7,7 @@ import pathlib
 import logging
 import json
 import inspect
-from ods_tools.oed import OedSource, AnalysisSettingHandler, ModelSettingHandler
+from ods_tools.oed import OedSource
 from ods_tools.oed.settings import Settings
 from collections import OrderedDict
 
