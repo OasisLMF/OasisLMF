@@ -106,6 +106,13 @@ class RunPostAnalysisCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PostAnalysis'
 
+class GenerateComputationSettingsJsonSchema(OasisComputationCommand):
+    """
+    Generate a json schema to validate the computation settings part of oed settings
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateComputationSettingsJsonSchema'
+
 
 class ModelCmd(OasisBaseCommand):
     """
@@ -126,6 +133,7 @@ class ModelCmd(OasisBaseCommand):
         'generate-losses': GenerateLossesCmd,
         'generate-losses-chunk': GenerateLossesPartialCmd,
         'generate-losses-output': GenerateLossesOutputCmd,
+        'generate-computation-settings-json-schema': GenerateComputationSettingsJsonSchema,
         'run': RunCmd,
         'run-postanalysis': RunPostAnalysisCmd,
     }
