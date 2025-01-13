@@ -106,6 +106,7 @@ class RunPostAnalysisCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PostAnalysis'
 
+
 class GenerateComputationSettingsJsonSchema(OasisComputationCommand):
     """
     Generate a json schema to validate the computation settings part of oed settings

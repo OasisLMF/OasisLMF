@@ -102,6 +102,7 @@ class GenerateComputationSettingsJsonSchema(ComputationStep):
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'default': '.',
          'help': 'Path to the directory in which to generate the Settings schema files'},
     ]
+
     def run(self):
         computation_settings_schema_fp = os.path.abspath(os.path.join(self.oasis_files_dir, "computation_settings_schema.json"))
         with open(computation_settings_schema_fp, 'w') as fout:

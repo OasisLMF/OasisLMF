@@ -174,8 +174,9 @@ class ComputationStep:
             float: "number",
             str2bool: "boolean",
         }
+
         def get_json_type(_param):
-            if  _param.get('type') in arg_type_to_json_type:
+            if _param.get('type') in arg_type_to_json_type:
                 return arg_type_to_json_type[_param.get('type')]
             elif _param.get('is_path'):
                 return "string"
@@ -199,14 +200,13 @@ class ComputationStep:
             "properties": {}
         }
         for param in cls.get_params():
-            param_schema =  {"type": get_json_type(param)}
+            param_schema = {"type": get_json_type(param)}
             if param.get('help'):
                 param_schema["description"] = param['help']
-            if  param.get('choices'):
+            if param.get('choices'):
                 param_schema["enum"] = param.get('choices')
-            json_schema[ "properties"][param['name']] = param_schema
+            json_schema["properties"][param['name']] = param_schema
         return json_schema
-
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""

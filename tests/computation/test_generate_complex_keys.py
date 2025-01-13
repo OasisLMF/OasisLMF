@@ -114,7 +114,7 @@ class TestGenKeys(ComputationChecker):
             {k: v.name for k, v in self.tmp_files.items()},
             self.default_args])
 
-        call_args['model_settings_json']  = FAKE_MODEL_SETTINGS_JSON
+        call_args['model_settings_json'] = FAKE_MODEL_SETTINGS_JSON
         self.manager.generate_keys(**call_args)
 
         mock_keys_factory.assert_called_once_with(
