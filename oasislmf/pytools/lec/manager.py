@@ -1,14 +1,61 @@
 # lec/manager.py
 
 import logging
+import numpy as np
+import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
 
+from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_return_periods
 from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
+
+
+AGG_FULL_UNCERTAINTY = 0
+AGG_WHEATSHEAF = 1
+AGG_SAMPLE_MEAN = 2
+AGG_WHEATSHEAF_MEAN = 3
+OCC_FULL_UNCERTAINTY = 4
+OCC_WHEATSHEAF = 5
+OCC_SAMPLE_MEAN = 6
+OCC_WHEATSHEAF_MEAN = 7
+
+EPT_output = [
+    ('SummaryId', oasis_int, '%d'),
+    ('EPCalc', oasis_int, '%d'),
+    ('EPType', oasis_int, '%d'),
+    ('ReturnPeriod', oasis_float, '%.6f'),
+    ('Loss', oasis_float, '%.6f'),
+]
+
+PSEPT_output = [
+    ('SummaryId', oasis_int, '%d'),
+    ('SampleId', oasis_int, '%d'),
+    ('EPType', oasis_int, '%d'),
+    ('ReturnPeriod', oasis_float, '%.6f'),
+    ('Loss', oasis_float, '%.6f'),
+]
+
+_OUTLOSS_MEAN_DTYPE = np.dtype([
+    ("row_used", np.bool_),
+    ("period_no", oasis_int),
+    ("summary_id", oasis_int),
+    ("agg_out_loss", oasis_float),
+    ("max_out_loss", oasis_float),
+])
+
+_OUTLOSS_SAMPLE_DTYPE = np.dtype([
+    ("row_used", np.bool_),
+    ("period_no", oasis_int),
+    ("sidx", oasis_int),
+    ("summary_id", oasis_int),
+    ("agg_out_loss", oasis_float),
+    ("max_out_loss", oasis_float),
+])
 
 
 def read_input_files(
@@ -29,9 +76,10 @@ def read_input_files(
         agg_wheatsheaf_mean (bool): Aggregate Wheatsheaf Mean.
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
     """
-    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
-    period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
-    returnperiods, use_return_period = read_return_periods(use_return_period)
+    input_dir = Path(run_dir, "input")
+    occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)
+    period_weights = read_periods(no_of_periods, input_dir)
+    returnperiods, use_return_period = read_return_periods(use_return_period, input_dir)
 
     # User must define return periods if he/she wishes to use non-uniform period weights for
     # Wheatsheaf/per sample mean output
@@ -53,6 +101,152 @@ def read_input_files(
         "returnperiods": returnperiods,
     }
     return file_data, use_return_period, agg_wheatsheaf_mean, occ_wheatsheaf_mean
+
+
+@nb.njit(cache=True, error_model="numpy")
+def get_max_summary_id(file_handles):
+    max_summary_id = -1
+    for fin in file_handles:
+        cursor = oasis_int_size * 3
+
+        valid_buff = len(fin)
+        while cursor < valid_buff:
+            _, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+            summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+            _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+
+            max_summary_id = max(max_summary_id, summary_id)
+
+            while cursor < valid_buff:
+                sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+                _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+                if sidx == 0:
+                    break
+    return max_summary_id
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def _remap_sidx(sidx):
+    if sidx == -2: return 0
+    if sidx == -3: return 1
+    if sidx >= 1: return sidx + 1
+    raise ValueError(f"Invalid sidx value: {sidx}")
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def _get_outloss_mean_idx(period_no, summary_id, max_summary_id):
+    return ((period_no - 1) * max_summary_id) + summary_id
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def _get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id):
+    remapped_sidx = _remap_sidx(sidx)
+    return ((period_no - 1) * num_sidxs * max_summary_id) + (remapped_sidx * max_summary_id) + summary_id
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def do_lec_output_agg_summary(
+    summary_id,
+    sidx,
+    loss,
+    filtered_occ_map,
+    outloss_mean,
+    outloss_sample,
+    sample_size,
+    max_summary_id,
+):
+    for row in filtered_occ_map:
+        period_no = row["period_no"]
+        if sidx == MEAN_IDX:
+            idx = _get_outloss_mean_idx(period_no, summary_id, max_summary_id)
+            outloss_mean[idx]["row_used"] = True
+            outloss_mean[idx]["period_no"] = period_no
+            outloss_mean[idx]["summary_id"] = summary_id
+            outloss_mean[idx]["agg_out_loss"] += loss
+            max_out_loss = max(outloss_mean[idx]["max_out_loss"], loss)
+            outloss_mean[idx]["max_out_loss"] = max_out_loss
+        else:
+            idx = _get_outloss_sample_idx(period_no, sidx, summary_id, sample_size + 2, max_summary_id)
+            outloss_sample[idx]["row_used"] = True
+            outloss_sample[idx]["period_no"] = period_no
+            outloss_sample[idx]["summary_id"] = summary_id
+            outloss_sample[idx]["agg_out_loss"] += loss
+            max_out_loss = max(outloss_sample[idx]["max_out_loss"], loss)
+            outloss_sample[idx]["max_out_loss"] = max_out_loss
+
+
+@nb.njit(cache=True, error_model="numpy")
+def process_input_file(
+    fin,
+    outloss_mean,
+    outloss_sample,
+    occ_map,
+    use_return_period,
+    sample_size,
+    max_summary_id,
+):
+    # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
+    cursor = oasis_int_size * 3
+
+    # Read all samples
+    valid_buff = len(fin)
+    while cursor < valid_buff:
+        event_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+        summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+        expval, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+
+        filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
+        # Discard samples if event_id not found
+        if len(filtered_occ_map) == 0:
+            while cursor < valid_buff:
+                sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+                _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+                if sidx == 0:
+                    break
+            continue
+
+        # TODO: Add summary_id to summary_ids bool array?
+
+        while cursor < valid_buff:
+            sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
+            loss, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
+            if sidx == 0:
+                break
+            if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
+                continue
+            if loss > 0 or use_return_period:
+                    do_lec_output_agg_summary(
+                        summary_id,
+                        sidx,
+                        loss,
+                        filtered_occ_map,
+                        outloss_mean,
+                        outloss_sample,
+                        sample_size,
+                        max_summary_id,
+                    )
+
+
+@nb.njit(cache=True, error_model="numpy")
+def run_lec(
+    file_handles,
+    outloss_mean,
+    outloss_sample,
+    occ_map,
+    use_return_period,
+    sample_size,
+    max_summary_id,
+):
+    for fin in file_handles:
+        process_input_file(
+            fin,
+            outloss_mean,
+            outloss_sample,
+            occ_map,
+            use_return_period,
+            sample_size,
+            max_summary_id,
+        )
 
 
 def run(
@@ -95,7 +289,17 @@ def run(
         workspace_folder = Path(run_dir, "work", subfolder)
         if not workspace_folder.is_dir():
             raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
+        
+        # Find summary binary files
+        files = [file for file in workspace_folder.glob("*.bin")]
+        file_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
 
+        streams_in, (stream_source_type, stream_agg_type, sample_size) = init_streams_in(files, stack)
+        if stream_source_type != SUMMARY_STREAM_ID:
+            raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
+
+        max_summary_id = get_max_summary_id(file_handles)
+        
         file_data, use_return_period, agg_wheatsheaf_mean, occ_wheatsheaf_mean = read_input_files(
             run_dir,
             use_return_period,
@@ -103,17 +307,59 @@ def run(
             occ_wheatsheaf_mean,
         )
 
+        output_flags = [
+            agg_full_uncertainty,
+            agg_wheatsheaf,
+            agg_sample_mean,
+            agg_wheatsheaf_mean,
+            occ_full_uncertainty,
+            occ_wheatsheaf,
+            occ_sample_mean,
+            occ_wheatsheaf_mean,
+        ]
+
+        # Create outloss array maps
+        # outloss_mean has only -1 sidx
+        # outloss_sample has all sidxs plus -2 and -3
+        outloss_mean = np.zeros(
+            (file_data["no_of_periods"] * max_summary_id),
+            dtype=_OUTLOSS_MEAN_DTYPE
+        )
+        print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
+        outloss_sample = outloss_mean = np.zeros(
+            (file_data["no_of_periods"] * (2 + sample_size) * max_summary_id),
+            dtype=_OUTLOSS_SAMPLE_DTYPE
+        )
+
+        handles_agg = [AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF_MEAN]
+        handles_occ = [OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF_MEAN]
+        handles_psept = [AGG_WHEATSHEAF, OCC_WHEATSHEAF]
+
+        run_lec(
+            file_handles,
+            outloss_mean,
+            outloss_sample,
+            file_data["occ_map"],
+            use_return_period,
+            sample_size,
+            max_summary_id,
+        )
+        print(max_summary_id)
+        print(outloss_mean)
+        print(outloss_sample)
+
+        ### List of LEC tasks
         # DONE: aggreports class which sets output flags and reads more files
         # TODO: outloss vector of maps, fileIDs_occ and agg vector, set of summary_ids
         # TODO: setupoutputfiles for file headers and csv files based on flags
-        # TODO:
+        # DONE:
         #   if no subfolder (len subfolder 0):
         #       processinputfile, outputaggreports, return
         #   else:
         #       read files, generate filelist, filehandles, idxfiles, samplesize, set of summaryids
         #   NOTE: not sure why above if condition exists, if no subfolder, it uses stdin,
         #         but the documentation says no standard input stream
-        #   TODO: drop support for standard input, seems to be just left there as a byproduct
+        #   DONE: drop support for standard input, seems to be just left there as a byproduct
         # TODO:
         #   if len idx files == len files:
         #       read idx files, add to summary_file_to_offset map, write to summaries.idx
