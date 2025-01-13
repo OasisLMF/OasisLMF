@@ -127,9 +127,12 @@ def get_max_summary_id(file_handles):
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _remap_sidx(sidx):
-    if sidx == -2: return 0
-    if sidx == -3: return 1
-    if sidx >= 1: return sidx + 1
+    if sidx == -2:
+        return 0
+    if sidx == -3:
+        return 1
+    if sidx >= 1:
+        return sidx + 1
     raise ValueError(f"Invalid sidx value: {sidx}")
 
 
@@ -215,16 +218,16 @@ def process_input_file(
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX or sidx == MAX_LOSS_IDX:
                 continue
             if loss > 0 or use_return_period:
-                    do_lec_output_agg_summary(
-                        summary_id,
-                        sidx,
-                        loss,
-                        filtered_occ_map,
-                        outloss_mean,
-                        outloss_sample,
-                        sample_size,
-                        max_summary_id,
-                    )
+                do_lec_output_agg_summary(
+                    summary_id,
+                    sidx,
+                    loss,
+                    filtered_occ_map,
+                    outloss_mean,
+                    outloss_sample,
+                    sample_size,
+                    max_summary_id,
+                )
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -289,7 +292,7 @@ def run(
         workspace_folder = Path(run_dir, "work", subfolder)
         if not workspace_folder.is_dir():
             raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
-        
+
         # Find summary binary files
         files = [file for file in workspace_folder.glob("*.bin")]
         file_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
@@ -299,7 +302,7 @@ def run(
             raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
         max_summary_id = get_max_summary_id(file_handles)
-        
+
         file_data, use_return_period, agg_wheatsheaf_mean, occ_wheatsheaf_mean = read_input_files(
             run_dir,
             use_return_period,
@@ -348,7 +351,7 @@ def run(
         print(outloss_mean)
         print(outloss_sample)
 
-        ### List of LEC tasks
+        # List of LEC tasks
         # DONE: aggreports class which sets output flags and reads more files
         # TODO: outloss vector of maps, fileIDs_occ and agg vector, set of summary_ids
         # TODO: setupoutputfiles for file headers and csv files based on flags
