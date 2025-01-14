@@ -151,16 +151,14 @@ def do_lec_output_agg_summary(
         period_no = row["period_no"]
         if sidx == MEAN_IDX:
             idx = _get_outloss_mean_idx(period_no, summary_id, max_summary_id)
-            outloss_mean[idx]["row_used"] = True
-            outloss_mean[idx]["agg_out_loss"] += loss
-            max_out_loss = max(outloss_mean[idx]["max_out_loss"], loss)
-            outloss_mean[idx]["max_out_loss"] = max_out_loss
+            outloss = outloss_mean
         else:
             idx = _get_outloss_sample_idx(period_no, sidx, summary_id, sample_size + 2, max_summary_id)
-            outloss_sample[idx]["row_used"] = True
-            outloss_sample[idx]["agg_out_loss"] += loss
-            max_out_loss = max(outloss_sample[idx]["max_out_loss"], loss)
-            outloss_sample[idx]["max_out_loss"] = max_out_loss
+            outloss = outloss_sample
+        outloss[idx]["row_used"] = True
+        outloss[idx]["agg_out_loss"] += loss
+        max_out_loss = max(outloss[idx]["max_out_loss"], loss)
+        outloss[idx]["max_out_loss"] = max_out_loss
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -168,6 +166,7 @@ def process_input_file(
     fin,
     outloss_mean,
     outloss_sample,
+    summary_ids,
     occ_map,
     use_return_period,
     sample_size,
@@ -193,7 +192,7 @@ def process_input_file(
                     break
             continue
 
-        # TODO: Add summary_id to summary_ids bool array?
+        summary_ids[summary_id - 1] = True
 
         while cursor < valid_buff:
             sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
@@ -220,6 +219,7 @@ def run_lec(
     file_handles,
     outloss_mean,
     outloss_sample,
+    summary_ids,
     occ_map,
     use_return_period,
     sample_size,
@@ -230,6 +230,7 @@ def run_lec(
             fin,
             outloss_mean,
             outloss_sample,
+            summary_ids,
             occ_map,
             use_return_period,
             sample_size,
@@ -306,40 +307,67 @@ def run(
             occ_wheatsheaf_mean,
         ]
 
+        # Check output_flags against output files
+        handles_agg = [AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF_MEAN]
+        handles_occ = [OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF_MEAN]
+        handles_psept = [AGG_WHEATSHEAF, OCC_WHEATSHEAF]
+        hasEPT = any([output_flags[idx] for idx in handles_agg + handles_occ])
+        hasPSEPT = any([output_flags[idx] for idx in handles_psept])
+        output_ept = output_ept and hasEPT
+        output_psept = output_psept and hasPSEPT
+
         # Create outloss array maps
-        # outloss_mean has only -1 sidx
-        # outloss_sample has all sidxs plus -2 and -3
+        # outloss_mean has only -1 SIDX
         outloss_mean = np.zeros(
             (file_data["no_of_periods"] * max_summary_id),
             dtype=_OUTLOSS_DTYPE
         )
-        print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
+        # outloss_sample has all SIDXs plus -2 and -3
         outloss_sample = np.zeros(
             (file_data["no_of_periods"] * (2 + sample_size) * max_summary_id),
             dtype=_OUTLOSS_DTYPE
         )
 
-        handles_agg = [AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF_MEAN]
-        handles_occ = [OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF_MEAN]
-        handles_psept = [AGG_WHEATSHEAF, OCC_WHEATSHEAF]
+        # Array of Summary IDs found
+        summary_ids = np.zeros((max_summary_id), dtype=np.bool_)
 
+        # Run LEC calculations to populate outloss and summary_ids arrays
         run_lec(
             file_handles,
             outloss_mean,
             outloss_sample,
+            summary_ids,
             file_data["occ_map"],
             use_return_period,
             sample_size,
             max_summary_id,
         )
+
+        output_files = {}
+        if output_ept:
+            ept_file = stack.enter_context(open(ept_output_file, "w"))
+            if not noheader:
+                EPT_headers = ",".join([c[0] for c in EPT_output])
+                ept_file.write(EPT_headers + "\n")
+            output_files["ept"] = ept_file
+        if output_psept:
+            psept_file = stack.enter_context(open(psept_output_file, "w"))
+            if not noheader:
+                PSEPT_headers = ",".join([c[0] for c in PSEPT_output])
+                psept_file.write(PSEPT_headers + "\n")
+            output_files["psept"] = psept_file
+
+        EPT_fmt = ','.join([c[2] for c in EPT_output])
+        PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
+
+        print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
         print(max_summary_id)
         print(outloss_mean)
         print(outloss_sample)
 
         # List of LEC tasks
         # DONE: aggreports class which sets output flags and reads more files
-        # TODO: outloss vector of maps, fileIDs_occ and agg vector, set of summary_ids
-        # TODO: setupoutputfiles for file headers and csv files based on flags
+        # DONE: outloss vector of maps, fileIDs_occ and agg vector, set of summary_ids
         # DONE:
         #   if no subfolder (len subfolder 0):
         #       processinputfile, outputaggreports, return
@@ -348,7 +376,7 @@ def run(
         #   NOTE: not sure why above if condition exists, if no subfolder, it uses stdin,
         #         but the documentation says no standard input stream
         #   DONE: drop support for standard input, seems to be just left there as a byproduct
-        # TODO:
+        # DONE:
         #   if len idx files == len files:
         #       read idx files, add to summary_file_to_offset map, write to summaries.idx
         #       read input files by summary id/fileidx, similar to the run_aal loop
@@ -359,7 +387,8 @@ def run(
         #   NOTE: should I implement the condition where idx files exist, might be slower
         #   NOTE: summaries are once again ordered!!!, just no period_no. However, they don't seem
         #         to be ordered when there are no idx files, we just seem to read summaries as they come.
-        #   TODO: forget the if condition and just read each summary file in original order
+        #   DONE: forget the if condition and just read each summary file in original order
+        # DONE: setupoutputfiles for file headers and csv files based on flags
         # TODO: Output CSVS, part of outputaggreports, maybe write to buffer and output occasionally,
         #       similar to aalpy which saves all data then outputs once at the end
 
