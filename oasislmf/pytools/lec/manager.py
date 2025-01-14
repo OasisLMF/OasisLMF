@@ -40,19 +40,8 @@ PSEPT_output = [
     ('Loss', oasis_float, '%.6f'),
 ]
 
-_OUTLOSS_MEAN_DTYPE = np.dtype([
+_OUTLOSS_DTYPE = np.dtype([
     ("row_used", np.bool_),
-    ("period_no", oasis_int),
-    ("summary_id", oasis_int),
-    ("agg_out_loss", oasis_float),
-    ("max_out_loss", oasis_float),
-])
-
-_OUTLOSS_SAMPLE_DTYPE = np.dtype([
-    ("row_used", np.bool_),
-    ("period_no", oasis_int),
-    ("sidx", oasis_int),
-    ("summary_id", oasis_int),
     ("agg_out_loss", oasis_float),
     ("max_out_loss", oasis_float),
 ])
@@ -163,16 +152,12 @@ def do_lec_output_agg_summary(
         if sidx == MEAN_IDX:
             idx = _get_outloss_mean_idx(period_no, summary_id, max_summary_id)
             outloss_mean[idx]["row_used"] = True
-            outloss_mean[idx]["period_no"] = period_no
-            outloss_mean[idx]["summary_id"] = summary_id
             outloss_mean[idx]["agg_out_loss"] += loss
             max_out_loss = max(outloss_mean[idx]["max_out_loss"], loss)
             outloss_mean[idx]["max_out_loss"] = max_out_loss
         else:
             idx = _get_outloss_sample_idx(period_no, sidx, summary_id, sample_size + 2, max_summary_id)
             outloss_sample[idx]["row_used"] = True
-            outloss_sample[idx]["period_no"] = period_no
-            outloss_sample[idx]["summary_id"] = summary_id
             outloss_sample[idx]["agg_out_loss"] += loss
             max_out_loss = max(outloss_sample[idx]["max_out_loss"], loss)
             outloss_sample[idx]["max_out_loss"] = max_out_loss
@@ -326,12 +311,12 @@ def run(
         # outloss_sample has all sidxs plus -2 and -3
         outloss_mean = np.zeros(
             (file_data["no_of_periods"] * max_summary_id),
-            dtype=_OUTLOSS_MEAN_DTYPE
+            dtype=_OUTLOSS_DTYPE
         )
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
         outloss_sample = outloss_mean = np.zeros(
             (file_data["no_of_periods"] * (2 + sample_size) * max_summary_id),
-            dtype=_OUTLOSS_SAMPLE_DTYPE
+            dtype=_OUTLOSS_DTYPE
         )
 
         handles_agg = [AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF_MEAN]
