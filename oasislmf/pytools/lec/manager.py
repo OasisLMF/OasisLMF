@@ -314,7 +314,7 @@ def run(
             dtype=_OUTLOSS_DTYPE
         )
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
-        outloss_sample = outloss_mean = np.zeros(
+        outloss_sample = np.zeros(
             (file_data["no_of_periods"] * (2 + sample_size) * max_summary_id),
             dtype=_OUTLOSS_DTYPE
         )
