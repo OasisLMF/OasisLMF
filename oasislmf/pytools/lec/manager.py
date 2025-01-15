@@ -8,7 +8,8 @@ from pathlib import Path
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
-from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_return_periods
+from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
+from oasislmf.pytools.lec.aggreports import AggReports
 from oasislmf.pytools.utils import redirect_logging
 
 
@@ -23,6 +24,11 @@ OCC_FULL_UNCERTAINTY = 4
 OCC_WHEATSHEAF = 5
 OCC_SAMPLE_MEAN = 6
 OCC_WHEATSHEAF_MEAN = 7
+
+OEP = 1
+OEPTVAR = 2
+AEP = 3
+AEPTVAR = 4
 
 EPT_output = [
     ('SummaryId', oasis_int, '%d'),
@@ -52,6 +58,7 @@ def read_input_files(
     use_return_period,
     agg_wheatsheaf_mean,
     occ_wheatsheaf_mean,
+    sample_size
 ):
     """Reads all input files and returns a dict of relevant data
     Args:
@@ -59,6 +66,7 @@ def read_input_files(
         use_return_period (bool): Use Return Period file.
         agg_wheatsheaf_mean (bool): Aggregate Wheatsheaf Mean.
         occ_wheatsheaf_mean (bool): Occurrence Wheatsheaf Mean.
+        sample_size (int): Sample Size.
     Returns:
         file_data (Dict[str, Any]): A dict of relevent data extracted from files
         use_return_period (bool): Use Return Period file.
@@ -68,6 +76,12 @@ def read_input_files(
     input_dir = Path(run_dir, "input")
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)
     period_weights = read_periods(no_of_periods, input_dir)
+    periods_fp = Path(run_dir, PERIODS_FILE)
+    # TODO: test period_weights by commenting this out
+    # if not periods_fp.exists():
+    #     period_weights = np.array([], dtype=period_weights.dtype)
+    # else:  # Normalise period weights
+    #     period_weights["weighting"] /= sample_size
     returnperiods, use_return_period = read_return_periods(use_return_period, input_dir)
 
     # User must define return periods if he/she wishes to use non-uniform period weights for
@@ -144,7 +158,7 @@ def do_lec_output_agg_summary(
     filtered_occ_map,
     outloss_mean,
     outloss_sample,
-    sample_size,
+    num_sidxs,
     max_summary_id,
 ):
     for row in filtered_occ_map:
@@ -153,7 +167,7 @@ def do_lec_output_agg_summary(
             idx = _get_outloss_mean_idx(period_no, summary_id, max_summary_id)
             outloss = outloss_mean
         else:
-            idx = _get_outloss_sample_idx(period_no, sidx, summary_id, sample_size + 2, max_summary_id)
+            idx = _get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
             outloss = outloss_sample
         outloss[idx]["row_used"] = True
         outloss[idx]["agg_out_loss"] += loss
@@ -169,7 +183,7 @@ def process_input_file(
     summary_ids,
     occ_map,
     use_return_period,
-    sample_size,
+    num_sidxs,
     max_summary_id,
 ):
     # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
@@ -209,7 +223,7 @@ def process_input_file(
                     filtered_occ_map,
                     outloss_mean,
                     outloss_sample,
-                    sample_size,
+                    num_sidxs,
                     max_summary_id,
                 )
 
@@ -222,7 +236,7 @@ def run_lec(
     summary_ids,
     occ_map,
     use_return_period,
-    sample_size,
+    num_sidxs,
     max_summary_id,
 ):
     for fin in file_handles:
@@ -233,7 +247,7 @@ def run_lec(
             summary_ids,
             occ_map,
             use_return_period,
-            sample_size,
+            num_sidxs,
             max_summary_id,
         )
 
@@ -294,6 +308,7 @@ def run(
             use_return_period,
             agg_wheatsheaf_mean,
             occ_wheatsheaf_mean,
+            sample_size,
         )
 
         output_flags = [
@@ -323,8 +338,9 @@ def run(
             dtype=_OUTLOSS_DTYPE
         )
         # outloss_sample has all SIDXs plus -2 and -3
+        num_sidxs = sample_size + 2
         outloss_sample = np.zeros(
-            (file_data["no_of_periods"] * (2 + sample_size) * max_summary_id),
+            (file_data["no_of_periods"] * num_sidxs * max_summary_id),
             dtype=_OUTLOSS_DTYPE
         )
 
@@ -339,7 +355,7 @@ def run(
             summary_ids,
             file_data["occ_map"],
             use_return_period,
-            sample_size,
+            num_sidxs,
             max_summary_id,
         )
 
@@ -360,37 +376,34 @@ def run(
         EPT_fmt = ','.join([c[2] for c in EPT_output])
         PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
 
+        agg = AggReports(
+            ept_output_file,
+            psept_output_file,
+            outloss_mean,
+            outloss_sample,
+            file_data["period_weights"],
+            max_summary_id,
+            num_sidxs,
+        )
+
+        if hasEPT:
+            agg.output_mean_damage_ratio(
+                OEP,
+                OEPTVAR,
+                "max_out_loss",
+            )
+            agg.output_mean_damage_ratio(
+                AEP,
+                AEPTVAR,
+                "agg_out_loss",
+            )
+
+        # TODO: rest of aggreports outputs
+
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
         print(max_summary_id)
         print(outloss_mean)
         print(outloss_sample)
-
-        # List of LEC tasks
-        # DONE: aggreports class which sets output flags and reads more files
-        # DONE: outloss vector of maps, fileIDs_occ and agg vector, set of summary_ids
-        # DONE:
-        #   if no subfolder (len subfolder 0):
-        #       processinputfile, outputaggreports, return
-        #   else:
-        #       read files, generate filelist, filehandles, idxfiles, samplesize, set of summaryids
-        #   NOTE: not sure why above if condition exists, if no subfolder, it uses stdin,
-        #         but the documentation says no standard input stream
-        #   DONE: drop support for standard input, seems to be just left there as a byproduct
-        # DONE:
-        #   if len idx files == len files:
-        #       read idx files, add to summary_file_to_offset map, write to summaries.idx
-        #       read input files by summary id/fileidx, similar to the run_aal loop
-        #       dolecoutputaggssummary inside this loop
-        #       outputaggreports
-        #   else:
-        #       processinputfile on each file, then outputaggreports at the end
-        #   NOTE: should I implement the condition where idx files exist, might be slower
-        #   NOTE: summaries are once again ordered!!!, just no period_no. However, they don't seem
-        #         to be ordered when there are no idx files, we just seem to read summaries as they come.
-        #   DONE: forget the if condition and just read each summary file in original order
-        # DONE: setupoutputfiles for file headers and csv files based on flags
-        # TODO: Output CSVS, part of outputaggreports, maybe write to buffer and output occasionally,
-        #       similar to aalpy which saves all data then outputs once at the end
 
 
 @redirect_logging(exec_name='aalpy')
