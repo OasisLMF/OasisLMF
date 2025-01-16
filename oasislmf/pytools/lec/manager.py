@@ -9,7 +9,7 @@ from pathlib import Path
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
-from oasislmf.pytools.lec.aggreports import AggReports
+from oasislmf.pytools.lec.aggreports import (AggReports, EPT_output, PSEPT_output)
 from oasislmf.pytools.utils import redirect_logging
 
 
@@ -29,22 +29,6 @@ OEP = 1
 OEPTVAR = 2
 AEP = 3
 AEPTVAR = 4
-
-EPT_output = [
-    ('SummaryId', oasis_int, '%d'),
-    ('EPCalc', oasis_int, '%d'),
-    ('EPType', oasis_int, '%d'),
-    ('ReturnPeriod', oasis_float, '%.6f'),
-    ('Loss', oasis_float, '%.6f'),
-]
-
-PSEPT_output = [
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleId', oasis_int, '%d'),
-    ('EPType', oasis_int, '%d'),
-    ('ReturnPeriod', oasis_float, '%.6f'),
-    ('Loss', oasis_float, '%.6f'),
-]
 
 _OUTLOSS_DTYPE = np.dtype([
     ("row_used", np.bool_),
@@ -377,16 +361,22 @@ def run(
         PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
 
         agg = AggReports(
-            ept_output_file,
-            psept_output_file,
+            output_files,
+            EPT_fmt,
+            PSEPT_fmt,
             outloss_mean,
             outloss_sample,
             file_data["period_weights"],
             max_summary_id,
+            sample_size,
+            file_data["no_of_periods"],
             num_sidxs,
+            use_return_period,
+            file_data["returnperiods"],
+
         )
 
-        if hasEPT:
+        if output_ept:
             agg.output_mean_damage_ratio(
                 OEP,
                 OEPTVAR,
@@ -399,7 +389,6 @@ def run(
             )
 
         # TODO: rest of aggreports outputs
-
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
         print(max_summary_id)
         print(outloss_mean)
