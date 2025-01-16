@@ -1,11 +1,11 @@
 __all__ = [
-    'RunModel'
+    'RunModel',
+    'GenerateComputationSettingsJsonSchema'
 ]
 
 import os
+import json
 from tqdm import tqdm
-
-from ods_tools.oed.setting_schema import ModelSettingSchema, AnalysisSettingSchema
 
 from ..base import ComputationStep
 
@@ -74,11 +74,6 @@ class RunModel(ComputationStep):
         self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
         self.oasis_files_dir = self.kwargs['oasis_files_dir']
 
-        # Validate JSON files (Fail at entry point not after input generation)
-        AnalysisSettingSchema().validate_file(self.analysis_settings_json)
-        if self.model_settings_json:
-            ModelSettingSchema().validate_file(self.model_settings_json)
-
         self.kwargs['exposure_data'] = get_exposure_data(self, add_internal_col=True)
 
         # Run chain
@@ -100,3 +95,16 @@ class RunModel(ComputationStep):
                 pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(self.model_run_dir))
+
+
+class GenerateComputationSettingsJsonSchema(ComputationStep):
+    step_params = [
+        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'default': '.',
+         'help': 'Path to the directory in which to generate the Settings schema files'},
+    ]
+
+    def run(self):
+        computation_settings_schema_fp = os.path.abspath(os.path.join(self.oasis_files_dir, "computation_settings_schema.json"))
+        with open(computation_settings_schema_fp, 'w') as fout:
+            json.dump(RunModel.get_computation_settings_json_schema(), fout)
+        self.logger.info(f"computation settings schema generated at {computation_settings_schema_fp}")

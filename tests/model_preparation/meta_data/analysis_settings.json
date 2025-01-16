@@ -1,0 +1,20 @@
+{
+    "model_supplier_id": "OasisLMF",
+    "model_name_id": "MinModel",
+    "model_settings": {},
+    "gul_output": true,
+    "gul_summaries": [
+        {
+            "eltcalc": true,
+            "id": 1
+        }
+    ],
+    "il_output": true,
+    "il_summaries": [
+        {
+            "eltcalc": true,
+            "id": 1
+        }
+    ],
+    "number_of_samples": 10
+}
