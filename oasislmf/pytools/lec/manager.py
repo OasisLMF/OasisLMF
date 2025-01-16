@@ -78,10 +78,10 @@ def read_input_files(
     period_weights = read_periods(no_of_periods, input_dir)
     periods_fp = Path(run_dir, PERIODS_FILE)
     # TODO: test period_weights by commenting this out
-    # if not periods_fp.exists():
-    #     period_weights = np.array([], dtype=period_weights.dtype)
-    # else:  # Normalise period weights
-    #     period_weights["weighting"] /= sample_size
+    if not periods_fp.exists():
+        period_weights = np.array([], dtype=period_weights.dtype)
+    else:  # Normalise period weights
+        period_weights["weighting"] /= sample_size
     returnperiods, use_return_period = read_return_periods(use_return_period, input_dir)
 
     # User must define return periods if he/she wishes to use non-uniform period weights for
@@ -141,13 +141,13 @@ def _remap_sidx(sidx):
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _get_outloss_mean_idx(period_no, summary_id, max_summary_id):
-    return ((period_no - 1) * max_summary_id) + summary_id
+    return ((period_no - 1) * max_summary_id) + (summary_id - 1)
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id):
     remapped_sidx = _remap_sidx(sidx)
-    return ((period_no - 1) * num_sidxs * max_summary_id) + (remapped_sidx * max_summary_id) + summary_id
+    return ((period_no - 1) * num_sidxs * max_summary_id) + (remapped_sidx * max_summary_id) + (summary_id - 1)
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
@@ -406,7 +406,7 @@ def run(
         print(outloss_sample)
 
 
-@redirect_logging(exec_name='aalpy')
+@redirect_logging(exec_name='lecpy')
 def main(
     run_dir='.',
     subfolder=None,

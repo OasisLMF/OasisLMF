@@ -65,7 +65,7 @@ def _inverse_remap_sidx(remapped_sidx):
     if remapped_sidx == 0:
         return -2
     if remapped_sidx == 1:
-        return -1
+        return -3
     if remapped_sidx >= 2:
         return remapped_sidx - 1
     raise ValueError(f"Invalid remapped_sidx value: {remapped_sidx}")
@@ -73,17 +73,17 @@ def _inverse_remap_sidx(remapped_sidx):
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _get_mean_idx_data(idx, max_summary_id):
-    summary_id = idx % max_summary_id
+    summary_id = (idx % max_summary_id) + 1
     period_no = (idx // max_summary_id) + 1
     return summary_id, period_no
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _get_sample_idx_data(idx, max_summary_id, num_sidxs):
-    summary_id = idx % max_summary_id
-    remaining_idx = idx // max_summary_id
-    remapped_sidx = remaining_idx % num_sidxs
-    period_no = (remaining_idx // num_sidxs) + 1
+    summary_id = (idx % max_summary_id) + 1
+    idx //= max_summary_id
+    remapped_sidx = idx % num_sidxs
+    period_no = (idx // num_sidxs) + 1
     sidx = _inverse_remap_sidx(remapped_sidx)
     return summary_id, sidx, period_no
 
@@ -98,7 +98,7 @@ def output_mean_damage_ratio(
     num_rows = len(outloss_mean[outloss_mean["row_used"] == True])
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
     i = 0
-    used_period_no = np.zeros(len(period_weights), dtype=np.int32)
+    used_period_no = np.zeros(outloss_mean["row_used"].sum(), dtype=np.int32)
     if len(period_weights) == 0:  # Mean Damage Ratio
         for idx, outloss in enumerate(outloss_mean):
             if not outloss["row_used"]:
