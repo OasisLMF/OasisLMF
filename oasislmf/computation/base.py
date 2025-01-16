@@ -199,7 +199,10 @@ class ComputationStep:
             "additionalProperties": False,
             "properties": {}
         }
+        settings_param_names = [param['name'] for param in cls.get_params(param_type="settings")]
         for param in cls.get_params():
+            if param['name'] in settings_param_names: # param is a json settings and therefore cannot be in the settings schema
+                continue
             param_schema = {"type": get_json_type(param)}
             if param.get('help'):
                 param_schema["description"] = param['help']
