@@ -12,4 +12,4 @@ pytest-cov
 pytest-ignore-flaky
 sphinx-autoapi
 tox
-responses
+responses<=0.25.3

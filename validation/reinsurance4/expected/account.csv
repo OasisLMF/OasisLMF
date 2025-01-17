@@ -1,0 +1,8 @@
+PortNumber,AccNumber,PolNumber,LayerNumber,CedantName,AccCurrency,ProducerName,LOB,PolPerilsCovered,LayerParticipation,LayerLimit,LayerAttachment,PolInceptionDate,PolExpiryDate,acc_idx,layer_id
+LO,A11111,Layer1,1,Cedant1,GBP,Producer1,,WTC,0.1,5000000.0,0.0,2024-01-01,2024-12-31,0,1
+LO,A11112,Layer1,1,Cedant2,GBP,Producer2,,WTC,0.1,5000000.0,0.0,2023-07-01,2024-06-30,1,1
+LO,A11113,Layer1,1,Cedant3,GBP,Producer3,RES,WTC,0.1,5000000.0,0.0,,,2,1
+LO,A11114,Layer1,1,Cedant4,GBP,Producer4,,WTC,0.1,5000000.0,0.0,2025-01-01,2025-12-31,3,1
+RA,A11115,Layer1,1,Cedant5,GBP,Producer5,,WTC,0.1,5000000.0,0.0,2024-01-01,2024-12-31,4,1
+RA,A11116,Layer1,1,Cedant6,GBP,Producer6,,WTC,0.1,5000000.0,0.0,2023-07-01,2024-06-30,5,1
+RA,A11117,Layer1,1,Cedant7,GBP,Producer7,,WTC,0.1,5000000.0,0.0,2025-01-01,2025-12-31,6,1
