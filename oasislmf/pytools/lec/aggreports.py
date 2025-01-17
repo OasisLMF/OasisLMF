@@ -39,6 +39,13 @@ LOSSVEC2MAP_dtype = np.dtype([
     ("value", oasis_float),
 ])
 
+WRITE_EPT_STATE_dtype = np.dtype([
+    ("next_returnperiod_idx", np.int64),
+    ("last_computed_rp", np.float64),
+    ("last_computed_loss", oasis_float),
+    ("tvar", oasis_float),
+])
+
 TAIL_dtype = np.dtype([
     ("summary_id", oasis_int),
     ("retperiod", np.float64),
@@ -145,10 +152,9 @@ def fill_tvar(
     return tail, tail_idx
 
 
+@nb.njit(cache=True, error_model="numpy")
 def write_return_period_out(
-    next_retperiod_idx,
-    last_retperiod,
-    last_loss,
+    state,
     curr_retperiod,
     curr_loss,
     summary_id,
@@ -156,65 +162,79 @@ def write_return_period_out(
     epcalc,
     max_retperiod,
     counter,
-    tvar,
     tail,
     tail_idx,
     returnperiods,
     mean_map=None,
 ):
     next_retperiod = 0
+    rets = []
     while True:
-        if next_retperiod_idx >= len(returnperiods):
-            return next_retperiod_idx, last_retperiod, last_loss, tvar, tail, tail_idx, False, \
-                (summary_id, epcalc, eptype, next_retperiod, 0)
+        if state["next_returnperiod_idx"] >= len(returnperiods):
+            return rets, tail, tail_idx
 
-        next_retperiod = returnperiods[next_retperiod_idx]
+        next_retperiod = returnperiods[state["next_returnperiod_idx"]]
 
         if curr_retperiod > next_retperiod:
             break
 
         if max_retperiod < next_retperiod:
-            next_retperiod_idx += 1
+            state["next_returnperiod_idx"] += 1
             continue
 
         loss = get_loss(
             next_retperiod,
-            last_retperiod,
-            last_loss,
+            state["last_computed_rp"],
+            state["last_computed_loss"],
             curr_retperiod,
             curr_loss
         )
 
-        yield next_retperiod_idx, last_retperiod, last_loss, tvar, tail, tail_idx, True, \
-            (summary_id, epcalc, eptype, next_retperiod, loss)
+        rets.append((summary_id, epcalc, eptype, next_retperiod, loss))
 
         if mean_map:
             # TODO: implement mean map case
             pass
 
         if curr_retperiod > 0:
-            tvar = tvar - ((tvar - loss) / counter)
+            state["tvar"] = state["tvar"] - ((state["tvar"] - loss) / counter)
             tail, tail_idx = fill_tvar(
                 tail,
                 tail_idx,
                 summary_id,
                 next_retperiod,
-                tvar,
+                state["tvar"],
             )
 
-        next_retperiod_idx += 1
+        state["next_returnperiod_idx"] += 1
         counter += 1
 
         if curr_retperiod > next_retperiod:
             break
 
     if curr_retperiod > 0:
-        last_retperiod = curr_retperiod
-        last_loss = curr_loss
-    return next_retperiod_idx, last_retperiod, last_loss, tvar, tail, tail_idx, False, \
-        (summary_id, epcalc, eptype, next_retperiod, 0)
+        state["last_computed_rp"] = curr_retperiod
+        state["last_computed_loss"] = curr_loss
+    return rets, tail, tail_idx
 
 
+@nb.njit(cache=True, error_model="numpy")
+def write_tvar(
+    epcalc,
+    eptype_tvar,
+    tail,
+):
+    rets = []
+    unique_ids = np.unique(tail["summary_id"])
+    unique_ids = np.sort(unique_ids)
+    for summary_id in unique_ids:
+        vals = tail[tail["summary_id"] == summary_id]
+        for row in vals:
+            rets.append((summary_id, epcalc, eptype_tvar, row["retperiod"], row["tvar"]))
+    return rets
+
+
+@nb.njit(cache=True, error_model="numpy")
 def write_exceedance_probability_table(
     items,
     max_retperiod,
@@ -236,19 +256,14 @@ def write_exceedance_probability_table(
     for summary_id in unique_ids:
         values = items[items['summary_id'] == summary_id]['value']
         sorted_values = np.sort(values)[::-1]
-        next_returnperiod_idx = 0
-        last_computed_rp = 0
-        last_computed_loss = 0
-        tvar = 0
+        state = np.zeros(1, dtype=WRITE_EPT_STATE_dtype)[0]
         i = 1
         for value in sorted_values:
             retperiod = max_retperiod / i
 
             if use_return_period:
-                gen = write_return_period_out(
-                    next_returnperiod_idx,
-                    last_computed_rp,
-                    last_computed_loss,
+                rets, tail, tail_idx = write_return_period_out(
+                    state,
                     retperiod,
                     value / sample_size,
                     summary_id,
@@ -256,58 +271,54 @@ def write_exceedance_probability_table(
                     epcalc,
                     max_retperiod,
                     i,
-                    tvar,
                     tail,
                     tail_idx,
                     returnperiods,
                 )
-                for next_returnperiod_idx, last_computed_rp, last_computed_loss, tvar, tail, tail_idx, should_output, ept_out in gen:
-                    if should_output:
-                        yield ept_out
-                    else:
-                        break
-                tvar = tvar - ((tvar - (value / sample_size)) / i)
+                for ret in rets:
+                    yield ret
+                state["tvar"] = state["tvar"] - ((state["tvar"] - (value / sample_size)) / i)
             else:
-                tvar = tvar - ((tvar - (value / sample_size)) / i)
+                state["tvar"] = state["tvar"] - ((state["tvar"] - (value / sample_size)) / i)
                 tail[tail_idx]["summary_id"] = summary_id
                 tail[tail_idx]["retperiod"] = retperiod
-                tail[tail_idx]["tvar"] = tvar
+                tail[tail_idx]["tvar"] = state["tvar"]
                 tail_idx += 1
                 yield summary_id, epcalc, eptype, retperiod, value / sample_size
 
             i += 1
 
         if use_return_period:
-            pass
-            # while True:
-            #     retperiod = max_retperiod / i
-            #     if returnperiods[next_returnperiod_idx] <= 0:
-            #         retperiod = 0
-            #     gen = write_return_period_out(
-            #         next_returnperiod_idx,
-            #         last_computed_rp,
-            #         last_computed_loss,
-            #         retperiod,
-            #         0,
-            #         summary_id,
-            #         eptype,
-            #         epcalc,
-            #         max_retperiod,
-            #         i,
-            #         tvar,
-            #         tail,
-            #         tail_idx,
-            #         returnperiods,
-            #     )
-            #     for next_returnperiod_idx, last_computed_rp, last_computed_loss, tvar, tail, tail_idx, should_output, ept_out in gen:
-            #         if should_output:
-            #             yield ept_out
-            #         else:
-            #             break
-            #     tvar = tvar - (tvar / i)
-            #     i += 1
-            #     if next_returnperiod_idx >= len(returnperiods):
-            #         break
+            while True:
+                retperiod = max_retperiod / i
+                if returnperiods[state["next_returnperiod_idx"]] <= 0:
+                    retperiod = 0
+                rets, tail, tail_idx = write_return_period_out(
+                    state,
+                    retperiod,
+                    0,
+                    summary_id,
+                    eptype,
+                    epcalc,
+                    max_retperiod,
+                    i,
+                    tail,
+                    tail_idx,
+                    returnperiods,
+                )
+                for ret in rets:
+                    yield ret
+                state["tvar"] = state["tvar"] - (state["tvar"] / i)
+                i += 1
+                if state["next_returnperiod_idx"] >= len(returnperiods):
+                    break
+    rets = write_tvar(
+        epcalc,
+        eptype_tvar,
+        tail[:tail_idx],
+    )
+    for ret in rets:
+        yield ret
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
