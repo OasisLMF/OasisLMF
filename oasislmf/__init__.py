@@ -1,4 +1,4 @@
-__version__ = '2.3.11'
+__version__ = '2.3.12'
 
 import sys
 from importlib.abc import MetaPathFinder, Loader

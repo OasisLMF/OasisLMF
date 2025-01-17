@@ -7,7 +7,7 @@ msgpack
 numba>=0.57.0
 numexpr
 numpy>=1.18
-ods-tools>=3.2.5
+ods-tools>=3.2.5,<4.0.0
 oasis-data-manager>=0.1.1
 pandas>=1.0.3,!=1.1.0,!=1.1.1,<2.2.0
 pyarrow>=15.0.0
