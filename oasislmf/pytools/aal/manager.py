@@ -7,7 +7,7 @@ import os
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.aal.utils import heap_pop, heap_push, init_heap
+from oasislmf.pytools.aal.utils import heap_pop, heap_push, init_heap, exact_binary_search
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
@@ -107,9 +107,9 @@ def process_bin_file(
         summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
 
         # Find the index of the event_id in the unique_event_ids array
-        event_id_index = np.where(unique_event_ids == event_id)[0]
+        event_id_index = exact_binary_search(unique_event_ids, event_id)
 
-        if len(event_id_index) == 0:
+        if event_id_index == len(unique_event_ids):
             # If the event_id doesn't exist in occ_map, continue with the next
             offset = cursor
             # Skip over Expval and losses
@@ -118,7 +118,7 @@ def process_bin_file(
             continue
 
         # Get the number of rows for the current event_id
-        n_rows = event_id_counts[event_id_index[0]]
+        n_rows = event_id_counts[event_id_index]
 
         if summaries_idx + n_rows >= len(summaries_data):
             # Resize array if full
@@ -229,6 +229,7 @@ def get_summaries_data(
     summaries_data = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
     summaries_idx = 0
     max_summary_id = 0
+
     for file_index, fbin in enumerate(files_handles):
         offset = oasis_int_size * 3  # Summary stream header size
 
@@ -319,7 +320,7 @@ def read_input_files(run_dir):
     # Creates an array that stores indices corresponding
     # to rows in occ_map that match each event_id
     event_ids = [row["event_id"] for row in occ_map]
-    unique_event_ids = np.unique(event_ids)
+    unique_event_ids = np.sort(np.unique(event_ids))
 
     # Precompute the row counts for each event_id
     event_id_counts = np.zeros(len(unique_event_ids), dtype=np.int32)
