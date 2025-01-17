@@ -248,6 +248,7 @@ def write_exceedance_probability_table(
     if len(items) == 0 or sample_size == 0:
         return
 
+    # TODO: check if max_tail_size is big enough here, do we need resizing? 
     max_tail_size = len(items)
     tail = np.zeros(max_tail_size, dtype=TAIL_dtype)
     tail_idx = 0
@@ -312,6 +313,8 @@ def write_exceedance_probability_table(
                 i += 1
                 if state["next_returnperiod_idx"] >= len(returnperiods):
                     break
+    
+    # TODO: floating point error in tvar values for smaller return periods
     rets = write_tvar(
         epcalc,
         eptype_tvar,
