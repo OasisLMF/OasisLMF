@@ -449,6 +449,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
             'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
+        {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use pltpy python version instead of pltcalc c++ version'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
@@ -514,6 +516,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             modelpy=self.modelpy,
             peril_filter=self._get_peril_filter(self.analysis_settings),
             summarypy=self.summarypy,
+            pltpy=self.pltpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
             dynamic_footprint=self.dynamic_footprint
@@ -668,6 +671,8 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
             'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
+        {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use pltpy python version instead of pltcalc c++ version'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -722,6 +727,7 @@ class GenerateLosses(GenerateLossesDir):
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(analysis_settings),
                         summarypy=self.summarypy,
+                        pltpy=self.pltpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint
                     )
