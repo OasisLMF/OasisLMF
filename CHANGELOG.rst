@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`2.3.12`_
+ ---------
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
+* [#1618](https://github.com/OasisLMF/OasisLMF/pull/1618) - Fix testing failures (API Client) 
+* [#1611](https://github.com/OasisLMF/OasisLMF/pull/1611) - fix loss_out len in account level back allocation
+* [#1615](https://github.com/OasisLMF/OasisLMF/pull/1614) - Non-useful error message for missing PolInceptionDate with RA Basis reinsurance
+.. _`2.3.12`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.11...2.3.12
+
 `2.3.11`_
  ---------
 * [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
