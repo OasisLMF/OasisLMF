@@ -72,12 +72,11 @@ class AggReports():
         self.sample_size = sample_size
         self.no_of_periods = no_of_periods
         self.num_sidxs = num_sidxs
-        self.use_return_period= use_return_period
-        self.returnperiods= returnperiods
+        self.use_return_period = use_return_period
+        self.returnperiods = returnperiods
 
         self.EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
         self.PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
-
 
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
@@ -89,7 +88,7 @@ class AggReports():
         )
         mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
         unused_period_weights = self.period_weights[mask]
-        
+
         print(has_weights)
         print(items)
         print(unused_period_weights)
@@ -110,14 +109,25 @@ class AggReports():
 
 @nb.njit(cache=True, error_model="numpy")
 def get_loss(
-    next_retperiod_value,
+    next_retperiod,
     last_retperiod,
     last_loss,
     curr_retperiod,
     curr_loss
 ):
-    # TODO: implement
-    pass
+    if curr_retperiod == 0:
+        return 0
+    if curr_loss == 0:
+        return 0
+    if curr_retperiod == next_retperiod:
+        return curr_loss
+    if curr_retperiod < next_retperiod:
+        # Linear Interpolate
+        return (
+            (next_retperiod - curr_retperiod) * (last_loss - curr_loss) /
+            (last_retperiod - curr_retperiod)
+        ) + curr_loss
+    return -1
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -125,16 +135,16 @@ def fill_tvar(
     tail,
     tail_idx,
     summary_id,
-    epcalc,
-    next_retperiod_value,
+    next_retperiod,
     tvar
 ):
-    # TODO: implement
-    # NOTE: tail is updated here, is the current max_tail_size enough?
-    pass
+    tail[tail_idx]["summary_id"] = summary_id
+    tail[tail_idx]["retperiod"] = next_retperiod
+    tail[tail_idx]["tvar"] = tvar
+    tail_idx += 1
+    return tail, tail_idx
 
 
-@nb.njit(cache=True, error_model="numpy")
 def write_return_period_out(
     next_retperiod_idx,
     last_retperiod,
@@ -152,57 +162,59 @@ def write_return_period_out(
     returnperiods,
     mean_map=None,
 ):
+    next_retperiod = 0
     while True:
         if next_retperiod_idx >= len(returnperiods):
-            return next_retperiod_idx, last_retperiod, last_loss, tvar, None
-        
-        next_retperiod_value = returnperiods[next_retperiod_idx]
+            return next_retperiod_idx, last_retperiod, last_loss, tvar, tail, tail_idx, False, \
+                (summary_id, epcalc, eptype, next_retperiod, 0)
 
-        if curr_retperiod > next_retperiod_value:
+        next_retperiod = returnperiods[next_retperiod_idx]
+
+        if curr_retperiod > next_retperiod:
             break
 
-        if max_retperiod < next_retperiod_value:
+        if max_retperiod < next_retperiod:
             next_retperiod_idx += 1
             continue
-        
+
         loss = get_loss(
-            next_retperiod_value,
+            next_retperiod,
             last_retperiod,
             last_loss,
             curr_retperiod,
             curr_loss
         )
 
-        yield next_retperiod_idx, last_retperiod, last_loss, tvar, \
-            (summary_id, epcalc, eptype, next_retperiod_value, loss)
+        yield next_retperiod_idx, last_retperiod, last_loss, tvar, tail, tail_idx, True, \
+            (summary_id, epcalc, eptype, next_retperiod, loss)
 
         if mean_map:
-            #TODO: implement mean map case
+            # TODO: implement mean map case
             pass
-        
+
         if curr_retperiod > 0:
             tvar = tvar - ((tvar - loss) / counter)
-            fill_tvar(
+            tail, tail_idx = fill_tvar(
                 tail,
                 tail_idx,
                 summary_id,
-                epcalc,
-                next_retperiod_value,
+                next_retperiod,
+                tvar,
             )
-        
+
         next_retperiod_idx += 1
         counter += 1
 
-        if curr_retperiod <= next_retperiod_value:
+        if curr_retperiod > next_retperiod:
             break
-    
+
     if curr_retperiod > 0:
-        last_ret_period = curr_retperiod
+        last_retperiod = curr_retperiod
         last_loss = curr_loss
-    return next_retperiod_idx, last_retperiod, last_loss, tvar, None
+    return next_retperiod_idx, last_retperiod, last_loss, tvar, tail, tail_idx, False, \
+        (summary_id, epcalc, eptype, next_retperiod, 0)
 
 
-@nb.njit(cache=True, error_model="numpy")
 def write_exceedance_probability_table(
     items,
     max_retperiod,
@@ -215,7 +227,7 @@ def write_exceedance_probability_table(
 ):
     if len(items) == 0 or sample_size == 0:
         return
-    
+
     max_tail_size = len(items)
     tail = np.zeros(max_tail_size, dtype=TAIL_dtype)
     tail_idx = 0
@@ -231,9 +243,9 @@ def write_exceedance_probability_table(
         i = 1
         for value in sorted_values:
             retperiod = max_retperiod / i
-            
+
             if use_return_period:
-                yield from write_return_period_out(
+                gen = write_return_period_out(
                     next_returnperiod_idx,
                     last_computed_rp,
                     last_computed_loss,
@@ -247,22 +259,55 @@ def write_exceedance_probability_table(
                     tvar,
                     tail,
                     tail_idx,
+                    returnperiods,
                 )
+                for next_returnperiod_idx, last_computed_rp, last_computed_loss, tvar, tail, tail_idx, should_output, ept_out in gen:
+                    if should_output:
+                        yield ept_out
+                    else:
+                        break
                 tvar = tvar - ((tvar - (value / sample_size)) / i)
             else:
                 tvar = tvar - ((tvar - (value / sample_size)) / i)
                 tail[tail_idx]["summary_id"] = summary_id
                 tail[tail_idx]["retperiod"] = retperiod
                 tail[tail_idx]["tvar"] = tvar
+                tail_idx += 1
                 yield summary_id, epcalc, eptype, retperiod, value / sample_size
 
             i += 1
-        
+
         if use_return_period:
-            retperiod = max_retperiod / i
-            # TODO: dowhile loop
             pass
-                
+            # while True:
+            #     retperiod = max_retperiod / i
+            #     if returnperiods[next_returnperiod_idx] <= 0:
+            #         retperiod = 0
+            #     gen = write_return_period_out(
+            #         next_returnperiod_idx,
+            #         last_computed_rp,
+            #         last_computed_loss,
+            #         retperiod,
+            #         0,
+            #         summary_id,
+            #         eptype,
+            #         epcalc,
+            #         max_retperiod,
+            #         i,
+            #         tvar,
+            #         tail,
+            #         tail_idx,
+            #         returnperiods,
+            #     )
+            #     for next_returnperiod_idx, last_computed_rp, last_computed_loss, tvar, tail, tail_idx, should_output, ept_out in gen:
+            #         if should_output:
+            #             yield ept_out
+            #         else:
+            #             break
+            #     tvar = tvar - (tvar / i)
+            #     i += 1
+            #     if next_returnperiod_idx >= len(returnperiods):
+            #         break
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
@@ -313,7 +358,7 @@ def output_mean_damage_ratio(
             continue
 
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
-        
+
         # Mean Damage Ratio
         items[i]["summary_id"] = summary_id
         # Required if-else condition as njit cannot resolve outloss_type inside []
@@ -323,7 +368,7 @@ def output_mean_damage_ratio(
             items[i]["value"] = outloss_mean[idx]["max_out_loss"]
         else:
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-        
+
         if is_weighted:  # Mean Damage Ratio with weighting
             period_weighting = period_weights[period_weights["period_no"] == period_no][0]["weighting"]
             items[i]["period_no"] = period_no
@@ -331,7 +376,7 @@ def output_mean_damage_ratio(
             used_period_no[used_count] = period_no
             used_count += 1
         i += 1
-    
+
     if is_weighted:
         used_period_no = used_period_no[:used_count]
         return True, items, used_period_no
