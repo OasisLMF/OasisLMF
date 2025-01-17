@@ -140,7 +140,7 @@ class FMReader(EventReader):
         self.compute_idx = compute_idx
         self.logger = logger
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id,):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         return read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.nodes_array, self.sidx_indexes, self.sidx_indptr,
