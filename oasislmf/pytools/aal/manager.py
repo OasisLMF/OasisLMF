@@ -229,7 +229,6 @@ def get_summaries_data(
     summaries_data = np.empty(buffer_size, dtype=_SUMMARIES_DTYPE)
     summaries_idx = 0
     max_summary_id = 0
-
     for file_index, fbin in enumerate(files_handles):
         offset = oasis_int_size * 3  # Summary stream header size
 
