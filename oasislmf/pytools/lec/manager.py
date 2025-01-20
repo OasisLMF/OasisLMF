@@ -310,10 +310,19 @@ def run(
         handles_agg = [AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF_MEAN]
         handles_occ = [OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF_MEAN]
         handles_psept = [AGG_WHEATSHEAF, OCC_WHEATSHEAF]
-        hasEPT = any([output_flags[idx] for idx in handles_agg + handles_occ])
+        hasAGG = any([output_flags[idx] for idx in handles_agg])
+        hasOCC = any([output_flags[idx] for idx in handles_occ])
+        hasEPT = hasAGG or hasOCC
         hasPSEPT = any([output_flags[idx] for idx in handles_psept])
         output_ept = output_ept and hasEPT
         output_psept = output_psept and hasPSEPT
+
+        if not output_ept:
+            logger.warning("WARNING: no valid output stream to fill EPT file")
+        if not output_psept:
+            logger.warning("WARNING: no valid output stream to fill PSEPT file")
+        if not (output_ept or output_psept):
+            return
 
         # Create outloss array maps
         # outloss_mean has only -1 SIDX
@@ -377,16 +386,18 @@ def run(
         )
 
         if output_ept:
-            agg.output_mean_damage_ratio(
-                OEP,
-                OEPTVAR,
-                "max_out_loss",
-            )
-            agg.output_mean_damage_ratio(
-                AEP,
-                AEPTVAR,
-                "agg_out_loss",
-            )
+            if hasOCC:
+                agg.output_mean_damage_ratio(
+                    OEP,
+                    OEPTVAR,
+                    "max_out_loss",
+                )
+            if hasAGG:
+                agg.output_mean_damage_ratio(
+                    AEP,
+                    AEPTVAR,
+                    "agg_out_loss",
+                )
 
         # TODO: rest of aggreports outputs
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
