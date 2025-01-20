@@ -390,9 +390,6 @@ def run(
 
         # TODO: rest of aggreports outputs
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
-        print(max_summary_id)
-        print(outloss_mean)
-        print(outloss_sample)
 
 
 @redirect_logging(exec_name='lecpy')

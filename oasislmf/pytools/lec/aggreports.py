@@ -43,7 +43,6 @@ WRITE_EPT_STATE_dtype = np.dtype([
     ("next_returnperiod_idx", np.int64),
     ("last_computed_rp", np.float64),
     ("last_computed_loss", oasis_float),
-    ("tvar", oasis_float),
 ])
 
 TAIL_dtype = np.dtype([
@@ -96,10 +95,6 @@ class AggReports():
         mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
         unused_period_weights = self.period_weights[mask]
 
-        print(has_weights)
-        print(items)
-        print(unused_period_weights)
-
         gen = write_exceedance_probability_table(
             items,
             self.no_of_periods,
@@ -109,7 +104,6 @@ class AggReports():
             self.use_return_period,
             self.returnperiods
         )
-        print("GEN RESULTS")
         for v in gen:
             np.savetxt(self.output_files["ept"], [v], delimiter=",", fmt=self.ept_fmt)
 
@@ -132,8 +126,8 @@ def get_loss(
         # Linear Interpolate
         return (
             (next_retperiod - curr_retperiod) * (last_loss - curr_loss) /
-            (last_retperiod - curr_retperiod)
-        ) + curr_loss
+            (last_retperiod - curr_retperiod) + curr_loss
+        )
     return -1
 
 
@@ -162,6 +156,7 @@ def write_return_period_out(
     epcalc,
     max_retperiod,
     counter,
+    tvar,
     tail,
     tail_idx,
     returnperiods,
@@ -196,14 +191,14 @@ def write_return_period_out(
             # TODO: implement mean map case
             pass
 
-        if curr_retperiod > 0:
-            state["tvar"] = state["tvar"] - ((state["tvar"] - loss) / counter)
+        if curr_retperiod != 0:
+            tvar = tvar - ((tvar - loss) / counter)
             tail, tail_idx = fill_tvar(
                 tail,
                 tail_idx,
                 summary_id,
                 next_retperiod,
-                state["tvar"],
+                tvar,
             )
 
         state["next_returnperiod_idx"] += 1
@@ -248,7 +243,7 @@ def write_exceedance_probability_table(
     if len(items) == 0 or sample_size == 0:
         return
 
-    # TODO: check if max_tail_size is big enough here, do we need resizing? 
+    # TODO: check if max_tail_size is big enough here, do we need resizing? Is this too big?
     max_tail_size = len(items)
     tail = np.zeros(max_tail_size, dtype=TAIL_dtype)
     tail_idx = 0
@@ -258,6 +253,7 @@ def write_exceedance_probability_table(
         values = items[items['summary_id'] == summary_id]['value']
         sorted_values = np.sort(values)[::-1]
         state = np.zeros(1, dtype=WRITE_EPT_STATE_dtype)[0]
+        tvar = 0
         i = 1
         for value in sorted_values:
             retperiod = max_retperiod / i
@@ -272,18 +268,19 @@ def write_exceedance_probability_table(
                     epcalc,
                     max_retperiod,
                     i,
+                    tvar,
                     tail,
                     tail_idx,
                     returnperiods,
                 )
                 for ret in rets:
                     yield ret
-                state["tvar"] = state["tvar"] - ((state["tvar"] - (value / sample_size)) / i)
+                tvar = tvar - ((tvar - (value / sample_size)) / i)
             else:
-                state["tvar"] = state["tvar"] - ((state["tvar"] - (value / sample_size)) / i)
+                tvar = tvar - ((tvar - (value / sample_size)) / i)
                 tail[tail_idx]["summary_id"] = summary_id
                 tail[tail_idx]["retperiod"] = retperiod
-                tail[tail_idx]["tvar"] = state["tvar"]
+                tail[tail_idx]["tvar"] = tvar
                 tail_idx += 1
                 yield summary_id, epcalc, eptype, retperiod, value / sample_size
 
@@ -303,18 +300,18 @@ def write_exceedance_probability_table(
                     epcalc,
                     max_retperiod,
                     i,
+                    tvar,
                     tail,
                     tail_idx,
                     returnperiods,
                 )
                 for ret in rets:
                     yield ret
-                state["tvar"] = state["tvar"] - (state["tvar"] / i)
+                tvar = tvar - (tvar / i)
                 i += 1
                 if state["next_returnperiod_idx"] >= len(returnperiods):
                     break
-    
-    # TODO: floating point error in tvar values for smaller return periods
+
     rets = write_tvar(
         epcalc,
         eptype_tvar,
