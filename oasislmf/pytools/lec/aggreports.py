@@ -109,6 +109,16 @@ class AggReports():
 
 
 @nb.njit(cache=True, error_model="numpy")
+def resize_tail(tail, tail_idx):
+    if tail_idx >= len(tail):
+        new_size = len(tail) * 2
+        new_tail = np.zeros(new_size, dtype=TAIL_dtype)
+        new_tail[:tail_idx] = tail
+        return new_tail
+    return tail
+
+
+@nb.njit(cache=True, error_model="numpy")
 def get_loss(
     next_retperiod,
     last_retperiod,
@@ -139,6 +149,7 @@ def fill_tvar(
     next_retperiod,
     tvar
 ):
+    tail = resize_tail(tail, tail_idx)
     tail[tail_idx]["summary_id"] = summary_id
     tail[tail_idx]["retperiod"] = next_retperiod
     tail[tail_idx]["tvar"] = tvar
@@ -243,9 +254,7 @@ def write_exceedance_probability_table(
     if len(items) == 0 or sample_size == 0:
         return
 
-    # TODO: check if max_tail_size is big enough here, do we need resizing? Is this too big?
-    max_tail_size = len(items)
-    tail = np.zeros(max_tail_size, dtype=TAIL_dtype)
+    tail = np.zeros(16, dtype=TAIL_dtype)
     tail_idx = 0
 
     unique_ids = np.unique(items["summary_id"])
@@ -278,6 +287,7 @@ def write_exceedance_probability_table(
                 tvar = tvar - ((tvar - (value / sample_size)) / i)
             else:
                 tvar = tvar - ((tvar - (value / sample_size)) / i)
+                tail = resize_tail(tail, tail_idx)
                 tail[tail_idx]["summary_id"] = summary_id
                 tail[tail_idx]["retperiod"] = retperiod
                 tail[tail_idx]["tvar"] = tvar

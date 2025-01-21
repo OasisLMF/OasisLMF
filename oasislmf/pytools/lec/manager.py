@@ -16,6 +16,7 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
+# Output flags
 AGG_FULL_UNCERTAINTY = 0
 AGG_WHEATSHEAF = 1
 AGG_SAMPLE_MEAN = 2
@@ -25,11 +26,13 @@ OCC_WHEATSHEAF = 5
 OCC_SAMPLE_MEAN = 6
 OCC_WHEATSHEAF_MEAN = 7
 
+# EPTypes
 OEP = 1
 OEPTVAR = 2
 AEP = 3
 AEPTVAR = 4
 
+# Outloss mean and sample dtype, summary_id, period_no (and sidx) obtained from index
 _OUTLOSS_DTYPE = np.dtype([
     ("row_used", np.bool_),
     ("agg_out_loss", oasis_float),
@@ -385,6 +388,7 @@ def run(
 
         )
 
+        # Output aggregate reportsto CSVs
         if output_ept:
             if hasOCC:
                 agg.output_mean_damage_ratio(
