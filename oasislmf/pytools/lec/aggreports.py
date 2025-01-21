@@ -121,6 +121,39 @@ class AggReports():
 
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
+        has_weights, items, used_period_no = output_full_uncertainty(
+            self.outloss_sample,
+            outloss_type,
+            self.period_weights,
+            self.max_summary_id,
+            self.num_sidxs,
+        )
+        mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
+        unused_periods_to_weights = self.period_weights[mask]
+
+        if has_weights:
+            gen = write_exceedance_probability_table_weighted(
+                items,
+                1,
+                epcalc,
+                eptype,
+                eptype_tvar,
+                unused_periods_to_weights,
+                self.use_return_period,
+                self.returnperiods
+            )
+        else:
+            gen = write_exceedance_probability_table(
+                items,
+                self.no_of_periods * self.sample_size,
+                epcalc,
+                eptype,
+                eptype_tvar,
+                self.use_return_period,
+                self.returnperiods
+            )
+        for v in gen:
+            np.savetxt(self.output_files["ept"], [v], delimiter=",", fmt=self.ept_fmt)
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -515,6 +548,51 @@ def output_mean_damage_ratio(
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
         if is_weighted:  # Mean Damage Ratio with weighting
+            period_weighting = period_weights[period_weights["period_no"] == period_no][0]["weighting"]
+            items[i]["period_no"] = period_no
+            items[i]["period_weighting"] = period_weighting
+            used_period_no[used_count] = period_no
+            used_count += 1
+        i += 1
+
+    if is_weighted:
+        used_period_no = used_period_no[:used_count]
+        return True, items, used_period_no
+    return False, items, used_period_no
+
+
+@nb.njit(cache=True, error_model="numpy")
+def output_full_uncertainty(
+    outloss_sample,
+    outloss_type,
+    period_weights,
+    max_summary_id,
+    num_sidxs,
+):
+    num_rows = len(outloss_sample[outloss_sample["row_used"] == True])
+    items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
+    used_period_no = np.zeros(outloss_sample["row_used"].sum(), dtype=np.int32)
+
+    is_weighted = len(period_weights) > 0
+    used_count = 0
+    i = 0
+    for idx in range(len(outloss_sample)):
+        if not outloss_sample[idx]["row_used"]:
+            continue
+
+        summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
+
+        # Full Uncertainty
+        items[i]["summary_id"] = summary_id
+        # Required if-else condition as njit cannot resolve outloss_type inside []
+        if outloss_type == "agg_out_loss":
+            items[i]["value"] = outloss_sample[idx]["agg_out_loss"]
+        elif outloss_type == "max_out_loss":
+            items[i]["value"] = outloss_sample[idx]["max_out_loss"]
+        else:
+            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
+
+        if is_weighted:  # Full Uncertainty with weighting
             period_weighting = period_weights[period_weights["period_no"] == period_no][0]["weighting"]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
