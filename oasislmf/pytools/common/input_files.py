@@ -196,7 +196,7 @@ def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_
         use_return_period_file (bool): Bool to use Return Period File
     """
     if not use_return_period_file:
-        return None, use_return_period_file
+        return np.array([], dtype=np.int32), use_return_period_file
     returnperiods_fp = Path(run_dir, filename)
 
     if not returnperiods_fp.exists():
