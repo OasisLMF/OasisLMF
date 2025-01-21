@@ -106,6 +106,10 @@ class AggReports():
         )
         for v in gen:
             np.savetxt(self.output_files["ept"], [v], delimiter=",", fmt=self.ept_fmt)
+    
+    def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
+        epcalc = FULL
+
 
 
 @nb.njit(cache=True, error_model="numpy")
