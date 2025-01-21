@@ -22,10 +22,8 @@ OASIS_AAL_MEMORY = float(os.environ["OASIS_AAL_MEMORY"]) if "OASIS_AAL_MEMORY" i
 
 # Similar to aal_rec in ktools
 # summary_id can be infered from index
-# we have a use_id boolean to store whether this summary_id/index is used
 # type can be infered from which array is using it
 _AAL_REC_DTYPE = np.dtype([
-    ('use_id', np.bool_),
     ('mean', np.float64),
     ('mean_squared', np.float64),
 ])
@@ -342,7 +340,7 @@ def read_input_files(run_dir):
 def get_num_subsets(alct, sample_size, max_summary_id):
     """Generates Sample AAL np map for subset sizes up to sample_size
     Example: sample_size[10], max_summary_id[2] generates following ndarray
-    [   
+    [
         #   subset_size, mean,  mean_squared, mean_period
         [0, 0, 0],  # subset_size = 1 , summary_id = 1
         [0, 0, 0],  # subset_size = 1 , summary_id = 2
@@ -410,6 +408,7 @@ def do_calc_end(
     max_summary_id,
     vec_analytical_aal,
     vecs_sample_aal,
+    vec_used_summary_id,
     vec_sample_sum_loss,
 ):
     """Updates Analytical and Sample AAL vectors from sample sum losses
@@ -422,6 +421,7 @@ def do_calc_end(
         max_summary_id (int): Max summary_id
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        vec_used_summary_id (ndarray[boolean]): vector to store if summary_id is used
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
     """
     # Get weighting
@@ -435,7 +435,7 @@ def do_calc_end(
 
     # Update Analytical AAL
     mean = vec_sample_sum_loss[0] # 0 index is where the analytical mean is stored
-    vec_analytical_aal[curr_summary_id - 1]["use_id"] = True
+    vec_used_summary_id[curr_summary_id - 1] = True
     vec_analytical_aal[curr_summary_id - 1]["mean"] += mean * weighting
     vec_analytical_aal[curr_summary_id - 1]["mean_squared"] += mean * mean * weighting
 
@@ -447,7 +447,6 @@ def do_calc_end(
 
     # Get sample aal idx for sample_size
     last_sample_aal = vecs_sample_aal[idxs[-1]]
-    last_sample_aal["use_id"] = True
 
     total_mean_by_period = 0
     sidx = 1
@@ -457,7 +456,6 @@ def do_calc_end(
         while aal_idx < num_subsets - 1:
             curr_sample_idx = idxs[aal_idx]
             curr_sample_aal = vecs_sample_aal[curr_sample_idx]
-            curr_sample_aal["use_id"] = True
 
             # Calculate the subset_size and assign to sidx
             subset_size = 2 ** (curr_sample_idx // max_summary_id)
@@ -565,6 +563,7 @@ def run_aal(
     files_handles,
     vec_analytical_aal,
     vecs_sample_aal,
+    vec_used_summary_id,
 ):
     """Run AAL calculation loop to populate vec data
     Args:
@@ -576,6 +575,7 @@ def run_aal(
         files_handles (List[np.memmap]): List of memmaps for summary files data
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        vec_used_summary_id (ndarray[boolean]): vector to store if summary_id is used
     """
     if len(memmaps) == 0:
         raise ValueError("File is empty or missing data")
@@ -603,6 +603,7 @@ def run_aal(
                     max_summary_id,
                     vec_analytical_aal,
                     vecs_sample_aal,
+                    vec_used_summary_id,
                     vec_sample_sum_loss,
                 )
             last_period_no = period_no
@@ -618,6 +619,7 @@ def run_aal(
                     max_summary_id,
                     vec_analytical_aal,
                     vecs_sample_aal,
+                    vec_used_summary_id,
                     vec_sample_sum_loss,
                 )
             last_period_no = period_no
@@ -639,6 +641,7 @@ def run_aal(
             max_summary_id,
             vec_analytical_aal,
             vecs_sample_aal,
+            vec_used_summary_id,
             vec_sample_sum_loss,
         )
 
@@ -672,6 +675,7 @@ def calculate_mean_stddev(
 def get_aal_data(
     vec_analytical_aal,
     vecs_sample_aal,
+    vec_used_summary_id,
     meanonly,
     sample_size,
     no_of_periods
@@ -680,6 +684,7 @@ def get_aal_data(
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        vec_used_summary_id (ndarray[boolean]): vector to store if summary_id is used
         meanonly (bool): Boolean value to output AAL with mean only
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
@@ -702,22 +707,20 @@ def get_aal_data(
     )
 
     if not meanonly:
-        for i in range(len(vec_analytical_aal)):
-            if not vec_analytical_aal[i]["use_id"]:
+        for summary_idx in range(len(vec_analytical_aal)):
+            if not vec_used_summary_id[summary_idx]:
                 continue
-            aal_data.append([i + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[i], std_analytical[i]])
-        for i in range(len(vecs_sample_aal)):
-            if not vecs_sample_aal[i]["use_id"]:
+            aal_data.append([summary_idx + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[summary_idx], std_analytical[summary_idx]])
+        for summary_idx in range(len(vecs_sample_aal)):
+            if not vec_used_summary_id[summary_idx]:
                 continue
-            aal_data.append([i + 1, MEAN_TYPE_SAMPLE, mean_sample[i], std_sample[i]])
+            aal_data.append([summary_idx + 1, MEAN_TYPE_SAMPLE, mean_sample[summary_idx], std_sample[summary_idx]])
     else:  # aalmeanonlycalc orders output data differently, this if condition is here to match the output to the ktools output
-        for i in range(len(vec_analytical_aal)):
-            if not vec_analytical_aal[i]["use_id"]:
+        for summary_idx in range(len(vec_analytical_aal)):
+            if not vec_used_summary_id[summary_idx]:
                 continue
-            aal_data.append([i + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[i]])
-            if not vecs_sample_aal[i]["use_id"]:
-                continue
-            aal_data.append([i + 1, MEAN_TYPE_SAMPLE, mean_sample[i]])
+            aal_data.append([summary_idx + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[summary_idx]])
+            aal_data.append([summary_idx + 1, MEAN_TYPE_SAMPLE, mean_sample[summary_idx]])
 
     return aal_data
 
@@ -847,10 +850,11 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             file_data["event_id_counts"],
             stack
         )
+        # aal vec are Indexed on summary_id - 1
         num_subsets = get_num_subsets(output_alct, sample_size, max_summary_id)
         vecs_sample_aal = np.zeros(num_subsets * max_summary_id, dtype=_AAL_REC_PERIOD_DTYPE)
-        # Indexed on summary_id - 1
         vec_analytical_aal = np.zeros(max_summary_id, dtype=_AAL_REC_DTYPE)
+        vec_used_summary_id = np.zeros(max_summary_id, dtype=np.bool_)
 
         # Run AAL calculations, populate above vecs
         run_aal(
@@ -861,7 +865,8 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             max_summary_id,
             files_handles,
             vec_analytical_aal, # unique in output_aal
-            vecs_sample_aal
+            vecs_sample_aal,
+            vec_used_summary_id,
         )
 
         # Initialise csv column names for output files
@@ -899,6 +904,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             aal_data = get_aal_data(
                 vec_analytical_aal,
                 vecs_sample_aal[start_idx:end_idx],
+                vec_used_summary_id,
                 meanonly,
                 sample_size,
                 file_data["no_of_periods"],
