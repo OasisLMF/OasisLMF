@@ -93,23 +93,34 @@ class AggReports():
             self.max_summary_id,
         )
         mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
-        unused_period_weights = self.period_weights[mask]
+        unused_periods_to_weights = self.period_weights[mask]
 
-        gen = write_exceedance_probability_table(
-            items,
-            self.no_of_periods,
-            epcalc,
-            eptype,
-            eptype_tvar,
-            self.use_return_period,
-            self.returnperiods
-        )
+        if has_weights:
+            gen = write_exceedance_probability_table_weighted(
+                items,
+                self.sample_size,
+                epcalc,
+                eptype,
+                eptype_tvar,
+                unused_periods_to_weights,
+                self.use_return_period,
+                self.returnperiods
+            )
+        else:
+            gen = write_exceedance_probability_table(
+                items,
+                self.no_of_periods,
+                epcalc,
+                eptype,
+                eptype_tvar,
+                self.use_return_period,
+                self.returnperiods
+            )
         for v in gen:
             np.savetxt(self.output_files["ept"], [v], delimiter=",", fmt=self.ept_fmt)
-    
+
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
-
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -305,6 +316,115 @@ def write_exceedance_probability_table(
                 retperiod = max_retperiod / i
                 if returnperiods[state["next_returnperiod_idx"]] <= 0:
                     retperiod = 0
+                rets, tail, tail_idx = write_return_period_out(
+                    state,
+                    retperiod,
+                    0,
+                    summary_id,
+                    eptype,
+                    epcalc,
+                    max_retperiod,
+                    i,
+                    tvar,
+                    tail,
+                    tail_idx,
+                    returnperiods,
+                )
+                for ret in rets:
+                    yield ret
+                tvar = tvar - (tvar / i)
+                i += 1
+                if state["next_returnperiod_idx"] >= len(returnperiods):
+                    break
+
+    rets = write_tvar(
+        epcalc,
+        eptype_tvar,
+        tail[:tail_idx],
+    )
+    for ret in rets:
+        yield ret
+
+
+@nb.njit(cache=True, error_model="numpy")
+def write_exceedance_probability_table_weighted(
+    items,
+    cum_weight_constant,
+    epcalc,
+    eptype,
+    eptype_tvar,
+    unused_periods_to_weights,
+    use_return_period,
+    returnperiods,
+    sample_size=1
+):
+    if len(items) == 0 or sample_size == 0:
+        return
+
+    tail = np.zeros(16, dtype=TAIL_dtype)
+    tail_idx = 0
+
+    unique_ids = np.unique(items["summary_id"])
+    for summary_id in unique_ids:
+        filtered_items = items[items['summary_id'] == summary_id]
+        sorted_idxs = np.argsort(filtered_items["value"])[::-1]
+        sorted_items = filtered_items[sorted_idxs]
+        state = np.zeros(1, dtype=WRITE_EPT_STATE_dtype)[0]
+        tvar = 0
+        i = 1
+        cumulative_weighting = 0
+        max_retperiod = 0
+        largest_loss = False
+
+        for item in sorted_items:
+            cumulative_weighting += (item["period_weighting"] * cum_weight_constant)
+            retperiod = max_retperiod / i
+
+            if item["period_weighting"]:
+                retperiod = 1 / cumulative_weighting
+
+                if not largest_loss:
+                    max_retperiod = retperiod + 0.0001  # Add for floating point errors
+                    largest_loss = True
+
+                if use_return_period:
+                    rets, tail, tail_idx = write_return_period_out(
+                        state,
+                        retperiod,
+                        item["value"] / sample_size,
+                        summary_id,
+                        eptype,
+                        epcalc,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_idx,
+                        returnperiods,
+                    )
+                    for ret in rets:
+                        yield ret
+                    tvar = tvar - ((tvar - (item["value"] / sample_size)) / i)
+                else:
+                    tvar = tvar - ((tvar - (item["value"] / sample_size)) / i)
+                    tail = resize_tail(tail, tail_idx)
+                    tail[tail_idx]["summary_id"] = summary_id
+                    tail[tail_idx]["retperiod"] = retperiod
+                    tail[tail_idx]["tvar"] = tvar
+                    tail_idx += 1
+                    yield summary_id, epcalc, eptype, retperiod, item["value"] / sample_size
+
+                i += 1
+        if use_return_period:
+            unused_ptw_idx = 0
+            while True:
+                retperiod = 0
+                if unused_ptw_idx < len(unused_periods_to_weights):
+                    cumulative_weighting += (
+                        unused_periods_to_weights[unused_ptw_idx]["weighting"] * cum_weight_constant
+                    )
+                    retperiod = 1 / cumulative_weighting
+                    unused_ptw_idx += 1
                 rets, tail, tail_idx = write_return_period_out(
                     state,
                     retperiod,

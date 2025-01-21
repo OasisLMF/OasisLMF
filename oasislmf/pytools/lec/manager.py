@@ -63,8 +63,7 @@ def read_input_files(
     input_dir = Path(run_dir, "input")
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(input_dir)
     period_weights = read_periods(no_of_periods, input_dir)
-    periods_fp = Path(run_dir, PERIODS_FILE)
-    # TODO: test period_weights by commenting this out
+    periods_fp = Path(input_dir, PERIODS_FILE)
     if not periods_fp.exists():
         period_weights = np.array([], dtype=period_weights.dtype)
     else:  # Normalise period weights
@@ -401,7 +400,6 @@ def run(
             agg.output_full_uncertainty(OEP, OEPTVAR, "max_out_loss")
         if output_flags[AGG_FULL_UNCERTAINTY]:
             agg.output_full_uncertainty(AEP, AEPTVAR, "agg_out_loss")
-
 
         # TODO: rest of aggreports outputs
         print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
