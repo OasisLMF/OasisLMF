@@ -1,4 +1,3 @@
-from line_profiler import profile
 import numba as nb
 import numpy as np
 
@@ -531,7 +530,15 @@ def output_mean_damage_ratio(
     num_rows = len(row_used_indices)
 
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
-    used_period_no = np.zeros(outloss_mean["row_used"].sum(), dtype=np.int32)
+    used_period_no = np.zeros(num_rows, dtype=np.int32)
+
+    # Required if-else condition as njit cannot resolve outloss_type inside []
+    if outloss_type == "agg_out_loss":
+        outloss_vals = outloss_mean["agg_out_loss"]
+    elif outloss_type == "max_out_loss":
+        outloss_vals = outloss_mean["max_out_loss"]
+    else:
+        raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
     is_weighted = len(period_weights) > 0
 
@@ -548,16 +555,8 @@ def output_mean_damage_ratio(
         idx = row_used_indices[i]
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
 
-        # Mean Damage Ratio
         items[i]["summary_id"] = summary_id
-        # Required if-else condition as njit cannot resolve outloss_type inside []
-        if outloss_type == "agg_out_loss":
-            items[i]["value"] = outloss_mean[idx]["agg_out_loss"]
-        elif outloss_type == "max_out_loss":
-            items[i]["value"] = outloss_mean[idx]["max_out_loss"]
-        else:
-            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
+        items[i]["value"] = outloss_vals[idx]
         if is_weighted:  # Mean Damage Ratio with weighting
             period_weighting = period_weight_map[period_no]
             items[i]["period_no"] = period_no
@@ -566,10 +565,7 @@ def output_mean_damage_ratio(
             used_count += 1
         i += 1
 
-    if is_weighted:
-        used_period_no = used_period_no[:used_count]
-        return True, items, used_period_no
-    return False, items, used_period_no
+    return is_weighted, items, used_period_no[:used_count]
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -585,7 +581,15 @@ def output_full_uncertainty(
     num_rows = len(row_used_indices)
 
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
-    used_period_no = np.zeros(outloss_sample["row_used"].sum(), dtype=np.int32)
+    used_period_no = np.zeros(num_rows, dtype=np.int32)
+
+    # Required if-else condition as njit cannot resolve outloss_type inside []
+    if outloss_type == "agg_out_loss":
+        outloss_vals = outloss_sample["agg_out_loss"]
+    elif outloss_type == "max_out_loss":
+        outloss_vals = outloss_sample["max_out_loss"]
+    else:
+        raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
     # Fast lookup period_weights
     is_weighted = len(period_weights) > 0
@@ -599,16 +603,8 @@ def output_full_uncertainty(
         idx = row_used_indices[i]
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
 
-        # Full Uncertainty
         items[i]["summary_id"] = summary_id
-        # Required if-else condition as njit cannot resolve outloss_type inside []
-        if outloss_type == "agg_out_loss":
-            items[i]["value"] = outloss_sample[idx]["agg_out_loss"]
-        elif outloss_type == "max_out_loss":
-            items[i]["value"] = outloss_sample[idx]["max_out_loss"]
-        else:
-            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
+        items[i]["value"] = outloss_vals[idx]
         if is_weighted:  # Full Uncertainty with weighting
             period_weighting = period_weight_map[period_no]
             items[i]["period_no"] = period_no
@@ -616,7 +612,4 @@ def output_full_uncertainty(
             used_period_no[used_count] = period_no
             used_count += 1
 
-    if is_weighted:
-        used_period_no = used_period_no[:used_count]
-        return True, items, used_period_no
-    return False, items, used_period_no
+    return is_weighted, items, used_period_no[:used_count]
