@@ -1,3 +1,4 @@
+from line_profiler import profile
 import numba as nb
 import numpy as np
 
@@ -91,6 +92,7 @@ class AggReports():
             outloss_type,
             self.period_weights,
             self.max_summary_id,
+            self.no_of_periods,
         )
         mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
         unused_periods_to_weights = self.period_weights[mask]
@@ -126,6 +128,7 @@ class AggReports():
             outloss_type,
             self.period_weights,
             self.max_summary_id,
+            self.no_of_periods,
             self.num_sidxs,
         )
         mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
@@ -522,19 +525,27 @@ def output_mean_damage_ratio(
     outloss_type,
     period_weights,
     max_summary_id,
+    no_of_periods,
 ):
-    num_rows = len(outloss_mean[outloss_mean["row_used"] == True])
+    row_used_indices = np.where(outloss_mean["row_used"])[0]
+    num_rows = len(row_used_indices)
+
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
     used_period_no = np.zeros(outloss_mean["row_used"].sum(), dtype=np.int32)
 
     is_weighted = len(period_weights) > 0
+
+    # Fast lookup period_weights
+    is_weighted = len(period_weights) > 0
+    if is_weighted:
+        period_weight_map = np.zeros(no_of_periods + 1, dtype=np.float64)
+        for p in range(len(period_weights)):
+            period_weight_map[period_weights[p]["period_no"]] = period_weights[p]["weighting"]
+
     used_count = 0
     i = 0
-
-    for idx in range(len(outloss_mean)):
-        if not outloss_mean[idx]["row_used"]:
-            continue
-
+    for i in range(num_rows):
+        idx = row_used_indices[i]
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
 
         # Mean Damage Ratio
@@ -548,7 +559,7 @@ def output_mean_damage_ratio(
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
         if is_weighted:  # Mean Damage Ratio with weighting
-            period_weighting = period_weights[period_weights["period_no"] == period_no][0]["weighting"]
+            period_weighting = period_weight_map[period_no]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
             used_period_no[used_count] = period_no
@@ -567,19 +578,25 @@ def output_full_uncertainty(
     outloss_type,
     period_weights,
     max_summary_id,
+    no_of_periods,
     num_sidxs,
 ):
-    num_rows = len(outloss_sample[outloss_sample["row_used"] == True])
+    row_used_indices = np.where(outloss_sample["row_used"])[0]
+    num_rows = len(row_used_indices)
+
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
     used_period_no = np.zeros(outloss_sample["row_used"].sum(), dtype=np.int32)
 
+    # Fast lookup period_weights
     is_weighted = len(period_weights) > 0
-    used_count = 0
-    i = 0
-    for idx in range(len(outloss_sample)):
-        if not outloss_sample[idx]["row_used"]:
-            continue
+    if is_weighted:
+        period_weight_map = np.zeros(no_of_periods + 1, dtype=np.float64)
+        for p in range(len(period_weights)):
+            period_weight_map[period_weights[p]["period_no"]] = period_weights[p]["weighting"]
 
+    used_count = 0
+    for i in range(num_rows):
+        idx = row_used_indices[i]
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
 
         # Full Uncertainty
@@ -593,12 +610,11 @@ def output_full_uncertainty(
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
         if is_weighted:  # Full Uncertainty with weighting
-            period_weighting = period_weights[period_weights["period_no"] == period_no][0]["weighting"]
+            period_weighting = period_weight_map[period_no]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
             used_period_no[used_count] = period_no
             used_count += 1
-        i += 1
 
     if is_weighted:
         used_period_no = used_period_no[:used_count]
