@@ -93,8 +93,7 @@ class AggReports():
             self.max_summary_id,
             self.no_of_periods,
         )
-        mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
-        unused_periods_to_weights = self.period_weights[mask]
+        unused_periods_to_weights = self.period_weights[~used_period_no]
 
         if has_weights:
             gen = write_exceedance_probability_table_weighted(
@@ -130,8 +129,7 @@ class AggReports():
             self.no_of_periods,
             self.num_sidxs,
         )
-        mask = ~np.isin(self.period_weights["period_no"], list(set(used_period_no)))
-        unused_periods_to_weights = self.period_weights[mask]
+        unused_periods_to_weights = self.period_weights[~used_period_no]
 
         if has_weights:
             gen = write_exceedance_probability_table_weighted(
@@ -530,7 +528,7 @@ def output_mean_damage_ratio(
     num_rows = len(row_used_indices)
 
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
-    used_period_no = np.zeros(num_rows, dtype=np.int32)
+    used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
     # Required if-else condition as njit cannot resolve outloss_type inside []
     if outloss_type == "agg_out_loss":
@@ -549,7 +547,6 @@ def output_mean_damage_ratio(
         for p in range(len(period_weights)):
             period_weight_map[period_weights[p]["period_no"]] = period_weights[p]["weighting"]
 
-    used_count = 0
     i = 0
     for i in range(num_rows):
         idx = row_used_indices[i]
@@ -561,11 +558,10 @@ def output_mean_damage_ratio(
             period_weighting = period_weight_map[period_no]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
-            used_period_no[used_count] = period_no
-            used_count += 1
+            used_period_no[period_no - 1] = True
         i += 1
 
-    return is_weighted, items, used_period_no[:used_count]
+    return is_weighted, items, used_period_no
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -581,7 +577,7 @@ def output_full_uncertainty(
     num_rows = len(row_used_indices)
 
     items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
-    used_period_no = np.zeros(num_rows, dtype=np.int32)
+    used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
     # Required if-else condition as njit cannot resolve outloss_type inside []
     if outloss_type == "agg_out_loss":
@@ -598,7 +594,6 @@ def output_full_uncertainty(
         for p in range(len(period_weights)):
             period_weight_map[period_weights[p]["period_no"]] = period_weights[p]["weighting"]
 
-    used_count = 0
     for i in range(num_rows):
         idx = row_used_indices[i]
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
@@ -609,7 +604,6 @@ def output_full_uncertainty(
             period_weighting = period_weight_map[period_no]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
-            used_period_no[used_count] = period_no
-            used_count += 1
+            used_period_no[period_no - 1] = True
 
-    return is_weighted, items, used_period_no[:used_count]
+    return is_weighted, items, used_period_no
