@@ -437,6 +437,7 @@ def do_calc_end(
     # Update Analytical AAL
     mean = vec_sample_sum_loss[0]  # 0 index is where the analytical mean is stored
     vec_used_summary_id[curr_summary_id - 1] = True
+
     vec_analytical_aal[curr_summary_id - 1]["mean"] += mean * weighting
     vec_analytical_aal[curr_summary_id - 1]["mean_squared"] += mean * mean * weighting
 
@@ -455,13 +456,11 @@ def do_calc_end(
     while sidx < sample_size + 1:
         # Iterate through aal_idx except the last one which is subset_size == sample_size
         while aal_idx < num_subsets - 1:
-            curr_sample_idx = idxs[aal_idx]
-            curr_sample_aal = vecs_sample_aal[curr_sample_idx]
+            curr_sample_aal = vecs_sample_aal[idxs[aal_idx]]
 
             # Calculate the subset_size and assign to sidx
-            subset_size = 2 ** (curr_sample_idx // max_summary_id)
-            sidx = subset_size
-            end_sidx = subset_size << 1
+            sidx = 1 << aal_idx
+            end_sidx = sidx << 1
 
             # Traverse sidx == subset_size to sidx == subset_size * 2
             weighted_mean, weighted_mean_squared = get_weighted_means(
@@ -470,19 +469,19 @@ def do_calc_end(
                 sidx,
                 end_sidx
             )
-            sidx = end_sidx
+
+            # Update sample size Sample AAL
+            last_sample_aal["mean"] += weighted_mean
+            last_sample_aal["mean_squared"] += weighted_mean_squared
+            total_mean_by_period += weighted_mean
+
             # Update current Sample AAL
             curr_sample_aal["mean"] += weighted_mean
             curr_sample_aal["mean_squared"] += weighted_mean_squared
-
-            last_sample_aal["mean"] += weighted_mean
-            last_sample_aal["mean_squared"] += weighted_mean_squared
-
-            mean_by_period = weighted_mean
-            total_mean_by_period += weighted_mean
-            sidx = end_sidx
             # Update current Sample AAL mean_period
-            curr_sample_aal["mean_period"] += mean_by_period * mean_by_period
+            curr_sample_aal["mean_period"] += weighted_mean * weighted_mean
+
+            sidx = end_sidx
             aal_idx += 1
         # Update sample size Sample AAL
         mean = vec_sample_sum_loss[sidx]
@@ -574,7 +573,7 @@ def run_aal(
     vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
     last_summary_id = -1
     last_period_no = -1
-    summary_fin = None
+
     for line in merge_sorted_chunks(memmaps):
         summary_id = line["summary_id"]
         file_idx = line["file_idx"]
@@ -886,12 +885,10 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
 
         if output_aal:
             # Get Sample AAL data for subset_size == sample_size (last group of arrays)
-            num_groups = len(vecs_sample_aal) // max_summary_id
-            start_idx = (num_groups - 1) * max_summary_id
-            end_idx = len(vecs_sample_aal)
+            start_idx = (num_subsets - 1) * max_summary_id
             aal_data = get_aal_data(
                 vec_analytical_aal,
-                vecs_sample_aal[start_idx:end_idx],
+                vecs_sample_aal[start_idx:],
                 vec_used_summary_id,
                 meanonly,
                 sample_size,
