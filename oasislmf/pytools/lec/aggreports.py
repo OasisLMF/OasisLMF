@@ -540,14 +540,7 @@ def output_mean_damage_ratio(
 
     is_weighted = len(period_weights) > 0
 
-    # Fast lookup period_weights
     is_weighted = len(period_weights) > 0
-    if is_weighted:
-        period_weight_map = np.zeros(no_of_periods + 1, dtype=np.float64)
-        for p in range(len(period_weights)):
-            period_weight_map[period_weights[p]["period_no"]] = period_weights[p]["weighting"]
-
-    i = 0
     for i in range(num_rows):
         idx = row_used_indices[i]
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
@@ -555,11 +548,11 @@ def output_mean_damage_ratio(
         items[i]["summary_id"] = summary_id
         items[i]["value"] = outloss_vals[idx]
         if is_weighted:  # Mean Damage Ratio with weighting
-            period_weighting = period_weight_map[period_no]
+            # Fast lookup period_weights as they are numbered 1 to no_of_periods
+            period_weighting = period_weights[period_no - 1]["weighting"]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
             used_period_no[period_no - 1] = True
-        i += 1
 
     return is_weighted, items, used_period_no
 
@@ -587,13 +580,7 @@ def output_full_uncertainty(
     else:
         raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
-    # Fast lookup period_weights
     is_weighted = len(period_weights) > 0
-    if is_weighted:
-        period_weight_map = np.zeros(no_of_periods + 1, dtype=np.float64)
-        for p in range(len(period_weights)):
-            period_weight_map[period_weights[p]["period_no"]] = period_weights[p]["weighting"]
-
     for i in range(num_rows):
         idx = row_used_indices[i]
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
@@ -601,7 +588,8 @@ def output_full_uncertainty(
         items[i]["summary_id"] = summary_id
         items[i]["value"] = outloss_vals[idx]
         if is_weighted:  # Full Uncertainty with weighting
-            period_weighting = period_weight_map[period_no]
+            # Fast lookup period_weights as they are numbered 1 to no_of_periods
+            period_weighting = period_weights[period_no - 1]["weighting"]
             items[i]["period_no"] = period_no
             items[i]["period_weighting"] = period_weighting
             used_period_no[period_no - 1] = True
