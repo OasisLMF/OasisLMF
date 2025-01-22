@@ -9,7 +9,7 @@ from pathlib import Path
 
 from oasislmf.pytools.aal.utils import heap_pop, heap_push, init_heap
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
-from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUM_SPECIAL_SIDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
+from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods
 from oasislmf.pytools.utils import redirect_logging
@@ -338,7 +338,7 @@ def read_input_files(run_dir):
 
 
 def get_num_subsets(alct, sample_size, max_summary_id):
-    """Generates Sample AAL np map for subset sizes up to sample_size
+    """Gets the number of subsets required to generates the Sample AAL np map for subset sizes up to sample_size
     Example: sample_size[10], max_summary_id[2] generates following ndarray
     [
         #   subset_size, mean,  mean_squared, mean_period
@@ -357,12 +357,13 @@ def get_num_subsets(alct, sample_size, max_summary_id):
     The next two arrays are subset_size 2^2 = 4
     The last two arrays are subset_size = sample_size = 10
     Doesn't generate one with subset_size 8 as double that is larger than sample_size
+    Therefore this function returns 4, and the sample aal array is 4 * 2
     Args:
         alct (bool): Boolean for ALCT output
         sample_size (int): Sample size
         max_summary_id (int): Max summary ID
     Returns:
-        vec_sample_aal (ndarray[vec_sample_aal_dtype]): A numpy dict for sample AAL values per subset size up to sample_size
+        num_subsets (int): Number of subsets
     """
     i = 0
     if alct and sample_size > 1:
@@ -421,7 +422,7 @@ def do_calc_end(
         max_summary_id (int): Max summary_id
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
-        vec_used_summary_id (ndarray[boolean]): vector to store if summary_id is used
+        vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
         vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
     """
     # Get weighting
@@ -434,7 +435,7 @@ def do_calc_end(
             weighting = 0
 
     # Update Analytical AAL
-    mean = vec_sample_sum_loss[0] # 0 index is where the analytical mean is stored
+    mean = vec_sample_sum_loss[0]  # 0 index is where the analytical mean is stored
     vec_used_summary_id[curr_summary_id - 1] = True
     vec_analytical_aal[curr_summary_id - 1]["mean"] += mean * weighting
     vec_analytical_aal[curr_summary_id - 1]["mean_squared"] += mean * mean * weighting
@@ -495,27 +496,8 @@ def do_calc_end(
 
 
 @nb.njit(cache=True, error_model="numpy")
-def do_calc_by_period(
-    vrec,
-    vec_sample_sum_loss,
-):
-    """Populate vec_sample_sum_loss
-    Args:
-        vrec (ndarray[_VREC_DTYPE]): array of sidx and losses
-        vec_sample_sum_loss (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
-    """
-    for rec in vrec:
-        loss = rec["loss"]
-        if loss > 0:
-            sidx = rec["sidx"]
-            if rec["sidx"] == -1:  # MEAN_IDX
-                sidx = 0
-            vec_sample_sum_loss[sidx] += loss
-
-
-@nb.njit(cache=True, error_model="numpy")
 def read_losses(summary_fin, cursor, vec_sample_sum_loss):
-    """Read losses from summary_fin starting at cursor
+    """Read losses from summary_fin starting at cursor, populate vec_sample_sum_loss
     Args:
         summary_fin (np.memmap): summary file memmap
         cursor (int): data offset for reading binary files
@@ -541,8 +523,16 @@ def read_losses(summary_fin, cursor, vec_sample_sum_loss):
         vec_sample_sum_loss[sidx] += loss
     return cursor
 
+
 @nb.njit(cache=True, error_model="numpy")
 def skip_losses(summary_fin, cursor):
+    """Skip through losses in summary_fin starting at cursor
+    Args:
+        summary_fin (np.memmap): summary file memmap
+        cursor (int): data offset for reading binary files
+    Returns:
+        cursor (int): data offset for reading binary files
+    """
     valid_buff = len(summary_fin)
     sidx = 1
     while sidx:
@@ -575,7 +565,7 @@ def run_aal(
         files_handles (List[np.memmap]): List of memmaps for summary files data
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
-        vec_used_summary_id (ndarray[boolean]): vector to store if summary_id is used
+        vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
     """
     if len(memmaps) == 0:
         raise ValueError("File is empty or missing data")
@@ -584,7 +574,6 @@ def run_aal(
     vec_sample_sum_loss = np.zeros(sample_size + 1, dtype=np.float64)
     last_summary_id = -1
     last_period_no = -1
-    last_file_idx = -1
     summary_fin = None
     for line in merge_sorted_chunks(memmaps):
         summary_id = line["summary_id"]
@@ -623,8 +612,7 @@ def run_aal(
                     vec_sample_sum_loss,
                 )
             last_period_no = period_no
-        if last_file_idx != file_idx:
-            summary_fin = files_handles[file_idx]
+        summary_fin = files_handles[file_idx]
 
         # Read summary header values (event_id, summary_id, expval)
         cursor = file_offset + (2 * oasis_int_size) + oasis_float_size
@@ -684,7 +672,7 @@ def get_aal_data(
     Args:
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
-        vec_used_summary_id (ndarray[boolean]): vector to store if summary_id is used
+        vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
         meanonly (bool): Boolean value to output AAL with mean only
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
@@ -864,7 +852,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             sample_size,
             max_summary_id,
             files_handles,
-            vec_analytical_aal, # unique in output_aal
+            vec_analytical_aal,  # unique in output_aal
             vecs_sample_aal,
             vec_used_summary_id,
         )
