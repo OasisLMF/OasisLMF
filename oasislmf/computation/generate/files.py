@@ -181,7 +181,6 @@ class GenerateFiles(ComputationStep):
         location_profile = get_json(src_fp=self.profile_loc_json) if self.profile_loc_json else self.profile_loc
         accounts_profile = get_json(src_fp=self.profile_acc_json) if self.profile_acc_json else self.profile_acc
         oed_hierarchy = get_oed_hierarchy(location_profile, accounts_profile)
-        loc_grp = oed_hierarchy['locgrp']['ProfileElementName']
 
         fm_aggregation_profile = get_json(src_fp=self.profile_fm_agg_json) if self.profile_fm_agg_json else self.profile_fm_agg
 
@@ -258,15 +257,17 @@ class GenerateFiles(ComputationStep):
         model_hazard_group_fields = []
         correlations: bool = False
         model_settings = None
+        analysis_settings = None
         correlations_analysis_settings = None
 
         # If analysis settings file contains correlation settings, they will overwrite the ones in model settings
         if self.analysis_settings_json is not None:
-            correlations_analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json).get('model_settings', {}).get('correlation_settings', None)
+            analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
+            correlations_analysis_settings = analysis_settings.get('model_settings', {}).get('correlation_settings', None)
         if self.model_settings_json is not None:
             model_settings = ModelSettingSchema().get(self.model_settings_json)
             if correlations_analysis_settings is not None:
-                model_settings['correlation_settings'] = correlations_analysis_settings
+                model_settings['model_settings']['correlation_settings'] = correlations_analysis_settings
             correlations = establish_correlations(model_settings=model_settings)
             try:
                 model_damage_group_fields = model_settings["data_settings"].get("damage_group_fields")
@@ -291,14 +292,23 @@ class GenerateFiles(ComputationStep):
         else:
             hazard_group_id_cols = self.hazard_group_id_cols
 
+        # Workaround -- check model_settings and analysis_settings for 'do_disaggregation'
+        # once general mechanism is done to work with any setting, this should be removed
+        # see:  https://github.com/OasisLMF/OasisLMF/pull/1552
+        settings_do_disaggregation = None
+        if analysis_settings:
+            settings_do_disaggregation = analysis_settings.get('do_disaggregation', None)
+        elif model_settings and settings_do_disaggregation is None:
+            settings_do_disaggregation = model_settings.get('model_settings', {}).get('do_disaggregation', None)
+        if settings_do_disaggregation is not None:
+            self.do_disaggregation = settings_do_disaggregation
+
         damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
                                                                 exposure_df_columns=location_df,
                                                                 has_correlation_groups=correlations)
-
         hazard_group_id_cols: List[str] = process_group_id_cols(group_id_cols=hazard_group_id_cols,
                                                                 exposure_df_columns=location_df,
                                                                 has_correlation_groups=correlations)
-
         gul_inputs_df = get_gul_input_items(
             location_df,
             keys_df,
@@ -330,7 +340,7 @@ class GenerateFiles(ComputationStep):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS] if correlations is True else None,
+            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS],
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
@@ -392,7 +402,15 @@ class GenerateFiles(ComputationStep):
         xref_descriptions_df = merge_oed_to_mapping(
             xref_descriptions_df,
             exposure_data.account.dataframe,
-            ['PortNumber', 'AccNumber', 'PolNumber'], {'CedantName': '', 'ProducerName': '', 'LOB': ''})
+            ['PortNumber', 'AccNumber', 'PolNumber'],
+            {
+                'CedantName': '',
+                'ProducerName': '',
+                'LOB': '',
+                'PolInceptionDate': '',
+                'PolExpiryDate': '',
+            }
+        )
         xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id')
 
         del fm_summary_mapping
@@ -445,7 +463,7 @@ class GenerateDummyModelFiles(ComputationStep):
          'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float, 'default': 0.0,
          'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
-        {'name': 'num_amplifications', 'flag': '-m', 'requried': False, 'type': int, 'default': 0, 'help': 'Number of amplifications'},
+        {'name': 'num_amplifications', 'flag': '-m', 'required': False, 'type': int, 'default': 0, 'help': 'Number of amplifications'},
         {'name': 'min_pla_factor', 'flag': '-f', 'required': False, 'type': float, 'default': 0.875,
          'help': 'Minimum Post Loss Amplification Factor'},
         {'name': 'max_pla_factor', 'flag': '-F', 'required': False, 'type': float, 'default': 1.5,

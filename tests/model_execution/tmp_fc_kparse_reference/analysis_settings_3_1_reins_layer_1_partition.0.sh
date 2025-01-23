@@ -90,7 +90,7 @@ pltcalc < /tmp/%FIFO_DIR%/fifo/ri_S1_pltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pi
 tee < /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/ri_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/ri_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/ri_S1_pltcalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 tee < /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1.idx work/ri_S1_summaryaalcalc/P1.idx > /dev/null & pid5=$!
 
-summarycalc -m -f -z -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/ri_P1 &
+summarycalc -m -f -p input/RI_1 -1 /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -126,7 +126,7 @@ pltcalc < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_pltcalc_P1 > work/full_cor
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_pltcalc_P1 work/full_correlation/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid19=$!
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1.idx work/full_correlation/ri_S1_summaryaalcalc/P1.idx > /dev/null & pid20=$!
 
-summarycalc -m -f -z -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 &
+summarycalc -m -f -p input/RI_1 -1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -152,8 +152,8 @@ tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P1.idx work/full_corr
 
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 &
 
-( tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1  | fmcalc -a2 | tee /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 | fmcalc -a3 -n -p RI_1 > /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 ) & pid31=$!
-( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P1 -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmcalc -a2 | tee /tmp/%FIFO_DIR%/fifo/il_P1 | fmcalc -a3 -n -p RI_1 > /tmp/%FIFO_DIR%/fifo/ri_P1 ) & pid32=$!
+( tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1  | fmcalc -a2 | tee /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 | fmcalc -a3 -p input/RI_1 -n - > /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 ) & pid31=$!
+( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P1 -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmcalc -a2 | tee /tmp/%FIFO_DIR%/fifo/il_P1 | fmcalc -a3 -p input/RI_1 -n - > /tmp/%FIFO_DIR%/fifo/ri_P1 ) & pid32=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 

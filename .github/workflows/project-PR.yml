@@ -6,7 +6,14 @@ on:
 jobs:
   track_pr:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.fork == false
     steps:
+      - name: Github context
+        run:   echo "$GITHUB_CONTEXT"
+        shell: bash
+        env:
+         GITHUB_CONTEXT: ${{ toJson(github) }}
+
       - name: Get project data
         env:
           GITHUB_TOKEN: ${{ secrets.PROJECT_ACCESS_TOKEN }}
@@ -39,7 +46,7 @@ jobs:
             }' -f org=$ORGANIZATION -F number=$PROJECT_NUMBER > project_data.json
 
           echo 'PROJECT_ID='$(jq '.data.organization.projectV2.id' project_data.json) >> $GITHUB_ENV
-                    
+
       - name: Add PR to project
         env:
           GITHUB_TOKEN: ${{ secrets.PROJECT_ACCESS_TOKEN }}
@@ -52,4 +59,4 @@ jobs:
                   id
                 }
               }
-            }' -f project=$PROJECT_ID -f pr=$PR_ID --jq '.data.addProjectV2ItemById.projectV2Item.id')"          
+            }' -f project=$PROJECT_ID -f pr=$PR_ID --jq '.data.addProjectV2ItemById.projectV2Item.id')"

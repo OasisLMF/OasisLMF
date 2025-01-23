@@ -32,7 +32,7 @@ from oasislmf.utils.data import (factorize_array, factorize_ndarray,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, SUMMARY_TOP_LEVEL_COLS, assign_defaults_to_il_inputs,
                                      get_default_accounts_profile, get_default_exposure_profile,
-                                     get_default_fm_aggregation_profile)
+                                     get_default_fm_aggregation_profile, SOURCE_IDX)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
                                DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
@@ -609,6 +609,7 @@ def get_il_input_items(
                         group_df.rename(columns={ProfileElementName: term}, inplace=True)
                 level_df_list.append(group_df)
             level_df = pd.concat(level_df_list, copy=True)
+            level_df = level_df.drop_duplicates(subset=set(level_df.columns) - set(SOURCE_IDX.values()))
 
             if step_level:
                 # merge with gul_inputs_df needs to be based on 'steptriggertype' and 'coverage_type_id'
@@ -647,16 +648,19 @@ def get_il_input_items(
             level_df['FMTermGroupID'] = level_df['FMTermGroupID'].astype('Int64')
 
             # make sure agg_id without term still have the same amount of layer
-            level_df = level_df.merge(
-                prev_level_df[['gul_input_id', 'layer_id', 'agg_id']]
-                .rename(columns={'layer_id': 'layer_id_prev', 'agg_id': 'agg_id_prev'}),
+            no_term_filter = level_df['layer_id'].isna()
+            level_df_no_term = level_df[no_term_filter]
+            level_df_no_term = level_df_no_term.drop(columns=['layer_id']).merge(
+                prev_level_df[prev_level_df['gul_input_id'].isin(set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']],
                 how='left'
             )
-
-            level_df.loc[level_df['layer_id'].isna(), 'layer_id'] = level_df.loc[level_df['layer_id'].isna(), 'layer_id_prev']
+            level_df = pd.concat([level_df[~no_term_filter], level_df_no_term]).reset_index()
             level_df['layer_id'] = level_df['layer_id'].astype('int32')
-            level_df['agg_id_prev'] = level_df['agg_id_prev'].fillna(0).astype('int64')
-            level_df.drop(columns=['layer_id_prev'], inplace=True)
+
+            # map agg_id_prev using gul_input_id
+            prev_level_df_mapper = prev_level_df[['gul_input_id', 'agg_id']].drop_duplicates().set_index('gul_input_id')
+            level_df['agg_id_prev'] = level_df['gul_input_id'].map(prev_level_df_mapper['agg_id']).fillna(0).astype('int64')
+
             if do_disaggregation:
                 if 'risk_id' in agg_key:
                     __split_fm_terms_by_risk(level_df)

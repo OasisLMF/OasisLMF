@@ -58,7 +58,7 @@ pltcalc < fifo/ri_S1_pltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pid3=$!
 tee < fifo/ri_S1_summary_P1 fifo/ri_S1_eltcalc_P1 fifo/ri_S1_summarycalc_P1 fifo/ri_S1_pltcalc_P1 work/ri_S1_summaryaalcalc/P1.bin work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid4=$!
 tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryaalcalc/P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & pid5=$!
 
-summarycalc -m -f -z -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -m -f -p input/RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -84,7 +84,7 @@ tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryaalcalc/P1.idx > /dev/null &
 
 summarycalc -m -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
-( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P1 -i - | fmcalc -a2 | tee fifo/il_P1 | fmcalc -a2 -n -p RI_1 > fifo/ri_P1 ) & pid16=$!
+( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P1 -i - | fmcalc -a2 | tee fifo/il_P1 | fmcalc -a2 -p input/RI_1 -n - > fifo/ri_P1 ) & pid16=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 

@@ -329,3 +329,13 @@ class GenerateKeysWithBuiltinLookup(TestCase):
             generate_keys.run()
             assert filecmp.cmp(pathlib.Path(d, 'keys.csv'), pathlib.Path(META_DATA_PATH, 'keys.csv'), shallow=False)
             assert filecmp.cmp(pathlib.Path(d, 'keys-errors.csv'), pathlib.Path(META_DATA_PATH, 'keys-errors.csv'), shallow=False)
+
+    def test_builtin_geo_grid_peril(self):
+        with TemporaryDirectory() as d:
+            generate_keys = GenerateKeys(
+                oed_location_csv=pathlib.Path(META_DATA_PATH, 'location-geo_grid.csv'),
+                lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config-geo_grid.json'),
+                keys_data_csv=str(pathlib.Path(d, 'keys-geo_grid.csv'))
+            )
+            generate_keys.run()
+            assert filecmp.cmp(pathlib.Path(d, 'keys-geo_grid.csv'), pathlib.Path(META_DATA_PATH, 'keys-geo_grid.csv'), shallow=False)

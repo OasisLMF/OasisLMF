@@ -268,7 +268,9 @@ def get_gul_input_items(
             'areaperilid': 'areaperil_id',
             'vulnerabilityid': 'vulnerability_id',
             'amplificationid': 'amplification_id',
-            'modeldata': 'model_data'
+            'modeldata': 'model_data',
+            'intensityadjustment': 'intensity_adjustment',
+            'returnperiod': 'return_period'
         },
         inplace=True,
         copy=False  # Pandas copies column data by default on rename
@@ -411,6 +413,8 @@ def get_gul_input_items(
     if correlations:
         # do merge with peril correlation df
         gul_inputs_df = gul_inputs_df.merge(peril_correlation_group_df, left_on='peril_id', right_on='id').reset_index()
+    else:
+        gul_inputs_df[["peril_correlation_group", "damage_correlation_value", "hazard_correlation_value"]] = 0
     gul_inputs_df["group_id"] = (
         pd.util.hash_pandas_object(
             gul_inputs_df.rename(columns=damage_group_id_cols_map)[sorted(list(damage_group_id_cols_map.values()))], index=False).to_numpy() >> 33
@@ -424,10 +428,10 @@ def get_gul_input_items(
     # Select only required columns
     # Order here matches test output expectations
     keyscols = ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id']
-    if 'amplification_id' in gul_inputs_df.columns:
-        keyscols += ['amplification_id']
-    if 'section_id' in gul_inputs_df.columns:
-        keyscols += ['section_id']
+    additionalcols = ['amplification_id', 'section_id', 'intensity_adjustment', 'return_period']
+    for col in additionalcols:
+        if col in gul_inputs_df.columns:
+            keyscols += [col]
     usecols = (
         ['loc_id', portfolio_num, acc_num, loc_num] +
         ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
@@ -437,7 +441,7 @@ def get_gul_input_items(
         # disagg_id is needed for fm_summary_map
         ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status', 'building_id', 'NumberOfBuildings', 'IsAggregate', 'LocPeril'] +
         tiv_cols +
-        (["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"] if correlations is True else [])
+        ["peril_correlation_group", "damage_correlation_value", 'hazard_group_id', "hazard_correlation_value"]
     )
 
     usecols = [col for col in usecols if col in gul_inputs_df]
@@ -500,6 +504,29 @@ def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
         )
     except (IOError, OSError) as e:
         raise OasisException("Exception raised in 'write_sections_file'", e)
+
+
+@oasis_log
+def write_item_adjustments_file(gul_inputs_df, item_adjustments_fp, chunksize=100000):
+    """
+    Writes a item_adjustments id file based on the gul inputs.
+
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param item_adjustments_fp: item_adjustments file path to output
+    :type sections_fp: str
+    """
+    try:
+        gul_inputs_df.loc[:, ['item_id', 'intensity_adjustment', 'return_period']].drop_duplicates().to_csv(
+            path_or_buf=item_adjustments_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(item_adjustments_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException("Exception raised in 'write_item_adjustments_file'", e)
 
 
 @oasis_log
@@ -637,7 +664,6 @@ def write_gul_input_files(
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
     chunksize = chunksize or min(chunksize, len(gul_inputs_df))
-
     # If no complex model data present then remove the corresponding file
     # name from the files prefixes dict, which is used for writing the
     # GUl input files
@@ -653,6 +679,11 @@ def write_gul_input_files(
     # prefixes dict
     if 'section_id' not in gul_inputs_df:
         oasis_files_prefixes.pop('sections', None)
+
+    # If no adjustments data then remove corresponding file name from files
+    # prefixes dict
+    if 'intensity_adjustment' not in gul_inputs_df:
+        oasis_files_prefixes.pop('item_adjustments', None)
 
     # A dict of GUL input file names and file paths
     gul_input_files = {

@@ -1,6 +1,64 @@
 OasisLMF Changelog
 ==================
 
+`2.3.11`_
+ ---------
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
+* [#1250](https://github.com/OasisLMF/OasisLMF/pull/1576) - Support Risk Attaching 'RA' basis in reinsurance
+* [#1581](https://github.com/OasisLMF/OasisLMF/pull/1587) - oasislmf code uses legacy correlation settings location in model settings
+* [#1589](https://github.com/OasisLMF/OasisLMF/pull/1589) - Update platform API client for Cyber models 
+* [#1594](https://github.com/OasisLMF/OasisLMF/pull/1594) - improve the memory performance of il layer number continuity step
+* [#1595](https://github.com/OasisLMF/OasisLMF/pull/1596) - Allow process perils with different resolution grids 
+.. _`2.3.11`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.10...2.3.11
+
+`2.3.10`_
+ ---------
+* [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
+* [#1572](https://github.com/OasisLMF/OasisLMF/pull/1572) - Release 2.3.9
+* [#1585, #1575](https://github.com/OasisLMF/OasisLMF/pull/1574) - Fix missing complex keys return without amplification
+* [#1578](https://github.com/OasisLMF/OasisLMF/pull/1578) - fix: point to the correct source in error message for vulnerabiity_id…
+* [#1580](https://github.com/OasisLMF/OasisLMF/pull/1584) - Hazard correlation defaults to 100% if missing
+* [#1581](https://github.com/OasisLMF/OasisLMF/pull/1587) - oasislmf code uses legacy correlation settings location in model settings
+.. _`2.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.9...2.3.10
+
+`2.3.9`_
+ ---------
+* [#1567](https://github.com/OasisLMF/OasisLMF/pull/1568) - Occurrence file not found when requesting output from ktools component alt_meanonly
+* [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
+* [#1379](https://github.com/OasisLMF/OasisLMF/pull/1550) - Performance issue in get_exposure_summary
+* [#1557](https://github.com/OasisLMF/OasisLMF/pull/1557) - Release 2.3.8
+* [#1558](https://github.com/OasisLMF/OasisLMF/pull/1558) - support for having several pla sets
+* [#1560](https://github.com/OasisLMF/OasisLMF/pull/1560) - add check for vulnerability id and intensity bin boundary
+* [#1566](https://github.com/OasisLMF/OasisLMF/pull/1565) - Fiona package vulnerability issue
+.. _`2.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.8...2.3.9
+
+`2.3.8`_
+ ---------
+* [#1536](https://github.com/OasisLMF/OasisLMF/pull/1536) - Release 2.3.7 (Aug 6)
+* [#1544](https://github.com/OasisLMF/OasisLMF/pull/1545) - dynamic footprint - slow performance for large hazard case
+* [#1546](https://github.com/OasisLMF/OasisLMF/pull/1546) - Combus changes: 20240807
+* [#1554](https://github.com/OasisLMF/OasisLMF/pull/1554) - drop duplicate il term lines before merging
+* [#1547](https://github.com/OasisLMF/OasisLMF/pull/1555) - Running full_correlation + gulmc causes an execution to hang.  
+* [#1556](https://github.com/OasisLMF/OasisLMF/pull/1556) - Fix CI build system failures 
+* [#1559](https://github.com/OasisLMF/OasisLMF/pull/1559) - Read do_disaggregation from settings files
+* [#1560](https://github.com/OasisLMF/OasisLMF/pull/1560) - add check for vulnerability id and intensity bin boundary
+* [#1561](https://github.com/OasisLMF/OasisLMF/pull/1561) - Set Ktools 3.12.4
+* [#1531](https://github.com/OasisLMF/OasisLMF/pull/1531) - fix effective deductible applied in minded calculation for calcrule 19
+.. _`2.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.7...2.3.8
+
+`2.3.7`_
+ ---------
+* [#1533](https://github.com/OasisLMF/OasisLMF/pull/1537) - API client names the downloaded output file .tar instead of .tar.gz
+* [#1530](https://github.com/OasisLMF/OasisLMF/pull/1538) - Short flags unexpectedly changed in 2.3.6
+* [#1539](https://github.com/OasisLMF/OasisLMF/pull/1540) - Allow keys files with both amplification_id and model_data columns
+* [#1542](https://github.com/OasisLMF/OasisLMF/pull/1541) - Time and Memory performance issue for RI contract
+* [#1523](https://github.com/OasisLMF/OasisLMF/pull/1523) - Release 2.3.6 (July 1st 2024)
+* [#1531](https://github.com/OasisLMF/OasisLMF/pull/1531) - fix effective deductible applied in minded calculation for calcrule 19
+* [#1532](https://github.com/OasisLMF/OasisLMF/pull/1532) - make all compute step run command oasis logged
+* [#1468](https://github.com/OasisLMF/OasisLMF/pull/1534) - loss output at intermediate inuring priorities - new features 
+* [#1535](https://github.com/OasisLMF/OasisLMF/pull/1535) - add interval mapping to built in function
+.. _`2.3.7`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.6...2.3.7
+
 `2.3.6`_
  ---------
 * [#1516](https://github.com/OasisLMF/OasisLMF/pull/1516) - Added support for occurrence attachment for Per Risk XL
