@@ -48,7 +48,7 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
-                                 prepare_account_df, prepare_location_df,
+                                 prepare_account_df,
                                  prepare_reinsurance_df, validate_vulnerability_replacements)
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,

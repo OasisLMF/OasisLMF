@@ -16,7 +16,6 @@ from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
-from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (get_dataframe, get_exposure_data,
                                  print_dataframe)
 from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
@@ -98,7 +97,7 @@ class RunExposure(ComputationStep):
 
         # 1. Create Deterministic keys file
         keys_fp = os.path.join(run_dir, 'keys.csv')
-        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_csv":keys_fp, "exposure_data":exposure_data}}).run()
+        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_csv": keys_fp, "exposure_data": exposure_data}}).run()
 
         # 2. Start Oasis files generation
         GenerateFiles(

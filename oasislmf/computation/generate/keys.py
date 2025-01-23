@@ -10,7 +10,6 @@ from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSche
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
-from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 from ...utils.inputs import str2bool
 from ...utils.data import get_utctimestamp, get_exposure_data
@@ -197,8 +196,8 @@ class GenerateKeysDeterministic(KeyComputationStep):
             coverage_values = exposure_data.oed_schema.schema['CoverageValues']
             cob_coverage = list(
                 coverage_info['CoverageID'] for coverage_info in coverage_values.values()
-                    if not coverage_info['SubCoverages']
-                        and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
+                if not coverage_info['SubCoverages']
+                and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
             self.supported_oed_coverage_types = cob_coverage
 
         config = {'builtin_lookup_type': 'peril_covered_deterministic',

@@ -368,7 +368,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                 calcrule_assignment_method = STEP_TRIGGER_TYPES[step_trigger_type]['calcrule_assignment_method']
                 for coverage_type_id in supp_cov_type_ids:
                     FMTermGroupID = COVERAGE_AGGREGATION_METHODS[coverage_aggregation_method].get(coverage_type_id)
-                    if FMTermGroupID is None: # step policy not supported for this coverage
+                    if FMTermGroupID is None:  # step policy not supported for this coverage
                         continue
 
                     if (step_trigger_type, coverage_type_id) in coverage_group_map:
@@ -634,7 +634,8 @@ def get_il_input_items(
             for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
                 tiv_key = '_'.join(map(str, sorted(coverage_type_ids)))
                 if tiv_key not in gul_inputs_df:
-                    gul_inputs_df[tiv_key] = gul_inputs_df[list(set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
+                    gul_inputs_df[tiv_key] = gul_inputs_df[list(
+                        set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
 
             # we have prepared FMTermGroupID on gul or level df (depending on  step_level) now we can merge the terms for this level to gul
             level_df = (gul_inputs_df.merge(level_df, how='left'))
