@@ -415,7 +415,7 @@ class FootprintParquetDynamic(Footprint):
             numpy_data = np.empty(len(df_footprint), dtype=EventDynamic)
             for column in ['areaperil_id', 'intensity_bin_id', 'intensity', 'probability', 'return_period']:
                 numpy_data[:][column] = df_footprint[column].to_numpy()
-            
+
             return numpy_data
 
 
