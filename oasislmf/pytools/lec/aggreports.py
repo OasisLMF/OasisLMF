@@ -1,3 +1,4 @@
+from line_profiler import profile
 import numba as nb
 import numpy as np
 
@@ -78,6 +79,7 @@ class AggReports():
         self.EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
         self.PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
 
+    @profile
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
         has_weights, items, used_period_no = output_mean_damage_ratio(
@@ -110,9 +112,16 @@ class AggReports():
                 self.use_return_period,
                 self.returnperiods
             )
+        buffer = np.zeros(1000000, dtype=self.EPT_dtype)
+        bidx = 0
         for v in gen:
-            np.savetxt(self.output_files["ept"], [v], delimiter=",", fmt=self.ept_fmt)
+            if bidx >= len(buffer):
+                np.savetxt(self.output_files["ept"], buffer, delimiter=",", fmt=self.ept_fmt)
+                bidx = 0
+            buffer[bidx] = v
+            bidx += 1
 
+    @profile
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
         has_weights, items, used_period_no = output_full_uncertainty(
@@ -146,8 +155,14 @@ class AggReports():
                 self.use_return_period,
                 self.returnperiods
             )
+        buffer = np.zeros(1000000, dtype=self.EPT_dtype)
+        bidx = 0
         for v in gen:
-            np.savetxt(self.output_files["ept"], [v], delimiter=",", fmt=self.ept_fmt)
+            if bidx >= len(buffer):
+                np.savetxt(self.output_files["ept"], buffer, delimiter=",", fmt=self.ept_fmt)
+                bidx = 0
+            buffer[bidx] = v
+            bidx += 1
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -217,17 +232,15 @@ def write_return_period_out(
     returnperiods,
     mean_map=None,
 ):
-    next_retperiod = 0
     rets = []
-    while True:
-        if next_returnperiod_idx >= len(returnperiods):
-            return rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss
 
-        next_retperiod = returnperiods[next_returnperiod_idx]
+    if next_returnperiod_idx >= len(returnperiods):
+        return rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss
 
-        if curr_retperiod > next_retperiod:
-            break
+    relevant_retperiods = returnperiods[next_returnperiod_idx:]
+    relevant_retperiods = relevant_retperiods[relevant_retperiods <= curr_retperiod]
 
+    for next_retperiod in relevant_retperiods:
         if max_retperiod < next_retperiod:
             next_returnperiod_idx += 1
             continue
@@ -258,9 +271,6 @@ def write_return_period_out(
 
         next_returnperiod_idx += 1
         counter += 1
-
-        if curr_retperiod > next_retperiod:
-            break
 
     if curr_retperiod > 0:
         last_computed_rp = curr_retperiod
@@ -311,36 +321,38 @@ def write_exceedance_probability_table(
         tvar = 0
         i = 1
         for value in sorted_values:
+            value = value / sample_size
             retperiod = max_retperiod / i
 
             if use_return_period:
-                rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
-                    next_returnperiod_idx,
-                    last_computed_rp,
-                    last_computed_loss,
-                    retperiod,
-                    value / sample_size,
-                    summary_id,
-                    eptype,
-                    epcalc,
-                    max_retperiod,
-                    i,
-                    tvar,
-                    tail,
-                    tail_idx,
-                    returnperiods,
-                )
-                for ret in rets:
-                    yield ret
-                tvar = tvar - ((tvar - (value / sample_size)) / i)
+                if next_returnperiod_idx < len(returnperiods):
+                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        next_returnperiod_idx,
+                        last_computed_rp,
+                        last_computed_loss,
+                        retperiod,
+                        value,
+                        summary_id,
+                        eptype,
+                        epcalc,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_idx,
+                        returnperiods,
+                    )
+                    for ret in rets:
+                        yield ret
+                tvar = tvar - ((tvar - value) / i)
             else:
-                tvar = tvar - ((tvar - (value / sample_size)) / i)
+                tvar = tvar - ((tvar - value) / i)
                 tail = resize_tail(tail, tail_idx)
                 tail[tail_idx]["summary_id"] = summary_id
                 tail[tail_idx]["retperiod"] = retperiod
                 tail[tail_idx]["tvar"] = tvar
                 tail_idx += 1
-                yield summary_id, epcalc, eptype, retperiod, value / sample_size
+                yield summary_id, epcalc, eptype, retperiod, value
 
             i += 1
 
@@ -349,24 +361,25 @@ def write_exceedance_probability_table(
                 retperiod = max_retperiod / i
                 if returnperiods[next_returnperiod_idx] <= 0:
                     retperiod = 0
-                rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
-                    next_returnperiod_idx,
-                    last_computed_rp,
-                    last_computed_loss,
-                    retperiod,
-                    0,
-                    summary_id,
-                    eptype,
-                    epcalc,
-                    max_retperiod,
-                    i,
-                    tvar,
-                    tail,
-                    tail_idx,
-                    returnperiods,
-                )
-                for ret in rets:
-                    yield ret
+                if next_returnperiod_idx < len(returnperiods):
+                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        next_returnperiod_idx,
+                        last_computed_rp,
+                        last_computed_loss,
+                        retperiod,
+                        0,
+                        summary_id,
+                        eptype,
+                        epcalc,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_idx,
+                        returnperiods,
+                    )
+                    for ret in rets:
+                        yield ret
                 tvar = tvar - (tvar / i)
                 i += 1
                 if next_returnperiod_idx >= len(returnperiods):
@@ -426,24 +439,25 @@ def write_exceedance_probability_table_weighted(
                     largest_loss = True
 
                 if use_return_period:
-                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
-                        next_returnperiod_idx,
-                        last_computed_rp,
-                        last_computed_loss,
-                        retperiod,
-                        value,
-                        summary_id,
-                        eptype,
-                        epcalc,
-                        max_retperiod,
-                        i,
-                        tvar,
-                        tail,
-                        tail_idx,
-                        returnperiods,
-                    )
-                    for ret in rets:
-                        yield ret
+                    if next_returnperiod_idx < len(returnperiods):
+                        rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                            next_returnperiod_idx,
+                            last_computed_rp,
+                            last_computed_loss,
+                            retperiod,
+                            value,
+                            summary_id,
+                            eptype,
+                            epcalc,
+                            max_retperiod,
+                            i,
+                            tvar,
+                            tail,
+                            tail_idx,
+                            returnperiods,
+                        )
+                        for ret in rets:
+                            yield ret
                     tvar = tvar - ((tvar - (value)) / i)
                 else:
                     tvar = tvar - ((tvar - (value)) / i)
@@ -465,24 +479,25 @@ def write_exceedance_probability_table_weighted(
                     )
                     retperiod = 1 / cumulative_weighting
                     unused_ptw_idx += 1
-                rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
-                    next_returnperiod_idx,
-                    last_computed_rp,
-                    last_computed_loss,
-                    retperiod,
-                    0,
-                    summary_id,
-                    eptype,
-                    epcalc,
-                    max_retperiod,
-                    i,
-                    tvar,
-                    tail,
-                    tail_idx,
-                    returnperiods,
-                )
-                for ret in rets:
-                    yield ret
+                if next_returnperiod_idx < len(returnperiods):
+                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        next_returnperiod_idx,
+                        last_computed_rp,
+                        last_computed_loss,
+                        retperiod,
+                        0,
+                        summary_id,
+                        eptype,
+                        epcalc,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_idx,
+                        returnperiods,
+                    )
+                    for ret in rets:
+                        yield ret
                 tvar = tvar - (tvar / i)
                 i += 1
                 if next_returnperiod_idx >= len(returnperiods):
