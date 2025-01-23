@@ -359,6 +359,7 @@ def run(run_dir,
             intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
             intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
+            dynamic_footprint = None
 
         # intensity adjustment
         logger.debug('get dynamic footprint adjustments')
@@ -1168,7 +1169,7 @@ def process_areaperils_in_footprint(event_footprint,
                         cumsum += haz_pdf[cdf_start + haz_bin_i]
                         haz_cdf[cdf_start + haz_bin_i]['probability'] = cumsum
                         haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] = event_footprint['intensity_bin_id'][last_areaperil_id_start + haz_bin_i]
-                        if dynamic_footprint:
+                        if dynamic_footprint is not None:
                             haz_cdf[cdf_start + haz_bin_i]['intensity'] = event_footprint['intensity'][last_areaperil_id_start + haz_bin_i]
 
                     # compute effective damageability cdf (internally called `eff_vuln`)
@@ -1226,7 +1227,7 @@ def process_areaperils_in_footprint(event_footprint,
             cumsum += haz_pdf[cdf_start + haz_bin_i]
             haz_cdf[cdf_start + haz_bin_i]['probability'] = cumsum
             haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] = event_footprint['intensity_bin_id'][last_areaperil_id_start + haz_bin_i]
-            if dynamic_footprint:
+            if dynamic_footprint is not None:
                 haz_cdf[cdf_start + haz_bin_i]['intensity'] = event_footprint['intensity'][last_areaperil_id_start + haz_bin_i]
 
         # compute effective damageability cdf (internally called `eff_vuln`)
