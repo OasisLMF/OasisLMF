@@ -188,9 +188,11 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
 
 
 def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
-    """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
+    """Returns an array of return periods decreasing order with no duplicates.
     Args:
         use_return_period_file (bool): Bool to use Return Period File
+        run_dir (str | os.PathLike): Path to input files dir
+        filename (str | os.PathLike): return periods binary file name
     Returns:
         return_periods (ndarray[np.int32]): Returns the period weights
         use_return_period_file (bool): Bool to use Return Period File
@@ -212,4 +214,15 @@ def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_
     if len(returnperiods) == 0:
         logger.warning(f"WARNING: Empty return periods file at {returnperiods_fp}. Running without defined return periods option")
         return None, False
+
+    # Check return periods validity
+    # Return periods should be unique and decreasing in order
+    if len(returnperiods) != len(np.unique(returnperiods)):
+        raise RuntimeError(f"ERROR: Invalid return periods file. Duplicate return periods found: {returnperiods}")
+    lastrp = -1
+    for rp in returnperiods:
+        if lastrp != -1 and lastrp <= rp:
+            raise RuntimeError(f"ERROR: Invalid return periods file. Non-decreasing return periods found: {returnperiods}")
+        lastrp = rp
+
     return returnperiods, use_return_period_file
