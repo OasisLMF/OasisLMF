@@ -122,7 +122,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
-        keys_df = keys_df.sort_values('loc_id').merge(coverage_df, how="cross")
+        keys_df = keys_df.sort_values('loc_id', kind='stable').merge(coverage_df, how="cross")
         success_df = keys_df['peril_id'].isin(model_perils_covered)
         success_df_len = keys_df[success_df].shape[0]
         keys_df.loc[success_df, 'area_peril_id'] = np.arange(1, success_df_len + 1)
@@ -275,12 +275,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
             'vulnerability_id', 'status', 'message'
         ]
-        if 'amplification_id' in locations.columns:
-            key_columns += ['amplification_id']
-        if 'model_data' in locations.columns:
-            key_columns += ['model_data']
-        if 'section_id' in locations.columns:
-            key_columns += ['section_id']
+        additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
+        for col in additional_columns:
+            if col in locations.columns:
+                key_columns += [col]
+
         locations = locations[key_columns]
 
         # check all ids are of the good type
@@ -419,8 +418,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
             location = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
-                location.loc[~location['peril_id'].isin(model_perils_covered), ['status', 'message']
-                             ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
+                df_model_perils_covered = pd.Series(model_perils_covered)
+                df_model_perils_covered.name = 'model_perils_covered'
+                location = location.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
             return location
         return fct
 
@@ -546,6 +546,35 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
 
     @staticmethod
+    def build_fixed_size_geo_grid_multi_peril(perils_dict):
+        """
+        Create multiple grids of varying resolution, one per peril, and
+        associate an id to each square of the grid using the
+        `fixed_size_geo_grid` method.
+
+        Parameters
+        ----------
+        perils_dict: dict
+                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        """
+        def fct(locs_peril):
+            start_index = 0
+            locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
+            for peril_id, fixed_geo_grid_params in perils_dict.items():
+                curr_grid_fct = Lookup.build_fixed_size_geo_grid(**fixed_geo_grid_params)
+
+                curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
+                curr_locs_peril = curr_grid_fct(curr_locs_peril)
+                curr_locs_peril['area_peril_id'] += start_index
+
+                start_index = curr_locs_peril["area_peril_id"].max()
+
+                locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
+            return locs_peril
+        return fct
+
+    @staticmethod
     def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
         """
         associate an id to each square of the grid define by the limit of lat and lon
@@ -578,7 +607,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             area_peril_id = np.empty_like(lat, dtype=np.int64)
             for i in range(lat.shape[0]):
                 if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
-                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat)
+                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat + 1)
                 else:
                     area_peril_id[i] = OASIS_UNKNOWN_ID
             return area_peril_id
@@ -672,3 +701,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
 
         return model_data
+
+    @staticmethod
+    def build_dynamic_model_adjustment(intensity_adjustment_col, return_period_col):
+        """
+        Converts specified columns from the OED file into intensity adjustments and
+        return period protection.
+        """
+        lst_intensity_adjustment = []
+        lst_return_period = []
+
+        def adjustments(locations):
+            for index, row in locations.iterrows():
+                intensity_adjustment = row[intensity_adjustment_col]
+                return_period = row[return_period_col]
+                lst_intensity_adjustment.append(intensity_adjustment)
+                lst_return_period.append(return_period)
+
+            locations['intensity_adjustment'] = lst_intensity_adjustment
+            locations['return_period'] = lst_return_period
+            return locations
+
+        return adjustments

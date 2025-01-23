@@ -76,7 +76,9 @@ def get_useful_summary_cols(oed_hierarchy):
         'coverage_type_id',
         'tiv',
         'building_id',
-        'risk_id'
+        'risk_id',
+        'intensity_adjustment',
+        'return_period'
     ]
 
 
