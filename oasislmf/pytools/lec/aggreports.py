@@ -1,4 +1,3 @@
-from line_profiler import profile
 import numba as nb
 import numpy as np
 
@@ -79,7 +78,6 @@ class AggReports():
         self.EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
         self.PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
 
-    @profile
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
         has_weights, items, used_period_no = output_mean_damage_ratio(
@@ -116,12 +114,12 @@ class AggReports():
         bidx = 0
         for v in gen:
             if bidx >= len(buffer):
-                np.savetxt(self.output_files["ept"], buffer, delimiter=",", fmt=self.ept_fmt)
+                np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
                 bidx = 0
             buffer[bidx] = v
             bidx += 1
+        np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
 
-    @profile
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
         has_weights, items, used_period_no = output_full_uncertainty(
@@ -159,10 +157,11 @@ class AggReports():
         bidx = 0
         for v in gen:
             if bidx >= len(buffer):
-                np.savetxt(self.output_files["ept"], buffer, delimiter=",", fmt=self.ept_fmt)
+                np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
                 bidx = 0
             buffer[bidx] = v
             bidx += 1
+        np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -232,15 +231,17 @@ def write_return_period_out(
     returnperiods,
     mean_map=None,
 ):
+    next_retperiod = 0
     rets = []
+    while True:
+        if next_returnperiod_idx >= len(returnperiods):
+            return rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss
 
-    if next_returnperiod_idx >= len(returnperiods):
-        return rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss
+        next_retperiod = returnperiods[next_returnperiod_idx]
 
-    relevant_retperiods = returnperiods[next_returnperiod_idx:]
-    relevant_retperiods = relevant_retperiods[relevant_retperiods <= curr_retperiod]
+        if curr_retperiod > next_retperiod:
+            break
 
-    for next_retperiod in relevant_retperiods:
         if max_retperiod < next_retperiod:
             next_returnperiod_idx += 1
             continue
@@ -271,6 +272,9 @@ def write_return_period_out(
 
         next_returnperiod_idx += 1
         counter += 1
+
+        if curr_retperiod > next_retperiod:
+            break
 
     if curr_retperiod > 0:
         last_computed_rp = curr_retperiod
