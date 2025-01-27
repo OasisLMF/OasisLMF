@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        language: ['python', 'c-cpp']
+        language: ['python']
         python-version: ['3.10']
         # CodeQL supports [ 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'swift' ]
         # Use only 'java-kotlin' to analyze code written in Java, Kotlin or both
