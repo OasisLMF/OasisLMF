@@ -1,0 +1,12 @@
+{
+    "model_settings":{
+        "boolean_parameters": [
+            {"name":"dummy_value", "desc":"Boolean option", "default":false }
+        ]   
+     },
+    "lookup_settings":{
+        "supported_perils":[
+           {"id": "QEQ", "desc": "Single Peril: EarthQuake only"}
+        ]
+    }
+}
