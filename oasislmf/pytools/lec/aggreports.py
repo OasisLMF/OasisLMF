@@ -2,7 +2,7 @@ from line_profiler import profile
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import oasis_float, oasis_int
+from oasislmf.pytools.common.data import oasis_float, oasis_int, nb_oasis_int
 
 
 MEANDR = 1
@@ -45,11 +45,12 @@ LOSSVEC2MAP_dtype = np.dtype([
     ("value", oasis_float),
 ])
 
-TAIL_dtype = np.dtype([
-    ("summary_id", oasis_int),
+TAIL_valtype = np.dtype([
     ("retperiod", np.float64),
     ("tvar", oasis_float),
 ])
+TAIL_fieldnames = ["retperiod", "tvar"]
+nb_TAIL_valtype = nb.types.Array(nb.from_dtype(TAIL_valtype), 1, "C")
 
 
 class AggReports():
@@ -154,13 +155,17 @@ class AggReports():
 
 
 @nb.njit(cache=True, error_model="numpy")
-def resize_tail(tail, tail_idx):
-    if tail_idx >= len(tail):
-        new_size = len(tail) * 2
-        new_tail = np.zeros(new_size, dtype=TAIL_dtype)
-        new_tail[:tail_idx] = tail
-        return new_tail
-    return tail
+def create_empty_array(mydtype, init_size=8):
+    return np.zeros(init_size, dtype=mydtype)
+
+
+@nb.njit(cache=True, error_model="numpy")
+def resize_array(array, current_size):
+    if current_size >= len(array):  # Resize if the array is full
+        new_array = np.empty(len(array) * 2, dtype=array.dtype)
+        new_array[:len(array)] = array
+        array = new_array
+    return array
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -189,17 +194,22 @@ def get_loss(
 @nb.njit(cache=True, error_model="numpy")
 def fill_tvar(
     tail,
-    tail_idx,
+    tail_sizes,
     summary_id,
     next_retperiod,
     tvar
 ):
-    tail = resize_tail(tail, tail_idx)
-    tail[tail_idx]["summary_id"] = summary_id
-    tail[tail_idx]["retperiod"] = next_retperiod
-    tail[tail_idx]["tvar"] = tvar
-    tail_idx += 1
-    return tail, tail_idx
+    if summary_id not in tail:
+        tail[summary_id] = create_empty_array(TAIL_valtype)
+        tail_sizes[summary_id] = 0
+    tail_arr = tail[summary_id]
+    tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
+    tail_current_size = tail_sizes[summary_id]
+    tail_arr[tail_current_size]["retperiod"] = next_retperiod
+    tail_arr[tail_current_size]["tvar"] = tvar
+    tail_sizes[summary_id] += 1
+
+    return tail, tail_sizes
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -216,7 +226,7 @@ def write_return_period_out(
     counter,
     tvar,
     tail,
-    tail_idx,
+    tail_sizes,
     returnperiods,
     mean_map=None,
 ):
@@ -224,7 +234,7 @@ def write_return_period_out(
     rets = []
     while True:
         if next_returnperiod_idx >= len(returnperiods):
-            return rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss
+            return rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss
 
         next_retperiod = returnperiods[next_returnperiod_idx]
 
@@ -251,9 +261,9 @@ def write_return_period_out(
 
         if curr_retperiod != 0:
             tvar = tvar - ((tvar - loss) / counter)
-            tail, tail_idx = fill_tvar(
+            tail, tail_sizes = fill_tvar(
                 tail,
-                tail_idx,
+                tail_sizes,
                 summary_id,
                 next_retperiod,
                 tvar,
@@ -268,7 +278,7 @@ def write_return_period_out(
     if curr_retperiod > 0:
         last_computed_rp = curr_retperiod
         last_computed_loss = curr_loss
-    return rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss
+    return rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -276,12 +286,11 @@ def write_tvar(
     epcalc,
     eptype_tvar,
     tail,
+    tail_sizes,
 ):
     rets = []
-    unique_ids = np.unique(tail["summary_id"])
-    unique_ids = np.sort(unique_ids)
-    for summary_id in unique_ids:
-        vals = tail[tail["summary_id"] == summary_id]
+    for summary_id in sorted(tail.keys()):
+        vals = tail[summary_id][:tail_sizes[summary_id]]
         for row in vals:
             rets.append((summary_id, epcalc, eptype_tvar, row["retperiod"], row["tvar"]))
     return rets
@@ -304,8 +313,8 @@ def write_exceedance_probability_table(
     if len(items) == 0 or sample_size == 0:
         return
 
-    tail = np.zeros(16, dtype=TAIL_dtype)
-    tail_idx = 0
+    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
     unique_ids = np.unique(items["summary_id"])
     for summary_id in unique_ids:
@@ -322,7 +331,7 @@ def write_exceedance_probability_table(
 
             if use_return_period:
                 if next_returnperiod_idx < len(returnperiods):
-                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                    rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
                         next_returnperiod_idx,
                         last_computed_rp,
                         last_computed_loss,
@@ -335,7 +344,7 @@ def write_exceedance_probability_table(
                         i,
                         tvar,
                         tail,
-                        tail_idx,
+                        tail_sizes,
                         returnperiods,
                     )
                     for ret in rets:
@@ -351,11 +360,17 @@ def write_exceedance_probability_table(
                 tvar = tvar - ((tvar - value) / i)
             else:
                 tvar = tvar - ((tvar - value) / i)
-                tail = resize_tail(tail, tail_idx)
-                tail[tail_idx]["summary_id"] = summary_id
-                tail[tail_idx]["retperiod"] = retperiod
-                tail[tail_idx]["tvar"] = tvar
-                tail_idx += 1
+
+                if summary_id not in tail:
+                    tail[summary_id] = create_empty_array(TAIL_valtype)
+                    tail_sizes[summary_id] = 0
+                tail_arr = tail[summary_id]
+                tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
+                tail_current_size = tail_sizes[summary_id]
+                tail_arr[tail_current_size]["retperiod"] = retperiod
+                tail_arr[tail_current_size]["tvar"] = tvar
+                tail_sizes[summary_id] += 1
+
                 if bidx >= len(buffer):
                     yield buffer[:bidx]
                     bidx = 0
@@ -374,7 +389,7 @@ def write_exceedance_probability_table(
                 if returnperiods[next_returnperiod_idx] <= 0:
                     retperiod = 0
                 if next_returnperiod_idx < len(returnperiods):
-                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                    rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
                         next_returnperiod_idx,
                         last_computed_rp,
                         last_computed_loss,
@@ -387,7 +402,7 @@ def write_exceedance_probability_table(
                         i,
                         tvar,
                         tail,
-                        tail_idx,
+                        tail_sizes,
                         returnperiods,
                     )
                     for ret in rets:
@@ -408,7 +423,8 @@ def write_exceedance_probability_table(
     rets = write_tvar(
         epcalc,
         eptype_tvar,
-        tail[:tail_idx],
+        tail,
+        tail_sizes,
     )
     for ret in rets:
         if bidx >= len(buffer):
@@ -441,8 +457,8 @@ def write_exceedance_probability_table_weighted(
     if len(items) == 0 or sample_size == 0:
         return
 
-    tail = np.zeros(16, dtype=TAIL_dtype)
-    tail_idx = 0
+    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
     unique_ids = np.unique(items["summary_id"])
     for summary_id in unique_ids:
@@ -472,7 +488,7 @@ def write_exceedance_probability_table_weighted(
 
                 if use_return_period:
                     if next_returnperiod_idx < len(returnperiods):
-                        rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
                             next_returnperiod_idx,
                             last_computed_rp,
                             last_computed_loss,
@@ -485,7 +501,7 @@ def write_exceedance_probability_table_weighted(
                             i,
                             tvar,
                             tail,
-                            tail_idx,
+                            tail_sizes,
                             returnperiods,
                         )
                         for ret in rets:
@@ -501,11 +517,16 @@ def write_exceedance_probability_table_weighted(
                     tvar = tvar - ((tvar - (value)) / i)
                 else:
                     tvar = tvar - ((tvar - (value)) / i)
-                    tail = resize_tail(tail, tail_idx)
-                    tail[tail_idx]["summary_id"] = summary_id
-                    tail[tail_idx]["retperiod"] = retperiod
-                    tail[tail_idx]["tvar"] = tvar
-                    tail_idx += 1
+
+                    if summary_id not in tail:
+                        tail[summary_id] = create_empty_array(TAIL_valtype)
+                        tail_sizes[summary_id] = 0
+                    tail_arr = tail[summary_id]
+                    tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
+                    tail_current_size = tail_sizes[summary_id]
+                    tail_arr[tail_current_size]["retperiod"] = retperiod
+                    tail_arr[tail_current_size]["tvar"] = tvar
+                    tail_sizes[summary_id] += 1
 
                     if bidx >= len(buffer):
                         yield buffer[:bidx]
@@ -529,7 +550,7 @@ def write_exceedance_probability_table_weighted(
                     retperiod = 1 / cumulative_weighting
                     unused_ptw_idx += 1
                 if next_returnperiod_idx < len(returnperiods):
-                    rets, tail, tail_idx, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                    rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
                         next_returnperiod_idx,
                         last_computed_rp,
                         last_computed_loss,
@@ -542,7 +563,7 @@ def write_exceedance_probability_table_weighted(
                         i,
                         tvar,
                         tail,
-                        tail_idx,
+                        tail_sizes,
                         returnperiods,
                     )
                     for ret in rets:
@@ -563,7 +584,8 @@ def write_exceedance_probability_table_weighted(
     rets = write_tvar(
         epcalc,
         eptype_tvar,
-        tail[:tail_idx],
+        tail,
+        tail_sizes,
     )
     for ret in rets:
         if bidx >= len(buffer):
