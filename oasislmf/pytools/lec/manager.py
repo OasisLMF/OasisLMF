@@ -368,13 +368,8 @@ def run(
                 psept_file.write(PSEPT_headers + "\n")
             output_files["psept"] = psept_file
 
-        EPT_fmt = ','.join([c[2] for c in EPT_output])
-        PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
-
         agg = AggReports(
             output_files,
-            EPT_fmt,
-            PSEPT_fmt,
             outloss_mean,
             outloss_sample,
             file_data["period_weights"],

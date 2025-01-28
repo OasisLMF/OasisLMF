@@ -1,3 +1,4 @@
+from line_profiler import profile
 import numba as nb
 import numpy as np
 
@@ -32,6 +33,11 @@ PSEPT_output = [
     ('Loss', oasis_float, '%.6f'),
 ]
 
+EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
+PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
+EPT_fmt = ','.join([c[2] for c in EPT_output])
+PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
+
 LOSSVEC2MAP_dtype = np.dtype([
     ("summary_id", oasis_int),
     ("period_no", np.int32),
@@ -50,8 +56,6 @@ class AggReports():
     def __init__(
         self,
         output_files,
-        ept_fmt,
-        psept_fmt,
         outloss_mean,
         outloss_sample,
         period_weights,
@@ -63,8 +67,6 @@ class AggReports():
         returnperiods,
     ):
         self.output_files = output_files
-        self.ept_fmt = ept_fmt
-        self.psept_fmt = psept_fmt
         self.outloss_mean = outloss_mean
         self.outloss_sample = outloss_sample
         self.period_weights = period_weights
@@ -75,9 +77,7 @@ class AggReports():
         self.use_return_period = use_return_period
         self.returnperiods = returnperiods
 
-        self.EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
-        self.PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
-
+    @profile
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
         has_weights, items, used_period_no = output_mean_damage_ratio(
@@ -110,16 +110,11 @@ class AggReports():
                 self.use_return_period,
                 self.returnperiods
             )
-        buffer = np.zeros(1000000, dtype=self.EPT_dtype)
-        bidx = 0
-        for v in gen:
-            if bidx >= len(buffer):
-                np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
-                bidx = 0
-            buffer[bidx] = v
-            bidx += 1
-        np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
 
+        for data in gen:
+            np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+
+    @profile
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
         has_weights, items, used_period_no = output_full_uncertainty(
@@ -153,15 +148,9 @@ class AggReports():
                 self.use_return_period,
                 self.returnperiods
             )
-        buffer = np.zeros(1000000, dtype=self.EPT_dtype)
-        bidx = 0
-        for v in gen:
-            if bidx >= len(buffer):
-                np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
-                bidx = 0
-            buffer[bidx] = v
-            bidx += 1
-        np.savetxt(self.output_files["ept"], buffer[:bidx], delimiter=",", fmt=self.ept_fmt)
+
+        for data in gen:
+            np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -309,6 +298,9 @@ def write_exceedance_probability_table(
     returnperiods,
     sample_size=1
 ):
+    buffer = np.zeros(1000000, dtype=EPT_dtype)
+    bidx = 0
+
     if len(items) == 0 or sample_size == 0:
         return
 
@@ -347,7 +339,15 @@ def write_exceedance_probability_table(
                         returnperiods,
                     )
                     for ret in rets:
-                        yield ret
+                        if bidx >= len(buffer):
+                            yield buffer[:bidx]
+                            bidx = 0
+                        buffer[bidx]["SummaryId"] = ret[0]
+                        buffer[bidx]["EPCalc"] = ret[1]
+                        buffer[bidx]["EPType"] = ret[2]
+                        buffer[bidx]["ReturnPeriod"] = ret[3]
+                        buffer[bidx]["Loss"] = ret[4]
+                        bidx += 1
                 tvar = tvar - ((tvar - value) / i)
             else:
                 tvar = tvar - ((tvar - value) / i)
@@ -356,7 +356,15 @@ def write_exceedance_probability_table(
                 tail[tail_idx]["retperiod"] = retperiod
                 tail[tail_idx]["tvar"] = tvar
                 tail_idx += 1
-                yield summary_id, epcalc, eptype, retperiod, value
+                if bidx >= len(buffer):
+                    yield buffer[:bidx]
+                    bidx = 0
+                buffer[bidx]["SummaryId"] = summary_id
+                buffer[bidx]["EPCalc"] = epcalc
+                buffer[bidx]["EPType"] = eptype
+                buffer[bidx]["ReturnPeriod"] = retperiod
+                buffer[bidx]["Loss"] = value
+                bidx += 1
 
             i += 1
 
@@ -383,7 +391,15 @@ def write_exceedance_probability_table(
                         returnperiods,
                     )
                     for ret in rets:
-                        yield ret
+                        if bidx >= len(buffer):
+                            yield buffer[:bidx]
+                            bidx = 0
+                        buffer[bidx]["SummaryId"] = ret[0]
+                        buffer[bidx]["EPCalc"] = ret[1]
+                        buffer[bidx]["EPType"] = ret[2]
+                        buffer[bidx]["ReturnPeriod"] = ret[3]
+                        buffer[bidx]["Loss"] = ret[4]
+                        bidx += 1
                 tvar = tvar - (tvar / i)
                 i += 1
                 if next_returnperiod_idx >= len(returnperiods):
@@ -395,7 +411,16 @@ def write_exceedance_probability_table(
         tail[:tail_idx],
     )
     for ret in rets:
-        yield ret
+        if bidx >= len(buffer):
+            yield buffer[:bidx]
+            bidx = 0
+        buffer[bidx]["SummaryId"] = ret[0]
+        buffer[bidx]["EPCalc"] = ret[1]
+        buffer[bidx]["EPType"] = ret[2]
+        buffer[bidx]["ReturnPeriod"] = ret[3]
+        buffer[bidx]["Loss"] = ret[4]
+        bidx += 1
+    yield buffer[:bidx]
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -410,6 +435,9 @@ def write_exceedance_probability_table_weighted(
     returnperiods,
     sample_size=1
 ):
+    buffer = np.zeros(1000000, dtype=EPT_dtype)
+    bidx = 0
+
     if len(items) == 0 or sample_size == 0:
         return
 
@@ -461,7 +489,15 @@ def write_exceedance_probability_table_weighted(
                             returnperiods,
                         )
                         for ret in rets:
-                            yield ret
+                            if bidx >= len(buffer):
+                                yield buffer[:bidx]
+                                bidx = 0
+                            buffer[bidx]["SummaryId"] = ret[0]
+                            buffer[bidx]["EPCalc"] = ret[1]
+                            buffer[bidx]["EPType"] = ret[2]
+                            buffer[bidx]["ReturnPeriod"] = ret[3]
+                            buffer[bidx]["Loss"] = ret[4]
+                            bidx += 1
                     tvar = tvar - ((tvar - (value)) / i)
                 else:
                     tvar = tvar - ((tvar - (value)) / i)
@@ -470,7 +506,16 @@ def write_exceedance_probability_table_weighted(
                     tail[tail_idx]["retperiod"] = retperiod
                     tail[tail_idx]["tvar"] = tvar
                     tail_idx += 1
-                    yield summary_id, epcalc, eptype, retperiod, value
+
+                    if bidx >= len(buffer):
+                        yield buffer[:bidx]
+                        bidx = 0
+                    buffer[bidx]["SummaryId"] = summary_id
+                    buffer[bidx]["EPCalc"] = epcalc
+                    buffer[bidx]["EPType"] = eptype
+                    buffer[bidx]["ReturnPeriod"] = retperiod
+                    buffer[bidx]["Loss"] = value
+                    bidx += 1
 
                 i += 1
         if use_return_period:
@@ -501,7 +546,15 @@ def write_exceedance_probability_table_weighted(
                         returnperiods,
                     )
                     for ret in rets:
-                        yield ret
+                        if bidx >= len(buffer):
+                            yield buffer[:bidx]
+                            bidx = 0
+                        buffer[bidx]["SummaryId"] = ret[0]
+                        buffer[bidx]["EPCalc"] = ret[1]
+                        buffer[bidx]["EPType"] = ret[2]
+                        buffer[bidx]["ReturnPeriod"] = ret[3]
+                        buffer[bidx]["Loss"] = ret[4]
+                        bidx += 1
                 tvar = tvar - (tvar / i)
                 i += 1
                 if next_returnperiod_idx >= len(returnperiods):
@@ -513,7 +566,16 @@ def write_exceedance_probability_table_weighted(
         tail[:tail_idx],
     )
     for ret in rets:
-        yield ret
+        if bidx >= len(buffer):
+            yield buffer[:bidx]
+            bidx = 0
+        buffer[bidx]["SummaryId"] = ret[0]
+        buffer[bidx]["EPCalc"] = ret[1]
+        buffer[bidx]["EPType"] = ret[2]
+        buffer[bidx]["ReturnPeriod"] = ret[3]
+        buffer[bidx]["Loss"] = ret[4]
+        bidx += 1
+    yield buffer[:bidx]
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
