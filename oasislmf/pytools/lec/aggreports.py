@@ -38,18 +38,20 @@ PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
 EPT_fmt = ','.join([c[2] for c in EPT_output])
 PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
 
-LOSSVEC2MAP_dtype = np.dtype([
-    ("summary_id", oasis_int),
+# For Dict of summary_id (oasis_int) to nb_LOSSVEC2MAP_valtype
+LOSSVEC2MAP_valtype = np.dtype([
     ("period_no", np.int32),
     ("period_weighting", np.float64),
     ("value", oasis_float),
 ])
+nb_LOSSVEC2MAP_valtype = nb.types.Array(nb.from_dtype(LOSSVEC2MAP_valtype), 1, "C")
 
+
+# For Dict of summary_id (oasis_int) to nb_Tail_valtype
 TAIL_valtype = np.dtype([
     ("retperiod", np.float64),
     ("tvar", oasis_float),
 ])
-TAIL_fieldnames = ["retperiod", "tvar"]
 nb_TAIL_valtype = nb.types.Array(nb.from_dtype(TAIL_valtype), 1, "C")
 
 
@@ -81,7 +83,7 @@ class AggReports():
     @profile
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
-        has_weights, items, used_period_no = output_mean_damage_ratio(
+        has_weights, items, items_sizes, used_period_no = output_mean_damage_ratio(
             self.outloss_mean,
             outloss_type,
             self.period_weights,
@@ -93,6 +95,7 @@ class AggReports():
         if has_weights:
             gen = write_exceedance_probability_table_weighted(
                 items,
+                items_sizes,
                 self.sample_size,
                 epcalc,
                 eptype,
@@ -104,6 +107,7 @@ class AggReports():
         else:
             gen = write_exceedance_probability_table(
                 items,
+                items_sizes,
                 self.no_of_periods,
                 epcalc,
                 eptype,
@@ -118,7 +122,7 @@ class AggReports():
     @profile
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
-        has_weights, items, used_period_no = output_full_uncertainty(
+        has_weights, items, items_sizes, used_period_no = output_full_uncertainty(
             self.outloss_sample,
             outloss_type,
             self.period_weights,
@@ -131,6 +135,7 @@ class AggReports():
         if has_weights:
             gen = write_exceedance_probability_table_weighted(
                 items,
+                items_sizes,
                 1,
                 epcalc,
                 eptype,
@@ -142,6 +147,7 @@ class AggReports():
         else:
             gen = write_exceedance_probability_table(
                 items,
+                items_sizes,
                 self.no_of_periods * self.sample_size,
                 epcalc,
                 eptype,
@@ -207,6 +213,7 @@ def fill_tvar(
     tail_current_size = tail_sizes[summary_id]
     tail_arr[tail_current_size]["retperiod"] = next_retperiod
     tail_arr[tail_current_size]["tvar"] = tvar
+    tail[summary_id] = tail_arr
     tail_sizes[summary_id] += 1
 
     return tail, tail_sizes
@@ -299,6 +306,7 @@ def write_tvar(
 @nb.njit(cache=True, error_model="numpy")
 def write_exceedance_probability_table(
     items,
+    items_sizes,
     max_retperiod,
     epcalc,
     eptype,
@@ -316,17 +324,17 @@ def write_exceedance_probability_table(
     tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
     tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
-    unique_ids = np.unique(items["summary_id"])
-    for summary_id in unique_ids:
-        values = items[items['summary_id'] == summary_id]['value']
-        sorted_values = np.sort(values)[::-1]
+    for summary_id in sorted(items.keys()):
+        filtered_items = items[summary_id][:items_sizes[summary_id]]
+        sorted_idxs = np.argsort(filtered_items["value"])[::-1]
+        sorted_items = filtered_items[sorted_idxs]
         next_returnperiod_idx = 0
         last_computed_rp = 0
         last_computed_loss = 0
         tvar = 0
         i = 1
-        for value in sorted_values:
-            value = value / sample_size
+        for item in sorted_items:
+            value = item["value"] / sample_size
             retperiod = max_retperiod / i
 
             if use_return_period:
@@ -442,6 +450,7 @@ def write_exceedance_probability_table(
 @nb.njit(cache=True, error_model="numpy")
 def write_exceedance_probability_table_weighted(
     items,
+    items_sizes,
     cum_weight_constant,
     epcalc,
     eptype,
@@ -460,9 +469,8 @@ def write_exceedance_probability_table_weighted(
     tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
     tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
-    unique_ids = np.unique(items["summary_id"])
-    for summary_id in unique_ids:
-        filtered_items = items[items['summary_id'] == summary_id]
+    for summary_id in sorted(items.keys()):
+        filtered_items = items[summary_id][:items_sizes[summary_id]]
         sorted_idxs = np.argsort(filtered_items["value"])[::-1]
         sorted_items = filtered_items[sorted_idxs]
         next_returnperiod_idx = 0
@@ -526,6 +534,7 @@ def write_exceedance_probability_table_weighted(
                     tail_current_size = tail_sizes[summary_id]
                     tail_arr[tail_current_size]["retperiod"] = retperiod
                     tail_arr[tail_current_size]["tvar"] = tvar
+                    tail[summary_id] = tail_arr
                     tail_sizes[summary_id] += 1
 
                     if bidx >= len(buffer):
@@ -639,7 +648,9 @@ def output_mean_damage_ratio(
     row_used_indices = np.where(outloss_mean["row_used"])[0]
     num_rows = len(row_used_indices)
 
-    items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
+    items = nb.typed.Dict.empty(nb_oasis_int, nb_LOSSVEC2MAP_valtype)
+    items_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+
     used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
     # Required if-else condition as njit cannot resolve outloss_type inside []
@@ -657,16 +668,24 @@ def output_mean_damage_ratio(
         idx = row_used_indices[i]
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
 
-        items[i]["summary_id"] = summary_id
-        items[i]["value"] = outloss_vals[idx]
+        if summary_id not in items:
+            items[summary_id] = create_empty_array(LOSSVEC2MAP_valtype)
+            items_sizes[summary_id] = 0
+        items_arr = items[summary_id]
+        items_arr = resize_array(items_arr, items_sizes[summary_id])
+        items_current_size = items_sizes[summary_id]
+        items_arr[items_current_size]["value"] = outloss_vals[idx]
+
         if is_weighted:  # Mean Damage Ratio with weighting
             # Fast lookup period_weights as they are numbered 1 to no_of_periods
             period_weighting = period_weights[period_no - 1]["weighting"]
-            items[i]["period_no"] = period_no
-            items[i]["period_weighting"] = period_weighting
+            items_arr[items_current_size]["period_no"] = period_no
+            items_arr[items_current_size]["period_weighting"] = period_weighting
             used_period_no[period_no - 1] = True
+        items[summary_id] = items_arr
+        items_sizes[summary_id] += 1
 
-    return is_weighted, items, used_period_no
+    return is_weighted, items, items_sizes, used_period_no
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -681,7 +700,9 @@ def output_full_uncertainty(
     row_used_indices = np.where(outloss_sample["row_used"])[0]
     num_rows = len(row_used_indices)
 
-    items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
+    items = nb.typed.Dict.empty(nb_oasis_int, nb_LOSSVEC2MAP_valtype)
+    items_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+
     used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
     # Required if-else condition as njit cannot resolve outloss_type inside []
@@ -697,13 +718,21 @@ def output_full_uncertainty(
         idx = row_used_indices[i]
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
 
-        items[i]["summary_id"] = summary_id
-        items[i]["value"] = outloss_vals[idx]
+        if summary_id not in items:
+            items[summary_id] = create_empty_array(LOSSVEC2MAP_valtype)
+            items_sizes[summary_id] = 0
+        items_arr = items[summary_id]
+        items_arr = resize_array(items_arr, items_sizes[summary_id])
+        items_current_size = items_sizes[summary_id]
+        items_arr[items_current_size]["value"] = outloss_vals[idx]
+
         if is_weighted:  # Full Uncertainty with weighting
             # Fast lookup period_weights as they are numbered 1 to no_of_periods
             period_weighting = period_weights[period_no - 1]["weighting"]
-            items[i]["period_no"] = period_no
-            items[i]["period_weighting"] = period_weighting
+            items_arr[items_current_size]["period_no"] = period_no
+            items_arr[items_current_size]["period_weighting"] = period_weighting
             used_period_no[period_no - 1] = True
+        items[summary_id] = items_arr
+        items_sizes[summary_id] += 1
 
-    return is_weighted, items, used_period_no
+    return is_weighted, items, items_sizes, used_period_no
