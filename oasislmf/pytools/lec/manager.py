@@ -328,15 +328,36 @@ def run(
 
         # Create outloss array maps
         # outloss_mean has only -1 SIDX
-        outloss_mean = np.zeros(
-            (file_data["no_of_periods"] * max_summary_id),
-            dtype=_OUTLOSS_DTYPE
+        outloss_mean_file = Path(workspace_folder, "lec_outloss_mean.bdat")
+        outloss_mean = np.memmap(
+            outloss_mean_file,
+            dtype=_OUTLOSS_DTYPE,
+            mode="w+",
+            shape=(file_data["no_of_periods"] * max_summary_id),
         )
+        outloss_mean.flush()
+        outloss_mean = np.memmap(
+            outloss_mean_file,
+            dtype=_OUTLOSS_DTYPE,
+            mode="r+",
+            shape=(file_data["no_of_periods"] * max_summary_id),
+        )
+
         # outloss_sample has all SIDXs plus -2 and -3
         num_sidxs = sample_size + 2
-        outloss_sample = np.zeros(
-            (file_data["no_of_periods"] * num_sidxs * max_summary_id),
-            dtype=_OUTLOSS_DTYPE
+        outloss_sample_file = Path(workspace_folder, "lec_outloss_sample.bdat")
+        outloss_sample = np.memmap(
+            outloss_sample_file,
+            dtype=_OUTLOSS_DTYPE,
+            mode="w+",
+            shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
+        )
+        outloss_sample.flush()
+        outloss_sample = np.memmap(
+            outloss_sample_file,
+            dtype=_OUTLOSS_DTYPE,
+            mode="r+",
+            shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
         )
 
         # Array of Summary IDs found
