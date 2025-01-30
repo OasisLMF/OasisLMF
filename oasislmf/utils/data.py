@@ -728,6 +728,7 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
 
         return join
 
+
 def prepare_oed_exposure(exposure_data):
     sar_df = exposure_data.get_subject_at_risk_source().dataframe
     if sar_df is not None:
