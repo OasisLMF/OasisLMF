@@ -1,3 +1,4 @@
+from pathlib import Path
 from line_profiler import profile
 import numba as nb
 import numpy as np
@@ -5,16 +6,27 @@ import numpy as np
 from oasislmf.pytools.common.data import oasis_float, oasis_int, nb_oasis_int
 
 
+# Output flags
+AGG_FULL_UNCERTAINTY = 0
+AGG_WHEATSHEAF = 1
+AGG_SAMPLE_MEAN = 2
+AGG_WHEATSHEAF_MEAN = 3
+OCC_FULL_UNCERTAINTY = 4
+OCC_WHEATSHEAF = 5
+OCC_SAMPLE_MEAN = 6
+OCC_WHEATSHEAF_MEAN = 7
+
+# EPCalcs
 MEANDR = 1
 FULL = 2
 PERSAMPLEMEAN = 3
 MEANSAMPLE = 4
 
-MEANS = 0
-SAMPLES = 1
-
-WHEATSHEAF = 0
-WHEATSHEAF_MEAN = 1
+# EPTypes
+OEP = 1
+OEPTVAR = 2
+AEP = 3
+AEPTVAR = 4
 
 
 EPT_output = [
@@ -66,6 +78,7 @@ class AggReports():
         num_sidxs,
         use_return_period,
         returnperiods,
+        lec_files_folder,
     ):
         self.output_files = output_files
         self.outloss_mean = outloss_mean
@@ -77,11 +90,24 @@ class AggReports():
         self.num_sidxs = num_sidxs
         self.use_return_period = use_return_period
         self.returnperiods = returnperiods
+        self.lec_files_folder = lec_files_folder
 
     @profile
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
+
+        # Get row indices that are used
+        row_used_indices = np.where(self.outloss_mean["row_used"])[0]
+
+        # Allocate storage for the flat data array
+        items_fp = Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat")
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+        items.flush()
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="r+", shape=(len(row_used_indices),))
+
         has_weights, items, items_start_end, used_period_no = output_mean_damage_ratio(
+            items,
+            row_used_indices,
             self.outloss_mean,
             outloss_type,
             self.period_weights,
@@ -122,7 +148,19 @@ class AggReports():
     @profile
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
+
+        # Get row indices that are used
+        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+
+        # Allocate storage for the flat data array
+        items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+        items.flush()
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="r+", shape=(len(row_used_indices),))
+
         has_weights, items, items_start_end, used_period_no = output_full_uncertainty(
+            items,
+            row_used_indices,
             self.outloss_sample,
             outloss_type,
             self.period_weights,
@@ -648,17 +686,14 @@ def _get_sample_idx_data(idx, max_summary_id, num_sidxs):
 
 @nb.njit(cache=True, error_model="numpy")
 def output_mean_damage_ratio(
+    items,
+    row_used_indices,
     outloss_mean,
     outloss_type,
     period_weights,
     max_summary_id,
 ):
-    # Get row indices that are used
-    row_used_indices = np.where(outloss_mean["row_used"])[0]
     num_rows = len(row_used_indices)
-
-    # Allocate storage for the flat data array (max possible size)
-    items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
 
     # Track start and end indices for each summary_id
     items_start_end = np.full((max_summary_id, 2), -1, dtype=np.int32)
@@ -720,18 +755,15 @@ def output_mean_damage_ratio(
 
 @nb.njit(cache=True, error_model="numpy")
 def output_full_uncertainty(
+    items,
+    row_used_indices,
     outloss_sample,
     outloss_type,
     period_weights,
     max_summary_id,
     num_sidxs,
 ):
-    # Get row indices that are used
-    row_used_indices = np.where(outloss_sample["row_used"])[0]
     num_rows = len(row_used_indices)
-
-    # Allocate storage for the flat data array (max possible size)
-    items = np.zeros(num_rows, dtype=LOSSVEC2MAP_dtype)
 
     # Track start and end indices for each summary_id
     items_start_end = np.full((max_summary_id, 2), -1, dtype=np.int32)

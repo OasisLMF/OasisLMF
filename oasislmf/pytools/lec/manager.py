@@ -9,28 +9,13 @@ from pathlib import Path
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
-from oasislmf.pytools.lec.aggreports import (AggReports, EPT_output, PSEPT_output)
+from oasislmf.pytools.lec.aggreports import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
+                                             OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, AggReports, EPT_output, PSEPT_output)
 from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
 
-
-# Output flags
-AGG_FULL_UNCERTAINTY = 0
-AGG_WHEATSHEAF = 1
-AGG_SAMPLE_MEAN = 2
-AGG_WHEATSHEAF_MEAN = 3
-OCC_FULL_UNCERTAINTY = 4
-OCC_WHEATSHEAF = 5
-OCC_SAMPLE_MEAN = 6
-OCC_WHEATSHEAF_MEAN = 7
-
-# EPTypes
-OEP = 1
-OEPTVAR = 2
-AEP = 3
-AEPTVAR = 4
 
 # Outloss mean and sample dtype, summary_id, period_no (and sidx) obtained from index
 _OUTLOSS_DTYPE = np.dtype([
@@ -279,6 +264,10 @@ def run(
         if not workspace_folder.is_dir():
             raise RuntimeError(f"Error: Unable to open directory {workspace_folder}")
 
+        # work folder for lec files
+        lec_files_folder = Path(workspace_folder, "lec_files")
+        lec_files_folder.mkdir(parents=False, exist_ok=True)
+
         # Find summary binary files
         files = [file for file in workspace_folder.glob("*.bin")]
         file_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
@@ -328,7 +317,7 @@ def run(
 
         # Create outloss array maps
         # outloss_mean has only -1 SIDX
-        outloss_mean_file = Path(workspace_folder, "lec_outloss_mean.bdat")
+        outloss_mean_file = Path(lec_files_folder, "lec_outloss_mean.bdat")
         outloss_mean = np.memmap(
             outloss_mean_file,
             dtype=_OUTLOSS_DTYPE,
@@ -345,7 +334,7 @@ def run(
 
         # outloss_sample has all SIDXs plus -2 and -3
         num_sidxs = sample_size + 2
-        outloss_sample_file = Path(workspace_folder, "lec_outloss_sample.bdat")
+        outloss_sample_file = Path(lec_files_folder, "lec_outloss_sample.bdat")
         outloss_sample = np.memmap(
             outloss_sample_file,
             dtype=_OUTLOSS_DTYPE,
@@ -375,6 +364,7 @@ def run(
             max_summary_id,
         )
 
+        # Setup output files and headers
         output_files = {}
         if output_ept:
             ept_file = stack.enter_context(open(ept_output_file, "w"))
@@ -400,7 +390,7 @@ def run(
             num_sidxs,
             use_return_period,
             file_data["returnperiods"],
-
+            lec_files_folder,
         )
 
         # Output aggregate reports to CSVs
