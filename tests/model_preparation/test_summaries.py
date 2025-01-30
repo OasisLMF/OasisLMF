@@ -14,7 +14,7 @@ from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.preparation.summaries import (get_exposure_summary,
                                             write_exposure_summary)
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import prepare_location_df
+from oasislmf.utils.data import prepare_oed_exposure
 from oasislmf.utils.defaults import get_default_exposure_profile
 from oasislmf.utils.status import OASIS_KEYS_STATUS_MODELLED
 from tests.data import keys, min_source_exposure, write_keys_files
@@ -110,7 +110,9 @@ class TestSummaries(TestCase):
             from_other_tivs=integers(100, 100000),
             from_contents_tivs=integers(50, 50000),
             from_bi_tivs=integers(20, 20000))))
-        loc_df = prepare_location_df(OedExposure(**{'location': loc_df, 'use_field': True}).location.dataframe)
+        exposure = OedExposure(**{'location': loc_df, 'use_field': True})
+        prepare_oed_exposure(exposure)
+        loc_df = exposure.location.dataframe
 
         # Run exposure_summary
         exp_summary = get_exposure_summary(
@@ -181,7 +183,9 @@ class TestSummaries(TestCase):
             from_other_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_contents_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_bi_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)))))
-        loc_df = prepare_location_df(OedExposure(**{'location': loc_df, 'use_field': True}).location.dataframe)
+        exposure = OedExposure(**{'location': loc_df, 'use_field': True})
+        prepare_oed_exposure(exposure)
+        loc_df = exposure.location.dataframe
 
         # Run Summary output check
         self.assertSummaryIsValid(
@@ -226,7 +230,10 @@ class TestSummaries(TestCase):
             from_other_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_contents_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)),
             from_bi_tivs=st.one_of(st.floats(1.0, 1000.0), st.integers(1, 1000)))))
-        loc_df = prepare_location_df(OedExposure(**{'location': loc_df, 'use_field': True}).location.dataframe)
+
+        exposure = OedExposure(**{'location': loc_df, 'use_field': True})
+        prepare_oed_exposure(exposure)
+        loc_df = exposure.location.dataframe
 
         # Run Summary output check
         exp_summary = get_exposure_summary(exposure_df=loc_df, keys_df=keys_df)
@@ -271,7 +278,9 @@ class TestSummaries(TestCase):
                 keys_errors=nonsuccesses,
                 keys_errors_file_path=keys_errors_fp
             )
-            location_df = prepare_location_df(OedExposure(**{'location': pd.DataFrame.from_dict(loc_data), 'use_field': True}).location.dataframe)
+            exposure = OedExposure(**{'location': pd.DataFrame.from_dict(loc_data), 'use_field': True})
+            prepare_oed_exposure(exposure)
+            location_df = exposure.location.dataframe
 
             exposure_summary_fp = write_exposure_summary(
                 tmp_dir,

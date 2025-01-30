@@ -728,6 +728,23 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
 
         return join
 
+def prepare_oed_exposure(exposure_data):
+    sar_df = exposure_data.get_subject_at_risk_source().dataframe
+    if sar_df is not None:
+        if SAR_ID not in sar_df.columns:
+            sar_df[SAR_ID] = get_ids(sar_df, exposure_data.class_of_business_info['subject_at_risk_id_fields'])
+        else:
+            sar_df[SAR_ID] = sar_df[SAR_ID].astype(int)
+
+    if exposure_data.location:
+        exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+    if exposure_data.account:
+        exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+    if exposure_data.ri_info and exposure_data.ri_scope:
+        exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(
+            exposure_data.ri_info.dataframe,
+            exposure_data.ri_scope.dataframe)
+
 
 def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
@@ -813,20 +830,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
                     use_field=True)
 
             if add_internal_col:
-                sar_df = exposure_data.get_subject_at_risk_source().dataframe
-                if sar_df is not None:
-                    if SAR_ID not in sar_df.columns:
-                        sar_df[SAR_ID] = get_ids(sar_df, exposure_data.class_of_business_info['subject_at_risk_id_fields'])
-                    else:
-                        sar_df[SAR_ID] = sar_df[SAR_ID].astype(int)
-
-                if exposure_data.location:
-                    exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
-                if exposure_data.account:
-                    exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
-                if exposure_data.ri_info and exposure_data.ri_scope:
-                    exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
-                                                                                                               exposure_data.ri_scope.dataframe)
+                prepare_oed_exposure(exposure_data)
         return exposure_data
     except OdsException as ods_error:
         raise OasisException("Failed to load OED exposure files", ods_error)
