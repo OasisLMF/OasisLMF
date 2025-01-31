@@ -6,13 +6,12 @@ __all__ = [
 import os
 from packaging import version
 
-from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema, OdsException
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
 
 from ...utils.inputs import str2bool
-from ...utils.data import get_utctimestamp, get_exposure_data
+from ...utils.data import get_utctimestamp, get_exposure_data, analysis_settings_loader, model_settings_loader
 
 
 class KeyComputationStep(ComputationStep):
@@ -58,6 +57,8 @@ class GenerateKeys(KeyComputationStep):
         ..
         ..
     """
+    settings_params = [{'name': 'lookup_complex_config_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
 
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
@@ -104,35 +105,27 @@ class GenerateKeys(KeyComputationStep):
 
         output_dir = self._get_output_dir()
         output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
-        if self.lookup_complex_config_json:
-            AnalysisSettingSchema().validate_file(self.lookup_complex_config_json)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
         if not self.disable_oed_version_update:
-            if self.model_settings_json is not None:
-                try:
-                    model_settings = ModelSettingSchema().get(self.model_settings_json, validate=False)
-                    # Check for the existence and contents of 'supported_oed_versions'
-                    supported_versions = model_settings.get('data_settings', {}).get('supported_oed_versions', None)
-                    if supported_versions:
-                        if isinstance(supported_versions, str):
-                            self.logger.info(f"Converting to OED version {supported_versions}")
-                            exposure_data.to_version(supported_versions)
-                        elif isinstance(supported_versions, list) and supported_versions:
-                            # If 'supported_oed_versions' is a list and is not empty
-                            # Sort the versions in descending order
-                            supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
-                            self.logger.info(f"Converting to OED version {supported_versions[0]}")
-                            exposure_data.to_version(supported_versions[0])
-                        else:
-                            # If 'supported_oed_versions' is neither a string nor a non-empty list
-                            self.logger.warning("Invalid OED version information in model settings.")
-                    else:
-                        # If 'supported_oed_versions' is missing or empty
-                        self.logger.debug("No OED version information in model settings.")
-                except OdsException:
-                    self.logger.debug("No OED version information in model settings.")
+            supported_versions = self.settings.get('data_settings', {}).get('supported_oed_versions', None)
+            if supported_versions:
+                if isinstance(supported_versions, str):
+                    self.logger.info(f"Converting to OED version {supported_versions}")
+                    exposure_data.to_version(supported_versions)
+                elif isinstance(supported_versions, list) and supported_versions:
+                    # If 'supported_oed_versions' is a list and is not empty
+                    # Sort the versions in descending order
+                    supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
+                    self.logger.info(f"Converting to OED version {supported_versions[0]}")
+                    exposure_data.to_version(supported_versions[0])
+                else:
+                    # If 'supported_oed_versions' is neither a string nor a non-empty list
+                    self.logger.warning("Invalid OED version information in model settings.")
+            else:
+                # If 'supported_oed_versions' is missing or empty
+                self.logger.debug("No OED version information in model settings.")
 
         keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')

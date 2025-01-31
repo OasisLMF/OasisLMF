@@ -1,3 +1,5 @@
+import json
+
 import logging
 import pathlib
 import os
@@ -15,6 +17,7 @@ from .test_computation import ComputationChecker
 
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
+MODEL_SETTINGS = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('model_settings.json')
 
 
 class TestGenKeys(ComputationChecker):
@@ -112,6 +115,10 @@ class TestGenKeys(ComputationChecker):
             {k: v.name for k, v in self.tmp_dirs.items()},
             {k: v.name for k, v in self.tmp_files.items()},
             self.default_args])
+
+        with open(MODEL_SETTINGS) as min_model_setting_file, open(call_args['model_settings_json'], 'w') as model_setting_file:
+            model_setting_file.write(min_model_setting_file.read())
+
         self.manager.generate_keys(**call_args)
 
         mock_keys_factory.assert_called_once_with(
@@ -137,8 +144,7 @@ class TestGenKeys(ComputationChecker):
 
     @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
     @patch('oasislmf.computation.generate.keys.get_exposure_data')
-    @patch('oasislmf.computation.generate.keys.ModelSettingSchema')
-    def test_args__passed_correctly_withversion(self, mock_model_schema, mock_get_exposure, mock_keys_factory):
+    def test_args__passed_correctly_withversion(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
             self.min_args_output_set['keys_data_csv'], 4,
@@ -159,13 +165,10 @@ class TestGenKeys(ComputationChecker):
         exposure_data.to_version = Mock(return_value="converted")
         mock_get_exposure.return_value = exposure_data
 
-        def mock_get_method(file_path, validate=False):
-            return {'data_settings': {'supported_oed_versions': ["1.0", "2.0"]}}
-
-        # Setting up the mock for ModelSettingSchema().get
-        mock_model_settings = Mock()
-        mock_model_settings.get.side_effect = mock_get_method
-        mock_model_schema.return_value = mock_model_settings
+        with open(MODEL_SETTINGS) as min_model_setting_file, open(call_args['model_settings_json'], 'w') as model_setting_file:
+            model_setting = json.load(min_model_setting_file)
+            model_setting['data_settings'] = {'supported_oed_versions': ["1.0", "2.0"]}
+            json.dump(model_setting, model_setting_file)
 
         self.manager.generate_keys(**call_args)
 
@@ -195,8 +198,7 @@ class TestGenKeys(ComputationChecker):
 
     @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
     @patch('oasislmf.computation.generate.keys.get_exposure_data')
-    @patch('oasislmf.computation.generate.keys.ModelSettingSchema')
-    def test_args__passed_correctly_withversion_disabled(self, mock_model_schema, mock_get_exposure, mock_keys_factory):
+    def test_args__passed_correctly_withversion_disabled(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
             self.min_args_output_set['keys_data_csv'], 4,
@@ -218,13 +220,10 @@ class TestGenKeys(ComputationChecker):
         exposure_data.to_version = Mock(return_value="converted")
         mock_get_exposure.return_value = exposure_data
 
-        def mock_get_method(file_path, validate=False):
-            return {'data_settings': {'supported_oed_versions': []}}
-
-        # Setting up the mock for ModelSettingSchema().get
-        mock_model_settings = Mock()
-        mock_model_settings.get.side_effect = mock_get_method
-        mock_model_schema.return_value = mock_model_settings
+        with open(MODEL_SETTINGS) as min_model_setting_file, open(call_args['model_settings_json'], 'w') as model_setting_file:
+            model_setting = json.load(min_model_setting_file)
+            model_setting['data_settings'] = {'supported_oed_versions': []}
+            json.dump(model_setting, model_setting_file)
 
         self.manager.generate_keys(**call_args)
 
@@ -254,8 +253,7 @@ class TestGenKeys(ComputationChecker):
 
     @patch('oasislmf.computation.generate.keys.KeyServerFactory.create')
     @patch('oasislmf.computation.generate.keys.get_exposure_data')
-    @patch('oasislmf.computation.generate.keys.ModelSettingSchema')
-    def test_args__passed_correctly_withversion_nosettings(self, mock_model_schema, mock_get_exposure, mock_keys_factory):
+    def test_args__passed_correctly_withversion_nosettings(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
             self.min_args_output_set['keys_data_csv'], 4,
@@ -276,13 +274,10 @@ class TestGenKeys(ComputationChecker):
         exposure_data.to_version = Mock(return_value="converted")
         mock_get_exposure.return_value = exposure_data
 
-        def mock_get_method(file_path, validate=False):
-            return {'data_settings': {'supported_oed_versions': []}}
-
-        # Setting up the mock for ModelSettingSchema().get
-        mock_model_settings = Mock()
-        mock_model_settings.get.side_effect = mock_get_method
-        mock_model_schema.return_value = mock_model_settings
+        with open(MODEL_SETTINGS) as min_model_setting_file, open(call_args['model_settings_json'], 'w') as model_setting_file:
+            model_setting = json.load(min_model_setting_file)
+            model_setting['data_settings'] = {'supported_oed_versions': []}
+            json.dump(model_setting, model_setting_file)
 
         self.manager.generate_keys(**call_args)
 
