@@ -48,9 +48,10 @@ from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
-                                 prepare_account_df, prepare_location_df,
+                                 prepare_account_df,
                                  prepare_reinsurance_df, validate_vulnerability_replacements,
                                  analysis_settings_loader, model_settings_loader)
+
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
                                      OASIS_FILES_PREFIXES, WRITE_CHUNKSIZE,
@@ -195,8 +196,7 @@ class GenerateFiles(ComputationStep):
             exposure_data.reporting_currency = self.reporting_currency
             exposure_data.save(target_dir, self.reporting_currency, save_config=True)
 
-        exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
-        location_df = exposure_data.location.dataframe
+        location_df = exposure_data.get_subject_at_risk_source().dataframe
 
         if il:
             exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
@@ -344,7 +344,7 @@ class GenerateFiles(ComputationStep):
         # Get the IL input items
         il_inputs_df = get_il_input_items(
             gul_inputs_df=gul_inputs_df.copy(),
-            locations_df=exposure_data.location.dataframe,
+            locations_df=exposure_data.location.dataframe if exposure_data.location is not None else None,
             accounts_df=exposure_data.account.dataframe,
             oed_schema=exposure_data.oed_schema,
             exposure_profile=location_profile,

@@ -314,7 +314,7 @@ class GenerateLossesDir(GenerateLossesBase):
         )
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
-        location_df = exposure_data.location.dataframe
+        location_df = exposure_data.get_subject_at_risk_source().dataframe
         account_df = exposure_data.account.dataframe if exposure_data.account else None
         generate_summaryxref_files(
             location_df,
