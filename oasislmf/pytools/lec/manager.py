@@ -401,14 +401,19 @@ def run(
             if hasAGG:
                 agg.output_mean_damage_ratio(AEP, AEPTVAR, "agg_out_loss")
 
-        # Output Mean Damage Ratio
+        # Output Full Uncertainty
         if output_flags[OCC_FULL_UNCERTAINTY]:
             agg.output_full_uncertainty(OEP, OEPTVAR, "max_out_loss")
         if output_flags[AGG_FULL_UNCERTAINTY]:
             agg.output_full_uncertainty(AEP, AEPTVAR, "agg_out_loss")
 
-        # TODO: rest of aggreports outputs
-        print(file_data["no_of_periods"], (sample_size + 2), max_summary_id)
+        # TODO: output wheatsheaf and wheatsheafmean
+
+        # # Output Sample Mean
+        # if output_flags[OCC_SAMPLE_MEAN]:
+        #     agg.output_sample_mean(OEP, OEPTVAR, "max_out_loss")
+        # if output_flags[AGG_SAMPLE_MEAN]:
+        #     agg.output_sample_mean(AEP, AEPTVAR, "agg_out_loss")
 
 
 @redirect_logging(exec_name='lecpy')

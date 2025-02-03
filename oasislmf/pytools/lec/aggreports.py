@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from line_profiler import profile
 import numba as nb
@@ -5,6 +6,7 @@ import numpy as np
 
 from oasislmf.pytools.common.data import oasis_float, oasis_int, nb_oasis_int
 
+logger = logging.getLogger(__name__)
 
 # Output flags
 AGG_FULL_UNCERTAINTY = 0
@@ -187,6 +189,65 @@ class AggReports():
                 items,
                 items_start_end,
                 self.no_of_periods * self.sample_size,
+                epcalc,
+                eptype,
+                eptype_tvar,
+                self.use_return_period,
+                self.returnperiods,
+                self.max_summary_id
+            )
+
+        for data in gen:
+            np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+
+    @profile
+    def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
+        if self.sample_size == 0:
+            logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")
+            return
+        epcalc = MEANSAMPLE
+
+        # TODO: these reorder by period_no, summary_id, I think num rows stays the same,
+        # implement function to reorder more efficiently?
+
+        # Get row indices that are used
+        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+
+        # Allocate storage for the flat data array
+        items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+        items.flush()
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="r+", shape=(len(row_used_indices),))
+
+        has_weights, items, items_start_end, used_period_no = output_full_uncertainty(
+            items,
+            row_used_indices,
+            self.outloss_sample,
+            outloss_type,
+            self.period_weights,
+            self.max_summary_id,
+            self.num_sidxs,
+        )
+        unused_periods_to_weights = self.period_weights[~used_period_no]
+
+        if has_weights:
+            gen = write_exceedance_probability_table_weighted(
+                items,
+                items_start_end,
+                self.sample_size,
+                epcalc,
+                eptype,
+                eptype_tvar,
+                unused_periods_to_weights,
+                self.use_return_period,
+                self.returnperiods,
+                self.max_summary_id
+            )
+        else:
+            gen = write_exceedance_probability_table(
+                items,
+                items_start_end,
+                self.no_of_periods,
                 epcalc,
                 eptype,
                 eptype_tvar,
