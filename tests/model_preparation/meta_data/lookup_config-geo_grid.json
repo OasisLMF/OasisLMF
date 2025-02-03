@@ -1,0 +1,55 @@
+{
+    "model": {
+        "supplier_id": "OasisLMF",
+        "model_id": "PiWind",
+        "model_version": "0.0.0.1"
+    },
+    "builtin_lookup_type": "new_lookup",
+    "keys_data_path": "./",
+    "step_definition": {
+        "geo_grid_step_multi_peril":{
+            "type": "fixed_size_geo_grid_multi_peril",
+            "columns": ["latitude", "longitude", "peril_id"],
+            "parameters": {
+                "perils_dict": {
+                    "WTC" : {
+                        "lat_min": 0.0,
+                        "lat_max": 4.0,
+                        "lon_min": 0.0,
+                        "lon_max": 4.0,
+                        "arc_size": 2.0
+                    },
+                    "WSS" : {
+                        "lat_min": 0.0,
+                        "lat_max": 4.0,
+                        "lon_min": 0.0,
+                        "lon_max": 4.0,
+                        "arc_size": 1.0
+                    }
+                }
+            }
+        },
+        "split_loc_perils_covered":{
+            "type": "split_loc_perils_covered" ,
+            "columns": ["locperilscovered"],
+            "parameters": {
+                "model_perils_covered": ["WTC", "WSS"]
+            }
+        },
+        "create_coverage_type": {
+            "type": "simple_pivot",
+            "parameters": {
+                "pivots": [{"new_cols": {"coverage_type": 1}},
+                           {"new_cols": {"coverage_type": 3}}]
+            }
+        },
+        "vulnerability": {
+            "type": "merge",
+            "columns": ["peril_id", "coverage_type", "occupancycode"],
+            "parameters": {"file_path": "%%KEYS_DATA_PATH%%/vulnerability_dict.csv",
+                           "id_columns": ["vulnerability_id"]
+                          }
+        }
+    },
+    "strategy": ["split_loc_perils_covered", "geo_grid_step_multi_peril", "create_coverage_type", "vulnerability"]
+}

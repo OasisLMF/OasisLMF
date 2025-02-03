@@ -69,7 +69,7 @@ def prepare_input_files_directory(
         raise OasisException("Exception raised in 'prepare_input_files_directory'", e)
 
     # if exposure pre-analysis has run then the data are already copied in the input directory and cur_version_name is ''
-    if exposure_data.location.cur_version_name != '':
+    if exposure_data.get_subject_at_risk_source().cur_version_name != '':
         exposure_data.save(target_dir, version_name='', save_config=True)
 
     return target_dir

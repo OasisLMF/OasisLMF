@@ -201,7 +201,8 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertEqual(str(context.exception), 'Error: Either select a "portfolio_id" or a location file is required.')
+        self.assertEqual(str(context.exception),
+                         'Error: At least one of the following inputs is required [portfolio_id, oed_location_csv, oed_accounts_csv]')
 
     @patch('builtins.input', side_effect=['AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
@@ -634,8 +635,8 @@ class TestPlatformRun(ComputationChecker):
 
         run_mock = Mock()
         # run_mock.run.side_effect = lambda *args, **kwargs: 23
-        analysis_id_reutrn = analysis_id if analysis_id else 42
-        run_mock.run.side_effect = lambda *args, **kwargs: analysis_id_reutrn
+        analysis_id_return = analysis_id if analysis_id else 42
+        run_mock.run.side_effect = lambda *args, **kwargs: analysis_id_return
         plat_files_mock = Mock()
         plat_losses_mock = Mock()
 
@@ -653,7 +654,7 @@ class TestPlatformRun(ComputationChecker):
             self.manager.platform_run(**call_args)
 
         plat_files_mock.assert_called_once_with(**call_args)
-        call_args['analysis_id'] = analysis_id_reutrn
+        call_args['analysis_id'] = analysis_id_return
         plat_losses_mock.assert_called_once_with(**call_args)
 
 

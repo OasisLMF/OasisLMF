@@ -1,6 +1,30 @@
 OasisLMF Changelog
 ==================
 
+`2.4.0`_
+ ---------
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
+* [#1607](https://github.com/OasisLMF/OasisLMF/pull/1607) - Fix/lookup sort keys
+* [#1591](https://github.com/OasisLMF/OasisLMF/pull/1592) - Dynamic footprint has incorrect type 1 losses
+* [#1611](https://github.com/OasisLMF/OasisLMF/pull/1611) - fix loss_out len in account level back allocation
+* [#1615](https://github.com/OasisLMF/OasisLMF/pull/1614) - Non-useful error message for missing PolInceptionDate with RA Basis reinsurance
+* [#1552](https://github.com/OasisLMF/OasisLMF/pull/1552) - Make analysis and model setting able to modify any computation step parameters (MDK parameters)
+* [#1618](https://github.com/OasisLMF/OasisLMF/pull/1618) - Fix testing failures (API Client) 
+* [#1619](https://github.com/OasisLMF/OasisLMF/pull/1619) - Fix/ci pre analysis testing
+* [#1624](https://github.com/OasisLMF/OasisLMF/pull/1624) - Feature/oed v4
+* [#1625](https://github.com/OasisLMF/OasisLMF/pull/1625) - feat: security enhancements
+.. _`2.4.0`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.11...2.4.0
+
+`2.3.11`_
+ ---------
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
+* [#1250](https://github.com/OasisLMF/OasisLMF/pull/1576) - Support Risk Attaching 'RA' basis in reinsurance
+* [#1581](https://github.com/OasisLMF/OasisLMF/pull/1587) - oasislmf code uses legacy correlation settings location in model settings
+* [#1589](https://github.com/OasisLMF/OasisLMF/pull/1589) - Update platform API client for Cyber models 
+* [#1594](https://github.com/OasisLMF/OasisLMF/pull/1594) - improve the memory performance of il layer number continuity step
+* [#1595](https://github.com/OasisLMF/OasisLMF/pull/1596) - Allow process perils with different resolution grids 
+.. _`2.3.11`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.10...2.3.11
+
 `2.3.10`_
  ---------
 * [#1563](https://github.com/OasisLMF/OasisLMF/pull/1570) - Intensity Adjustments in gulmc for dynamic footprints
