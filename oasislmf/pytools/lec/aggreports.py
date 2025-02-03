@@ -104,10 +104,8 @@ class AggReports():
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
-        items.flush()
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="r+", shape=(len(row_used_indices),))
 
-        has_weights, items, items_start_end, used_period_no = output_mean_damage_ratio(
+        has_weights, items_start_end, used_period_no = output_mean_damage_ratio(
             items,
             row_used_indices,
             self.outloss_mean,
@@ -157,10 +155,8 @@ class AggReports():
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
-        items.flush()
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="r+", shape=(len(row_used_indices),))
 
-        has_weights, items, items_start_end, used_period_no = output_full_uncertainty(
+        has_weights, items_start_end, used_period_no = output_full_uncertainty(
             items,
             row_used_indices,
             self.outloss_sample,
@@ -207,25 +203,54 @@ class AggReports():
             return
         epcalc = MEANSAMPLE
 
-        # TODO: these reorder by period_no, summary_id, I think num rows stays the same,
-        # implement function to reorder more efficiently?
+        # outloss_sample has all SIDXs plus -2 and -3
+        reordered_outlosses_file = Path(self.lec_files_folder, f"lec_sample_mean-reordered_outlosses-{outloss_type}.bdat")
+        reordered_outlosses = np.memmap(
+            reordered_outlosses_file,
+            dtype=np.dtype([
+                ("row_used", np.bool_),
+                ("value", oasis_float),
+            ]),
+            mode="w+",
+            shape=(self.no_of_periods * self.max_summary_id),
+        )
+
+        # Required if-else condition as njit cannot resolve outloss_type inside []
+        if outloss_type == "agg_out_loss":
+            outloss_vals = self.outloss_sample["agg_out_loss"]
+        elif outloss_type == "max_out_loss":
+            outloss_vals = self.outloss_sample["max_out_loss"]
+        else:
+            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
         # Get row indices that are used
         row_used_indices = np.where(self.outloss_sample["row_used"])[0]
 
-        # Allocate storage for the flat data array
-        items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
-        items.flush()
-        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="r+", shape=(len(row_used_indices),))
+        # Reorder outlosses by summary_id and period_no
+        reorder_losses_by_summary_and_period(
+            reordered_outlosses,
+            row_used_indices,
+            outloss_vals,
+            self.max_summary_id,
+            self.no_of_periods,
+            self.num_sidxs,
+            self.sample_size,
+        )
 
-        has_weights, items, items_start_end, used_period_no = output_full_uncertainty(
+        # Get row indices that are used
+        row_used_indices = np.where(reordered_outlosses["row_used"])[0]
+
+        # Allocate storage for the flat data array
+        items_fp = Path(self.lec_files_folder, f"lec_sample_mean-{outloss_type}-items.bdat")
+        items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+
+        has_weights, items_start_end, used_period_no = output_sample_mean(
             items,
             row_used_indices,
-            self.outloss_sample,
-            outloss_type,
+            reordered_outlosses["value"],
             self.period_weights,
             self.max_summary_id,
+            self.no_of_periods,
             self.num_sidxs,
         )
         unused_periods_to_weights = self.period_weights[~used_period_no]
@@ -754,8 +779,6 @@ def output_mean_damage_ratio(
     period_weights,
     max_summary_id,
 ):
-    num_rows = len(row_used_indices)
-
     # Track start and end indices for each summary_id
     items_start_end = np.full((max_summary_id, 2), -1, dtype=np.int32)
 
@@ -772,8 +795,7 @@ def output_mean_damage_ratio(
         raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
     # First pass to count how many times each summary_id appears
-    for i in range(num_rows):
-        idx = row_used_indices[i]
+    for idx in row_used_indices:
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
         summary_counts[summary_id - 1] += 1
 
@@ -793,8 +815,7 @@ def output_mean_damage_ratio(
     used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
     # Second pass to populate the data array
-    for i in range(num_rows):
-        idx = row_used_indices[i]
+    for idx in row_used_indices:
         summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
 
         # Compute position in the flat array
@@ -811,7 +832,7 @@ def output_mean_damage_ratio(
 
         summary_counts[summary_id - 1] += 1
 
-    return is_weighted, items, items_start_end, used_period_no
+    return is_weighted, items_start_end, used_period_no
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -824,8 +845,6 @@ def output_full_uncertainty(
     max_summary_id,
     num_sidxs,
 ):
-    num_rows = len(row_used_indices)
-
     # Track start and end indices for each summary_id
     items_start_end = np.full((max_summary_id, 2), -1, dtype=np.int32)
 
@@ -842,8 +861,7 @@ def output_full_uncertainty(
         raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
     # First pass to count how many times each summary_id appears
-    for i in range(num_rows):
-        idx = row_used_indices[i]
+    for idx in row_used_indices:
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
         summary_counts[summary_id - 1] += 1
 
@@ -863,8 +881,7 @@ def output_full_uncertainty(
     used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
     # Second pass to populate the data array
-    for i in range(num_rows):
-        idx = row_used_indices[i]
+    for idx in row_used_indices:
         summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
 
         # Compute position in the flat array
@@ -881,4 +898,80 @@ def output_full_uncertainty(
 
         summary_counts[summary_id - 1] += 1
 
-    return is_weighted, items, items_start_end, used_period_no
+    return is_weighted, items_start_end, used_period_no
+
+
+@nb.njit(cache=True, error_model="numpy")
+def reorder_losses_by_summary_and_period(
+    reordered_outlosses,
+    row_used_indices,
+    outloss_vals,
+    max_summary_id,
+    no_of_periods,
+    num_sidxs,
+    sample_size,
+):
+    for idx in row_used_indices:
+        summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
+        outloss_idx = ((summary_id - 1) * no_of_periods) + (period_no - 1)
+        reordered_outlosses[outloss_idx]["row_used"] = True
+        reordered_outlosses[outloss_idx]["value"] += (outloss_vals[idx] / sample_size)
+
+
+@nb.njit(cache=True, error_model="numpy")
+def output_sample_mean(
+    items,
+    row_used_indices,
+    reordered_outlosses,
+    period_weights,
+    max_summary_id,
+    no_of_periods,
+    num_sidxs,
+):
+    # Track start and end indices for each summary_id
+    items_start_end = np.full((max_summary_id, 2), -1, dtype=np.int32)
+
+    # Track number of entries per summary_id
+    summary_counts = np.zeros(max_summary_id, dtype=np.int32)
+
+    # First pass to count how many times each summary_id appears
+    for idx in row_used_indices:
+        summary_id = (idx // no_of_periods) + 1
+        period_no = (idx % no_of_periods) + 1
+        summary_counts[summary_id - 1] += 1
+
+    # Compute cumulative start indices
+    pos = 0
+    for summary_id in range(max_summary_id):
+        if summary_counts[summary_id] > 0:
+            items_start_end[summary_id][0] = pos  # Start index
+            pos += summary_counts[summary_id]
+            items_start_end[summary_id][1] = pos  # End index
+
+    # Reset summary counts for inserting data
+    summary_counts[:] = 0
+
+    # Track which period_no are used if period_weights exists
+    is_weighted = len(period_weights) > 0
+    used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
+
+    # Second pass to populate the data array
+    for idx in row_used_indices:
+        summary_id = (idx // no_of_periods) + 1
+        period_no = (idx % no_of_periods) + 1
+
+        # Compute position in the flat array
+        insert_idx = items_start_end[summary_id - 1][0] + summary_counts[summary_id - 1]
+
+        # Store values
+        items[insert_idx]["summary_id"] = summary_id
+        items[insert_idx]["value"] = reordered_outlosses[idx]
+        if is_weighted:
+            # Fast lookup period_weights as they are numbered 1 to no_of_periods
+            items[insert_idx]["period_weighting"] = period_weights[period_no - 1]["weighting"]
+            items[insert_idx]["period_no"] = period_no
+            used_period_no[period_no - 1] = True
+
+        summary_counts[summary_id - 1] += 1
+
+    return is_weighted, items_start_end, used_period_no

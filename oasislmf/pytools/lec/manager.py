@@ -324,13 +324,6 @@ def run(
             mode="w+",
             shape=(file_data["no_of_periods"] * max_summary_id),
         )
-        outloss_mean.flush()
-        outloss_mean = np.memmap(
-            outloss_mean_file,
-            dtype=_OUTLOSS_DTYPE,
-            mode="r+",
-            shape=(file_data["no_of_periods"] * max_summary_id),
-        )
 
         # outloss_sample has all SIDXs plus -2 and -3
         num_sidxs = sample_size + 2
@@ -339,13 +332,6 @@ def run(
             outloss_sample_file,
             dtype=_OUTLOSS_DTYPE,
             mode="w+",
-            shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
-        )
-        outloss_sample.flush()
-        outloss_sample = np.memmap(
-            outloss_sample_file,
-            dtype=_OUTLOSS_DTYPE,
-            mode="r+",
             shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
         )
 
@@ -409,11 +395,11 @@ def run(
 
         # TODO: output wheatsheaf and wheatsheafmean
 
-        # # Output Sample Mean
-        # if output_flags[OCC_SAMPLE_MEAN]:
-        #     agg.output_sample_mean(OEP, OEPTVAR, "max_out_loss")
-        # if output_flags[AGG_SAMPLE_MEAN]:
-        #     agg.output_sample_mean(AEP, AEPTVAR, "agg_out_loss")
+        # Output Sample Mean
+        if output_flags[OCC_SAMPLE_MEAN]:
+            agg.output_sample_mean(OEP, OEPTVAR, "max_out_loss")
+        if output_flags[AGG_SAMPLE_MEAN]:
+            agg.output_sample_mean(AEP, AEPTVAR, "agg_out_loss")
 
 
 @redirect_logging(exec_name='lecpy')
