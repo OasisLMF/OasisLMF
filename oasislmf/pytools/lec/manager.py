@@ -10,7 +10,7 @@ from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
 from oasislmf.pytools.lec.aggreports import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
-                                             OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, AggReports, EPT_output, PSEPT_output)
+                                             OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, AggReports, EPT_output, PSEPT_output, get_outloss_mean_idx, get_outloss_sample_idx)
 from oasislmf.pytools.utils import redirect_logging
 
 
@@ -100,28 +100,6 @@ def get_max_summary_id(file_handles):
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _remap_sidx(sidx):
-    if sidx == -2:
-        return 0
-    if sidx == -3:
-        return 1
-    if sidx >= 1:
-        return sidx + 1
-    raise ValueError(f"Invalid sidx value: {sidx}")
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _get_outloss_mean_idx(period_no, summary_id, max_summary_id):
-    return ((period_no - 1) * max_summary_id) + (summary_id - 1)
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id):
-    remapped_sidx = _remap_sidx(sidx)
-    return ((period_no - 1) * num_sidxs * max_summary_id) + (remapped_sidx * max_summary_id) + (summary_id - 1)
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
 def do_lec_output_agg_summary(
     summary_id,
     sidx,
@@ -135,10 +113,10 @@ def do_lec_output_agg_summary(
     for row in filtered_occ_map:
         period_no = row["period_no"]
         if sidx == MEAN_IDX:
-            idx = _get_outloss_mean_idx(period_no, summary_id, max_summary_id)
+            idx = get_outloss_mean_idx(period_no, summary_id, max_summary_id)
             outloss = outloss_mean
         else:
-            idx = _get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
+            idx = get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id)
             outloss = outloss_sample
         outloss[idx]["row_used"] = True
         outloss[idx]["agg_out_loss"] += loss
@@ -393,7 +371,17 @@ def run(
         if output_flags[AGG_FULL_UNCERTAINTY]:
             agg.output_full_uncertainty(AEP, AEPTVAR, "agg_out_loss")
 
-        # TODO: output wheatsheaf and wheatsheafmean
+        # Output Wheatsheaf and Wheatsheaf Mean
+        if output_flags[OCC_WHEATSHEAF] or output_flags[OCC_WHEATSHEAF_MEAN]:
+            agg.output_wheatsheaf_and_wheatsheafmean(
+                OEP, OEPTVAR, "max_out_loss",
+                output_flags[OCC_WHEATSHEAF], output_flags[OCC_WHEATSHEAF_MEAN]
+            )
+        if output_flags[AGG_WHEATSHEAF] or output_flags[AGG_WHEATSHEAF_MEAN]:
+            agg.output_wheatsheaf_and_wheatsheafmean(
+                AEP, AEPTVAR, "agg_out_loss",
+                output_flags[AGG_WHEATSHEAF], output_flags[AGG_WHEATSHEAF_MEAN]
+            )
 
         # Output Sample Mean
         if output_flags[OCC_SAMPLE_MEAN]:

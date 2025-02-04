@@ -59,6 +59,13 @@ LOSSVEC2MAP_dtype = np.dtype([
     ("value", oasis_float),
 ])
 
+LOSSVAL_dtype = np.dtype([
+    ("row_used", np.bool_),
+    ("period_no", np.int32),
+    ("period_weighting", np.float64),
+    ("value", oasis_float),
+])
+
 # For Dict of summary_id (oasis_int) to nb_Tail_valtype
 TAIL_valtype = np.dtype([
     ("retperiod", np.float64),
@@ -105,11 +112,19 @@ class AggReports():
         items_fp = Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
 
+        # Select the correct outloss values based on type
+        # Required if-else condition as njit cannot resolve outloss_type inside []
+        if outloss_type == "agg_out_loss":
+            outloss_vals = self.outloss_mean["agg_out_loss"]
+        elif outloss_type == "max_out_loss":
+            outloss_vals = self.outloss_mean["max_out_loss"]
+        else:
+            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
+
         has_weights, items_start_end, used_period_no = output_mean_damage_ratio(
             items,
             row_used_indices,
-            self.outloss_mean,
-            outloss_type,
+            outloss_vals,
             self.period_weights,
             self.max_summary_id,
         )
@@ -156,11 +171,19 @@ class AggReports():
         items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
 
+        # Select the correct outloss values based on type
+        # Required if-else condition as njit cannot resolve outloss_type inside []
+        if outloss_type == "agg_out_loss":
+            outloss_vals = self.outloss_sample["agg_out_loss"]
+        elif outloss_type == "max_out_loss":
+            outloss_vals = self.outloss_sample["max_out_loss"]
+        else:
+            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
+
         has_weights, items_start_end, used_period_no = output_full_uncertainty(
             items,
             row_used_indices,
-            self.outloss_sample,
-            outloss_type,
+            outloss_vals,
             self.period_weights,
             self.max_summary_id,
             self.num_sidxs,
@@ -197,6 +220,39 @@ class AggReports():
             np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
     @profile
+    def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
+        epcalc = PERSAMPLEMEAN
+
+        wheatsheaf_items_file = Path(self.lec_files_folder, f"lec_wheatsheaf-items-{outloss_type}.bdat")
+        wheatsheaf_items = np.memmap(
+            wheatsheaf_items_file,
+            dtype=LOSSVAL_dtype,
+            mode="w+",
+            shape=(self.num_sidxs * self.max_summary_id),
+        )
+
+        # Select the correct outloss values based on type
+        # Required if-else condition as njit cannot resolve outloss_type inside []
+        if outloss_type == "agg_out_loss":
+            outloss_vals = self.outloss_sample["agg_out_loss"]
+        elif outloss_type == "max_out_loss":
+            outloss_vals = self.outloss_sample["max_out_loss"]
+        else:
+            raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
+
+        # Get row indices that are used
+        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+
+        has_weights, used_period_no = fill_wheatsheaf_items(
+            wheatsheaf_items,
+            row_used_indices,
+            outloss_vals,
+            self.period_weights,
+            self.max_summary_id,
+            self.num_sidxs,
+        )
+
+    @profile
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
         if self.sample_size == 0:
             logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")
@@ -215,6 +271,7 @@ class AggReports():
             shape=(self.no_of_periods * self.max_summary_id),
         )
 
+        # Select the correct outloss values based on type
         # Required if-else condition as njit cannot resolve outloss_type inside []
         if outloss_type == "agg_out_loss":
             outloss_vals = self.outloss_sample["agg_out_loss"]
@@ -743,6 +800,28 @@ def write_exceedance_probability_table_weighted(
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
+def _remap_sidx(sidx):
+    if sidx == -2:
+        return 0
+    if sidx == -3:
+        return 1
+    if sidx >= 1:
+        return sidx + 1
+    raise ValueError(f"Invalid sidx value: {sidx}")
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_outloss_mean_idx(period_no, summary_id, max_summary_id):
+    return ((period_no - 1) * max_summary_id) + (summary_id - 1)
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id):
+    remapped_sidx = _remap_sidx(sidx)
+    return ((period_no - 1) * num_sidxs * max_summary_id) + (remapped_sidx * max_summary_id) + (summary_id - 1)
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _inverse_remap_sidx(remapped_sidx):
     if remapped_sidx == 0:
         return -2
@@ -754,14 +833,14 @@ def _inverse_remap_sidx(remapped_sidx):
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _get_mean_idx_data(idx, max_summary_id):
+def get_mean_idx_data(idx, max_summary_id):
     summary_id = (idx % max_summary_id) + 1
     period_no = (idx // max_summary_id) + 1
     return summary_id, period_no
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _get_sample_idx_data(idx, max_summary_id, num_sidxs):
+def get_sample_idx_data(idx, max_summary_id, num_sidxs):
     summary_id = (idx % max_summary_id) + 1
     idx //= max_summary_id
     remapped_sidx = idx % num_sidxs
@@ -774,8 +853,7 @@ def _get_sample_idx_data(idx, max_summary_id, num_sidxs):
 def output_mean_damage_ratio(
     items,
     row_used_indices,
-    outloss_mean,
-    outloss_type,
+    outloss_vals,
     period_weights,
     max_summary_id,
 ):
@@ -785,18 +863,9 @@ def output_mean_damage_ratio(
     # Track number of entries per summary_id
     summary_counts = np.zeros(max_summary_id, dtype=np.int32)
 
-    # Select the correct outloss values based on type
-    # Required if-else condition as njit cannot resolve outloss_type inside []
-    if outloss_type == "agg_out_loss":
-        outloss_vals = outloss_mean["agg_out_loss"]
-    elif outloss_type == "max_out_loss":
-        outloss_vals = outloss_mean["max_out_loss"]
-    else:
-        raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
     # First pass to count how many times each summary_id appears
     for idx in row_used_indices:
-        summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
+        summary_id, period_no = get_mean_idx_data(idx, max_summary_id)
         summary_counts[summary_id - 1] += 1
 
     # Compute cumulative start indices
@@ -816,7 +885,7 @@ def output_mean_damage_ratio(
 
     # Second pass to populate the data array
     for idx in row_used_indices:
-        summary_id, period_no = _get_mean_idx_data(idx, max_summary_id)
+        summary_id, period_no = get_mean_idx_data(idx, max_summary_id)
 
         # Compute position in the flat array
         insert_idx = items_start_end[summary_id - 1][0] + summary_counts[summary_id - 1]
@@ -839,8 +908,7 @@ def output_mean_damage_ratio(
 def output_full_uncertainty(
     items,
     row_used_indices,
-    outloss_sample,
-    outloss_type,
+    outloss_vals,
     period_weights,
     max_summary_id,
     num_sidxs,
@@ -851,18 +919,9 @@ def output_full_uncertainty(
     # Track number of entries per summary_id
     summary_counts = np.zeros(max_summary_id, dtype=np.int32)
 
-    # Select the correct outloss values based on type
-    # Required if-else condition as njit cannot resolve outloss_type inside []
-    if outloss_type == "agg_out_loss":
-        outloss_vals = outloss_sample["agg_out_loss"]
-    elif outloss_type == "max_out_loss":
-        outloss_vals = outloss_sample["max_out_loss"]
-    else:
-        raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
-
     # First pass to count how many times each summary_id appears
     for idx in row_used_indices:
-        summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
+        summary_id, sidx, period_no = get_sample_idx_data(idx, max_summary_id, num_sidxs)
         summary_counts[summary_id - 1] += 1
 
     # Compute cumulative start indices
@@ -882,7 +941,7 @@ def output_full_uncertainty(
 
     # Second pass to populate the data array
     for idx in row_used_indices:
-        summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
+        summary_id, sidx, period_no = get_sample_idx_data(idx, max_summary_id, num_sidxs)
 
         # Compute position in the flat array
         insert_idx = items_start_end[summary_id - 1][0] + summary_counts[summary_id - 1]
@@ -901,6 +960,59 @@ def output_full_uncertainty(
     return is_weighted, items_start_end, used_period_no
 
 
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs):
+    remapped_sidx = _remap_sidx(sidx)
+    return ((summary_id - 1) * num_sidxs) + (remapped_sidx)
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_wheatsheaf_items_idx_data(idx, num_sidxs):
+    summary_id = (idx // num_sidxs) + 1
+    remapped_sidx = (idx % num_sidxs) + 1
+    sidx = _inverse_remap_sidx(remapped_sidx)
+    return sidx, summary_id
+
+
+@nb.njit(cache=True, error_model="numpy")
+def fill_wheatsheaf_items(
+    wheatsheaf_items,
+    row_used_indices,
+    outloss_vals,
+    period_weights,
+    max_summary_id,
+    num_sidxs,
+):
+    # Track which period_no are used if period_weights exists
+    is_weighted = len(period_weights) > 0
+    used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
+
+    for idx in row_used_indices:
+        summary_id, sidx, period_no = get_sample_idx_data(idx, max_summary_id, num_sidxs)
+        wheatsheaf_idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
+        wheatsheaf_items[wheatsheaf_idx]["row_used"] = True
+        wheatsheaf_items[wheatsheaf_idx]["value"] = outloss_vals[idx]
+        if is_weighted:
+            # Fast lookup period_weights as they are numbered 1 to no_of_periods
+            wheatsheaf_items[wheatsheaf_idx]["period_weighting"] = period_weights[period_no - 1]["weighting"]
+            wheatsheaf_items[wheatsheaf_idx]["period_no"] = period_no
+            used_period_no[period_no - 1] = True
+
+    return is_weighted, used_period_no
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_sample_mean_outlosses_idx(summary_id, period_no, no_of_periods):
+    return ((summary_id - 1) * no_of_periods) + (period_no - 1)
+
+
+@nb.njit(cache=True, fastmath=True, error_model="numpy")
+def get_sample_mean_outlosses_idx_data(idx, no_of_periods):
+    summary_id = (idx // no_of_periods) + 1
+    period_no = (idx % no_of_periods) + 1
+    return period_no, summary_id
+
+
 @nb.njit(cache=True, error_model="numpy")
 def reorder_losses_by_summary_and_period(
     reordered_outlosses,
@@ -912,8 +1024,8 @@ def reorder_losses_by_summary_and_period(
     sample_size,
 ):
     for idx in row_used_indices:
-        summary_id, sidx, period_no = _get_sample_idx_data(idx, max_summary_id, num_sidxs)
-        outloss_idx = ((summary_id - 1) * no_of_periods) + (period_no - 1)
+        summary_id, sidx, period_no = get_sample_idx_data(idx, max_summary_id, num_sidxs)
+        outloss_idx = get_sample_mean_outlosses_idx(summary_id, period_no, no_of_periods)
         reordered_outlosses[outloss_idx]["row_used"] = True
         reordered_outlosses[outloss_idx]["value"] += (outloss_vals[idx] / sample_size)
 
@@ -936,8 +1048,7 @@ def output_sample_mean(
 
     # First pass to count how many times each summary_id appears
     for idx in row_used_indices:
-        summary_id = (idx // no_of_periods) + 1
-        period_no = (idx % no_of_periods) + 1
+        period_no, summary_id = get_sample_mean_outlosses_idx_data(idx, no_of_periods)
         summary_counts[summary_id - 1] += 1
 
     # Compute cumulative start indices
@@ -957,8 +1068,7 @@ def output_sample_mean(
 
     # Second pass to populate the data array
     for idx in row_used_indices:
-        summary_id = (idx // no_of_periods) + 1
-        period_no = (idx % no_of_periods) + 1
+        period_no, summary_id = get_sample_mean_outlosses_idx_data(idx, no_of_periods)
 
         # Compute position in the flat array
         insert_idx = items_start_end[summary_id - 1][0] + summary_counts[summary_id - 1]
