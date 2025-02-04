@@ -131,7 +131,7 @@ class AggReports():
         unused_periods_to_weights = self.period_weights[~used_period_no]
 
         if has_weights:
-            gen = write_exceedance_probability_table_weighted(
+            gen = write_ept_weighted(
                 items,
                 items_start_end,
                 self.sample_size,
@@ -144,7 +144,7 @@ class AggReports():
                 self.max_summary_id
             )
         else:
-            gen = write_exceedance_probability_table(
+            gen = write_ept(
                 items,
                 items_start_end,
                 self.no_of_periods,
@@ -191,7 +191,7 @@ class AggReports():
         unused_periods_to_weights = self.period_weights[~used_period_no]
 
         if has_weights:
-            gen = write_exceedance_probability_table_weighted(
+            gen = write_ept_weighted(
                 items,
                 items_start_end,
                 1,
@@ -204,7 +204,7 @@ class AggReports():
                 self.max_summary_id
             )
         else:
-            gen = write_exceedance_probability_table(
+            gen = write_ept(
                 items,
                 items_start_end,
                 self.no_of_periods * self.sample_size,
@@ -251,6 +251,8 @@ class AggReports():
             self.max_summary_id,
             self.num_sidxs,
         )
+        unused_periods_to_weights = self.period_weights[~used_period_no]
+
 
     @profile
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
@@ -313,7 +315,7 @@ class AggReports():
         unused_periods_to_weights = self.period_weights[~used_period_no]
 
         if has_weights:
-            gen = write_exceedance_probability_table_weighted(
+            gen = write_ept_weighted(
                 items,
                 items_start_end,
                 self.sample_size,
@@ -326,7 +328,7 @@ class AggReports():
                 self.max_summary_id
             )
         else:
-            gen = write_exceedance_probability_table(
+            gen = write_ept(
                 items,
                 items_start_end,
                 self.no_of_periods,
@@ -486,7 +488,7 @@ def write_tvar(
 
 
 @nb.njit(cache=True, error_model="numpy")
-def write_exceedance_probability_table(
+def write_ept(
     items,
     items_start_end,
     max_retperiod,
@@ -634,7 +636,7 @@ def write_exceedance_probability_table(
 
 
 @nb.njit(cache=True, error_model="numpy")
-def write_exceedance_probability_table_weighted(
+def write_ept_weighted(
     items,
     items_start_end,
     cum_weight_constant,
