@@ -59,8 +59,9 @@ LOSSVEC2MAP_dtype = np.dtype([
     ("value", oasis_float),
 ])
 
-LOSSVAL_dtype = np.dtype([
-    ("row_used", np.bool_),
+WHEATKEYITEMS_dtype = np.dtype([
+    ("summary_id", oasis_int),
+    ("sidx", oasis_int),
     ("period_no", np.int32),
     ("period_weighting", np.float64),
     ("value", oasis_float),
@@ -223,12 +224,15 @@ class AggReports():
     def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
         epcalc = PERSAMPLEMEAN
 
+        # Get row indices that are used
+        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+
         wheatsheaf_items_file = Path(self.lec_files_folder, f"lec_wheatsheaf-items-{outloss_type}.bdat")
         wheatsheaf_items = np.memmap(
             wheatsheaf_items_file,
-            dtype=LOSSVAL_dtype,
+            dtype=WHEATKEYITEMS_dtype,
             mode="w+",
-            shape=(self.num_sidxs * self.max_summary_id),
+            shape=(len(row_used_indices)),
         )
 
         # Select the correct outloss values based on type
@@ -240,10 +244,7 @@ class AggReports():
         else:
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
-        # Get row indices that are used
-        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
-
-        has_weights, used_period_no = fill_wheatsheaf_items(
+        has_weights, items_start_end, used_period_no = fill_wheatsheaf_items(
             wheatsheaf_items,
             row_used_indices,
             outloss_vals,
@@ -253,6 +254,23 @@ class AggReports():
         )
         unused_periods_to_weights = self.period_weights[~used_period_no]
 
+        # if has_weights:
+        #     raise RuntimeError("NOT SUPPORTED YET")
+
+        if output_wheatsheaf:
+            gen = write_psept(
+                wheatsheaf_items,
+                items_start_end,
+                self.no_of_periods,
+                eptype,
+                eptype_tvar,
+                self.use_return_period,
+                self.returnperiods,
+                self.max_summary_id,
+                self.num_sidxs,
+            )
+            for data in gen:
+                np.savetxt(self.output_files["psept"], data, delimiter=",", fmt=PSEPT_fmt)
 
     @profile
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
@@ -404,6 +422,31 @@ def fill_tvar(
 
 
 @nb.njit(cache=True, error_model="numpy")
+def fill_tvar_wheatsheaf(
+    tail,
+    tail_sizes,
+    summary_id,
+    sidx,
+    num_sidxs,
+    next_retperiod,
+    tvar
+):
+    idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
+    if idx not in tail:
+        tail[idx] = create_empty_array(TAIL_valtype)
+        tail_sizes[idx] = 0
+    tail_arr = tail[idx]
+    tail_arr = resize_array(tail_arr, tail_sizes[idx])
+    tail_current_size = tail_sizes[idx]
+    tail_arr[tail_current_size]["retperiod"] = next_retperiod
+    tail_arr[tail_current_size]["tvar"] = tvar
+    tail[idx] = tail_arr
+    tail_sizes[idx] += 1
+
+    return tail, tail_sizes
+
+
+@nb.njit(cache=True, error_model="numpy")
 def write_return_period_out(
     next_returnperiod_idx,
     last_computed_rp,
@@ -420,6 +463,8 @@ def write_return_period_out(
     tail_sizes,
     returnperiods,
     mean_map=None,
+    is_wheatsheaf=False,
+    num_sidxs=-1,
 ):
     next_retperiod = 0
     rets = []
@@ -452,13 +497,24 @@ def write_return_period_out(
 
         if curr_retperiod != 0:
             tvar = tvar - ((tvar - loss) / counter)
-            tail, tail_sizes = fill_tvar(
-                tail,
-                tail_sizes,
-                summary_id,
-                next_retperiod,
-                tvar,
-            )
+            if is_wheatsheaf:
+                tail, tail_sizes = fill_tvar_wheatsheaf(
+                    tail,
+                    tail_sizes,
+                    summary_id,
+                    epcalc,
+                    num_sidxs,
+                    next_retperiod,
+                    tvar,
+                )
+            else:
+                tail, tail_sizes = fill_tvar(
+                    tail,
+                    tail_sizes,
+                    summary_id,
+                    next_retperiod,
+                    tvar,
+                )
 
         next_returnperiod_idx += 1
         counter += 1
@@ -484,6 +540,22 @@ def write_tvar(
         vals = tail[summary_id][:tail_sizes[summary_id]]
         for row in vals:
             rets.append((summary_id, epcalc, eptype_tvar, row["retperiod"], row["tvar"]))
+    return rets
+
+
+@nb.njit(cache=True, error_model="numpy")
+def write_tvar_wheatsheaf(
+    num_sidxs,
+    eptype_tvar,
+    tail,
+    tail_sizes,
+):
+    rets = []
+    for idx in sorted(tail.keys()):
+        sidx, summary_id = get_wheatsheaf_items_idx_data(idx, num_sidxs)
+        vals = tail[idx][:tail_sizes[idx]]
+        for row in vals:
+            rets.append((summary_id, sidx, eptype_tvar, row["retperiod"], row["tvar"]))
     return rets
 
 
@@ -801,6 +873,158 @@ def write_ept_weighted(
     yield buffer[:bidx]
 
 
+@nb.njit(cache=True, error_model="numpy")
+def write_psept(
+    items,
+    items_start_end,
+    max_retperiod,
+    eptype,
+    eptype_tvar,
+    use_return_period,
+    returnperiods,
+    max_summary_id,
+    num_sidxs
+):
+    buffer = np.zeros(1000000, dtype=PSEPT_dtype)
+    bidx = 0
+
+    if len(items) == 0:
+        return
+
+    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+
+    for idx in range(max_summary_id * num_sidxs):
+        start, end = items_start_end[idx]
+        if start == -1:
+            continue
+        sidx, summary_id = get_wheatsheaf_items_idx_data(idx, num_sidxs)
+        filtered_items = items[start:end]
+        sorted_idxs = np.argsort(filtered_items["value"])[::-1]
+        sorted_items = filtered_items[sorted_idxs]
+        next_returnperiod_idx = 0
+        last_computed_rp = 0
+        last_computed_loss = 0
+        tvar = 0
+        i = 1
+        for item in sorted_items:
+            value = item["value"]
+            retperiod = max_retperiod / i
+
+            if use_return_period:
+                if next_returnperiod_idx < len(returnperiods):
+                    rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        next_returnperiod_idx,
+                        last_computed_rp,
+                        last_computed_loss,
+                        retperiod,
+                        value,
+                        summary_id,
+                        eptype,
+                        sidx,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_sizes,
+                        returnperiods,
+                        is_wheatsheaf=True,
+                        num_sidxs=num_sidxs,
+                    )
+                    for ret in rets:
+                        if bidx >= len(buffer):
+                            yield buffer[:bidx]
+                            bidx = 0
+                        buffer[bidx]["SummaryId"] = ret[0]
+                        buffer[bidx]["SampleId"] = ret[1]
+                        buffer[bidx]["EPType"] = ret[2]
+                        buffer[bidx]["ReturnPeriod"] = ret[3]
+                        buffer[bidx]["Loss"] = ret[4]
+                        bidx += 1
+                tvar = tvar - ((tvar - value) / i)
+            else:
+                tvar = tvar - ((tvar - value) / i)
+
+                if idx not in tail:
+                    tail[idx] = create_empty_array(TAIL_valtype)
+                    tail_sizes[idx] = 0
+                tail_arr = tail[idx]
+                tail_arr = resize_array(tail_arr, tail_sizes[idx])
+                tail_current_size = tail_sizes[idx]
+                tail_arr[tail_current_size]["retperiod"] = retperiod
+                tail_arr[tail_current_size]["tvar"] = tvar
+                tail_sizes[idx] += 1
+
+                if bidx >= len(buffer):
+                    yield buffer[:bidx]
+                    bidx = 0
+                buffer[bidx]["SummaryId"] = summary_id
+                buffer[bidx]["SampleId"] = sidx
+                buffer[bidx]["EPType"] = eptype
+                buffer[bidx]["ReturnPeriod"] = retperiod
+                buffer[bidx]["Loss"] = value
+                bidx += 1
+
+            i += 1
+
+        if use_return_period:
+            while True:
+                retperiod = max_retperiod / i
+                if returnperiods[next_returnperiod_idx] <= 0:
+                    retperiod = 0
+                if next_returnperiod_idx < len(returnperiods):
+                    rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        next_returnperiod_idx,
+                        last_computed_rp,
+                        last_computed_loss,
+                        retperiod,
+                        0,
+                        summary_id,
+                        eptype,
+                        sidx,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_sizes,
+                        returnperiods,
+                        is_wheatsheaf=True,
+                        num_sidxs=num_sidxs,
+                    )
+                    for ret in rets:
+                        if bidx >= len(buffer):
+                            yield buffer[:bidx]
+                            bidx = 0
+                        buffer[bidx]["SummaryId"] = ret[0]
+                        buffer[bidx]["SampleId"] = ret[1]
+                        buffer[bidx]["EPType"] = ret[2]
+                        buffer[bidx]["ReturnPeriod"] = ret[3]
+                        buffer[bidx]["Loss"] = ret[4]
+                        bidx += 1
+                tvar = tvar - (tvar / i)
+                i += 1
+                if next_returnperiod_idx >= len(returnperiods):
+                    break
+
+    rets = write_tvar_wheatsheaf(
+        num_sidxs,
+        eptype_tvar,
+        tail,
+        tail_sizes,
+    )
+    for ret in rets:
+        if bidx >= len(buffer):
+            yield buffer[:bidx]
+            bidx = 0
+        buffer[bidx]["SummaryId"] = ret[0]
+        buffer[bidx]["SampleId"] = ret[1]
+        buffer[bidx]["EPType"] = ret[2]
+        buffer[bidx]["ReturnPeriod"] = ret[3]
+        buffer[bidx]["Loss"] = ret[4]
+        bidx += 1
+    yield buffer[:bidx]
+
+
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def _remap_sidx(sidx):
     if sidx == -2:
@@ -971,7 +1195,7 @@ def get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs):
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
 def get_wheatsheaf_items_idx_data(idx, num_sidxs):
     summary_id = (idx // num_sidxs) + 1
-    remapped_sidx = (idx % num_sidxs) + 1
+    remapped_sidx = (idx % num_sidxs)
     sidx = _inverse_remap_sidx(remapped_sidx)
     return sidx, summary_id
 
@@ -985,22 +1209,54 @@ def fill_wheatsheaf_items(
     max_summary_id,
     num_sidxs,
 ):
+    # Track start and end indices for each summary_id
+    items_start_end = np.full((max_summary_id * num_sidxs, 2), -1, dtype=np.int32)
+
+    # Track number of entries per summary_id
+    summary_sidx_counts = np.zeros(max_summary_id * num_sidxs, dtype=np.int32)
+
+    # First pass to count how many times each summary_id appears
+    for idx in row_used_indices:
+        summary_id, sidx, period_no = get_sample_idx_data(idx, max_summary_id, num_sidxs)
+        summary_sidx_idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
+        summary_sidx_counts[summary_sidx_idx] += 1
+
+    # Compute cumulative start indices
+    pos = 0
+    for idx in range(max_summary_id * num_sidxs):
+        if summary_sidx_counts[idx] > 0:
+            items_start_end[idx][0] = pos  # Start index
+            pos += summary_sidx_counts[idx]
+            items_start_end[idx][1] = pos  # End index
+
+    # Reset summary counts for inserting data
+    summary_sidx_counts[:] = 0
+
     # Track which period_no are used if period_weights exists
     is_weighted = len(period_weights) > 0
     used_period_no = np.zeros(len(period_weights), dtype=np.bool_)
 
+    # Second pass to populate the data array
     for idx in row_used_indices:
         summary_id, sidx, period_no = get_sample_idx_data(idx, max_summary_id, num_sidxs)
-        wheatsheaf_idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
-        wheatsheaf_items[wheatsheaf_idx]["row_used"] = True
-        wheatsheaf_items[wheatsheaf_idx]["value"] = outloss_vals[idx]
+        summary_sidx_idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
+
+        # Compute position in the flat array
+        insert_idx = items_start_end[summary_sidx_idx][0] + summary_sidx_counts[summary_sidx_idx]
+
+        # Store values
+        wheatsheaf_items[insert_idx]["summary_id"] = summary_id
+        wheatsheaf_items[insert_idx]["sidx"] = sidx
+        wheatsheaf_items[insert_idx]["value"] = outloss_vals[idx]
         if is_weighted:
             # Fast lookup period_weights as they are numbered 1 to no_of_periods
-            wheatsheaf_items[wheatsheaf_idx]["period_weighting"] = period_weights[period_no - 1]["weighting"]
-            wheatsheaf_items[wheatsheaf_idx]["period_no"] = period_no
+            wheatsheaf_items[insert_idx]["period_weighting"] = period_weights[period_no - 1]["weighting"]
+            wheatsheaf_items[insert_idx]["period_no"] = period_no
             used_period_no[period_no - 1] = True
 
-    return is_weighted, used_period_no
+        summary_sidx_counts[summary_sidx_idx] += 1
+
+    return is_weighted, items_start_end, used_period_no
 
 
 @nb.njit(cache=True, fastmath=True, error_model="numpy")
