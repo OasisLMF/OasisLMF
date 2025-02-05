@@ -40,6 +40,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
+from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 
 MAP_SUMMARY_DTYPES = {
     'loc_id': 'int',
@@ -955,7 +956,8 @@ def get_exposure_summary(
 def write_gul_errors_map(
         target_dir,
         exposure_df,
-        keys_errors_df
+        keys_errors_df,
+        exposure_profile,
 ):
     """
     Create csv file to help map keys errors back to original exposures.
@@ -968,6 +970,9 @@ def write_gul_errors_map(
 
     :param keys_errors_df: keys errors dataframe
     :type keys_errors_df: pandas.DataFrame
+
+    :param exposure_profile: profile defining exposure file
+    :type exposure_profile: dict
     """
 
     cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber', 'peril_id', 'coverage_type_id', 'tiv', 'status', 'message']
@@ -975,8 +980,9 @@ def write_gul_errors_map(
 
     exposure_id_cols = ['loc_id', 'PortNumber', 'AccNumber', 'LocNumber']
     keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
-    tiv_maps = {1: 'BuildingTIV', 2: 'OtherTIV', 3: 'ContentsTIV', 4: 'BITIV'}
-    exposure_cols = exposure_id_cols + list(tiv_maps.values())
+    cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
+    tiv_maps = {v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'] for k, v in exposure_profile[cov_level_id].items()}
+    exposure_cols = list(set(exposure_id_cols + list(tiv_maps.values())).intersection(exposure_df.columns))
 
     keys_errors_df.columns = keys_error_cols
 
@@ -1038,7 +1044,7 @@ def write_exposure_summary(
         keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
         keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
         if not keys_errors_df.empty:
-            write_gul_errors_map(target_dir, exposure_df, keys_errors_df)
+            write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile)
 
     # concatinate keys responses & run
     df_keys = pd.concat([keys_success_df, keys_errors_df])
