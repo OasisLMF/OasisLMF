@@ -982,7 +982,9 @@ def write_gul_errors_map(
     keys_error_cols = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
     tiv_maps = {term_info['CoverageTypeID']: term_info['ProfileElementName'] for term_info in exposure_profile.values()
-                if term_info.get('FMTermType') == 'TIV' and term_info.get('FMLevel') == cov_level_id}
+                if (term_info.get('FMTermType') == 'TIV'
+                    and term_info.get('FMLevel') == cov_level_id
+                    and term_info['ProfileElementName'] in exposure_df.columns)}
 
     exposure_cols = list(set(exposure_id_cols + list(tiv_maps.values())).intersection(exposure_df.columns))
 
