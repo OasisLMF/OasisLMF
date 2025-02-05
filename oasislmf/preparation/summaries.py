@@ -1001,7 +1001,7 @@ def write_gul_errors_map(
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    gul_inputs_errors_df[cols].to_csv(gul_error_map_fp, index=False)
+    gul_inputs_errors_df[list(set(cols).intersection(gul_inputs_errors_df.columns))].to_csv(gul_error_map_fp, index=False)
 
 
 @oasis_log
