@@ -67,6 +67,12 @@ WHEATKEYITEMS_dtype = np.dtype([
     ("value", oasis_float),
 ])
 
+MEANMAP_dtype = np.dtype([
+    ("retperiod", np.float64),
+    ("mean", np.float64),
+    ("count", np.int32),
+])
+
 # For Dict of summary_id (oasis_int) to nb_Tail_valtype
 TAIL_valtype = np.dtype([
     ("retperiod", np.float64),
@@ -255,7 +261,45 @@ class AggReports():
         unused_periods_to_weights = self.period_weights[~used_period_no]
 
         if has_weights:
-            raise RuntimeError("NOT SUPPORTED YET")
+            mean_map = None
+
+            if output_wheatsheaf_mean:
+                mean_map_file = Path(self.lec_files_folder, f"lec_wheatsheaf_mean-map-{outloss_type}.bdat")
+                mean_map = np.memmap(
+                    mean_map_file,
+                    dtype=MEANMAP_dtype,
+                    mode="w+",
+                    shape=(self.max_summary_id, len(self.returnperiods)),
+                )
+
+            if output_wheatsheaf:
+                gen = write_psept_weighted(
+                    wheatsheaf_items,
+                    wheatsheaf_items_start_end,
+                    self.no_of_periods,
+                    eptype,
+                    eptype_tvar,
+                    unused_periods_to_weights,
+                    self.use_return_period,
+                    self.returnperiods,
+                    self.max_summary_id,
+                    self.num_sidxs,
+                    self.sample_size,
+                    mean_map=mean_map,
+                )
+                for data in gen:
+                    np.savetxt(self.output_files["psept"], data, delimiter=",", fmt=PSEPT_fmt)
+
+            if output_wheatsheaf_mean:
+                gen = write_wheatsheaf_mean(
+                    mean_map,
+                    eptype,
+                    eptype_tvar,
+                    epcalc,
+                    self.max_summary_id,
+                )
+                for data in gen:
+                    np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
         else:
             if output_wheatsheaf:
                 gen = write_psept(
@@ -533,9 +577,10 @@ def write_return_period_out(
 
         rets.append((summary_id, epcalc, eptype, next_retperiod, loss))
 
-        if mean_map:
-            # TODO: implement mean map case
-            pass
+        if mean_map is not None:
+            mean_map[summary_id - 1][next_returnperiod_idx]["retperiod"] = next_retperiod
+            mean_map[summary_id - 1][next_returnperiod_idx]["mean"] += loss
+            mean_map[summary_id - 1][next_returnperiod_idx]["count"] += 1
 
         if curr_retperiod != 0:
             tvar = tvar - ((tvar - loss) / counter)
@@ -1064,6 +1109,209 @@ def write_psept(
         buffer[bidx]["ReturnPeriod"] = ret[3]
         buffer[bidx]["Loss"] = ret[4]
         bidx += 1
+    yield buffer[:bidx]
+
+
+@nb.njit(cache=True, error_model="numpy")
+def write_psept_weighted(
+    items,
+    items_start_end,
+    max_retperiod,
+    eptype,
+    eptype_tvar,
+    unused_periods_to_weights,
+    use_return_period,
+    returnperiods,
+    max_summary_id,
+    num_sidxs,
+    sample_size,
+    mean_map=None
+):
+    buffer = np.zeros(1000000, dtype=PSEPT_dtype)
+    bidx = 0
+
+    if len(items) == 0:
+        return
+
+    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+
+    for idx in range(max_summary_id * num_sidxs):
+        start, end = items_start_end[idx]
+        if start == -1:
+            continue
+        sidx, summary_id = get_wheatsheaf_items_idx_data(idx, num_sidxs)
+        filtered_items = items[start:end]
+        sorted_idxs = np.argsort(filtered_items["value"])[::-1]
+        sorted_items = filtered_items[sorted_idxs]
+        next_returnperiod_idx = 0
+        last_computed_rp = 0
+        last_computed_loss = 0
+        tvar = 0
+        i = 1
+        cumulative_weighting = 0
+        max_retperiod = 0
+        largest_loss = False
+
+        for item in sorted_items:
+            value = item["value"]
+            cumulative_weighting += (item["period_weighting"] * sample_size)
+            retperiod = max_retperiod / i
+
+            if item["period_weighting"]:
+                retperiod = 1 / cumulative_weighting
+
+                if not largest_loss:
+                    max_retperiod = retperiod + 0.0001  # Add for floating point errors
+                    largest_loss = True
+
+                if use_return_period:
+                    if next_returnperiod_idx < len(returnperiods):
+                        rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                            next_returnperiod_idx,
+                            last_computed_rp,
+                            last_computed_loss,
+                            retperiod,
+                            value,
+                            summary_id,
+                            eptype,
+                            sidx,
+                            max_retperiod,
+                            i,
+                            tvar,
+                            tail,
+                            tail_sizes,
+                            returnperiods,
+                            mean_map=mean_map,
+                            is_wheatsheaf=True,
+                            num_sidxs=num_sidxs,
+                        )
+                        for ret in rets:
+                            if bidx >= len(buffer):
+                                yield buffer[:bidx]
+                                bidx = 0
+                            buffer[bidx]["SummaryId"] = ret[0]
+                            buffer[bidx]["SampleId"] = ret[1]
+                            buffer[bidx]["EPType"] = ret[2]
+                            buffer[bidx]["ReturnPeriod"] = ret[3]
+                            buffer[bidx]["Loss"] = ret[4]
+                            bidx += 1
+                    tvar = tvar - ((tvar - (value)) / i)
+                else:
+                    tvar = tvar - ((tvar - (value)) / i)
+
+                    if summary_id not in tail:
+                        tail[summary_id] = create_empty_array(TAIL_valtype)
+                        tail_sizes[summary_id] = 0
+                    tail_arr = tail[summary_id]
+                    tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
+                    tail_current_size = tail_sizes[summary_id]
+                    tail_arr[tail_current_size]["retperiod"] = retperiod
+                    tail_arr[tail_current_size]["tvar"] = tvar
+                    tail[summary_id] = tail_arr
+                    tail_sizes[summary_id] += 1
+
+                    if bidx >= len(buffer):
+                        yield buffer[:bidx]
+                        bidx = 0
+                    buffer[bidx]["SummaryId"] = summary_id
+                    buffer[bidx]["SampleId"] = sidx
+                    buffer[bidx]["EPType"] = eptype
+                    buffer[bidx]["ReturnPeriod"] = retperiod
+                    buffer[bidx]["Loss"] = value
+                    bidx += 1
+
+                i += 1
+        if use_return_period:
+            unused_ptw_idx = 0
+            while True:
+                retperiod = 0
+                if unused_ptw_idx < len(unused_periods_to_weights):
+                    cumulative_weighting += (
+                        unused_periods_to_weights[unused_ptw_idx]["weighting"] * sample_size
+                    )
+                    retperiod = 1 / cumulative_weighting
+                    unused_ptw_idx += 1
+                if next_returnperiod_idx < len(returnperiods):
+                    rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
+                        next_returnperiod_idx,
+                        last_computed_rp,
+                        last_computed_loss,
+                        retperiod,
+                        0,
+                        summary_id,
+                        eptype,
+                        sidx,
+                        max_retperiod,
+                        i,
+                        tvar,
+                        tail,
+                        tail_sizes,
+                        returnperiods,
+                        mean_map=mean_map,
+                        is_wheatsheaf=True,
+                        num_sidxs=num_sidxs,
+                    )
+                    for ret in rets:
+                        if bidx >= len(buffer):
+                            yield buffer[:bidx]
+                            bidx = 0
+                        buffer[bidx]["SummaryId"] = ret[0]
+                        buffer[bidx]["SampleId"] = ret[1]
+                        buffer[bidx]["EPType"] = ret[2]
+                        buffer[bidx]["ReturnPeriod"] = ret[3]
+                        buffer[bidx]["Loss"] = ret[4]
+                        bidx += 1
+                tvar = tvar - (tvar / i)
+                i += 1
+                if next_returnperiod_idx >= len(returnperiods):
+                    break
+
+    rets = write_tvar_wheatsheaf(
+        num_sidxs,
+        eptype_tvar,
+        tail,
+        tail_sizes,
+    )
+    for ret in rets:
+        if bidx >= len(buffer):
+            yield buffer[:bidx]
+            bidx = 0
+        buffer[bidx]["SummaryId"] = ret[0]
+        buffer[bidx]["SampleId"] = ret[1]
+        buffer[bidx]["EPType"] = ret[2]
+        buffer[bidx]["ReturnPeriod"] = ret[3]
+        buffer[bidx]["Loss"] = ret[4]
+        bidx += 1
+    yield buffer[:bidx]
+
+
+@nb.njit(cache=True, error_model="numpy")
+def write_wheatsheaf_mean(
+    mean_map,
+    eptype,
+    eptype_tvar,
+    epcalc,
+    max_summary_id,
+):
+    if len(mean_map) == 0:
+        return
+
+    buffer = np.zeros(1000000, dtype=EPT_dtype)
+    bidx = 0
+
+    for summary_id in range(1, max_summary_id + 1):
+        for mc in mean_map[summary_id - 1]:
+            if mc["count"] > 0:
+                if bidx >= len(buffer):
+                    yield buffer[:bidx]
+                    bidx = 0
+                buffer[bidx]["SummaryId"] = summary_id
+                buffer[bidx]["EPCalc"] = epcalc
+                buffer[bidx]["EPType"] = eptype
+                buffer[bidx]["ReturnPeriod"] = mc["retperiod"]
+                buffer[bidx]["Loss"] = mc["mean"] / mc["count"]
+                bidx += 1
     yield buffer[:bidx]
 
 
