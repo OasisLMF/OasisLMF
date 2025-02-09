@@ -294,7 +294,6 @@ class AggReports():
                 gen = write_wheatsheaf_mean(
                     mean_map,
                     eptype,
-                    eptype_tvar,
                     epcalc,
                     self.max_summary_id,
                 )
@@ -1290,7 +1289,6 @@ def write_psept_weighted(
 def write_wheatsheaf_mean(
     mean_map,
     eptype,
-    eptype_tvar,
     epcalc,
     max_summary_id,
 ):
@@ -1301,17 +1299,18 @@ def write_wheatsheaf_mean(
     bidx = 0
 
     for summary_id in range(1, max_summary_id + 1):
+        if np.sum(mean_map[summary_id - 1]["count"]) == 0:
+            continue
         for mc in mean_map[summary_id - 1]:
-            if mc["count"] > 0:
-                if bidx >= len(buffer):
-                    yield buffer[:bidx]
-                    bidx = 0
-                buffer[bidx]["SummaryId"] = summary_id
-                buffer[bidx]["EPCalc"] = epcalc
-                buffer[bidx]["EPType"] = eptype
-                buffer[bidx]["ReturnPeriod"] = mc["retperiod"]
-                buffer[bidx]["Loss"] = mc["mean"] / mc["count"]
-                bidx += 1
+            if bidx >= len(buffer):
+                yield buffer[:bidx]
+                bidx = 0
+            buffer[bidx]["SummaryId"] = summary_id
+            buffer[bidx]["EPCalc"] = epcalc
+            buffer[bidx]["EPType"] = eptype
+            buffer[bidx]["ReturnPeriod"] = mc["retperiod"]
+            buffer[bidx]["Loss"] = mc["mean"] / max(mc["count"], 1)
+            bidx += 1
     yield buffer[:bidx]
 
 
