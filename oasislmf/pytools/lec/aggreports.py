@@ -723,6 +723,7 @@ def write_ept(
                 tail_current_size = tail_sizes[summary_id]
                 tail_arr[tail_current_size]["retperiod"] = retperiod
                 tail_arr[tail_current_size]["tvar"] = tvar
+                tail[summary_id] = tail_arr
                 tail_sizes[summary_id] += 1
 
                 if bidx >= len(buffer):
@@ -1039,6 +1040,7 @@ def write_psept(
                 tail_current_size = tail_sizes[idx]
                 tail_arr[tail_current_size]["retperiod"] = retperiod
                 tail_arr[tail_current_size]["tvar"] = tvar
+                tail[idx] = tail_arr
                 tail_sizes[idx] += 1
 
                 if bidx >= len(buffer):
@@ -1199,16 +1201,16 @@ def write_psept_weighted(
                 else:
                     tvar = tvar - ((tvar - (value)) / i)
 
-                    if summary_id not in tail:
-                        tail[summary_id] = create_empty_array(TAIL_valtype)
-                        tail_sizes[summary_id] = 0
-                    tail_arr = tail[summary_id]
-                    tail_arr = resize_array(tail_arr, tail_sizes[summary_id])
-                    tail_current_size = tail_sizes[summary_id]
+                    if idx not in tail:
+                        tail[idx] = create_empty_array(TAIL_valtype)
+                        tail_sizes[idx] = 0
+                    tail_arr = tail[idx]
+                    tail_arr = resize_array(tail_arr, tail_sizes[idx])
+                    tail_current_size = tail_sizes[idx]
                     tail_arr[tail_current_size]["retperiod"] = retperiod
                     tail_arr[tail_current_size]["tvar"] = tvar
-                    tail[summary_id] = tail_arr
-                    tail_sizes[summary_id] += 1
+                    tail[idx] = tail_arr
+                    tail_sizes[idx] += 1
 
                     if bidx >= len(buffer):
                         yield buffer[:bidx]
