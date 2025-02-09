@@ -9,20 +9,15 @@ from pathlib import Path
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
-from oasislmf.pytools.lec.aggreports import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
-                                             OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, AggReports, EPT_output, PSEPT_output, get_outloss_mean_idx, get_outloss_sample_idx)
+from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
+                                       OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, OUTLOSS_DTYPE)
+from oasislmf.pytools.lec.data import (EPT_output, PSEPT_output)
+from oasislmf.pytools.lec.aggreports import AggReports
+from oasislmf.pytools.lec.utils import get_outloss_mean_idx, get_outloss_sample_idx
 from oasislmf.pytools.utils import redirect_logging
 
 
 logger = logging.getLogger(__name__)
-
-
-# Outloss mean and sample dtype, summary_id, period_no (and sidx) obtained from index
-_OUTLOSS_DTYPE = np.dtype([
-    ("row_used", np.bool_),
-    ("agg_out_loss", oasis_float),
-    ("max_out_loss", oasis_float),
-])
 
 
 def read_input_files(
@@ -298,7 +293,7 @@ def run(
         outloss_mean_file = Path(lec_files_folder, "lec_outloss_mean.bdat")
         outloss_mean = np.memmap(
             outloss_mean_file,
-            dtype=_OUTLOSS_DTYPE,
+            dtype=OUTLOSS_DTYPE,
             mode="w+",
             shape=(file_data["no_of_periods"] * max_summary_id),
         )
@@ -308,7 +303,7 @@ def run(
         outloss_sample_file = Path(lec_files_folder, "lec_outloss_sample.bdat")
         outloss_sample = np.memmap(
             outloss_sample_file,
-            dtype=_OUTLOSS_DTYPE,
+            dtype=OUTLOSS_DTYPE,
             mode="w+",
             shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
         )

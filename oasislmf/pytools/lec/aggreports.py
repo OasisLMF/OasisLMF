@@ -4,81 +4,14 @@ from line_profiler import profile
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import oasis_float, oasis_int, nb_oasis_int
+from oasislmf.pytools.common.data import oasis_float, nb_oasis_int
+from oasislmf.pytools.lec.data import FULL, MEANDR, MEANSAMPLE, PERSAMPLEMEAN
+from oasislmf.pytools.lec.data import (EPT_dtype, EPT_fmt, LOSSVEC2MAP_dtype, MEANMAP_dtype, PSEPT_dtype,
+                                       PSEPT_fmt, TAIL_valtype, NB_TAIL_valtype, WHEATKEYITEMS_dtype)
+from oasislmf.pytools.lec.utils import (create_empty_array, get_mean_idx_data, get_sample_idx_data, get_sample_mean_outlosses_idx,
+                                        get_sample_mean_outlosses_idx_data, get_wheatsheaf_items_idx, get_wheatsheaf_items_idx_data, resize_array)
 
 logger = logging.getLogger(__name__)
-
-# Output flags
-AGG_FULL_UNCERTAINTY = 0
-AGG_WHEATSHEAF = 1
-AGG_SAMPLE_MEAN = 2
-AGG_WHEATSHEAF_MEAN = 3
-OCC_FULL_UNCERTAINTY = 4
-OCC_WHEATSHEAF = 5
-OCC_SAMPLE_MEAN = 6
-OCC_WHEATSHEAF_MEAN = 7
-
-# EPCalcs
-MEANDR = 1
-FULL = 2
-PERSAMPLEMEAN = 3
-MEANSAMPLE = 4
-
-# EPTypes
-OEP = 1
-OEPTVAR = 2
-AEP = 3
-AEPTVAR = 4
-
-
-EPT_output = [
-    ('SummaryId', oasis_int, '%d'),
-    ('EPCalc', oasis_int, '%d'),
-    ('EPType', oasis_int, '%d'),
-    ('ReturnPeriod', oasis_float, '%.6f'),
-    ('Loss', oasis_float, '%.6f'),
-]
-
-PSEPT_output = [
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleId', oasis_int, '%d'),
-    ('EPType', oasis_int, '%d'),
-    ('ReturnPeriod', oasis_float, '%.6f'),
-    ('Loss', oasis_float, '%.6f'),
-]
-
-EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
-PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
-EPT_fmt = ','.join([c[2] for c in EPT_output])
-PSEPT_fmt = ','.join([c[2] for c in PSEPT_output])
-
-LOSSVEC2MAP_dtype = np.dtype([
-    ("summary_id", oasis_int),
-    ("period_no", np.int32),
-    ("period_weighting", np.float64),
-    ("value", oasis_float),
-])
-
-WHEATKEYITEMS_dtype = np.dtype([
-    ("summary_id", oasis_int),
-    ("sidx", oasis_int),
-    ("period_no", np.int32),
-    ("period_weighting", np.float64),
-    ("value", oasis_float),
-])
-
-MEANMAP_dtype = np.dtype([
-    ("retperiod", np.float64),
-    ("mean", np.float64),
-    ("count", np.int32),
-])
-
-# For Dict of summary_id (oasis_int) to nb_Tail_valtype
-TAIL_valtype = np.dtype([
-    ("retperiod", np.float64),
-    ("tvar", oasis_float),
-])
-nb_TAIL_valtype = nb.types.Array(nb.from_dtype(TAIL_valtype), 1, "C")
 
 
 class AggReports():
@@ -448,20 +381,6 @@ class AggReports():
 
 
 @nb.njit(cache=True, error_model="numpy")
-def create_empty_array(mydtype, init_size=8):
-    return np.zeros(init_size, dtype=mydtype)
-
-
-@nb.njit(cache=True, error_model="numpy")
-def resize_array(array, current_size):
-    if current_size >= len(array):  # Resize if the array is full
-        new_array = np.empty(len(array) * 2, dtype=array.dtype)
-        new_array[:len(array)] = array
-        array = new_array
-    return array
-
-
-@nb.njit(cache=True, error_model="numpy")
 def get_loss(
     next_retperiod,
     last_retperiod,
@@ -664,7 +583,7 @@ def write_ept(
     if len(items) == 0 or sample_size == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
     tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
     for summary_id in range(1, max_summary_id + 1):
@@ -814,7 +733,7 @@ def write_ept_weighted(
     if len(items) == 0 or sample_size == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
     tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
     for summary_id in range(1, max_summary_id + 1):
@@ -978,7 +897,7 @@ def write_psept(
     if len(items) == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
     tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
     for idx in range(max_summary_id * num_sidxs):
@@ -1134,7 +1053,7 @@ def write_psept_weighted(
     if len(items) == 0:
         return
 
-    tail = nb.typed.Dict.empty(nb_oasis_int, nb_TAIL_valtype)
+    tail = nb.typed.Dict.empty(nb_oasis_int, NB_TAIL_valtype)
     tail_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
 
     for idx in range(max_summary_id * num_sidxs):
@@ -1316,56 +1235,6 @@ def write_wheatsheaf_mean(
     yield buffer[:bidx]
 
 
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _remap_sidx(sidx):
-    if sidx == -2:
-        return 0
-    if sidx == -3:
-        return 1
-    if sidx >= 1:
-        return sidx + 1
-    raise ValueError(f"Invalid sidx value: {sidx}")
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_outloss_mean_idx(period_no, summary_id, max_summary_id):
-    return ((period_no - 1) * max_summary_id) + (summary_id - 1)
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_outloss_sample_idx(period_no, sidx, summary_id, num_sidxs, max_summary_id):
-    remapped_sidx = _remap_sidx(sidx)
-    return ((period_no - 1) * num_sidxs * max_summary_id) + (remapped_sidx * max_summary_id) + (summary_id - 1)
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def _inverse_remap_sidx(remapped_sidx):
-    if remapped_sidx == 0:
-        return -2
-    if remapped_sidx == 1:
-        return -3
-    if remapped_sidx >= 2:
-        return remapped_sidx - 1
-    raise ValueError(f"Invalid remapped_sidx value: {remapped_sidx}")
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_mean_idx_data(idx, max_summary_id):
-    summary_id = (idx % max_summary_id) + 1
-    period_no = (idx // max_summary_id) + 1
-    return summary_id, period_no
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_sample_idx_data(idx, max_summary_id, num_sidxs):
-    summary_id = (idx % max_summary_id) + 1
-    idx //= max_summary_id
-    remapped_sidx = idx % num_sidxs
-    period_no = (idx // num_sidxs) + 1
-    sidx = _inverse_remap_sidx(remapped_sidx)
-    return summary_id, sidx, period_no
-
-
 @nb.njit(cache=True, error_model="numpy")
 def output_mean_damage_ratio(
     items,
@@ -1475,20 +1344,6 @@ def output_full_uncertainty(
         summary_counts[summary_id - 1] += 1
 
     return is_weighted, items_start_end, used_period_no
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs):
-    remapped_sidx = _remap_sidx(sidx)
-    return ((summary_id - 1) * num_sidxs) + (remapped_sidx)
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_wheatsheaf_items_idx_data(idx, num_sidxs):
-    summary_id = (idx // num_sidxs) + 1
-    remapped_sidx = (idx % num_sidxs)
-    sidx = _inverse_remap_sidx(remapped_sidx)
-    return sidx, summary_id
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -1606,18 +1461,6 @@ def fill_wheatsheaf_mean_items(
             wheatsheaf_mean_items[insert_idx]["value"] += item["value"]
 
     return items_start_end
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_sample_mean_outlosses_idx(summary_id, period_no, no_of_periods):
-    return ((summary_id - 1) * no_of_periods) + (period_no - 1)
-
-
-@nb.njit(cache=True, fastmath=True, error_model="numpy")
-def get_sample_mean_outlosses_idx_data(idx, no_of_periods):
-    summary_id = (idx // no_of_periods) + 1
-    period_no = (idx % no_of_periods) + 1
-    return period_no, summary_id
 
 
 @nb.njit(cache=True, error_model="numpy")
