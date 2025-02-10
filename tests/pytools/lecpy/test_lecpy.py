@@ -56,18 +56,18 @@ def case_runner(sub_folder, test_name, use_return_period):
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
             error_path.mkdir(exist_ok=True)
-            shutil.copyfile(actual_ept, Path(error_path, expected_ept))
+            shutil.copyfile(actual_ept, Path(error_path, ept_csv_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
-            raise Exception(f"running 'pltpy {arg_str}' led to diff, see files at {error_path}") from e
+            raise Exception(f"running 'lecpy {arg_str}' led to diff, see files at {error_path}") from e
 
         try:
             assert filecmp.cmp(expected_psept, actual_psept, shallow=False)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
             error_path.mkdir(exist_ok=True)
-            shutil.copyfile(actual_psept, Path(error_path, expected_psept))
+            shutil.copyfile(actual_psept, Path(error_path, psept_csv_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
-            raise Exception(f"running 'pltpy {arg_str}' led to diff, see files at {error_path}") from e
+            raise Exception(f"running 'lecpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
 def test_lec_output_period_weights_and_return_periods():
