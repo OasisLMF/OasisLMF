@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from line_profiler import profile
 import numpy as np
 
 from oasislmf.pytools.common.data import oasis_float
@@ -43,7 +42,6 @@ class AggReports():
         self.returnperiods = returnperiods
         self.lec_files_folder = lec_files_folder
 
-    @profile
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         epcalc = MEANDR
 
@@ -102,7 +100,6 @@ class AggReports():
         for data in gen:
             np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
-    @profile
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         epcalc = FULL
 
@@ -161,7 +158,6 @@ class AggReports():
         for data in gen:
             np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
-    @profile
     def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
         epcalc = PERSAMPLEMEAN
 
@@ -292,7 +288,6 @@ class AggReports():
             for data in gen:
                 np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
-    @profile
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
         if self.sample_size == 0:
             logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")
