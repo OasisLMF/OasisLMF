@@ -104,6 +104,39 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
     return closest_points
 
+@nb.njit()
+def z_index(x, y):
+    """Returns the Z-order index of cell (x,y) in a grid"""
+    bits = max(x.bit_length(), y.bit_length())
+    index = 0
+    for i in range(bits):
+        index |= ((x >> i) & 1) << (2*i)
+        index |= ((y >> i) & 1) << (2*i + 1)
+    return index
+
+def create_lat_lon_id_functions(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse):
+        lat_cell_size = arc_size
+        lon_cell_size = arc_size
+        
+        if lat_reverse:
+            @nb.njit()
+            def lat_id(lat):
+                return math.floor((lat_max - lat) / lat_cell_size)
+        else:
+            @nb.njit()
+            def lat_id(lat):
+                return math.floor((lat - lat_min) / lat_cell_size)
+
+        if lon_reverse:
+            @nb.njit()
+            def lon_id(lon):
+                return math.floor((lon_max - lon) / lon_cell_size)
+        else:
+            @nb.njit()
+            def lon_id(lon):
+                return math.floor((lon - lon_min) / lon_cell_size)
+            
+        return lat_id, lon_id
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
@@ -580,27 +613,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
-        lat_cell_size = arc_size
-        lon_cell_size = arc_size
+        
+        lat_id, lon_id = create_lat_lon_id_functions(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse)
         size_lat = math.ceil((lat_max - lat_min) / arc_size)
-
-        if lat_reverse:
-            @nb.njit()
-            def lat_id(lat):
-                return math.floor((lat_max - lat) / lat_cell_size)
-        else:
-            @nb.njit()
-            def lat_id(lat):
-                return math.floor((lat - lat_min) / lat_cell_size)
-
-        if lon_reverse:
-            @nb.njit()
-            def lon_id(lon):
-                return math.floor((lon_max - lon) / lon_cell_size)
-        else:
-            @nb.njit()
-            def lon_id(lon):
-                return math.floor((lon - lon_min) / lon_cell_size)
 
         @nb.jit
         def jit_geo_grid_lookup(lat, lon):
@@ -608,6 +623,31 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             for i in range(lat.shape[0]):
                 if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
                     area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat + 1)
+                else:
+                    area_peril_id[i] = OASIS_UNKNOWN_ID
+            return area_peril_id
+
+        def geo_grid_lookup(locations):
+            locations['area_peril_id'] = jit_geo_grid_lookup(locations['latitude'].to_numpy(),
+                                                             locations['longitude'].to_numpy())
+            return locations
+        return geo_grid_lookup
+    
+    @staticmethod
+    def build_fixed_size_z_index_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
+        """
+        associate an id to each square of the grid define by the limit of lat and lon
+        reverse allow to change the ordering of id from (min to max) to (max to min)
+        """
+
+        lat_id, lon_id = create_lat_lon_id_functions(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse)
+
+        @nb.jit
+        def jit_geo_grid_lookup(lat, lon):
+            area_peril_id = np.empty_like(lat, dtype=np.int64)
+            for i in range(lat.shape[0]):
+                if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
+                    area_peril_id[i] = z_index(lat_id(lat[i]), lon_id(lon[i])) + 1
                 else:
                     area_peril_id[i] = OASIS_UNKNOWN_ID
             return area_peril_id
