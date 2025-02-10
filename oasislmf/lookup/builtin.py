@@ -115,13 +115,14 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         peril_groups_df = get_peril_groups_df()
         model_perils_covered = np.unique(pd.DataFrame({'peril_group_id': self.config['model_perils_covered']})
                                          .merge(peril_groups_df)['peril_id'])
-        split_df = locations['LocPerilsCovered'].str.split(';').apply(pd.Series).stack()
+        peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
+        split_df = locations[peril_covered_column].str.split(';').apply(pd.Series).stack()
         split_df.index = split_df.index.droplevel(-1)
         split_df.name = 'peril_group_id'
         keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
-        keys_df = keys_df.sort_values('loc_id').merge(coverage_df, how="cross")
+        keys_df = keys_df.sort_values('loc_id', kind='stable').merge(coverage_df, how="cross")
         success_df = keys_df['peril_id'].isin(model_perils_covered)
         success_df_len = keys_df[success_df].shape[0]
         keys_df.loc[success_df, 'area_peril_id'] = np.arange(1, success_df_len + 1)
@@ -403,12 +404,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         def fct(locations):
             for col in locations.columns:
                 if col.lower() == 'locperilscovered':
-                    loc_perils_covered_column = col
+                    perils_covered_column = col
+                    break
+                elif col.lower() == 'polperilscovered':
+                    perils_covered_column = col
                     break
             else:
-                raise OasisException('missing LocPerilsCovered column in location')
+                raise OasisException('missing PerilsCovered column in location')
 
-            split_df = locations[loc_perils_covered_column].astype(str).str.split(';').apply(pd.Series, 1).stack()
+            split_df = locations[perils_covered_column].astype(str).str.split(';').apply(pd.Series).stack()
             split_df.index = split_df.index.droplevel(-1)
             split_df.name = 'peril_group_id'
 

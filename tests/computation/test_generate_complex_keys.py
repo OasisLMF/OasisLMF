@@ -113,6 +113,8 @@ class TestGenKeys(ComputationChecker):
             {k: v.name for k, v in self.tmp_dirs.items()},
             {k: v.name for k, v in self.tmp_files.items()},
             self.default_args])
+
+        call_args['model_settings_json'] = FAKE_MODEL_SETTINGS_JSON
         self.manager.generate_keys(**call_args)
 
         mock_keys_factory.assert_called_once_with(
@@ -126,7 +128,7 @@ class TestGenKeys(ComputationChecker):
         )
 
         key_server_mock.generate_key_files.assert_called_once_with(
-            location_df=exposure_data.location.dataframe,
+            location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=call_args['keys_data_csv'],
             errors_fp=call_args['keys_errors_csv'],
             format=call_args['keys_format'],
