@@ -18,11 +18,12 @@ def case_runner(sub_folder, test_name, use_return_period):
     ept_csv_name = "py_ept.csv"
     psept_csv_name = "py_psept.csv"
 
-    expected_ept = Path(TESTS_ASSETS_DIR, test_name, ept_csv_name)
-    expected_psept = Path(TESTS_ASSETS_DIR, test_name, psept_csv_name)
     with TemporaryDirectory() as tmp_result_dir_str:
         tmp_workspace_dir = Path(tmp_result_dir_str) / "workspace"
         shutil.copytree(Path(TESTS_ASSETS_DIR, test_name), tmp_workspace_dir)
+
+        expected_ept = tmp_workspace_dir / ept_csv_name
+        expected_psept = tmp_workspace_dir / psept_csv_name
 
         out_dir = tmp_workspace_dir / "out"
         out_dir.mkdir()
@@ -47,7 +48,7 @@ def case_runner(sub_folder, test_name, use_return_period):
         }
 
         if test_name not in ["lec_pw_rp", "lec_pw", "lec_rp", "lec"]:
-            raise Exception(f"Invalid or unimplemented test case {test_name} for pltpy")
+            raise Exception(f"Invalid or unimplemented test case {test_name} for lecpy")
 
         main(**kwargs)
 
