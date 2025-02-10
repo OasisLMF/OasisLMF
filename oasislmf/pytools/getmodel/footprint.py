@@ -16,7 +16,7 @@ import numba as nb
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
+from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV, EventDynamic,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
                      event_defintion_filename, hazard_case_filename, fp_format_priorities)
@@ -400,15 +400,22 @@ class FootprintParquetDynamic(Footprint):
             df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
 
             if len(df_footprint.index) > 0:
-                df_footprint['intensity_bin_id'] = np.floor(df_footprint.from_intensity + (
+                df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                     (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-                df_footprint['intensity_bin_id'] = df_footprint['intensity_bin_id'].astype('int')
+                df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+                intensity_bin_dict = pd.read_csv('static/intensity_bin_dict.csv')
+                intensity_bin_dict.rename(columns={'intensity_bin': 'intensity_bin_id'}, inplace=True)
+                df_footprint = df_footprint.merge(intensity_bin_dict, on='intensity')
                 df_footprint['probability'] = 1
             else:
+                df_footprint.loc[:, 'intensity'] = []
                 df_footprint.loc[:, 'intensity_bin_id'] = []
                 df_footprint.loc[:, 'probability'] = []
 
-            numpy_data = self.prepare_df_data(data_frame=df_footprint[['areaperil_id', 'intensity_bin_id', 'probability', 'return_period']])
+            numpy_data = np.empty(len(df_footprint), dtype=EventDynamic)
+            for column in ['areaperil_id', 'intensity_bin_id', 'intensity', 'probability', 'return_period']:
+                numpy_data[:][column] = df_footprint[column].to_numpy()
+
             return numpy_data
 
 

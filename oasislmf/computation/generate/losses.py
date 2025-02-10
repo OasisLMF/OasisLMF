@@ -27,8 +27,6 @@ import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
-from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema
-
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (csv_to_bin, prepare_run_directory,
@@ -37,7 +35,8 @@ from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
 from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (get_dataframe, get_exposure_data, get_json,
-                           get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes)
+                           get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes,
+                           analysis_settings_loader, model_settings_loader)
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
                                KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
                                KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
@@ -173,6 +172,9 @@ class GenerateLossesDir(GenerateLossesBase):
 
     :return: (dict) Updated analysis_settings
     """
+    settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
+
     step_params = [
         # Command line options
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
@@ -262,7 +264,6 @@ class GenerateLossesDir(GenerateLossesBase):
     def run(self):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()
-        analysis_settings = AnalysisSettingSchema().get(self.analysis_settings_json)
         model_storage = self._get_storage_manager()
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in [
@@ -278,9 +279,9 @@ class GenerateLossesDir(GenerateLossesBase):
         ril = any(ri_dirs)
 
         # Check for missing input files and either warn user or raise exception
-        il_missing = analysis_settings.get('il_output', False) and not il
-        ri_missing = analysis_settings.get('ri_output', False) and not ril
-        rl_missing = analysis_settings.get('rl_output', False) and not ril
+        il_missing = self.settings.get('il_output', False) and not il
+        ri_missing = self.settings.get('ri_output', False) and not ril
+        rl_missing = self.settings.get('rl_output', False) and not ril
         if il_missing or ri_missing or rl_missing:
             missing_input_files = "{} are enabled in the analysis_settings without the generated input files. The 'generate-oasis-files' step should be rerun with account/reinsurance files.".format(
                 [
@@ -293,13 +294,13 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.warn(missing_input_files)
 
         gul_item_stream = (not self.ktools_legacy_stream)
-        ri = analysis_settings.get('ri_output', False) and ril
-        rl = analysis_settings.get('rl_output', False) and ril
+        ri = self.settings.get('ri_output', False) and ril
+        rl = self.settings.get('rl_output', False) and ril
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
-        self.__check_for_parquet_output(analysis_settings, runtypes)
-        self.__check_summary_group_support(analysis_settings, runtypes)
+        self.__check_for_parquet_output(self.settings, runtypes)
+        self.__check_summary_group_support(self.settings, runtypes)
 
         prepare_run_directory(
             model_run_fp,
@@ -313,13 +314,13 @@ class GenerateLossesDir(GenerateLossesBase):
         )
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
-        location_df = exposure_data.location.dataframe
+        location_df = exposure_data.get_subject_at_risk_source().dataframe
         account_df = exposure_data.account.dataframe if exposure_data.account else None
         generate_summaryxref_files(
             location_df,
             account_df,
             model_run_fp,
-            analysis_settings,
+            self.settings,
             gul_item_stream=gul_item_stream,
             il=il,
             ri=ri,
@@ -336,43 +337,43 @@ class GenerateLossesDir(GenerateLossesBase):
                 csv_to_bin(fp, fp, il=True, ri=True)
 
         if not il:
-            analysis_settings['il_output'] = False
-            analysis_settings['il_summaries'] = []
+            self.settings['il_output'] = False
+            self.settings['il_summaries'] = []
 
         if not ri:
-            analysis_settings['ri_output'] = False
-            analysis_settings['ri_summaries'] = []
+            self.settings['ri_output'] = False
+            self.settings['ri_summaries'] = []
 
         if not rl:
-            analysis_settings['rl_output'] = False
-            analysis_settings['rl_summaries'] = []
+            self.settings['rl_output'] = False
+            self.settings['rl_summaries'] = []
 
-        if not any(analysis_settings.get(output) for output in ['gul_output', 'il_output', 'ri_output']):
+        if not any(self.settings.get(output) for output in ['gul_output', 'il_output', 'ri_output']):
             raise OasisException(
                 'No valid output settings in: {}'.format(self.analysis_settings_json))
 
         # Load default samples if not set in analysis settings
         # Additional check to avoid 0 samples being interpreted as false
-        if not analysis_settings.get('number_of_samples') and analysis_settings.get('number_of_samples') != 0:
+        if not self.settings.get('number_of_samples') and self.settings.get('number_of_samples') != 0:
             if not self.model_settings_json:
                 raise OasisException("'number_of_samples' not set in analysis_settings and no model_settings.json file provided for a default value.")
 
-            default_model_samples = ModelSettingSchema().get(self.model_settings_json, key='model_default_samples')
-            if default_model_samples == None:
+            default_model_samples = self.settings.get('model_default_samples')
+            if default_model_samples is None:
                 raise OasisException(
                     "'number_of_samples' not set in analysis_settings and no default value 'model_default_samples' found in model_settings file.")
 
             self.logger.info(f"Loaded samples from model_settings file: 'model_default_samples = {default_model_samples}'")
-            analysis_settings['number_of_samples'] = default_model_samples
+            self.settings['number_of_samples'] = default_model_samples
 
-        prepare_run_inputs(analysis_settings, model_run_fp, model_storage, ri=ri or rl)
+        prepare_run_inputs(self.settings, model_run_fp, model_storage, ri=ri or rl)
 
         optional_model_sets = {'footprint_set': set_footprint_set,
                                'vulnerability_set': set_vulnerability_set,
                                'pla_loss_factors_set': set_loss_factors_set}
 
         for model_set, model_setter in optional_model_sets.items():
-            model_set_val = analysis_settings.get('model_settings', {}).get(model_set)
+            model_set_val = self.settings.get('model_settings', {}).get(model_set)
             if model_set_val:
                 model_setter(model_set_val, model_run_fp)
 
@@ -390,8 +391,8 @@ class GenerateLossesDir(GenerateLossesBase):
 
         if self.summarypy:
             for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
-                if analysis_settings.get(f'{runtype}_output'):
-                    summaries = analysis_settings.get('{}_summaries'.format(runtype), [])
+                if self.settings.get(f'{runtype}_output'):
+                    summaries = self.settings.get('{}_summaries'.format(runtype), [])
                     summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
                     if summary_sets_id.shape[0]:
                         if runtype == RUNTYPE_REINSURANCE_LOSS:
@@ -402,8 +403,7 @@ class GenerateLossesDir(GenerateLossesBase):
                             self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
                             create_summary_object_file(summary_dir, runtype)
 
-        self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
-        return analysis_settings
+        self._store_run_settings(self.settings, os.path.join(model_run_fp, 'output'))
 
 
 class GenerateLossesPartial(GenerateLossesDir):
@@ -472,9 +472,11 @@ class GenerateLossesPartial(GenerateLossesDir):
         # distributed worker will pass in run settings as JSON, if not given load settings
         # and re-load input dir.
         if not self.analysis_settings:
-            self.analysis_settings = GenerateLossesDir.run(self)
+            GenerateLossesDir.run(self)
+        else:
+            self.settings = self.analysis_settings
 
-        ri_layers = self._get_num_ri_layers(self.analysis_settings, model_run_fp)
+        ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
 
         if not self.script_fp:
@@ -485,7 +487,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             os.remove(self.script_fp)
 
         bash_params = bash.bash_params(
-            self.analysis_settings,
+            self.settings,
             number_of_processes=self.ktools_num_processes,
             filename=self.script_fp,
             num_reinsurance_iterations=ri_layers,
@@ -512,7 +514,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             modelpy=self.modelpy,
-            peril_filter=self._get_peril_filter(self.analysis_settings),
+            peril_filter=self._get_peril_filter(self.settings),
             summarypy=self.summarypy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
@@ -564,10 +566,12 @@ class GenerateLossesOutput(GenerateLossesDir):
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
         if not self.analysis_settings:
-            self.analysis_settings = GenerateLossesDir.run(self)
+            GenerateLossesDir.run(self)
+        else:
+            self.settings = self.analysis_settings
 
         model_runner_module, _ = self._get_model_runner()
-        ri_layers = self._get_num_ri_layers(self.analysis_settings, model_run_fp)
+        ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
 
         if not self.script_fp:
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_outputs.sh')
@@ -576,7 +580,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             os.remove(self.script_fp)
 
         bash_params = bash.bash_params(
-            self.analysis_settings,
+            self.settings,
             number_of_processes=self.ktools_num_processes,
             num_reinsurance_iterations=ri_layers,
             filename=self.script_fp,
@@ -683,16 +687,16 @@ class GenerateLosses(GenerateLossesDir):
         # prep losses run dir / Setup
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        analysis_settings = GenerateLossesDir.run(self)
+        GenerateLossesDir.run(self)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
-        ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
+        ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
 
         with setcwd(model_run_fp):
             try:
                 try:
                     model_runner_module.run(
-                        analysis_settings,
+                        self.settings,
                         number_of_processes=self.ktools_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
@@ -720,7 +724,7 @@ class GenerateLosses(GenerateLossesDir):
                         event_shuffle=self.ktools_event_shuffle,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
-                        peril_filter=self._get_peril_filter(analysis_settings),
+                        peril_filter=self._get_peril_filter(self.settings),
                         summarypy=self.summarypy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint
@@ -730,7 +734,7 @@ class GenerateLosses(GenerateLossesDir):
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
                     model_runner_module.run(
-                        analysis_settings,
+                        self.settings,
                         number_of_processes=self.ktools_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
@@ -980,6 +984,8 @@ class GenerateLossesDeterministic(ComputationStep):
 
 
 class GenerateLossesDummyModel(GenerateDummyOasisFiles):
+    settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'}]
+
     step_params = [
         {'name': 'analysis_settings_json', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'required': True,
          'help': 'Analysis settings JSON file path'},
@@ -1007,9 +1013,9 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         warnings.simplefilter('always')
 
         # RI output is unsupported
-        if self.analysis_settings.get('ri_output'):
+        if self.settings.get('ri_output'):
             warnings.warn('Generating reinsurance losses with dummy model not currently supported. Ignoring ri_output in analysis settings JSON.')
-            self.analysis_settings['ri_output'] = False
+            self.settings['ri_output'] = False
 
         # No loc or acc files so grouping losses based on OED fields is
         # unsupported
@@ -1025,25 +1031,25 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
             }
         ]
         for idx, param in enumerate(loss_params):
-            if self.analysis_settings.get(param['output']):
-                param['num_summaries'] = len(self.analysis_settings[param['summary']])
-                self.analysis_settings[param['summary']][:] = [x for x in self.analysis_settings[param['summary']] if not x.get('oed_fields')]
-                num_dropped_summaries = param['num_summaries'] - len(self.analysis_settings[param['summary']])
+            if self.settings.get(param['output']):
+                param['num_summaries'] = len(self.settings[param['summary']])
+                self.settings[param['summary']][:] = [x for x in self.settings[param['summary']] if not x.get('oed_fields')]
+                num_dropped_summaries = param['num_summaries'] - len(self.settings[param['summary']])
                 if num_dropped_summaries == param['num_summaries']:
                     warnings.warn(
                         f'Grouping losses based on OED fields is unsupported. No valid {param["loss"]} output. Please change {param["loss"]} settings in analysis settings JSON.')
-                    self.analysis_settings[param['output']] = False
+                    self.settings[param['output']] = False
                 elif num_dropped_summaries > 0:
                     warnings.warn(
                         f'Grouping losses based on OED fields is unsupported. {num_dropped_summaries} groups ignored in {param["loss"]} output.')
                 if param['num_summaries'] > 1:  # Get first summary only
-                    self.analysis_settings[param['summary']] = [self.analysis_settings[param['summary']][0]]
-                if self.analysis_settings[param['output']]:
+                    self.settings[param['summary']] = [self.settings[param['summary']][0]]
+                if self.settings[param['output']]:
                     # We should only have one summary now
-                    self.analysis_settings[param['summary']][0]['id'] = 1
-                    if self.analysis_settings[param['summary']][0]['leccalc']['return_period_file']:
+                    self.settings[param['summary']][0]['id'] = 1
+                    if self.settings[param['summary']][0]['leccalc']['return_period_file']:
                         warnings.warn('Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
-                        self.analysis_settings[param['summary']][0]['leccalc']['return_period_file'] = False
+                        self.settings[param['summary']][0]['leccalc']['return_period_file'] = False
                     loss_types[idx] = True
         (self.gul, self.il) = loss_types
 
@@ -1054,10 +1060,10 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
             raise OasisException('Valid GUL output required. Please check analysis settings JSON.')
 
         # Determine whether random number file will exist
-        if self.analysis_settings.get('model_settings').get('use_random_number_file'):
+        if self.settings.get('model_settings').get('use_random_number_file'):
             if self.num_randoms == 0:
                 warnings.warn('Ignoring use random number file option in analysis settings JSON as no random number file will be generated.')
-                self.analysis_settings['model_settings']['use_random_number_file'] = False
+                self.settings['model_settings']['use_random_number_file'] = False
 
     def _prepare_run_directory(self):
         super()._prepare_run_directory()
@@ -1075,7 +1081,7 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
             self.target_dir, 'analysis_settings.json'
         )
         with open(analysis_settings_fp, 'w') as f:
-            json.dump(self.analysis_settings, f, indent=4, ensure_ascii=False)
+            json.dump(self.settings, f, indent=4, ensure_ascii=False)
 
     def _write_summary_info_files(self):
         summary_info_df = pd.DataFrame(
@@ -1095,9 +1101,6 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         self.logger.info('\nProcessing arguments - Creating Model & Test Oasis Files')
 
         self._validate_input_arguments()
-        self.analysis_settings = AnalysisSettingSchema().get(
-            self.analysis_settings_json
-        )
         self._validate_analysis_settings()
         self._create_target_directory(label='losses')
         self._prepare_run_directory()
@@ -1105,7 +1108,7 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         self._get_gul_file_objects()
 
         self.il = False
-        if self.analysis_settings.get('il_output'):
+        if self.settings.get('il_output'):
             self.il = True
             self._get_fm_file_objects()
         else:
@@ -1123,7 +1126,7 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         script_fp = os.path.join(self.target_dir, 'run_ktools.sh')
         bash.genbash(
             max_process_id=self.ktools_num_processes,
-            analysis_settings=self.analysis_settings,
+            analysis_settings=self.settings,
             gul_alloc_rule=self.ktools_alloc_rule_gul,
             il_alloc_rule=self.ktools_alloc_rule_il,
             filename=script_fp

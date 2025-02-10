@@ -23,13 +23,13 @@ class ComputationChecker(unittest.TestCase):
         super().tearDown()
         self.stack.close()
 
-    @staticmethod
-    def create_tmp_dirs(dirs_list):
-        return {d: TemporaryDirectory() for d in dirs_list}
+    def create_tmp_dirs(self, dirs_list):
+        return {d: self.tmp_dir() for d in dirs_list}
 
-    @staticmethod
-    def tmp_dir():
-        return TemporaryDirectory()
+    def tmp_dir(self):
+        dir_ = TemporaryDirectory()
+        self.stack.enter_context(dir_)
+        return dir_
 
     @staticmethod
     def write_json(tmpfile, data):

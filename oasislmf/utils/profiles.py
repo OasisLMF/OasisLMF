@@ -34,8 +34,8 @@ def get_grouped_fm_profile_by_level(
     comb_prof = {**exp_prof_fm_keys, **acc_prof_fm_keys}
 
     return OrderedDict({
-        int(k): {v['ProfileElementName']: v for v in g}
-        for k, g in groupby(sorted(comb_prof.values(), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
+        int(k): {gid: v for gid, v in g}
+        for k, g in groupby(sorted(comb_prof.items(), key=lambda v: v[1]['FMLevel']), key=lambda v: v[1]['FMLevel'])
     })
 
 
