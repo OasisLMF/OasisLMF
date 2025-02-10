@@ -7,20 +7,20 @@ from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import SOURCE_FILENAMES
 from oasislmf.utils.exceptions import OasisException
 
-input_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV
-1,A11111,10002082046,1
-1,A11111,10002082047,2
-1,A11111,10002082048,3
-1,A11111,10002082049,4
-1,A11111,10002082050,5
+input_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV,CountryCode,LocPerilsCovered,LocCurrency
+1,A11111,10002082046,1,UK,AA1,GBP
+1,A11111,10002082047,2,UK,AA1,GBP
+1,A11111,10002082048,3,UK,AA1,GBP
+1,A11111,10002082049,4,UK,AA1,GBP
+1,A11111,10002082050,5,UK,AA1,GBP
 """
 
-output_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV
-1,A11111,10002082046,2.0
-1,A11111,10002082047,4.0
-1,A11111,10002082048,6.0
-1,A11111,10002082049,8.0
-1,A11111,10002082050,10.0
+output_oed_location = """PortNumber,AccNumber,LocNumber,BuildingTIV,CountryCode,LocPerilsCovered,LocCurrency
+1,A11111,10002082046,2.0,UK,AA1,GBP
+1,A11111,10002082047,4.0,UK,AA1,GBP
+1,A11111,10002082048,6.0,UK,AA1,GBP
+1,A11111,10002082049,8.0,UK,AA1,GBP
+1,A11111,10002082050,10.0,UK,AA1,GBP
 """
 
 

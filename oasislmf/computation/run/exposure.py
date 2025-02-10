@@ -16,7 +16,6 @@ from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
-from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (get_dataframe, get_exposure_data,
                                  print_dataframe)
 from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
@@ -48,10 +47,6 @@ class RunExposure(ComputationStep):
         {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['item', 'loc', 'pol', 'acc', 'port'],
          'default': 'item'},
         {'name': 'extra_summary_cols', 'nargs': '+', 'help': 'extra column to include in the summary', 'default': []},
-        {'name': 'coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
-         'help': 'Select List of supported coverage_types [1, .. ,4]'},
-        {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
-         'help': 'List of peril covered by the model'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
@@ -63,6 +58,8 @@ class RunExposure(ComputationStep):
         {'name': 'print_summary', 'default': True},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
     ]
+
+    chained_commands = [GenerateKeysDeterministic]
 
     def _check_alloc_rules(self):
         alloc_ranges = {
@@ -89,11 +86,7 @@ class RunExposure(ComputationStep):
 
         self.oasis_files_dir = src_dir
         exposure_data = get_exposure_data(self, add_internal_col=True)
-        if not exposure_data.location or not exposure_data.account:
-            raise OasisException(
-                f'Location and/or account missing in source directory "{src_dir}" - '
-                'files named `location.*` and `account.*` are expected'
-            )
+
         il = bool(exposure_data.account)
         ril = all([exposure_data.ri_info, exposure_data.ri_scope, il])
 
@@ -104,12 +97,7 @@ class RunExposure(ComputationStep):
 
         # 1. Create Deterministic keys file
         keys_fp = os.path.join(run_dir, 'keys.csv')
-        GenerateKeysDeterministic(
-            keys_data_csv=keys_fp,
-            supported_oed_coverage_types=self.coverage_types,
-            exposure_data=exposure_data,
-            model_perils_covered=self.model_perils_covered,
-        ).run()
+        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_csv": keys_fp, "exposure_data": exposure_data}}).run()
 
         # 2. Start Oasis files generation
         GenerateFiles(

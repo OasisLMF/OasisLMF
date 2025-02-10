@@ -57,7 +57,8 @@ oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize
 areaperil_int_to_int32_size = areaperil_int.itemsize // np.int32().itemsize
 
 haz_cdf_type = nb.from_dtype(np.dtype([('probability', oasis_float),
-                                       ('intensity_bin_id', np.int32)]))
+                                       ('intensity_bin_id', np.int32),
+                                       ('intensity', np.int32)]))
 
 ProbMean = nb.from_dtype(np.dtype([('prob_to', oasis_float),
                                    ('bin_mean', oasis_float)
