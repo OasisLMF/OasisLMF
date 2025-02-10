@@ -16,6 +16,7 @@ __all__ = [
     'MIN_SCP',
     'FAKE_PRE_ANALYSIS_MODULE',
     'FAKE_COMPLEX_LOOKUP_MODULE',
+    'FAKE_MODEL_SETTINGS_JSON',
     'FAKE_IL_ITEMS_RETURN',
     'FAKE_MODEL_RUNNER',
     'FAKE_MODEL_RUNNER__OLD',
@@ -432,6 +433,8 @@ EXPECTED_ERROR_COMPLEX = b'LocID,PerilID,CoverageTypeID,Status,Message\n'
 FAKE_IL_ITEMS_RETURN = pd.read_csv(os.path.join(os.path.dirname(__file__), 'il_inputs_df_return.csv'))
 FAKE_PRE_ANALYSIS_MODULE = os.path.join(os.path.dirname(__file__), 'fake_pre_analysis.py')
 FAKE_COMPLEX_LOOKUP_MODULE = os.path.join(os.path.dirname(__file__), 'fake_complex_lookup.py')
+
+FAKE_MODEL_SETTINGS_JSON = os.path.join(os.path.dirname(__file__), 'fake_model_settings.json')
 
 FAKE_MODEL_RUNNER = os.path.join(os.path.dirname(__file__), 'fake_model_runner')
 FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_runner__old')

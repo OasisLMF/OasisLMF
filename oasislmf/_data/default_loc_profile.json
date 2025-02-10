@@ -447,6 +447,7 @@
         "FMLevel": 3,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocDedCode6All": {
@@ -455,6 +456,7 @@
         "FMLevel": 3,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocDedType6All": {
@@ -463,6 +465,7 @@
         "FMLevel": 3,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocMinDed6All": {
@@ -472,6 +475,7 @@
         "FMLevel": 3,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocMaxDed6All": {
@@ -481,6 +485,7 @@
         "FMLevel": 3,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocLimit6All": {
@@ -489,6 +494,7 @@
         "FMLevel": 3,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocLimitCode6All": {
@@ -497,6 +503,7 @@
         "FMLevel": 3,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Loc"
     },
     "LocLimitType6All": {
@@ -505,6 +512,88 @@
         "FMLevel": 3,
         "FMTermType": "LimitType",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
+        "ProfileType": "Loc"
+    },
+    "CyberBITIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 7,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 7,
+        "ProfileType": "Loc"
+    },
+    "CyberCBITIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 8,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 8,
+        "ProfileType": "Loc"
+    },
+    "CyberDIASTIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 9,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 9,
+        "ProfileType": "Loc"
+    },
+    "CyberEXTTIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 10,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 10,
+        "ProfileType": "Loc"
+    },
+    "CyberFINTIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 11,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 11,
+        "ProfileType": "Loc"
+    },
+    "CyberINRETIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 12,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 12,
+        "ProfileType": "Loc"
+    },
+    "CyberLIABTIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 13,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 13,
+        "ProfileType": "Loc"
+    },
+    "CyberREGTIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 14,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 14,
+        "ProfileType": "Loc"
+    },
+    "CyberENOTIV": {
+        "ProfileElementName": "AnnualRevenue",
+        "CoverageTypeID": 15,
+        "FMLevelName": "SiteCoverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 15,
         "ProfileType": "Loc"
     }
 }

@@ -10,6 +10,9 @@ __all__ = [
     'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
+    'analysis_settings_loader',
+    'model_settings_loader',
+    'settings_loader',
     'prepare_location_df',
     'prepare_account_df',
     'prepare_reinsurance_df',
@@ -37,7 +40,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
-from ods_tools.oed import fill_empty, OedExposure, OdsException
+from ods_tools.oed import fill_empty, OedExposure, OdsException, AnalysisSettingHandler, ModelSettingHandler
 
 try:
     from json import JSONDecodeError
@@ -53,12 +56,26 @@ import pytz
 from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
 
-from oasislmf.utils.defaults import SOURCE_IDX
+from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
 from oasislmf.utils.exceptions import OasisException
-from ods_tools.oed import AnalysisSettingSchema
 
 
 logger = logging.getLogger(__name__)
+
+analysis_settings_loader = AnalysisSettingHandler.make().load
+model_settings_loader = ModelSettingHandler.make().load
+
+
+def settings_loader(name, settings_json, loader, required=False, **kwargs):
+    try:
+        return loader(settings_json, **kwargs)
+    except OdsException as e:
+        if required:
+            raise
+        else:
+            logger.debug(f"error loading {name}: {repr(e)}")
+            return {}
+
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -729,15 +746,27 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         return join
 
 
+def prepare_oed_exposure(exposure_data):
+    sar_df = exposure_data.get_subject_at_risk_source().dataframe
+    if sar_df is not None:
+        if SAR_ID not in sar_df.columns:
+            sar_df[SAR_ID] = get_ids(sar_df, exposure_data.class_of_business_info['subject_at_risk_id_fields'])
+        else:
+            sar_df[SAR_ID] = sar_df[SAR_ID].astype(int)
+
+    if exposure_data.location:
+        exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
+    if exposure_data.account:
+        exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
+    if exposure_data.ri_info and exposure_data.ri_scope:
+        exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(
+            exposure_data.ri_info.dataframe,
+            exposure_data.ri_scope.dataframe)
+
+
 def prepare_location_df(location_df):
-    # Set interal location id index
-    if 'loc_id' not in location_df.columns:
-        location_df['loc_id'] = get_ids(location_df, ['PortNumber', 'AccNumber', 'LocNumber'])
-    else:
-        location_df['loc_id'] = location_df['loc_id'].astype(int)
     # Add file Index column to extract OED columns for summary grouping
     location_df[SOURCE_IDX['loc']] = location_df.index
-
     return location_df
 
 
@@ -819,13 +848,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
                     use_field=True)
 
             if add_internal_col:
-                if exposure_data.location:
-                    exposure_data.location.dataframe = prepare_location_df(exposure_data.location.dataframe)
-                if exposure_data.account:
-                    exposure_data.account.dataframe = prepare_account_df(exposure_data.account.dataframe)
-                if exposure_data.ri_info and exposure_data.ri_scope:
-                    exposure_data.ri_info.dataframe, exposure_data.ri_scope.dataframe = prepare_reinsurance_df(exposure_data.ri_info.dataframe,
-                                                                                                               exposure_data.ri_scope.dataframe)
+                prepare_oed_exposure(exposure_data)
         return exposure_data
     except OdsException as ods_error:
         raise OasisException("Failed to load OED exposure files", ods_error)
@@ -991,8 +1014,7 @@ def validate_vulnerability_replacements(analysis_settings_json):
     if analysis_settings_json is None:
         return False
 
-    vulnerability_adjustments_key = None
-    vulnerability_adjustments_key = AnalysisSettingSchema().get(analysis_settings_json, {}).get('vulnerability_adjustments')
+    vulnerability_adjustments_key = analysis_settings_loader(analysis_settings_json).get('vulnerability_adjustments')
     if vulnerability_adjustments_key is None:
         return False
 

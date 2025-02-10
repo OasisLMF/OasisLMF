@@ -1353,14 +1353,14 @@ class TestValidateVulnerabilityReplacements(TestCase):
         self.logger_patch.stop()
 
     def test_no_vulnerability_replacements(self):
-        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={}):
+        with patch('oasislmf.utils.data.analysis_settings_loader', return_value={}):
             result = validate_vulnerability_replacements('dummy_path')
             self.assertFalse(result)
 
     def test_valid_dict_vulnerability_replacements(self):
-        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
-                                                                                  'replace_data': {'2': [[1, 1, 0.5]]}}
-                                                                                  }):
+        with patch('oasislmf.utils.data.analysis_settings_loader', return_value={'vulnerability_adjustments': {
+            'replace_data': {'2': [[1, 1, 0.5]]}}
+        }):
             result = validate_vulnerability_replacements('dummy_path')
             self.assertTrue(result)
             self.mock_logger.info.assert_called_with('Vulnerability replacements are specified in the analysis settings file')
@@ -1369,8 +1369,8 @@ class TestValidateVulnerabilityReplacements(TestCase):
         # Mock pandas read_csv to return a valid dataframe
         mock_df = pd.DataFrame({'vulnerability_id': [2], 'intensity_bin_id': [1], 'damage_bin_id': [1], 'probability': [0.5]})
         with patch('pandas.read_csv', return_value=mock_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
-                                                                                      'replace_file': 'valid_path.csv'}}):
+            with patch('oasislmf.utils.data.analysis_settings_loader', return_value={'vulnerability_adjustments': {
+                    'replace_file': 'valid_path.csv'}}):
                 with patch('os.path.isfile', return_value=True):
                     result = validate_vulnerability_replacements('dummy_path')
                     # Check that the log contains the expected substrings
@@ -1380,8 +1380,8 @@ class TestValidateVulnerabilityReplacements(TestCase):
                     self.assertTrue(message_found, "Expected log message not found")
 
     def test_invalid_csv_file_path_vulnerability_replacements(self):
-        with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
-                                                                                  'replace_file': 'invalid_path.csv'}}):
+        with patch('oasislmf.utils.data.analysis_settings_loader', return_value={'vulnerability_adjustments': {
+                'replace_file': 'invalid_path.csv'}}):
             with patch('os.path.isfile', return_value=False):
                 result = validate_vulnerability_replacements('dummy_path')
                 self.assertFalse(result)
@@ -1394,8 +1394,8 @@ class TestValidateVulnerabilityReplacements(TestCase):
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'wrong_field': "content", 'intensity_bin_id': [1],
                                         'damage_bin_id': [1], 'probability': [0.5]})
         with patch('pandas.read_csv', return_value=mock_invalid_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
-                                                                                      'replace_file': 'invalid_contents.csv'}}):
+            with patch('oasislmf.utils.data.analysis_settings_loader', return_value={'vulnerability_adjustments': {
+                    'replace_file': 'invalid_contents.csv'}}):
                 with patch('os.path.isfile', return_value=True):
                     validate_vulnerability_replacements('dummy_path')
                     message_found = any('does not have the expected columns.' in args[0] and 'invalid_contents.csv' in args[0]
@@ -1406,8 +1406,8 @@ class TestValidateVulnerabilityReplacements(TestCase):
         # Mock invalid CSV contents
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'intensity_bin_id': ['O'], 'damage_bin_id': [1], 'probability': [1.5]})
         with patch('pandas.read_csv', return_value=mock_invalid_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
-                                                                                      'replace_file': 'invalid_contents.csv'}}):
+            with patch('oasislmf.utils.data.analysis_settings_loader', return_value={'vulnerability_adjustments': {
+                    'replace_file': 'invalid_contents.csv'}}):
                 with patch('os.path.isfile', return_value=True):
                     validate_vulnerability_replacements('dummy_path')
                     message_found = any('Vulnerability replacements file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
@@ -1418,8 +1418,8 @@ class TestValidateVulnerabilityReplacements(TestCase):
         # Mock invalid CSV contents
         mock_invalid_df = pd.DataFrame({'vulnerability_id': 3, 'intensity_bin_id': [1], 'damage_bin_id': [1], 'probability': [1.5]})
         with patch('pandas.read_csv', return_value=mock_invalid_df):
-            with patch('oasislmf.utils.data.AnalysisSettingSchema.get', return_value={'vulnerability_adjustments': {
-                                                                                      'replace_file': 'invalid_contents.csv'}}):
+            with patch('oasislmf.utils.data.analysis_settings_loader', return_value={'vulnerability_adjustments': {
+                    'replace_file': 'invalid_contents.csv'}}):
                 with patch('os.path.isfile', return_value=True):
                     validate_vulnerability_replacements('dummy_path')
                     message_found = any('Vulnerability replacements file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
