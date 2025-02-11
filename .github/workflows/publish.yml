@@ -63,9 +63,14 @@ jobs:
     with:
       build_osx: ${{ inputs.build_osx }}
 
+  build_schema:
+    uses: ./.github/workflows/build-schema.yml
+    secrets: inherit
+    needs: update
+
   release:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, build_schema]
     outputs:
       heading: ${{ steps.slack_vars.outputs.heading }}
       title: ${{ steps.slack_vars.outputs.title }}
@@ -194,6 +199,8 @@ jobs:
           --local-repo-path ./ \
           --output-path ./RELEASE.md
 
+
+    # --- Fetch packages --- #
     - name: Download Source package
       uses: actions/download-artifact@v4
       with:
@@ -212,6 +219,21 @@ jobs:
       with:
         name: oasislmf-bin-pkg_darwin
         path: ${{ github.workspace }}/
+
+
+    # --- Fetch schema --- #
+    - name: Download computaion schema
+      uses: actions/download-artifact@v4
+      with:
+        name: computation_schema
+        path: ${{ github.workspace }}/
+
+    - name: Name computaion schema
+      id: computaion_schema
+      run: |
+        schema_filename="oasislmf-${{ env.RELEASE_TAG }}_computation_settings_schema.json"
+        mv computation_settings_schema.json $schema_filename
+        echo "filename=$schema_filename" >> $GITHUB_OUTPUT
 
     # --- Create Release --- #
     - name: Push changes
@@ -232,6 +254,7 @@ jobs:
         draft: false
         prerelease: ${{ env.PRE_RELEASE }}
 
+
     # --- Attach build assest --- #
     - name: Upload Source package
       id: upload-source-release-asset
@@ -243,6 +266,19 @@ jobs:
         asset_path: ${{ github.workspace }}/${{ needs.build.outputs.src_pkg_filename }}
         asset_name: ${{ needs.build.outputs.src_pkg_filename }}
         asset_content_type: application/octet-stream
+
+
+    - name: Upload computaion schema
+      id: upload-schema-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ github.workspace }}/${{ steps.computaion_schema.outputs.filename }}
+        asset_name: ${{ steps.computaion_schema.outputs.filename }}
+        asset_content_type: application/json
+
 
     - name: Upload Linux package
       id: upload-linux-release-asset
@@ -267,6 +303,7 @@ jobs:
         asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
         asset_content_type: application/octet-stream
 
+
     # --- Publish to Pypi --- #
     - name: PYPI - Source package
       run: twine upload ${{ needs.build.outputs.src_pkg_filename }}
@@ -287,6 +324,7 @@ jobs:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
+
     # --- Slack notify --- #
     - name: slack message vars
       id: slack_vars
@@ -302,6 +340,7 @@ jobs:
         echo "run_id=${{ github.run_id }}"  >> $GITHUB_OUTPUT
         echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
         echo "run_status=${{ job.status }}" >> $GITHUB_OUTPUT
+
 
   # --- Notify Slack --- #
   slack:
