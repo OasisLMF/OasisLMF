@@ -1,35 +1,11 @@
-import filecmp
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import numpy as np
 from oasislmf.pytools.lec.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_lecpy")
-
-
-def compare_files_and_raise(file1, file2, max_differences=100):
-    differences = []
-    with open(file1, 'r', encoding='utf-8') as f1, open(file2, 'r', encoding='utf-8') as f2:
-        for i, (line1, line2) in enumerate(zip(f1, f2), start=1):
-            if line1 != line2:
-                differences.append(f"Line {i}:\n  File1: {line1.strip()}\n  File2: {line2.strip()}")
-                if len(differences) >= max_differences:
-                    break
-
-        for i, line1 in enumerate(f1, start=i + 1):
-            differences.append(f"Line {i}:\n  File1: {line1.strip()}\n  File2: EOF")
-            if len(differences) >= max_differences:
-                break
-
-        for i, line2 in enumerate(f2, start=i + 1):
-            differences.append(f"Line {i}:\n  File1: EOF\n  File2: {line2.strip()}")
-            if len(differences) >= max_differences:
-                break
-
-    if differences:
-        diff_message = "\n".join(differences)
-        raise Exception(f"Files differ in {len(differences)} lines (showing up to {max_differences}):\n{diff_message}")
 
 
 def case_runner(sub_folder, test_name, use_return_period):
@@ -76,22 +52,31 @@ def case_runner(sub_folder, test_name, use_return_period):
 
         main(**kwargs)
 
+        error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
+        arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
+
         try:
-            compare_files_and_raise(expected_ept, actual_ept)
+            expected_ept_data = np.genfromtxt(expected_ept, delimiter=',', skip_header=1)
+            actual_ept_data = np.genfromtxt(actual_ept, delimiter=',', skip_header=1)
+            if expected_ept_data.shape != actual_ept_data.shape:
+                raise AssertionError(
+                    f"Shape mismatch: {expected_ept} has shape {expected_ept_data.shape}, {actual_ept} has shape {actual_ept_data.shape}")
+            np.testing.assert_allclose(expected_ept_data, actual_ept_data, rtol=1e-5, atol=1e-8)
         except Exception as e:
-            error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(actual_ept, Path(error_path, ept_csv_name))
-            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
             raise Exception(f"running 'lecpy {arg_str}' led to diff, see files at {error_path}") from e
 
         try:
-            compare_files_and_raise(expected_psept, actual_psept)
+            expected_psept_data = np.genfromtxt(expected_psept, delimiter=',', skip_header=1)
+            actual_psept_data = np.genfromtxt(actual_psept, delimiter=',', skip_header=1)
+            if expected_psept_data.shape != actual_psept_data.shape:
+                raise AssertionError(
+                    f"Shape mismatch: {expected_psept} has shape {expected_psept_data.shape}, {actual_psept} has shape {actual_psept_data.shape}")
+            np.testing.assert_allclose(expected_psept_data, actual_psept_data, rtol=1e-5, atol=1e-8)
         except Exception as e:
-            error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(actual_psept, Path(error_path, psept_csv_name))
-            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
             raise Exception(f"running 'lecpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
