@@ -8,6 +8,30 @@ from oasislmf.pytools.lec.manager import main
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_lecpy")
 
 
+def compare_files_and_raise(file1, file2, max_differences=100):
+    differences = []
+    with open(file1, 'r', encoding='utf-8') as f1, open(file2, 'r', encoding='utf-8') as f2:
+        for i, (line1, line2) in enumerate(zip(f1, f2), start=1):
+            if line1 != line2:
+                differences.append(f"Line {i}:\n  File1: {line1.strip()}\n  File2: {line2.strip()}")
+                if len(differences) >= max_differences:
+                    break
+
+        for i, line1 in enumerate(f1, start=i + 1):
+            differences.append(f"Line {i}:\n  File1: {line1.strip()}\n  File2: EOF")
+            if len(differences) >= max_differences:
+                break
+
+        for i, line2 in enumerate(f2, start=i + 1):
+            differences.append(f"Line {i}:\n  File1: EOF\n  File2: {line2.strip()}")
+            if len(differences) >= max_differences:
+                break
+
+    if differences:
+        diff_message = "\n".join(differences)
+        raise Exception(f"Files differ in {len(differences)} lines (showing up to {max_differences}):\n{diff_message}")
+
+
 def case_runner(sub_folder, test_name, use_return_period):
     """Run output file correctness tests
     Args:
@@ -53,7 +77,7 @@ def case_runner(sub_folder, test_name, use_return_period):
         main(**kwargs)
 
         try:
-            assert filecmp.cmp(expected_ept, actual_ept, shallow=False)
+            compare_files_and_raise(expected_ept, actual_ept)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
             error_path.mkdir(exist_ok=True)
@@ -62,7 +86,7 @@ def case_runner(sub_folder, test_name, use_return_period):
             raise Exception(f"running 'lecpy {arg_str}' led to diff, see files at {error_path}") from e
 
         try:
-            assert filecmp.cmp(expected_psept, actual_psept, shallow=False)
+            compare_files_and_raise(expected_psept, actual_psept)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, test_name, "error_files")
             error_path.mkdir(exist_ok=True)
