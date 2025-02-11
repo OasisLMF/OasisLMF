@@ -413,7 +413,8 @@ def do_post_wait_processing(
     work_sub_dir='',
     output_dir='output/',
     stderr_guard=True,
-    inuring_priority=None
+    inuring_priority=None,
+    lecpy=False,
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
@@ -424,6 +425,8 @@ def do_post_wait_processing(
     for summary in analysis_settings['{}_summaries'.format(runtype)]:
         if "id" in summary:
             summary_set = summary['id']
+
+            lec_exec_type = "ktools" if not lecpy else "pytools"
 
             # ktools ORIG - aalcalc
             if summary.get('aalcalc'):
@@ -546,13 +549,12 @@ def do_post_wait_processing(
                 ept_output = False
                 psept_output = False
 
-                cmd = 'ordleccalc {} -K{}{}_{}S{}_summaryleccalc'.format(
-                    '-r' if ord_outputs.get('return_period_file') else '',
-                    work_sub_dir,
-                    runtype,
-                    inuring_priority,
-                    summary_set
-                )
+                lec_executable = "ordleccalc"
+                if lec_exec_type == "pytools":
+                    lec_executable = "lecpy"
+
+                cmd = f"{lec_executable} {'-r' if ord_outputs.get('return_period_file') else ''}"
+                cmd = f"{cmd} -K{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc"
 
                 process_counter['lpid_monitor_count'] += 1
                 for option, active in sorted(ord_outputs.items()):
@@ -574,6 +576,8 @@ def do_post_wait_processing(
                 psept_output_flag = '-o'
                 outfile_ext = 'csv'
                 if summary.get('ord_output', {}).get('parquet_format'):
+                    if lec_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
                     ept_output_flag = '-P'
                     psept_output_flag = '-p'
                     outfile_ext = 'parquet'
@@ -1843,6 +1847,7 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     summarypy=False,
+    lecpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1883,6 +1888,7 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
+    bash_params['lecpy'] = lecpy if not gul_legacy_stream else False  # lecpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2576,6 +2582,7 @@ def create_bash_outputs(
     kat_sort_by_event,
     gul_item_stream,
     work_full_correlation_kat_dir,
+    lecpy,
     **kwargs
 ):
 
@@ -2680,24 +2687,24 @@ def create_bash_outputs(
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], lecpy=lecpy
             )
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], lecpy=lecpy
             )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard
+            output_dir, stderr_guard, lecpy=lecpy
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard
+            output_dir, stderr_guard, lecpy=lecpy
         )
 
     if full_correlation:
@@ -2705,17 +2712,17 @@ def create_bash_outputs(
         if ri_output:
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, lecpy=lecpy
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, lecpy=lecpy
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, lecpy=lecpy
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2770,6 +2777,7 @@ def genbash(
     model_py_server=False,
     peril_filter=[],
     summarypy=False,
+    lecpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False
@@ -2853,6 +2861,7 @@ def genbash(
         model_py_server=model_py_server,
         peril_filter=peril_filter,
         summarypy=summarypy,
+        lecpy=lecpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )
