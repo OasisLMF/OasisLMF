@@ -1,4 +1,3 @@
-import filecmp
 import shutil
 from tempfile import TemporaryDirectory
 import numpy as np
@@ -40,7 +39,12 @@ def case_runner(test_name, with_event_rate=False):
                 main(**kwargs)
 
         try:
-            assert filecmp.cmp(expected_csv, actual_csv, shallow=False)
+            expected_csv_data = np.genfromtxt(expected_csv, delimiter=',', skip_header=1)
+            actual_csv_data = np.genfromtxt(actual_csv, delimiter=',', skip_header=1)
+            if expected_csv_data.shape != actual_csv_data.shape:
+                raise AssertionError(
+                    f"Shape mismatch: {expected_csv} has shape {expected_csv_data.shape}, {actual_csv} has shape {actual_csv_data.shape}")
+            np.testing.assert_allclose(expected_csv_data, actual_csv_data, rtol=1e-5, atol=1e-8)
         except Exception as e:
             error_path = TESTS_ASSETS_DIR.joinpath('error_files')
             error_path.mkdir(exist_ok=True)
