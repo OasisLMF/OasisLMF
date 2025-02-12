@@ -1,10 +1,9 @@
-import filecmp
+import numpy as np
 import os
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import numpy as np
 from oasislmf.pytools.aal.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_aalpy")
