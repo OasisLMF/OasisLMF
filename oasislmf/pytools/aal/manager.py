@@ -33,11 +33,6 @@ _AAL_REC_PERIOD_DTYPE = np.dtype(
     _AAL_REC_DTYPE.descr + [('mean_period', np.float64)]
 )
 
-_VREC_DTYPE = np.dtype([
-    ('sidx', oasis_int),
-    ('loss', oasis_float),
-])
-
 _SUMMARIES_DTYPE = np.dtype([
     ("summary_id", np.int32),
     ("file_idx", np.int32),
@@ -283,6 +278,10 @@ def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
         max_summary_id (int): Max summary ID
         memmaps (List[np.memmap]): List of temporary file memmaps
     """
+    # work folder for aal files
+    aal_files_folder = Path(path, "aal_files")
+    aal_files_folder.mkdir(parents=False, exist_ok=True)
+
     # Find summary binary files
     files = [file for file in path.glob("*.bin")]
     files_handles = [np.memmap(file, mode="r", dtype="u1") for file in files]
@@ -292,7 +291,7 @@ def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
         raise RuntimeError(f"Error: Not a summary stream type {stream_source_type}")
 
     memmaps, max_summary_id = get_summaries_data(
-        path,
+        aal_files_folder,
         files_handles,
         occ_map,
         unique_event_ids,
@@ -502,7 +501,6 @@ def read_losses(summary_fin, cursor, vec_sample_sum_loss):
         cursor (int): data offset for reading binary files
         (ndarray[_AAL_REC_DTYPE]): Vector for sample sum losses
     Returns:
-        vrec (ndarray[_VREC_DTYPE]): array of sidx and losses
         cursor (int): data offset for reading binary files
     """
     # Max losses is sample_size + num special sidxs
