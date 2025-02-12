@@ -75,7 +75,7 @@ class PlaReader(EventReader):
 
         self.logger = logger
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         cursor, self.event_id, self.item_id, yield_event = read_buffer(
             byte_mv, cursor, valid_buff, self.event_id, self.item_id,
             self.items_amps, self.plafactors, self.default_factor, self.out_byte_mv, self.out_cursor
