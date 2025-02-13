@@ -21,6 +21,8 @@ def change_footprint_apid_multi_peril(path, size_lat, size_lon, num_perils):
     index_values = areaperil_ids % grid_size + 1
     z_indices = np.array([normal_to_z_index(id, size_lat) for id in index_values])
     df['areaperil_id'] = z_indices * num_perils + peril_values  
+    
+    df = df.sort_values(by=df.columns.tolist())
 
-    df.to_csv("footprint.csv", index=False)
+    df.to_csv(path, index=False)
     
