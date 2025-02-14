@@ -153,7 +153,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): periods binary file name
     Returns:
-        period_weights (ndarray[period_weights_dtype]): Returns the period weights
+        period_weights (ndarray[period_weights_dtype]): Period weights
     """
     periods_fp = Path(run_dir, filename)
     period_weights_dtype = np.dtype([
@@ -194,7 +194,7 @@ def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): return periods binary file name
     Returns:
-        return_periods (ndarray[np.int32]): Returns the period weights
+        return_periods (ndarray[np.int32]): Return Periods
         use_return_period_file (bool): Bool to use Return Period File
     """
     if not use_return_period_file:
