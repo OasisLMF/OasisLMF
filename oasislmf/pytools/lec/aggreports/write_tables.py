@@ -347,7 +347,7 @@ def write_ept_weighted(
     epcalc,
     eptype,
     eptype_tvar,
-    unused_periods_to_weights,
+    unused_period_weights,
     use_return_period,
     returnperiods,
     max_summary_id,
@@ -445,15 +445,15 @@ def write_ept_weighted(
 
                 i += 1
         if use_return_period:
-            unused_ptw_idx = 0
+            unused_pw_idx = 0
             while True:
                 retperiod = 0
-                if unused_ptw_idx < len(unused_periods_to_weights):
+                if unused_pw_idx < len(unused_period_weights):
                     cumulative_weighting += (
-                        unused_periods_to_weights[unused_ptw_idx]["weighting"] * cum_weight_constant
+                        unused_period_weights[unused_pw_idx]["weighting"] * cum_weight_constant
                     )
                     retperiod = 1 / cumulative_weighting
-                    unused_ptw_idx += 1
+                    unused_pw_idx += 1
                 if next_returnperiod_idx < len(returnperiods):
                     rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
                         next_returnperiod_idx,
@@ -665,7 +665,7 @@ def write_psept_weighted(
     max_retperiod,
     eptype,
     eptype_tvar,
-    unused_periods_to_weights,
+    unused_period_weights,
     use_return_period,
     returnperiods,
     max_summary_id,
@@ -769,15 +769,15 @@ def write_psept_weighted(
 
                 i += 1
         if use_return_period:
-            unused_ptw_idx = 0
+            unused_pw_idx = 0
             while True:
                 retperiod = 0
-                if unused_ptw_idx < len(unused_periods_to_weights):
+                if unused_pw_idx < len(unused_period_weights):
                     cumulative_weighting += (
-                        unused_periods_to_weights[unused_ptw_idx]["weighting"] * sample_size
+                        unused_period_weights[unused_pw_idx]["weighting"] * sample_size
                     )
                     retperiod = 1 / cumulative_weighting
-                    unused_ptw_idx += 1
+                    unused_pw_idx += 1
                 if next_returnperiod_idx < len(returnperiods):
                     rets, tail, tail_sizes, next_returnperiod_idx, last_computed_rp, last_computed_loss = write_return_period_out(
                         next_returnperiod_idx,

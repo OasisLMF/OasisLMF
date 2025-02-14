@@ -7,15 +7,13 @@ from oasislmf.pytools.lec.utils import get_sample_idx_data
 @nb.njit(cache=True, error_model="numpy")
 def output_full_uncertainty(
     items,
+    items_start_end,
     row_used_indices,
     outloss_vals,
     period_weights,
     max_summary_id,
     num_sidxs,
 ):
-    # Track start and end indices for each summary_id
-    items_start_end = np.full((max_summary_id, 2), -1, dtype=np.int32)
-
     # Track number of entries per summary_id
     summary_counts = np.zeros(max_summary_id, dtype=np.int32)
 
@@ -57,4 +55,4 @@ def output_full_uncertainty(
 
         summary_counts[summary_id - 1] += 1
 
-    return is_weighted, items_start_end, used_period_no
+    return is_weighted, used_period_no

@@ -7,15 +7,13 @@ from oasislmf.pytools.lec.utils import get_sample_idx_data, get_wheatsheaf_items
 @nb.njit(cache=True, error_model="numpy")
 def fill_wheatsheaf_items(
     wheatsheaf_items,
+    wheatsheaf_items_start_end,
     row_used_indices,
     outloss_vals,
     period_weights,
     max_summary_id,
     num_sidxs,
 ):
-    # Track start and end indices for each summary_id
-    items_start_end = np.full((max_summary_id * num_sidxs, 2), -1, dtype=np.int32)
-
     # Track number of entries per summary_id
     summary_sidx_counts = np.zeros(max_summary_id * num_sidxs, dtype=np.int32)
 
@@ -29,9 +27,9 @@ def fill_wheatsheaf_items(
     pos = 0
     for idx in range(max_summary_id * num_sidxs):
         if summary_sidx_counts[idx] > 0:
-            items_start_end[idx][0] = pos  # Start index
+            wheatsheaf_items_start_end[idx][0] = pos  # Start index
             pos += summary_sidx_counts[idx]
-            items_start_end[idx][1] = pos  # End index
+            wheatsheaf_items_start_end[idx][1] = pos  # End index
 
     # Reset summary counts for inserting data
     summary_sidx_counts[:] = 0
@@ -46,7 +44,7 @@ def fill_wheatsheaf_items(
         summary_sidx_idx = get_wheatsheaf_items_idx(summary_id, sidx, num_sidxs)
 
         # Compute position in the flat array
-        insert_idx = items_start_end[summary_sidx_idx][0] + summary_sidx_counts[summary_sidx_idx]
+        insert_idx = wheatsheaf_items_start_end[summary_sidx_idx][0] + summary_sidx_counts[summary_sidx_idx]
 
         # Store values
         wheatsheaf_items[insert_idx]["summary_id"] = summary_id
@@ -60,4 +58,4 @@ def fill_wheatsheaf_items(
 
         summary_sidx_counts[summary_sidx_idx] += 1
 
-    return is_weighted, items_start_end, used_period_no
+    return is_weighted, used_period_no

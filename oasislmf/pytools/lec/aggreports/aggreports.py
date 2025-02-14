@@ -43,6 +43,14 @@ class AggReports():
         self.lec_files_folder = lec_files_folder
 
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
+        """Output Mean Damage Ratio
+        Mean Damage Losses - This means do the loss calculation for a year using the event mean
+        damage loss computed by numerical integration of the effective damageability distributions.
+        Args:
+            eptype (int): Exceedance Probability Type
+            eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
+            outloss_type (string): Which loss to output
+        """
         epcalc = MEANDR
 
         # Get row indices that are used
@@ -51,6 +59,8 @@ class AggReports():
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+        # Track start and end indices for each summary_id
+        items_start_end = np.full((self.max_summary_id, 2), -1, dtype=np.int32)
 
         # Select the correct outloss values based on type
         # Required if-else condition as njit cannot resolve outloss_type inside []
@@ -61,14 +71,16 @@ class AggReports():
         else:
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
-        has_weights, items_start_end, used_period_no = output_mean_damage_ratio(
+        # Populate items and items_start_end
+        has_weights, used_period_no = output_mean_damage_ratio(
             items,
+            items_start_end,
             row_used_indices,
             outloss_vals,
             self.period_weights,
             self.max_summary_id,
         )
-        unused_periods_to_weights = self.period_weights[~used_period_no]
+        unused_period_weights = self.period_weights[~used_period_no]
 
         if has_weights:
             gen = write_ept_weighted(
@@ -78,7 +90,7 @@ class AggReports():
                 epcalc,
                 eptype,
                 eptype_tvar,
-                unused_periods_to_weights,
+                unused_period_weights,
                 self.use_return_period,
                 self.returnperiods,
                 self.max_summary_id
@@ -101,6 +113,14 @@ class AggReports():
             np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
+        """Output Full Uncertainty
+        Full Uncertainty – this means do the calculation across all samples (treating the samples
+        effectively as repeat years) - this is the most accurate of all the single EP Curves.
+        Args:
+            eptype (int): Exceedance Probability Type
+            eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
+            outloss_type (string): Which loss to output
+        """
         epcalc = FULL
 
         # Get row indices that are used
@@ -109,6 +129,8 @@ class AggReports():
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+        # Track start and end indices for each summary_id
+        items_start_end = np.full((self.max_summary_id, 2), -1, dtype=np.int32)
 
         # Select the correct outloss values based on type
         # Required if-else condition as njit cannot resolve outloss_type inside []
@@ -119,15 +141,17 @@ class AggReports():
         else:
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
-        has_weights, items_start_end, used_period_no = output_full_uncertainty(
+        # Populate items and items_start_end
+        has_weights, used_period_no = output_full_uncertainty(
             items,
+            items_start_end,
             row_used_indices,
             outloss_vals,
             self.period_weights,
             self.max_summary_id,
             self.num_sidxs,
         )
-        unused_periods_to_weights = self.period_weights[~used_period_no]
+        unused_period_weights = self.period_weights[~used_period_no]
 
         if has_weights:
             gen = write_ept_weighted(
@@ -137,7 +161,7 @@ class AggReports():
                 epcalc,
                 eptype,
                 eptype_tvar,
-                unused_periods_to_weights,
+                unused_period_weights,
                 self.use_return_period,
                 self.returnperiods,
                 self.max_summary_id
@@ -159,6 +183,18 @@ class AggReports():
             np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
     def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
+        """Output Wheatsheaf and Wheatsheaf Mean
+        Wheatsheaf, Per Sample EPT (PSEPT) – this means calculate the EP Curve for each sample and
+        leave it at the sample level of detail, resulting in multiple “curves”.
+        Wheatsheaf Mean, Per Sample mean EPT – this means average the loss at each return period of
+        the Per Sample EPT.
+        Args:
+            eptype (int): Exceedance Probability Type
+            eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
+            outloss_type (string): Which loss to output
+            output_wheatsheaf (bool): Bool to Output Wheatsheaf
+            output_wheatsheaf_mean (bool): Bool to Output Wheatsheaf Mean
+        """
         epcalc = PERSAMPLEMEAN
 
         # Get row indices that are used
@@ -171,6 +207,8 @@ class AggReports():
             mode="w+",
             shape=(len(row_used_indices)),
         )
+        # Track start and end indices for each summary_id and sidx
+        wheatsheaf_items_start_end = np.full((self.max_summary_id * self.num_sidxs, 2), -1, dtype=np.int32)
 
         # Select the correct outloss values based on type
         # Required if-else condition as njit cannot resolve outloss_type inside []
@@ -181,15 +219,17 @@ class AggReports():
         else:
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
-        has_weights, wheatsheaf_items_start_end, used_period_no = fill_wheatsheaf_items(
+        # Populate wheatsheaf_items and wheatsheaf_items_start_end
+        has_weights, used_period_no = fill_wheatsheaf_items(
             wheatsheaf_items,
+            wheatsheaf_items_start_end,
             row_used_indices,
             outloss_vals,
             self.period_weights,
             self.max_summary_id,
             self.num_sidxs,
         )
-        unused_periods_to_weights = self.period_weights[~used_period_no]
+        unused_period_weights = self.period_weights[~used_period_no]
 
         if has_weights:
             mean_map = None
@@ -210,7 +250,7 @@ class AggReports():
                     self.no_of_periods,
                     eptype,
                     eptype_tvar,
-                    unused_periods_to_weights,
+                    unused_period_weights,
                     self.use_return_period,
                     self.returnperiods,
                     self.max_summary_id,
@@ -289,6 +329,14 @@ class AggReports():
                 np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
 
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
+        """Output Sample Mean
+        Sample Mean Losses – this means do the loss calculation for a year using the statistical
+        sample event mean.
+        Args:
+            eptype (int): Exceedance Probability Type
+            eptype_tvar (int): Exceedance Probability Type (Tail Value at Risk)
+            outloss_type (string): Which loss to output
+        """
         if self.sample_size == 0:
             logger.warning("aggreports.output_sample_mean, self.sample_size is 0, not outputting any sample mean")
             return
@@ -335,17 +383,20 @@ class AggReports():
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_sample_mean-{outloss_type}-items.bdat")
         items = np.memmap(items_fp, dtype=LOSSVEC2MAP_dtype, mode="w+", shape=(len(row_used_indices),))
+        # Track start and end indices for each summary_id
+        items_start_end = np.full((self.max_summary_id, 2), -1, dtype=np.int32)
 
-        has_weights, items_start_end, used_period_no = output_sample_mean(
+        # Populate items and items_start_end
+        has_weights, used_period_no = output_sample_mean(
             items,
+            items_start_end,
             row_used_indices,
             reordered_outlosses["value"],
             self.period_weights,
             self.max_summary_id,
             self.no_of_periods,
-            self.num_sidxs,
         )
-        unused_periods_to_weights = self.period_weights[~used_period_no]
+        unused_period_weights = self.period_weights[~used_period_no]
 
         if has_weights:
             gen = write_ept_weighted(
@@ -355,7 +406,7 @@ class AggReports():
                 epcalc,
                 eptype,
                 eptype_tvar,
-                unused_periods_to_weights,
+                unused_period_weights,
                 self.use_return_period,
                 self.returnperiods,
                 self.max_summary_id
