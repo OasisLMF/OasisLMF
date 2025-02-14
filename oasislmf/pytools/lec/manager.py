@@ -74,6 +74,12 @@ def read_input_files(
 
 @nb.njit(cache=True, error_model="numpy")
 def get_max_summary_id(file_handles):
+    """Get max summary_id from all summary files
+    Args:
+        file_handles (List[np.memmap]): List of memmaps for summary files data
+    Returns:
+        max_summary_id (int): Max summary ID
+    """
     max_summary_id = -1
     for fin in file_handles:
         cursor = oasis_int_size * 3
@@ -105,6 +111,17 @@ def do_lec_output_agg_summary(
     num_sidxs,
     max_summary_id,
 ):
+    """Populate outloss_mean and outloss_sample with aggregate and max losses
+    Args:
+        summary_id (oasis_int): summary_id
+        sidx (oasis_int): Sample ID
+        loss (oasis_float): Loss value
+        filtered_occ_map (ndarray[occ_map_dtype]): Filtered numpy map of event_id, period_no, occ_date_id from the occurrence file_
+        outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
+        outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
+        num_sidxs (int): Number of sidxs to consider for outloss_sample
+        max_summary_id (int): Max summary ID
+    """
     for row in filtered_occ_map:
         period_no = row["period_no"]
         if sidx == MEAN_IDX:
@@ -130,6 +147,17 @@ def process_input_file(
     num_sidxs,
     max_summary_id,
 ):
+    """Process summary file and populate outloss_mean and outloss_sample with losses
+    Args:
+        fin (np.memmap): summary binary memmap
+        outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
+        outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
+        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file_
+        use_return_period (bool): Use Return Period file.
+        num_sidxs (int): Number of sidxs to consider for outloss_sample
+        max_summary_id (int): Max summary ID
+    """
     # Set cursor to end of stream header (stream_type, sample_size, summary_set_id)
     cursor = oasis_int_size * 3
 
@@ -183,6 +211,17 @@ def run_lec(
     num_sidxs,
     max_summary_id,
 ):
+    """Process each summary file and populate outloss_mean and outloss_sample
+    Args:
+        file_handles (List[np.memmap]): List of memmaps for summary files data
+        outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
+        outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
+        summary_ids (ndarray[bool]): bool array marking which summary_ids are used
+        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file_
+        use_return_period (bool): Use Return Period file.
+        num_sidxs (int): Number of sidxs to consider for outloss_sample
+        max_summary_id (int): Max summary ID
+    """
     for fin in file_handles:
         process_input_file(
             fin,
@@ -338,6 +377,7 @@ def run(
                 psept_file.write(PSEPT_headers + "\n")
             output_files["psept"] = psept_file
 
+        # Output aggregate reports to CSVs
         agg = AggReports(
             output_files,
             outloss_mean,
@@ -352,7 +392,6 @@ def run(
             lec_files_folder,
         )
 
-        # Output aggregate reports to CSVs
         # Output Mean Damage Ratio
         if output_ept:
             if hasOCC:
