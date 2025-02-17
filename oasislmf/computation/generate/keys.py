@@ -6,14 +6,12 @@ __all__ = [
 import os
 from packaging import version
 
-from ods_tools.oed.setting_schema import AnalysisSettingSchema, ModelSettingSchema, OdsException
 from ..base import ComputationStep
 from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
-from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 from ...utils.inputs import str2bool
-from ...utils.data import get_utctimestamp, get_exposure_data
+from ...utils.data import get_utctimestamp, get_exposure_data, analysis_settings_loader, model_settings_loader
 
 
 class KeyComputationStep(ComputationStep):
@@ -59,6 +57,8 @@ class GenerateKeys(KeyComputationStep):
         ..
         ..
     """
+    settings_params = [{'name': 'lookup_complex_config_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
 
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
@@ -105,35 +105,27 @@ class GenerateKeys(KeyComputationStep):
 
         output_dir = self._get_output_dir()
         output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
-        if self.lookup_complex_config_json:
-            AnalysisSettingSchema().validate_file(self.lookup_complex_config_json)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
         if not self.disable_oed_version_update:
-            if self.model_settings_json is not None:
-                try:
-                    model_settings = ModelSettingSchema().get(self.model_settings_json, validate=False)
-                    # Check for the existence and contents of 'supported_oed_versions'
-                    supported_versions = model_settings.get('data_settings', {}).get('supported_oed_versions', None)
-                    if supported_versions:
-                        if isinstance(supported_versions, str):
-                            self.logger.info(f"Converting to OED version {supported_versions}")
-                            exposure_data.to_version(supported_versions)
-                        elif isinstance(supported_versions, list) and supported_versions:
-                            # If 'supported_oed_versions' is a list and is not empty
-                            # Sort the versions in descending order
-                            supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
-                            self.logger.info(f"Converting to OED version {supported_versions[0]}")
-                            exposure_data.to_version(supported_versions[0])
-                        else:
-                            # If 'supported_oed_versions' is neither a string nor a non-empty list
-                            self.logger.warning("Invalid OED version information in model settings.")
-                    else:
-                        # If 'supported_oed_versions' is missing or empty
-                        self.logger.debug("No OED version information in model settings.")
-                except OdsException:
-                    self.logger.debug("No OED version information in model settings.")
+            supported_versions = self.settings.get('data_settings', {}).get('supported_oed_versions', None)
+            if supported_versions:
+                if isinstance(supported_versions, str):
+                    self.logger.info(f"Converting to OED version {supported_versions}")
+                    exposure_data.to_version(supported_versions)
+                elif isinstance(supported_versions, list) and supported_versions:
+                    # If 'supported_oed_versions' is a list and is not empty
+                    # Sort the versions in descending order
+                    supported_versions = sorted(supported_versions, key=version.parse, reverse=True)
+                    self.logger.info(f"Converting to OED version {supported_versions[0]}")
+                    exposure_data.to_version(supported_versions[0])
+                else:
+                    # If 'supported_oed_versions' is neither a string nor a non-empty list
+                    self.logger.warning("Invalid OED version information in model settings.")
+            else:
+                # If 'supported_oed_versions' is missing or empty
+                self.logger.debug("No OED version information in model settings.")
 
         keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
@@ -152,7 +144,7 @@ class GenerateKeys(KeyComputationStep):
         )
 
         res = key_server.generate_key_files(
-            location_df=exposure_data.location.dataframe,
+            location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             format=self.keys_format,
@@ -175,8 +167,7 @@ class GenerateKeysDeterministic(KeyComputationStep):
         {'name': 'oed_schema_info', 'is_path': True, 'pre_exist': True, 'help': 'path to custom oed_schema'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
-        {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()),
-         'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'help': 'Select List of supported coverage_types [1, .. ,15]'},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
          'help': 'List of peril covered by the model'}
     ]
@@ -193,6 +184,15 @@ class GenerateKeysDeterministic(KeyComputationStep):
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
+
+        if self.supported_oed_coverage_types is None:
+            coverage_values = exposure_data.oed_schema.schema['CoverageValues']
+            cob_coverage = list(
+                coverage_info['CoverageID'] for coverage_info in coverage_values.values()
+                if not coverage_info['SubCoverages']
+                and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
+            self.supported_oed_coverage_types = cob_coverage
+
         config = {'builtin_lookup_type': 'peril_covered_deterministic',
                   'model': {"supplier_id": "OasisLMF",
                             "model_id": "Deterministic",
@@ -204,8 +204,9 @@ class GenerateKeysDeterministic(KeyComputationStep):
             lookup_config=config,
             output_directory=output_dir
         )
+
         return lookup.generate_key_files(
-            location_df=exposure_data.location.dataframe,
+            location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=keys_fp,
             format='oasis',
         )

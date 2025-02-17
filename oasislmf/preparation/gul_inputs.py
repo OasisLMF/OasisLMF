@@ -146,7 +146,7 @@ def get_gul_input_items(
 
     # Get the TIV column names and corresponding coverage types
     tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'] for k, v in profile[cov_level_id].items()})
-    tiv_cols = list(tiv_terms.values())
+    tiv_cols = list(set(tiv_col for tiv_col in tiv_terms.values() if tiv_col in location_df.columns))
 
     # Get the list of coverage type IDs - financial terms for the coverage
     # level are grouped by coverage type ID in the grouped version of the
@@ -237,7 +237,7 @@ def get_gul_input_items(
             exposure_df_gul_inputs_cols.append(col)
 
     # Check if correlation group field is used to drive damage group id
-    # and test that it's present and poulated with integers
+    # and test that it's present and populated with integers
 
     correlation_group_id = CORRELATION_GROUP_ID
     correlation_field = correlation_group_id[0]
@@ -305,7 +305,7 @@ def get_gul_input_items(
     positive_TIV_query = " or ".join(
         map(lambda cov_type: f"(coverage_type_id == {cov_type} and {tiv_terms[cov_type]} > 0.0)", gul_inputs_df.coverage_type_id.unique()))
 
-    gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)  # convert null T&C values to 0
+    gul_inputs_df[tiv_col].fillna(0, inplace=True)  # convert null T&C values to 0
     gul_inputs_df.query(positive_TIV_query, inplace=True)  # remove rows with TIV=null or TIV=0
 
     if gul_inputs_df.empty:

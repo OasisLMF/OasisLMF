@@ -11,6 +11,7 @@ import os
 import json
 import logging
 
+from ods_tools.oed.settings import SettingHandler
 from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 from json.decoder import JSONDecodeError
@@ -18,22 +19,7 @@ from argparse import ArgumentTypeError
 
 
 def update_config(config_data, config_map=get_config_profile()):
-    config = config_data.copy()
-    obsolete_keys = set(config) & set(config_map)
-    logger = logging.getLogger(__name__)
-
-    if obsolete_keys:
-        logger.warning('Deprecated key(s) in MDK config:')
-        for key in obsolete_keys:
-
-            # update key
-            if not config_map[key]['deleted']:
-                logger.warning(f" '{key}' loaded as '{config_map[key]['updated_to']}'")
-                config[config_map[key]['updated_to']] = config[key]
-            else:
-                logger.warning(f" '{key}' deleted")
-            del config[key]
-    return config
+    return SettingHandler(compatibility_profiles=[config_map]).update_obsolete_keys(config_data)
 
 
 def has_oasis_env(name):

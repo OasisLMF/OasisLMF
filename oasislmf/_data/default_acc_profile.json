@@ -424,6 +424,7 @@
         "FMLevel": 6,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "CondDedType6All": {
@@ -432,6 +433,7 @@
         "FMLevel": 6,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "CondMinDed6All": {
@@ -441,6 +443,7 @@
         "FMLevel": 6,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "CondMaxDed6All": {
@@ -450,6 +453,7 @@
         "FMLevel": 6,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "CondLimit6All": {
@@ -458,6 +462,7 @@
         "FMLevel": 6,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "CondLimitCode6All": {
@@ -466,6 +471,7 @@
         "FMLevel": 6,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "CondLimitType6All": {
@@ -858,6 +864,7 @@
         "FMLevel": 9,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolDedCode6All": {
@@ -866,6 +873,7 @@
         "FMLevel": 9,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolDedType6All": {
@@ -875,6 +883,7 @@
         "FMLevel": 9,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolMinDed6All": {
@@ -884,6 +893,7 @@
         "FMLevel": 9,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolMaxDed6All": {
@@ -893,6 +903,7 @@
         "FMLevel": 9,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolLimit6All": {
@@ -901,6 +912,7 @@
         "FMLevel": 9,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolLimitCode6All": {
@@ -909,6 +921,7 @@
         "FMLevel": 9,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "PolLimitType6All": {
@@ -917,6 +930,7 @@
         "FMLevel": 9,
         "FMTermType": "LimitType",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3,4],
         "ProfileType": "Acc"
     },
     "LayerAttachment": {
