@@ -9,7 +9,7 @@ from . import manager, logger
 def main():
     parser = argparse.ArgumentParser(description='Process event loss table stream')
     parser.add_argument('--run_dir', type=str, default='.', help='path to the run directory')
-    parser.add_argument('--files_in', type=str, nargs='+', required=False, help='Input files')
+    parser.add_argument('-i', '--files_in', type=str, nargs='+', required=False, help='Input files')
     parser.add_argument('-s', '--selt', type=str, default=None, help='Output SELT CSV file')
     parser.add_argument('-m', '--melt', type=str, default=None, help='Output MELT CSV file')
     parser.add_argument('-q', '--qelt', type=str, default=None, help='Output QELT CSV file')
