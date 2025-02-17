@@ -129,18 +129,10 @@ def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
             ("occ_date_id", np.int64),
         ])
 
-    occ_map = np.zeros(num_records, dtype=occ_map_dtype)
+    occ_map = np.zeros(0, dtype=occ_map_dtype)
 
-    for i in range(num_records):
-        if valid_buff - cursor < record_size:
-            break  # Not enough data left
-        event_id, cursor = mv_read(fin, cursor, np.int32, np.dtype(np.int32).itemsize)
-        period_no, cursor = mv_read(fin, cursor, np.int32, np.dtype(np.int32).itemsize)
-        if granular_date:
-            occ_date_id, cursor = mv_read(fin, cursor, np.int64, np.dtype(np.int64).itemsize)
-        else:
-            occ_date_id, cursor = mv_read(fin, cursor, np.int32, np.dtype(np.int32).itemsize)
-        occ_map[i] = (event_id, period_no, occ_date_id)
+    if num_records > 0:
+        occ_map = np.frombuffer(fin[cursor:cursor + num_records * record_size], dtype=occ_map_dtype)
 
     return occ_map, date_algorithm, granular_date, no_of_periods
 
