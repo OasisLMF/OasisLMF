@@ -1,12 +1,6 @@
 __all__ = [
     'OedValidator'
 ]
-import os
-
-from ods_tools.oed import fill_empty
-
-from ..utils.data import get_dataframe, RI_INFO_DEFAULTS, RI_SCOPE_DEFAULTS
-
 
 # TODO - add validator
 class OedValidator(object):
