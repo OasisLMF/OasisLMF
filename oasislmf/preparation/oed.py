@@ -1,5 +1,4 @@
 __all__ = [
-    'load_oed_dfs',
     'OedValidator'
 ]
 import os
@@ -154,52 +153,6 @@ class OedValidator(object):
 
         return (not error_list, error_list)
 
-
-def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
-    """
-    Load OED data files.
-    """
-    do_reinsurance = True
-
-    oed_ri_info_file_exists = os.path.exists(oed_ri_info_file)
-    oed_ri_scope_file_exists = os.path.exists(oed_ri_scope_file)
-
-    if not oed_ri_info_file_exists and not oed_ri_scope_file_exists:
-        ri_info_df = None
-        ri_scope_df = None
-        do_reinsurance = False
-    elif oed_ri_info_file_exists and oed_ri_scope_file_exists:
-        ri_info_df = get_dataframe(
-            oed_ri_info_file, lowercase_cols=False,
-            required_cols=RI_INFO_REQUIRED_COLS,
-            col_defaults=RI_INFO_DEFAULTS,
-            col_dtypes=RI_INFO_DTYPES)
-        ri_scope_df = get_dataframe(
-            oed_ri_scope_file, lowercase_cols=False,
-            required_cols=RI_SCOPE_REQUIRED_COLS,
-            col_defaults=RI_SCOPE_DEFAULTS,
-            col_dtypes=RI_SCOPE_DTYPES)
-
-        # Treat empty Risk Level as portfolio level scope.
-        # Also need nan, as this is produced when
-        # a single row with empty Risk Level is loaded.
-        fill_empty(ri_info_df, 'RiskLevel', REINS_RISK_LEVEL_PORTFOLIO)
-    else:
-        print("Both reinsurance files must exist: {} {}".format(
-            oed_ri_info_file, oed_ri_scope_file))
-
-    if do_reinsurance:
-        optional_currency_cols = list({'originalcurrency', 'rateofexchange'} & set(ri_info_df.columns))
-        ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS + optional_currency_cols].copy()
-        ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
-
-        # Ensure Percent feilds are float
-        info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
-        scope_float_cols = ['CededPercent']
-        ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
-        ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
-
-    return (ri_info_df, ri_scope_df, do_reinsurance)
 
 #
 # Ktools constants
