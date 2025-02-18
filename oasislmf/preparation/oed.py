@@ -2,6 +2,7 @@ __all__ = [
     'OedValidator'
 ]
 
+
 # TODO - add validator
 class OedValidator(object):
 
