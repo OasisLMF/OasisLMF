@@ -1,8 +1,4 @@
-#
-# Ktools constants
-#
-
-
+# --- Ktools constants --------------------------------------------------------- #
 DEDUCTIBLE_AND_LIMIT_CALCRULE_ID = 1
 FRANCHISE_DEDUCTIBLE_AND_LIMIT_CALCRULE_ID = 3
 DEDUCTIBLE_ONLY_CALCRULE_ID = 12
