@@ -2,6 +2,7 @@ import os
 import io
 import json
 import logging
+import re
 
 import pathlib
 import pandas as pd
@@ -48,6 +49,32 @@ CONTENT_MAP = {
     'zip': 'application/zip',
     'bz2': 'application/x-bzip2',
 }
+
+
+def request_package_unpack_bytes(data_body):
+    """ For some reasnon the requests testing package switched from 'MultipartEncoder' to bytes
+        this function unpacks those bytes into its components
+    """
+    multipart_string = data_body.decode("utf-8")
+
+    # Extract boundary
+    boundary_match = re.search(r'--([a-f0-9]+)', multipart_string)
+    boundary = boundary_match.group(1) if boundary_match else None
+
+    # Extract file details
+    filename_match = re.search(r'filename="([^"]+)"', multipart_string)
+    filename = filename_match.group(1) if filename_match else "unknown"
+
+    # Extract content type
+    content_type_match = re.search(r'Content-Type: ([^\r\n]+)', multipart_string)
+    content_type = content_type_match.group(1) if content_type_match else "application/octet-stream"
+
+    # Extract file content (after double CRLF)
+    file_content_start = multipart_string.find("\r\n\r\n") + 4
+    file_content_end = multipart_string.rfind(f"--{boundary}--")
+    file_content = data_body[file_content_start:file_content_end].strip()
+
+    return filename, file_content, content_type
 
 
 @responses.activate
@@ -469,7 +496,12 @@ class FileEndpointTests(unittest.TestCase):
 
         rsp = self.api.post(ID, data_object, content_type)
         request = responses.calls[-1].request
-        req_type, req_data, req_content_type = request.body.fields['file']
+
+        # requests==2.32.3 or greater
+        if isinstance(request.body, bytes):
+            req_type, req_data, req_content_type = request_package_unpack_bytes(request.body)
+        else:
+            req_type, req_data, req_content_type = request.body.fields['file']
 
         self.assertEqual(rsp.url, expected_url)
         self.assertEqual(req_type, 'data')
@@ -597,9 +629,14 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(rsp.url, expected_url)
 
         request = responses.calls[-1].request
-        requ_type, requ_data, requ_content_type = request.body.fields['file']
-        requ_data.seek(0)
-        result_df = pd.read_csv(requ_data)
+        if isinstance(request.body, bytes):
+            req_type, req_data, req_content_type = request_package_unpack_bytes(request.body)
+            import ipdb; ipdb.set_trace()
+            result_df = pd.read_csv(requ_data)
+        else:
+            req_type, req_data, req_content_type = request.body.fields['file']
+            requ_data.seek(0)
+            result_df = pd.read_csv(requ_data)
 
         self.assertEqual(requ_type, 'data')
         self.assertEqual(requ_content_type, 'text/csv')
