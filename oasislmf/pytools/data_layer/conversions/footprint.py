@@ -9,9 +9,7 @@ from pyarrow import parquet as pq
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
-CHUNK_SIZE = 8 * 1024 * 8
-
-def convert_bin_to_parquet(static_path: str) -> None:
+def convert_bin_to_parquet(static_path: str, chunk_size = 1024*1024*8) -> None:
     """
     Converts the data from a binary file to a parquet file.
 
@@ -55,7 +53,7 @@ def convert_bin_to_parquet(static_path: str) -> None:
                 'partition': count,
                 'min_areaperil_id': min_apid,
                 'max_areaperil_id': max_apid
-            }) #size
+            }) #size?
             
             data_slice = footprint_obj.get_event(event_id)
             df = pd.DataFrame(data_slice)
@@ -64,7 +62,7 @@ def convert_bin_to_parquet(static_path: str) -> None:
             current_chunk.append(df)
             current_size += df.memory_usage(deep=True).sum()
             
-            if (current_size < CHUNK_SIZE):
+            if (current_size < chunk_size):
                 continue
             
             pq.write_table(
@@ -78,7 +76,6 @@ def convert_bin_to_parquet(static_path: str) -> None:
             count += 1
             
         if current_chunk:
-            print(current_size)
             pq.write_table(
                 pa.Table.from_pandas(pd.concat(current_chunk, ignore_index=True)),
                 f'{static_path}/footprint_{count}.parquet',
@@ -101,5 +98,3 @@ def main() -> None:
     Returns: None
     """
     convert_bin_to_parquet(static_path=str(os.getcwd()))
-
-convert_bin_to_parquet("/home/ubuntu/GitHub/OasisPiWind/model_data/PiWind")

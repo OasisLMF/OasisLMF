@@ -1,7 +1,6 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
-import pdb
 import json
 import logging
 import mmap
@@ -128,17 +127,14 @@ class Footprint:
         """
         for footprint_class in cls.get_footprint_fmt_priorities():
             for filename in footprint_class.footprint_filenames:
-                #raise ValueError(f"HELLO CAN YOU HEAR ME storage.exists{filename}:  {storage.exists(filename)}, {ignore_file_type}")
                 if (not storage.exists(filename) or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
-                    #raise ValueError(f"!storage.exists{filename}:  {storage.exists(filename)}, {ignore_file_type}")
                     break
             else:
                 valid = True
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
-                #raise ValueError(f"Loading {footprint_class}")
                 return footprint_class(storage, df_engine=df_engine)
         else:
             if storage.isfile("footprint.parquet"):
@@ -185,10 +181,6 @@ class Footprint:
         if has_number_in_range(self.areaperil_ids, min_areaperil_id, max_areaperil_id):
             return True
         return False
-    
-
-    
-
 
 
 class FootprintCsv(Footprint):
@@ -291,6 +283,7 @@ class FootprintBin(Footprint):
             return
         else:
             return np.frombuffer(self.footprint[event_info['offset']: event_info['offset'] + event_info['size']], Event)
+
 
 class FootprintBinZ(Footprint):
     """
@@ -429,6 +422,7 @@ class FootprintParquetChunk(Footprint):
         df = reader.as_pandas()
         events = [self.prepare_df_data(data_frame=group) for _, group in df.groupby("event_id")]
         return events
+
 
 class FootprintParquetDynamic(Footprint):
     """

@@ -25,4 +25,3 @@ def change_footprint_apid_multi_peril(path, size_lat, size_lon, num_perils):
     df = df.sort_values(by=df.columns.tolist())
 
     df.to_csv(path, index=False)
-    

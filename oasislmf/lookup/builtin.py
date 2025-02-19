@@ -177,6 +177,7 @@ def jit_geo_grid_lookup(lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id
     return area_peril_id      
 
 def get_step(grid):
+    """Returns the grid size using the max and min long and latitude and arc size"""
     length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
     width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
     return length*width
@@ -636,7 +637,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         def fct(locs_peril):
             start_index = 0
-            
             step = get_step(next(iter(perils_dict.values())))
            
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
@@ -706,7 +706,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     @staticmethod
     def build_fixed_size_z_index_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
         """
-        associate an id to each square of the grid define by the limit of lat and lon
+        associate an id to each square of the grid defined by z-order indexing.
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
 
