@@ -1,6 +1,7 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
+import pdb
 import json
 import logging
 import mmap
@@ -16,10 +17,12 @@ import numba as nb
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore.backends.local import LocalStorage
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV, EventDynamic,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename,
-                     event_defintion_filename, hazard_case_filename, fp_format_priorities)
+                     event_defintion_filename, hazard_case_filename, fp_format_priorities, parquetfootprint_chunked_filename,
+                     parquetfootprint_chunked_lookup)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,12 @@ intensityMask = 1
 
 CURRENT_DIRECTORY = str(os.getcwd())
 
+@nb.njit()
+def has_number_in_range(areaperil_ids, min_areaperil_id, max_areaperil_id):
+    for apid in areaperil_ids:
+        if min_areaperil_id <= apid <= max_areaperil_id:
+            return True
+    return False
 
 class OasisFootPrintError(Exception):
     """
@@ -54,7 +63,7 @@ class Footprint:
         stack (ExitStack): the context manager that combines other context managers and cleanup functions
     """
 
-    def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader") -> None:
+    def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader", areaperil_ids = None) -> None:
         """
         The constructor for the Footprint class.
 
@@ -64,6 +73,7 @@ class Footprint:
         self.storage = storage
         self.stack = ExitStack()
         self.df_engine = df_engine
+        self.areaperil_ids = np.array(areaperil_ids) if areaperil_ids is not None else None
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
@@ -76,8 +86,8 @@ class Footprint:
         Returns: (list) footprint file format classes
         """
         format_to_class = {
-            'parquet': FootprintParquet, 'csv': FootprintCsv,
-            'binZ': FootprintBinZ, 'bin': FootprintBin,
+            'parquet_chunk': FootprintParquetChunk, 'parquet': FootprintParquet, 
+            'csv': FootprintCsv, 'binZ': FootprintBinZ, 'bin': FootprintBin,
             'parquet_dynamic': FootprintParquetDynamic,
         }
         priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
@@ -118,14 +128,17 @@ class Footprint:
         """
         for footprint_class in cls.get_footprint_fmt_priorities():
             for filename in footprint_class.footprint_filenames:
+                #raise ValueError(f"HELLO CAN YOU HEAR ME storage.exists{filename}:  {storage.exists(filename)}, {ignore_file_type}")
                 if (not storage.exists(filename) or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
+                    #raise ValueError(f"!storage.exists{filename}:  {storage.exists(filename)}, {ignore_file_type}")
                     break
             else:
                 valid = True
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
+                #raise ValueError(f"Loading {footprint_class}")
                 return footprint_class(storage, df_engine=df_engine)
         else:
             if storage.isfile("footprint.parquet"):
@@ -162,6 +175,20 @@ class Footprint:
         buffer = np.empty(len(areaperil_id), dtype=Event)
         outcome = stitch_data(areaperil_id, intensity_bin_id, probability, buffer)
         return np.array(outcome, dtype=Event)
+    
+    def areaperil_in_range(self, event_id, events_dict):
+        if self.areaperil_ids is None:
+            return True # If its none we are searching all the places
+        if event_id not in events_dict:
+            return False
+        min_areaperil_id, max_areaperil_id = events_dict[event_id]
+        if has_number_in_range(self.areaperil_ids, min_areaperil_id, max_areaperil_id):
+            return True
+        return False
+    
+
+    
+
 
 
 class FootprintCsv(Footprint):
@@ -177,6 +204,7 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
+        self.reader = pd.read_csv()
         self.reader = self.get_df_reader("footprint.csv", dtype=EventCSV)
 
         self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())
@@ -236,6 +264,13 @@ class FootprintBin(Footprint):
             footprint_mmap,
             columns=footprint_mmap.dtype.names
         ).set_index('event_id').to_dict('index')
+        
+        try:
+            events = self.get_df_reader(f"footprint_lookup.parquet").as_pandas()
+            self.events_dict = {row.event_id: (row.min_areaperil_id, row.max_areaperil_id) for row in events.itertuples(index=False)}
+        except FileNotFoundError:
+            self.events_dict = None
+        
         return self
 
     def get_event(self, event_id):
@@ -247,12 +282,15 @@ class FootprintBin(Footprint):
 
         Returns: (np.array(Event)) the event that was extracted
         """
+        if self.events_dict:
+            if not self.areaperil_in_range(event_id, self.events_dict):
+                return None
+        
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
             return
         else:
             return np.frombuffer(self.footprint[event_info['offset']: event_info['offset'] + event_info['size']], Event)
-
 
 class FootprintBinZ(Footprint):
     """
@@ -284,6 +322,13 @@ class FootprintBinZ(Footprint):
         f = self.stack.enter_context(self.storage.with_fileno(zfootprint_index_filename))
         zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
         self.footprint_index = pd.DataFrame(zfootprint_mmap, columns=zfootprint_mmap.dtype.names).set_index('event_id').to_dict('index')
+        
+        try:
+            events = self.get_df_reader(f"footprint_lookup.parquet").as_pandas()
+            self.events_dict = {row.event_id: (row.min_areaperil_id, row.max_areaperil_id) for row in events.itertuples(index=False)}
+        except FileNotFoundError:
+            self.events_dict = None
+            
         return self
 
     def get_event(self, event_id):
@@ -295,6 +340,10 @@ class FootprintBinZ(Footprint):
 
         Returns: (np.array[Event]) the event that was extracted
         """
+        if self.events_dict:
+            if not self.areaperil_in_range(event_id, self.events_dict):
+                return None
+
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
             return
@@ -302,7 +351,7 @@ class FootprintBinZ(Footprint):
             zdata = self.zfootprint[event_info['offset']: event_info['offset'] + event_info['size']]
             data = decompress(zdata)
             return np.frombuffer(data, Event)
-
+        
 
 class FootprintParquet(Footprint):
     """
@@ -336,8 +385,50 @@ class FootprintParquet(Footprint):
         reader = self.get_df_reader("footprint.parquet", filters=[("event_id", "==", event_id)])
 
         numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
-        return numpy_data
+        return numpy_data    
 
+
+class FootprintParquetChunk(Footprint):
+    footprint_filenames = [parquetfootprint_chunked_filename, parquetfootprint_meta_filename, parquetfootprint_chunked_lookup]
+    current_reader = None
+    current_partition = None
+    
+    def __enter__(self):
+        with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
+            meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
+
+        self.num_intensity_bins = int(meta_data['num_intensity_bins'])
+        self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
+        
+        return self
+    
+    def get_event(self, event_id: int):
+        """
+        Gets the event data from the partitioned parqueparquetfootprint_chunked_filenamet data file.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (np.array[Event]) the event that was extracted
+        """
+        row_lookup = self.get_df_reader(f"footprint_lookup.parquet", filters=[("event_id", "==", event_id)])
+        df = row_lookup.as_pandas()
+        if df.empty:
+            return None
+        
+        partition = df["partition"][0]
+        if partition != self.current_partition:
+            self.current_partition = partition
+            self.current_df = self.get_df_reader(f"footprint_{partition}.parquet").as_pandas()
+        
+        return self.prepare_df_data(data_frame = self.current_df[self.current_df["event_id"] == event_id])
+    
+    def get_events(self, partition):
+        reader = self.get_df_reader(f"footprint_{partition}.parquet")
+
+        df = reader.as_pandas()
+        events = [self.prepare_df_data(data_frame=group) for _, group in df.groupby("event_id")]
+        return events
 
 class FootprintParquetDynamic(Footprint):
     """

@@ -126,6 +126,8 @@ def undo_z_index(z):
 @nb.njit(cache=True)
 def z_index_to_normal(index, size_lat):
     """Converts from z-indexing to linear ordering"""
+    if index == OASIS_UNKNOWN_ID:
+        return index
     index -= 1
     lat, long = undo_z_index(index)
     return (lat + long * size_lat + 1)
@@ -133,6 +135,8 @@ def z_index_to_normal(index, size_lat):
 @nb.njit(cache=True)
 def normal_to_z_index(index, size_lat):
     """Converts from linear ordering to z-indexing"""
+    if index == OASIS_UNKNOWN_ID:
+        return index
     index -= 1
     return z_index(index % size_lat, index // size_lat) + 1
 
@@ -171,6 +175,11 @@ def jit_geo_grid_lookup(lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id
         else:
             area_peril_id[i] = OASIS_UNKNOWN_ID
     return area_peril_id      
+
+def get_step(grid):
+    length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
+    width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
+    return length*width
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
@@ -627,6 +636,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         def fct(locs_peril):
             start_index = 0
+            
+            step = get_step(next(iter(perils_dict.values())))
+           
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
             for peril_id, fixed_geo_grid_params in perils_dict.items():
                 curr_grid_fct = Lookup.build_fixed_size_geo_grid(**fixed_geo_grid_params)
@@ -635,7 +647,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 curr_locs_peril = curr_grid_fct(curr_locs_peril)
                 curr_locs_peril.loc[curr_locs_peril['area_peril_id'] != OASIS_UNKNOWN_ID, 'area_peril_id'] = curr_locs_peril['area_peril_id'] + start_index
 
-                start_index = curr_locs_peril["area_peril_id"].max()
+                start_index += step
 
                 locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
             return locs_peril
@@ -649,11 +661,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         
         lat_id, lon_id = create_lat_lon_id_functions(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse)
-        size_lat = math.ceil((lat_max - lat_min) / arc_size)
+        size_lon = round((lon_max - lon_min) / arc_size)
 
         @nb.jit(cache=True)
         def get_id(lat, lon, lat_id, lon_id):
-            return int(lat_id(lat) + lon_id(lon) * size_lat + 1)
+            return lon_id(lon) + lat_id(lat) * size_lon + 1
         
         def geo_grid_lookup(locations):
             locations['area_peril_id'] = jit_geo_grid_lookup(locations['latitude'].to_numpy(),
@@ -702,7 +714,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         @nb.jit(cache=True)
         def get_id(lat, lon, lat_id, lon_id):
-            return z_index(lat_id(lat), lon_id(lon))+1
+            return z_index(lon_id(lon), lat_id(lat))+1
 
         def geo_grid_lookup(locations):
             locations['area_peril_id'] = jit_geo_grid_lookup(locations['latitude'].to_numpy(),

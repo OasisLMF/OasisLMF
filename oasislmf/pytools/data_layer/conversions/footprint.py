@@ -9,6 +9,7 @@ from pyarrow import parquet as pq
 from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
+CHUNK_SIZE = 8 * 1024 * 8
 
 def convert_bin_to_parquet(static_path: str) -> None:
     """
@@ -32,17 +33,62 @@ def convert_bin_to_parquet(static_path: str) -> None:
             "num_intensity_bins": footprint_obj.num_intensity_bins,
             "has_intensity_uncertainty": True if footprint_obj.has_intensity_uncertainty == 1 else False
         }
-
+        
+        event_data = []
         for event_id in index_data.keys():
             data_slice = footprint_obj.get_event(event_id)
             df = pd.DataFrame(data_slice)
+            min_areaperil_id = min(df['areaperil_id'])  
+            max_areaperil_id = max(df['areaperil_id'])
+            event_data.append((min_areaperil_id, max_areaperil_id, event_id)) 
+
+        event_data.sort(key=lambda x: x[0])
+
+        current_chunk = []
+        current_size = 0
+        count = 1
+        footprint_lookup = []
+        
+        for min_apid, max_apid, event_id in event_data:
+            footprint_lookup.append({
+                'event_id': event_id,
+                'partition': count,
+                'min_areaperil_id': min_apid,
+                'max_areaperil_id': max_apid
+            }) #size
+            
+            data_slice = footprint_obj.get_event(event_id)
+            df = pd.DataFrame(data_slice)
             df["event_id"] = event_id
-            pq.write_to_dataset(
-                pa.Table.from_pandas(df),
-                root_path=f'{static_path}/footprint.parquet',
-                partition_cols=['event_id'],
+            
+            current_chunk.append(df)
+            current_size += df.memory_usage(deep=True).sum()
+            
+            if (current_size < CHUNK_SIZE):
+                continue
+            
+            pq.write_table(
+                pa.Table.from_pandas(pd.concat(current_chunk, ignore_index=True)),
+                f'{static_path}/footprint_{count}.parquet',
                 compression="BROTLI"
             )
+            
+            current_chunk = []
+            current_size = 0
+            count += 1
+            
+        if current_chunk:
+            print(current_size)
+            pq.write_table(
+                pa.Table.from_pandas(pd.concat(current_chunk, ignore_index=True)),
+                f'{static_path}/footprint_{count}.parquet',
+                compression='BROTLI'
+            )
+        
+        footprint_lookup_df = pd.DataFrame(footprint_lookup)
+
+        footprint_lookup_df.to_parquet(f'{static_path}/footprint_lookup.parquet', index=False)
+        
         with storage.open('footprint_parquet_meta.json', 'w') as outfile:
             json.dump(meta_data, outfile)
 
@@ -55,3 +101,5 @@ def main() -> None:
     Returns: None
     """
     convert_bin_to_parquet(static_path=str(os.getcwd()))
+
+convert_bin_to_parquet("/home/ubuntu/GitHub/OasisPiWind/model_data/PiWind")
