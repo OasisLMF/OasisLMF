@@ -27,6 +27,7 @@ COVERAGE_STREAM = 2
 
 
 # special sample id
+NUM_SPECIAL_SIDX = 5
 MEAN_IDX = -1
 STD_DEV_IDX = -2
 TIV_IDX = -3
@@ -254,7 +255,7 @@ class EventReader:
         """
         main_selector = selector_class()
         stream_data = []
-        for stream_in in streams_in:
+        for file_idx, stream_in in enumerate(streams_in):
             mv = memoryview(bytearray(PIPE_CAPACITY))
             byte_mv = np.frombuffer(buffer=mv, dtype='b')
 
@@ -264,7 +265,8 @@ class EventReader:
                     'byte_mv': byte_mv,
                     'cursor': 0,
                     'valid_buff': 0,
-                    'stream_selector': stream_selector
+                    'stream_selector': stream_selector,
+                    'file_idx': file_idx,
                     }
             stream_data.append(data)
             main_selector.register(stream_in, selectors.EVENT_READ, data)
@@ -303,9 +305,10 @@ class EventReader:
                     byte_mv = data['byte_mv']
                     cursor = data['cursor']
                     valid_buff = data['valid_buff']
+                    file_idx = data['file_idx']
                     yield_event = True
                     while yield_event:
-                        cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, 0, 0)
+                        cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, 0, 0, file_idx=file_idx)
 
                         if event_id:
                             self.item_exit()
@@ -315,7 +318,7 @@ class EventReader:
         finally:
             main_selector.close()
 
-    def read_event(self, stream_in, main_selector, stream_selector, mv, byte_mv, cursor, valid_buff):
+    def read_event(self, stream_in, main_selector, stream_selector, mv, byte_mv, cursor, valid_buff, file_idx):
         """
         read one event from stream_in
         close and remove the stream from main_selector when all is read
@@ -327,6 +330,7 @@ class EventReader:
             byte_mv: numpy byte view of the buffer
             cursor: current cursor of the memory view
             valid_buff: valid data in memory view
+            file_idx: file index
 
         Returns:
             event_id, cursor, valid_buff
@@ -348,7 +352,7 @@ class EventReader:
                         return event_id, cursor, valid_buff
 
                     break
-            cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id)
+            cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, file_idx=file_idx)
 
             if yield_event:
                 if 2 * cursor > valid_buff:
@@ -361,7 +365,7 @@ class EventReader:
                 valid_buff -= cursor
                 cursor = 0
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         raise NotImplementedError
 
     def item_exit(self):
