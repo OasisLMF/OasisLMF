@@ -10,7 +10,7 @@ from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
-                                       OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, OUTLOSS_DTYPE)
+                                       OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, OUTLOSS_DTYPE, EPT_headers, PSEPT_headers)
 from oasislmf.pytools.lec.data import (EPT_output, PSEPT_output)
 from oasislmf.pytools.lec.aggreports import AggReports
 from oasislmf.pytools.lec.utils import get_outloss_mean_idx, get_outloss_sample_idx
@@ -367,14 +367,14 @@ def run(
         if output_ept:
             ept_file = stack.enter_context(open(ept_output_file, "w"))
             if not noheader:
-                EPT_headers = ",".join([c[0] for c in EPT_output])
-                ept_file.write(EPT_headers + "\n")
+                csv_headers = ",".join(EPT_headers)
+                ept_file.write(csv_headers + "\n")
             output_files["ept"] = ept_file
         if output_psept:
             psept_file = stack.enter_context(open(psept_output_file, "w"))
             if not noheader:
-                PSEPT_headers = ",".join([c[0] for c in PSEPT_output])
-                psept_file.write(PSEPT_headers + "\n")
+                csv_headers = ",".join(PSEPT_headers)
+                psept_file.write(csv_headers + "\n")
             output_files["psept"] = psept_file
 
         # Output aggregate reports to CSVs

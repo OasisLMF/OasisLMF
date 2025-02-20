@@ -49,6 +49,8 @@ PSEPT_output = [
     ('Loss', oasis_float, '%.6f'),
 ]
 
+EPT_headers = [c[0] for c in EPT_output]
+PSEPT_headers = [c[0] for c in PSEPT_output]
 EPT_dtype = np.dtype([(c[0], c[1]) for c in EPT_output])
 PSEPT_dtype = np.dtype([(c[0], c[1]) for c in PSEPT_output])
 EPT_fmt = ','.join([c[2] for c in EPT_output])

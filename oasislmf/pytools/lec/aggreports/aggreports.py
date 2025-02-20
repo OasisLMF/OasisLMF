@@ -2,14 +2,14 @@ import logging
 from pathlib import Path
 import numpy as np
 
-from oasislmf.pytools.common.data import oasis_float
+from oasislmf.pytools.common.data import oasis_float, write_ndarray_to_fmt_csv
 from oasislmf.pytools.lec.aggreports.outputs.full_uncertainty import output_full_uncertainty
 from oasislmf.pytools.lec.aggreports.outputs.mean_damage_ratio import output_mean_damage_ratio
 from oasislmf.pytools.lec.aggreports.outputs.sample_mean import output_sample_mean, reorder_losses_by_summary_and_period
 from oasislmf.pytools.lec.aggreports.outputs.wheatsheaf import fill_wheatsheaf_items
 from oasislmf.pytools.lec.aggreports.outputs.wheatsheaf_mean import fill_wheatsheaf_mean_items, get_wheatsheaf_max_count
 from oasislmf.pytools.lec.aggreports.write_tables import write_ept, write_ept_weighted, write_psept, write_psept_weighted, write_wheatsheaf_mean
-from oasislmf.pytools.lec.data import FULL, MEANDR, MEANSAMPLE, PERSAMPLEMEAN
+from oasislmf.pytools.lec.data import FULL, MEANDR, MEANSAMPLE, PERSAMPLEMEAN, EPT_headers, PSEPT_headers
 from oasislmf.pytools.lec.data import EPT_fmt, LOSSVEC2MAP_dtype, MEANMAP_dtype, PSEPT_fmt, WHEATKEYITEMS_dtype
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class AggReports():
             )
 
         for data in gen:
-            np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+            write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
 
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         """Output Full Uncertainty
@@ -180,7 +180,7 @@ class AggReports():
             )
 
         for data in gen:
-            np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+            write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
 
     def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
         """Output Wheatsheaf and Wheatsheaf Mean
@@ -259,7 +259,7 @@ class AggReports():
                     mean_map=mean_map,
                 )
                 for data in gen:
-                    np.savetxt(self.output_files["psept"], data, delimiter=",", fmt=PSEPT_fmt)
+                    write_ndarray_to_fmt_csv(self.output_files["psept"], data, PSEPT_headers, PSEPT_fmt)
 
             if output_wheatsheaf_mean:
                 gen = write_wheatsheaf_mean(
@@ -269,7 +269,7 @@ class AggReports():
                     self.max_summary_id,
                 )
                 for data in gen:
-                    np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+                    write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
         else:
             if output_wheatsheaf:
                 gen = write_psept(
@@ -284,7 +284,7 @@ class AggReports():
                     self.num_sidxs,
                 )
                 for data in gen:
-                    np.savetxt(self.output_files["psept"], data, delimiter=",", fmt=PSEPT_fmt)
+                    write_ndarray_to_fmt_csv(self.output_files["psept"], data, PSEPT_headers, PSEPT_fmt)
 
             if not output_wheatsheaf_mean:
                 return
@@ -326,7 +326,7 @@ class AggReports():
             )
 
             for data in gen:
-                np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+                write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
 
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
         """Output Sample Mean
@@ -425,4 +425,4 @@ class AggReports():
             )
 
         for data in gen:
-            np.savetxt(self.output_files["ept"], data, delimiter=",", fmt=EPT_fmt)
+            write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
