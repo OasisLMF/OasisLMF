@@ -6,7 +6,8 @@ import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
+                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_event_rates, read_quantile
@@ -44,14 +45,20 @@ QELT_output = [
     ('Loss', oasis_float, '%.6f'),
 ]
 
+SELT_headers = [c[0] for c in SELT_output]
+MELT_headers = [c[0] for c in MELT_output]
+QELT_headers = [c[0] for c in QELT_output]
+SELT_dtype = np.dtype([(c[0], c[1]) for c in SELT_output])
+MELT_dtype = np.dtype([(c[0], c[1]) for c in MELT_output])
+QELT_dtype = np.dtype([(c[0], c[1]) for c in QELT_output])
+SELT_fmt = ','.join([c[2] for c in SELT_output])
+MELT_fmt = ','.join([c[2] for c in MELT_output])
+QELT_fmt = ','.join([c[2] for c in QELT_output])
+
 
 class ELTReader(EventReader):
     def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals):
         self.logger = logger
-
-        SELT_dtype = np.dtype([(c[0], c[1]) for c in SELT_output])
-        MELT_dtype = np.dtype([(c[0], c[1]) for c in MELT_output])
-        QELT_dtype = np.dtype([(c[0], c[1]) for c in QELT_output])
 
         # Buffer for SELT data
         self.selt_data = np.zeros(1000000, dtype=SELT_dtype)
@@ -433,8 +440,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_selt:
             selt_file = stack.enter_context(open(selt_output_file, 'w'))
             if not noheader:
-                SELT_headers = ','.join([c[0] for c in SELT_output])
-                selt_file.write(SELT_headers + '\n')
+                csv_headers = ','.join(SELT_headers)
+                selt_file.write(csv_headers + '\n')
             output_files['selt'] = selt_file
         else:
             output_files['selt'] = None
@@ -442,8 +449,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_melt:
             melt_file = stack.enter_context(open(melt_output_file, 'w'))
             if not noheader:
-                MELT_headers = ','.join([c[0] for c in MELT_output])
-                melt_file.write(MELT_headers + '\n')
+                csv_headers = ','.join(MELT_headers)
+                melt_file.write(csv_headers + '\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
@@ -451,22 +458,18 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if compute_qelt:
             qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
             if not noheader:
-                QELT_headers = ','.join([c[0] for c in QELT_output])
-                qelt_file.write(QELT_headers + '\n')
+                csv_headers = ','.join(QELT_headers)
+                qelt_file.write(csv_headers + '\n')
             output_files['qelt'] = qelt_file
         else:
             output_files['qelt'] = None
 
-        SELT_fmt = ','.join([c[2] for c in SELT_output])
-        MELT_fmt = ','.join([c[2] for c in MELT_output])
-        QELT_fmt = ','.join([c[2] for c in QELT_output])
-
         for event_id in elt_reader.read_streams(streams_in):
             if compute_selt:
                 # Extract SELT data
-                data = elt_reader.selt_data[:elt_reader.selt_idx[0]]
-                if output_files['selt'] is not None and data.size > 0:
-                    np.savetxt(output_files['selt'], data, delimiter=',', fmt=SELT_fmt)
+                selt_data = elt_reader.selt_data[:elt_reader.selt_idx[0]]
+                if output_files['selt'] is not None and selt_data.size > 0:
+                    write_ndarray_to_fmt_csv(output_files["selt"], selt_data, SELT_headers, SELT_fmt)
                 elt_reader.selt_idx[0] = 0
 
             if compute_melt:
@@ -475,14 +478,14 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 if output_files['melt'] is not None and melt_data.size > 0:
                     MELT_cols = [c[0] for c in MELT_output]
                     melt_data = melt_data[MELT_cols]
-                    np.savetxt(output_files['melt'], melt_data, delimiter=',', fmt=MELT_fmt)
+                    write_ndarray_to_fmt_csv(output_files["melt"], melt_data, MELT_headers, MELT_fmt)
                 elt_reader.melt_idx[0] = 0
 
             if compute_qelt:
                 # Extract QELT data
                 qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
                 if output_files['qelt'] is not None and qelt_data.size > 0:
-                    np.savetxt(output_files['qelt'], qelt_data, delimiter=',', fmt=QELT_fmt)
+                    write_ndarray_to_fmt_csv(output_files["qelt"], qelt_data, QELT_headers, QELT_fmt)
                 elt_reader.qelt_idx[0] = 0
 
 
