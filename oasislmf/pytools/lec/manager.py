@@ -11,7 +11,6 @@ from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, OUTLOSS_DTYPE, EPT_headers, PSEPT_headers)
-from oasislmf.pytools.lec.data import (EPT_output, PSEPT_output)
 from oasislmf.pytools.lec.aggreports import AggReports
 from oasislmf.pytools.lec.utils import get_outloss_mean_idx, get_outloss_sample_idx
 from oasislmf.pytools.utils import redirect_logging
