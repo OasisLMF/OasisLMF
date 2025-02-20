@@ -98,3 +98,5 @@ def main() -> None:
     Returns: None
     """
     convert_bin_to_parquet(static_path=str(os.getcwd()))
+
+convert_bin_to_parquet("~/GitHub/TestWorkspace", 1)
