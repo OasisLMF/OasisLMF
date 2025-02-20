@@ -124,21 +124,21 @@ def undo_z_index(z):
     return x, y
 
 @nb.njit(cache=True)
-def z_index_to_normal(index, size_lat):
+def z_index_to_normal(index, size_across):
     """Converts from z-indexing to linear ordering"""
     if index == OASIS_UNKNOWN_ID:
         return index
     index -= 1
     lat, long = undo_z_index(index)
-    return (lat + long * size_lat + 1)
+    return (lat + long * size_across + 1)
     
 @nb.njit(cache=True)
-def normal_to_z_index(index, size_lat):
+def normal_to_z_index(index, size_across):
     """Converts from linear ordering to z-indexing"""
     if index == OASIS_UNKNOWN_ID:
         return index
     index -= 1
-    return z_index(index % size_lat, index // size_lat) + 1
+    return z_index(index % size_across, index // size_across) + 1
 
 def create_lat_lon_id_functions(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse):
     """Returns a function to give grid co-ordinates of a location"""
@@ -654,18 +654,23 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
 
     @staticmethod
-    def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
+    def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first=False):
         """
         associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
         
         lat_id, lon_id = create_lat_lon_id_functions(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse)
-        size_lon = round((lon_max - lon_min) / arc_size)
+        if lon_first:
+            grid_size = round((lon_max - lon_min) / arc_size)
+        else:
+            grid_size = round((lat_max - lat_min) / arc_size)
 
         @nb.jit(cache=True)
         def get_id(lat, lon, lat_id, lon_id):
-            return lon_id(lon) + lat_id(lat) * size_lon + 1
+            if lon_first:
+                return lon_id(lon) + lat_id(lat) * grid_size + 1
+            return lon_id(lon) * grid_size + lat_id(lat) + 1
         
         def geo_grid_lookup(locations):
             locations['area_peril_id'] = jit_geo_grid_lookup(locations['latitude'].to_numpy(),
@@ -704,7 +709,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
         
     @staticmethod
-    def build_fixed_size_z_index_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
+    def build_fixed_size_z_index_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first = False):
         """
         associate an id to each square of the grid defined by z-order indexing.
         reverse allow to change the ordering of id from (min to max) to (max to min)
@@ -714,7 +719,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         @nb.jit(cache=True)
         def get_id(lat, lon, lat_id, lon_id):
-            return z_index(lon_id(lon), lat_id(lat))+1
+            if lon_first:
+                return z_index(lon_id(lon), lat_id(lat))+1
+            return z_index(lat_id(lat), lon_id(lon))+1
 
         def geo_grid_lookup(locations):
             locations['area_peril_id'] = jit_geo_grid_lookup(locations['latitude'].to_numpy(),
