@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 from posixpath import join as urljoin
 
@@ -22,6 +23,9 @@ from requests.exceptions import HTTPError
 from requests_toolbelt import MultipartEncoder
 import responses
 from responses.registries import OrderedRegistry
+
+from packaging import version
+from importlib.metadata import version as get_version
 
 from oasislmf.platform_api.session import APISession
 from oasislmf.platform_api.client import (
@@ -51,30 +55,8 @@ CONTENT_MAP = {
 }
 
 
-def request_package_unpack_bytes(data_body):
-    """ For some reasnon the requests testing package switched from 'MultipartEncoder' to bytes
-        this function unpacks those bytes into its components
-    """
-    multipart_string = data_body.decode("utf-8")
-
-    # Extract boundary
-    boundary_match = re.search(r'--([a-f0-9]+)', multipart_string)
-    boundary = boundary_match.group(1) if boundary_match else None
-
-    # Extract file details
-    filename_match = re.search(r'filename="([^"]+)"', multipart_string)
-    filename = filename_match.group(1) if filename_match else "unknown"
-
-    # Extract content type
-    content_type_match = re.search(r'Content-Type: ([^\r\n]+)', multipart_string)
-    content_type = content_type_match.group(1) if content_type_match else "application/octet-stream"
-
-    # Extract file content (after double CRLF)
-    file_content_start = multipart_string.find("\r\n\r\n") + 4
-    file_content_end = multipart_string.rfind(f"--{boundary}--")
-    file_content = data_body[file_content_start:file_content_end].strip()
-
-    return filename, file_content, content_type
+responses_ver = get_version("responses")
+DISABLE_DATA_CHECKS = version.parse(responses_ver) >= version.parse("0.25.3")
 
 
 @responses.activate
@@ -309,6 +291,7 @@ class FileEndpointTests(unittest.TestCase):
             'bz2',
         ])
     )
+    @pytest.mark.skipif(DISABLE_DATA_CHECKS, reason="Test not compatible with responses > 0.25.3")
     def test_upload_file(self, ID, file_path, file_data, file_ext):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         file_name = f'{file_path}.{file_ext}'
@@ -335,11 +318,8 @@ class FileEndpointTests(unittest.TestCase):
 
             # Load request data
             request = responses.calls[-1].request
-            body = request.body
-            req_filename, req_file_hl, req_content_type = body.fields['file']
 
-            # Check request data
-            self.assertTrue(isinstance(body, MultipartEncoder))
+            req_filename, req_file_hl, req_content_type = body.fields['file']
             self.assertEqual(request.url, expected_url)
             self.assertEqual(req_filename, file_name)
             self.assertEqual(req_content_type, CONTENT_MAP[file_ext])
@@ -490,6 +470,7 @@ class FileEndpointTests(unittest.TestCase):
             None,
         ])
     )
+    @pytest.mark.skipif(DISABLE_DATA_CHECKS, reason="Test not compatible with responses > 0.25.3")
     def test_post(self, ID, data_object, content_type):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         responses.post(url=expected_url)
@@ -497,15 +478,10 @@ class FileEndpointTests(unittest.TestCase):
         rsp = self.api.post(ID, data_object, content_type)
         request = responses.calls[-1].request
 
-        # requests==2.32.3 or greater
-        if isinstance(request.body, bytes):
-            req_type, req_data, req_content_type = request_package_unpack_bytes(request.body)
-        else:
-            req_type, req_data, req_content_type = request.body.fields['file']
-
+        req_type, req_data, req_content_type = request.body.fields['file']
+        self.assertEqual(req_data, data_object)
         self.assertEqual(rsp.url, expected_url)
         self.assertEqual(req_type, 'data')
-        self.assertEqual(req_data, data_object)
         self.assertEqual(req_content_type, content_type)
 
     def test_post__failed(self):
@@ -609,6 +585,7 @@ class FileEndpointTests(unittest.TestCase):
         expected_msg = f'Unsupported filetype for Dataframe conversion: {content_type}'
         self.assertEqual(str(exception), expected_msg)
 
+    @pytest.mark.skipif(DISABLE_DATA_CHECKS, reason="Test not compatible with responses > 0.25.3")
     def test_post_dataframe(self):
         ID = 1
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
@@ -629,17 +606,12 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(rsp.url, expected_url)
 
         request = responses.calls[-1].request
-        if isinstance(request.body, bytes):
-            req_type, req_data, req_content_type = request_package_unpack_bytes(request.body)
-            import ipdb; ipdb.set_trace()
-            result_df = pd.read_csv(requ_data)
-        else:
-            req_type, req_data, req_content_type = request.body.fields['file']
-            requ_data.seek(0)
-            result_df = pd.read_csv(requ_data)
+        req_type, req_data, req_content_type = request.body.fields['file']
+        requ_data.seek(0)
+        result_df = pd.read_csv(req_data)
 
-        self.assertEqual(requ_type, 'data')
-        self.assertEqual(requ_content_type, 'text/csv')
+        self.assertEqual(req_type, 'data')
+        self.assertEqual(req_content_type, 'text/csv')
         pd.testing.assert_frame_equal(result_df, expected_df)
 
 
