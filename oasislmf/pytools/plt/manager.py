@@ -6,7 +6,8 @@ import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
+                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_quantile
@@ -64,6 +65,16 @@ QPLT_output = [
     ('Loss', oasis_float, '%.2f'),
 ]
 
+SPLT_headers = [c[0] for c in SPLT_output]
+MPLT_headers = [c[0] for c in MPLT_output]
+QPLT_headers = [c[0] for c in QPLT_output]
+SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
+MPLT_dtype = np.dtype([(c[0], c[1]) for c in MPLT_output])
+QPLT_dtype = np.dtype([(c[0], c[1]) for c in QPLT_output])
+SPLT_fmt = ','.join([c[2] for c in SPLT_output])
+MPLT_fmt = ','.join([c[2] for c in MPLT_output])
+QPLT_fmt = ','.join([c[2] for c in QPLT_output])
+
 
 class PLTReader(EventReader):
     def __init__(
@@ -78,10 +89,6 @@ class PLTReader(EventReader):
         intervals,
     ):
         self.logger = logger
-
-        SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
-        MPLT_dtype = np.dtype([(c[0], c[1]) for c in MPLT_output])
-        QPLT_dtype = np.dtype([(c[0], c[1]) for c in QPLT_output])
 
         # Buffer for SPLT data
         self.splt_data = np.zeros(1000000, dtype=SPLT_dtype)
@@ -554,8 +561,8 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if compute_splt:
             splt_file = stack.enter_context(open(splt_output_file, 'w'))
             if not noheader:
-                SPLT_headers = ','.join([c[0] for c in SPLT_output])
-                splt_file.write(SPLT_headers + '\n')
+                csv_headers = ','.join(SPLT_headers)
+                splt_file.write(csv_headers + '\n')
             output_files['splt'] = splt_file
         else:
             output_files['splt'] = None
@@ -563,8 +570,8 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if compute_mplt:
             mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
             if not noheader:
-                MPLT_headers = ','.join([c[0] for c in MPLT_output])
-                mplt_file.write(MPLT_headers + '\n')
+                csv_headers = ','.join(MPLT_headers)
+                mplt_file.write(csv_headers + '\n')
             output_files['mplt'] = mplt_file
         else:
             output_files['mplt'] = None
@@ -572,36 +579,32 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         if compute_qplt:
             qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
             if not noheader:
-                QPLT_headers = ','.join([c[0] for c in QPLT_output])
-                qplt_file.write(QPLT_headers + '\n')
+                csv_headers = ','.join(QPLT_headers)
+                qplt_file.write(csv_headers + '\n')
             output_files['qplt'] = qplt_file
         else:
             output_files['qplt'] = None
 
-        SPLT_fmt = ','.join([c[2] for c in SPLT_output])
-        MPLT_fmt = ','.join([c[2] for c in MPLT_output])
-        QPLT_fmt = ','.join([c[2] for c in QPLT_output])
-
         for event_id in plt_reader.read_streams(streams_in):
             if compute_splt:
                 # Extract SPLT data
-                data = plt_reader.splt_data[:plt_reader.splt_idx[0]]
-                if output_files['splt'] is not None and data.size > 0:
-                    np.savetxt(output_files['splt'], data, delimiter=',', fmt=SPLT_fmt)
+                splt_data = plt_reader.splt_data[:plt_reader.splt_idx[0]]
+                if output_files['splt'] is not None and splt_data.size > 0:
+                    write_ndarray_to_fmt_csv(output_files["splt"], splt_data, SPLT_headers, SPLT_fmt)
                 plt_reader.splt_idx[0] = 0
 
             if compute_mplt:
                 # Extract MPLT data
                 mplt_data = plt_reader.mplt_data[:plt_reader.mplt_idx[0]]
                 if output_files['mplt'] is not None and mplt_data.size > 0:
-                    np.savetxt(output_files['mplt'], mplt_data, delimiter=',', fmt=MPLT_fmt)
+                    write_ndarray_to_fmt_csv(output_files["mplt"], mplt_data, MPLT_headers, MPLT_fmt)
                 plt_reader.mplt_idx[0] = 0
 
             if compute_qplt:
                 # Extract QPLT data
                 qplt_data = plt_reader.qplt_data[:plt_reader.qplt_idx[0]]
                 if output_files['qplt'] is not None and qplt_data.size > 0:
-                    np.savetxt(output_files['qplt'], qplt_data, delimiter=',', fmt=QPLT_fmt)
+                    write_ndarray_to_fmt_csv(output_files["qplt"], qplt_data, QPLT_headers, QPLT_fmt)
                 plt_reader.qplt_idx[0] = 0
 
 
