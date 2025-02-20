@@ -318,8 +318,11 @@ class FileEndpointTests(unittest.TestCase):
 
             # Load request data
             request = responses.calls[-1].request
-
+            body = request.body
             req_filename, req_file_hl, req_content_type = body.fields['file']
+
+            # Check request data
+            self.assertTrue(isinstance(body, MultipartEncoder))
             self.assertEqual(request.url, expected_url)
             self.assertEqual(req_filename, file_name)
             self.assertEqual(req_content_type, CONTENT_MAP[file_ext])
@@ -477,11 +480,11 @@ class FileEndpointTests(unittest.TestCase):
 
         rsp = self.api.post(ID, data_object, content_type)
         request = responses.calls[-1].request
-
         req_type, req_data, req_content_type = request.body.fields['file']
-        self.assertEqual(req_data, data_object)
+
         self.assertEqual(rsp.url, expected_url)
         self.assertEqual(req_type, 'data')
+        self.assertEqual(req_data, data_object)
         self.assertEqual(req_content_type, content_type)
 
     def test_post__failed(self):
@@ -606,12 +609,12 @@ class FileEndpointTests(unittest.TestCase):
         self.assertEqual(rsp.url, expected_url)
 
         request = responses.calls[-1].request
-        req_type, req_data, req_content_type = request.body.fields['file']
+        requ_type, requ_data, requ_content_type = request.body.fields['file']
         requ_data.seek(0)
-        result_df = pd.read_csv(req_data)
+        result_df = pd.read_csv(requ_data)
 
-        self.assertEqual(req_type, 'data')
-        self.assertEqual(req_content_type, 'text/csv')
+        self.assertEqual(requ_type, 'data')
+        self.assertEqual(requ_content_type, 'text/csv')
         pd.testing.assert_frame_equal(result_df, expected_df)
 
 
