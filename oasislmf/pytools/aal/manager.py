@@ -8,7 +8,8 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.aal.utils import heap_pop, heap_push, init_heap, exact_binary_search
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float, oasis_int_size, oasis_float_size)
+from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
+                                          oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods
@@ -661,7 +662,6 @@ def get_aal_data(
     vec_analytical_aal,
     vecs_sample_aal,
     vec_used_summary_id,
-    meanonly,
     sample_size,
     no_of_periods
 ):
@@ -670,11 +670,10 @@ def get_aal_data(
         vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
         vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
         vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
-        meanonly (bool): Boolean value to output AAL with mean only
         sample_size (int): Sample Size
         no_of_periods (int): Number of periods
     Returns:
-        aal_data (List[List]): AAL csv data
+        aal_data (List[Tuple]): AAL csv data
     """
     aal_data = []
     assert len(vec_analytical_aal) == len(vecs_sample_aal), \
@@ -691,21 +690,57 @@ def get_aal_data(
         no_of_periods * sample_size,
     )
 
-    if not meanonly:
-        for summary_idx in range(len(vec_analytical_aal)):
-            if not vec_used_summary_id[summary_idx]:
-                continue
-            aal_data.append([summary_idx + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[summary_idx], std_analytical[summary_idx]])
-        for summary_idx in range(len(vecs_sample_aal)):
-            if not vec_used_summary_id[summary_idx]:
-                continue
-            aal_data.append([summary_idx + 1, MEAN_TYPE_SAMPLE, mean_sample[summary_idx], std_sample[summary_idx]])
-    else:  # aalmeanonlycalc orders output data differently, this if condition is here to match the output to the ktools output
-        for summary_idx in range(len(vec_analytical_aal)):
-            if not vec_used_summary_id[summary_idx]:
-                continue
-            aal_data.append([summary_idx + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[summary_idx]])
-            aal_data.append([summary_idx + 1, MEAN_TYPE_SAMPLE, mean_sample[summary_idx]])
+    for summary_idx in range(len(vec_analytical_aal)):
+        if not vec_used_summary_id[summary_idx]:
+            continue
+        aal_data.append((summary_idx + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[summary_idx], std_analytical[summary_idx]))
+    for summary_idx in range(len(vecs_sample_aal)):
+        if not vec_used_summary_id[summary_idx]:
+            continue
+        aal_data.append((summary_idx + 1, MEAN_TYPE_SAMPLE, mean_sample[summary_idx], std_sample[summary_idx]))
+
+    return aal_data
+
+
+@nb.njit(cache=True, error_model="numpy")
+def get_aal_data_meanonly(
+    vec_analytical_aal,
+    vecs_sample_aal,
+    vec_used_summary_id,
+    sample_size,
+    no_of_periods
+):
+    """Generate AAL csv data
+    Args:
+        vec_analytical_aal (ndarray[_AAL_REC_DTYPE]): Vector for Analytical AAL
+        vecs_sample_aal (ndarray[_AAL_REC_PERIODS_DTYPE]): Vector for Sample AAL
+        vec_used_summary_id (ndarray[bool]): vector to store if summary_id is used
+        sample_size (int): Sample Size
+        no_of_periods (int): Number of periods
+    Returns:
+        aal_data (List[Tuple]): AAL csv data
+    """
+    aal_data = []
+    assert len(vec_analytical_aal) == len(vecs_sample_aal), \
+        f"Lengths of analytical ({len(vec_analytical_aal)}) and sample ({len(vecs_sample_aal)}) aal data differ"
+    mean_analytical, std_analytical = calculate_mean_stddev(
+        vec_analytical_aal["mean"],
+        vec_analytical_aal["mean_squared"],
+        no_of_periods,
+    )
+
+    mean_sample, std_sample = calculate_mean_stddev(
+        vecs_sample_aal["mean"],
+        vecs_sample_aal["mean_squared"],
+        no_of_periods * sample_size,
+    )
+
+    # aalmeanonlycalc orders output data differently, this if condition is here to match the output to the ktools output
+    for summary_idx in range(len(vec_analytical_aal)):
+        if not vec_used_summary_id[summary_idx]:
+            continue
+        aal_data.append((summary_idx + 1, MEAN_TYPE_ANALYTICAL, mean_analytical[summary_idx]))
+        aal_data.append((summary_idx + 1, MEAN_TYPE_SAMPLE, mean_sample[summary_idx]))
 
     return aal_data
 
@@ -860,39 +895,53 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             aal_file = stack.enter_context(open(aal_output_file, "w"))
             if not noheader:
                 if not meanonly:
-                    AAL_headers = ",".join([c[0] for c in AAL_output])
-                    aal_file.write(AAL_headers + "\n")
+                    AAL_headers = [c[0] for c in AAL_output]
+                    csv_headers = ",".join(AAL_headers)
+                    aal_file.write(csv_headers + "\n")
                 else:
-                    AAL_headers = ",".join([c[0] for c in AAL_output if c[0] != "SDLoss"])
-                    aal_file.write(AAL_headers + "\n")
+                    AAL_headers = [c[0] for c in AAL_output if c[0] != "SDLoss"]
+                    csv_headers = ",".join(AAL_headers)
+                    aal_file.write(csv_headers + "\n")
             output_files["aal"] = aal_file
         if output_alct:
             alct_file = stack.enter_context(open(alct_output_file, "w"))
             if not noheader:
                 if not meanonly:
-                    ALCT_headers = ",".join([c[0] for c in ALCT_output])
-                    alct_file.write(ALCT_headers + "\n")
+                    ALCT_headers = [c[0] for c in ALCT_output]
+                    csv_headers = ",".join(ALCT_headers)
+                    alct_file.write(csv_headers + "\n")
             output_files["alct"] = alct_file
 
         # Output file data
         if not meanonly:
             AAL_fmt = ','.join([c[2] for c in AAL_output])
+            AAL_dtype = np.dtype([(c[0], c[1]) for c in AAL_output])
         else:
             AAL_fmt = ','.join([c[2] for c in AAL_output if c[0] != "SDLoss"])
+            AAL_dtype = np.dtype([(c[0], c[1]) for c in AAL_output if c[0] != "SDLoss"])
         ALCT_fmt = ','.join([c[2] for c in ALCT_output])
+        ALCT_dtype = np.dtype([(c[0], c[1]) for c in ALCT_output])
 
         if output_aal:
             # Get Sample AAL data for subset_size == sample_size (last group of arrays)
             start_idx = (num_subsets - 1) * max_summary_id
-            aal_data = get_aal_data(
-                vec_analytical_aal,
-                vecs_sample_aal[start_idx:],
-                vec_used_summary_id,
-                meanonly,
-                sample_size,
-                file_data["no_of_periods"],
-            )
-            np.savetxt(output_files["aal"], aal_data, delimiter=",", fmt=AAL_fmt)
+            if not meanonly:
+                aal_data = get_aal_data(
+                    vec_analytical_aal,
+                    vecs_sample_aal[start_idx:],
+                    vec_used_summary_id,
+                    sample_size,
+                    file_data["no_of_periods"],
+                )
+            else:
+                aal_data = get_aal_data_meanonly(
+                    vec_analytical_aal,
+                    vecs_sample_aal[start_idx:],
+                    vec_used_summary_id,
+                    sample_size,
+                    file_data["no_of_periods"],
+                )
+            write_ndarray_to_fmt_csv(output_files["aal"], np.array(aal_data, dtype=AAL_dtype), AAL_headers, AAL_fmt)
         if output_alct:
             alct_data = get_alct_data(
                 vecs_sample_aal,
@@ -901,7 +950,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
                 file_data["no_of_periods"],
                 confidence
             )
-            np.savetxt(output_files["alct"], alct_data, delimiter=",", fmt=ALCT_fmt)
+            write_ndarray_to_fmt_csv(output_files["alct"], np.array([tuple(arr) for arr in alct_data], dtype=ALCT_dtype), ALCT_headers, ALCT_fmt)
 
 
 @redirect_logging(exec_name='aalpy')
