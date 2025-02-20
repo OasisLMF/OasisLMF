@@ -140,6 +140,37 @@ def load_as_array(dir_path, name, _dtype, must_exist=True):
         return np.empty(0, dtype=_dtype)
 
 
+def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt):
+    """Writes a custom dtype array with headers to csv with the provided row_fmt str
+
+    This function is a faster replacement for np.savetxt as it formats each row one at a time before writing to csv.
+    We create one large string, and formats all the data at once, and writes all the data at once.
+
+    WARNING: untested with string types in custom data.
+
+    Args:
+        output_file (io.TextIOWrapper): CSV file
+        data (ndarray[<custom dtype>]): Custom dtype ndarray with column names
+        headers (list[str]): Column names for custom ndarray
+        row_fmt (str): Format for each row in csv
+    """
+    if len(headers) != len(row_fmt.split(",")):
+        raise RuntimeError(f"ERROR: write_ndarray_to_fmt_csv requires row_fmt ({row_fmt}) and headers ({headers}) to have the same length.")
+
+    # Copy data as np.ravel does not work with custom dtype arrays
+    # Default type of np.empty is np.float64.
+    data_cpy = np.empty((data.shape[0], len(headers)))
+    for i in range(len(headers)):
+        data_cpy[:, i] = data[headers[i]]
+
+    # Create one large formatted string
+    final_fmt = "\n".join([row_fmt] * data_cpy.shape[0])
+    str_data = final_fmt % tuple(np.ravel(data_cpy))
+
+    output_file.write(str_data)
+    output_file.write("\n")
+
+
 float_equal_precision = np.finfo(oasis_float).eps
 
 
