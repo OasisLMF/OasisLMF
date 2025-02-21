@@ -44,6 +44,6 @@ def test_get_events(event_id):
         row = footprint_lookup.loc[footprint_lookup["event_id"] == event_id].iloc[0]
 
         partition = row["partition"]
-        get_events_event = footprint.get_events(partition)[0]
+        get_events_events = footprint.get_events(partition)
 
-        assert np.array_equal(get_event_event, get_events_event)
+        assert any(np.array_equal(get_event_event, event) for event in get_events_events)
