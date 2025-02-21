@@ -3,17 +3,17 @@ from oasislmf.pytools.getmodel.footprint import (
 )
 import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
-import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from oasislmf.pytools.data_layer.conversions.footprint import (
     convert_bin_to_parquet
 )
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-footprints_path = os.path.join(script_dir, "footprints")
+script_dir = Path(__file__).resolve().parent
+footprints_path = script_dir / "footprints"
 convert_bin_to_parquet(footprints_path, chunk_size=1)
-path = os.path.join(footprints_path, "footprint_lookup.parquet")
+path = footprints_path / "footprint_lookup.parquet"
 footprint_lookup = pd.read_parquet(path)
 
 

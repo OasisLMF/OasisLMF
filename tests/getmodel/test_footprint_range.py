@@ -1,13 +1,13 @@
-from oasislmf.pytools.getmodel.footprint import FootprintBin
+from pathlib import Path
 import pytest
+from oasislmf.pytools.getmodel.footprint import FootprintBin
 from oasis_data_manager.filestore.backends.local import LocalStorage
-import os
 from oasislmf.pytools.data_layer.conversions.footprint import (
     convert_bin_to_parquet
 )
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-footprints_path = os.path.join(script_dir, "footprints")
+script_dir = Path(__file__).resolve().parent
+footprints_path = script_dir / "footprints"
 
 
 @pytest.mark.parametrize("areaperil_ids, expected", [
