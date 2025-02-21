@@ -1,12 +1,14 @@
-from oasislmf.pytools.getmodel.footprint import FootprintParquetChunk, FootprintBin
+from oasislmf.pytools.getmodel.footprint import FootprintBin
 import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 import os
-import numpy as np
-import pandas as pd
+from oasislmf.pytools.data_layer.conversions.footprint import (
+    convert_bin_to_parquet
+)
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 footprints_path = os.path.join(script_dir, "footprints")
+
 
 @pytest.mark.parametrize("areaperil_ids, expected", [
     ([20], [False, False, True, True, False, False, False]),
@@ -16,6 +18,11 @@ footprints_path = os.path.join(script_dir, "footprints")
     ([300], [False, False, False, True, False, False, False])
 ])
 def test_range(areaperil_ids, expected):
-    with FootprintBin(LocalStorage(footprints_path), areaperil_ids=areaperil_ids) as footprint:
+    convert_bin_to_parquet(footprints_path)
+    with FootprintBin(
+        LocalStorage(footprints_path), areaperil_ids=areaperil_ids
+    ) as footprint:
         for i in range(7):
-            assert footprint.areaperil_in_range(i+1, footprint.events_dict) == expected[i]
+            assert footprint.areaperil_in_range(
+                i+1, footprint.events_dict
+            ) == expected[i]
