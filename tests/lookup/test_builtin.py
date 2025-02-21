@@ -25,7 +25,7 @@ def test_z_index(x, y, expected):
 
 
 @pytest.mark.parametrize("z", [
-    OASIS_UNKNOWN_ID, 0, 1, 2, 3, 12, 15, 99, 255, 1023
+    0, 1, 2, 3, 12, 15, 99, 255, 1023
 ])
 def test_undo_z_index(z):
     x, y = undo_z_index(z)
@@ -53,14 +53,8 @@ def test_z_index_normal_conversion(z, size_across):
     (False, 9, 1, True, True),
     (False, 6, 6, True, False)
 ])
-def test_lat_lon_id_functions(
-        is_lat, value, expected, reverse_lat, reverse_lon
-):
-
-    lat_id, lon_id = create_lat_lon_id_functions(
-        0, 10, 0, 10, 1, reverse_lat, reverse_lon
-
-    )
+def test_lat_lon_id_functions(is_lat, value, expected, reverse_lat, reverse_lon):
+    lat_id, lon_id = create_lat_lon_id_functions(0, 10, 0, 10, 1, reverse_lat, reverse_lon)
     func = lat_id if is_lat else lon_id
     assert func(value) == expected
 

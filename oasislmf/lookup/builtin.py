@@ -108,7 +108,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 @nb.njit(cache=True)
 def z_index(x, y):
     """Returns the Z-order index of cell (x,y) in a grid"""
-    bits = int(max(np.floor(np.log2(x)) + 1, np.floor(np.log2(y)) + 1))
+    bits = int(max(np.floor(np.log2(x + 1)) + 1, np.floor(np.log2(y + 1)) + 1))
     index = 0
     for i in range(bits):
         index |= ((x >> i) & 1) << (2 * i)

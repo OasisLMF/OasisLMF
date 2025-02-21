@@ -41,9 +41,7 @@ def test_get_events(event_id):
     with FootprintParquetChunk(LocalStorage(footprints_path)) as footprint:
         get_event_event = footprint.get_event(event_id)
         # import pdb; pdb.set_trace()
-        row = footprint_lookup.loc[
-            footprint_lookup["event_id"] == event_id
-        ].iloc[0]
+        row = footprint_lookup.loc[footprint_lookup["event_id"] == event_id].iloc[0]
 
         partition = row["partition"]
         get_events_event = footprint.get_events(partition)[0]
