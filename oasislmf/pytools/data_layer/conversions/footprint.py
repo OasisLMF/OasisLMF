@@ -10,10 +10,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 
-def convert_bin_to_parquet(
-        static_path: str,
-        chunk_size=1024 * 1024 * 8
-) -> None:
+def convert_bin_to_parquet(static_path: str, chunk_size=1024 * 1024 * 8) -> None:
     """
     Converts the data from a binary file to a parquet file.
 
