@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from lookup.builtin import normal_to_z_index
+from oasislmf.lookup.builtin import normal_to_z_index
 from oasislmf.utils.status import OASIS_UNKNOWN_ID
 
 
