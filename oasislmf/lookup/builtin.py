@@ -1021,8 +1021,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         @nb.jit(cache=True)
         def get_id(lat, lon, lat_id, lon_id):
             if lon_first:
-                return z_index(lon_id(lon), lat_id(lat))+1
-            return z_index(lat_id(lat), lon_id(lon))+1
+                return z_index(lon_id(lon), lat_id(lat)) + 1
+            return z_index(lat_id(lat), lon_id(lon)) + 1
 
         def geo_grid_lookup(locations):
             locations['area_peril_id'] = jit_geo_grid_lookup(
@@ -1137,7 +1137,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             ):
         """
         Converts specified columns from the OED file into intensity
-        adjustments and return period protection.
+        adjustments andreturn period protection.
         """
         lst_intensity_adjustment = []
         lst_return_period = []
