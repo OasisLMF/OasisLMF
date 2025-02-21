@@ -1137,8 +1137,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             ):
         """
         Converts specified columns from the OED file into intensity
-        adjustments and
-        return period protection.
+        adjustments and return period protection.
         """
         lst_intensity_adjustment = []
         lst_return_period = []
