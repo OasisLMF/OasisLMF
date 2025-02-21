@@ -172,7 +172,7 @@ class Footprint:
 
     def get_df_reader(self, filepath, **kwargs) -> OasisReader:
         # load the base df engine config and add the connection parameters
-        df_reader_config = clean_config(InputReaderConfig(filepath=filepath,engine=self.df_engine))
+        df_reader_config = clean_config(InputReaderConfig(filepath=filepath, engine=self.df_engine))
         df_reader_config["engine"]["options"]["storage"] = self.storage
 
         return get_df_reader(df_reader_config, **kwargs)
@@ -332,7 +332,7 @@ class FootprintBinZ(Footprint):
     footprint_filenames = [zfootprint_filename, zfootprint_index_filename]
 
     def __enter__(self):
-        zfootprint_file = self.stack.enter_context( self.storage.with_fileno(zfootprint_filename))
+        zfootprint_file = self.stack.enter_context(self.storage.with_fileno(zfootprint_filename))
         self.zfootprint = mmap.mmap(zfootprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.size]), type=FootprintHeader)
@@ -340,7 +340,7 @@ class FootprintBinZ(Footprint):
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
         self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
         self.uncompressed_size = int((footprint_header['has_intensity_uncertainty'] & uncompressedMask) >> 1)
-        
+
         if self.uncompressed_size:
             self.index_dtype = EventIndexBinZ
         else:

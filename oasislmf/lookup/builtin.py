@@ -658,7 +658,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
             for peril_id, fixed_geo_grid_params in perils_dict.items():
                 curr_grid_fct = Lookup.build_fixed_size_geo_grid(**fixed_geo_grid_params)
-                
+
                 curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
                 curr_locs_peril = curr_grid_fct(curr_locs_peril)
                 curr_locs_peril.loc[
