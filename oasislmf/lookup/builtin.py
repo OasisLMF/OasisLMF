@@ -196,9 +196,9 @@ def create_lat_lon_id_functions(
 
 @nb.jit
 def jit_geo_grid_lookup(
-        lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id,
-        lat_id, lon_id
-        ):
+    lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id,
+    lat_id, lon_id
+):
     """Returns an array of area peril IDs for all lats given"""
     area_peril_id = np.empty_like(lat, dtype=np.int64)
     for i in range(lat.shape[0]):
@@ -453,7 +453,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         locations = locations.rename(columns=useful_cols_map)
         locations = locations[list(
             useful_cols.intersection(locations.columns)
-            )].drop_duplicates()
+        )].drop_duplicates()
 
         # set default status and message
         locations['status'] = OASIS_KEYS_STATUS['success']['id']
