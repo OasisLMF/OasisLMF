@@ -76,7 +76,7 @@ class Footprint:
             self, storage: BaseStorage,
             df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
             areaperil_ids=None
-            ) -> None:
+    ) -> None:
         """
         The constructor for the Footprint class.
 
@@ -563,7 +563,7 @@ class FootprintParquetDynamic(Footprint):
     footprint_filenames: List[str] = [
         event_defintion_filename, hazard_case_filename,
         parquetfootprint_meta_filename
-        ]
+    ]
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
@@ -620,16 +620,16 @@ class FootprintParquetDynamic(Footprint):
             df_hazard_case_from = df_hazard_case.merge(
                 df_event_defintion, left_on=['section_id', 'return_period'],
                 right_on=['section_id', 'rp_from']
-                )[from_cols].rename(
-                    columns={'intensity': 'from_intensity'}
-                )
+            )[from_cols].rename(
+                columns={'intensity': 'from_intensity'}
+            )
 
             df_hazard_case_to = df_hazard_case.merge(
                 df_event_defintion, left_on=['section_id', 'return_period'],
                 right_on=['section_id', 'rp_to']
-                )[to_cols].rename(
-                    columns={'intensity': 'to_intensity'}
-                )
+            )[to_cols].rename(
+                columns={'intensity': 'to_intensity'}
+            )
 
             df_footprint = df_hazard_case_from.merge(
                 df_hazard_case_to, on='areaperil_id', how='outer'

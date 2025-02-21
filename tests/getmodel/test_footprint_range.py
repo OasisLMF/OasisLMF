@@ -24,5 +24,5 @@ def test_range(areaperil_ids, expected):
     ) as footprint:
         for i in range(7):
             assert footprint.areaperil_in_range(
-                i+1, footprint.events_dict
+                i + 1, footprint.events_dict
             ) == expected[i]

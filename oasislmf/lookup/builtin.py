@@ -93,12 +93,12 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     left_radians = np.array(left_gdf[left_geom_col].apply(
         lambda geom: (
             geom.x * np.pi / 180, geom.y * np.pi / 180
-            )).to_list())
+        )).to_list())
 
     right_radians = np.array(right[right_geom_col].apply(
         lambda geom: (
             geom.x * np.pi / 180, geom.y * np.pi / 180
-            )).to_list())
+        )).to_list())
 
     # Find the nearest points
     # -----------------------
@@ -108,7 +108,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     closest, dist = get_nearest(
         src_points=left_radians,
         candidates=right_radians
-        )
+    )
 
     # Return points from right GeoDataFrame that are closest to points in left
     # GeoDataFrame
@@ -132,8 +132,8 @@ def z_index(x, y):
     bits = max(math.floor(math.log2(x)) + 1, math.floor(math.log2(y)) + 1)
     index = 0
     for i in range(bits):
-        index |= ((x >> i) & 1) << (2*i)
-        index |= ((y >> i) & 1) << (2*i + 1)
+        index |= ((x >> i) & 1) << (2 * i)
+        index |= ((y >> i) & 1) << (2 * i + 1)
     return index
 
 
@@ -167,8 +167,8 @@ def normal_to_z_index(index, size_across):
 
 
 def create_lat_lon_id_functions(
-        lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse
-        ):
+    lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse
+):
     """Returns a function to give grid co-ordinates of a location"""
     lat_cell_size = arc_size
     lon_cell_size = arc_size
@@ -215,7 +215,7 @@ def get_step(grid):
     """
     length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
     width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
-    return length*width
+    return length * width
 
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
@@ -230,7 +230,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         model_perils_covered = np.unique(
             pd.DataFrame({
                 'peril_group_id': self.config['model_perils_covered']
-                }).merge(peril_groups_df)['peril_id'])
+            }).merge(peril_groups_df)['peril_id'])
 
         if 'LocPerilsCovered' in locations.columns:
             peril_covered_column = 'LocPerilsCovered'
@@ -254,7 +254,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         coverage_df = pd.DataFrame(
             {'coverage_type': self.config['supported_oed_coverage_types']},
             dtype='Int32'
-            )
+        )
 
         keys_df = (
             keys_df.sort_values('loc_id', kind='stable')
@@ -277,12 +277,12 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         keys_df.loc[
             ~keys_df['peril_id'].isin(model_perils_covered),
             ['status', 'message']
-                    ] = OASIS_KEYS_STATUS['noreturn']['id'],
+        ] = OASIS_KEYS_STATUS['noreturn']['id'],
         'unsupported peril_id'
 
         keys_df[['area_peril_id', 'vulnerability_id']] = keys_df[
             ['area_peril_id', 'vulnerability_id']
-            ].astype('Int32')
+        ].astype('Int32')
 
         return keys_df
 
@@ -542,9 +542,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return df
 
     def build_interval_to_index(
-            self, value_column_name, sorted_array,
-            index_column_name=None, side='left'
-            ):
+        self, value_column_name, sorted_array,
+        index_column_name=None, side='left'
+    ):
         """
         Allow to map a value column to an index according to it's index in the
         interval defined by sorted_array.
@@ -717,13 +717,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return prepare
 
     def build_rtree(
-            self,
-            file_path,
-            file_type,
-            id_columns,
-            area_peril_read_params=None,
-            nearest_neighbor_min_distance=-1
-            ):
+        self,
+        file_path,
+        file_type,
+        id_columns,
+        area_peril_read_params=None,
+        nearest_neighbor_min_distance=-1
+    ):
         """
         Function Factory to associate location to area_peril based on the
         rtree method
@@ -785,7 +785,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     "scikit-learn modules are needed for"
                     " rtree with nearest_neighbor_min_distance,"
                     f"{OPT_INSTALL_MESSAGE}"
-                    )
+                )
             gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
 
@@ -923,9 +923,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_geo_grid(
-            lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False,
-            lon_reverse=False, lon_first=False
-            ):
+        lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False,
+        lon_reverse=False, lon_first=False
+    ):
         """
         associate an id to each square of the grid define by the limit of lat
         and lon
@@ -1004,9 +1004,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     @staticmethod
     def build_fixed_size_z_index_geo_grid(
-            lat_min, lat_max, lon_min, lon_max, arc_size,
-            lat_reverse=False, lon_reverse=False, lon_first=False
-            ):
+        lat_min, lat_max, lon_min, lon_max, arc_size,
+        lat_reverse=False, lon_reverse=False, lon_first=False
+    ):
         """
         associate an id to each square of the grid defined by z-order indexing.
         reverse allow to change the ordering of id from (min to max) to
@@ -1134,7 +1134,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     @staticmethod
     def build_dynamic_model_adjustment(
             intensity_adjustment_col, return_period_col
-            ):
+    ):
         """
         Converts specified columns from the OED file into intensity
         adjustments andreturn period protection.

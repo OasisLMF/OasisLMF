@@ -55,7 +55,7 @@ def test_z_index_normal_conversion(z, size_across):
 ])
 def test_lat_lon_id_functions(
         is_lat, value, expected, reverse_lat, reverse_lon
-        ):
+):
 
     lat_id, lon_id = create_lat_lon_id_functions(
         0, 10, 0, 10, 1, reverse_lat, reverse_lon

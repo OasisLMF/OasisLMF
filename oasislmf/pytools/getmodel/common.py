@@ -8,7 +8,7 @@ from oasislmf.pytools.common.data import areaperil_int, oasis_float
 
 # Footprint file formats in order of priority
 fp_format_priorities = [
-        'parquet_chunk', 'parquet', 'binZ', 'bin', 'csv', 'parquet_dynamic'
+    'parquet_chunk', 'parquet', 'binZ', 'bin', 'csv', 'parquet_dynamic'
 ]
 
 # filenames
