@@ -1,0 +1,228 @@
+# --- Ktools constants --------------------------------------------------------- #
+DEDUCTIBLE_AND_LIMIT_CALCRULE_ID = 1
+FRANCHISE_DEDUCTIBLE_AND_LIMIT_CALCRULE_ID = 3
+DEDUCTIBLE_ONLY_CALCRULE_ID = 12
+DEDUCTIBLE_AS_A_CAP_ON_THE_RETENTION_OF_INPUT_LOSSES_CALCRULE_ID = 10
+DEDUCTIBLE_AS_A_FLOOR_ON_THE_RETENTION_OF_INPUT_LOSSES_CALCRULE_ID = 11
+DEDUCTIBLE_LIMIT_AND_SHARE_CALCRULE_ID = 2
+DEDUCTIBLE_AND_LIMIT_AS_A_PROPORTION_OF_LOSS_CALCRUKE_ID = 5
+DEDUCTIBLE_WITH_LIMIT_AS_A_PROPORTION_OF_LOSS_CALCRUKE_ID = 9
+LIMIT_ONLY_CALCRULE_ID = 14
+LIMIT_AS_A_PROPORTION_OF_LOSS_CALCRULE_ID = 15
+DEDUCTIBLE_AS_A_PROPORTION_OF_LOSS_CALCRULE_ID = 16
+
+CALCRULE_ID_DEDUCTIBLE_AND_LIMIT = 1
+CALCRULE_ID_DEDUCTIBLE_ATTACHMENT_LIMIT_AND_SHARE = 2
+CALCRULE_ID_FRANCHISE_DEDUCTIBLE_AND_LIMIT = 3
+CALCRULE_ID_DEDUCTIBLE_AND_LIMIT_PERCENT_TIV = 4
+CALCRULE_ID_DEDUCTIBLE_AND_LIMIT_PERCENT_LOSS = 5
+CALCRULE_ID_DEDUCTIBLE_PERCENT_TIV = 6
+CALCRULE_ID_LIMIT_AND_MAX_DEDUCTIBLE = 7
+CALCRULE_ID_LIMIT_AND_MIN_DEDUCTIBLE = 8
+CALCRULE_ID_LIMIT_WITH_DEDUCTIBLE_PERCENT_LIMIT = 9
+CALCRULE_ID_MAX_DEDUCTIBLE = 10
+CALCRULE_ID_MIN_DEDUCTIBLE = 11
+CALCRULE_ID_DEDUCTIBLE_ONLY = 12
+CALCRULE_ID_MAIN_AND_MAX_DEDUCTIBLE = 13
+CALCRULE_ID_LIMIT_ONLY = 14
+CALCRULE_ID_LIMIT_PERCENT_LOSS = 15
+CALCRULE_ID_DEDUCTIBLE_PERCENT_LOSS = 16
+CALCRULE_ID_DEDUCTIBLE_PERCENT_LOSS_ATTACHMENT_LIMIT_AND_SHARE = 17
+CALCRULE_ID_DEDUCTIBLE_PERCENT_TIV_ATTACHMENT_LIMIT_AND_SHARE = 18
+CALCRULE_ID_DEDUCTIBLE_PERCENT_LOSS_WITH_MIN_AND_MAX = 19
+CALCRULE_ID_REVERSE_FRANCHISE_DEDUCTIBLE = 20
+CALCRULE_ID_SHARE_AND_LIMIT = 21
+CALCRULE_ID_QUOTA_SHARE = 22
+CALCRULE_ID_OCCURRENCE_LIMIT_AND_SHARE = 23
+CALCRULE_ID_OCCURRENCE_CATASTROPHE_EXCESS_OF_LOSS = 24
+CALCRULE_ID_FACULTATIVE_WITH_POLICY_SHARE = 25
+
+NO_ALLOCATION_ALLOC_ID = 0
+ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID = 1
+ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID = 2
+
+BUILDING_COVERAGE_TYPE_ID = 1
+OTHER_BUILDING_COVERAGE_TYPE_ID = 2
+CONTENTS_COVERAGE_TYPE_ID = 3
+TIME_COVERAGE_TYPE_ID = 4
+COVERAGE_TYPES = [
+    BUILDING_COVERAGE_TYPE_ID,
+    OTHER_BUILDING_COVERAGE_TYPE_ID,
+    CONTENTS_COVERAGE_TYPE_ID,
+    TIME_COVERAGE_TYPE_ID]
+
+PERIL_WIND = 1
+PERILS = [PERIL_WIND]
+
+GUL_INPUTS_FILES = [
+    'coverages',
+    'gulsummaryxref',
+    'items']
+
+IL_INPUTS_FILES = [
+    'fm_policytc',
+    'fm_profile',
+    'fm_programme',
+    'fm_xref',
+    'fmsummaryxref']
+
+OPTIONAL_INPUTS_FILES = [
+    'events']
+
+CONVERSION_TOOLS = {
+    'coverages': 'coveragetobin',
+    'events': 'evetobin',
+    'fm_policytc': 'fmpolicytctobin',
+    'fm_profile': 'fmprofiletobin',
+    'fm_programme': 'fmprogrammetobin',
+    'fm_xref': 'fmxreftobin',
+    'fmsummaryxref': 'fmsummaryxreftobin',
+    'gulsummaryxref': 'gulsummaryxreftobin',
+    'items': "itemtobin"}
+
+
+NOT_SET_ID = -1
+LARGE_VALUE = 9999999999999
+
+
+# --- OED constants --------------------------------------------------------- #
+RI_INFO_REQUIRED_COLS = [
+    'ReinsNumber',
+    'PlacedPercent',
+    'InuringPriority',
+    'ReinsType',
+    'RiskLevel',
+    'ReinsCurrency'
+]
+
+RI_SCOPE_REQUIRED_COLS = {
+    'ReinsNumber',
+}
+
+RI_INFO_DTYPES = {
+    'ReinsNumber': "int",
+    'CededPercent': "float",
+    'RiskLimit': "float",
+    'RiskAttachment': "float",
+    'OccLimit': "float",
+    'OccAttachment': "float",
+    'InuringPriority': "int",
+    'ReinsType': "str",
+    'RiskLevel': "str",
+    'PlacedPercent': "float",
+    'TreatyShare': "float",
+    'ReinsCurrency': 'str'
+}
+
+RI_SCOPE_DTYPES = {
+    'ReinsNumber': "int",
+    'PortNumber': "str",
+    'AccNumber': "str",
+    'LocGroup': "str",
+    'PolNumber': "str",
+    'LocNumber': "str",
+    'CedantName': "str",
+    'ProducerName': "str",
+    'LOB': "str",
+    'CountryCode': "str",
+    'ReinsTag': "str",
+    'CededPercent': "float"
+}
+
+
+POLICYITEM_LEVEL = 0
+LOCATION_LEVEL = 1
+POLICY_LEVEL = 2
+ACCOUNT_LEVEL = 3
+OCCURRENCE_LEVEL = 4
+
+PASSTHROUGH_NODE_TYPE = 1
+NOLOSS_NODE_TYPE = 1
+
+REINS_TYPE_FAC = "FAC"
+REINS_TYPE_QUOTA_SHARE = "QS"
+REINS_TYPE_SURPLUS_SHARE = "SS"
+REINS_TYPE_PER_RISK = "PR"
+REINS_TYPE_CAT_XL = "CXL"
+REINS_TYPE_AGG_XL = "AXL"
+REINS_TYPES = [
+    REINS_TYPE_FAC,
+    REINS_TYPE_QUOTA_SHARE,
+    REINS_TYPE_SURPLUS_SHARE,
+    REINS_TYPE_PER_RISK,
+    REINS_TYPE_CAT_XL
+]
+
+REINS_RISK_LEVEL_PORTFOLIO = "SEL"
+REINS_RISK_LEVEL_LOCATION = "LOC"
+REINS_RISK_LEVEL_LOCATION_GROUP = "LGR"
+REINS_RISK_LEVEL_POLICY = "POL"
+REINS_RISK_LEVEL_ACCOUNT = "ACC"
+REINS_RISK_LEVELS = [
+    REINS_RISK_LEVEL_LOCATION,
+    REINS_RISK_LEVEL_LOCATION_GROUP,
+    REINS_RISK_LEVEL_POLICY,
+    REINS_RISK_LEVEL_ACCOUNT,
+    REINS_RISK_LEVEL_PORTFOLIO,
+]
+
+
+SUPPORTED_RISK_LEVELS = {
+    REINS_TYPE_FAC: [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_LOCATION_GROUP, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_SURPLUS_SHARE: [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_LOCATION_GROUP, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_PER_RISK: [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_LOCATION_GROUP, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_CAT_XL: [REINS_RISK_LEVEL_PORTFOLIO],
+    REINS_TYPE_QUOTA_SHARE: REINS_RISK_LEVELS
+}
+
+# Subset of the fields that are currently used
+OED_ACCOUNT_FIELDS = [
+    'PortNumber',
+    'AccNumber',
+    'PolNumber',
+    'AccPeril',
+    'AccDed6All',
+    'AccLimit6All'
+]
+
+OED_LOCATION_FIELDS = [
+    'AccNumber',
+    'LocGroup',
+    'LocNumber',
+    'LocDed6All',
+    'LocLimit6All',
+    'BuildingTIV',
+    'OtherTIV',
+    'ContentsTIV',
+    'BITIV'
+]
+
+OED_REINS_INFO_FIELDS = [
+    'ReinsNumber',
+    'CededPercent',
+    'RiskLimit',
+    'RiskAttachment',
+    'OccLimit',
+    'OccAttachment',
+    'InuringPriority',
+    'ReinsType',
+    'RiskLevel',
+    'PlacedPercent',
+    'TreatyShare',
+    'ReinsCurrency',
+]
+
+OED_REINS_SCOPE_FIELDS = [
+    'ReinsNumber',
+    'PortNumber',
+    'AccNumber',
+    'PolNumber',
+    'LocGroup',
+    'LocNumber',
+    'CedantName',
+    'ProducerName',
+    'LOB',
+    'CountryCode',
+    'ReinsTag',
+    'CededPercent'
+]
