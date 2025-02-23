@@ -107,13 +107,13 @@ jobs:
           pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
-      - name: run pytest (JIT enabled)
+      - name: run unit tests (JIT enabled)
         if: matrix.cfg.upload-cov != true
-        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
+        run: make unittests_jit
 
-      - name: run pytest (JIT disabled)
+      - name: run unit tests (JIT disabled)
         if: matrix.cfg.upload-cov == true
-        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term --gul-rtol 1e-3 --gul-atol 1e-3
+        run: make unittests_nojit
         env:
           NUMBA_DISABLE_JIT: 1
 
