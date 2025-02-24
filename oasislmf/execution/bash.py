@@ -1091,6 +1091,7 @@ def do_ord(
     work_dir='work/',
     stderr_guard=True,
     inuring_priority=None,
+    eltpy=False
     pltpy=False
 ):
 
@@ -1111,6 +1112,8 @@ def do_ord(
                 cmd = ''
                 fifo_out_name = ''
                 exec_type = "ktools"
+                if eltpy and ord_type in ["elt_ord", "selt_ord"]:
+                    exec_type = "pytools"
                 if pltpy and ord_type == "plt_ord":
                     exec_type = "pytools"
                 skip_line = True
@@ -1232,6 +1235,7 @@ def rl(
     process_counter,
     num_reinsurance_iterations,
     summarypy,
+    eltpy,
     pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
@@ -1251,7 +1255,7 @@ def rl(
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], pltpy=pltpy
+                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1282,6 +1286,7 @@ def ri(
     process_counter,
     num_reinsurance_iterations,
     summarypy,
+    eltpy,
     pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
@@ -1301,7 +1306,7 @@ def ri(
             do_ord(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], pltpy=pltpy
+                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1327,12 +1332,12 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, summarypy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, summarypy, eltpy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, pltpy=pltpy)
+        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1355,6 +1360,7 @@ def do_gul(
     filename,
     process_counter,
     summarypy,
+    eltpy,
     pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
@@ -1367,7 +1373,7 @@ def do_gul(
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, pltpy=pltpy)
+        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1916,6 +1922,7 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     summarypy=False,
+    eltpy=False,
     pltpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1957,6 +1964,7 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
+    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False
     bash_params['pltpy'] = pltpy if not gul_legacy_stream else False
     bash_params["peril_filter"] = peril_filter
 
@@ -2177,6 +2185,7 @@ def create_bash_analysis(
     model_py_server,
     peril_filter,
     summarypy,
+    eltpy,
     pltpy,
     gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
@@ -2366,6 +2375,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
@@ -2386,6 +2396,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
@@ -2406,6 +2417,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2425,6 +2437,7 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
                     'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2850,6 +2863,7 @@ def genbash(
     model_py_server=False,
     peril_filter=[],
     summarypy=False,
+    eltpy=False,
     pltpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
@@ -2934,6 +2948,7 @@ def genbash(
         model_py_server=model_py_server,
         peril_filter=peril_filter,
         summarypy=summarypy,
+        eltpy=eltpy,
         pltpy=pltpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
