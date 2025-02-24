@@ -1091,8 +1091,8 @@ def do_ord(
     work_dir='work/',
     stderr_guard=True,
     inuring_priority=None,
-    eltpy=False
-    pltpy=False
+    eltpy=False,
+    pltpy=False,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -1337,7 +1337,8 @@ def il(analysis_settings, max_process_id, filename, process_counter, summarypy, 
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
+        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
+               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1373,7 +1374,8 @@ def do_gul(
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
+        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
+               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
