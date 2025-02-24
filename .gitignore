@@ -135,6 +135,17 @@ tests/assets/test_pltpy/**/error_files/
 tests/assets/test_aalpy/**/error_files/
 tests/assets/test_common/**/error_files/
 
+# test files
+tests/getmodel/footprints/footprint_1.parquet
+tests/getmodel/footprints/footprint_2.parquet
+tests/getmodel/footprints/footprint_3.parquet
+tests/getmodel/footprints/footprint_4.parquet
+tests/getmodel/footprints/footprint_5.parquet
+tests/getmodel/footprints/footprint_6.parquet
+tests/getmodel/footprints/footprint_7.parquet
+tests/getmodel/footprints/footprint_lookup.parquet
+tests/getmodel/footprints/footprint_parquet_meta.json
+
 
 !tests/pytools/data_layer/oasis_files/meta_data/correlations.bin
 
@@ -150,6 +161,7 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_summarypy/*.bin
 !tests/assets/test_summarypy/single_summary_set/*.bin
 !tests/assets/test_summarypy/**/*.bin
+!tests/getmodel/footprints/footprint.bin
 !tests/assets/test_eltpy/*.bin
 !tests/assets/test_eltpy/**/*.bin
 !tests/assets/test_pltpy/*.bin
@@ -158,7 +170,6 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_aalpy/**/*.bin
 !tests/assets/test_common/*.bin
 !tests/assets/test_common/**/*.bin
-
 
 
 # pycharm
