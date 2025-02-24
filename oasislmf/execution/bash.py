@@ -64,14 +64,41 @@ ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
 ORD_ALT_OUTPUT_SWITCHES = {
     "alt_period": {
-        'csv_flag': '-o', 'parquet_flag': '-p', 'alct_flag': '-c',
-        'alct_confidence_level': '-l'
+        'ktools': {
+            'executable': 'aalcalc',
+            'subfolder_flag': '-K',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'alct_flag': '-c',
+            'alct_confidence_level': '-l',
+            'skip_header_flag': '-H',
+        },
+        'pytools': {
+            'executable': 'aalpy',
+            'subfolder_flag': '-K',
+            'csv_flag': '-a',
+            'alct_flag': '-c',
+            'alct_confidence_level': '-l',
+            'skip_header_flag': '-H',
+        }
     }
 }
 
 ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
     "alt_meanonly": {
-        'csv_flag': '-o', 'parquet_flag': '-p'
+        'ktools': {
+            'executable': 'aalcalcmeanonly',
+            'subfolder_flag': '-K',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'skip_header_flag': '-H',
+        },
+        'pytools': {
+            'executable': 'aalpy',
+            'subfolder_flag': '-K',
+            'csv_flag': '-a',
+            'skip_header_flag': '-H',
+        }
     }
 }
 
@@ -479,7 +506,8 @@ def do_post_wait_processing(
     work_sub_dir='',
     output_dir='output/',
     stderr_guard=True,
-    inuring_priority=None
+    inuring_priority=None,
+    aalpy=False,
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
@@ -490,6 +518,8 @@ def do_post_wait_processing(
     for summary in analysis_settings['{}_summaries'.format(runtype)]:
         if "id" in summary:
             summary_set = summary['id']
+
+            aal_exec_type = "ktools" if not aalpy else "pytools"
 
             # ktools ORIG - aalcalc
             if summary.get('aalcalc'):
@@ -512,46 +542,37 @@ def do_post_wait_processing(
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                cmd = 'aalcalc -K{}{}_{}S{}_summary_palt'.format(
-                    work_sub_dir, runtype, inuring_priority, summary_set
-                )
-                palt_outfile_stem = '{}{}_{}S{}_palt'.format(
-                    output_dir, runtype, inuring_priority, summary_set
-                )
-                alct_outfile_stem = '{}{}_{}S{}_alct'.format(
-                    output_dir, runtype, inuring_priority, summary_set
-                )
+                aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["executable"]
+                aal_subfolder_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["subfolder_flag"]
+                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
+
+                palt_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_palt"
+                alct_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_alct"
 
                 alct_file_extension = ".csv"
                 if summary.get('ord_output', {}).get('parquet_format'):
+                    if aal_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
                     alct_file_extension = ".parquet"
 
                 if summary.get('ord_output', {}).get('alct_convergence'):
-                    cmd = '{} {} {}{}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('alct_flag', ''),
-                        alct_outfile_stem,
-                        alct_file_extension
-                    )
+                    aal_alct_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_flag"]
+                    cmd = f"{cmd} {aal_alct_flag} {alct_outfile_stem}{alct_file_extension}"
                     if summary.get('ord_output', {}).get('alct_confidence'):
-                        cmd = '{} {} {}'.format(
-                            cmd,
-                            ORD_ALT_OUTPUT_SWITCHES.get('alct_confidence_level', ''),
-                            summary.get('ord_output', {}).get('alct_confidence')
-                        )
+                        aal_alct_confidence_level = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_confidence_level"]
+                        cmd = f"{cmd} {aal_alct_confidence_level} {summary.get('ord_output', {}).get('alct_confidence')}"
 
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('parquet_flag', '')
-                    )
-                    cmd = '{} {}.parquet'.format(cmd, palt_outfile_stem)
+                    if aal_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                    aal_parqut_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["parquet_flag"]
+                    cmd = f"{cmd} {aal_parqut_flag} {palt_outfile_stem}.parquet"
                 else:
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('csv_flag', '')
-                    )
-                    cmd = '{} > {}.csv'.format(cmd, palt_outfile_stem)
+                    aal_csv_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["csv_flag"]
+                    if aal_exec_type == "pytools":
+                        cmd = f"{cmd} {aal_csv_flag} {palt_outfile_stem}.csv"
+                    else:
+                        cmd = f"{cmd} {aal_csv_flag} > {palt_outfile_stem}.csv"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
@@ -578,25 +599,22 @@ def do_post_wait_processing(
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
-                cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summary_altmeanonly'.format(
-                    work_sub_dir, runtype, inuring_priority, summary_set
-                )
-                altmeanonly_outfile_stem = '{}{}_{}S{}_altmeanonly'.format(
-                    output_dir, runtype, inuring_priority, summary_set
-                )
+                aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["executable"]
+                aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["subfolder_flag"]
+                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_MEANONLY_OUTPUT_SWITCHES.get('alt_meanonly', {}).get('parquet_flag', '')
-                    )
-                    cmd = '{} {}.parquet'.format(cmd, altmeanonly_outfile_stem)
+                    if aal_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                    aal_parquet_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["parquet_flag"]
+                    cmd = f"{cmd} {aal_parqut_flag} {altmeanonly_outfile_stem}.parquet"
                 else:
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_MEANONLY_OUTPUT_SWITCHES.get('alt_meanonly', {}).get('csv_flag', '')
-                    )
-                    cmd = '{} > {}.csv'.format(cmd, altmeanonly_outfile_stem)
+                    aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["csv_flag"]
+                    if aal_exec_type == "pytools":
+                        cmd = f"{cmd} {aal_csv_flag} {altmeanonly_outfile_stem}.csv"
+                    else:
+                        cmd = f"{cmd} {aal_csv_flag} > {altmeanonly_outfile_stem}.csv"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
@@ -1926,6 +1944,7 @@ def bash_params(
     summarypy=False,
     eltpy=False,
     pltpy=False,
+    aalpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1968,6 +1987,7 @@ def bash_params(
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
     bash_params['eltpy'] = eltpy if not gul_legacy_stream else False
     bash_params['pltpy'] = pltpy if not gul_legacy_stream else False
+    bash_params['aalpy'] = aalpy if not gul_legacy_stream else False  # aalpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2671,6 +2691,7 @@ def create_bash_outputs(
     kat_sort_by_event,
     gul_item_stream,
     work_full_correlation_kat_dir,
+    aalpy,
     **kwargs
 ):
 
@@ -2775,24 +2796,24 @@ def create_bash_outputs(
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], aalpy=aalpy
             )
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], aalpy=aalpy
             )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard
+            output_dir, stderr_guard, aalpy=aalpy
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard
+            output_dir, stderr_guard, aalpy=aalpy
         )
 
     if full_correlation:
@@ -2800,17 +2821,17 @@ def create_bash_outputs(
         if ri_output:
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2867,6 +2888,7 @@ def genbash(
     summarypy=False,
     eltpy=False,
     pltpy=False,
+    aalpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False
@@ -2952,6 +2974,7 @@ def genbash(
         summarypy=summarypy,
         eltpy=eltpy,
         pltpy=pltpy,
+        aalpy=aalpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )

@@ -390,6 +390,7 @@ setup(
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             'eltpy=oasislmf.pytools.elt.cli:main',
             'pltpy=oasislmf.pytools.plt.cli:main',
+            'aalpy=oasislmf.pytools.aal.cli:main',
         ]
     },
     license='BSD 3-Clause',

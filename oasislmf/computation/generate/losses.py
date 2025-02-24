@@ -453,6 +453,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             'help': 'use eltpy python version instead of eltcalc c++ version'},
         {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use pltpy python version instead of pltcalc c++ version'},
+        {'name': 'aalpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use aalpy python version instead of aalcalc c++ version'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
@@ -522,6 +524,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             summarypy=self.summarypy,
             eltpy=self.eltpy,
             pltpy=self.pltpy,
+            aalpy=self.aalpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
             dynamic_footprint=self.dynamic_footprint
@@ -682,6 +685,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'use eltpy python version instead of eltcalc c++ version'},
         {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use pltpy python version instead of pltcalc c++ version'},
+        {'name': 'aalpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use aalpy python version instead of aalcalc c++ version'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -738,6 +743,7 @@ class GenerateLosses(GenerateLossesDir):
                         summarypy=self.summarypy,
                         eltpy=self.eltpy,
                         pltpy=self.pltpy,
+                        aalpy=self.aalpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint
                     )
