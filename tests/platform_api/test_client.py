@@ -2,6 +2,7 @@ import os
 import io
 import json
 import logging
+import re
 
 import pathlib
 import pandas as pd
@@ -13,6 +14,7 @@ from unittest.mock import MagicMock
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+import pytest
 
 from posixpath import join as urljoin
 
@@ -21,6 +23,9 @@ from requests.exceptions import HTTPError
 from requests_toolbelt import MultipartEncoder
 import responses
 from responses.registries import OrderedRegistry
+
+from packaging import version
+from importlib.metadata import version as get_version
 
 from oasislmf.platform_api.session import APISession
 from oasislmf.platform_api.client import (
@@ -48,6 +53,10 @@ CONTENT_MAP = {
     'zip': 'application/zip',
     'bz2': 'application/x-bzip2',
 }
+
+
+responses_ver = get_version("responses")
+DISABLE_DATA_CHECKS = version.parse(responses_ver) >= version.parse("0.25.3")
 
 
 @responses.activate
@@ -282,6 +291,7 @@ class FileEndpointTests(unittest.TestCase):
             'bz2',
         ])
     )
+    @pytest.mark.skipif(DISABLE_DATA_CHECKS, reason="Test not compatible with responses > 0.25.3")
     def test_upload_file(self, ID, file_path, file_data, file_ext):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         file_name = f'{file_path}.{file_ext}'
@@ -463,6 +473,7 @@ class FileEndpointTests(unittest.TestCase):
             None,
         ])
     )
+    @pytest.mark.skipif(DISABLE_DATA_CHECKS, reason="Test not compatible with responses > 0.25.3")
     def test_post(self, ID, data_object, content_type):
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
         responses.post(url=expected_url)
@@ -577,6 +588,7 @@ class FileEndpointTests(unittest.TestCase):
         expected_msg = f'Unsupported filetype for Dataframe conversion: {content_type}'
         self.assertEqual(str(exception), expected_msg)
 
+    @pytest.mark.skipif(DISABLE_DATA_CHECKS, reason="Test not compatible with responses > 0.25.3")
     def test_post_dataframe(self):
         ID = 1
         expected_url = '{}/{}/{}'.format(self.url_endpoint, ID, self.url_resource)
