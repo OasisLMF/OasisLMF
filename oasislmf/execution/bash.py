@@ -104,34 +104,100 @@ ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
 
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
-        'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
-        'parquet_flag': '-s', 'kat_flag': '-S'
+        'table_name': 'splt',
+        'kat_flag': '-S',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-S',
+            'parquet_flag': '-s',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-s',
+            'skip_header_flag': '-H'
+        },
     },
     "plt_quantile": {
-        'csv_flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt',
-        'parquet_flag': '-q', 'kat_flag': '-Q'
+        'table_name': 'qplt',
+        'kat_flag': '-Q',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-Q',
+            'parquet_flag': '-q',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-q',
+            'skip_header_flag': '-H'
+        },
     },
     "plt_moment": {
-        'csv_flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt',
-        'parquet_flag': '-m', 'kat_flag': '-M'
+        'table_name': 'mplt',
+        'kat_flag': '-M',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-M',
+            'parquet_flag': '-m',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-m',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
-        'csv_flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
-        'parquet_flag': '-q', 'kat_flag': '-q'
+        'table_name': 'qelt',
+        'kat_flag': '-q',
+        'ktools': {
+            'executable': 'eltcalc',
+            'csv_flag': '-Q',
+            'parquet_flag': '-q',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-q',
+            'skip_header_flag': '-H'
+        },
     },
     "elt_moment": {
-        'csv_flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
-        'parquet_flag': '-m', 'kat_flag': '-m'
+        'table_name': 'melt',
+        'kat_flag': '-m',
+        'ktools': {
+            'executable': 'eltcalc',
+            'csv_flag': '-M',
+            'parquet_flag': '-m',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-m',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
-        'csv_flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
-        'parquet_flag': '-p', 'kat_flag': '-s'
+        'table_name': 'selt',
+        'kat_flag': '-s',
+        'ktools': {
+            'executable': 'summarycalctocsv',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-s',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
@@ -1042,7 +1108,9 @@ def do_ord(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    inuring_priority=None
+    inuring_priority=None,
+    eltpy=False,
+    pltpy=False,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -1061,33 +1129,38 @@ def do_ord(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 cmd = ''
                 fifo_out_name = ''
+                exec_type = "ktools"
+                if eltpy and ord_type in ["elt_ord", "selt_ord"]:
+                    exec_type = "pytools"
+                if pltpy and ord_type == "plt_ord":
+                    exec_type = "pytools"
                 skip_line = True
                 for ord_table, flag_proc in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            if ord_type == 'plt_ord':
-                                cmd += ' -H'
-                            else:
-                                cmd += ' -s'
+                            cmd += f' {flag_proc[exec_type]["skip_header_flag"]}'
                             skip_line = False
 
                         if summary.get('ord_output', {}).get('parquet_format'):
-                            cmd += f' {flag_proc["parquet_flag"]}'
+                            if exec_type == "pytools":
+                                raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                            cmd += f' {flag_proc[exec_type]["parquet_flag"]}'
                         else:
-                            cmd += f' {flag_proc["csv_flag"]}'
+                            cmd += f' {flag_proc[exec_type]["csv_flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_table}')
-                        if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
+                        if exec_type == "pytools" or ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
-                    if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
-                        cmd = f'{cmd} > {fifo_out_name}'
+                    if exec_type == "ktools":
+                        if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
+                            cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
-                    cmd = f'{flag_proc["ktools_exe"]}{cmd}'
+                    cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
@@ -1180,6 +1253,8 @@ def rl(
     process_counter,
     num_reinsurance_iterations,
     summarypy,
+    eltpy,
+    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1198,7 +1273,7 @@ def rl(
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1229,6 +1304,8 @@ def ri(
     process_counter,
     num_reinsurance_iterations,
     summarypy,
+    eltpy,
+    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1247,7 +1324,7 @@ def ri(
             do_ord(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1273,12 +1350,13 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, summarypy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, summarypy, eltpy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
+               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1301,6 +1379,8 @@ def do_gul(
     filename,
     process_counter,
     summarypy,
+    eltpy,
+    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     gul_legacy_stream=None,
@@ -1312,7 +1392,8 @@ def do_gul(
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
+               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1861,6 +1942,8 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     summarypy=False,
+    eltpy=False,
+    pltpy=False,
     aalpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1902,6 +1985,8 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
+    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False
+    bash_params['pltpy'] = pltpy if not gul_legacy_stream else False
     bash_params['aalpy'] = aalpy if not gul_legacy_stream else False  # aalpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
@@ -2122,6 +2207,8 @@ def create_bash_analysis(
     model_py_server,
     peril_filter,
     summarypy,
+    eltpy,
+    pltpy,
     gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
@@ -2310,6 +2397,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2329,6 +2418,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2348,6 +2439,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
@@ -2366,6 +2459,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'gul_legacy_stream': gul_legacy_stream,
@@ -2791,6 +2886,8 @@ def genbash(
     model_py_server=False,
     peril_filter=[],
     summarypy=False,
+    eltpy=False,
+    pltpy=False,
     aalpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
@@ -2875,6 +2972,8 @@ def genbash(
         model_py_server=model_py_server,
         peril_filter=peril_filter,
         summarypy=summarypy,
+        eltpy=eltpy,
+        pltpy=pltpy,
         aalpy=aalpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
