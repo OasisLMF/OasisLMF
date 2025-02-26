@@ -389,6 +389,9 @@ setup(
             'summarypy=oasislmf.pytools.summary.cli:main',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
             'join-summary-info=oasislmf.pytools.join_summary_info.cli:main',
+            'eltpy=oasislmf.pytools.elt.cli:main',
+            'pltpy=oasislmf.pytools.plt.cli:main',
+            'aalpy=oasislmf.pytools.aal.cli:main',
         ]
     },
     license='BSD 3-Clause',
