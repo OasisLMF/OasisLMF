@@ -10,7 +10,7 @@ from ods_tools.oed import fill_empty
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.data import get_dataframe
-from . import oed
+from ..utils import oed
 
 
 REINS_RISK_LEVEL_XREF_COLUMN_MAP = {
