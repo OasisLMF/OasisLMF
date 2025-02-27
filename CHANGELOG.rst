@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`2.3.13`_
+ ---------
+* [#1604](https://github.com/OasisLMF/OasisLMF/pull/1633) - exposure run crashes if CondPeril is missing
+* [#1638](https://github.com/OasisLMF/OasisLMF/pull/1638) - CI Fix, Skip incompatible client checks 
+* [#1615](https://github.com/OasisLMF/OasisLMF/pull/1614) - Non-useful error message for missing PolInceptionDate with RA Basis reinsurance
+.. _`2.3.13`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.12...2.3.13
+
 `2.3.12`_
  ---------
 * [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
