@@ -576,7 +576,7 @@ def compute_event(compute_info,
                                            extras_indptr[storage_node['extra'] + p] + node_val_len]
 
                         if compute_node['cross_layer_profile']:
-                            loss_out = temp_node_loss_layer_ba[p]
+                            loss_out = temp_node_loss_layer_ba[p][:node_val_len]
                         else:
                             for profile_index in range(node_profile['i_start'], node_profile['i_end']):
                                 calc_extra(fm_profile[profile_index],
@@ -606,7 +606,7 @@ def compute_event(compute_info,
                                             extra, temp_node_extras, extras_indptr, extras_val)
                     else:
                         if compute_node['cross_layer_profile']:
-                            loss_out = temp_node_loss_layer_ba[p]
+                            loss_out = temp_node_loss_layer_ba[p][:node_val_len]
                         else:
                             for profile_index in range(node_profile['i_start'], node_profile['i_end']):
                                 calc(fm_profile[profile_index],

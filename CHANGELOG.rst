@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.28.11`_
+ ---------
+* [#1604](https://github.com/OasisLMF/OasisLMF/pull/1633) - exposure run crashes if CondPeril is missing
+* [#1638](https://github.com/OasisLMF/OasisLMF/pull/1638) - CI Fix, Skip incompatible client checks 
+* [#1611](https://github.com/OasisLMF/OasisLMF/pull/1611) - fix loss_out len in account level back allocation
+* [#1618](https://github.com/OasisLMF/OasisLMF/pull/1618) - Fix testing failures (API Client) 
+* [#1599](https://github.com/OasisLMF/OasisLMF/pull/1599) - Fixes for CI testing stable 1.28.x
+.. _`1.28.11`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.10...1.28.11
+
 `1.28.10`_
  ---------
 * [#1506](https://github.com/OasisLMF/OasisLMF/pull/1507) - acc_idx read as category type from input/accounts.csv 
