@@ -1,0 +1,34 @@
+name: Update Release Branch version
+
+on:
+  create:
+    branches:
+      - 'release/**'
+
+jobs:
+  version-branch-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from name
+        id: extract_version
+        run: |
+          BRANCH_NAME="${{ github.ref }}"
+          VERSION=$(echo "$BRANCH_NAME" | sed -n 's#.*/release/\([0-9]\+\.[0-9]\+\.[0-9]\+\)#\1#p')
+          if [[ -z "$VERSION" ]]; then
+            echo "No valid semantic version found. Exiting."
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_ENV
+
+      - name: Run update script
+        run: |
+          ./update version $version
+
+      - name: Trigger version update workflow
+        uses: ./.github/workflows/version.yml
+        secrets: inherit
+        with:
+          oasislmf_version: ${{ env.version }}
