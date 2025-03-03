@@ -10,6 +10,7 @@ from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_par
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
+convert_bin_to_parquet(footprints_path, chunk_size=0)
 path = footprints_path / "footprint_lookup.parquet"
 footprint_lookup = pd.read_parquet(path)
 
