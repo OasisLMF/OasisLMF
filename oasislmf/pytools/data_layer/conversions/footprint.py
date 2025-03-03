@@ -96,7 +96,7 @@ def convert_bin_to_parquet(static_path: str, chunk_size=1024 * 1024 * 8) -> None
             f'{static_path}/footprint_lookup.parquet', index=False
         )
 
-        with storage.open('footprint_parquet_meta.json', 'w') as outfile:
+        with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
             json.dump(meta_data, outfile)
 
 
