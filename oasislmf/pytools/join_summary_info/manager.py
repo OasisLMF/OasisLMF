@@ -2,6 +2,8 @@
 
 import logging
 import numpy as np
+from pathlib import Path
+import tempfile
 from contextlib import ExitStack
 
 from oasislmf.pytools.utils import redirect_logging
@@ -57,10 +59,24 @@ def run(
         data_file (str | os.PathLike): Path to ORD output data file (e.g. SELT, MPLT, AAL, PSEPT) 
         output_file (str | os.PathLike): Path to combined output file
     """
+    summaryinfo_file = Path(summaryinfo_file)
+    data_file = Path(data_file)
+    output_file = Path(output_file)
+
     with ExitStack() as stack:
         summary_data, summary_headers, max_summary_id = load_summary_info(stack, summaryinfo_file)
 
-        with stack.enter_context(open(data_file, "r")) as data_fin, stack.enter_context(open(output_file, "w")) as fout:
+        # Use a temporary file if input and output are the same
+        same_file = data_file.resolve() == output_file.resolve()
+        temp_output = None
+
+        if same_file:
+            temp_output = tempfile.NamedTemporaryFile(mode="w", delete=False)
+            temp_output_file = Path(temp_output.name)
+        else:
+            temp_output_file = output_file
+
+        with stack.enter_context(open(data_file, "r")) as data_fin, stack.enter_context(open(temp_output_file, "w")) as fout:
             data_headers = data_fin.readline().strip().split(",")
             fout.write(",".join(data_headers + summary_headers) + "\n")
 
@@ -73,14 +89,14 @@ def run(
                 else:
                     fout.write(line.strip() + "," + summary_data[summary_id] + "\n")
 
+        # Replace the original file if needed
+        if same_file and temp_output:
+            temp_output.close()
+            temp_output_file.replace(output_file)
+
 
 @redirect_logging(exec_name='join-summary-info')
-def main(
-    summaryinfo=None,
-    data=None,
-    output=None,
-    **kwargs
-):
+def main(summaryinfo=None, data=None, output=None, **kwargs):
     run(
         summaryinfo_file=summaryinfo,
         data_file=data,
