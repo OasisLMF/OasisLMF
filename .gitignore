@@ -130,6 +130,7 @@ tests/model_execution/err_fc_kparse_output/
 tests/model_execution/itm_fc_kparse_output/
 tests/model_execution/tmp_fc_kparse_output/
 tests/assets/test_summarypy/**/error_files/
+tests/assets/test_katpy/**/error_files/
 tests/assets/test_eltpy/**/error_files/
 tests/assets/test_pltpy/**/error_files/
 tests/assets/test_aalpy/**/error_files/
@@ -150,6 +151,8 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_summarypy/*.bin
 !tests/assets/test_summarypy/single_summary_set/*.bin
 !tests/assets/test_summarypy/**/*.bin
+!tests/assets/test_katpy/*.bin
+!tests/assets/test_katpy/**/*.bin
 !tests/assets/test_eltpy/*.bin
 !tests/assets/test_eltpy/**/*.bin
 !tests/assets/test_pltpy/*.bin
