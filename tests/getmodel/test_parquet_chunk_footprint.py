@@ -6,9 +6,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from oasislmf.pytools.data_layer.conversions.footprint import (
-    convert_bin_to_parquet
-)
+from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
@@ -47,3 +45,13 @@ def test_get_events(event_id):
         get_events_events = footprint.get_events(partition)
 
         assert any(np.array_equal(get_event_event, event) for event in get_events_events)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_parquet_files():
+    yield
+
+    for file in footprints_path.glob("*.parquet"):
+        file.unlink()
+    for file in footprints_path.glob("*.json"):
+        file.unlink()

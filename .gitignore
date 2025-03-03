@@ -133,18 +133,6 @@ tests/assets/test_summarypy/**/error_files/
 tests/assets/test_eltpy/**/error_files/
 tests/assets/test_common/**/error_files/
 
-# test files
-tests/getmodel/footprints/footprint_1.parquet
-tests/getmodel/footprints/footprint_2.parquet
-tests/getmodel/footprints/footprint_3.parquet
-tests/getmodel/footprints/footprint_4.parquet
-tests/getmodel/footprints/footprint_5.parquet
-tests/getmodel/footprints/footprint_6.parquet
-tests/getmodel/footprints/footprint_7.parquet
-tests/getmodel/footprints/footprint_lookup.parquet
-tests/getmodel/footprints/footprint_parquet_meta.json
-
-
 !tests/pytools/data_layer/oasis_files/meta_data/correlations.bin
 
 # do not ignore .bin files in test model assets directories

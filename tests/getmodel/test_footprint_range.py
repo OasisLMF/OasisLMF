@@ -2,9 +2,7 @@ from pathlib import Path
 import pytest
 from oasislmf.pytools.getmodel.footprint import FootprintBin
 from oasis_data_manager.filestore.backends.local import LocalStorage
-from oasislmf.pytools.data_layer.conversions.footprint import (
-    convert_bin_to_parquet
-)
+from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
@@ -19,10 +17,11 @@ footprints_path = script_dir / "footprints"
 ])
 def test_range(areaperil_ids, expected):
     convert_bin_to_parquet(footprints_path)
-    with FootprintBin(
-        LocalStorage(footprints_path), areaperil_ids=areaperil_ids
-    ) as footprint:
+    with FootprintBin(LocalStorage(footprints_path), areaperil_ids=areaperil_ids) as footprint:
         for i in range(7):
-            assert footprint.areaperil_in_range(
-                i + 1, footprint.events_dict
-            ) == expected[i]
+            assert footprint.areaperil_in_range(i + 1, footprint.events_dict) == expected[i]
+
+    for file in footprints_path.glob("*.parquet"):
+        file.unlink()
+    for file in footprints_path.glob("*.json"):
+        file.unlink()
