@@ -297,7 +297,7 @@ class FootprintBin(Footprint):
             df = pickle.loads(self.footprint)
 
             self.events_dict = {
-                row.event_id: (row.min_areaperil_id, row.max_areaperil_id) 
+                row.event_id: (row.min_areaperil_id, row.max_areaperil_id)
                 for row in df.itertuples(index=False)
             }
 
