@@ -582,15 +582,16 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-                if outfile_ext == 'parquet':
-                    logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
-                else:
-                    summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.csv -o {palt_outfile_stem}.csv'
-                    print_command(filename, cmd)
-                    if summary.get('ord_output', {}).get('alct_convergence'):
-                        cmd = f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.csv -o {alct_outfile_stem}.csv'
+                if join_summary_info:
+                    if outfile_ext == 'parquet':
+                        logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
+                    else:
+                        summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
+                        cmd = f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.csv -o {palt_outfile_stem}.csv'
                         print_command(filename, cmd)
+                        if summary.get('ord_output', {}).get('alct_convergence'):
+                            cmd = f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.csv -o {alct_outfile_stem}.csv'
+                            print_command(filename, cmd)
 
             # ktools ORIG - aalcalcmeanonly
             if summary.get('aalcalcmeanonly'):
@@ -636,12 +637,13 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-                if outfile_ext == 'parquet':
-                    logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
-                else:
-                    summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.csv -o {altmeanonly_outfile_stem}.csv'
-                    print_command(filename, cmd)
+                if join_summary_info:
+                    if outfile_ext == 'parquet':
+                        logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
+                    else:
+                        summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
+                        cmd = f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.csv -o {altmeanonly_outfile_stem}.csv'
+                        print_command(filename, cmd)
 
             # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
@@ -707,14 +709,15 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-                if outfile_ext == 'parquet':
-                    logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
-                else:
-                    summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename}'
-                    print_command(filename, cmd)
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename}'
-                    print_command(filename, cmd)
+                if join_summary_info:
+                    if outfile_ext == 'parquet':
+                        logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
+                    else:
+                        summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
+                        cmd = f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename}'
+                        print_command(filename, cmd)
+                        cmd = f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename}'
+                        print_command(filename, cmd)
 
             # ktools ORIG - Leccalc
             if leccalc_enabled(summary):
@@ -962,12 +965,13 @@ def do_kats(
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
-                        if outfile_ext == 'parquet':
-                            logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
-                        else:
-                            summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
-                            cmd = f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile}'
-                            print_command(filename, cmd)
+                        if join_summary_info:
+                            if outfile_ext == 'parquet':
+                                logger.warning("WARNING: join-summary-info does not support parquet, will not be run.")
+                            else:
+                                summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.csv'
+                                cmd = f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile}'
+                                print_command(filename, cmd)
     return anykats
 
 
