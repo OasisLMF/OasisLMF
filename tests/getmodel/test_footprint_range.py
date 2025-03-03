@@ -8,6 +8,7 @@ script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
 convert_bin_to_parquet(footprints_path, chunk_size=0)
 
+
 @pytest.mark.parametrize("areaperil_ids, expected", [
     ([20], [False, False, True, True, False, False, False]),
     ([21], [True, False, False, True, False, False, False]),
