@@ -6,7 +6,6 @@ from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_par
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
-convert_bin_to_parquet(footprints_path, chunk_size=0)
 
 
 @pytest.mark.parametrize("areaperil_ids, expected", [
@@ -20,3 +19,16 @@ def test_range(areaperil_ids, expected):
     with FootprintBin(LocalStorage(footprints_path), areaperil_ids=areaperil_ids) as footprint:
         for i in range(7):
             assert footprint.areaperil_in_range(i + 1, footprint.events_dict) == expected[i]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_parquet_files():
+    convert_bin_to_parquet(footprints_path, chunk_size=0)
+    yield
+
+    for file in footprints_path.glob("*.parquet"):
+        file.unlink()
+    for file in footprints_path.glob("*footprint_lookup*"):
+        file.unlink()
+    for file in footprints_path.glob("*.json"):
+        file.unlink()

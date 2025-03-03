@@ -4,11 +4,13 @@ binary, and CSV files.
 """
 import json
 import logging
+import pickle
 import mmap
 import os
 from contextlib import ExitStack
 from typing import Dict, List, Union
 from zlib import decompress
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -27,7 +29,7 @@ from .common import (
     parquetfootprint_meta_filename, event_defintion_filename,
     hazard_case_filename, fp_format_priorities,
     parquetfootprint_chunked_filename,
-    parquetfootprint_chunked_lookup
+    parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
 
 logger = logging.getLogger(__name__)
@@ -286,11 +288,18 @@ class FootprintBin(Footprint):
 
         self.footprint_index = pd.DataFrame(footprint_mmap, columns=footprint_mmap.dtype.names).set_index('event_id').to_dict('index')
 
-        try:
-            events = self.get_df_reader("footprint_lookup.parquet").as_pandas()
-            self.events_dict = {row.event_id: (row.min_areaperil_id, row.max_areaperil_id) for row in events.itertuples(index=False)}
-        except FileNotFoundError:
+        if not Path(footprint_bin_lookup).is_file():
             self.events_dict = None
+        else:
+            lookup_file = self.storage.with_fileno(footprint_bin_lookup)
+            with lookup_file as f:
+                self.footprint = mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ)
+            df = pickle.loads(self.footprint)
+
+            self.events_dict = {
+                row.event_id: (row.min_areaperil_id, row.max_areaperil_id) 
+                for row in df.itertuples(index=False)
+            }
 
         return self
 
@@ -351,13 +360,6 @@ class FootprintBinZ(Footprint):
         zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
         self.footprint_index = pd.DataFrame(zfootprint_mmap, columns=zfootprint_mmap.dtype.names).set_index('event_id').to_dict('index')
 
-        try:
-            events = self.get_df_reader("footprint_lookup.parquet").as_pandas()
-            self.events_dict = {row.event_id: (row.min_areaperil_id, row.max_areaperil_id) for row in events.itertuples(index=False)}
-
-        except FileNotFoundError:
-            self.events_dict = None
-
         return self
 
     def get_event(self, event_id):
@@ -369,9 +371,6 @@ class FootprintBinZ(Footprint):
 
         Returns: (np.array[Event]) the event that was extracted
         """
-        if self.events_dict:
-            if not self.areaperil_in_range(event_id, self.events_dict):
-                return None
 
         event_info = self.footprint_index.get(event_id)
         if event_info is None:

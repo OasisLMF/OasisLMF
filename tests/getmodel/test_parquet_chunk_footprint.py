@@ -10,7 +10,6 @@ from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_par
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
-convert_bin_to_parquet(footprints_path, chunk_size=0)
 path = footprints_path / "footprint_lookup.parquet"
 footprint_lookup = pd.read_parquet(path)
 
@@ -49,9 +48,12 @@ def test_get_events(event_id):
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_parquet_files():
+    convert_bin_to_parquet(footprints_path, chunk_size=0)
     yield
 
     for file in footprints_path.glob("*.parquet"):
+        file.unlink()
+    for file in footprints_path.glob("*footprint_lookup*"):
         file.unlink()
     for file in footprints_path.glob("*.json"):
         file.unlink()

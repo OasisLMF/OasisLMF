@@ -92,9 +92,11 @@ def convert_bin_to_parquet(static_path: str, chunk_size=1024 * 1024 * 8) -> None
 
         footprint_lookup_df = pd.DataFrame(footprint_lookup)
 
-        footprint_lookup_df.to_parquet(
-            f'{static_path}/footprint_lookup.parquet', index=False
-        )
+        footprint_lookup_df.to_parquet(f'{static_path}/footprint_lookup.parquet', index=False)
+        # Writing to other file types min and max ids
+        no_partition = footprint_lookup_df.drop(columns=['partition'])
+        no_partition.to_pickle(f'{static_path}/footprint_lookup.bin')
+        no_partition.to_csv(f'{static_path}/footprint_lookup.csv', index=False)
 
         with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
             json.dump(meta_data, outfile)
