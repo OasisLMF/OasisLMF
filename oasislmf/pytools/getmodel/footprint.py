@@ -10,7 +10,6 @@ import os
 from contextlib import ExitStack
 from typing import Dict, List, Union
 from zlib import decompress
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
