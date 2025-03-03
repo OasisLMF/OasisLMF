@@ -288,18 +288,18 @@ class FootprintBin(Footprint):
 
         self.footprint_index = pd.DataFrame(footprint_mmap, columns=footprint_mmap.dtype.names).set_index('event_id').to_dict('index')
 
-        if not Path(footprint_bin_lookup).is_file():
-            self.events_dict = None
-        else:
+        try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
             with lookup_file as f:
-                self.footprint = mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ)
-            df = pickle.loads(self.footprint)
+                lookup = mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ)
+            df = pickle.loads(lookup)
 
             self.events_dict = {
                 row.event_id: (row.min_areaperil_id, row.max_areaperil_id)
                 for row in df.itertuples(index=False)
             }
+        except FileNotFoundError:
+            self.events_dict = None
 
         return self
 

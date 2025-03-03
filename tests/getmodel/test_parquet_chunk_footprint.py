@@ -10,9 +10,7 @@ from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_par
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
-convert_bin_to_parquet(footprints_path, chunk_size=0)
 path = footprints_path / "footprint_lookup.parquet"
-footprint_lookup = pd.read_parquet(path)
 
 
 @pytest.mark.parametrize("event_id", [
@@ -38,7 +36,7 @@ def test_get_event(event_id):
 def test_get_events(event_id):
     with FootprintParquetChunk(LocalStorage(footprints_path)) as footprint:
         get_event_event = footprint.get_event(event_id)
-        # import pdb; pdb.set_trace()
+        footprint_lookup = pd.read_parquet(path)
         row = footprint_lookup.loc[footprint_lookup["event_id"] == event_id].iloc[0]
 
         partition = row["partition"]
