@@ -550,15 +550,15 @@ def do_post_wait_processing(
                 palt_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_palt"
                 alct_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_alct"
 
-                outfile_ext = ".csv"
+                outfile_ext = "csv"
                 if summary.get('ord_output', {}).get('parquet_format'):
                     if aal_exec_type == "pytools":
                         raise OasisException('ERROR: pytools executable does not support parquet_format output')
-                    outfile_ext = ".parquet"
+                    outfile_ext = "parquet"
 
                 if summary.get('ord_output', {}).get('alct_convergence'):
                     aal_alct_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_flag"]
-                    cmd = f"{cmd} {aal_alct_flag} {alct_outfile_stem}{outfile_ext}"
+                    cmd = f"{cmd} {aal_alct_flag} {alct_outfile_stem}.{outfile_ext}"
                     if summary.get('ord_output', {}).get('alct_confidence'):
                         aal_alct_confidence_level = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_confidence_level"]
                         cmd = f"{cmd} {aal_alct_confidence_level} {summary.get('ord_output', {}).get('alct_confidence')}"
@@ -566,8 +566,8 @@ def do_post_wait_processing(
                 if outfile_ext == 'parquet':
                     if aal_exec_type == "pytools":
                         raise OasisException('ERROR: pytools executable does not support parquet_format output')
-                    aal_parqut_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["parquet_flag"]
-                    cmd = f"{cmd} {aal_parqut_flag} {palt_outfile_stem}.parquet"
+                    aal_parquet_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["parquet_flag"]
+                    cmd = f"{cmd} {aal_parquet_flag} {palt_outfile_stem}.parquet"
                 else:
                     aal_csv_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["csv_flag"]
                     if aal_exec_type == "pytools":
@@ -621,7 +621,7 @@ def do_post_wait_processing(
                     if aal_exec_type == "pytools":
                         raise OasisException('ERROR: pytools executable does not support parquet_format output')
                     aal_parquet_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["parquet_flag"]
-                    cmd = f"{cmd} {aal_parqut_flag} {altmeanonly_outfile_stem}.parquet"
+                    cmd = f"{cmd} {aal_parquet_flag} {altmeanonly_outfile_stem}.parquet"
                     outfile_ext = 'parquet'
                 else:
                     aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["csv_flag"]
