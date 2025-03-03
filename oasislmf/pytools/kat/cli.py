@@ -20,6 +20,9 @@ def validate_kat_flags(args):
     if sum(flags) > 1:
         raise RuntimeError("ERROR: katpy cannot kat more than one file type flag")
 
+    if args.files_in is None and args.dir_in is None:
+        raise RuntimeError("Error: katpy must specify at least one of --files_in or --dir_in.")
+
 
 def main():
     parser = argparse.ArgumentParser(description='Concatenate ELT/PLT CSV files')
