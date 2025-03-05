@@ -6,7 +6,7 @@ import logging
 from . import manager, logger
 
 
-def validate_kat_flags(args):
+def validate_flags(args):
     flags = [
         args.selt,
         args.melt,
@@ -26,7 +26,7 @@ def validate_kat_flags(args):
 
 def main():
     parser = argparse.ArgumentParser(description='Concatenate ELT/PLT CSV files')
-    parser.add_argument('-o', '--out', type=str, required=True, default=None, help='Output Concatenated CSV file')
+    parser.add_argument('-o', '--out', type=str, required=True, help='Output Concatenated CSV file')
     parser.add_argument('-i', '--files_in', type=str, nargs='+', required=False, help='Individual input file paths to concatenate')
     parser.add_argument('-d', '--dir_in', type=str, default=None, help='Path to the directory containing files for concatenation')
     parser.add_argument('-s', '--selt', action='store_true', help='Concatenate SELT CSV file')
@@ -40,7 +40,7 @@ def main():
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
 
     args = parser.parse_args()
-    validate_kat_flags(args)
+    validate_flags(args)
     kwargs = vars(args)
 
     # Set up logging
