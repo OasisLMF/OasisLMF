@@ -2,7 +2,9 @@
 
 from collections import Counter
 from contextlib import ExitStack
+import csv
 import glob
+import heapq
 import logging
 import shutil
 from pathlib import Path
@@ -49,7 +51,7 @@ def concat_unsorted(
     stack,
     file_paths,
     files_with_header,
-    header,
+    headers,
     out_file,
 ):
     """Concats CSV files in order they are passed in.
@@ -57,7 +59,7 @@ def concat_unsorted(
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of csv file paths.
         files_with_header (List[bool]): Bool list of files with header present
-        header (str): Header to write
+        header (List[str]): Headers to write
         out_file (str | os.PathLike): Output Concatenated CSV file.
     """
     first_header_written = False
@@ -71,9 +73,71 @@ def concat_unsorted(
 
                     # Write the expected header at the start of the file
                     if not first_header_written:
-                        out.write(header.encode() + b'\n')
+                        out.write(",".join(headers).encode() + b"\n")
                         first_header_written = True
                 shutil.copyfileobj(csv_file, out)
+
+
+def get_header_idxs(
+    headers,
+    headers_to_search,
+):
+    idxs = []
+    for header in headers_to_search:
+        try:
+            idxs.append(headers.index(header))
+        except ValueError as e:
+            raise ValueError(f"ERROR: katpy, cannot sort by header {header}, not found. {e}")
+    return idxs
+
+
+def concat_sort_by_headers(
+    stack,
+    file_paths,
+    files_with_header,
+    headers,
+    header_idxs,
+    sort_fn,
+    out_file,
+    buffer_size=1000000,
+    **sort_kwargs
+):
+    # Open all csv files
+    csv_files = [stack.enter_context(open(fp, "r", newline="")) for fp in file_paths]
+    readers = [csv.reader(f) for f in csv_files]
+
+    # Skip headers
+    for idx, reader in enumerate(readers):
+        if files_with_header[idx]:
+            next(reader, None)
+
+    def row_generator(reader, file_idx):
+        for row in reader:
+            sort_key = sort_fn([row[i] for i in header_idxs], **sort_kwargs)
+            yield (sort_key, file_idx, row)
+
+    # Create iterator for each file
+    iterators = [row_generator(reader, idx) for idx, reader in enumerate(readers)]
+
+    # Merge all iterators
+    merged_iterator = heapq.merge(*iterators, key=lambda x: x[0])
+
+    with stack.enter_context(out_file.open("w")) as out:
+        writer = csv.writer(out, lineterminator="\n")
+        writer.writerow(headers)
+
+        buffer = []
+        for _, _, row in merged_iterator:
+            buffer.append(row)
+            if len(buffer) > buffer_size:
+                writer.writerows(buffer)
+                buffer.clear()
+
+        if buffer:
+            writer.writerows(buffer)
+
+    for f in csv_files:
+        f.close()
 
 
 def run(
@@ -143,10 +207,24 @@ def run(
 
     with ExitStack() as stack:
         files_with_header, header = find_csv_with_header(stack, csv_files)
+        headers = header.strip().split(",")
+
         if unsorted:
-            concat_unsorted(stack, csv_files, files_with_header, header, out_file)
+            concat_unsorted(stack, csv_files, files_with_header, headers, out_file)
         else:
-            print("NOT IMPLEMENTED")
+            if sort_by_event:
+                header_idxs = get_header_idxs(headers, ["EventId"])
+                concat_sort_by_headers(
+                    stack,
+                    csv_files,
+                    files_with_header,
+                    headers,
+                    header_idxs,
+                    lambda values: int(values[0]),
+                    out_file,
+                )
+            else:
+                print("NOT IMPLEMENTED")
 
 
 @redirect_logging(exec_name='katpy')
