@@ -1,5 +1,6 @@
 # katpy/manager.py
 
+from collections import Counter
 from contextlib import ExitStack
 import glob
 import logging
@@ -11,20 +12,67 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
+def find_csv_with_header(
+    stack,
+    file_paths,
+):
+    """Find and check csv files for consistent and present headers
+    Args:
+        stack (ExitStack): Exit Stack.
+        file_paths (List[str | os.PathLike]): List of csv file paths.
+    Returns:
+        files_with_header (List[bool]): Bool list of files with header present
+        header (str): Header to write
+    """
+    headers = {}
+    files_with_header = [False] * len(file_paths)
+    for idx, fp in enumerate(file_paths):
+        with stack.enter_context(fp.open("r", newline="", encoding="utf-8")) as f:
+            first_row = f.readline().strip()
+            if first_row:
+                if "EventId" in first_row:
+                    headers[fp] = first_row
+                    files_with_header[idx] = True
+
+    if not headers:
+        raise ValueError("ERROR: katpy, no valid header found in any CSV file.")
+
+    header_counts = Counter(headers.values())
+
+    if len(header_counts) > 1:
+        raise ValueError(f"ERROR: katpy, conflicting headers found: {header_counts}")
+
+    return files_with_header, list(headers.values())[0]
+
+
 def concat_unsorted(
     stack,
     file_paths,
+    files_with_header,
+    header,
     out_file,
 ):
     """Concats CSV files in order they are passed in.
     Args:
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of csv file paths.
+        files_with_header (List[bool]): Bool list of files with header present
+        header (str): Header to write
         out_file (str | os.PathLike): Output Concatenated CSV file.
     """
+    first_header_written = False
+
     with stack.enter_context(out_file.open("wb")) as out:
-        for fp in file_paths:
+        for i, fp in enumerate(file_paths):
             with stack.enter_context(fp.open("rb")) as csv_file:
+                if files_with_header[i]:
+                    # Read first line (header)
+                    first_line = csv_file.readline()
+
+                    # Write the expected header at the start of the file
+                    if not first_header_written:
+                        out.write(header.encode() + b'\n')
+                        first_header_written = True
                 shutil.copyfileobj(csv_file, out)
 
 
@@ -89,9 +137,14 @@ def run(
     if not csv_files:
         raise RuntimeError("ERROR: katpy has no input CSV files to join")
 
+    sort_by_event = any([concatenate_selt, concatenate_melt, concatenate_qelt])
+    sort_by_period = any([concatenate_splt, concatenate_mplt, concatenate_qplt])
+    assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
+
     with ExitStack() as stack:
+        files_with_header, header = find_csv_with_header(stack, csv_files)
         if unsorted:
-            concat_unsorted(stack, csv_files, out_file)
+            concat_unsorted(stack, csv_files, files_with_header, header, out_file)
         else:
             print("NOT IMPLEMENTED")
 
