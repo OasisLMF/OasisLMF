@@ -1,0 +1,42 @@
+name: Build computation schema
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches:
+      - main
+      - stable**
+jobs:
+  build-schema:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-tools
+
+      - name: Build & install oasislmf
+        run: |
+          python setup.py bdist_wheel --plat-name Linux_x86_64
+          WHL_LINUX=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl")
+          pip install ${WHL_LINUX}
+
+      - name: Create schema
+        run: |
+          oasislmf model generate-computation-settings-json-schema
+
+      - name: Store Computation Schema
+        uses: actions/upload-artifact@v4
+        with:
+          name: computation_schema
+          path: ./computation_settings_schema.json
+          retention-days: 5

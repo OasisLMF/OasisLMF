@@ -409,10 +409,13 @@ class FootprintParquet(Footprint):
 
         Returns: (np.array[Event]) the event that was extracted
         """
-        reader = self.get_df_reader("footprint.parquet", filters=[("event_id", "==", event_id)])
-
-        numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
-        return numpy_data
+        dir_path = f"footprint.parquet/event_id={event_id}/"
+        if self.storage.exists(dir_path):
+            reader = self.get_df_reader(dir_path)
+            numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
+            return numpy_data
+        else:
+            return np.empty(0, dtype=Event)
 
 
 class FootprintParquetChunk(Footprint):
