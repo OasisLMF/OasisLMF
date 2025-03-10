@@ -2,6 +2,7 @@
 Contain all common function and attribute to help read the event stream containing the losses
 """
 
+from oasislmf.utils.exceptions import OasisException
 import selectors
 from select import select
 import sys
@@ -333,33 +334,37 @@ class EventReader:
         """
         event_id = 0
         item_id = 0
+        try:
+            while True:
+                if valid_buff < PIPE_CAPACITY:
+                    stream_selector.select()
+                    len_read = stream_in.readinto1(mv[valid_buff:])
+                    valid_buff += len_read
 
-        while True:
-            if valid_buff < PIPE_CAPACITY:
-                stream_selector.select()
-                len_read = stream_in.readinto1(mv[valid_buff:])
-                valid_buff += len_read
+                    if len_read == 0:
+                        stream_selector.close()
+                        main_selector.unregister(stream_in)
+                        if event_id:
+                            self.item_exit()
+                            return event_id, cursor, valid_buff
 
-                if len_read == 0:
-                    stream_selector.close()
-                    main_selector.unregister(stream_in)
-                    if event_id:
-                        self.item_exit()
-                        return event_id, cursor, valid_buff
+                        break
+                cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id)
 
-                    break
-            cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id)
-
-            if yield_event:
-                if 2 * cursor > valid_buff:
+                if yield_event:
+                    if 2 * cursor > valid_buff:
+                        mv[:valid_buff - cursor] = mv[cursor: valid_buff]
+                        valid_buff -= cursor
+                        cursor = 0
+                    return event_id, cursor, valid_buff
+                else:
                     mv[:valid_buff - cursor] = mv[cursor: valid_buff]
                     valid_buff -= cursor
                     cursor = 0
-                return event_id, cursor, valid_buff
-            else:
-                mv[:valid_buff - cursor] = mv[cursor: valid_buff]
-                valid_buff -= cursor
-                cursor = 0
+
+        except Exception as e:
+            self.logger.error(str(e))
+            raise OasisException("Error reading stream", e)
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
         raise NotImplementedError

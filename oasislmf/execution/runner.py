@@ -2,11 +2,13 @@ import logging
 import os
 import shutil
 import subprocess
+import json
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import (bash_wrapper, create_bash_analysis,
-                   create_bash_outputs, genbash)
+                   create_bash_outputs, genbash, get_main_cmd_gul_stream,
+                   get_main_cmd_il_stream)
 
 
 @oasis_log()
@@ -107,6 +109,39 @@ def run(analysis_settings,
     )
     bash_trace = subprocess.check_output(['bash', filename])
     logging.info(bash_trace.decode('utf-8'))
+
+
+def rerun():
+    try:
+        with open("event_error.json", "r") as f:
+            event_error = json.load(f).get("event_id")
+    except FileNotFoundError:
+        return
+
+    env = os.environ.copy()
+    env['NUMBA_DISABLE_JIT'] = "1"                                   # this is the event we want to re-run
+    eve_cmd = f"printf 'event_id\n {event_error}\n' | evetobin"    # cmd string to push that single event into the ktools pipe
+    ktools_pipeline = ''
+
+    with open("run_ktools.sh", "r") as bash_script:
+        for line in bash_script:
+            if "( ( eve" in line:
+                ktools_pipeline = line.split('|')
+                break
+
+    gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)  # extract the ground up losses command
+    fm_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))].pop(0)    # extract the FM insured losses command
+    pipe_output = "/tmp/il_P1"
+    summary_output = "/tmp/il_S1_summary_P1"
+    single_event_pipe = f"{eve_cmd} | {gul_cmd} | {fm_cmd} -o {pipe_output}"   # Create a new command to re-run
+    summary_pipe = f"summarypy -t il -m -1 {summary_output} < {pipe_output}"
+    try:
+        with open("rerun_errors.log", "w") as error_log:
+            subprocess.run(single_event_pipe, shell=True, env=env, stderr=error_log)
+        with open("summary_errors.log", "w") as error_log:
+            subprocess.run(summary_pipe, shell=True, env=env, stderr=error_log)
+    finally:
+        env['NUMBA_DISABLE_JIT'] = "0"
 
 
 @oasis_log()
