@@ -242,7 +242,19 @@ def run(
                 elif input_type == ".bin":
                     print("NOT IMPLEMENTED")
             else:
-                print("NOT IMPLEMENTED")
+                if input_type == ".csv":
+                    header_idxs = get_header_idxs(headers, ["EventId", "Period"])
+                    csv_concat_sort_by_headers(
+                        stack,
+                        input_files,
+                        files_with_header,
+                        headers,
+                        header_idxs,
+                        lambda values: (int(values[0]), int(values[1])),
+                        out_file,
+                    )
+                elif input_type == ".bin":
+                    print("NOT IMPLEMENTED")
 
 
 @redirect_logging(exec_name='katpy')
