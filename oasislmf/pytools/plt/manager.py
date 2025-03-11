@@ -11,69 +11,10 @@ from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
-
-
-SPLT_output = [
-    ('Period', oasis_int, '%d'),
-    ('PeriodWeight', oasis_float, '%.6f'),
-    ('EventId', oasis_int, '%d'),
-    ('Year', oasis_int, '%d'),
-    ('Month', oasis_int, '%d'),
-    ('Day', oasis_int, '%d'),
-    ('Hour', oasis_int, '%d'),
-    ('Minute', oasis_int, '%d'),
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleId', oasis_int, '%d'),
-    ('Loss', oasis_float, '%.2f'),
-    ('ImpactedExposure', oasis_float, '%.2f'),
-]
-
-MPLT_output = [
-    ('Period', oasis_int, '%d'),
-    ('PeriodWeight', oasis_float, '%.6f'),
-    ('EventId', oasis_int, '%d'),
-    ('Year', oasis_int, '%d'),
-    ('Month', oasis_int, '%d'),
-    ('Day', oasis_int, '%d'),
-    ('Hour', oasis_int, '%d'),
-    ('Minute', oasis_int, '%d'),
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleType', oasis_int, '%d'),
-    ('ChanceOfLoss', oasis_float, '%.4f'),
-    ('MeanLoss', oasis_float, '%.2f'),
-    ('SDLoss', oasis_float, '%.2f'),
-    ('MaxLoss', oasis_float, '%.2f'),
-    ('FootprintExposure', oasis_float, '%.2f'),
-    ('MeanImpactedExposure', oasis_float, '%.2f'),
-    ('MaxImpactedExposure', oasis_float, '%.2f'),
-]
-
-QPLT_output = [
-    ('Period', oasis_int, '%d'),
-    ('PeriodWeight', oasis_float, '%.6f'),
-    ('EventId', oasis_int, '%d'),
-    ('Year', oasis_int, '%d'),
-    ('Month', oasis_int, '%d'),
-    ('Day', oasis_int, '%d'),
-    ('Hour', oasis_int, '%d'),
-    ('Minute', oasis_int, '%d'),
-    ('SummaryId', oasis_int, '%d'),
-    ('Quantile', oasis_float, '%.2f'),
-    ('Loss', oasis_float, '%.2f'),
-]
-
-SPLT_headers = [c[0] for c in SPLT_output]
-MPLT_headers = [c[0] for c in MPLT_output]
-QPLT_headers = [c[0] for c in QPLT_output]
-SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
-MPLT_dtype = np.dtype([(c[0], c[1]) for c in MPLT_output])
-QPLT_dtype = np.dtype([(c[0], c[1]) for c in QPLT_output])
-SPLT_fmt = ','.join([c[2] for c in SPLT_output])
-MPLT_fmt = ','.join([c[2] for c in MPLT_output])
-QPLT_fmt = ','.join([c[2] for c in QPLT_output])
 
 
 class PLTReader(EventReader):
