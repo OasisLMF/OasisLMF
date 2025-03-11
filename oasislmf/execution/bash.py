@@ -1605,7 +1605,7 @@ def get_getmodel_cov_cmd(
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
-            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine, 
+            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
             dynamic_footprint=dynamic_footprint
         )
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
