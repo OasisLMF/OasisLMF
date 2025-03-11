@@ -14,6 +14,16 @@ from oasislmf.pytools.utils import redirect_logging
 logger = logging.getLogger(__name__)
 
 
+def check_file_extensions(files):
+    valid_exts = {".csv", ".bin"}
+
+    first_ext = files[0].suffix
+
+    if all(file.suffix == first_ext and file.suffix in valid_exts for file in files):
+        return first_ext
+    raise RuntimeError("ERROR: katpy has input files with different file extensions. Make sure all input files are of the same type.")
+
+
 def find_csv_with_header(
     stack,
     file_paths,
@@ -47,7 +57,7 @@ def find_csv_with_header(
     return files_with_header, list(headers.values())[0]
 
 
-def concat_unsorted(
+def csv_concat_unsorted(
     stack,
     file_paths,
     files_with_header,
@@ -91,7 +101,7 @@ def get_header_idxs(
     return idxs
 
 
-def concat_sort_by_headers(
+def csv_concat_sort_by_headers(
     stack,
     file_paths,
     files_with_header,
@@ -169,7 +179,7 @@ def run(
     if out_file.suffix.lower() != ".csv":
         raise ValueError(f"ERROR: File \'{out_file}\' is not a CSV file.")
 
-    csv_files = []
+    input_files = []
 
     # Check and add files from dir_in
     if dir_in:
@@ -179,12 +189,12 @@ def run(
         if not dir_in.is_dir():
             raise ValueError(f"ERROR: \'{dir_in}\' is not a directory.")
 
-        dir_csv_files = glob.glob(str(dir_in / "*.csv"))
-        if not dir_csv_files:
+        dir_input_files = glob.glob(str(dir_in / "*.csv"))
+        if not dir_input_files:
             logger.warning(f"Warning: No CSV files found in directory \'{dir_in}\'")
-        csv_files += [Path(file).resolve() for file in dir_csv_files]
+        input_files += [Path(file).resolve() for file in dir_input_files]
 
-    csv_files.sort()
+    input_files.sort()
 
     # Check and add files from files_in
     if files_in:
@@ -196,33 +206,41 @@ def run(
                 raise FileNotFoundError(f"ERROR: File \'{path}\' is not a valid file.")
             if path.suffix.lower() != ".csv":
                 raise ValueError(f"ERROR: File \'{path}\' is not a CSV file.")
-            csv_files.append(path)
+            input_files.append(path)
 
-    if not csv_files:
+    if not input_files:
         raise RuntimeError("ERROR: katpy has no input CSV files to join")
+
+    input_type = check_file_extensions(input_files + [out_file])
 
     sort_by_event = any([concatenate_selt, concatenate_melt, concatenate_qelt])
     sort_by_period = any([concatenate_splt, concatenate_mplt, concatenate_qplt])
     assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
 
     with ExitStack() as stack:
-        files_with_header, header = find_csv_with_header(stack, csv_files)
+        files_with_header, header = find_csv_with_header(stack, input_files)
         headers = header.strip().split(",")
 
         if unsorted:
-            concat_unsorted(stack, csv_files, files_with_header, headers, out_file)
+            if input_type == ".csv":
+                csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
+            elif input_type == ".bin":
+                print("NOT IMPLEMENTED")
         else:
             if sort_by_event:
-                header_idxs = get_header_idxs(headers, ["EventId"])
-                concat_sort_by_headers(
-                    stack,
-                    csv_files,
-                    files_with_header,
-                    headers,
-                    header_idxs,
-                    lambda values: int(values[0]),
-                    out_file,
-                )
+                if input_type == ".csv":
+                    header_idxs = get_header_idxs(headers, ["EventId"])
+                    csv_concat_sort_by_headers(
+                        stack,
+                        input_files,
+                        files_with_header,
+                        headers,
+                        header_idxs,
+                        lambda values: int(values[0]),
+                        out_file,
+                    )
+                elif input_type == ".bin":
+                    print("NOT IMPLEMENTED")
             else:
                 print("NOT IMPLEMENTED")
 
