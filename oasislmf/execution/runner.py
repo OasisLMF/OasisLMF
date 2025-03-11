@@ -112,6 +112,10 @@ def run(analysis_settings,
 
 
 def rerun():
+    """
+    A function to find where an error was made and to rerun that part of the script without
+    NumBa to give better error messages
+    """
     try:
         with open("event_error.json", "r") as f:
             event_error = json.load(f).get("event_id")
@@ -119,8 +123,8 @@ def rerun():
         return
 
     env = os.environ.copy()
-    env['NUMBA_DISABLE_JIT'] = "1"                                   # this is the event we want to re-run
-    eve_cmd = f"printf 'event_id\n {event_error}\n' | evetobin"    # cmd string to push that single event into the ktools pipe
+    env['NUMBA_DISABLE_JIT'] = "1"
+    eve_cmd = f"printf 'event_id\n {event_error}\n' | evetobin"
     ktools_pipeline = ''
 
     with open("run_ktools.sh", "r") as bash_script:
@@ -129,11 +133,11 @@ def rerun():
                 ktools_pipeline = line.split('|')
                 break
 
-    gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)  # extract the ground up losses command
-    fm_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))].pop(0)    # extract the FM insured losses command
+    gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)
+    fm_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))].pop(0)
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
-    single_event_pipe = f"{eve_cmd} | {gul_cmd} | {fm_cmd} -o {pipe_output}"   # Create a new command to re-run
+    single_event_pipe = f"{eve_cmd} | {gul_cmd} | {fm_cmd} -o {pipe_output}"
     summary_pipe = f"summarypy -t il -m -1 {summary_output} < {pipe_output}"
     try:
         with open("rerun_errors.log", "w") as error_log:

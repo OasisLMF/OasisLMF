@@ -287,7 +287,7 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
     elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server' * modelpy_server} --model-df-engine=\'{model_df_engine}\'"
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
@@ -1645,7 +1645,6 @@ def get_main_cmd_il_stream(
     :type from_file: bool
     :return: generated fmcalc command as str
     """
-    # raise Exception(f"CMD: {cmd}, ID: {process_id}")
 
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
@@ -1686,7 +1685,6 @@ def get_main_cmd_gul_stream(
     :type consumer: string
     :return: generated command as str
     """
-    # raise Exception(f"CMD: {cmd}, ID: {process_id}")
     logger.error(f"CMD:{cmd}, ID: {process_id}")
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
@@ -1702,7 +1700,6 @@ def get_main_cmd_gul_stream(
 def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
     # If `given_gulcalc_cmd` is set then always run as a complex model
     # and raise an exception when not found in PATH
-    # raise Exception("FOUNDD")
     if custom_gulcalc_cmd:
         if not shutil.which(custom_gulcalc_cmd):
             raise OasisException(

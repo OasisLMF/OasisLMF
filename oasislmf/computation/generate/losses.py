@@ -465,7 +465,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'ktools_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
     ]
 
-    def run(self):  # TODO: in here look for file in error and rerun with no numba
+    def run(self):
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
 
@@ -477,8 +477,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             self.settings = self.analysis_settings
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
-        model_runner_module, _ = self._get_model_runner()  # <- runner.py
-
+        model_runner_module, _ = self._get_model_runner()
         if not self.script_fp:
             script_name = 'run_analysis.sh' if not self.process_number else f'{self.process_number}.run_analysis.sh'
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), script_name)
@@ -769,7 +768,6 @@ class GenerateLosses(GenerateLossesDir):
 
                 if hasattr(model_runner_module, 'rerun'):
                     model_runner_module.rerun()
-                    raise Exception("Hit")
 
                 raise OasisException(
                     'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
