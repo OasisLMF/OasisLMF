@@ -410,7 +410,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         output_files = {}
         if compute_selt:
             if output_binary:
-                selt_file = stack.enter_context(open(selt_output_file, 'ab'))
+                selt_file = stack.enter_context(open(selt_output_file, 'wb'))
             else:
                 selt_file = stack.enter_context(open(selt_output_file, 'w'))
                 if not noheader:
@@ -422,7 +422,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
         if compute_melt:
             if output_binary:
-                melt_file = stack.enter_context(open(melt_output_file, 'ab'))
+                melt_file = stack.enter_context(open(melt_output_file, 'wb'))
             else:
                 melt_file = stack.enter_context(open(melt_output_file, 'w'))
                 if not noheader:
@@ -434,7 +434,7 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
 
         if compute_qelt:
             if output_binary:
-                qelt_file = stack.enter_context(open(qelt_output_file, 'ab'))
+                qelt_file = stack.enter_context(open(qelt_output_file, 'wb'))
             else:
                 qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
                 if not noheader:

@@ -510,7 +510,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         output_files = {}
         if compute_splt:
             if output_binary:
-                splt_file = stack.enter_context(open(splt_output_file, 'ab'))
+                splt_file = stack.enter_context(open(splt_output_file, 'wb'))
             else:
                 splt_file = stack.enter_context(open(splt_output_file, 'w'))
                 if not noheader:
@@ -522,7 +522,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
 
         if compute_mplt:
             if output_binary:
-                mplt_file = stack.enter_context(open(mplt_output_file, 'ab'))
+                mplt_file = stack.enter_context(open(mplt_output_file, 'wb'))
             else:
                 mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
                 if not noheader:
@@ -534,7 +534,7 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
 
         if compute_qplt:
             if output_binary:
-                qplt_file = stack.enter_context(open(qplt_output_file, 'ab'))
+                qplt_file = stack.enter_context(open(qplt_output_file, 'wb'))
             else:
                 qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
                 if not noheader:

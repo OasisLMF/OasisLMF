@@ -212,6 +212,23 @@ def csv_concat_sort_by_headers(
         f.close()
 
 
+def bin_concat_unsorted(
+    stack,
+    file_paths,
+    out_file,
+):
+    """Concats Binary files in order they are passed in.
+    Args:
+        stack (ExitStack): Exit Stack.
+        file_paths (List[str | os.PathLike]): List of bin file paths.
+        out_file (str | os.PathLike): Output Concatenated Binary file.
+    """
+    with stack.enter_context(out_file.open('wb')) as out:
+        for fp in file_paths:
+            with fp.open('rb') as bin_file:
+                shutil.copyfileobj(bin_file, out)
+
+
 def run(
     out_file,
     files_in=None,
@@ -237,10 +254,6 @@ def run(
         concatenate_qplt (bool, optional): Concatenate QPLT CSV file. Defaults to False.
         unsorted (bool, optional): Do not sort by event/period ID. Defaults to False.
     """
-    out_file = Path(out_file).resolve()
-    if out_file.suffix.lower() != ".csv":
-        raise ValueError(f"ERROR: File \'{out_file}\' is not a CSV file.")
-
     input_files = []
 
     # Check and add files from dir_in
@@ -251,10 +264,11 @@ def run(
         if not dir_in.is_dir():
             raise ValueError(f"ERROR: \'{dir_in}\' is not a directory.")
 
-        dir_input_files = glob.glob(str(dir_in / "*.csv"))
-        if not dir_input_files:
-            logger.warning(f"Warning: No CSV files found in directory \'{dir_in}\'")
-        input_files += [Path(file).resolve() for file in dir_input_files]
+        dir_csv_input_files = glob.glob(str(dir_in / "*.csv"))
+        dir_bin_input_files = glob.glob(str(dir_in / "*.bin"))
+        if not dir_csv_input_files and not dir_bin_input_files:
+            logger.warning(f"Warning: No valid files found in directory \'{dir_in}\'")
+        input_files += [Path(file).resolve() for file in dir_csv_input_files + dir_bin_input_files]
 
     input_files.sort()
 
@@ -266,13 +280,12 @@ def run(
                 raise FileNotFoundError(f"ERROR: File \'{path}\' does not exist.")
             if not path.is_file():
                 raise FileNotFoundError(f"ERROR: File \'{path}\' is not a valid file.")
-            if path.suffix.lower() != ".csv":
-                raise ValueError(f"ERROR: File \'{path}\' is not a CSV file.")
             input_files.append(path)
 
     if not input_files:
         raise RuntimeError("ERROR: katpy has no input CSV files to join")
 
+    out_file = Path(out_file).resolve()
     input_type = check_file_extensions(input_files + [out_file])
 
     output_flags = [
@@ -289,48 +302,44 @@ def run(
     assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
 
     with ExitStack() as stack:
-        files_with_header, header = find_csv_with_header(stack, input_files)
-        headers = header.strip().split(",")
-        check_correct_headers(headers, output_flags.index(True))
+        if input_type == ".csv":
+            files_with_header, header = find_csv_with_header(stack, input_files)
+            headers = header.strip().split(",")
+            check_correct_headers(headers, output_flags.index(True))
 
-        if unsorted:
-            if input_type == ".csv":
+            if unsorted:
                 csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
-            elif input_type == ".bin":
+            elif sort_by_event:
+                header_idxs = get_header_idxs(headers, ["EventId"])
+                csv_concat_sort_by_headers(
+                    stack,
+                    input_files,
+                    files_with_header,
+                    headers,
+                    header_idxs,
+                    lambda values: int(values[0]),
+                    out_file,
+                )
+            elif sort_by_period:
+                header_idxs = get_header_idxs(headers, ["EventId", "Period"])
+                csv_concat_sort_by_headers(
+                    stack,
+                    input_files,
+                    files_with_header,
+                    headers,
+                    header_idxs,
+                    lambda values: (int(values[0]), int(values[1])),
+                    out_file,
+                )
+        elif input_type == ".bin":
+            if unsorted:
+                bin_concat_unsorted(stack, input_files, out_file)
+            elif sort_by_event:
                 print("NOT IMPLEMENTED")
-            else:
-                raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
+            elif sort_by_period:
+                print("NOT IMPLEMENTED")
         else:
-            if sort_by_event:
-                if input_type == ".csv":
-                    header_idxs = get_header_idxs(headers, ["EventId"])
-                    csv_concat_sort_by_headers(
-                        stack,
-                        input_files,
-                        files_with_header,
-                        headers,
-                        header_idxs,
-                        lambda values: int(values[0]),
-                        out_file,
-                    )
-                elif input_type == ".bin":
-                    print("NOT IMPLEMENTED")
-            else:
-                if input_type == ".csv":
-                    header_idxs = get_header_idxs(headers, ["EventId", "Period"])
-                    csv_concat_sort_by_headers(
-                        stack,
-                        input_files,
-                        files_with_header,
-                        headers,
-                        header_idxs,
-                        lambda values: (int(values[0]), int(values[1])),
-                        out_file,
-                    )
-                elif input_type == ".bin":
-                    print("NOT IMPLEMENTED")
-                else:
-                    raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
+            raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
 
 @redirect_logging(exec_name='katpy')
