@@ -353,7 +353,7 @@ class EventReader:
                             return event_id, cursor, valid_buff
 
                         break
-                cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id)
+                cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, file_idx=file_idx)
 
                 if yield_event:
                     if 2 * cursor > valid_buff:
