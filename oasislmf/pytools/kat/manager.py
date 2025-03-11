@@ -9,17 +9,40 @@ import logging
 import shutil
 from pathlib import Path
 
+from oasislmf.pytools.elt.data import MELT_headers, QELT_headers, SELT_headers
+from oasislmf.pytools.plt.data import MPLT_headers, QPLT_headers, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
+OUT_NAMES = [
+    "SELT",
+    "MELT",
+    "QELT",
+    "SPLT",
+    "MPLT",
+    "QPLT",
+]
+OUT_SELT = 0
+OUT_MELT = 1
+OUT_QELT = 2
+OUT_SPLT = 3
+OUT_MPLT = 4
+OUT_QPLT = 5
 
-def check_file_extensions(files):
+
+def check_file_extensions(file_paths):
+    """Check file path extensions are all identical
+    Args:
+        file_paths (List[str | os.PathLike]): List of csv file paths.
+    Returns:
+        ext (str): file extension as a str
+    """
     valid_exts = {".csv", ".bin"}
 
-    first_ext = files[0].suffix
+    first_ext = file_paths[0].suffix
 
-    if all(file.suffix == first_ext and file.suffix in valid_exts for file in files):
+    if all(fp.suffix == first_ext and fp.suffix in valid_exts for fp in file_paths):
         return first_ext
     raise RuntimeError("ERROR: katpy has input files with different file extensions. Make sure all input files are of the same type.")
 
@@ -57,6 +80,50 @@ def find_csv_with_header(
     return files_with_header, list(headers.values())[0]
 
 
+def check_correct_headers(headers, file_type):
+    """Checks headers found in csv file matches excpected headers for file type
+    Args:
+        headers (List[str]): Headers
+        file_type (int): File type int matching OUT_NAMES index
+    """
+    if file_type == OUT_SELT:
+        expected_headers = SELT_headers
+    elif file_type == OUT_MELT:
+        expected_headers = MELT_headers
+    elif file_type == OUT_QELT:
+        expected_headers = QELT_headers
+    elif file_type == OUT_SPLT:
+        expected_headers = SPLT_headers
+    elif file_type == OUT_MPLT:
+        expected_headers = MPLT_headers
+    elif file_type == OUT_QPLT:
+        expected_headers = QPLT_headers
+    else:
+        raise ValueError(f"ERROR: katpy, unknown file_type {file_type}, not in {OUT_NAMES}")
+    if headers != expected_headers:
+        raise RuntimeError(f"ERROR: katpy, incorrect headers found in csv file, expected {expected_headers} but got {headers}")
+
+
+def get_header_idxs(
+    headers,
+    headers_to_search,
+):
+    """Search for index of headers_to_search in headers of csv file
+    Args:
+        headers (List[str]): Headers
+        headers_to_search (List[str]): Headers to search
+    Returns:
+        idxs (List[int]): Indexes of searched headers
+    """
+    idxs = []
+    for header in headers_to_search:
+        try:
+            idxs.append(headers.index(header))
+        except ValueError as e:
+            raise ValueError(f"ERROR: katpy, cannot sort by header {header}, not found. {e}")
+    return idxs
+
+
 def csv_concat_unsorted(
     stack,
     file_paths,
@@ -69,7 +136,7 @@ def csv_concat_unsorted(
         stack (ExitStack): Exit Stack.
         file_paths (List[str | os.PathLike]): List of csv file paths.
         files_with_header (List[bool]): Bool list of files with header present
-        header (List[str]): Headers to write
+        headers (List[str]): Headers to write
         out_file (str | os.PathLike): Output Concatenated CSV file.
     """
     first_header_written = False
@@ -88,19 +155,6 @@ def csv_concat_unsorted(
                 shutil.copyfileobj(csv_file, out)
 
 
-def get_header_idxs(
-    headers,
-    headers_to_search,
-):
-    idxs = []
-    for header in headers_to_search:
-        try:
-            idxs.append(headers.index(header))
-        except ValueError as e:
-            raise ValueError(f"ERROR: katpy, cannot sort by header {header}, not found. {e}")
-    return idxs
-
-
 def csv_concat_sort_by_headers(
     stack,
     file_paths,
@@ -109,9 +163,18 @@ def csv_concat_sort_by_headers(
     header_idxs,
     sort_fn,
     out_file,
-    buffer_size=1000000,
     **sort_kwargs
 ):
+    """Concats CSV files in order determined by the header_idxs and sort_fn
+    Args:
+        stack (ExitStack): Exit Stack.
+        file_paths (List[str | os.PathLike]): List of csv file paths.
+        files_with_header (List[bool]): Bool list of files with header present
+        headers (List[str]): Headers to write
+        header_idxs (List[int]): Indices of headers to sort by
+        sort_fn (Callable[[List[int]], Any]): Sort function to apply to header_idxs
+        out_file (str | os.PathLike): Output Concatenated CSV file.
+    """
     # Open all csv files
     csv_files = [stack.enter_context(open(fp, "r", newline="")) for fp in file_paths]
     readers = [csv.reader(f) for f in csv_files]
@@ -132,6 +195,7 @@ def csv_concat_sort_by_headers(
     # Merge all iterators
     merged_iterator = heapq.merge(*iterators, key=lambda x: x[0])
 
+    buffer_size = 1000000
     with stack.enter_context(out_file.open("w")) as out:
         writer = csv.writer(out, lineterminator="\n")
         writer.writerow(headers)
@@ -213,13 +277,23 @@ def run(
 
     input_type = check_file_extensions(input_files + [out_file])
 
-    sort_by_event = any([concatenate_selt, concatenate_melt, concatenate_qelt])
-    sort_by_period = any([concatenate_splt, concatenate_mplt, concatenate_qplt])
+    output_flags = [
+        concatenate_selt,
+        concatenate_melt,
+        concatenate_qelt,
+        concatenate_splt,
+        concatenate_mplt,
+        concatenate_qplt,
+    ]
+
+    sort_by_event = any(output_flags[OUT_SELT:OUT_QELT + 1])
+    sort_by_period = any(output_flags[OUT_SPLT:OUT_QPLT + 1])
     assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
 
     with ExitStack() as stack:
         files_with_header, header = find_csv_with_header(stack, input_files)
         headers = header.strip().split(",")
+        check_correct_headers(headers, output_flags.index(True))
 
         if unsorted:
             if input_type == ".csv":
