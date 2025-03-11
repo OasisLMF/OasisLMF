@@ -16,6 +16,7 @@ def main():
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
+    parser.add_argument('-B', '--binary', action='store_true', help='Output data as binary files')
 
     args = parser.parse_args()
     kwargs = vars(args)

@@ -361,7 +361,7 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     return file_data
 
 
-def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None, noheader=False):
+def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None, noheader=False, output_binary=False):
     """Runs ELT calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -369,11 +369,21 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         selt_output_file (str, optional): Path to SELT output file. Defaults to None.
         melt_output_file (str, optional): Path to MELT output file. Defaults to None.
         qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
-        noheader (bool): Boolean value to skip header in output file
+        noheader (bool): Boolean value to skip header in output file. Defaults to False.
+        output_binary (bool): Boolean value to output binary files instead of csv. Defaults to False.
     """
     compute_selt = selt_output_file is not None
     compute_melt = melt_output_file is not None
     compute_qelt = qelt_output_file is not None
+
+    # Check for correct suffix
+    for path in [selt_output_file, melt_output_file, qelt_output_file]:
+        if path is None:
+            continue
+        if (output_binary and Path(path).suffix != '.bin') or\
+                (not output_binary and Path(path).suffix != '.csv'):
+            raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
+
     if run_dir is None:
         run_dir = './work'
 
@@ -399,28 +409,37 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         # Initialise csv column names for ELT files
         output_files = {}
         if compute_selt:
-            selt_file = stack.enter_context(open(selt_output_file, 'w'))
-            if not noheader:
-                csv_headers = ','.join(SELT_headers)
-                selt_file.write(csv_headers + '\n')
+            if output_binary:
+                selt_file = stack.enter_context(open(selt_output_file, 'ab'))
+            else:
+                selt_file = stack.enter_context(open(selt_output_file, 'w'))
+                if not noheader:
+                    csv_headers = ','.join(SELT_headers)
+                    selt_file.write(csv_headers + '\n')
             output_files['selt'] = selt_file
         else:
             output_files['selt'] = None
 
         if compute_melt:
-            melt_file = stack.enter_context(open(melt_output_file, 'w'))
-            if not noheader:
-                csv_headers = ','.join(MELT_headers)
-                melt_file.write(csv_headers + '\n')
+            if output_binary:
+                melt_file = stack.enter_context(open(melt_output_file, 'ab'))
+            else:
+                melt_file = stack.enter_context(open(melt_output_file, 'w'))
+                if not noheader:
+                    csv_headers = ','.join(MELT_headers)
+                    melt_file.write(csv_headers + '\n')
             output_files['melt'] = melt_file
         else:
             output_files['melt'] = None
 
         if compute_qelt:
-            qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
-            if not noheader:
-                csv_headers = ','.join(QELT_headers)
-                qelt_file.write(csv_headers + '\n')
+            if output_binary:
+                qelt_file = stack.enter_context(open(qelt_output_file, 'ab'))
+            else:
+                qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
+                if not noheader:
+                    csv_headers = ','.join(QELT_headers)
+                    qelt_file.write(csv_headers + '\n')
             output_files['qelt'] = qelt_file
         else:
             output_files['qelt'] = None
@@ -430,7 +449,10 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 # Extract SELT data
                 selt_data = elt_reader.selt_data[:elt_reader.selt_idx[0]]
                 if output_files['selt'] is not None and selt_data.size > 0:
-                    write_ndarray_to_fmt_csv(output_files["selt"], selt_data, SELT_headers, SELT_fmt)
+                    if output_binary:
+                        selt_data.tofile(output_files["selt"])
+                    else:
+                        write_ndarray_to_fmt_csv(output_files["selt"], selt_data, SELT_headers, SELT_fmt)
                 elt_reader.selt_idx[0] = 0
 
             if compute_melt:
@@ -439,24 +461,31 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
                 if output_files['melt'] is not None and melt_data.size > 0:
                     MELT_cols = [c[0] for c in MELT_output]
                     melt_data = melt_data[MELT_cols]
-                    write_ndarray_to_fmt_csv(output_files["melt"], melt_data, MELT_headers, MELT_fmt)
+                    if output_binary:
+                        melt_data.tofile(output_files["melt"])
+                    else:
+                        write_ndarray_to_fmt_csv(output_files["melt"], melt_data, MELT_headers, MELT_fmt)
                 elt_reader.melt_idx[0] = 0
 
             if compute_qelt:
                 # Extract QELT data
                 qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
                 if output_files['qelt'] is not None and qelt_data.size > 0:
-                    write_ndarray_to_fmt_csv(output_files["qelt"], qelt_data, QELT_headers, QELT_fmt)
+                    if output_binary:
+                        qelt_data.tofile(output_files["qelt"])
+                    else:
+                        write_ndarray_to_fmt_csv(output_files["qelt"], qelt_data, QELT_headers, QELT_fmt)
                 elt_reader.qelt_idx[0] = 0
 
 
 @redirect_logging(exec_name='eltpy')
-def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=None, **kwargs):
+def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=False, binary=False, **kwargs):
     run(
         run_dir,
         files_in,
         selt_output_file=selt,
         melt_output_file=melt,
         qelt_output_file=qelt,
-        noheader=noheader
+        noheader=noheader,
+        output_binary=binary,
     )
