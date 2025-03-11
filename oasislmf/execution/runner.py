@@ -7,8 +7,7 @@ import json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import (bash_wrapper, create_bash_analysis,
-                   create_bash_outputs, genbash, get_main_cmd_gul_stream,
-                   get_main_cmd_il_stream)
+                   create_bash_outputs, genbash)
 
 
 @oasis_log()
