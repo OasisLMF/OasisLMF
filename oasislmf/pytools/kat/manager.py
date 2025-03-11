@@ -38,11 +38,9 @@ def check_file_extensions(file_paths):
     Returns:
         ext (str): file extension as a str
     """
-    valid_exts = {".csv", ".bin"}
-
     first_ext = file_paths[0].suffix
 
-    if all(fp.suffix == first_ext and fp.suffix in valid_exts for fp in file_paths):
+    if all(fp.suffix == first_ext for fp in file_paths):
         return first_ext
     raise RuntimeError("ERROR: katpy has input files with different file extensions. Make sure all input files are of the same type.")
 
@@ -300,6 +298,8 @@ def run(
                 csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
             elif input_type == ".bin":
                 print("NOT IMPLEMENTED")
+            else:
+                raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
         else:
             if sort_by_event:
                 if input_type == ".csv":
@@ -329,6 +329,8 @@ def run(
                     )
                 elif input_type == ".bin":
                     print("NOT IMPLEMENTED")
+                else:
+                    raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
 
 @redirect_logging(exec_name='katpy')
