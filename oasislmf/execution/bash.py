@@ -1539,7 +1539,7 @@ def get_getmodel_itm_cmd(
 
     else:
         modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
-        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0,False, 0, False, [], model_df_engine=model_df_engine)
+        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
@@ -1605,14 +1605,14 @@ def get_getmodel_cov_cmd(
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
-            gulmc_vuln_cache_size,modelpy_server, peril_filter, model_df_engine=model_df_engine, 
+            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine, 
             dynamic_footprint=dynamic_footprint
         )
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
         modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
-        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0,False, 0, False, [], model_df_engine=model_df_engine)
+        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
