@@ -122,7 +122,8 @@ def check_correct_headers(headers, file_type):
     if file_type in KAT_MAP:
         expected_headers = KAT_MAP[file_type]["headers"]
     else:
-        raise ValueError(f"ERROR: katpy, unknown file_type {file_type}, not in {[v["name"] for v in KAT_MAP.values()]}")
+        file_type_names = [v["name"] for v in KAT_MAP.values()]
+        raise ValueError(f"ERROR: katpy, unknown file_type {file_type}, not in {file_type_names}")
     if headers != expected_headers:
         raise RuntimeError(f"ERROR: katpy, incorrect headers found in csv file, expected {expected_headers} but got {headers}")
 
