@@ -6,29 +6,64 @@ import csv
 import glob
 import heapq
 import logging
+import numpy as np
 import shutil
 from pathlib import Path
+import tempfile
 
-from oasislmf.pytools.elt.data import MELT_headers, QELT_headers, SELT_headers
-from oasislmf.pytools.plt.data import MPLT_headers, QPLT_headers, SPLT_headers
+from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
+from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
-OUT_NAMES = [
-    "SELT",
-    "MELT",
-    "QELT",
-    "SPLT",
-    "MPLT",
-    "QPLT",
-]
-OUT_SELT = 0
-OUT_MELT = 1
-OUT_QELT = 2
-OUT_SPLT = 3
-OUT_MPLT = 4
-OUT_QPLT = 5
+
+KAT_SELT = 0
+KAT_MELT = 1
+KAT_QELT = 2
+KAT_SPLT = 3
+KAT_MPLT = 4
+KAT_QPLT = 5
+
+KAT_MAP = {
+    KAT_SELT: {
+        "name": "SELT",
+        "headers": SELT_headers,
+        "dtype": SELT_dtype,
+        "fmt": SELT_fmt,
+    },
+    KAT_MELT: {
+        "name": "MELT",
+        "headers": MELT_headers,
+        "dtype": MELT_dtype,
+        "fmt": MELT_fmt,
+    },
+    KAT_QELT: {
+        "name": "QELT",
+        "headers": QELT_headers,
+        "dtype": QELT_dtype,
+        "fmt": QELT_fmt,
+    },
+    KAT_SPLT: {
+        "name": "SPLT",
+        "headers": SPLT_headers,
+        "dtype": SPLT_dtype,
+        "fmt": SPLT_fmt,
+    },
+    KAT_MPLT: {
+        "name": "MPLT",
+        "headers": MPLT_headers,
+        "dtype": MPLT_dtype,
+        "fmt": MPLT_fmt,
+    },
+    KAT_QPLT: {
+        "name": "QPLT",
+        "headers": QPLT_headers,
+        "dtype": QPLT_dtype,
+        "fmt": QPLT_fmt,
+    },
+}
 
 
 def check_file_extensions(file_paths):
@@ -82,22 +117,12 @@ def check_correct_headers(headers, file_type):
     """Checks headers found in csv file matches excpected headers for file type
     Args:
         headers (List[str]): Headers
-        file_type (int): File type int matching OUT_NAMES index
+        file_type (int): File type int matching KAT_NAMES index
     """
-    if file_type == OUT_SELT:
-        expected_headers = SELT_headers
-    elif file_type == OUT_MELT:
-        expected_headers = MELT_headers
-    elif file_type == OUT_QELT:
-        expected_headers = QELT_headers
-    elif file_type == OUT_SPLT:
-        expected_headers = SPLT_headers
-    elif file_type == OUT_MPLT:
-        expected_headers = MPLT_headers
-    elif file_type == OUT_QPLT:
-        expected_headers = QPLT_headers
+    if file_type in KAT_MAP:
+        expected_headers = KAT_MAP[file_type]["headers"]
     else:
-        raise ValueError(f"ERROR: katpy, unknown file_type {file_type}, not in {OUT_NAMES}")
+        raise ValueError(f"ERROR: katpy, unknown file_type {file_type}, not in {[v["name"] for v in KAT_MAP.values()]}")
     if headers != expected_headers:
         raise RuntimeError(f"ERROR: katpy, incorrect headers found in csv file, expected {expected_headers} but got {headers}")
 
@@ -286,7 +311,19 @@ def run(
         raise RuntimeError("ERROR: katpy has no input CSV files to join")
 
     out_file = Path(out_file).resolve()
-    input_type = check_file_extensions(input_files + [out_file])
+    input_type = check_file_extensions(input_files)
+
+    # If out_file is a csv and input_files are not csvs, then output to temporary outfile
+    # of type input_type, and convert to csv after
+    convert_to_csv = False
+    if out_file.suffix != input_type:
+        if out_file.suffix == ".csv":
+            csv_out_file_path = out_file
+            temp_file = tempfile.NamedTemporaryFile(suffix=input_type, delete=False)
+            out_file = Path(temp_file.name)
+            convert_to_csv = True
+        else:
+            raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {out_file.suffix}")
 
     output_flags = [
         concatenate_selt,
@@ -297,15 +334,16 @@ def run(
         concatenate_qplt,
     ]
 
-    sort_by_event = any(output_flags[OUT_SELT:OUT_QELT + 1])
-    sort_by_period = any(output_flags[OUT_SPLT:OUT_QPLT + 1])
+    sort_by_event = any(output_flags[KAT_SELT:KAT_QELT + 1])
+    sort_by_period = any(output_flags[KAT_SPLT:KAT_QPLT + 1])
     assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
+    file_type = output_flags.index(True)
 
     with ExitStack() as stack:
         if input_type == ".csv":
             files_with_header, header = find_csv_with_header(stack, input_files)
             headers = header.strip().split(",")
-            check_correct_headers(headers, output_flags.index(True))
+            check_correct_headers(headers, file_type)
 
             if unsorted:
                 csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
@@ -340,6 +378,21 @@ def run(
                 print("NOT IMPLEMENTED")
         else:
             raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
+
+    if convert_to_csv:
+        data = np.memmap(out_file, dtype=KAT_MAP[file_type]["dtype"])
+        headers = KAT_MAP[file_type]["headers"]
+        fmt = KAT_MAP[file_type]["fmt"]
+        csv_out_file = open(csv_out_file_path, "w")
+        csv_out_file.write(",".join(headers) + "\n")
+
+        num_rows = data.shape[0]
+        buffer_size = 1000000
+        for start in range(0, num_rows, buffer_size):
+            end = min(start + buffer_size, num_rows)
+            buffer_data = data[start:end]
+            write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+        csv_out_file.close()
 
 
 @redirect_logging(exec_name='katpy')
