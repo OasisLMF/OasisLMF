@@ -93,6 +93,7 @@ def run(
         if same_file and temp_output:
             temp_output.close()
             temp_output_file.replace(output_file)
+            temp_output_file.unlink(missing_ok=True)
 
 
 @redirect_logging(exec_name='join-summary-info')
