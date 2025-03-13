@@ -17,7 +17,6 @@ from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_hea
 from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
-from tests.pytools import katpy
 
 logger = logging.getLogger(__name__)
 
@@ -377,7 +376,6 @@ def bin_concat_sort_by_headers(
     with stack.enter_context(out_file.open("wb")) as out:
         for data in gen:
             data.tofile(out)
-
 
 def run(
     out_file,
