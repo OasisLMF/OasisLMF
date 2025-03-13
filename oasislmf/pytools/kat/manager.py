@@ -377,6 +377,7 @@ def bin_concat_sort_by_headers(
         for data in gen:
             data.tofile(out)
 
+
 def run(
     out_file,
     files_in=None,
