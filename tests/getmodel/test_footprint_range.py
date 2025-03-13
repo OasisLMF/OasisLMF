@@ -2,7 +2,7 @@ from pathlib import Path
 import pytest
 from oasislmf.pytools.getmodel.footprint import FootprintBin
 from oasis_data_manager.filestore.backends.local import LocalStorage
-from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet
+from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet_chunk
 
 script_dir = Path(__file__).resolve().parent
 footprints_path = script_dir / "footprints"
@@ -23,7 +23,7 @@ def test_range(areaperil_ids, expected):
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_parquet_files():
-    convert_bin_to_parquet(footprints_path, chunk_size=0)
+    convert_bin_to_parquet_chunk(footprints_path, chunk_size=0)
     yield
 
     for file in footprints_path.glob("*.parquet"):
