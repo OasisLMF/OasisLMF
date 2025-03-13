@@ -6,15 +6,18 @@ import csv
 import glob
 import heapq
 import logging
+import numba as nb
 import numpy as np
 import shutil
 from pathlib import Path
 import tempfile
 
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_heap
 from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
+from tests.pytools import katpy
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +258,127 @@ def bin_concat_unsorted(
                 shutil.copyfileobj(bin_file, out)
 
 
+@nb.njit(cache=True, error_model="numpy")
+def merge_elt_data(memmaps):
+    """Merge sorted chunks using a k-way merge algorithm
+    Args:
+        memmaps (List[np.memmap]): List of temporary file memmaps
+    Yields:
+        buffer (ndarray): yields sorted buffer from memmaps
+    """
+    min_heap = init_heap(num_compare=1)
+    size = 0
+    # Initialize the min_heap with the first row of each memmap
+    for i, mmap in enumerate(memmaps):
+        if len(mmap) > 0:
+            first_row = mmap[0]
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [first_row["EventId"], i, 0], dtype=np.int32
+            ))
+
+    buffer_size = 1000000
+    buffer = np.empty(buffer_size, dtype=memmaps[0].dtype)
+    bidx = 0
+
+    # Perform the k-way merge
+    while size > 0:
+        # The min heap will store the smallest row at the top when popped
+        element, min_heap, size = heap_pop(min_heap, size)
+        file_idx = element[-2]
+        row_num = element[-1]
+        smallest_row = memmaps[file_idx][row_num]
+
+        # Add to buffer and yield when full
+        buffer[bidx] = smallest_row
+        bidx += 1
+        if bidx >= buffer_size:
+            yield buffer[:bidx]
+            bidx = 0
+
+        # Push the next row from the same file into the heap if there are any more rows
+        if row_num + 1 < len(memmaps[file_idx]):
+            next_row = memmaps[file_idx][row_num + 1]
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [next_row["EventId"], file_idx, row_num + 1], dtype=np.int32
+            ))
+    yield buffer[:bidx]
+
+
+@nb.njit(cache=True, error_model="numpy")
+def merge_plt_data(memmaps):
+    """Merge sorted chunks using a k-way merge algorithm
+    Args:
+        memmaps (List[np.memmap]): List of temporary file memmaps
+    Yields:
+        buffer (ndarray): yields sorted buffer from memmaps
+    """
+    min_heap = init_heap(num_compare=2)
+    size = 0
+    # Initialize the min_heap with the first row of each memmap
+    for i, mmap in enumerate(memmaps):
+        if len(mmap) > 0:
+            first_row = mmap[0]
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [first_row["EventId"], first_row["Period"], i, 0], dtype=np.int32
+            ))
+
+    buffer_size = 1000000
+    buffer = np.empty(buffer_size, dtype=memmaps[0].dtype)
+    bidx = 0
+
+    # Perform the k-way merge
+    while size > 0:
+        # The min heap will store the smallest row at the top when popped
+        element, min_heap, size = heap_pop(min_heap, size)
+        file_idx = element[-2]
+        row_num = element[-1]
+        smallest_row = memmaps[file_idx][row_num]
+
+        # Add to buffer and yield when full
+        buffer[bidx] = smallest_row
+        bidx += 1
+        if bidx >= buffer_size:
+            yield buffer[:bidx]
+            bidx = 0
+
+        # Push the next row from the same file into the heap if there are any more rows
+        if row_num + 1 < len(memmaps[file_idx]):
+            next_row = memmaps[file_idx][row_num + 1]
+            min_heap, size = heap_push(min_heap, size, np.array(
+                [next_row["EventId"], next_row["Period"], file_idx, row_num + 1], dtype=np.int32
+            ))
+    yield buffer[:bidx]
+
+
+def bin_concat_sort_by_headers(
+    stack,
+    file_paths,
+    file_type,
+    out_type,
+    out_file,
+):
+    """Concats Binary files in order determined out_type and their respective merge functions
+    Args:
+        stack (ExitStack): Exit Stack.
+        file_paths (List[str | os.PathLike]): List of csv file paths.
+        file_type (int): File type int matching KAT_NAMES index
+        out_type (str): Out type str between "elt" and "plt"
+        out_file (str | os.PathLike): Output Concatenated CSV file.
+    """
+    files = [np.memmap(fp, dtype=KAT_MAP[file_type]["dtype"]) for fp in file_paths]
+
+    if out_type == "elt":
+        gen = merge_elt_data(files)
+    elif out_type == "plt":
+        gen = merge_plt_data(files)
+    else:
+        raise RuntimeError(f"ERROR: katpy, unknown out_type {out_type}")
+
+    with stack.enter_context(out_file.open("wb")) as out:
+        for data in gen:
+            data.tofile(out)
+
+
 def run(
     out_file,
     files_in=None,
@@ -374,9 +498,21 @@ def run(
             if unsorted:
                 bin_concat_unsorted(stack, input_files, out_file)
             elif sort_by_event:
-                print("NOT IMPLEMENTED")
+                bin_concat_sort_by_headers(
+                    stack,
+                    input_files,
+                    file_type,
+                    "elt",
+                    out_file,
+                )
             elif sort_by_period:
-                print("NOT IMPLEMENTED")
+                bin_concat_sort_by_headers(
+                    stack,
+                    input_files,
+                    file_type,
+                    "plt",
+                    out_file,
+                )
         else:
             raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
