@@ -466,13 +466,18 @@ def set_footprint_set(setting_val, run_dir):
 
     for footprint_class in priorities:
         for filename in footprint_class.footprint_filenames:
-            stem, extension = filename.split('.', 1)
-            footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
+            if '.' in filename:
+                stem, extension = filename.split('.', 1)
+                extension = '.' + extension
+            else:
+                stem = filename
+                extension = ''
+            footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}{extension}')
             footprint_target_fp = os.path.join(run_dir, 'static', filename)
             if not os.path.exists(footprint_fp):
                 # 'compatibility' - Fallback name formatting to keep existing conversion
                 setting_val_old = setting_val.replace(' ', '_').lower()
-                footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}.{extension}')
+                footprint_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val_old}{extension}')
                 if not os.path.exists(footprint_fp):
                     logger.debug(f'{footprint_fp} not found, moving on to next footprint class')
                     break

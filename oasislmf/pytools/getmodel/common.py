@@ -7,7 +7,9 @@ import numpy as np
 from oasislmf.pytools.common.data import areaperil_int, oasis_float
 
 # Footprint file formats in order of priority
-fp_format_priorities = ['parquet', 'binZ', 'bin', 'csv', 'parquet_dynamic']
+fp_format_priorities = [
+    'parquet_chunk', 'parquet', 'binZ', 'bin', 'csv', 'parquet_dynamic'
+]
 
 # filenames
 footprint_filename = 'footprint.bin'
@@ -16,13 +18,18 @@ zfootprint_filename = 'footprint.bin.z'
 zfootprint_index_filename = 'footprint.idx.z'
 csvfootprint_filename = 'footprint.csv'
 parquetfootprint_filename = 'footprint.parquet'
+parquetfootprint_chunked_dir = 'footprint_chunk'
+parquetfootprint_chunked_lookup = 'footprint_lookup.parquet'
+footprint_bin_lookup = 'footprint_lookup.bin'
+footprint_csv_lookup = 'footprint_lookup.csv'
 parquetfootprint_meta_filename = 'footprint_parquet_meta.json'
 event_defintion_filename = 'event_definition.parquet'
 hazard_case_filename = 'hazard_case.parquet'
 
 
 FootprintHeader = nb.from_dtype(np.dtype([('num_intensity_bins', np.int32),
-                                          ('has_intensity_uncertainty', np.int32)
+                                          ('has_intensity_uncertainty',
+                                           np.int32)
                                           ]))
 
 Event = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),

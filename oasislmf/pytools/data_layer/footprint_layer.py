@@ -90,6 +90,7 @@ class FootprintLayer:
         """
         logging.info(f"defining socket for TCP server: {datetime.datetime.now()}")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_address = (TCP_IP, TCP_PORT)
         self.socket.bind(server_address)
         self.socket.listen(PROCESSES_SUPPORTED)
@@ -308,7 +309,8 @@ class FootprintLayerClient:
                 break
             raw_data_buffer.append(raw_data)
 
-        return pickle.loads(b"".join(raw_data_buffer))
+        if raw_data_buffer:
+            return pickle.loads(b"".join(raw_data_buffer))
 
 
 def _shutdown_port(connection: socket.socket) -> None:
