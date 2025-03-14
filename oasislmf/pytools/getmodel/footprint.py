@@ -67,6 +67,20 @@ def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
     return numpy_data
 
 
+@nb.njit(cache=True)
+def get_event_map(event_ids):
+    event_map = {}
+    cur_event_id = event_ids[0]
+    last_idx = 0
+    for cur_idx in range(1, len(event_ids)):
+        if event_ids[cur_idx] != cur_event_id:
+            event_map[cur_event_id] = (last_idx, cur_idx)
+            cur_event_id = event_ids[cur_idx]
+            last_idx = cur_idx
+    event_map[cur_event_id] = (last_idx, len(event_ids))
+    return event_map
+
+
 class OasisFootPrintError(Exception):
     """
     Raises exceptions when loading footprints.
@@ -474,8 +488,16 @@ class FootprintParquetChunk(Footprint):
             self.current_partition = partition
             self.current_df = self.get_df_reader(os.path.join(parquetfootprint_chunked_dir, f"footprint_{partition}.parquet"),
                                                  filters=self.areaperil_ids_filter).as_pandas()
+            if len(self.current_df):
+                self.event_map = get_event_map(self.current_df["event_id"].to_numpy())
+            else:
+                self.event_map = {}
 
-        return self.prepare_df_data(data_frame=self.current_df[self.current_df["event_id"] == event_id])
+        if event_id in self.event_map:
+            start_idx, end_idx = self.event_map[event_id]
+            return self.prepare_df_data(data_frame=self.current_df[start_idx: end_idx])
+        else:
+            return None
 
     def get_events(self, partition):
         reader = self.get_df_reader(os.path.join(parquetfootprint_chunked_dir, f"footprint_{partition}.parquet"))
