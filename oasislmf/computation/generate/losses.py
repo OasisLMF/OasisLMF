@@ -484,7 +484,6 @@ class GenerateLossesPartial(GenerateLossesDir):
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
-
         if not self.script_fp:
             script_name = 'run_analysis.sh' if not self.process_number else f'{self.process_number}.run_analysis.sh'
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), script_name)
@@ -548,6 +547,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
                 self._print_error_logs(log_fp, e)
+
         return model_run_fp
 
 
@@ -710,8 +710,7 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             try:
                 try:
-                    model_runner_module.run(
-                        self.settings,
+                    run_args = dict(
                         number_of_processes=self.ktools_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
@@ -747,12 +746,12 @@ class GenerateLosses(GenerateLossesDir):
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint
                     )
+                    model_runner_module.run(self.settings, **run_args)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
-                    model_runner_module.run(
-                        self.settings,
+                    run_args = dict(
                         number_of_processes=self.ktools_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
@@ -765,6 +764,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
+                    model_runner_module.run(self.settings, **run_args)
 
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
@@ -783,6 +783,9 @@ class GenerateLosses(GenerateLossesDir):
                         self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
 
                 self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
+
+                if hasattr(model_runner_module, 'rerun'):
+                    model_runner_module.rerun()
 
                 raise OasisException(
                     'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'

@@ -78,8 +78,8 @@ def compare_streams(gul_stream, fm_stream_obj1, fm_stream_obj2, precision):
         msg = "some event_id, agg_id are not matching\n"
         for i, missing in enumerate([missing_in_1, missing_in_2]):
             if missing:
-                msg += f"    {len(missing)} missing in {i+1} : {sorted(missing)[:10]}" \
-                       f"{'...' if len(missing)>10 else ''}\n"
+                msg += f"    {len(missing)} missing in {i + 1} : {sorted(missing)[:10]}" \
+                    f"{'...' if len(missing) > 10 else ''}\n"
         return msg
 
     # round_dict_array(dict_array1, precision)
