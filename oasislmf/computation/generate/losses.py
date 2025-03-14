@@ -113,6 +113,12 @@ class GenerateLossesBase(ComputationStep):
         with io.open(os.path.join(target_dir, 'analysis_settings.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(analysis_settings, ensure_ascii=False, indent=4))
 
+    def _is_run_settings_stored(self, target_dir):
+        """
+        Checks if analysis settings file is under target_dir path
+        """
+        return os.path.isfile(os.path.join(target_dir, 'analysis_settings.json'))
+
     def _get_num_ri_layers(self, analysis_settings, model_run_fp):
         """
         Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()
@@ -477,10 +483,8 @@ class GenerateLossesPartial(GenerateLossesDir):
 
         # distributed worker will pass in run settings as JSON, if not given load settings
         # and re-load input dir.
-        if not self.analysis_settings:
+        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
             GenerateLossesDir.run(self)
-        else:
-            self.settings = self.analysis_settings
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
@@ -574,10 +578,8 @@ class GenerateLossesOutput(GenerateLossesDir):
 
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        if not self.analysis_settings:
+        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
             GenerateLossesDir.run(self)
-        else:
-            self.settings = self.analysis_settings
 
         model_runner_module, _ = self._get_model_runner()
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
