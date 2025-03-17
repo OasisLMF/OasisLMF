@@ -139,7 +139,7 @@ def rerun():
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
     gul_output = f"{event_error}_gul.bin"
-    
+
     gul_pipe = f"{eve_cmd} | {gul_cmd} -o {gul_output}"
     with open("gul_errors.log", "w") as error_log:
         subprocess.run(gul_pipe, shell=True, env=env, stderr=error_log)
