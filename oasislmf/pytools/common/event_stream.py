@@ -2,7 +2,7 @@
 Contain all common function and attribute to help read the event stream containing the losses
 """
 
-from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.exceptions import OasisStreamException
 import selectors
 from select import select
 import sys
@@ -368,7 +368,7 @@ class EventReader:
 
         except Exception as e:
             self.logger.error(str(e))
-            raise OasisException("Error reading stream", e)
+            raise OasisStreamException("Error reading stream", e)
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         raise NotImplementedError
