@@ -14,7 +14,7 @@ from numba.types import uint32 as nb_uint32
 from numba.types import float32 as nb_float32
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasislmf.pytools.common.data import areaperil_int
+from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float
 
 logger = logging.getLogger(__name__)
 
@@ -142,10 +142,12 @@ def process_aggregate_vulnerability(aggregate_vulnerability):
     return agg_vuln_to_vuln_id
 
 
-def process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id):
+@nb.njit(cache=True)
+def process_vulnerability_weights(areaperil_dict, aggregate_weights, agg_vuln_to_vuln_id):
     """Rearrange vulnerability weights from tabular format to a map between (areaperil_id, vulnerability_id) and the vulnerability weight.
 
     Args:
+        areaperil_dict: dict of areaperil to dict of vuln_id to 0 (0 represent the index but is not set yet)
         aggregate_weights (np.array[VulnerabilityWeight]): vulnerability weights table.
         agg_vuln_to_vuln_id (dict[int, list[int]]): map of aggregate vulnerability id to list of vulnerability ids.
 
@@ -154,13 +156,21 @@ def process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id):
     """
     areaperil_vuln_id_to_weight = gen_empty_areaperil_vuln_ids_to_weights()
 
-    if aggregate_weights is not None:
-        agg_weight_df = pd.DataFrame(aggregate_weights)
+    if aggregate_weights is None:
+        return areaperil_vuln_id_to_weight
 
-        if len(agg_vuln_to_vuln_id) > 0:
-            # at least one aggregate vulnerability is defined
-            for agg, grp in agg_weight_df.groupby(['areaperil_id', 'vulnerability_id']):
-                areaperil_vuln_id_to_weight[(nb_uint32(agg[0]), nb_int32(agg[1]))] = nb_float32(grp['weight'].to_list()[0])
+    for areaperil_id in areaperil_dict:
+        for vuln_id in areaperil_dict[areaperil_id]:
+            if vuln_id in agg_vuln_to_vuln_id:
+                for relevant_vuln_id in agg_vuln_to_vuln_id[vuln_id]:
+                    areaperil_vuln_id_to_weight[nb_areaperil_int(areaperil_id), nb_int32(relevant_vuln_id)] = nb_oasis_float(0)
+            else:
+                areaperil_vuln_id_to_weight[nb_areaperil_int(areaperil_id), nb_int32(vuln_id)] = nb_oasis_float(0)
+
+    for i in range(len(aggregate_weights)):
+        rec = aggregate_weights[i]
+        if (nb_areaperil_int(rec['areaperil_id']), nb_int32(rec['vulnerability_id'])) in areaperil_vuln_id_to_weight:
+            areaperil_vuln_id_to_weight[nb_areaperil_int(rec['areaperil_id']), nb_int32(rec['vulnerability_id'])] = nb_oasis_float(rec['weight'])
 
     return areaperil_vuln_id_to_weight
 
