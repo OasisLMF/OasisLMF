@@ -352,6 +352,7 @@ class Publish(Command):
             shutil.rmtree('build')
             shutil.rmtree('oasislmf.egg-info')
 
+
 ext_modules = [
     Extension(
         "oasisnumpy",
