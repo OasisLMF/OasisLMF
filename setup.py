@@ -1,5 +1,6 @@
 import glob
 import io
+import numpy as np
 import os
 import platform
 import re
@@ -12,7 +13,7 @@ from distutils.spawn import find_executable
 from tempfile import mkdtemp
 from time import sleep
 
-from setuptools import Command, find_packages, setup
+from setuptools import Command, find_packages, setup, Extension
 from setuptools.command.develop import develop
 from setuptools.command.install import install
 
@@ -351,6 +352,13 @@ class Publish(Command):
             shutil.rmtree('build')
             shutil.rmtree('oasislmf.egg-info')
 
+ext_modules = [
+    Extension(
+        "oasisnumpy",
+        ["oasislmf/pytools/kat/oasisnumpy.c"],
+        include_dirs=[np.get_include()],
+    ),
+]
 
 setup(
     name='oasislmf',
@@ -417,4 +425,5 @@ setup(
         'bdist_wheel': BdistWheel,
         'publish': Publish,
     },
+    ext_modules=ext_modules,
 )
