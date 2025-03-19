@@ -24,7 +24,7 @@ AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float32
 AggregateVulnerability = nb.from_dtype(np.dtype([('aggregate_vulnerability_id', np.int32),
                                                  ('vulnerability_id', np.int32), ]))
 
-VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', np.int32),
+VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                               ('vulnerability_id', np.int32),
                                               ('weight', np.float32)]))
 
