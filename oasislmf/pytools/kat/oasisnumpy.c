@@ -23,6 +23,26 @@ static void _savetxt(FILE *fh, PyArrayObject *X, const char *fmt,
         fprintf(fh, "%s%s%s", comments, header, newline);
     }
 
+    int ndim = PyArray_NDIM(X);
+    npy_intp *shape = PyArray_SHAPE(X);
+    PyArray_Descr *dtype = PyArray_DTYPE(X);
+    int ncol;
+    if (ndim == 0 || ndim > 2) {
+        PyErr_Format(PyExc_ValueError, "Expected 1D or 2D array, got %dD array instead", ndim);
+        return;
+    } else if (ndim == 1) {
+        PyObject *names = dtype->names;
+        if (names == NULL) {
+            // TODO: implement atleast_2d in C? can only find python implementation
+            // X = X.atleast_2d(X).T
+            ncol = 1;
+        } else {
+            ncol = PyTuple_GET_SIZE(names);
+        }
+    } else {
+        ncol = shape[1];
+    }
+
     // TODO: implement rest of savetxt
 
     // Write footer if provided
