@@ -10,8 +10,6 @@ import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
-from numba.types import uint32 as nb_uint32
-from numba.types import float32 as nb_float32
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float
