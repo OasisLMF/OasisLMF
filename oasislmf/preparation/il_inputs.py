@@ -164,6 +164,7 @@ def get_step_profile_ids(
         index=fm_policytc_df[fm_policytc_df['step_id'] > 0]['pol_id']
     ).groupby('pol_id').aggregate(list).to_dict()[0]
 
+    fm_policytc_df['profile_id'] = fm_policytc_df['profile_id'].astype('object')
     fm_policytc_df.loc[
         fm_policytc_df['step_id'] > 0, 'profile_id'
     ] = fm_policytc_df.loc[fm_policytc_df['step_id'] > 0]['pol_id'].map(step_calcrule_policytc_agg)
@@ -583,6 +584,7 @@ def get_il_input_items(
                 'FMTermType': step_term['FMProfileField'],
                 'FMProfileStep': step_term.get('FMProfileStep')
             }
+    item_perils = gul_inputs_df[['peril_id']].drop_duplicates()
 
     for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df):
         for level, level_info in levels:
@@ -634,7 +636,9 @@ def get_il_input_items(
                 level_df = level_df.merge(coverage_type_id_df)
             else:
                 # map the coverage_type_id to the correct FMTermGroupID for this level. coverage_type_id without term and therefor FMTermGroupID are map to 0
-                gul_inputs_df['FMTermGroupID'] = gul_inputs_df['coverage_type_id'].map(coverage_group_map, na_action='ignore')
+                gul_inputs_df['FMTermGroupID'] = (gul_inputs_df['coverage_type_id']
+                                                  .map(coverage_group_map, na_action='ignore')
+                                                  .astype('Int32'))
 
             # make sure correct tiv sum exist
             for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
@@ -642,6 +646,15 @@ def get_il_input_items(
                 if tiv_key not in gul_inputs_df:
                     gul_inputs_df[tiv_key] = gul_inputs_df[list(
                         set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
+
+            if 'fm_peril' in level_df:
+                # before merging we need to match the fm_peril with what perils it covers in gul_inputs_df
+                # we calculate all the possible combination and keep only valid one(this cross produce
+                # note: this cross product should stay small as there is not a lot of possibilities for peril ids
+                fm_perils = level_df[['fm_peril']].drop_duplicates()
+                peril_map_df = pd.merge(item_perils, fm_perils, how='cross')
+                peril_map_df = peril_map_df[oed_schema.peril_filtering(peril_map_df['peril_id'], peril_map_df['fm_peril'])]
+                level_df = level_df.merge(peril_map_df)
 
             # we have prepared FMTermGroupID on gul or level df (depending on  step_level) now we can merge the terms for this level to gul
             level_df = (gul_inputs_df.merge(level_df, how='left'))
@@ -653,9 +666,7 @@ def get_il_input_items(
 
             # check that peril_id is part of the fm peril policy, if not we remove the terms
             if 'fm_peril' in level_df:
-                level_df['fm_peril'] = level_df['fm_peril'].fillna('')
-                peril_filter = oed_schema.peril_filtering(level_df['peril_id'], level_df['fm_peril'])
-                level_df.loc[~peril_filter, list(level_terms) + ['FMTermGroupID']] = 0
+                level_df.loc[level_df['fm_peril'].isna(), list(level_terms) + ['FMTermGroupID']] = 0
                 factorize_key = agg_key + ['FMTermGroupID', 'fm_peril']
             else:
                 factorize_key = agg_key + ['FMTermGroupID']
@@ -918,6 +929,9 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
                     fm_profile_df[col] = 0
 
             for non_step_name, step_name in profile_cols_map.items():
+                if step_name not in fm_profile_df.columns:
+                    fm_profile_df[step_name] = 0
+                fm_profile_df[step_name] = fm_profile_df[step_name].astype(object)
                 fm_profile_df.loc[
                     ~(il_inputs_df['StepTriggerType'] > 0), step_name
                 ] = il_inputs_df.loc[
