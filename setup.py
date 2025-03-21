@@ -355,7 +355,7 @@ class Publish(Command):
 
 ext_modules = [
     Extension(
-        "oasisnumpy",
+        "oasisnumpy_ctools",
         ["oasislmf/pytools/kat/oasisnumpy.c"],
         include_dirs=[np.get_include()],
     ),
