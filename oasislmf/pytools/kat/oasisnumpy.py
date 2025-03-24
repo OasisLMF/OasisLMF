@@ -1,5 +1,6 @@
 import os
 import re
+from line_profiler import profile
 import numpy as np
 import oasisnumpy_ctools as onpc
 
@@ -21,6 +22,7 @@ def _is_string_like(obj):
     return True
 
 
+@profile
 def savetxt(fname, X, fmt='%.18e', delimiter=' ', newline='\n', header='',
             footer='', comments='# ', encoding=None):
     """

@@ -10,31 +10,33 @@
 #include <string.h>
 #include <unistd.h>
 
-void *cast_value(void *value_ptr, int type_num)
+char *cast_value(void *value_ptr, int type_num, const char *fmt_str)
 {
-    void *result = NULL;
+    static char buffer[64]; // Fixed buffer for formatted output
+
+    if (!value_ptr || !fmt_str) {
+        return NULL;
+    }
 
     switch (type_num) {
         case NPY_INT32:
-            result = malloc(sizeof(int));
-            *(int *) result = *(int *) value_ptr;
+            snprintf(buffer, sizeof(buffer), fmt_str, *(int *) value_ptr);
             break;
         case NPY_FLOAT32:
-            result = malloc(sizeof(float));
-            *(float *) result = *(float *) value_ptr;
+            snprintf(buffer, sizeof(buffer), fmt_str, *(float *) value_ptr);
             break;
         case NPY_FLOAT64:
-            result = malloc(sizeof(double));
-            *(double *) result = *(double *) value_ptr;
+            snprintf(buffer, sizeof(buffer), fmt_str, *(double *) value_ptr);
             break;
         case NPY_BOOL:
-            result = malloc(sizeof(int)); // Treat bool as int for printing
-            *(int *) result = (*(npy_bool *) value_ptr) ? 1 : 0;
+            snprintf(buffer, sizeof(buffer), fmt_str,
+                     (*(npy_bool *) value_ptr) ? 1 : 0);
             break;
         default:
-            break;
+            return NULL; // Unsupported type
     }
-    return result;
+
+    return buffer;
 }
 
 // Function to handle saving the NumPy array to a file or file-like object
@@ -68,22 +70,19 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
     }
 
     for (int i = 0; i < nrows; i++) {
-        // Array of void ptrs to hold the arg values for each row to format
-        // later
-        void **arg_values = (void **) malloc(ncols * sizeof(void *));
-        int *arg_types = (int *) malloc(ncols * sizeof(int));
-        if (!arg_values) {
-            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory");
-            return NULL;
-        }
-
         if (isnamedarray) {
             if (!names) {
                 PyErr_SetString(PyExc_ValueError,
                                 "No named fields found for structured array");
                 return NULL;
             }
-            for (int j = 0; j < PyTuple_Size(names); j++) {
+            Py_ssize_t fmt_len = PyList_Size(fmt);
+            if (fmt_len != PyTuple_Size(names)) {
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "Format string length does not match number of columns");
+            }
+            for (int j = 0; j < fmt_len; j++) {
                 // Get column dtype
                 PyObject *key = PyTuple_GetItem(names, j);
                 PyObject *field = PyDict_GetItem(dtype->fields, key);
@@ -93,68 +92,37 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
                 // Get column value
                 void *value_ptr =
                     PyArray_GETPTR1(X, i) + field_dtype->elsize * j;
-                arg_values[j] = cast_value(value_ptr, field_dtype->type_num);
-                arg_types[j] = field_dtype->type_num;
-                printf("Val: %f\n", arg_values[j]);
-                printf("Type: %i\n", arg_types[j]);
+                int type = field_dtype->type_num;
+                PyObject *fmt_item = PyList_GetItem(fmt, j);
+                const char *fmt_str = PyUnicode_AsUTF8(fmt_item);
+                const char *towrite = cast_value(value_ptr, type, fmt_str);
+                fwrite(towrite, 1, strlen(towrite), fh);
+                if (j < fmt_len - 1) {
+                    fprintf(fh, ",");
+                }
             }
         }
         else {
+            Py_ssize_t fmt_len = PyList_Size(fmt);
+            if (fmt_len != ncols) {
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "Format string length does not match number of columns");
+            }
             for (int j = 0; j < ncols; j++) {
                 void *value_ptr = PyArray_GETPTR2(X, i, j);
-                arg_values[j] = cast_value(value_ptr, PyArray_TYPE(X));
-                arg_types[j] = PyArray_TYPE(X);
-            }
-        }
-
-        Py_ssize_t fmt_len = PyList_Size(fmt);
-        for (int j = 0; j < fmt_len; j++) {
-            if (j < fmt_len) {
+                int type = PyArray_TYPE(X);
                 PyObject *fmt_item = PyList_GetItem(fmt, j);
-                if (!PyUnicode_Check(fmt_item)) {
-                    PyErr_SetString(PyExc_TypeError,
-                                    "All elements in fmt must be strings");
-                    return;
-                }
                 const char *fmt_str = PyUnicode_AsUTF8(fmt_item);
 
-                // Now print the value with the respective format
-                if (arg_values[j]) {
-                    printf(fmt_str,
-                           *(int *) arg_values[j]); // Assuming the cast to
-                                                    // double for simplicity
-                    printf(",");
-                    printf(fmt_str,
-                           *(float *) arg_values[j]); // Assuming the cast to
-                                                      // double for simplicity
-                }
-                else {
-                    PyErr_SetString(PyExc_ValueError, "Null value in array");
-                    return;
-                }
-
-                // Add space between columns (unless it's the last column in the
-                // row)
-                if (j < ncols - 1) {
-                    printf(" - ");
+                const char *towrite =
+                    cast_value(value_ptr, PyArray_TYPE(X), fmt_str);
+                if (j < fmt_len - 1) {
+                    fputs(",", fh);
                 }
             }
         }
-        printf("\n");
-
-        // Clean up memory
-        if (isnamedarray) {
-            for (int j = 0; j < PyTuple_Size(names); j++) {
-                if (arg_values[j]) free(arg_values[j]);
-            }
-        }
-        else {
-            for (int j = 0; j < ncols; j++) {
-                if (arg_values[j]) free(arg_values[j]);
-            }
-        }
-        free(arg_values);
-        free(arg_types);
+        fputs("\n", fh);
     }
 
     fflush(fh); // TODO: why do I need a buffer here when C++ ktools does not
