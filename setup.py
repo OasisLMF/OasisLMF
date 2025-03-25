@@ -358,7 +358,17 @@ ext_modules = [
         "oasisnumpy_ctools",
         ["oasislmf/pytools/kat/oasisnumpy.c"],
         include_dirs=[np.get_include()],
-        extra_compile_args=["-O3", "-march=native", "-ffast-math"],
+        extra_compile_args=[
+            "-march=nocona",
+            "-mtune=haswell",
+            "-ftree-vectorize",
+            "-fPIC",
+            "-fstack-protector-strong",
+            "-fno-plt",
+            "-O2",
+            "-ffunction-sections",
+            "-pipe"
+        ],
     ),
 ]
 

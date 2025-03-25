@@ -115,8 +115,8 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
                 PyObject *fmt_item = PyList_GetItem(fmt, j);
                 const char *fmt_str = PyUnicode_AsUTF8(fmt_item);
 
-                const char *towrite =
-                    cast_value(value_ptr, PyArray_TYPE(X), fmt_str);
+                const char *towrite = cast_value(value_ptr, type, fmt_str);
+                fwrite(towrite, 1, strlen(towrite), fh);
                 if (j < fmt_len - 1) {
                     fputs(",", fh);
                 }
@@ -225,10 +225,162 @@ static PyObject *savefmttxt(PyObject *self, PyObject *args, PyObject *kwargs)
     Py_RETURN_NONE;
 };
 
+PyObject *_fmtarray(PyArrayObject *row, PyObject *fmt, const char *newline)
+{
+    if (!row || !fmt || !newline) {
+        PyErr_SetString(PyExc_ValueError, "Invalid arguments");
+        return NULL;
+    }
+
+    int ndim = PyArray_NDIM(row);
+    npy_intp *shape = PyArray_SHAPE(row);
+    PyArray_Descr *dtype = PyArray_DTYPE(row);
+    int ncols = shape[0];
+    bool isnamedarray = PyDataType_HASFIELDS(dtype);
+    PyObject *names = NULL;
+    PyObject *fields = NULL;
+
+    if (ndim != 1) {
+        PyErr_Format(PyExc_ValueError,
+                     "Expected a 1D array, got %dD array instead", ndim);
+        return NULL;
+    }
+
+    if (isnamedarray) {
+        names = dtype->names;
+        fields = dtype->fields;
+        ncols = PyTuple_Size(names);
+        if (!names) {
+            PyErr_SetString(PyExc_ValueError,
+                            "No named fields found for structured array");
+            return NULL;
+        }
+    }
+
+    // Initial buffer size
+    size_t bufsize = 256;
+    char *buffer = (char *) malloc(bufsize);
+    if (!buffer) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory");
+        return NULL;
+    }
+    buffer[0] = '\0'; // Initialize buffer as empty string
+
+    for (int j = 0; j < ncols; j++) {
+        char temp_buffer[64] = {0}; // Temporary buffer for formatting
+
+        void *value_ptr = PyArray_GETPTR1(row, j);
+        int type = PyArray_TYPE(row);
+        PyObject *fmt_item = PyList_GetItem(fmt, j);
+        const char *fmt_str = PyUnicode_AsUTF8(fmt_item);
+        const char *towrite = cast_value(value_ptr, type, fmt_str);
+
+        printf("TEST %s, %s, %d\n", towrite, fmt_str, type);
+
+        strcat(temp_buffer, towrite);
+        if (j < ncols - 1) strcat(temp_buffer, ","); // Add comma between values
+
+        // Expand buffer if needed
+        size_t new_len = strlen(buffer) + strlen(temp_buffer) + 1;
+        if (new_len > bufsize) {
+            bufsize *= 2;
+            buffer = (char *) realloc(buffer, bufsize);
+            if (!buffer) {
+                PyErr_SetString(PyExc_MemoryError,
+                                "Failed to reallocate memory");
+                return NULL;
+            }
+        }
+        strcat(buffer, temp_buffer);
+    }
+
+    strcat(buffer, newline); // Append newline character
+    PyObject *result = PyUnicode_FromString(buffer);
+    free(buffer);
+    return result; // Caller must free() this
+}
+
+static PyObject *fmtarray(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *X;
+    PyObject *fmt = PyList_New(0);
+    const char *newline = "\n";
+
+    static char *kwlist[] = {"X", "fmt", "newline", NULL};
+
+    // Parse Python arguments
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Os", kwlist, &X, &fmt,
+                                     &newline)) {
+        return NULL;
+    }
+
+    // Check if X is a NumPy array or a structured row (`numpy.void`)
+    if (!PyArray_Check(X) &&
+        !PyObject_IsInstance(X, (PyObject *) &PyVoidArrType_Type)) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "X must be a NumPy array or a structured row (numpy.void)");
+        return NULL;
+    }
+
+    // Ensure fmt_list is a list
+    if (!PyList_Check(fmt)) {
+        PyErr_SetString(PyExc_TypeError, "fmt must be a list of strings");
+        return NULL;
+    }
+
+    PyArrayObject *array;
+    if (PyArray_Check(X)) {
+        array = (PyArrayObject *) X; // Normal case: X is already a NumPy array
+    }
+    else {
+        // TODO: FIX THIS CASE
+        PyArray_Descr *dtype = NULL;
+        if (PyArray_CheckScalar(X)) {
+            // If X is a scalar, get the dtype
+            dtype = PyArray_DescrFromScalar(X);
+            if (!dtype) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Failed to get dtype from scalar");
+                return NULL;
+            }
+
+            // Create a 1D array from the scalar, which will preserve the dtype
+            // and type
+            npy_intp dims[1] = {1}; // Size 1 array
+            array = (PyArrayObject *) PyArray_NewFromDescr(
+                &PyArray_Type, dtype, 1, dims, NULL,
+                PyDataMem_NEW(dtype->elsize), NPY_ARRAY_CARRAY, NULL);
+
+            if (!array) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Failed to create 1D NumPy array from scalar");
+                return NULL;
+            }
+
+            // Copy the scalar data into the newly created array
+            memcpy(PyArray_DATA(array), PyArray_DATA((PyArrayObject *) X),
+                   dtype->elsize);
+        }
+        else {
+            // If X is neither a scalar nor a NumPy array, it's an invalid input
+            PyErr_SetString(PyExc_TypeError,
+                            "Expected a NumPy array or scalar");
+            return NULL;
+        }
+    }
+
+    // Call the C function to save the array to the file
+    PyObject *result = _fmtarray(array, fmt, newline);
+    return result;
+};
+
 // Module method definitions
 static PyMethodDef OasisNumpyMethods[] = {
     {"savefmttxt", savefmttxt, METH_VARARGS | METH_KEYWORDS,
      "Save format text string from array to file"},
+    {"fmtarray", fmtarray, METH_VARARGS | METH_KEYWORDS,
+     "Format array to string"},
     {NULL, NULL, 0, NULL} // Sentinel value
 };
 

@@ -239,6 +239,7 @@ def savetxt(fname, X, fmt='%.18e', delimiter=' ', newline='\n', header='',
                 s = format % tuple(row2) + newline
                 fh.write(s.replace('+-', '-'))
         else:
+            # ### METHOD: Original
             # for row in X:
             #     try:
             #         v = format % tuple(row) + newline
@@ -248,11 +249,17 @@ def savetxt(fname, X, fmt='%.18e', delimiter=' ', newline='\n', header='',
             #                         % (str(X.dtype), format)) from e
             #     fh.write(v)
 
-            # TODO: split format string into n chunks based on number of %
-            # TODO: Handle the Writewrap case? should my function return a
-            #       string per row to write, or should I implement Writewrap in C
+            # ### METHOD: Pass entire 2D array and save to file formatted
+            # # TODO: split format string into n chunks based on number of %
+            # # TODO: Handle the Writewrap case? should my function return a
+            # #       string per row to write, or should I implement Writewrap in C
+            # onpc.savefmttxt(fh.fh, X, format.split(","), newline)
 
-            onpc.savefmttxt(fh.fh, X, format.split(","), newline)
+            # METHOD: Return string per row
+            # TODO: Same as above
+            for row in X:
+                v = onpc.fmtarray(row, format.split(","), newline)
+                fh.write(v)
 
         if len(footer) > 0:
             footer = footer.replace('\n', '\n' + comments)
