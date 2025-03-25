@@ -1188,13 +1188,13 @@ def do_ord(
                         if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
-                    
+
                     # Add binary output flag for ELTpy and PLTpy, will be converted to csv during kats
                     if exec_type == "pytools":
                         cmd = f'{flag_proc[exec_type]["executable"]} -B{cmd}'
-                    else :
+                    else:
                         cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
-                    
+
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
