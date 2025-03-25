@@ -487,7 +487,8 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
             continue
         if (output_binary and Path(path).suffix != '.bin') or\
                 (not output_binary and Path(path).suffix != '.csv'):
-            raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
+            if Path(path).suffix != "":  # Ignore suffix for pipes
+                raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
 
     with ExitStack() as stack:
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)

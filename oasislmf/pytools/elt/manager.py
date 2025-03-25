@@ -382,7 +382,8 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
             continue
         if (output_binary and Path(path).suffix != '.bin') or\
                 (not output_binary and Path(path).suffix != '.csv'):
-            raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
+            if Path(path).suffix != "":  # Ignore suffix for pipes
+                raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path},")
 
     if run_dir is None:
         run_dir = './work'

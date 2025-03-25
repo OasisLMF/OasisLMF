@@ -380,6 +380,7 @@ def bin_concat_sort_by_headers(
 
 def run(
     out_file,
+    file_type=None,
     files_in=None,
     dir_in=None,
     concatenate_selt=False,
@@ -393,6 +394,7 @@ def run(
     """Concatenate CSV files (optionally sorted)
     Args:
         out_file (str | os.PathLike): Output Concatenated CSV file.
+        file_type (str, optional): Input file type suffix, if not discernible from input files. Defaults to None.
         files_in (List[str | os.PathLike], optional): Individual CSV file paths to concatenate. Defaults to None.
         dir_in (str | os.PathLike, optional): Path to the directory containing files for concatenation. Defaults to None.
         concatenate_selt (bool, optional): Concatenate SELT CSV file. Defaults to False.
@@ -436,6 +438,12 @@ def run(
 
     out_file = Path(out_file).resolve()
     input_type = check_file_extensions(input_files)
+
+    if file_type:
+        input_type = "." + file_type
+    else:
+        if input_type == "":  # Inputs are pipes for example
+            raise RuntimeError("ERROR: katpy, no discernible file type suffix found from input files, please provide a file_type")
 
     # If out_file is a csv and input_files are not csvs, then output to temporary outfile
     # of type input_type, and convert to csv after
@@ -534,6 +542,7 @@ def run(
 @redirect_logging(exec_name='katpy')
 def main(
     out=None,
+    file_type=None,
     files_in=None,
     dir_in=None,
     selt=False,
@@ -547,6 +556,7 @@ def main(
 ):
     run(
         out_file=out,
+        file_type=file_type,
         files_in=files_in,
         dir_in=dir_in,
         concatenate_selt=selt,

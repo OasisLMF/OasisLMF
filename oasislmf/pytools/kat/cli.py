@@ -23,10 +23,14 @@ def validate_flags(args):
     if args.files_in is None and args.dir_in is None:
         raise RuntimeError("Error: katpy must specify at least one of --files_in or --dir_in.")
 
+    if args.file_type and args.file_type not in ["csv", "bin"]:
+        raise RuntimeError("Error: katpy file_type must be [\"csv\", \"bin\"] or None")
+
 
 def main():
     parser = argparse.ArgumentParser(description='Concatenate ELT/PLT CSV files')
     parser.add_argument('-o', '--out', type=str, required=True, help='Output Concatenated CSV file')
+    parser.add_argument('-f', '--file_type', type=str, default=None, help='Input file type if not discernible from input file suffix.')
     parser.add_argument('-i', '--files_in', type=str, nargs='+', required=False, help='Individual input file paths to concatenate')
     parser.add_argument('-d', '--dir_in', type=str, default=None, help='Path to the directory containing files for concatenation')
     parser.add_argument('-s', '--selt', action='store_true', help='Concatenate SELT CSV file')
