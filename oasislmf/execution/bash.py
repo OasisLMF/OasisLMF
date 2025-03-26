@@ -1794,7 +1794,6 @@ def get_main_cmd_gul_stream(
     :type consumer: string
     :return: generated command as str
     """
-    logger.error(f"CMD:{cmd}, ID: {process_id}")
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
