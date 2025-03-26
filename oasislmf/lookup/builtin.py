@@ -696,7 +696,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
     def build_geotiff(self, file_path, band_info):
         """
-        
+
         Args:
             file_path: path to the geotiff file
             band_info: a dict where keys are assigned column name, and values are dicts with
@@ -706,7 +706,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             function to assign band value to each corresponding lat lon
         """
         if gdal is None:
-            raise OasisException("gdal need to be installed to use geotiff")
+            raise OasisException(
+                "##### gdal need to be installed to use geotiff !!!#####\n"
+                "on ubuntu, first install gdal then run pip based on the installed version\n"
+                "-> apt-get update && apt-get install -y gdal-bin\n"
+                "-> gdalinfo --version\n"
+                "-> pip install gdal==<version>"
+            )
+
         tiff_dataset = gdal.Open(self.to_abs_filepath(file_path), gdal.GA_ReadOnly)
         inv_gt = gdal.InvGeoTransform(tiff_dataset.GetGeoTransform())
 
