@@ -31,7 +31,7 @@ def case_runner(dir_in, csv_name, sorted):
             shutil.copyfile(Path(actual_out),
                             Path(error_path, csv_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
-            raise Exception(f"running 'eltpy {arg_str}' led to diff, see files at {error_path}") from e
+            raise Exception(f"running 'katpy {arg_str}' led to diff, see files at {error_path}") from e
 
 
 def test_katpy_csv_sorted():
