@@ -33,6 +33,11 @@ try:  # needed for rtree
 except ImportError:
     Point = gdp = None
 
+try:  # needed for geotiff
+    from osgeo import gdal
+except ImportError:
+    gdal = None
+
 import math
 import re
 
@@ -103,6 +108,29 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
         closest_points['distance'] = dist * earth_radius
 
     return closest_points
+
+
+# GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
+X_COORDINATE = 0  # x-coordinate of the upper-left corner of the upper-left pixel.
+W_E_PIXEL_RESOLUTION = 1  # w-e pixel resolution / pixel width.
+ROW_ROTATION = 2  # row rotation (typically zero).
+Y_COORDINATE = 3  # y-coordinate of the upper-left corner of the upper-left pixel.
+COLUMN_ROTATION = 4  # column rotation (typically zero).
+N_S_PIXEL_RESOLUTION = 5  # n-s pixel resolution / pixel height (negative value for a north-up image).
+
+
+@nb.njit(cache=True)
+def jit_gda_loc_to_val(ds_array, inv_gt, x_array, y_array, useful_array_idx, defaults, res):
+    for loc_i in range(res.shape[0]):
+        px = int(inv_gt[X_COORDINATE] + x_array[loc_i] * inv_gt[W_E_PIXEL_RESOLUTION] + y_array[loc_i] * inv_gt[ROW_ROTATION] + 0.5)
+        py = int(inv_gt[Y_COORDINATE] + x_array[loc_i] * inv_gt[COLUMN_ROTATION] + y_array[loc_i] * inv_gt[N_S_PIXEL_RESOLUTION] + 0.5)
+        if 0 <= px < ds_array.shape[1] and 0 <= py < ds_array.shape[0]:
+            for col_i in range(useful_array_idx.shape[0]):
+                res[loc_i, col_i] = ds_array[py, px, useful_array_idx[col_i]]
+        else:
+            for col_i in range(useful_array_idx.shape[0]):
+                res[loc_i, col_i] = defaults[col_i]
+    return res
 
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
@@ -324,7 +352,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 df[col] = OASIS_UNKNOWN_ID
             else:
                 df[col] = df[col].astype('Int64')
-                df.loc[df[col].isna(), col] = OASIS_UNKNOWN_ID
+                df.loc[(df[col].isna()) | (df[col] <= 0), col] = OASIS_UNKNOWN_ID
         return df
 
     def build_interval_to_index(self, value_column_name, sorted_array, index_column_name=None, side='left'):
@@ -359,34 +387,82 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         return fct
 
     @staticmethod
-    def build_combine(id_columns, strategy):
+    def build_combine(id_columns, strategy, logical_type='or'):
         """
         build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
         for example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
         and one using postcode.
         each strategy will be applied sequentially on the location that steal have OASIS_UNKNOWN_ID in their id_columns after the precedent strategy
 
+        'or' example: (note: "id_columns" is a list)
+            "vulnerability":{
+                "type": "combine",
+                "parameters": {
+                    "id_columns": ["vulnerability_id"],
+                    "strategy": ["vuln_cov_Building_Content", "vuln_cov_car"]
+                    "logical_type": "or"
+                }
+            }
+
+        'and' example: (note: that "id_columns" is a list of list)
+            "vuln_cov_car":{
+                "type": "combine",
+                "columns": ["autocode"],
+                "parameters": {
+                    "id_columns": [["vuln_id_car"], ["vulnerability_id"]],
+                    "strategy": ["vulnerability_car", "coverage_type_car"],
+                    "logical_type": "and"
+                }
+            },
+
         Args:
             id_columns (list): columns that will be checked to determine if a strategy has succeeded
             strategy (list): list of strategy to apply
+            logical_type: if 'or' apply the next strategy only on invalid id_columns
+                          if 'and' apply the next strategy only on valid id_columns
+                                   id_columns needs to be a list of list of columns that each sublist is checked sequentially
+
 
         Returns:
             function: function combining all strategies
         """
-        def fct(locations):
-            initial_columns = locations.columns
-            result = []
-            for child_strategy in strategy:
-                if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
-                    continue
-                locations = child_strategy['function'](locations)
-                is_valid = (locations[id_columns] != OASIS_UNKNOWN_ID).any(axis=1)
-                result.append(locations[is_valid])
+        if logical_type.lower() == 'or':
+            def fct(locations):
+                initial_columns = locations.columns
+                result = []
+                for child_strategy in strategy:
+                    if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
+                        continue
+                    locations = child_strategy['function'](locations)
+                    locations = Lookup.set_id_columns(locations, id_columns)
+                    is_valid = (locations[id_columns] != OASIS_UNKNOWN_ID).any(axis=1)
+                    result.append(locations[is_valid])
+                    locations = locations[~is_valid][initial_columns]
+                    if locations.empty:
+                        break
+                result.append(locations)
+                return Lookup.set_id_columns(pd.concat(result, ignore_index=True), id_columns)
 
-                locations = locations[~is_valid][initial_columns]
-            result.append(locations)
-            return Lookup.set_id_columns(pd.concat(result), id_columns)
+        elif logical_type.lower() == 'and':
+            def fct(locations):
+                initial_columns = locations.columns
+                result = []
+                for i, child_strategy in enumerate(strategy):
+                    if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
+                        continue
+                    locations = child_strategy['function'](locations)
+                    locations = Lookup.set_id_columns(locations, id_columns[i])
+                    is_valid = (locations[id_columns[i]] != OASIS_UNKNOWN_ID).any(axis=1)
+                    result.append(locations[~is_valid][initial_columns])
+                    locations = locations[is_valid]
 
+                    if locations.empty:
+                        break
+                result.append(locations)
+                return Lookup.set_id_columns(pd.concat(result, ignore_index=True), id_columns[-1])
+
+        else:
+            raise OasisException(f"Unsupported logical_type {logical_type}")
         return fct
 
     @staticmethod
@@ -618,6 +694,49 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return geo_grid_lookup
 
+    def build_geotiff(self, file_path, band_info):
+        """
+        
+        Args:
+            file_path: path to the geotiff file
+            band_info: a dict where keys are assigned column name, and values are dicts with
+                id is the id of the band in the tiff file
+                default is the(value for outside of range location
+        Returns:
+            function to assign band value to each corresponding lat lon
+        """
+        if gdal is None:
+            raise OasisException("gdal need to be installed to use geotiff")
+        tiff_dataset = gdal.Open(self.to_abs_filepath(file_path), gdal.GA_ReadOnly)
+        inv_gt = gdal.InvGeoTransform(tiff_dataset.GetGeoTransform())
+
+        defaults = np.empty(len(band_info), dtype=tiff_dataset.GetVirtualMemArray().dtype)
+        usefull_array_idx = np.empty(len(band_info), dtype='int')
+        for i, (col_name, info) in enumerate(band_info.items()):
+            if not 1 <= info['id'] <= tiff_dataset.RasterCount:
+                raise OasisException(f"band {col_name}, {info} has id outside of [1-{tiff_dataset.RasterCount}]")
+            idx = info['id'] - 1
+            usefull_array_idx[i] = idx
+            defaults[idx] = info['default']
+
+        def geotiff_lookup(locations):
+            tiff_array = tiff_dataset.GetVirtualMemArray()
+            if len(tiff_array.shape) == 2:
+                tiff_array = tiff_array.reshape((tiff_array.shape[0], tiff_array.shape[1], 1))
+            res = np.empty((len(locations), len(band_info)), dtype=tiff_array.dtype)
+            jit_gda_loc_to_val(tiff_array,
+                               inv_gt,
+                               locations['longitude'].to_numpy(),
+                               locations['latitude'].to_numpy(),
+                               usefull_array_idx,
+                               defaults,
+                               res)
+            for col_i, col_name in enumerate(band_info.keys()):
+                locations[col_name] = res[:, col_i]
+            return locations
+
+        return geotiff_lookup
+
     def build_merge(self, file_path, id_columns=[], **kwargs):
         """
         this method will merge the locations Dataframe with the Dataframe present in file_path
@@ -632,9 +751,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
-
-            self.set_id_columns(locations, id_columns)
-            return locations
+            return self.set_id_columns(locations, id_columns)
         return merge
 
     @staticmethod
@@ -669,12 +786,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             for pivot in pivots:
                 pivot_df = locations.copy()
                 for old_name, new_name in pivot.get("on", {}).items():
-                    pivot_df[new_name]
+                    pivot_df[new_name] = pivot_df[old_name]
                     pivoted_cols.add(old_name)
                 for col_name, value in pivot.get("new_cols", {}).items():
                     pivot_df[col_name] = value
                 pivoted_dfs.append(pivot_df)
-            locations = pd.concat(pivoted_dfs)
+            locations = pd.concat(pivoted_dfs, ignore_index=True)
             if remove_pivoted_col:
                 locations.drop(columns=pivoted_cols, inplace=True)
             return locations
