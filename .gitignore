@@ -133,6 +133,7 @@ tests/assets/test_summarypy/**/error_files/
 tests/assets/test_eltpy/**/error_files/
 tests/assets/test_pltpy/**/error_files/
 tests/assets/test_aalpy/**/error_files/
+tests/assets/test_lecpy/**/error_files/
 tests/assets/test_common/**/error_files/
 
 
@@ -156,6 +157,8 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_pltpy/**/*.bin
 !tests/assets/test_aalpy/*.bin
 !tests/assets/test_aalpy/**/*.bin
+!tests/assets/test_lecpy/*.bin
+!tests/assets/test_lecpy/**/*.bin
 !tests/assets/test_common/*.bin
 !tests/assets/test_common/**/*.bin
 

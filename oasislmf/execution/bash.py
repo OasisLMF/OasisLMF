@@ -508,6 +508,7 @@ def do_post_wait_processing(
     stderr_guard=True,
     inuring_priority=None,
     aalpy=False,
+    lecpy=False,
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
@@ -520,6 +521,7 @@ def do_post_wait_processing(
             summary_set = summary['id']
 
             aal_exec_type = "ktools" if not aalpy else "pytools"
+            lec_exec_type = "ktools" if not lecpy else "pytools"
 
             # ktools ORIG - aalcalc
             if summary.get('aalcalc'):
@@ -630,13 +632,12 @@ def do_post_wait_processing(
                 ept_output = False
                 psept_output = False
 
-                cmd = 'ordleccalc {} -K{}{}_{}S{}_summaryleccalc'.format(
-                    '-r' if ord_outputs.get('return_period_file') else '',
-                    work_sub_dir,
-                    runtype,
-                    inuring_priority,
-                    summary_set
-                )
+                lec_executable = "ordleccalc"
+                if lec_exec_type == "pytools":
+                    lec_executable = "lecpy"
+
+                cmd = f"{lec_executable} {'-r' if ord_outputs.get('return_period_file') else ''}"
+                cmd = f"{cmd} -K{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc"
 
                 process_counter['lpid_monitor_count'] += 1
                 for option, active in sorted(ord_outputs.items()):
@@ -658,6 +659,8 @@ def do_post_wait_processing(
                 psept_output_flag = '-o'
                 outfile_ext = 'csv'
                 if summary.get('ord_output', {}).get('parquet_format'):
+                    if lec_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
                     ept_output_flag = '-P'
                     psept_output_flag = '-p'
                     outfile_ext = 'parquet'
@@ -1945,6 +1948,7 @@ def bash_params(
     eltpy=False,
     pltpy=False,
     aalpy=False,
+    lecpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1985,9 +1989,10 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
-    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False
-    bash_params['pltpy'] = pltpy if not gul_legacy_stream else False
+    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False  # eltpy doesn't support gul_legacy_stream
+    bash_params['pltpy'] = pltpy if not gul_legacy_stream else False  # pltpy doesn't support gul_legacy_stream
     bash_params['aalpy'] = aalpy if not gul_legacy_stream else False  # aalpy doesn't support gul_legacy_stream
+    bash_params['lecpy'] = lecpy if not gul_legacy_stream else False  # lecpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2692,6 +2697,7 @@ def create_bash_outputs(
     gul_item_stream,
     work_full_correlation_kat_dir,
     aalpy,
+    lecpy,
     **kwargs
 ):
 
@@ -2796,24 +2802,24 @@ def create_bash_outputs(
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], aalpy=aalpy
+                inuring_priority=inuring_priority['text'], aalpy=aalpy, lecpy=lecpy
             )
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], aalpy=aalpy
+                inuring_priority=inuring_priority['text'], aalpy=aalpy, lecpy=lecpy
             )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, aalpy=aalpy
+            output_dir, stderr_guard, aalpy=aalpy, lecpy=lecpy
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, aalpy=aalpy
+            output_dir, stderr_guard, aalpy=aalpy, lecpy=lecpy
         )
 
     if full_correlation:
@@ -2821,17 +2827,17 @@ def create_bash_outputs(
         if ri_output:
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy
+                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy, lecpy=lecpy
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy
+                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy, lecpy=lecpy
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy
+                work_sub_dir, output_full_correlation_dir, stderr_guard, aalpy=aalpy, lecpy=lecpy
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2889,6 +2895,7 @@ def genbash(
     eltpy=False,
     pltpy=False,
     aalpy=False,
+    lecpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False
@@ -2975,6 +2982,7 @@ def genbash(
         eltpy=eltpy,
         pltpy=pltpy,
         aalpy=aalpy,
+        lecpy=lecpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )

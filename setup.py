@@ -391,6 +391,7 @@ setup(
             'eltpy=oasislmf.pytools.elt.cli:main',
             'pltpy=oasislmf.pytools.plt.cli:main',
             'aalpy=oasislmf.pytools.aal.cli:main',
+            'lecpy=oasislmf.pytools.lec.cli:main',
         ]
     },
     license='BSD 3-Clause',
