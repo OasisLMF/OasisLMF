@@ -234,8 +234,14 @@ def get_cond_info(locations_df, accounts_df):
         # we get information about cond from accounts_df
         cond_tags = {}  # information about each cond tag
         account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
-        fill_empty(accounts_df, 'CondPriority', 1)
-        fill_empty(accounts_df, 'CondPeril', '')
+        if 'CondPriority' in accounts_df.columns:
+            fill_empty(accounts_df, 'CondPriority', 1)
+        else:
+            accounts_df['CondPriority'] = 1
+        if 'CondPeril' in accounts_df.columns:
+            fill_empty(accounts_df, 'CondPeril', '')
+        else:
+            accounts_df['CondPeril'] = ''
         for acc_rec in accounts_df.to_dict(orient="records"):
             cond_tag_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'])
             cond_number_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'], acc_rec['CondNumber'])
@@ -315,11 +321,15 @@ def get_cond_info(locations_df, accounts_df):
 
 
 def get_levels(gul_inputs_df, locations_df, accounts_df):
-    level_conds, extra_accounts = get_cond_info(locations_df, accounts_df)
+    if locations_df is not None and not {"CondTag", "CondNumber"}.difference(accounts_df.columns):
+        level_conds, extra_accounts = get_cond_info(locations_df, accounts_df)
+    else:
+        level_conds = []
     for group_name, group_info in copy.deepcopy(GROUPED_SUPPORTED_FM_LEVELS).items():
         if group_info['oed_source'] == 'location':
-            locations_df['layer_id'] = 1
-            yield locations_df, list(group_info['levels'].items())[1:], group_info['fm_peril_field']  # [1:] => 'site coverage' is already done
+            if locations_df is not None:
+                locations_df['layer_id'] = 1
+                yield locations_df, list(group_info['levels'].items())[1:], group_info['fm_peril_field']  # [1:] => 'site coverage' is already done
         elif group_info['oed_source'] == 'account':
             if group_name == 'cond' and level_conds:
                 loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
@@ -363,7 +373,9 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                 coverage_aggregation_method = STEP_TRIGGER_TYPES[step_trigger_type]['coverage_aggregation_method']
                 calcrule_assignment_method = STEP_TRIGGER_TYPES[step_trigger_type]['calcrule_assignment_method']
                 for coverage_type_id in supp_cov_type_ids:
-                    FMTermGroupID = COVERAGE_AGGREGATION_METHODS[coverage_aggregation_method][coverage_type_id]
+                    FMTermGroupID = COVERAGE_AGGREGATION_METHODS[coverage_aggregation_method].get(coverage_type_id)
+                    if FMTermGroupID is None:  # step policy not supported for this coverage
+                        continue
 
                     if (step_trigger_type, coverage_type_id) in coverage_group_map:
                         if coverage_group_map[(step_trigger_type, coverage_type_id)] != FMTermGroupID:
@@ -498,7 +510,8 @@ def get_il_input_items(
     gul_inputs_df = gul_inputs_df[present_cols]
 
     # Remove TIV col from location as this information is present in gul_input_df
-    locations_df = locations_df.drop(columns=tiv_terms.keys())
+    if locations_df is not None:
+        locations_df = locations_df.drop(columns=tiv_terms.keys(), errors="ignore")
 
     # Profile dict are base on key that correspond to the fm term name.
     # this prevent multiple file column to point to the same fm term
@@ -627,7 +640,8 @@ def get_il_input_items(
             for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
                 tiv_key = '_'.join(map(str, sorted(coverage_type_ids)))
                 if tiv_key not in gul_inputs_df:
-                    gul_inputs_df[tiv_key] = gul_inputs_df[map(str, sorted(coverage_type_ids))].sum(axis=1)
+                    gul_inputs_df[tiv_key] = gul_inputs_df[list(
+                        set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
 
             # we have prepared FMTermGroupID on gul or level df (depending on  step_level) now we can merge the terms for this level to gul
             level_df = (gul_inputs_df.merge(level_df, how='left'))

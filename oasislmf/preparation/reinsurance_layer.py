@@ -10,7 +10,7 @@ from ods_tools.oed import fill_empty
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.data import get_dataframe
-from . import oed
+from ..utils import oed
 
 
 REINS_RISK_LEVEL_XREF_COLUMN_MAP = {
@@ -251,7 +251,11 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
                     error_msg = "Error: ReinsInceptionDate/ReinsExpiryDate missing, cannot use AttachmentBasis [RA]. Please check the ri_info file"
                     raise OasisException(error_msg)
                 elif row["PolInceptionDate"] == "":
-                    acc_info = {field: row[f'{field}_x'] for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]}
+                    acc_info = {
+                        field: row[f'{field}_x'] if f'{field}_x' in row else row[f'{field}']
+                        for field in RISK_LEVEL_FIELD_MAP[oed.REINS_RISK_LEVEL_ACCOUNT]
+                        if f'{field}_x' in row or f'{field}' in row
+                    }
                     error_msg = f"Error: PolInceptionDate missing for {acc_info}, cannot use AttachmentBasis [RA]. Please check the account file"
                     raise OasisException(error_msg)
                 else:

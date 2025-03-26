@@ -30,6 +30,8 @@ PRL_ZFZ = 'ZFZ'
 PRL_ZIC = 'ZIC'
 PRL_ZSN = 'ZSN'
 PRL_ZST = 'ZST'
+PRL_CSB = 'CSB'
+PRL_CPD = 'CPD'
 
 PRL_GRP_AA1 = 'AA1'
 PRL_GRP_BB1 = 'BB1'
@@ -41,6 +43,7 @@ PRL_GRP_WW2 = 'WW2'
 PRL_GRP_XX1 = 'XX1'
 PRL_GRP_XZ1 = 'XZ1'
 PRL_GRP_ZZ1 = 'ZZ1'
+PRL_GRP_CC1 = 'CC1'
 
 PERIL_GROUPS = OrderedDict({
     'all': {'id': PRL_GRP_AA1, 'desc': 'All perils', 'peril_ids': [PRL_QEQ, PRL_QFF, PRL_QTS, PRL_QSL, PRL_QLS, PRL_QLF, PRL_WTC, PRL_WEC, PRL_WSS, PRL_ORF, PRL_OSF, PRL_XSL, PRL_XTD, PRL_XHL, PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_BFR, PRL_BBF, PRL_MNT, PRL_MTR, PRL_XLT, PRL_ZST, PRL_BSK]},
@@ -52,7 +55,9 @@ PERIL_GROUPS = OrderedDict({
     'windstorm w/o storm surge': {'id': PRL_GRP_WW2, 'desc': 'Windstorm w/o storm surge', 'peril_ids': [PRL_WTC, PRL_WEC]},
     'convective storm': {'id': PRL_GRP_XX1, 'desc': 'Convective Storm', 'peril_ids': [PRL_XSL, PRL_XTD, PRL_XHL, PRL_XLT]},
     'convective storm rms': {'id': PRL_GRP_XZ1, 'desc': 'Convective storm (incl winter storm) - for RMS users', 'peril_ids': [PRL_XSL, PRL_XTD, PRL_XHL, PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_XLT, PRL_ZST]},
-    'winter storm': {'id': PRL_GRP_ZZ1, 'desc': 'Winter storm', 'peril_ids': [PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_ZST]}
+    'winter storm': {'id': PRL_GRP_ZZ1, 'desc': 'Winter storm', 'peril_ids': [PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_ZST]},
+    'all Cyber perils': {'id': PRL_GRP_CC1, 'desc': 'all Cyber perils', 'peril_ids': [PRL_CSB, PRL_CPD]}
+
 })
 
 PERILS = OrderedDict({
@@ -79,7 +84,9 @@ PERILS = OrderedDict({
     'freeze': {'id': PRL_ZFZ, 'desc': 'Freeze', 'group_peril': 'winter storm'},
     'ice': {'id': PRL_ZIC, 'desc': 'Ice', 'group_peril': 'winter storm'},
     'snow': {'id': PRL_ZSN, 'desc': 'Snow', 'eqv_oasis_peril': None, 'group_peril': 'winter storm'},
-    'winterstorm wind': {'id': PRL_ZST, 'desc': 'Winterstorm Wind', 'group_peril': 'winter storm'}
+    'winterstorm wind': {'id': PRL_ZST, 'desc': 'Winterstorm Wind', 'group_peril': 'winter storm'},
+    'cyber security data and privacy breach': {'id': PRL_CSB, 'desc': 'Cyber Security Data and Privacy Breach', 'group_peril': 'all Cyber perils'},
+    'cyber security property damage': {'id': PRL_CPD, 'desc': 'Cyber Security Property Damage', 'group_peril': 'all Cyber perils'}
 })
 
 

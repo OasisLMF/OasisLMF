@@ -1,6 +1,35 @@
 OasisLMF Changelog
 ==================
 
+`2.4.1`_
+ ---------
+* [#1629](https://github.com/OasisLMF/OasisLMF/pull/1632) - Add computaion schema to CI and update documentaion
+* [#1604](https://github.com/OasisLMF/OasisLMF/pull/1633) - exposure run crashes if CondPeril is missing
+* [#1634](https://github.com/OasisLMF/OasisLMF/pull/1634) - Update release section in readme
+* [#1603](https://github.com/OasisLMF/OasisLMF/pull/1603) - Feature/aalpy
+* [#1573](https://github.com/OasisLMF/OasisLMF/pull/1635) - Update or Remove preparation/oed.py
+* [#1638](https://github.com/OasisLMF/OasisLMF/pull/1638) - CI Fix, Skip incompatible client checks 
+* [#1528](https://github.com/OasisLMF/OasisLMF/pull/1579) - Output Calc Python Rewrite
+* [#1528](https://github.com/OasisLMF/OasisLMF/pull/1590) - Output Calc Python Rewrite
+* [#1628](https://github.com/OasisLMF/OasisLMF/pull/1628) - Update pages workflow
+* [#1630](https://github.com/OasisLMF/OasisLMF/pull/1630) - fix issue with loc id
+* [#1631](https://github.com/OasisLMF/OasisLMF/pull/1631) - specify parquet folder to improve footprint read time
+.. _`2.4.1`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.0...2.4.1
+
+`2.4.0`_
+ ---------
+* [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc
+* [#1607](https://github.com/OasisLMF/OasisLMF/pull/1607) - Fix/lookup sort keys
+* [#1591](https://github.com/OasisLMF/OasisLMF/pull/1592) - Dynamic footprint has incorrect type 1 losses
+* [#1611](https://github.com/OasisLMF/OasisLMF/pull/1611) - fix loss_out len in account level back allocation
+* [#1615](https://github.com/OasisLMF/OasisLMF/pull/1614) - Non-useful error message for missing PolInceptionDate with RA Basis reinsurance
+* [#1552](https://github.com/OasisLMF/OasisLMF/pull/1552) - Make analysis and model setting able to modify any computation step parameters (MDK parameters)
+* [#1618](https://github.com/OasisLMF/OasisLMF/pull/1618) - Fix testing failures (API Client) 
+* [#1619](https://github.com/OasisLMF/OasisLMF/pull/1619) - Fix/ci pre analysis testing
+* [#1624](https://github.com/OasisLMF/OasisLMF/pull/1624) - Feature/oed v4
+* [#1625](https://github.com/OasisLMF/OasisLMF/pull/1625) - feat: security enhancements
+.. _`2.4.0`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.11...2.4.0
+
 `2.3.11`_
  ---------
 * [#1394](https://github.com/OasisLMF/OasisLMF/pull/1601) - Net RI losses do not use -z in summarycalc

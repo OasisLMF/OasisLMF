@@ -24,7 +24,7 @@ from oasislmf.computation.run.exposure import RunExposure, RunFmTest
 from oasislmf.computation.run.generate_files import GenerateOasisFiles
 from oasislmf.computation.run.generate_losses import GenerateOasisLosses
 from oasislmf.computation.run.generate_documentation import GenerateDocumentation
-from oasislmf.computation.run.model import RunModel
+from oasislmf.computation.run.model import RunModel, GenerateComputationSettingsJsonSchema
 from oasislmf.computation.run.platform import (PlatformDelete, PlatformGet,
                                                PlatformList, PlatformRun,
                                                PlatformRunInputs,
@@ -54,6 +54,7 @@ class OasisManager(object):
         GenerateDummyModelFiles,
         GenerateDummyOasisFiles,
         RunModel,
+        GenerateComputationSettingsJsonSchema,
         PostAnalysis,
         RunExposure,
         RunFmTest,
@@ -98,6 +99,7 @@ def __interface_factory(computation_cls):
     OasisManager.computations_params[computation_cls.__name__] = computation_cls.get_params()
     interface.__signature__ = computation_cls.get_signature()
     interface.__doc__ = computation_cls.__doc__
+    interface.get_params = computation_cls.get_params
     return interface
 
 
