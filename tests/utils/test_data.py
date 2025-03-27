@@ -14,7 +14,7 @@ import pytest
 import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
-                                   integers, just, lists, sampled_from, text)
+                                   integers, just, lists, sampled_from, text as _text)
 from pandas.testing import assert_frame_equal as pd_assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure, OedSchema
