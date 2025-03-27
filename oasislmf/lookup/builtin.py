@@ -109,6 +109,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
     return closest_points
 
+
 # GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
 X_COORDINATE = 0  # x-coordinate of the upper-left corner of the upper-left pixel.
 W_E_PIXEL_RESOLUTION = 1  # w-e pixel resolution / pixel width.
@@ -130,6 +131,7 @@ def jit_gda_loc_to_val(ds_array, inv_gt, x_array, y_array, useful_array_idx, def
             for col_i in range(useful_array_idx.shape[0]):
                 res[loc_i, col_i] = defaults[col_i]
     return res
+
 
 @nb.njit(cache=True)
 def z_index(x, y):
@@ -224,6 +226,7 @@ def get_step(grid):
 
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
+
 
 class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
