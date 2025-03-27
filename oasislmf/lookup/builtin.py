@@ -598,24 +598,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 gdf_loc = gpd.GeoDataFrame(locations, columns=locations.columns)
 
-            gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
-                                                    axis=1,
-                                                    result_type='reduce')
-            gdf_loc = gdf_loc.set_geometry('loc_geometry')
+            if not gdf_loc.empty:
+                gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
+                                                        axis=1,
+                                                        result_type='reduce')
+                gdf_loc = gdf_loc.set_geometry('loc_geometry')
 
-            gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
+                gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
-            if nearest_neighbor_min_distance > 0:
-                gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
+                if nearest_neighbor_min_distance > 0:
+                    gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
 
-                if gdf_loc_na.shape[0]:
-                    gdf_area_peril.set_geometry('center', inplace=True)
-                    nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
+                    if gdf_loc_na.shape[0]:
+                        gdf_area_peril.set_geometry('center', inplace=True)
+                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
 
-                    gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
-                    valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
-                    common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
-                    gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
+                        gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
+                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
+                        common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
+                        gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
                 gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
             self.set_id_columns(gdf_loc, id_columns)
