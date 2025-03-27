@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`2.3.14`_
+ ---------
+* [#1655](https://github.com/OasisLMF/OasisLMF/pull/1654) - Vulnerability blending feature performance tuning
+* [#1652](https://github.com/OasisLMF/OasisLMF/pull/1652) - Fix workaround for failing data null string tests 
+* [#1653](https://github.com/OasisLMF/OasisLMF/pull/1653) - fix for  empty geopandas df sjoin not supported in geopandas 1.x
+* [#1638](https://github.com/OasisLMF/OasisLMF/pull/1638) - CI Fix, Skip incompatible client checks 
+.. _`2.3.14`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.13...2.3.14
+
 `2.3.13`_
  ---------
 * [#1604](https://github.com/OasisLMF/OasisLMF/pull/1633) - exposure run crashes if CondPeril is missing
