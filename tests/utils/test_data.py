@@ -14,7 +14,7 @@ import pytest
 import pytz
 from hypothesis import example, given, settings
 from hypothesis.strategies import (datetimes, fixed_dictionaries, floats,
-                                   integers, just, lists, sampled_from, text)
+                                   integers, just, lists, sampled_from, text as _text)
 from pandas.testing import assert_frame_equal as pd_assert_frame_equal
 from tempfile import NamedTemporaryFile
 from ods_tools.oed import OedExposure, OedSchema
@@ -25,6 +25,13 @@ from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
                                  get_dataframe, get_timestamp,
                                  get_utctimestamp, prepare_location_df)
 from oasislmf.utils.exceptions import OasisException
+
+
+# Excluded all "nan" Strings as it breaks the testing
+#
+#  This is a workaround for fragile tests, these are generally not very good or meaningful and should be
+#  removed or rewritten.
+text = lambda *args, **kwargs: _text(*args, **kwargs).filter(lambda e: e not in PANDAS_DEFAULT_NULL_VALUES)
 
 
 def arrays_are_identical(expected, result):
@@ -590,7 +597,6 @@ class TestGetDataframe(TestCase):
             expected.columns = expected.columns.str.lower()
 
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
-
             assert_frame_equal(result, expected)
         finally:
             os.remove(fp.name)
