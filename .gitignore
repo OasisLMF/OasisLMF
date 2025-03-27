@@ -131,6 +131,7 @@ tests/model_execution/itm_fc_kparse_output/
 tests/model_execution/tmp_fc_kparse_output/
 tests/assets/test_summarypy/**/error_files/
 tests/assets/test_join-summary-info/**/error_files/
+tests/assets/test_katpy/**/error_files/
 tests/assets/test_eltpy/**/error_files/
 tests/assets/test_pltpy/**/error_files/
 tests/assets/test_aalpy/**/error_files/
@@ -154,6 +155,8 @@ tests/assets/test_common/**/error_files/
 !tests/getmodel/footprints/footprint.bin
 !tests/assets/test_join-summary-info/*.bin
 !tests/assets/test_join-summary-info/**/*.bin
+!tests/assets/test_katpy/*.bin
+!tests/assets/test_katpy/**/*.bin
 !tests/assets/test_eltpy/*.bin
 !tests/assets/test_eltpy/**/*.bin
 !tests/assets/test_pltpy/*.bin

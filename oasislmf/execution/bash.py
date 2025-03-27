@@ -872,6 +872,8 @@ def do_kats(
     process_number=None,
     inuring_priority=None,
     join_summary_info=False,
+    eltpy=False,
+    pltpy=False,
 ):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -940,18 +942,40 @@ def do_kats(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table, v in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
+
+                        exec_type = "ktools"
+                        if eltpy and ord_type in ["elt_ord", "selt_ord"]:
+                            exec_type = "pytools"
+                        if pltpy and ord_type == "plt_ord":
+                            exec_type = "pytools"
+
                         anykats = True
 
-                        cmd = 'kat' if sort_by_event else 'kat -u'
-                        outfile_flag = '>'
-                        outfile_ext = 'csv'
-                        if summary.get('ord_output', {}).get('parquet_format'):
-                            cmd = f'katparquet {v["kat_flag"]}'
+                        if exec_type == "pytools":
+                            cmd = f'katpy {v["kat_flag"]}' if sort_by_event else f'katpy -u {v["kat_flag"]}'
                             outfile_flag = '-o'
-                            outfile_ext = 'parquet'
+                            outfile_ext = 'csv'
 
-                        for process_id in process_range(max_process_id, process_number):
-                            cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
+                            cmd = f'{cmd} -f bin -i'
+
+                            if summary.get('ord_output', {}).get('parquet_format'):
+                                raise OasisException('ERROR: pytools executable does not support parquet_format output')
+
+                            for process_id in process_range(max_process_id, process_number):
+                                cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
+
+                        else:
+                            cmd = 'kat' if sort_by_event else 'kat -u'
+                            outfile_flag = '>'
+                            outfile_ext = 'csv'
+
+                            if summary.get('ord_output', {}).get('parquet_format'):
+                                cmd = f'katparquet {v["kat_flag"]}'
+                                outfile_flag = '-o'
+                                outfile_ext = 'parquet'
+
+                            for process_id in process_range(max_process_id, process_number):
+                                cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
 
                         process_counter['kpid_monitor_count'] += 1
                         csv_outfile = f'{output_dir}{runtype}_{inuring_priority}S{summary_set}_{v["table_name"]}.{outfile_ext}'
@@ -1199,7 +1223,13 @@ def do_ord(
                         if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
-                    cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
+
+                    # Add binary output flag for ELTpy and PLTpy, will be converted to csv during kats
+                    if exec_type == "pytools":
+                        cmd = f'{flag_proc[exec_type]["executable"]} -B{cmd}'
+                    else:
+                        cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
+
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
@@ -2748,6 +2778,8 @@ def create_bash_outputs(
     gul_item_stream,
     work_full_correlation_kat_dir,
     join_summary_info,
+    eltpy,
+    pltpy,
     aalpy,
     lecpy,
     **kwargs
@@ -2778,6 +2810,7 @@ def create_bash_outputs(
                 num_fm_output, filename, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     if ri_output:
@@ -2789,6 +2822,7 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
         if full_correlation:
             print_command(filename, '')
@@ -2801,6 +2835,7 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     if il_output:
@@ -2810,6 +2845,7 @@ def create_bash_outputs(
         do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+            eltpy=eltpy, pltpy=pltpy
         )
         if full_correlation:
             print_command(filename, '')
@@ -2822,6 +2858,7 @@ def create_bash_outputs(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     if gul_output:
@@ -2831,6 +2868,7 @@ def create_bash_outputs(
         do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+            eltpy=eltpy, pltpy=pltpy
         )
         if full_correlation:
             print_command(filename, '')
@@ -2843,6 +2881,7 @@ def create_bash_outputs(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     do_kwaits(filename, process_counter)
