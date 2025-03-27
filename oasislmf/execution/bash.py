@@ -1569,10 +1569,17 @@ def get_getmodel_itm_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine, dynamic_footprint=dynamic_footprint)} -S{number_of_samples} -L{gul_threshold}'
+        gulcmd = get_gulcmd(
+            gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
+            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
+            dynamic_footprint=dynamic_footprint
+        )
+        cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
+        modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
+        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1635,10 +1642,17 @@ def get_getmodel_cov_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,dynamic_footprint=dynamic_footprint)} -S{number_of_samples} -L{gul_threshold}'
+        gulcmd = get_gulcmd(
+            gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
+            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
+            dynamic_footprint=dynamic_footprint
+        )
+        cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
+        modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
+        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1729,7 +1743,7 @@ def get_main_cmd_ri_stream(
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_'+str(i))}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_' + str(i))}"
         if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
             main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
         if i < num_reinsurance_iterations:   # Net output required to process next inuring priority
@@ -1819,7 +1833,6 @@ def get_main_cmd_gul_stream(
     :type consumer: string
     :return: generated command as str
     """
-
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
@@ -2315,7 +2328,7 @@ def create_bash_analysis(
         if ri_output or rl_output:
             for i in range(1, num_reinsurance_iterations + 1):
                 print_command(
-                    filename, f"#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_'+str(i))}")
+                    filename, f"#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_' + str(i))}")
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:

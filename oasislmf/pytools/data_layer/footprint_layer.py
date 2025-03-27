@@ -28,7 +28,7 @@ TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 PROCESSES_SUPPORTED = 100
 
-MODEL_LOG_PATH = str(os.getcwd()) + f"/{randint(1,900)}_model_log.txt"
+MODEL_LOG_PATH = str(os.getcwd()) + f"/{randint(1, 900)}_model_log.txt"
 
 
 class OperationEnum(Enum):
