@@ -2,6 +2,7 @@ import atexit
 import logging
 import os
 import sys
+import json
 from contextlib import ExitStack
 from pathlib import Path
 from select import select
@@ -31,7 +32,6 @@ from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_i
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     map_agg_vuln_ids_to_agg_vuln_idxs,
-    map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight,
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights)
 from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
@@ -199,9 +199,6 @@ def run(run_dir,
                 f"Vulnerability weights file not found at {model_storage.get_storage_url('', print_safe=True)[1]}"
             )
 
-        # create map of weights by (areaperil_id, vuln_id)
-        areaperil_vuln_id_to_weight = process_vulnerability_weights(aggregate_weights, agg_vuln_to_vuln_id)
-
         logger.debug('import items and correlations tables')
         # since items and correlations have the same granularity (one row per item_id) we merge them on `item_id`.
         correlations_tb = read_correlations(input_path, ignore_file_type)
@@ -256,9 +253,8 @@ def run(run_dir,
         # agg_vuln_to_vuln_idxs can contain less aggregate vulnerability ids compared to agg_vuln_to_vuln_id
         agg_vuln_to_vuln_idxs = map_agg_vuln_ids_to_agg_vuln_idxs(used_agg_vuln_ids, agg_vuln_to_vuln_id, vuln_dict)
 
-        # remap (areaperil, vuln_id) to weights to (areaperil, vuln_idx) to weights
-        areaperil_vuln_idx_to_weight = map_areaperil_vuln_id_to_weight_to_areaperil_vuln_idx_to_weight(
-            areaperil_dict, areaperil_vuln_id_to_weight, vuln_dict)
+        # load weight for relevant areaperil_id vuln_id combination
+        areaperil_vuln_idx_to_weight = process_vulnerability_weights(areaperil_dict, vuln_dict, aggregate_weights)
 
         # set up streams
         if file_out is None or file_out == '-':
@@ -434,55 +430,63 @@ def run(run_dir,
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 next_cached_vuln_cdf = 0
                 while last_processed_coverage_ids_idx < compute_i:
+                    try:
+                        cursor, last_processed_coverage_ids_idx, next_cached_vuln_cdf = compute_event_losses(
+                            event_id,
+                            coverages,
+                            compute[:compute_i],
+                            items_event_data,
+                            items,
+                            last_processed_coverage_ids_idx,
+                            sample_size,
+                            haz_cdf,
+                            haz_cdf_ptr,
+                            areaperil_to_eff_vuln_cdf,
+                            eff_vuln_cdf,
+                            vuln_array,
+                            damage_bins,
+                            Ndamage_bins_max,
+                            cached_vuln_cdf_lookup,
+                            lookup_keys,
+                            next_cached_vuln_cdf,
+                            cached_vuln_cdfs,
+                            agg_vuln_to_vuln_id,
+                            agg_vuln_to_vuln_idxs,
+                            vuln_dict,
+                            areaperil_vuln_idx_to_weight,
+                            loss_threshold,
+                            losses,
+                            vuln_cdf_empty,
+                            weighted_vuln_cdf_empty,
+                            alloc_rule,
+                            do_correlation,
+                            do_haz_correlation,
+                            haz_rndms_base,
+                            vuln_rndms_base,
+                            vuln_adj_dict,
+                            haz_eps_ij,
+                            eps_ij,
+                            norm_inv_parameters,
+                            norm_inv_cdf,
+                            norm_cdf,
+                            z_unif,
+                            effective_damageability,
+                            debug,
+                            max_bytes_per_item,
+                            byte_mv,
+                            cursor,
+                            dynamic_footprint,
+                            intensity_bin_dict
+                        )
+                    except Exception:
+                        data = {
+                            "event_id": event_id
+                        }
+                        with open("event_error.json", "w") as f:
+                            json.dump(data, f, default=str)
 
-                    cursor, last_processed_coverage_ids_idx, next_cached_vuln_cdf = compute_event_losses(
-                        event_id,
-                        coverages,
-                        compute[:compute_i],
-                        items_event_data,
-                        items,
-                        last_processed_coverage_ids_idx,
-                        sample_size,
-                        haz_cdf,
-                        haz_cdf_ptr,
-                        areaperil_to_eff_vuln_cdf,
-                        eff_vuln_cdf,
-                        vuln_array,
-                        damage_bins,
-                        Ndamage_bins_max,
-                        cached_vuln_cdf_lookup,
-                        lookup_keys,
-                        next_cached_vuln_cdf,
-                        cached_vuln_cdfs,
-                        agg_vuln_to_vuln_id,
-                        agg_vuln_to_vuln_idxs,
-                        vuln_dict,
-                        areaperil_vuln_idx_to_weight,
-                        loss_threshold,
-                        losses,
-                        vuln_cdf_empty,
-                        weighted_vuln_cdf_empty,
-                        alloc_rule,
-                        do_correlation,
-                        do_haz_correlation,
-                        haz_rndms_base,
-                        vuln_rndms_base,
-                        vuln_adj_dict,
-                        haz_eps_ij,
-                        eps_ij,
-                        norm_inv_parameters,
-                        norm_inv_cdf,
-                        norm_cdf,
-                        z_unif,
-                        effective_damageability,
-                        debug,
-                        max_bytes_per_item,
-                        byte_mv,
-                        cursor,
-                        dynamic_footprint,
-                        intensity_bin_dict
-                    )
-
+                        logger.error(f"event id={event_id} failed in summary")
+                        raise
                     # write the losses to the output stream
                     write_start = 0
                     while write_start < cursor:

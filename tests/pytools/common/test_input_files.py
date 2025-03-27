@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 
 from oasislmf.pytools.common.data import oasis_int, oasis_float
-from oasislmf.pytools.common.input_files import read_event_rates, read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.input_files import read_event_rates, read_occurrence, read_periods, read_quantile, read_return_periods
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_common")
 
@@ -174,3 +174,30 @@ def test_read_periods_wrong_period_no():
 
     with pytest.raises(RuntimeError, match="no_of_periods does not match total period_no"):
         read_periods(no_of_periods + 1, run_dir, filename)
+
+
+def test_read_periods():
+    """Tests read_periods from existing binary file
+    """
+    run_dir = Path(TESTS_ASSETS_DIR, "input")
+    filename = "returnperiods.bin"
+    use_return_periods = True
+
+    returnperiods_expected = np.array(
+        [5000, 1000, 500, 250, 200, 150, 100, 75, 50, 30, 25, 20, 10, 5, 2],
+        dtype=np.int32
+    )
+    returnperiods_actual, _ = read_return_periods(use_return_periods, run_dir, filename)
+
+    np.testing.assert_array_equal(returnperiods_expected, returnperiods_actual, verbose=True)
+
+
+def test_read_return_periods_no_file():
+    """Tests read_return_periods with missing returnperiods file
+    """
+    run_dir = Path(TESTS_ASSETS_DIR, "input")
+    filename = "returnperiods_notexists.bin"
+    use_return_periods = True
+
+    with pytest.raises(RuntimeError, match="ERROR: Return Periods file not found at"):
+        read_return_periods(use_return_periods, run_dir, filename)

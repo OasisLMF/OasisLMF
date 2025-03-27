@@ -109,7 +109,6 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
     return closest_points
 
-
 # GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
 X_COORDINATE = 0  # x-coordinate of the upper-left corner of the upper-left pixel.
 W_E_PIXEL_RESOLUTION = 1  # w-e pixel resolution / pixel width.
@@ -132,9 +131,99 @@ def jit_gda_loc_to_val(ds_array, inv_gt, x_array, y_array, useful_array_idx, def
                 res[loc_i, col_i] = defaults[col_i]
     return res
 
+@nb.njit(cache=True)
+def z_index(x, y):
+    """Returns the Z-order index of cell (x,y) in a grid"""
+    bits = int(max(np.floor(np.log2(x + 1)) + 1, np.floor(np.log2(y + 1)) + 1))
+    index = 0
+    for i in range(bits):
+        index |= ((x >> i) & 1) << (2 * i)
+        index |= ((y >> i) & 1) << (2 * i + 1)
+    return index
+
+
+@nb.njit(cache=True)
+def undo_z_index(z):
+    """Returns the (x,y) coordinates of a z-order index in a grid"""
+    x = y = 0
+    for i in range(32):
+        x |= ((z >> (2 * i)) & 1) << i
+        y |= ((z >> (2 * i + 1)) & 1) << i
+    return x, y
+
+
+@nb.njit(cache=True)
+def z_index_to_normal(index, size_across):
+    """Converts from z-indexing to linear ordering"""
+    if index == OASIS_UNKNOWN_ID:
+        return index
+    index -= 1
+    lat, long = undo_z_index(index)
+    return (lat + long * size_across + 1)
+
+
+@nb.njit(cache=True)
+def normal_to_z_index(index, size_across):
+    """Converts from linear ordering to z-indexing"""
+    if index == OASIS_UNKNOWN_ID:
+        return index
+    index -= 1
+    return z_index(index % size_across, index // size_across) + 1
+
+
+def create_lat_lon_id_functions(
+    lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse
+):
+    """Returns a function to give grid co-ordinates of a location"""
+    lat_cell_size = arc_size
+    lon_cell_size = arc_size
+
+    if lat_reverse:
+        @nb.njit()
+        def lat_id(lat):
+            return math.floor((lat_max - lat) / lat_cell_size)
+    else:
+        @nb.njit()
+        def lat_id(lat):
+            return math.floor((lat - lat_min) / lat_cell_size)
+
+    if lon_reverse:
+        @nb.njit()
+        def lon_id(lon):
+            return math.floor((lon_max - lon) / lon_cell_size)
+    else:
+        @nb.njit()
+        def lon_id(lon):
+            return math.floor((lon - lon_min) / lon_cell_size)
+
+    return lat_id, lon_id
+
+
+@nb.jit
+def jit_geo_grid_lookup(
+    lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id,
+    lat_id, lon_id
+):
+    """Returns an array of area peril IDs for all lats given"""
+    area_peril_id = np.empty_like(lat, dtype=np.int64)
+    for i in range(lat.shape[0]):
+        if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
+            area_peril_id[i] = compute_id(lat[i], lon[i], lat_id, lon_id)
+        else:
+            area_peril_id[i] = OASIS_UNKNOWN_ID
+    return area_peril_id
+
+
+def get_step(grid):
+    """
+    Returns the grid size using the max and min long and latitude and arc size
+    """
+    length = round((grid["lon_max"] - grid["lon_min"]) / grid["arc_size"])
+    width = round((grid["lat_max"] - grid["lat_min"]) / grid["arc_size"])
+    return length * width
+
 
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
-
 
 class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
@@ -581,24 +670,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 gdf_loc = gpd.GeoDataFrame(locations, columns=locations.columns)
 
-            gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
-                                                    axis=1,
-                                                    result_type='reduce')
-            gdf_loc = gdf_loc.set_geometry('loc_geometry')
+            if not gdf_loc.empty:
+                gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
+                                                        axis=1,
+                                                        result_type='reduce')
+                gdf_loc = gdf_loc.set_geometry('loc_geometry')
 
-            gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
+                gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
-            if nearest_neighbor_min_distance > 0:
-                gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
+                if nearest_neighbor_min_distance > 0:
+                    gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
 
-                if gdf_loc_na.shape[0]:
-                    gdf_area_peril.set_geometry('center', inplace=True)
-                    nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
+                    if gdf_loc_na.shape[0]:
+                        gdf_area_peril.set_geometry('center', inplace=True)
+                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
 
-                    gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
-                    valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
-                    common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
-                    gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
+                        gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
+                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
+                        common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
+                        gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
                 gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
             self.set_id_columns(gdf_loc, id_columns)
@@ -636,62 +726,121 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         def fct(locs_peril):
             start_index = 0
+            step = get_step(next(iter(perils_dict.values())))
+
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
             for peril_id, fixed_geo_grid_params in perils_dict.items():
                 curr_grid_fct = Lookup.build_fixed_size_geo_grid(**fixed_geo_grid_params)
 
                 curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
                 curr_locs_peril = curr_grid_fct(curr_locs_peril)
-                curr_locs_peril['area_peril_id'] += start_index
+                curr_locs_peril.loc[
+                    curr_locs_peril["area_peril_id"] != OASIS_UNKNOWN_ID,
+                    "area_peril_id"
+                ] = curr_locs_peril["area_peril_id"] + start_index
 
-                start_index = curr_locs_peril["area_peril_id"].max()
+                start_index += step
 
                 locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
             return locs_peril
         return fct
 
     @staticmethod
-    def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False):
+    def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first=False):
         """
         associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
-        lat_cell_size = arc_size
-        lon_cell_size = arc_size
-        size_lat = math.ceil((lat_max - lat_min) / arc_size)
 
-        if lat_reverse:
-            @nb.njit()
-            def lat_id(lat):
-                return math.floor((lat_max - lat) / lat_cell_size)
+        lat_id, lon_id = create_lat_lon_id_functions(
+            lat_min, lat_max, lon_min, lon_max, arc_size,
+            lat_reverse, lon_reverse
+        )
+
+        if lon_first:
+            grid_size = round((lon_max - lon_min) / arc_size)
         else:
-            @nb.njit()
-            def lat_id(lat):
-                return math.floor((lat - lat_min) / lat_cell_size)
+            grid_size = round((lat_max - lat_min) / arc_size)
 
-        if lon_reverse:
-            @nb.njit()
-            def lon_id(lon):
-                return math.floor((lon_max - lon) / lon_cell_size)
-        else:
-            @nb.njit()
-            def lon_id(lon):
-                return math.floor((lon - lon_min) / lon_cell_size)
-
-        @nb.jit
-        def jit_geo_grid_lookup(lat, lon):
-            area_peril_id = np.empty_like(lat, dtype=np.int64)
-            for i in range(lat.shape[0]):
-                if lat_min < lat[i] < lat_max and lon_min < lon[i] < lon_max:
-                    area_peril_id[i] = int(lat_id(lat[i]) + lon_id(lon[i]) * size_lat + 1)
-                else:
-                    area_peril_id[i] = OASIS_UNKNOWN_ID
-            return area_peril_id
+        @nb.jit(cache=True)
+        def get_id(lat, lon, lat_id, lon_id):
+            if lon_first:
+                return lon_id(lon) + lat_id(lat) * grid_size + 1
+            return lon_id(lon) * grid_size + lat_id(lat) + 1
 
         def geo_grid_lookup(locations):
-            locations['area_peril_id'] = jit_geo_grid_lookup(locations['latitude'].to_numpy(),
-                                                             locations['longitude'].to_numpy())
+            locations['area_peril_id'] = jit_geo_grid_lookup(
+                locations['latitude'].to_numpy(),
+                locations['longitude'].to_numpy(),
+                lat_min, lat_max, lon_min, lon_max,
+                get_id, lat_id, lon_id
+            )
             return locations
+
+        return geo_grid_lookup
+
+    @staticmethod
+    def build_fixed_size_z_index_geo_grid_multi_peril(perils_dict):
+        """
+        Create multiple grids of varying resolution, one per peril, and associate an id to each square of the grid using the
+        `fixed_size_z_index_geo_grid` method.
+
+        Parameters
+        ----------
+        perils_dict: dict
+                     Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
+                     value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
+        """
+        def fct(locs_peril):
+            locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID
+            # if `peril_id` not in `perils_dict`
+            shift = len(perils_dict.items())
+            for index, (peril_id, fixed_geo_grid_params) in enumerate(perils_dict.items()):
+                curr_grid_fct = Lookup.build_fixed_size_z_index_geo_grid(**fixed_geo_grid_params)
+
+                curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
+                curr_locs_peril = curr_grid_fct(curr_locs_peril)
+                curr_locs_peril.loc[
+                    curr_locs_peril["area_peril_id"] != OASIS_UNKNOWN_ID,
+                    "area_peril_id"
+                ] = curr_locs_peril["area_peril_id"] * shift + index
+
+                locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
+
+            return locs_peril
+        return fct
+
+    @staticmethod
+    def build_fixed_size_z_index_geo_grid(
+        lat_min, lat_max, lon_min, lon_max, arc_size,
+        lat_reverse=False, lon_reverse=False, lon_first=False
+    ):
+        """
+        associate an id to each square of the grid defined by z-order indexing.
+        reverse allow to change the ordering of id from (min to max) to
+        (max to min)
+        """
+
+        lat_id, lon_id = create_lat_lon_id_functions(
+            lat_min, lat_max, lon_min, lon_max, arc_size,
+            lat_reverse, lon_reverse
+        )
+
+        @nb.jit(cache=True)
+        def get_id(lat, lon, lat_id, lon_id):
+            if lon_first:
+                return z_index(lon_id(lon), lat_id(lat)) + 1
+            return z_index(lat_id(lat), lon_id(lon)) + 1
+
+        def geo_grid_lookup(locations):
+            locations['area_peril_id'] = jit_geo_grid_lookup(
+                locations['latitude'].to_numpy(),
+                locations['longitude'].to_numpy(),
+                lat_min, lat_max, lon_min, lon_max,
+                get_id, lat_id, lon_id
+            )
+            return locations
+
         return geo_grid_lookup
 
     def build_geotiff(self, file_path, band_info):
