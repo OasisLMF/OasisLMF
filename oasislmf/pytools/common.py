@@ -12,5 +12,6 @@ PIPE_CAPACITY = 65536  # bytes
 
 # data types
 oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
+nb_oasis_float = nb.from_dtype(oasis_float)
 areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
 nb_areaperil_int = nb.from_dtype(areaperil_int)

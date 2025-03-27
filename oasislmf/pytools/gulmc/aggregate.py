@@ -12,7 +12,7 @@ from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float
+from oasislmf.pytools.common import areaperil_int, nb_areaperil_int, nb_oasis_float
 
 logger = logging.getLogger(__name__)
 
