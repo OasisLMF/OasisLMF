@@ -395,7 +395,7 @@ def load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity
     return vuln_array, vuln_ids
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
     Updates the indexes of the vulnerability IDs (usually used in loading vulnerability data from parquet file).
@@ -409,7 +409,7 @@ def update_vulns_dictionary(vuln_dict, vulns_id_array):
         vuln_dict[vulns_id_array[i]] = np.int32(i)
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def update_vuln_array_with_adj_data(vuln_array, vuln_dict, adj_vuln_data):
     """
     Update the vulnerability array with adjustment data (used for parquet loading).
@@ -428,7 +428,7 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_dict, adj_vuln_data):
     return vuln_array
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def create_vulns_id(vuln_dict):
     """
     Creates a vulnerability array where the index of the array correlates with the index of the vulnerability.
@@ -720,7 +720,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
     return cursor + (result_cursor * oasis_float_relative_size)
 
 
-@nb.njit()
+@nb.njit(cache=True)
 def doCdf(event_id,
           num_intensity_bins, footprint,
           areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
@@ -867,20 +867,25 @@ def run(
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         # load keys.csv to determine included AreaPerilID from peril_filter
-        if peril_filter:
+        if os.path.exists(os.path.join(input_path, 'keys.csv')):
             keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-            valid_area_peril_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-            logger.debug(
-                f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+            if peril_filter:
+                valid_area_peril_id = np.unique(keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
+                logger.debug(
+                    f'Peril specific run: ({peril_filter}), {len(valid_area_peril_id)} AreaPerilID included out of {len(keys_df)}')
+            else:
+                valid_area_peril_id = keys_df['AreaPerilID']
         else:
             valid_area_peril_id = None
 
         logger.debug('init items')
         vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(
-            input_path, ignore_file_type, valid_area_peril_id)
+            input_path, ignore_file_type, valid_area_peril_id if peril_filter else None)
 
         logger.debug('init footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=df_engine))
+        footprint_obj = stack.enter_context(
+            Footprint.load(model_storage, ignore_file_type, df_engine=df_engine,
+                           areaperil_ids=valid_area_peril_id))
 
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
