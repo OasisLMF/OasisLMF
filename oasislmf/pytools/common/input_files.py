@@ -13,6 +13,7 @@ EVENTRATES_FILE = "event_rates.csv"
 OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
+RETURNPERIODS_FILE = "returnperiods.bin"
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):
@@ -144,7 +145,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): periods binary file name
     Returns:
-        period_weights (ndarray[period_weights_dtype]): Returns the period weights
+        period_weights (ndarray[period_weights_dtype]): Period weights
     """
     periods_fp = Path(run_dir, filename)
     period_weights_dtype = np.dtype([
@@ -176,3 +177,44 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     if len(missing_periods) > 0:
         raise RuntimeError(f"ERROR: Missing period_no in period binary file {periods_fp}.")
     return period_weights
+
+
+def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
+    """Returns an array of return periods decreasing order with no duplicates.
+    Args:
+        use_return_period_file (bool): Bool to use Return Period File
+        run_dir (str | os.PathLike): Path to input files dir
+        filename (str | os.PathLike): return periods binary file name
+    Returns:
+        return_periods (ndarray[np.int32]): Return Periods
+        use_return_period_file (bool): Bool to use Return Period File
+    """
+    if not use_return_period_file:
+        return np.array([], dtype=np.int32), use_return_period_file
+    returnperiods_fp = Path(run_dir, filename)
+
+    if not returnperiods_fp.exists():
+        raise RuntimeError(f"ERROR: Return Periods file not found at {returnperiods_fp}.")
+
+    returnperiods = load_as_ndarray(
+        run_dir,
+        filename[:-4],
+        np.int32,
+        must_exist=False
+    )
+
+    if len(returnperiods) == 0:
+        logger.warning(f"WARNING: Empty return periods file at {returnperiods_fp}. Running without defined return periods option")
+        return None, False
+
+    # Check return periods validity
+    # Return periods should be unique and decreasing in order
+    if len(returnperiods) != len(np.unique(returnperiods)):
+        raise RuntimeError(f"ERROR: Invalid return periods file. Duplicate return periods found: {returnperiods}")
+    lastrp = -1
+    for rp in returnperiods:
+        if lastrp != -1 and lastrp <= rp:
+            raise RuntimeError(f"ERROR: Invalid return periods file. Non-decreasing return periods found: {returnperiods}")
+        lastrp = rp
+
+    return returnperiods, use_return_period_file
