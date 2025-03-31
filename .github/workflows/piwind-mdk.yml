@@ -30,7 +30,8 @@ on:
 
 jobs:
   PiWind:
-    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@main
+    #uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@main
+    uses: OasisLMF/OasisPiWind/.github/workflows/run_mdk.yml@fix/ci-mdk-run-check
     with:
       mdk_branch: ${{ github.ref }}
       mdk_run_type: ${{ github.event_name != 'workflow_dispatch' && 'ri' || inputs.mdk_run_type }}
