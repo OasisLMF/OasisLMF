@@ -304,10 +304,8 @@ def read_buffer(
                 cursor += oasis_float_size  # Read extra 0 for end of record
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                     firsttime = True
-
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         if firsttime:
                             for l in state["vrec"]:
                                 state["sumloss"] += l
@@ -339,8 +337,7 @@ def read_buffer(
                 # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         for i in range(len(intervals)):
                             q = intervals[i]["q"]
                             ipart = intervals[i]["integer_part"]
@@ -377,8 +374,7 @@ def read_buffer(
                 impacted_exposure = state["exposure_value"] * (loss > 0)
                 # Update SPLT data
                 if state["compute_splt"]:
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         _update_splt_data(
                             splt_data, si, period_weights, granular_date,
                             record=record,
@@ -398,8 +394,7 @@ def read_buffer(
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         _update_mplt_data(
                             mplt_data, mi, period_weights, granular_date,
                             record=record,

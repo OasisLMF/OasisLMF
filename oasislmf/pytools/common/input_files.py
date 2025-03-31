@@ -1,8 +1,9 @@
 import logging
+import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import load_as_ndarray
+from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 
 
@@ -84,7 +85,7 @@ def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): occurrence binary file name
     Returns:
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
+        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
     """
     occurrence_fp = Path(run_dir, filename)
     fin = np.memmap(occurrence_fp, mode="r", dtype="u1")
@@ -118,24 +119,60 @@ def read_occurrence(run_dir, filename=OCCURRENCE_FILE):
             f"Occurrence File size (num_records: {num_records}) does not align with expected record size (record_size: {record_size})"
         )
 
-    occ_map_dtype = np.dtype([
-        ("event_id", np.int32),
+    occ_map_valtype = np.dtype([
         ("period_no", np.int32),
         ("occ_date_id", np.int32),
     ])
     if granular_date:
-        occ_map_dtype = np.dtype([
-            ("event_id", np.int32),
+        occ_map_valtype = np.dtype([
             ("period_no", np.int32),
             ("occ_date_id", np.int64),
         ])
 
-    occ_map = np.zeros(0, dtype=occ_map_dtype)
+    occ_map_dtype = np.dtype(
+        [("event_id", np.int32)] + occ_map_valtype.descr
+    )
+
+    occ_arr = np.zeros(0, dtype=occ_map_dtype)
+    NB_occ_map_valtype = nb.types.Array(nb.from_dtype(occ_map_valtype), 1, "C")
 
     if num_records > 0:
-        occ_map = np.frombuffer(fin[cursor:cursor + num_records * record_size], dtype=occ_map_dtype)
+        occ_arr = np.frombuffer(fin[cursor:cursor + num_records * record_size], dtype=occ_map_dtype)
+
+    occ_map = _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype)
 
     return occ_map, date_algorithm, granular_date, no_of_periods
+
+
+@nb.njit(cache=True, error_model="numpy")
+def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
+    """Reads occurrence file array and returns an occurrence map of event_id to list of (period_no, occ_date_id)
+    """
+    occ_map = nb.typed.Dict.empty(nb_oasis_int, NB_occ_map_valtype)
+    occ_map_sizes = nb.typed.Dict.empty(nb_oasis_int, nb.types.int64)
+    for row in occ_arr:
+        event_id = row["event_id"]
+        if event_id not in occ_map:
+            occ_map[event_id] = np.zeros(8, dtype=occ_map_valtype)
+            occ_map_sizes[event_id] = 0
+        array = occ_map[event_id]
+        current_size = occ_map_sizes[event_id]
+
+        if current_size >= len(array):  # Resize if the array is full
+            new_array = np.empty(len(array) * 2, dtype=occ_map_valtype)
+            new_array[:len(array)] = array
+            array = new_array
+
+        occ_map_current_size = occ_map_sizes[event_id]
+        array[occ_map_current_size]["period_no"] = row["period_no"]
+        array[occ_map_current_size]["occ_date_id"] = row["occ_date_id"]
+        occ_map[event_id] = array
+        occ_map_sizes[event_id] += 1
+
+    for event_id in occ_map:
+        occ_map[event_id] = occ_map[event_id][:occ_map_sizes[event_id]]
+
+    return occ_map
 
 
 def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
