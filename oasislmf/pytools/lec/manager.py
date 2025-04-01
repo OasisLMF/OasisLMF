@@ -152,7 +152,7 @@ def process_input_file(
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         summary_ids (ndarray[bool]): bool array marking which summary_ids are used
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file_
+        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
@@ -167,9 +167,8 @@ def process_input_file(
         summary_id, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
         expval, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
 
-        filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
         # Discard samples if event_id not found
-        if len(filtered_occ_map) == 0:
+        if event_id not in occ_map:
             while cursor < valid_buff:
                 sidx, cursor = mv_read(fin, cursor, oasis_int, oasis_int_size)
                 _, cursor = mv_read(fin, cursor, oasis_float, oasis_float_size)
@@ -177,6 +176,7 @@ def process_input_file(
                     break
             continue
 
+        filtered_occ_map = occ_map[event_id]
         summary_ids[summary_id - 1] = True
 
         while cursor < valid_buff:
@@ -216,7 +216,7 @@ def run_lec(
         outloss_mean (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, period_no containing aggregate and max losses
         outloss_sample (ndarray[OUTLOSS_DTYPE]): ndarray indexed by summary_id, sidx, period_no containing aggregate and max losses
         summary_ids (ndarray[bool]): bool array marking which summary_ids are used
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file_
+        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         use_return_period (bool): Use Return Period file.
         num_sidxs (int): Number of sidxs to consider for outloss_sample
         max_summary_id (int): Max summary ID
