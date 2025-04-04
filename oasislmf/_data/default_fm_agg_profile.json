@@ -3,10 +3,25 @@
         "FMLevel": 1,
         "FMLevelName": "SiteCoverage",
         "FMAggKey": {
-            "ItemID": {
+            "PortNum": {
                 "src": "FM",
-                "field": "gul_input_id",
-                "name": "GUL input item ID"
+                "field": "PortNumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "AccNumber",
+                "name": "Account num."
+            },
+            "LocNum": {
+                "src": "FM",
+                "field": "LocNumber",
+                "name": "Location number"
+            },
+            "risk_id": {
+                "src": "builtin",
+                "field": "risk_id",
+                "name": "risk id"
             }
         }
     },

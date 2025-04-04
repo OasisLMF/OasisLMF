@@ -85,7 +85,7 @@ def get_useful_summary_cols(oed_hierarchy):
 
 def get_xref_df(il_inputs_df):
     top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS]
-    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 1]
+    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0]
     bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
             .drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')

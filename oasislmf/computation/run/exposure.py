@@ -421,10 +421,10 @@ class RunFmTest(ComputationStep):
                 )
 
         files = ['keys.csv', 'loc_summary.csv']
-        files += [
-            '{}.csv'.format(fn)
-            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
-        ]
+        # files += [
+        #     '{}.csv'.format(fn)
+        #     for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+        # ]
         files += ['gul_summary_map.csv', 'guls.csv']
         if il:
             files += ['fm_summary_map.csv', 'ils.csv']
