@@ -555,26 +555,6 @@ def get_il_input_items(
     prev_level_df['layer_id'] = 1
     prev_df_subset = ['gul_input_id']
 
-    # prev_level_df = gul_inputs_df[present_cols]
-    # prev_agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-    #
-    # # no duplicate, if we have, error will appear later for agg_id_1
-    # prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True, ignore_index=True)
-    # if 'LocPeril' in prev_level_df:
-    #     peril_filter = oed_schema.peril_filtering(prev_level_df['peril_id'], prev_level_df['LocPeril'])
-    #     prev_level_df['fm_peril'] = prev_level_df['LocPeril']
-    #     prev_level_df.loc[~peril_filter, list(set(prev_level_df.columns).intersection(fm_term_ids))] = 0
-    #     prev_level_df.loc[~peril_filter, ['fm_peril']] = ''
-    # if do_disaggregation:
-    #     __split_fm_terms_by_risk(prev_level_df)
-    # prev_level_df['agg_id'] = factorize_ndarray(prev_level_df.loc[:, ['loc_id', 'risk_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
-    # prev_level_df['level_id'] = 1
-    # prev_level_df['orig_level_id'] = level_id
-    # prev_level_df['layer_id'] = 1
-    # prev_level_df['agg_tiv'] = prev_level_df['tiv']
-    # prev_level_df['attachment'] = 0
-    # prev_level_df['share'] = 0
-
     il_inputs_df_list = []
     gul_inputs_df = gul_inputs_df.drop(columns=fm_term_ids + ['tiv'], errors='ignore').reset_index(drop=True)
     item_perils = gul_inputs_df[['peril_id']].drop_duplicates()
@@ -600,7 +580,7 @@ def get_il_input_items(
     if step_policies_present:
         # put that in agg profile
         # we happend the fm step policy term to policy layer
-        step_policy_level_map = level_column_mapper[SUPPORTED_FM_LEVELS['policy layer']['id']]
+        step_policy_level_map = level_column_mapper[SUPPORTED_FM_LEVELS['policy all']['id']]
         for col in ['StepTriggerType', 'cov_agg_id', 'assign_step_calcrule']:
             step_policy_level_map[col] = {
                 'ProfileElementName': col,
