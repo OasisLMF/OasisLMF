@@ -18,7 +18,6 @@ import numpy as np
 
 from oasislmf.pytools.data_layer.oasis_files.correlations import \
     CorrelationsData
-from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
@@ -30,9 +29,7 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
-from oasislmf.utils.profiles import (
-    get_fm_terms_oed_columns, get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group, get_oed_hierarchy)
+from oasislmf.utils.profiles import get_grouped_fm_profile_by_level_and_term_group, get_oed_hierarchy
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
