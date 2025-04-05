@@ -427,6 +427,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
 
     return level_terms, terms_maps, coverage_group_map, fm_group_tiv
 
+
 def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, oed_schema):
     """
     for each peril_id in item_peril_list we map it to each string representing policy perils
@@ -444,6 +445,7 @@ def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, 
     peril_map_df = pd.merge(item_perils, fm_perils, how='cross')
     peril_map_df = peril_map_df[oed_schema.peril_filtering(peril_map_df['peril_id'], peril_map_df[fm_peril_col])]
     return policy_df.merge(peril_map_df)
+
 
 @oasis_log
 def get_il_input_items(
@@ -680,10 +682,11 @@ def get_il_input_items(
             no_term_filter = level_df['layer_id'].isna()
             level_df_no_term = level_df[no_term_filter]
             level_df_no_term['FMTermGroupID'] = -level_df_no_term['agg_id_prev']
-            gul_input_to_layer = prev_level_df[prev_level_df['gul_input_id'].isin(set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']]
+            gul_input_to_layer = prev_level_df[prev_level_df['gul_input_id'].isin(
+                set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']]
             level_df_no_term = (level_df_no_term
                                 .drop(columns='layer_id')
-                                .merge(gul_input_to_layer,how='left')
+                                .merge(gul_input_to_layer, how='left')
                                 )
             assert not level_df_no_term['layer_id'].isna().any(), f"issue in {level_info} all layer with no term should have a valid layer_id"
 
@@ -719,7 +722,7 @@ def get_il_input_items(
             root_df['to_agg_id'] = root_df['agg_id']
             root_df['agg_id'] = -root_df['gul_input_id']
             root_df.drop_duplicates(subset='agg_id', inplace=True)
-            root_df['level_id'] = cur_level_id - 1 # for previous level
+            root_df['level_id'] = cur_level_id - 1  # for previous level
 
             max_agg_id = np.max(level_df['agg_id'])
 
@@ -735,7 +738,6 @@ def get_il_input_items(
 
             __drop_duplicated_row(il_inputs_df_list[-1] if il_inputs_df_list else None, prev_level_df, prev_df_subset)
             il_inputs_df_list.append(pd.concat([df for df in [prev_level_df, root_df] if not df.empty]))
-
 
             level_df.drop(columns=['agg_id_prev'], inplace=True)
 
@@ -906,7 +908,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     """
     try:
         fm_policytc_df = il_inputs_df.loc[(il_inputs_df['agg_id'] > 0) & (il_inputs_df['level_id'] > 0),
-            ['layer_id', 'level_id', 'agg_id', 'profile_id', 'orig_level_id']]
+                                          ['layer_id', 'level_id', 'agg_id', 'profile_id', 'orig_level_id']]
         fm_policytc_df.loc[fm_policytc_df['orig_level_id'].isin(cross_layer_level), 'layer_id'] = 1  # remove layer for cross layer level
         fm_policytc_df.drop(columns=['orig_level_id']).drop_duplicates().to_csv(
             path_or_buf=fm_policytc_fp,
