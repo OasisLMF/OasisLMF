@@ -510,7 +510,6 @@ def get_il_input_items(
     # that would mean that changes to these column names in the source files
     # may break the method
     oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-    # =====
     useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
                              + get_useful_summary_cols(oed_hierarchy) + list(tiv_terms.values()))
                          - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
@@ -627,7 +626,10 @@ def get_il_input_items(
 
                 # only keep policy with non default values, remove duplicate
                 numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
-                keep_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')][list(
+                term_filter = False
+                for term in numeric_terms:
+                    term_filter |= (group_df[term] != oed_schema.get_default(term))
+                keep_df = group_df[term_filter][list(
                     set(agg_key).intersection(group_df.columns))].drop_duplicates()
                 group_df = keep_df.merge(group_df, how='left')
 

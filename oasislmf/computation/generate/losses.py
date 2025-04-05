@@ -113,6 +113,12 @@ class GenerateLossesBase(ComputationStep):
         with io.open(os.path.join(target_dir, 'analysis_settings.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(analysis_settings, ensure_ascii=False, indent=4))
 
+    def _is_run_settings_stored(self, target_dir):
+        """
+        Checks if analysis settings file is under target_dir path
+        """
+        return os.path.isfile(os.path.join(target_dir, 'analysis_settings.json'))
+
     def _get_num_ri_layers(self, analysis_settings, model_run_fp):
         """
         Find the number of Reinsurance layers based on `'ri_layers.json'`, returns pos int()
@@ -449,12 +455,16 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
             'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
+        {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'join summary id information to outputcalc csvs'},
         {'name': 'eltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use eltpy python version instead of eltcalc c++ version'},
         {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use pltpy python version instead of pltcalc c++ version'},
         {'name': 'aalpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use aalpy python version instead of aalcalc c++ version'},
+        {'name': 'lecpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use lecpy python version instead of ordleccalc c++ version'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
@@ -477,14 +487,11 @@ class GenerateLossesPartial(GenerateLossesDir):
 
         # distributed worker will pass in run settings as JSON, if not given load settings
         # and re-load input dir.
-        if not self.analysis_settings:
+        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
             GenerateLossesDir.run(self)
-        else:
-            self.settings = self.analysis_settings
 
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
-
         if not self.script_fp:
             script_name = 'run_analysis.sh' if not self.process_number else f'{self.process_number}.run_analysis.sh'
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), script_name)
@@ -522,9 +529,11 @@ class GenerateLossesPartial(GenerateLossesDir):
             modelpy=self.modelpy,
             peril_filter=self._get_peril_filter(self.settings),
             summarypy=self.summarypy,
+            join_summary_info=self.join_summary_info,
             eltpy=self.eltpy,
             pltpy=self.pltpy,
             aalpy=self.aalpy,
+            lecpy=self.lecpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
             dynamic_footprint=self.dynamic_footprint
@@ -548,6 +557,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
                 self._print_error_logs(log_fp, e)
+
         return model_run_fp
 
 
@@ -574,10 +584,8 @@ class GenerateLossesOutput(GenerateLossesDir):
 
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        if not self.analysis_settings:
+        if not self._is_run_settings_stored(os.path.join(model_run_fp, 'output')):
             GenerateLossesDir.run(self)
-        else:
-            self.settings = self.analysis_settings
 
         model_runner_module, _ = self._get_model_runner()
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
@@ -681,12 +689,16 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
         {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
             'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
+        {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'join summary id information to outputcalc csvs'},
         {'name': 'eltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use eltpy python version instead of eltcalc c++ version'},
         {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use pltpy python version instead of pltcalc c++ version'},
         {'name': 'aalpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'use aalpy python version instead of aalcalc c++ version'},
+        {'name': 'lecpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+            'help': 'use lecpy python version instead of ordleccalc c++ version'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -710,8 +722,7 @@ class GenerateLosses(GenerateLossesDir):
         with setcwd(model_run_fp):
             try:
                 try:
-                    model_runner_module.run(
-                        self.settings,
+                    run_args = dict(
                         number_of_processes=self.ktools_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
@@ -741,18 +752,20 @@ class GenerateLosses(GenerateLossesDir):
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(self.settings),
                         summarypy=self.summarypy,
+                        join_summary_info=self.join_summary_info,
                         eltpy=self.eltpy,
                         pltpy=self.pltpy,
                         aalpy=self.aalpy,
+                        lecpy=self.lecpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint
                     )
+                    model_runner_module.run(self.settings, **run_args)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
-                    model_runner_module.run(
-                        self.settings,
+                    run_args = dict(
                         number_of_processes=self.ktools_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
@@ -765,6 +778,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
+                    model_runner_module.run(self.settings, **run_args)
 
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
@@ -783,6 +797,9 @@ class GenerateLosses(GenerateLossesDir):
                         self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
 
                 self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
+
+                if hasattr(model_runner_module, 'rerun'):
+                    model_runner_module.rerun()
 
                 raise OasisException(
                     'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
