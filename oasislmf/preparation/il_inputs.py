@@ -579,7 +579,6 @@ def get_il_input_items(
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
     if step_policies_present:
-        # put that in agg profile
         # we happend the fm step policy term to policy layer
         step_policy_level_map = level_column_mapper[SUPPORTED_FM_LEVELS['policy all']['id']]
         for col in ['StepTriggerType', 'cov_agg_id', 'assign_step_calcrule']:
@@ -597,7 +596,6 @@ def get_il_input_items(
     cur_level_id = 0
     for term_df_source, levels, fm_peril_field in get_levels(gul_inputs_df, locations_df, accounts_df):
         for level, level_info in levels:
-
             level_id = level_info['id']
             step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
             level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(
@@ -607,7 +605,6 @@ def get_il_input_items(
 
             cur_level_id += 1
             agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-
             # get all rows with terms in term_df_source and determine the correct FMTermGroupID
             level_df_list = []
             for group_key, terms in terms_maps.items():
