@@ -171,7 +171,7 @@ class InputValues(object):
 
         # Warn user of environment variable load
         if source == 'env_override':
-            self.logger.warn(f'Warning - environment variable override: OASIS_{name.upper()}={value}')
+            self.logger.warning(f'Warning - environment variable override: OASIS_{name.upper()}={value}')
 
         return value
 

@@ -42,8 +42,8 @@ class ELTReader(EventReader):
             ('compute_qelt', np.bool_),
             ('summary_id', oasis_int),
             ('impacted_exposure', oasis_float),
-            ('sumloss', oasis_float),
-            ('sumlosssqr', oasis_float),
+            ('sumloss', np.float64),  # intermediary value need higher precision to not accumulate error
+            ('sumlosssqr', np.float64),  # intermediary value need higher precision to not accumulate error
             ('non_zero_samples', oasis_int),
             ('max_loss', oasis_float),
             ('analytical_mean', oasis_float),
