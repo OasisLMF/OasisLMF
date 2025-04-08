@@ -7,12 +7,13 @@ import os
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.aal.utils import heap_pop, heap_push, init_heap, exact_binary_search
+from oasislmf.pytools.aal.utils import exact_binary_search
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods
+from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_heap
 from oasislmf.pytools.utils import redirect_logging
 
 
@@ -161,7 +162,7 @@ def merge_sorted_chunks(memmaps):
     Yields:
         smallest_row (ndarray[_SUMMARIES_DTYPE]): yields the next smallest row from sorted summaries partial files
     """
-    min_heap = init_heap()
+    min_heap = init_heap(num_compare=3)
     size = 0
     # Initialize the min_heap with the first row of each memmap
     for i, mmap in enumerate(memmaps):

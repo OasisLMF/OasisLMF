@@ -2,6 +2,8 @@ import logging
 import os
 import shutil
 import subprocess
+import json
+import re
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -107,6 +109,53 @@ def run(analysis_settings,
     )
     bash_trace = subprocess.check_output(['bash', filename])
     logging.info(bash_trace.decode('utf-8'))
+
+
+def rerun():
+    """
+    A function to find where an error was made and to rerun that part of the script without
+    NumBa to give better error messages
+    """
+    try:
+        with open("event_error.json", "r") as f:
+            event_error = json.load(f).get("event_id")
+    except FileNotFoundError:
+        return
+
+    env = os.environ.copy()
+    env['NUMBA_DISABLE_JIT'] = "1"
+    eve_cmd = f"printf 'event_id\n {event_error}\n' | evetobin"
+    ktools_pipeline = ''
+
+    with open("run_ktools.sh", "r") as bash_script:
+        for line in bash_script:
+            if "( ( eve" in line:
+                ktools_pipeline = re.split(r'\||\)', line)
+                break
+
+    gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)
+    fm_cmds = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))]
+
+    pipe_output = "/tmp/il_P1"
+    summary_output = "/tmp/il_S1_summary_P1"
+    gul_output = f"{event_error}_gul.bin"
+
+    gul_pipe = f"{eve_cmd} | {gul_cmd} -o {gul_output}"
+    with open("gul_errors.log", "w") as error_log:
+        subprocess.run(gul_pipe, shell=True, env=env, stderr=error_log)
+
+    fm_input = gul_output
+    for i in range(len(fm_cmds)):
+        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i+1}.bin", fm_cmds[i])
+        fm_output = f"{event_error}_fm{i+1}.bin"
+        fm_pipe = f"{fm_cmd} -o {fm_output} -i {fm_input}"
+        with open("fm_errors.log", "a") as error_log:
+            subprocess.run(fm_pipe, shell=True, env=env, stderr=error_log)
+        fm_input = fm_output
+
+    summary_pipe = f"summarypy -t il -m -1 {summary_output} < {fm_input}"
+    with open("summary_errors.log", "w") as error_log:
+        subprocess.run(summary_pipe, shell=True, env=env, stderr=error_log)
 
 
 @oasis_log()

@@ -11,69 +11,10 @@ from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
-
-
-SPLT_output = [
-    ('Period', oasis_int, '%d'),
-    ('PeriodWeight', oasis_float, '%.6f'),
-    ('EventId', oasis_int, '%d'),
-    ('Year', oasis_int, '%d'),
-    ('Month', oasis_int, '%d'),
-    ('Day', oasis_int, '%d'),
-    ('Hour', oasis_int, '%d'),
-    ('Minute', oasis_int, '%d'),
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleId', oasis_int, '%d'),
-    ('Loss', oasis_float, '%.2f'),
-    ('ImpactedExposure', oasis_float, '%.2f'),
-]
-
-MPLT_output = [
-    ('Period', oasis_int, '%d'),
-    ('PeriodWeight', oasis_float, '%.6f'),
-    ('EventId', oasis_int, '%d'),
-    ('Year', oasis_int, '%d'),
-    ('Month', oasis_int, '%d'),
-    ('Day', oasis_int, '%d'),
-    ('Hour', oasis_int, '%d'),
-    ('Minute', oasis_int, '%d'),
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleType', oasis_int, '%d'),
-    ('ChanceOfLoss', oasis_float, '%.4f'),
-    ('MeanLoss', oasis_float, '%.2f'),
-    ('SDLoss', oasis_float, '%.2f'),
-    ('MaxLoss', oasis_float, '%.2f'),
-    ('FootprintExposure', oasis_float, '%.2f'),
-    ('MeanImpactedExposure', oasis_float, '%.2f'),
-    ('MaxImpactedExposure', oasis_float, '%.2f'),
-]
-
-QPLT_output = [
-    ('Period', oasis_int, '%d'),
-    ('PeriodWeight', oasis_float, '%.6f'),
-    ('EventId', oasis_int, '%d'),
-    ('Year', oasis_int, '%d'),
-    ('Month', oasis_int, '%d'),
-    ('Day', oasis_int, '%d'),
-    ('Hour', oasis_int, '%d'),
-    ('Minute', oasis_int, '%d'),
-    ('SummaryId', oasis_int, '%d'),
-    ('Quantile', oasis_float, '%.2f'),
-    ('Loss', oasis_float, '%.2f'),
-]
-
-SPLT_headers = [c[0] for c in SPLT_output]
-MPLT_headers = [c[0] for c in MPLT_output]
-QPLT_headers = [c[0] for c in QPLT_output]
-SPLT_dtype = np.dtype([(c[0], c[1]) for c in SPLT_output])
-MPLT_dtype = np.dtype([(c[0], c[1]) for c in MPLT_output])
-QPLT_dtype = np.dtype([(c[0], c[1]) for c in QPLT_output])
-SPLT_fmt = ','.join([c[2] for c in SPLT_output])
-MPLT_fmt = ','.join([c[2] for c in MPLT_output])
-QPLT_fmt = ','.join([c[2] for c in QPLT_output])
 
 
 class PLTReader(EventReader):
@@ -521,7 +462,7 @@ def read_input_files(run_dir, compute_qplt, sample_size):
     return file_data
 
 
-def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None, noheader=False):
+def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None, noheader=False, output_binary=False):
     """Runs PLT calculations
 
     Args:
@@ -530,7 +471,8 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         splt_output_file (str, optional): Path to SPLT output file. Defaults to None.
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
-        noheader (bool): Boolean value to skip header in output file
+        noheader (bool): Boolean value to skip header in output file. Defaults to False.
+        output_binary (bool): Boolean value to output binary files instead of csv. Defaults to False.
     """
     compute_splt = splt_output_file is not None
     compute_mplt = mplt_output_file is not None
@@ -538,6 +480,15 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
 
     if not compute_splt and not compute_mplt and not compute_qplt:
         logger.warning("No output files specified")
+
+    # Check for correct suffix
+    for path in [splt_output_file, mplt_output_file, qplt_output_file]:
+        if path is None:
+            continue
+        if (output_binary and Path(path).suffix != '.bin') or\
+                (not output_binary and Path(path).suffix != '.csv'):
+            if Path(path).suffix != "":  # Ignore suffix for pipes
+                raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
 
     with ExitStack() as stack:
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
@@ -559,28 +510,37 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         # Initialise csv column names for PLT files
         output_files = {}
         if compute_splt:
-            splt_file = stack.enter_context(open(splt_output_file, 'w'))
-            if not noheader:
-                csv_headers = ','.join(SPLT_headers)
-                splt_file.write(csv_headers + '\n')
+            if output_binary:
+                splt_file = stack.enter_context(open(splt_output_file, 'wb'))
+            else:
+                splt_file = stack.enter_context(open(splt_output_file, 'w'))
+                if not noheader:
+                    csv_headers = ','.join(SPLT_headers)
+                    splt_file.write(csv_headers + '\n')
             output_files['splt'] = splt_file
         else:
             output_files['splt'] = None
 
         if compute_mplt:
-            mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
-            if not noheader:
-                csv_headers = ','.join(MPLT_headers)
-                mplt_file.write(csv_headers + '\n')
+            if output_binary:
+                mplt_file = stack.enter_context(open(mplt_output_file, 'wb'))
+            else:
+                mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
+                if not noheader:
+                    csv_headers = ','.join(MPLT_headers)
+                    mplt_file.write(csv_headers + '\n')
             output_files['mplt'] = mplt_file
         else:
             output_files['mplt'] = None
 
         if compute_qplt:
-            qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
-            if not noheader:
-                csv_headers = ','.join(QPLT_headers)
-                qplt_file.write(csv_headers + '\n')
+            if output_binary:
+                qplt_file = stack.enter_context(open(qplt_output_file, 'wb'))
+            else:
+                qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
+                if not noheader:
+                    csv_headers = ','.join(QPLT_headers)
+                    qplt_file.write(csv_headers + '\n')
             output_files['qplt'] = qplt_file
         else:
             output_files['qplt'] = None
@@ -590,26 +550,35 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
                 # Extract SPLT data
                 splt_data = plt_reader.splt_data[:plt_reader.splt_idx[0]]
                 if output_files['splt'] is not None and splt_data.size > 0:
-                    write_ndarray_to_fmt_csv(output_files["splt"], splt_data, SPLT_headers, SPLT_fmt)
+                    if output_binary:
+                        splt_data.tofile(output_files["splt"])
+                    else:
+                        write_ndarray_to_fmt_csv(output_files["splt"], splt_data, SPLT_headers, SPLT_fmt)
                 plt_reader.splt_idx[0] = 0
 
             if compute_mplt:
                 # Extract MPLT data
                 mplt_data = plt_reader.mplt_data[:plt_reader.mplt_idx[0]]
                 if output_files['mplt'] is not None and mplt_data.size > 0:
-                    write_ndarray_to_fmt_csv(output_files["mplt"], mplt_data, MPLT_headers, MPLT_fmt)
+                    if output_binary:
+                        mplt_data.tofile(output_files["mplt"])
+                    else:
+                        write_ndarray_to_fmt_csv(output_files["mplt"], mplt_data, MPLT_headers, MPLT_fmt)
                 plt_reader.mplt_idx[0] = 0
 
             if compute_qplt:
                 # Extract QPLT data
                 qplt_data = plt_reader.qplt_data[:plt_reader.qplt_idx[0]]
                 if output_files['qplt'] is not None and qplt_data.size > 0:
-                    write_ndarray_to_fmt_csv(output_files["qplt"], qplt_data, QPLT_headers, QPLT_fmt)
+                    if output_binary:
+                        qplt_data.tofile(output_files["qplt"])
+                    else:
+                        write_ndarray_to_fmt_csv(output_files["qplt"], qplt_data, QPLT_headers, QPLT_fmt)
                 plt_reader.qplt_idx[0] = 0
 
 
 @redirect_logging(exec_name='pltpy')
-def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, **kwargs):
+def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, binary=False, **kwargs):
     run(
         run_dir,
         files_in,
@@ -617,4 +586,5 @@ def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=F
         mplt_output_file=mplt,
         qplt_output_file=qplt,
         noheader=noheader,
+        output_binary=binary,
     )
