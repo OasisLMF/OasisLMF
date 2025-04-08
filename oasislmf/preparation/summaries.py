@@ -83,10 +83,12 @@ def get_useful_summary_cols(oed_hierarchy):
         'return_period'
     ]
 
+
 def is_property_damage(summary_df):
     property_damage_cov_id = [SUPPORTED_COVERAGE_TYPES['buildings']['id'], SUPPORTED_COVERAGE_TYPES['contents']['id']]
     summary_df['is_property_damage'] = summary_df['coverage_type_id'].isin(property_damage_cov_id)
     return summary_df
+
 
 calculated_summary_cols = {'is_property_damage': is_property_damage}
 
@@ -209,7 +211,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     """
     oed_cols = oed_col_group  # All required columns
     exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns
-                                        and c not in calculated_summary_cols]  # columns which are in locations / Accounts file
+                     and c not in calculated_summary_cols]  # columns which are in locations / Accounts file
     mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
                    if c in summary_map_df.columns]  # Columns already in summary_map_df
     to_calculate_column = [c for c in oed_cols if c in calculated_summary_cols]
