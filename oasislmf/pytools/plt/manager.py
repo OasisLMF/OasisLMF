@@ -46,6 +46,7 @@ class PLTReader(EventReader):
         read_buffer_state_dtype = np.dtype([
             ('len_sample', oasis_int),
             ('reading_losses', np.bool_),
+            ('skip_losses', np.bool_),
             ('read_summary_set_id', np.bool_),
             ('compute_splt', np.bool_),
             ('compute_mplt', np.bool_),
@@ -64,6 +65,7 @@ class PLTReader(EventReader):
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
         self.state["reading_losses"] = False  # Set to true after reading header in read_buffer
+        self.state["skip_losses"] = False  # Set to true if event_id not in occ_map
         self.state["read_summary_set_id"] = False
         self.state["len_sample"] = len_sample
         self.state["compute_splt"] = compute_splt
@@ -247,6 +249,7 @@ def read_buffer(
 
     def _reset_state():
         state["reading_losses"] = False
+        state["skip_losses"] = False
         state["max_loss"] = 0
         state["mean_impacted_exposure"] = 0
         state["max_impacted_exposure"] = 0
@@ -291,6 +294,7 @@ def read_buffer(
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
+                state["skip_losses"] = event_id not in occ_map
             else:
                 break  # Not enough for whole summary header
 
@@ -302,12 +306,15 @@ def read_buffer(
             sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
             if sidx == 0:  # sidx == 0, end of record
                 cursor += oasis_float_size  # Read extra 0 for end of record
+
+                if state["skip_losses"]:
+                    _reset_state()
+                    continue
+
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
                     firsttime = True
-
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         if firsttime:
                             for l in state["vrec"]:
                                 state["sumloss"] += l
@@ -339,8 +346,7 @@ def read_buffer(
                 # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         for i in range(len(intervals)):
                             q = intervals[i]["q"]
                             ipart = intervals[i]["integer_part"]
@@ -370,6 +376,10 @@ def read_buffer(
 
             # Read loss
             loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+
+            if state["skip_losses"]:
+                continue
+
             impacted_exposure = 0
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX:
                 continue
@@ -377,8 +387,7 @@ def read_buffer(
                 impacted_exposure = state["exposure_value"] * (loss > 0)
                 # Update SPLT data
                 if state["compute_splt"]:
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         _update_splt_data(
                             splt_data, si, period_weights, granular_date,
                             record=record,
@@ -398,8 +407,7 @@ def read_buffer(
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
-                    filtered_occ_map = occ_map[occ_map["event_id"] == event_id]
-                    for record in filtered_occ_map:
+                    for record in occ_map[event_id]:
                         _update_mplt_data(
                             mplt_data, mi, period_weights, granular_date,
                             record=record,
