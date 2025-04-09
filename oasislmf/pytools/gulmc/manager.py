@@ -870,27 +870,15 @@ def compute_event_losses(event_id,
 
                             # cache the weights and compute the total weights
                             tot_weights = 0.
-                            used_weights = []
+                            used_weights = np.zeros(len(agg_vulns_idx), dtype=np.float64)
                             for j, vuln_i in enumerate(agg_vulns_idx):
                                 if (areaperil_id, vuln_i) in areaperil_vuln_idx_to_weight:
-                                    weight = np.float64(areaperil_vuln_idx_to_weight[(areaperil_id, vuln_i)])
-                                else:
-                                    weight = np.float64(0.)
-
-                                used_weights.append(weight)
-                                tot_weights += weight
+                                    used_weights[j] = np.float64(areaperil_vuln_idx_to_weight[(areaperil_id, vuln_i)])
+                                    tot_weights += used_weights[j]
 
                             if tot_weights == 0.:
-                                print("Impossible to compute the cdf of the following aggregate vulnerability_id because individual weights are all zero.\n"
-                                      "Please double check the weights table for the areaperil_id listed below.")
-                                print("aggregate vulnerability_id=", vulnerability_id)
-                                print("individual vulnerability_ids=", agg_vulns_idx)
-                                print("item_id=", item_id)
-                                print("event=", event_id)
-                                print("areaperil_id=", areaperil_id)
-                                print()
-                                raise ValueError(
-                                    "Impossible to compute the cdf of an aggregate vulnerability_id because individual weights are all zero.")
+                                used_weights[:] = 1
+                                tot_weights = used_weights.shape[0]
 
                             # compute the weighted cdf
                             damage_bin_i = nb_int32(0)
