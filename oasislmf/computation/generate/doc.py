@@ -3,10 +3,8 @@ import json
 from jsonschema import validate, ValidationError
 import os
 from pathlib import Path
-from typing import List
 
 from oasislmf.computation.base import ComputationStep
-from oasislmf.utils.data import get_utctimestamp
 
 
 class MarkdownGenerator:
