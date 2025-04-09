@@ -10,7 +10,7 @@ from select import select
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import pandas as pd
-from numba import njit
+import numba as nb
 from numba.typed import Dict, List
 from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
@@ -51,7 +51,7 @@ VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_int32))
 VULN_LOOKUP_VALUE_TYPE = nb_Tuple((nb_int32, nb_int32))
 
 
-@njit(cache=True)
+@nb.njit(cache=True)
 def gen_empty_vuln_cdf_lookup(list_size):
     """Generate structures needed to store and retrieve vulnerability cdf in the cache.
 
@@ -90,6 +90,24 @@ def get_dynamic_footprint_adjustments(input_path):
         adjustments_tb = np.array([(i[0], 0, 0) for i in items_tb], dtype=ItemAdjustment)
 
     return adjustments_tb
+
+
+@nb.njit(cache=True)
+def jit_append_vuln_idx(new_items, items, vuln_dict):
+    for i in range(items.shape[0]):
+        if items[i]['vulnerability_id'] in vuln_dict:
+            new_items[i]['vulnerability_idx'] = vuln_dict[items[i]['vulnerability_id']]
+        else:  # agg_vulnerability, no need to idx in vuln_array, we ignore
+            pass
+
+
+def append_vuln_idx(items, vuln_dict):
+    new_items = rfn.merge_arrays((items,
+                                  np.empty(items.shape,
+                                           dtype=nb.from_dtype(np.dtype([("vulnerability_idx", np.int32)])))),
+                                 flatten=True)
+    jit_append_vuln_idx(new_items, items, vuln_dict)
+    return new_items
 
 
 @redirect_logging(exec_name='gulmc')
@@ -366,6 +384,7 @@ def run(run_dir,
             defaults={'intensity_adjustment': 0, 'return_period': 0}
         )
         items.sort(order=['areaperil_id', 'vulnerability_id'])
+        items = append_vuln_idx(items, vuln_dict)
 
         while True:
             if not streams_in.readinto(event_id_mv):
@@ -450,9 +469,7 @@ def run(run_dir,
                             lookup_keys,
                             next_cached_vuln_cdf,
                             cached_vuln_cdfs,
-                            agg_vuln_to_vuln_id,
                             agg_vuln_to_vuln_idxs,
-                            vuln_dict,
                             areaperil_vuln_idx_to_weight,
                             loss_threshold,
                             losses,
@@ -500,7 +517,7 @@ def run(run_dir,
     return 0
 
 
-@njit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def compute_event_losses(event_id,
                          coverages,
                          coverage_ids,
@@ -519,9 +536,7 @@ def compute_event_losses(event_id,
                          cached_vuln_cdf_lookup_keys,
                          next_cached_vuln_cdf,
                          cached_vuln_cdfs,
-                         agg_vuln_to_vuln_id,
                          agg_vuln_to_vuln_idxs,
-                         vuln_dict,
                          areaperil_vuln_idx_to_weight,
                          loss_threshold,
                          losses,
@@ -571,10 +586,8 @@ def compute_event_losses(event_id,
         cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
         next_cached_vuln_cdf (int): index of the next free slot in the vuln cdf cache.
         cached_vuln_cdfs (np.array[oasis_float]): vulnerability cdf cache.
-        agg_vuln_to_vuln_id (dict[int, list[int]]): map of aggregate vulnerability id to list of vulnerability ids.
         agg_vuln_to_vuln_idxs (dict[int, list[int]]): map between aggregate vulnerability id and the list of indices where the individual vulnerability_ids
           that compose it are stored in `vuln_array`.
-        vuln_dict (Dict[int, int]): map between vulnerability_id and the index where the vulnerability function is stored in vuln_array.
         areaperil_vuln_idx_to_weight (dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]): map between the areaperil id and the index where the vulnerability function
           is stored in `vuln_array` and the vulnerability weight.
         loss_threshold (float): threshold above which losses are printed to the output stream.
@@ -652,7 +665,7 @@ def compute_event_losses(event_id,
 
                 Nhaz_bins = haz_cdf_ptr[hazcdf_i + 1] - haz_cdf_ptr[hazcdf_i]
 
-            if vulnerability_id in agg_vuln_to_vuln_id:
+            if vulnerability_id in agg_vuln_to_vuln_idxs:
                 # aggregate case: the aggregate effective vuln cdf (agg_eff_vuln_cdf) needs to be computed
                 weighted_vuln_cdf = weighted_vuln_cdf_empty
                 tot_weights = 0.
@@ -725,8 +738,7 @@ def compute_event_losses(event_id,
                 eff_damag_cdf = weighted_vuln_cdf[:eff_damag_cdf_Ndamage_bins]
 
             else:
-                vuln_i = vuln_dict[vulnerability_id]
-                eff_damag_vuln_cdf_i, eff_damag_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf[(areaperil_id, vuln_i)]
+                eff_damag_vuln_cdf_i, eff_damag_cdf_Ndamage_bins = areaperil_to_eff_vuln_cdf[(areaperil_id, item['vulnerability_idx'])]
                 eff_damag_cdf = eff_vuln_cdf[eff_damag_vuln_cdf_i:eff_damag_vuln_cdf_i + eff_damag_cdf_Ndamage_bins]
 
             # for relative vulnerability functions, gul are fraction of the tiv
@@ -834,7 +846,7 @@ def compute_event_losses(event_id,
                 else:
                     # full monte carlo (sample hazard intensity and damage independently)
 
-                    if vulnerability_id in agg_vuln_to_vuln_id:
+                    if vulnerability_id in agg_vuln_to_vuln_idxs:
                         # full monte carlo, aggregate vulnerability
 
                         for sample_idx in range(1, sample_size + 1):
@@ -972,8 +984,7 @@ def compute_event_losses(event_id,
                                 haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
 
                             # 3) get the individual vulnerability cdf
-                            vuln_i = vuln_dict[vulnerability_id]
-                            vuln_cdf, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(vuln_i,
+                            vuln_cdf, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(item['vulnerability_idx'],
                                                                                         haz_int_bin_id,
                                                                                         cached_vuln_cdf_lookup,
                                                                                         cached_vuln_cdf_lookup_keys,
@@ -1032,7 +1043,7 @@ def compute_event_losses(event_id,
             next_cached_vuln_cdf)
 
 
-@njit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def get_vuln_cdf(vuln_i,
                  haz_int_bin_id,
                  cached_vuln_cdf_lookup,
@@ -1098,7 +1109,7 @@ def get_vuln_cdf(vuln_i,
             next_cached_vuln_cdf)
 
 
-@njit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def process_areaperils_in_footprint(event_footprint,
                                     vuln_array,
                                     areaperil_to_vulns_idx_dict,
@@ -1274,7 +1285,7 @@ def process_areaperils_in_footprint(event_footprint,
             areaperil_to_eff_vuln_cdf)
 
 
-@njit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def reconstruct_coverages(event_id,
                           areaperil_ids,
                           areaperil_ids_map,
