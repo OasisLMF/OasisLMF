@@ -163,12 +163,12 @@ class GenerateModelDocumentation(ComputationStep):
                                     rets = []
                                     for v_ in v:
                                         if isinstance(v_, dict):
-                                            rets.append(f"{json.dumps(v_, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')}")
-                                        else:
-                                            rets.append(str(v_))
+                                            v_ = json.dumps(v_, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')
+                                        rets.append(str(v_))
                                     v = ",<br>".join(rets)
                                 elif isinstance(v, dict):
-                                    v = f"{json.dumps(v, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')}"
+                                    pretty_json = json.dumps(v, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')
+                                    v = f"{pretty_json}"
                                 else:
                                     v = str(v)
                                 row.append(v)
