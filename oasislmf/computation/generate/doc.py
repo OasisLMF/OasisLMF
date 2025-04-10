@@ -1,8 +1,10 @@
+from collections import defaultdict
 from importlib import resources
 import json
 from jsonschema import validate, ValidationError
 import os
 from pathlib import Path
+import re
 
 from oasislmf.computation.base import ComputationStep
 
@@ -122,21 +124,29 @@ class GenerateModelDocumentation(ComputationStep):
             ref_schema = ref_schema.get(part)
         return ref_schema
 
-    def json_to_mdtxt(self, data, schema, md, header_level):
+    def json_to_mdtxt(self, data, properties_schema, full_schema, md, header_level):
+        """Convert json data to markdown text with schemas provided
+        Args:
+            data (dict): Json data as dictionary
+            properties_schema (dict): Data Properties from schema as dictionary
+            full_schema (_type_): Full schema file as dictionary
+            md (MarkdownGenerator): MarkdownGenerator class
+            header_level (int): Header level (number of "#"s to add to headers)
+        """
         for key, value in data.items():
             if key == "title":  # This is for the section title
                 continue
 
             key_title = key  # This is for the key Title name
-            if "title" in schema["properties"][key]:
-                key_title = schema["properties"][key]["title"]
+            if "title" in properties_schema[key]:
+                key_title = properties_schema[key]["title"]
 
-            if "type" in schema["properties"][key]:
-                if schema["properties"][key]["type"] == "array":
-                    md.add_header(key_title, level=header_level + 1)
-                    arr_items = schema["properties"][key]["items"]
+            if "type" in properties_schema[key]:
+                if properties_schema[key]["type"] == "array":
+                    md.add_header(key_title, level=header_level)
+                    arr_items = properties_schema[key]["items"]
                     if isinstance(arr_items, dict) and "$ref" in arr_items:
-                        array_schema = self._resolve_internal_ref(schema, arr_items["$ref"])
+                        array_schema = self._resolve_internal_ref(full_schema, arr_items["$ref"])
                         array_keys = array_schema["properties"].keys()
                         headers = []
                         for k in array_keys:
@@ -150,7 +160,15 @@ class GenerateModelDocumentation(ComputationStep):
                             for k in array_keys:
                                 v = entry.get(k, "")
                                 if isinstance(v, list):
-                                    v = ", ".join(v)
+                                    rets = []
+                                    for v_ in v:
+                                        if isinstance(v_, dict):
+                                            rets.append(f"{json.dumps(v_, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')}")
+                                        else:
+                                            rets.append(str(v_))
+                                    v = ",<br>".join(rets)
+                                elif isinstance(v, dict):
+                                    v = f"{json.dumps(v, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')}"
                                 else:
                                     v = str(v)
                                 row.append(v)
@@ -158,16 +176,53 @@ class GenerateModelDocumentation(ComputationStep):
                         md.add_table(headers, rows)
                     else:
                         md.add_list(value)
-                elif schema["properties"][key]["type"] == "object":
-                    # TODO: This is an example of where we need some sort of way to handle nested objects,
-                    # where sometimes there are tables hidden inside nested dicts.
-                    md.add_header(key_title, level=header_level + 1)
-                    for obj_key, obj_val in value.items():
-                        md.add_definition(obj_key, obj_val)
+                elif properties_schema[key]["type"] == "object":
+                    md.add_header(key_title, level=header_level)
+                    self.json_to_mdtxt(value, properties_schema[key]["properties"], full_schema, md, header_level + 1)
                 else:
-                    md.add_definition(key_title, value)
+                    md.add_header(key_title, level=header_level)
+                    md.add_text(value)
+            elif "$ref" in properties_schema[key]:
+                md.add_header(key_title, level=header_level)
+                ref_schema = self._resolve_internal_ref(full_schema, properties_schema[key]["$ref"])
+                self.json_to_mdtxt(value, ref_schema["properties"], full_schema, md, header_level + 1)
             else:
-                md.add_definition(key_title, value)
+                md.add_header(key_title, level=header_level)
+                md.add_text(value)
+
+    def slugify(self, title):
+        """Make title strings slugified (transform to URL friendly string)
+        Args:
+            title (str): Original Title str
+        Returns:
+            slug_title (str): Slugified Title str
+        """
+        slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
+        slug = re.sub(r'\s+', '-', slug)
+        return slug
+
+    def generate_toc(self, markdown_text):
+        """Generate a table of contents from markdown string
+        Args:
+            markdown_text (str): Markdown text
+        Returns:
+            toc (str): Table of contents markdown string 
+        """
+        lines = markdown_text.split('\n')
+        toc = []
+        slug_counts = defaultdict(int)
+
+        for line in lines:
+            match = re.match(r'^(#{2,6})\s+(.*)', line)
+            if match:
+                level = len(match.group(1)) - 1
+                title = match.group(2).strip()
+                base_slug = self.slugify(title)
+                slug_counts[base_slug] += 1
+                anchor = base_slug if slug_counts[base_slug] == 1 else f"{base_slug}-{slug_counts[base_slug] - 1}"
+                toc.append(f"{'  ' * level}- [{title}](#{anchor})")
+
+        return "## Table of Contents\n\n" + "\n".join(toc)
 
     def run(self):
         if not os.path.exists(self.doc_json):
@@ -185,9 +240,11 @@ class GenerateModelDocumentation(ComputationStep):
 
         with open(doc_file, "w") as f:
             md = MarkdownGenerator()
-            md.add_header("Documentation", level=1)
             for i, dataset in enumerate(json_data["datasets"]):
                 md.add_header(dataset["title"], level=2)
-                self.json_to_mdtxt(dataset, schema, md, 2)
+                self.json_to_mdtxt(dataset, schema["properties"], schema, md, 3)
                 md.add_text("")
-            f.write(md.get_markdown())
+            mdtxt = md.get_markdown()
+            toc = self.generate_toc(mdtxt)
+            mdtxt = "# Documentation \n\n" + toc + "\n\n" + mdtxt
+            f.write(mdtxt)
