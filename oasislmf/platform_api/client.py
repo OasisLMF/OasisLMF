@@ -284,6 +284,15 @@ class API_datafiles(ApiEndpoint):
             data["file_category"] = file_category
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
+    def tag(self, ID, tags):
+        """
+        New Feature: Tag a data file with a list of metadata tags.
+        """
+        if not isinstance(tags, list):
+            raise ValueError("Tags must be provided as a list of strings")
+        data = {"tags": tags}
+        return self.session.post(f'{self.url_endpoint}{ID}/tag/', json=data)
+
 
 class API_task_status(ApiEndpoint):
 
