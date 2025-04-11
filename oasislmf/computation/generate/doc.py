@@ -180,28 +180,32 @@ class GenerateModelDocumentation(ComputationStep):
                 for entry in value:
                     md.add_header(entry["title"], level=header_level + 1)
                     entry_fmt = entry["format"]
-                    if entry_fmt == "csv":
-                        if "download_url" not in entry:
-                            md.add_text("No path found to display data")
-                            continue
-                        fp = Path(data_path, entry["download_url"])
-                        if not fp.exists():
-                            md.add_text(f"No file found at {str(fp)}, could not display data")
-                        else:
-                            max_rows = 10
-                            md.add_text(f"First {max_rows} rows displayed only")
-                            with open(fp) as f:
-                                reader = csv.DictReader(f)
-                                headers = reader.fieldnames or []
-                                rows = []
 
-                                for i, row_dict in enumerate(reader):
-                                    if i >= max_rows:
-                                        break
-                                    # Convert row dict to list in header order
-                                    row = [str(row_dict.get(h, "")) for h in headers]
-                                    rows.append(row)
-                            md.add_table(headers, rows)
+                    if "download_url" not in entry:
+                        md.add_text("No path found to display data")
+                        continue
+
+                    fp = Path(data_path, entry["download_url"])
+                    if not fp.exists():
+                        md.add_text(f"No file found at {str(fp)}, could not display data")
+                        continue
+                    md.add_text(f"File ({fp.name}) found [here]({fp.as_posix()})")
+
+                    if entry_fmt == "csv":
+                        max_rows = 10
+                        md.add_text(f"First {max_rows} rows displayed only")
+                        with open(fp) as f:
+                            reader = csv.DictReader(f)
+                            headers = reader.fieldnames or []
+                            rows = []
+
+                            for i, row_dict in enumerate(reader):
+                                if i >= max_rows:
+                                    break
+                                # Convert row dict to list in header order
+                                row = [str(row_dict.get(h, "")) for h in headers]
+                                rows.append(row)
+                        md.add_table(headers, rows)
                     else:
                         md.add_text(f"Cannot display preview for {entry_fmt} files")
             # Markdown code for general nonspecific json data
