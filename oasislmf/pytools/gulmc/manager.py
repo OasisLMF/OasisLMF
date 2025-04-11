@@ -1155,14 +1155,16 @@ def process_areaperils_in_footprint(event_footprint,
     eff_vuln_cdf = np.zeros(Nvulns * Ndamage_bins_max, dtype=oasis_float)  # initial size, it is a dynamic array
     cdf_start = 0
     cdf_end = 0
-    areaperil_id = 0
     haz_cdf_ptr = List([0])
     eff_vuln_cdf_start = nb_int32(0)
     areaperil_to_eff_vuln_cdf = Dict.empty(AREAPERIL_TO_EFF_VULN_KEY_TYPE, AREAPERIL_TO_EFF_VULN_VALUE_TYPE)
 
-    while footprint_i < Nevent_footprint_entries:
+    while footprint_i <= Nevent_footprint_entries:
 
-        areaperil_id = event_footprint[footprint_i]['areaperil_id']
+        if footprint_i < Nevent_footprint_entries:
+            areaperil_id = event_footprint[footprint_i]['areaperil_id']
+        else:
+            areaperil_id = nb_areaperil_int(0)
 
         if areaperil_id != last_areaperil_id:
             # one areaperil_id is completed
@@ -1223,56 +1225,6 @@ def process_areaperils_in_footprint(event_footprint,
             last_areaperil_id_start = footprint_i
 
         footprint_i += 1
-
-    # here we process the last row of the footprint:
-    # this is either the last entry of a cdf started a few lines above or a 1-line cdf.
-    # In either case we do not need to check if areaperil_id != last_areaperil_id
-    # because we need to store the row anyway.
-    if areaperil_id in areaperil_to_vulns_idx_dict:
-        areaperil_ids.append(areaperil_id)
-        haz_prob_start_in_footprint.append(last_areaperil_id_start)
-        areaperil_to_haz_cdf[areaperil_id] = nb_int32(haz_cdf_i)
-        haz_cdf_i += 1  # needed to correctly count the number of haz_cdf imported
-
-        Nhaz_bins_to_read = footprint_i - last_areaperil_id_start
-        cdf_end = cdf_start + Nhaz_bins_to_read
-        cumsum = 0
-        for haz_bin_i in range(Nhaz_bins_to_read):
-            haz_pdf[cdf_start + haz_bin_i] = event_footprint['probability'][last_areaperil_id_start + haz_bin_i]
-            cumsum += haz_pdf[cdf_start + haz_bin_i]
-            haz_cdf[cdf_start + haz_bin_i]['probability'] = cumsum
-            haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] = event_footprint['intensity_bin_id'][last_areaperil_id_start + haz_bin_i]
-            if dynamic_footprint is not None:
-                haz_cdf[cdf_start + haz_bin_i]['intensity'] = event_footprint['intensity'][last_areaperil_id_start + haz_bin_i]
-
-        # compute effective damageability cdf (internally called `eff_vuln`)
-        # for each vulnerability function associated to this areaperil_id, compute the product between
-        # the hazard intensity probability and the damage probability.
-        areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[last_areaperil_id]]
-        for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-            while eff_vuln_cdf.shape[0] < eff_vuln_cdf_start + Ndamage_bins_max:
-                # if eff_vuln_cdf.shape needs to be larger to store all the effective cdfs, double it in size
-                temp_eff_vuln_cdf = np.empty(eff_vuln_cdf.shape[0] * 2, dtype=eff_vuln_cdf.dtype)
-                temp_eff_vuln_cdf[:eff_vuln_cdf_start] = eff_vuln_cdf[:eff_vuln_cdf_start]
-                eff_vuln_cdf = temp_eff_vuln_cdf
-
-            eff_vuln_cdf_cumsum = 0.
-            damage_bin_i = 0
-            while damage_bin_i < Ndamage_bins_max:
-                for haz_bin_i in range(Nhaz_bins_to_read):
-                    eff_vuln_cdf_cumsum += vuln_array[
-                        areaperil_to_vulns[vuln_idx], damage_bin_i, haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] - 1] * haz_pdf[cdf_start + haz_bin_i]
-
-                eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
-                damage_bin_i += 1
-                if eff_vuln_cdf_cumsum > 0.999999940:
-                    break
-
-            Ndamage_bins = damage_bin_i
-            areaperil_to_eff_vuln_cdf[(areaperil_id, areaperil_to_vulns[vuln_idx])] = (nb_int32(eff_vuln_cdf_start), nb_int32(Ndamage_bins))
-            eff_vuln_cdf_start += Ndamage_bins
-
-        haz_cdf_ptr.append(cdf_end)
 
     Nhaz_cdf_this_event = haz_cdf_i
 
