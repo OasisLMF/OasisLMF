@@ -17,7 +17,7 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float
+from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
@@ -34,20 +34,18 @@ from oasislmf.pytools.gulmc.aggregate import (
     map_agg_vuln_ids_to_agg_vuln_idxs,
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights)
-from oasislmf.pytools.gulmc.common import (AREAPERIL_TO_EFF_VULN_KEY_TYPE,
-                                           AREAPERIL_TO_EFF_VULN_VALUE_TYPE,
-                                           NP_BASE_ARRAY_SIZE,
+from oasislmf.pytools.gulmc.common import (NP_BASE_ARRAY_SIZE,
                                            Item, Keys, ItemAdjustment,
                                            NormInversionParameters, coverage_type, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
-                                           haz_cdf_type, items_MC_data_type)
+                                           haz_arr_type, items_MC_data_type)
 from oasislmf.pytools.gulmc.items import generate_item_map, process_items, read_items
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
 
 
-VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_int32))
+VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_areaperil_int, nb_int32, nb_int32, nb_int32))
 VULN_LOOKUP_VALUE_TYPE = nb_Tuple((nb_int32, nb_int32))
 
 
@@ -64,8 +62,8 @@ def gen_empty_vuln_cdf_lookup(list_size):
         cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
     """
     cached_vuln_cdf_lookup = Dict.empty(VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE)
-    cached_vuln_cdf_lookup_keys = List.empty_list(VULN_LOOKUP_VALUE_TYPE)
-    dummy = tuple((nb_int32(-1), nb_int32(-1)))
+    cached_vuln_cdf_lookup_keys = List.empty_list(VULN_LOOKUP_KEY_TYPE)
+    dummy = tuple((nb_int32(-1), nb_areaperil_int(0), nb_int32(-1), nb_int32(-1), nb_int32(-1)))
     for _ in range(list_size):
         cached_vuln_cdf_lookup_keys.append(dummy)
 
@@ -350,7 +348,6 @@ def run(run_dir,
         # create buffers to be reused when computing losses
         byte_mv = np.empty(PIPE_CAPACITY * 2, dtype='b')
         losses = np.zeros((sample_size + NUM_IDX + 1, np.max(coverages[1:]['max_items'])), dtype=oasis_float)
-        vuln_cdf_empty = np.zeros(Ndamage_bins_max, dtype=oasis_float)
 
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
@@ -394,19 +391,19 @@ def run(run_dir,
             event_footprint = event_footprint_obj.get_event(event_id)
 
             if event_footprint is not None:
-                areaperil_ids, Nhaz_cdf_this_event, areaperil_to_haz_cdf, haz_cdf, haz_cdf_ptr= process_areaperils_in_footprint(
+                areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, haz_pdf, haz_arr_ptr = process_areaperils_in_footprint(
                     event_footprint,
                     areaperil_to_vulns_idx_dict,
                     dynamic_footprint)
 
-                if Nhaz_cdf_this_event == 0:
+                if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
                     continue
 
                 compute_i, items_event_data, rng_index, hazard_rng_index = reconstruct_coverages(event_id,
                                                                                                  areaperil_ids,
                                                                                                  areaperil_ids_map,
-                                                                                                 areaperil_to_haz_cdf,
+                                                                                                 areaperil_to_haz_arr_i,
                                                                                                  item_map,
                                                                                                  items,
                                                                                                  coverages,
@@ -425,7 +422,6 @@ def run(run_dir,
 
                 else:
                     # create dummy data structures with proper dtypes to allow correct numba compilation
-                    haz_corr_seeds = np.zeros(1, dtype='int64')
                     haz_eps_ij = np.zeros((1, 1), dtype='float64')
 
                 # generate the correlated samples for the whole event, for all peril correlation groups
@@ -445,6 +441,7 @@ def run(run_dir,
                 cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached)
                 next_cached_vuln_cdf = 0
+
                 while last_processed_coverage_ids_idx < compute_i:
                     try:
                         cursor, last_processed_coverage_ids_idx, next_cached_vuln_cdf = compute_event_losses(
@@ -455,8 +452,8 @@ def run(run_dir,
                             items,
                             last_processed_coverage_ids_idx,
                             sample_size,
-                            haz_cdf,
-                            haz_cdf_ptr,
+                            haz_pdf,
+                            haz_arr_ptr,
                             vuln_array,
                             damage_bins,
                             Ndamage_bins_max,
@@ -468,7 +465,6 @@ def run(run_dir,
                             areaperil_vuln_idx_to_weight,
                             loss_threshold,
                             losses,
-                            vuln_cdf_empty,
                             alloc_rule,
                             do_correlation,
                             do_haz_correlation,
@@ -534,6 +530,49 @@ def get_haz_cdf(item_event_data, haz_cdf, haz_cdf_ptr, dynamic_footprint, intens
     return haz_cdf_prob, haz_cdf_bin_id
 
 
+@nb.njit(fastmath=True)
+def pdf_to_cdf(pdf, empty_cdf):
+    if pdf.shape[0] == 0:
+        return empty_cdf[:0]
+    cumsum = 0
+    for i in range(pdf.shape[0]):
+        cumsum += pdf[i]
+        empty_cdf[i] = cumsum
+        if cumsum > 0.999999940:
+            break
+    return empty_cdf[: i + 1]
+
+
+@nb.njit(fastmath=True)
+def calc_eff_damage_cdf(vuln_pdf, haz_pdf_prob):
+    eff_damage_cdf = np.zeros(vuln_pdf.shape[1], dtype=vuln_pdf.dtype)
+    eff_damage_cdf_cumsum = 0.
+    for damage_bin_i in range(vuln_pdf.shape[1]):
+        for haz_i in range(vuln_pdf.shape[0]):
+            eff_damage_cdf_cumsum += vuln_pdf[haz_i, damage_bin_i] * haz_pdf_prob[haz_i]
+
+        eff_damage_cdf[damage_bin_i] = eff_damage_cdf_cumsum
+        if eff_damage_cdf_cumsum > 0.999999940:
+            break
+    return eff_damage_cdf[:damage_bin_i + 1]
+
+
+@nb.njit()
+def cache_cdf(next_cached_vuln_cdf, cached_vuln_cdfs, cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cdf, cdf_key):
+    if cdf_key not in cached_vuln_cdf_lookup:  # already cached
+        # cache the cdf
+        if cached_vuln_cdf_lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
+            # overwrite cache
+            cached_vuln_cdf_lookup.pop(cached_vuln_cdf_lookup_keys[next_cached_vuln_cdf])
+
+        cached_vuln_cdfs[next_cached_vuln_cdf, :cdf.shape[0]] = cdf
+        cached_vuln_cdf_lookup[cdf_key] = tuple((nb_int32(next_cached_vuln_cdf), nb_int32(cdf.shape[0])))
+        cached_vuln_cdf_lookup_keys[next_cached_vuln_cdf] = cdf_key
+        next_cached_vuln_cdf += 1
+        next_cached_vuln_cdf %= cached_vuln_cdfs.shape[0]
+    return next_cached_vuln_cdf
+
+
 @nb.njit(cache=True, fastmath=True)
 def compute_event_losses(event_id,
                          coverages,
@@ -542,8 +581,8 @@ def compute_event_losses(event_id,
                          items,
                          last_processed_coverage_ids_idx,
                          sample_size,
-                         haz_cdf,
-                         haz_cdf_ptr,
+                         haz_pdf,
+                         haz_arr_ptr,
                          vuln_array,
                          damage_bins,
                          Ndamage_bins_max,
@@ -555,7 +594,6 @@ def compute_event_losses(event_id,
                          areaperil_vuln_idx_to_weight,
                          loss_threshold,
                          losses,
-                         vuln_cdf_empty,
                          alloc_rule,
                          do_correlation,
                          do_haz_correlation,
@@ -636,6 +674,11 @@ def compute_event_losses(event_id,
           and printed to the output stream.
         next_cached_vuln_cdf (int): index of the next free slot in the vuln cdf cache.
     """
+    haz_cdf_empty = np.empty(Ndamage_bins_max, dtype=oasis_float)
+    vuln_pdf_empty = np.empty((vuln_array.shape[2], Ndamage_bins_max), dtype=vuln_array.dtype)
+    haz_i_to_Ndamage_bins_empty = np.empty(vuln_array.shape[2], dtype=oasis_int)
+    haz_i_to_vuln_cdf_empty = np.empty((vuln_array.shape[2], Ndamage_bins_max), dtype=vuln_array.dtype)
+
     # loop through all the coverages that remain to be computed
     for coverage_i in range(last_processed_coverage_ids_idx, coverage_ids.shape[0]):
         coverage = coverages[coverage_ids[coverage_i]]
@@ -665,62 +708,122 @@ def compute_event_losses(event_id,
             intensity_adjustment = item['intensity_adjustment']
             return_period = item['return_period']
 
-            haz_cdf_prob, haz_cdf_bin_id = get_haz_cdf(item_event_data,
-                                                       haz_cdf,
-                                                       haz_cdf_ptr,
-                                                       dynamic_footprint,
-                                                       intensity_adjustment,
-                                                       intensity_bin_dict)
-
-            Nhaz_bins = haz_cdf_bin_id.shape[0]
-            vuln_pdf = np.zeros((Nhaz_bins, Ndamage_bins_max), dtype=vuln_array.dtype)
-            if vulnerability_id in agg_vuln_to_vuln_idxs: # we calculate the custom vuln_array for this aggregate
-                tot_weights = 0.
-                agg_vulns_idx = agg_vuln_to_vuln_idxs[vulnerability_id]
-                for j, vuln_i in enumerate(agg_vulns_idx):
-                    if (areaperil_id, vuln_i) in areaperil_vuln_idx_to_weight:
-                        weight = np.float64(areaperil_vuln_idx_to_weight[(areaperil_id, vuln_i)])
-                        if weight > 0:
-                            tot_weights += weight
-                            for haz_i in range(Nhaz_bins):
-                                has_prob = False
-                                for damage_bin_i in range(Ndamage_bins_max):
-                                    if vuln_array[vuln_i, damage_bin_i, haz_cdf_bin_id[haz_i] - 1] > 0:
-                                        has_prob = True
-                                        vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_cdf_bin_id[haz_i] - 1] * weight
-                                if not has_prob:
-                                    # the pdf is all zeros, i.e. probability of no loss is 100%
-                                    # store it as 100% * weight in the first damage bin
-                                    vuln_pdf[haz_i, 0] += weight
-
-                if tot_weights > 0:
-                    vuln_pdf /= tot_weights
-                else:
-                    for j, vuln_i in enumerate(agg_vulns_idx):
-                        for haz_i in range(Nhaz_bins):
-                            vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_cdf_bin_id[haz_i] - 1]
-                    vuln_pdf /= len(agg_vulns_idx)
+            if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:
+                agg_key_id = item['areaperil_id']
             else:
-                for haz_i in range(Nhaz_bins):
-                    vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_cdf_bin_id[haz_i] - 1]
+                agg_key_id = nb_areaperil_int(0)
 
-            # calculate eff_damag_cdf
-            eff_damag_cdf = np.zeros(Ndamage_bins_max, dtype=oasis_float)
-            eff_damag_cdf_cumsum = 0.
-            damage_bin_i = 0
-            while damage_bin_i < Ndamage_bins_max:
-                last_haz_cdf_val = 0
-                for haz_i in range(Nhaz_bins):
-                    haz_pdf_prob, last_haz_cdf_val = haz_cdf_prob[haz_i] - last_haz_cdf_val, haz_cdf_prob[haz_i]
-                    eff_damag_cdf_cumsum += vuln_pdf[haz_i, damage_bin_i] * haz_pdf_prob
+            haz_arr_i = item_event_data['haz_arr_i']
+            haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
 
-                eff_damag_cdf[damage_bin_i] = eff_damag_cdf_cumsum
-                damage_bin_i += 1
-                if eff_damag_cdf_cumsum > 0.999999940:
-                    break
-            # set Ndamage_bins the number of damage bin that can be drawn
-            eff_damag_cdf = eff_damag_cdf[:damage_bin_i]
-            Neff_damage_bins = damage_bin_i
+            # we calculate this adjusted hazard pdf
+            # get the right hazard pdf from the array containing all hazard cdfs
+            if dynamic_footprint:
+                # adjust intensity in dynamic footprint
+                haz_intensity = haz_pdf_record['intensity']
+                haz_intensity = haz_intensity - intensity_adjustment
+                haz_intensity = np.where(haz_intensity < 0, nb_int32(0), haz_intensity)
+                haz_bin_id = np.zeros_like(haz_pdf_record['intensity_bin_id'])
+                for haz_bin_idx in range(haz_bin_id.shape[0]):
+                    if haz_intensity[haz_bin_idx] <= 0:
+                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[0]
+                    else:
+                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[haz_intensity[haz_bin_idx]]
+            else:
+                haz_bin_id = haz_pdf_record['intensity_bin_id']
+            haz_pdf_prob = haz_pdf_record['probability']
+
+            eff_damage_cdf_key = tuple((item['vulnerability_id'],
+                                        agg_key_id,
+                                        nb_oasis_int(haz_arr_i),
+                                        nb_oasis_int(intensity_adjustment),
+                                        nb_oasis_int(0)))
+            do_calc_vuln_ptf = eff_damage_cdf_key not in cached_vuln_cdf_lookup
+            if not effective_damageability:
+                haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
+                Nhaz_bins = haz_cdf_prob.shape[0]
+                for haz_i in range(Nhaz_bins):
+                    haz_lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                    do_calc_vuln_ptf = do_calc_vuln_ptf or (haz_lookup_key not in cached_vuln_cdf_lookup)
+            else:
+                # not used, default values
+                haz_cdf_prob = haz_pdf_prob
+                Nhaz_bins = 0
+
+            if do_calc_vuln_ptf:
+                # we get the vuln_pdf, needed for effcdf and each cdf
+                Nhaz_bins = haz_bin_id.shape[0]
+                vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
+                vuln_pdf[:] = 0
+                if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:  # we calculate the custom vuln_array for this aggregate
+                    tot_weights = 0.
+                    agg_vulns_idx = agg_vuln_to_vuln_idxs[item['vulnerability_id']]
+                    for j, vuln_i in enumerate(agg_vulns_idx):
+                        if (item['areaperil_id'], vuln_i) in areaperil_vuln_idx_to_weight:
+                            weight = np.float64(areaperil_vuln_idx_to_weight[(item['areaperil_id'], vuln_i)])
+                            if weight > 0:
+                                tot_weights += weight
+                                for haz_i in range(Nhaz_bins):
+                                    has_prob = False
+                                    for damage_bin_i in range(Ndamage_bins_max):
+                                        if vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1] > 0:
+                                            has_prob = True
+                                            vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[
+                                                haz_i] - 1] * weight
+                                    if not has_prob:
+                                        # the pdf is all zeros, i.e. probability of no loss is 100%
+                                        # store it as 100% * weight in the first damage bin
+                                        vuln_pdf[haz_i, 0] += weight
+
+                    if tot_weights > 0:
+                        vuln_pdf /= tot_weights
+                    else:
+                        for j, vuln_i in enumerate(agg_vulns_idx):
+                            for haz_i in range(Nhaz_bins):
+                                vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
+                        vuln_pdf /= len(agg_vulns_idx)
+                else:
+                    for haz_i in range(Nhaz_bins):
+                        vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_bin_id[haz_i] - 1]
+
+                ############ calculate eff_damage_cdf #########
+                eff_damage_cdf = calc_eff_damage_cdf(vuln_pdf, haz_pdf_prob)
+
+                # cache the cdf
+                next_cached_vuln_cdf = cache_cdf(next_cached_vuln_cdf, cached_vuln_cdfs, cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys,
+                                                 eff_damage_cdf, eff_damage_cdf_key)
+
+                if not effective_damageability:  # we cache all the vuln_cdf needed
+                    haz_i_to_Ndamage_bins = haz_i_to_Ndamage_bins_empty[:Nhaz_bins]
+                    haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
+                    for haz_i in range(Nhaz_bins):
+                        haz_i_to_Ndamage_bins[haz_i] = pdf_to_cdf(vuln_pdf[haz_i], haz_i_to_vuln_cdf[haz_i]).shape[0]
+                        lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                        next_cached_vuln_cdf = cache_cdf(next_cached_vuln_cdf, cached_vuln_cdfs, cached_vuln_cdf_lookup,
+                                                         cached_vuln_cdf_lookup_keys,
+                                                         haz_i_to_vuln_cdf[haz_i][:haz_i_to_Ndamage_bins[haz_i]],
+                                                         lookup_key)
+
+            else:
+                start, Ndamage_bins = cached_vuln_cdf_lookup[eff_damage_cdf_key]
+                eff_damage_cdf = cached_vuln_cdfs[start, :Ndamage_bins]
+
+                if not effective_damageability:
+                    # cdf is cached
+                    start, Ndamage_bins = cached_vuln_cdf_lookup[eff_damage_cdf_key]
+                    eff_damage_cdf = cached_vuln_cdfs[start, :Ndamage_bins]
+
+                    haz_i_to_Ndamage_bins = haz_i_to_Ndamage_bins_empty[:Nhaz_bins]
+                    haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
+                    for haz_i in range(Nhaz_bins):
+                        lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                        start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
+                        vuln_cdf = cached_vuln_cdfs[start, :Ndamage_bins]
+
+                        haz_i_to_Ndamage_bins[haz_i] = Ndamage_bins
+                        haz_i_to_vuln_cdf[haz_i][:Ndamage_bins] = vuln_cdf
+
+            Neff_damage_bins = eff_damage_cdf.shape[0]
 
             # for relative vulnerability functions, gul are fraction of the tiv
             # for absolute vulnerability functions, gul are absolute values
@@ -729,7 +832,7 @@ def compute_event_losses(event_id,
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
                 computation_tiv,
-                eff_damag_cdf,
+                eff_damage_cdf,
                 damage_bins['interpolation'],
                 Neff_damage_bins,
                 damage_bins[Neff_damage_bins - 1]['bin_to'],
@@ -793,7 +896,7 @@ def compute_event_losses(event_id,
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)
 
                     for sample_idx in range(1, sample_size + 1):
-                        vuln_cdf = eff_damag_cdf
+                        vuln_cdf = eff_damage_cdf
 
                         vuln_rval = vuln_rndms[sample_idx - 1]
 
@@ -803,8 +906,8 @@ def compute_event_losses(event_id,
                             continue
 
                         # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
-                        if vuln_rval >= vuln_cdf[Neff_damage_bins - 1]:
-                            vuln_rval = vuln_cdf[Neff_damage_bins - 1] - 0.00000003
+                        if vuln_rval >= vuln_cdf[-1]:
+                            vuln_rval = vuln_cdf[-1] - 0.00000003
                             vuln_bin_idx = Neff_damage_bins - 1
                         else:
                             # find the damage cdf bin in which the random value `vuln_rval` falls into
@@ -849,31 +952,9 @@ def compute_event_losses(event_id,
                                 # find the hazard intensity cdf bin in which the random value `haz_rval` falls into
                                 haz_bin_idx = nb_int32(binary_search(haz_rval, haz_cdf_prob, Nhaz_bins))
 
-                        # 2) get the hazard intensity bin id
-                        haz_int_bin_id = haz_cdf_bin_id[haz_bin_idx]
-
-                        # 3) get the individual vulnerability cdf
-                        if vulnerability_id in agg_vuln_to_vuln_idxs: # no cach for aggregate vulnerability
-                            cumsum = 0.
-                            damage_bin_i = nb_int32(0)
-                            vuln_cdf = vuln_cdf_empty
-                            while damage_bin_i < Neff_damage_bins:
-                                cumsum += vuln_pdf[haz_bin_idx, damage_bin_i]
-                                vuln_cdf[damage_bin_i] = cumsum
-                                damage_bin_i += 1
-                                if cumsum > 0.999999940:
-                                    break
-                            vuln_cdf, Ndamage_bins = vuln_cdf[:damage_bin_i], damage_bin_i
-                        else:
-                            vuln_cdf, Ndamage_bins, next_cached_vuln_cdf = get_vuln_cdf(item['vulnerability_idx'],
-                                                                                        haz_int_bin_id,
-                                                                                        cached_vuln_cdf_lookup,
-                                                                                        cached_vuln_cdf_lookup_keys,
-                                                                                        vuln_array,
-                                                                                        vuln_cdf_empty,
-                                                                                        Ndamage_bins_max,
-                                                                                        cached_vuln_cdfs,
-                                                                                        next_cached_vuln_cdf)
+                        # 2) get the individual vulnerability cdf
+                        Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
+                        vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
                         vuln_rval = vuln_rndms[sample_idx - 1]
 
@@ -883,8 +964,8 @@ def compute_event_losses(event_id,
                             continue
 
                         # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
-                        if vuln_rval >= vuln_cdf[Ndamage_bins - 1]:
-                            vuln_rval = vuln_cdf[Ndamage_bins - 1] - 0.00000003
+                        if vuln_rval >= vuln_cdf[-1]:
+                            vuln_rval = vuln_cdf[-1] - 0.00000003
                             vuln_bin_idx = Ndamage_bins - 1
                         else:
                             # find the damage cdf bin in which the random value `vuln_rval` falls into
@@ -920,8 +1001,7 @@ def compute_event_losses(event_id,
         last_processed_coverage_ids_idx += 1
 
     return (cursor,
-            last_processed_coverage_ids_idx,
-            next_cached_vuln_cdf)
+            last_processed_coverage_ids_idx, next_cached_vuln_cdf)
 
 
 @nb.njit(cache=True, fastmath=True)
@@ -995,8 +1075,7 @@ def process_areaperils_in_footprint(event_footprint,
                                     areaperil_to_vulns_idx_dict,
                                     dynamic_footprint):
     """
-    Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions,
-    computing the hazard intensity cdf for each of those areaperil_id.
+    Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions
 
     Args:
         event_footprint (np.array[Event or EventCSV]): footprint, made of one or more event entries.
@@ -1007,10 +1086,10 @@ def process_areaperils_in_footprint(event_footprint,
 
     Returns:
         areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
-        Nhaz_cdf_this_event (int): number of hazard cdf stored for this event. If zero, it means no items have losses in such event.
-        areaperil_to_haz_cdf (dict[int, int]): map between the areaperil_id and the hazard cdf index.
-        haz_cdf (np.array[oasis_float]): hazard intensity cdf.
-        haz_cdf_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
+        Nhaz_arr_this_event (int): number of hazard stored for this event. If zero, it means no items have losses in such event.
+        areaperil_to_haz_arr_i (dict[int, int]): map between the areaperil_id and the hazard index in haz_arr_ptr.
+        haz_pdf (np.array[oasis_float]): hazard intensity pdf.
+        haz_arr_ptr (np.array[int]): array with the indices where each hazard intensities record starts in haz arrays (ie, haz_pdf).
         eff_vuln_cdf (np.array[oasis_float]): effective damageability cdf.
         areaperil_to_eff_vuln_cdf (dict[ITEM_MAP_KEY_TYPE_internal, int]): map between `(areaperil_id, vuln_idx)` and the location
           where the effective damageability function is stored in `eff_vuln_cdf`.
@@ -1022,15 +1101,15 @@ def process_areaperils_in_footprint(event_footprint,
     footprint_i = 0
     last_areaperil_id = nb_areaperil_int(0)
     last_areaperil_id_start = nb_int64(0)
-    haz_cdf_i = 0
-    areaperil_to_haz_cdf = Dict.empty(nb_areaperil_int, nb_int32)
+    haz_arr_i = 0
+    areaperil_to_haz_arr_i = Dict.empty(nb_areaperil_int, nb_oasis_int)
 
     Nevent_footprint_entries = len(event_footprint)
-    haz_cdf = np.empty(Nevent_footprint_entries, dtype=haz_cdf_type)  # max size
+    haz_pdf = np.empty(Nevent_footprint_entries, dtype=haz_arr_type)  # max size
 
-    cdf_start = 0
-    cdf_end = 0
-    haz_cdf_ptr = List([0])
+    arr_ptr_start = 0
+    arr_ptr_end = 0
+    haz_arr_ptr = List([0])
 
     while footprint_i <= Nevent_footprint_entries:
 
@@ -1047,42 +1126,38 @@ def process_areaperils_in_footprint(event_footprint,
                     # if items with this areaperil_id exist, process and store this areaperil_id
                     areaperil_ids.append(last_areaperil_id)
                     haz_prob_start_in_footprint.append(last_areaperil_id_start)
-                    areaperil_to_haz_cdf[last_areaperil_id] = nb_int32(haz_cdf_i)
-                    haz_cdf_i += 1
+                    areaperil_to_haz_arr_i[last_areaperil_id] = nb_int32(haz_arr_i)
+                    haz_arr_i += 1
 
-                    # read the hazard intensity pdf and compute the cdf
-                    Nhaz_bins_to_read = footprint_i - last_areaperil_id_start
-                    cdf_end = cdf_start + Nhaz_bins_to_read
-                    cumsum = np.float64(0)
-                    for haz_bin_i in range(Nhaz_bins_to_read):
-                        cumsum += event_footprint['probability'][last_areaperil_id_start + haz_bin_i]
-                        haz_cdf[cdf_start + haz_bin_i]['probability'] = cumsum
-                        haz_cdf[cdf_start + haz_bin_i]['intensity_bin_id'] = event_footprint['intensity_bin_id'][last_areaperil_id_start + haz_bin_i]
-                        if dynamic_footprint is not None:
-                            haz_cdf[cdf_start + haz_bin_i]['intensity'] = event_footprint['intensity'][last_areaperil_id_start + haz_bin_i]
+                    # store the hazard intensity pdf
+                    arr_ptr_end = arr_ptr_start + (footprint_i - last_areaperil_id_start)
+                    haz_pdf['probability'][arr_ptr_start: arr_ptr_end] = event_footprint['probability'][last_areaperil_id_start: footprint_i]
+                    haz_pdf['intensity_bin_id'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity_bin_id'][last_areaperil_id_start: footprint_i]
+                    if dynamic_footprint is not None:
+                        haz_pdf['intensity'][arr_ptr_start: arr_ptr_end] = event_footprint['intensity'][last_areaperil_id_start: footprint_i]
 
-                    haz_cdf_ptr.append(cdf_end)
-                    cdf_start = cdf_end
+                    haz_arr_ptr.append(arr_ptr_end)
+                    arr_ptr_start = arr_ptr_end
 
             last_areaperil_id = areaperil_id
             last_areaperil_id_start = footprint_i
 
         footprint_i += 1
 
-    Nhaz_cdf_this_event = haz_cdf_i
+    Nhaz_arr_this_event = haz_arr_i
 
     return (areaperil_ids,
-            Nhaz_cdf_this_event,
-            areaperil_to_haz_cdf,
-            haz_cdf[:cdf_end],
-            haz_cdf_ptr)
+            Nhaz_arr_this_event,
+            areaperil_to_haz_arr_i,
+            haz_pdf[:arr_ptr_end],
+            haz_arr_ptr)
 
 
 @nb.njit(cache=True, fastmath=True)
 def reconstruct_coverages(event_id,
                           areaperil_ids,
                           areaperil_ids_map,
-                          areaperil_to_haz_cdf,
+                          areaperil_to_haz_arr_i,
                           item_map,
                           items,
                           coverages,
@@ -1097,7 +1172,7 @@ def reconstruct_coverages(event_id,
         areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
         areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
           areaperil_id and all the vulnerability ids associated with it.
-        areaperil_to_haz_cdf (dict[int, int]): map between the areaperil_id and the hazard cdf index.
+        areaperil_to_haz_arr_i (dict[int, int]): map between the areaperil_id and the hazard arr index.
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
           the mapping between areaperil_id, vulnerability_id to item.
         items (np.ndarray): items table merged with correlation parameters.
@@ -1174,7 +1249,7 @@ def reconstruct_coverages(event_id,
                 item_i = coverage['start_items'] + coverage['cur_items']
                 items_event_data[item_i]['item_idx'] = item_idx
                 items_event_data[item_i]['item_id'] = items[item_idx]['item_id']
-                items_event_data[item_i]['hazcdf_i'] = areaperil_to_haz_cdf[areaperil_id]
+                items_event_data[item_i]['haz_arr_i'] = areaperil_to_haz_arr_i[areaperil_id]
                 items_event_data[item_i]['rng_index'] = this_rng_index
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
                 items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
