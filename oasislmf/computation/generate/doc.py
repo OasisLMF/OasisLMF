@@ -1,78 +1,12 @@
-from collections import defaultdict
 import csv
 from importlib import resources
 import json
 from jsonschema import validate, ValidationError
 import os
 from pathlib import Path
-import re
 
 from oasislmf.computation.base import ComputationStep
-
-
-class MarkdownGenerator:
-    def __init__(self):
-        """A simple markdown generator for adding markdown strings
-        """
-        self.sections = []
-
-    def get_markdown(self):
-        """Returns markdown string from joined self.sections
-        Returns:
-            str: Markdown string
-        """
-        return "".join(self.sections)
-
-    def add_header(self, title, level=1):
-        """Adds header to markdown
-        Args:
-            title (str): Title string
-            level (int): Markdown header level. Defaults to 1.
-        """
-        self.sections.append(f"{'#' * level} {title}\n")
-
-    def add_definition(self, title, content):
-        """Adds definition line to markdown in the following format
-        **title**: content
-        Args:
-            title (str): Name
-            content (str): Description
-        """
-        self.sections.append(f"**{title}**: {content}\n\n")
-
-    def add_table(self, headers, rows):
-        """Adds a table to markdown with headers and rows
-        Args:
-            headers (List[str]): Headers
-            rows (List[str]): Rows
-        """
-        if len(rows) > 0:
-            assert len(rows[0]) == len(headers), \
-                f"Length of rows ({len(rows[0])}) \
-                does not equal length of headers \
-                ({len(headers)}) for headers:\n {headers}\n"
-        table = "| " + " | ".join(headers) + " |\n"
-        table += "|" + "|".join(["---"] * len(headers)) + "|\n"
-        for row in rows:
-            table += "| " + " | ".join(row) + " |\n"
-        self.sections.append(table)
-        self.sections.append("\n")
-
-    def add_list(self, items):
-        """Adds list to markdown
-        Args:
-            items (List[str]): List of items
-        """
-        for item in items:
-            self.sections.append(f"- {item}\n")
-        self.sections.append("\n")
-
-    def add_text(self, content):
-        """Adds text to markdown
-        Args:
-            content (str): Text content
-        """
-        self.sections.append(content + "\n\n")
+from oasislmf.utils.mdutils import MarkdownGenerator
 
 
 class GenerateModelDocumentation(ComputationStep):
@@ -155,8 +89,42 @@ class GenerateModelDocumentation(ComputationStep):
             rows.append(row)
         md.add_table(headers, rows)
 
-    def json_to_mdtxt(self, data, properties_schema, full_schema, md, data_path, header_level):
-        """Convert json data to markdown text with schemas provided
+    def json_to_mdtxt_default(self, data, properties_schema, full_schema, md, data_path, header_level):
+        """Convert json data to markdown text with schemas provided, default formatting, just outputs everything
+        Args:
+            data (dict): Json data as dictionary
+            properties_schema (dict): Data Properties from schema as dictionary
+            full_schema (dict): Full schema file as dictionary
+            md (MarkdownGenerator): MarkdownGenerator class
+            data_path (str | os.PathLike): Path to data folder for any relative file paths
+            header_level (int): Header level (number of "#"s to add to headers)
+        """
+        for key, value in data.items():
+            key_title = key
+            if "type" in properties_schema[key]:
+                if properties_schema[key]["type"] == "array":
+                    md.add_header(key_title, level=header_level)
+                    arr_items = properties_schema[key]["items"]
+                    if isinstance(arr_items, dict) and "$ref" in arr_items:
+                        self.json_to_mdtable(value, full_schema, md, arr_items["$ref"])
+                    else:
+                        md.add_list(value)
+                elif properties_schema[key]["type"] == "object":
+                    md.add_header(key_title, level=header_level)
+                    self.json_to_mdtxt_default(value, properties_schema[key]["properties"], full_schema, md, data_path, header_level + 1)
+                else:
+                    md.add_header(key_title, level=header_level)
+                    md.add_text(value)
+            elif "$ref" in properties_schema[key]:
+                md.add_header(key_title, level=header_level)
+                ref_schema = self._resolve_internal_ref(full_schema, properties_schema[key]["$ref"])
+                self.json_to_mdtxt_default(value, ref_schema["properties"], full_schema, md, data_path, header_level + 1)
+            else:
+                md.add_header(key_title, level=header_level)
+                md.add_text(value)
+
+    def json_to_mdtxt_rdls_0__2__0(self, data, properties_schema, full_schema, md, data_path, header_level):
+        """Convert json data to markdown text with schemas provided, formatting for rdls v0.2
         Args:
             data (dict): Json data as dictionary
             properties_schema (dict): Data Properties from schema as dictionary
@@ -219,51 +187,40 @@ class GenerateModelDocumentation(ComputationStep):
                         md.add_list(value)
                 elif properties_schema[key]["type"] == "object":
                     md.add_header(key_title, level=header_level)
-                    self.json_to_mdtxt(value, properties_schema[key]["properties"], full_schema, md, data_path, header_level + 1)
+                    self.json_to_mdtxt_rdls_0__2__0(value, properties_schema[key]["properties"], full_schema, md, data_path, header_level + 1)
                 else:
                     md.add_header(key_title, level=header_level)
                     md.add_text(value)
             elif "$ref" in properties_schema[key]:
                 md.add_header(key_title, level=header_level)
                 ref_schema = self._resolve_internal_ref(full_schema, properties_schema[key]["$ref"])
-                self.json_to_mdtxt(value, ref_schema["properties"], full_schema, md, data_path, header_level + 1)
+                self.json_to_mdtxt_rdls_0__2__0(value, ref_schema["properties"], full_schema, md, data_path, header_level + 1)
             else:
                 md.add_header(key_title, level=header_level)
                 md.add_text(value)
 
-    def slugify(self, title):
-        """Make title strings slugified (transform to URL friendly string)
+    def json_to_mdtxt(self, json_data, full_schema, data_path):
+        """Convert json data to markdown text with schemas provided
         Args:
-            title (str): Original Title str
-        Returns:
-            slug_title (str): Slugified Title str
+            json_data (dict): Json data as dictionary
+            full_schema (dict): Full schema file as dictionary
+            data_path (str | os.PathLike): Path to data folder for any relative file paths
         """
-        slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
-        slug = re.sub(r'\s+', '-', slug)
-        return slug
+        schema_id = full_schema["$id"]
+        json_to_mdtxt_func = self.json_to_mdtxt_default
+        if schema_id == "https://docs.riskdatalibrary.org/en/0__2__0/rdls_schema.json":
+            # RDLS v0.2
+            json_to_mdtxt_func = self.json_to_mdtxt_rdls_0__2__0
+        else:
+            self.logger.warning(f"WARN: Unsupported formatting for following schema: {schema_id}. Using default formatting output")
 
-    def generate_toc(self, markdown_text):
-        """Generate a table of contents from markdown string
-        Args:
-            markdown_text (str): Markdown text
-        Returns:
-            toc (str): Table of contents markdown string 
-        """
-        lines = markdown_text.split('\n')
-        toc = []
-        slug_counts = defaultdict(int)
-
-        for line in lines:
-            match = re.match(r'^(#{2,6})\s+(.*)', line)
-            if match:
-                level = len(match.group(1)) - 1
-                title = match.group(2).strip()
-                base_slug = self.slugify(title)
-                slug_counts[base_slug] += 1
-                anchor = base_slug if slug_counts[base_slug] == 1 else f"{base_slug}-{slug_counts[base_slug] - 1}"
-                toc.append(f"{'  ' * level}- [{title}](#{anchor})")
-
-        return "## Table of Contents\n\n" + "\n".join(toc)
+        md = MarkdownGenerator()
+        md.add_header("Documentation", level=1)
+        for i, dataset in enumerate(json_data["datasets"]):
+            md.add_header(dataset["title"], level=2)
+            json_to_mdtxt_func(dataset, full_schema["properties"], full_schema, md, data_path, header_level=3)
+            md.add_text("")
+        return md.get_markdown(generate_toc=True)
 
     def run(self):
         if not os.path.exists(self.doc_json):
@@ -281,12 +238,5 @@ class GenerateModelDocumentation(ComputationStep):
         json_data, schema = self.validate_doc_schema(doc_schema_info, doc_json)
 
         with open(doc_file, "w") as f:
-            md = MarkdownGenerator()
-            for i, dataset in enumerate(json_data["datasets"]):
-                md.add_header(dataset["title"], level=2)
-                self.json_to_mdtxt(dataset, schema["properties"], schema, md, data_path, 3)
-                md.add_text("")
-            mdtxt = md.get_markdown()
-            toc = self.generate_toc(mdtxt)
-            mdtxt = "# Documentation \n\n" + toc + "\n\n" + mdtxt
+            mdtxt = self.json_to_mdtxt(json_data, schema, data_path)
             f.write(mdtxt)
