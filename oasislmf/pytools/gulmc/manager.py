@@ -28,7 +28,7 @@ from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval, get_random_generator)
+                                         generate_hash_hazard, get_corr_rval_float, get_random_generator)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     map_agg_vuln_ids_to_agg_vuln_idxs,
@@ -48,6 +48,14 @@ logger = logging.getLogger(__name__)
 VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_areaperil_int, nb_int32, nb_int32, nb_int32))
 VULN_LOOKUP_VALUE_TYPE = nb_Tuple((nb_int32, nb_int32))
 
+# parameter for get_corr_rval in a normal cdf
+x_min = 1e-16
+x_max = 1 - 1e-16
+norm_inv_N = 1000000
+cdf_min = -20
+cdf_max = 20.
+inv_factor = (norm_inv_N - 1) / (x_max - x_min)
+norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
 
 @nb.njit(cache=True)
 def gen_empty_vuln_cdf_lookup(list_size):
@@ -326,18 +334,18 @@ def run(run_dir,
             # Notes:
             #  - the size `N` can be increased to achieve better resolution in the Gaussian cdf and inv cdf.
             #  - the function `get_corr_rval` to compute the correlated numbers is not affected by N.
-            norm_inv_parameters = np.array((1e-16, 1 - 1e-16, 1000000, -20., 20.), dtype=NormInversionParameters)
+            norm_inv_parameters = np.array((x_min, x_max, norm_inv_N, cdf_min, cdf_max, inv_factor, norm_factor), dtype=NormInversionParameters)
+
             norm_inv_cdf = compute_norm_inv_cdf_lookup(norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'])
             norm_cdf = compute_norm_cdf_lookup(norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'], norm_inv_parameters['N'])
-
-            # buffer to be re-used to store all the correlated random values
-            z_unif = np.zeros(sample_size, dtype='float64')
-
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
-            norm_inv_parameters = np.array((0., 0., 0, 0., 0.), dtype=NormInversionParameters)
+            norm_inv_parameters = np.array((0., 0., 0, 0., 0., 0., 0.), dtype=NormInversionParameters)
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
-            z_unif = np.zeros(1, dtype='float64')
+
+        # buffer to be re-used to store all the correlated random values
+        vuln_z_unif = np.zeros(sample_size, dtype='float64')
+        haz_z_unif = np.zeros(sample_size, dtype='float64')
 
         if effective_damageability is True:
             logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
@@ -381,7 +389,6 @@ def run(run_dir,
         )
         items.sort(order=['areaperil_id', 'vulnerability_id'])
         items = append_vuln_idx(items, vuln_dict)
-
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -476,7 +483,8 @@ def run(run_dir,
                             norm_inv_parameters,
                             norm_inv_cdf,
                             norm_cdf,
-                            z_unif,
+                            vuln_z_unif,
+                            haz_z_unif,
                             effective_damageability,
                             debug,
                             max_bytes_per_item,
@@ -503,7 +511,6 @@ def run(run_dir,
                     cursor = 0
 
                 logger.info(f"event {event_id} DONE")
-
     return 0
 
 
@@ -605,7 +612,8 @@ def compute_event_losses(event_id,
                          norm_inv_parameters,
                          norm_inv_cdf,
                          norm_cdf,
-                         z_unif,
+                         vuln_z_unif,
+                         haz_z_unif,
                          effective_damageability,
                          debug,
                          max_bytes_per_item,
@@ -846,51 +854,31 @@ def compute_event_losses(event_id,
 
             # compute random losses
             if sample_size > 0:
-                if do_haz_correlation:
-                    # use correlation definitions to draw correlated random values
-                    rho = item['hazard_correlation_value']
+                if do_haz_correlation and item['hazard_correlation_value'] > 0:
+                    # use correlation definitions to draw correlated random values into haz_z_unif
+                    get_corr_rval_float(
+                        haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], item['hazard_correlation_value'],
+                        norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+                        norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                        sample_size, haz_z_unif
+                    )
+                else:
+                    haz_z_unif[:] = haz_rndms_base[hazard_rng_index]
 
-                    if rho > 0:
-                        get_corr_rval(
-                            haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], rho,
-                            norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'], norm_inv_cdf,
-                            norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
-                            norm_cdf, sample_size, z_unif
-                        )
-                        haz_rndms = z_unif
-
-                    else:
-                        haz_rndms = haz_rndms_base[hazard_rng_index]
-
+                if do_correlation and item['damage_correlation_value'] > 0:
+                    # use correlation definitions to draw correlated random values into vuln_z_unif
+                    get_corr_rval_float(
+                        eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], item['damage_correlation_value'],
+                        norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+                        norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                        sample_size, vuln_z_unif
+                    )
                 else:
                     # do not use correlation
-                    haz_rndms = haz_rndms_base[hazard_rng_index]
+                    vuln_z_unif[:] = vuln_rndms_base[rng_index]
 
-                if do_correlation:
-                    # use correlation definitions to draw correlated random values
-                    rho = item['damage_correlation_value']
-
-                    if rho > 0:
-                        get_corr_rval(
-                            eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], rho,
-                            norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'], norm_inv_cdf,
-                            norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
-                            norm_cdf, sample_size, z_unif
-                        )
-                        vuln_rndms = z_unif
-                        if vulnerability_id in vuln_adj_dict:
-                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
-
-                    else:
-                        vuln_rndms = vuln_rndms_base[rng_index]
-                        if vulnerability_id in vuln_adj_dict:
-                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
-
-                else:
-                    # do not use correlation
-                    vuln_rndms = vuln_rndms_base[rng_index]
-                    if vulnerability_id in vuln_adj_dict:
-                        vuln_rndms *= vuln_adj_dict[vulnerability_id]
+                if vulnerability_id in vuln_adj_dict:
+                    vuln_z_unif *= vuln_adj_dict[vulnerability_id]
 
                 if effective_damageability:
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)
@@ -898,7 +886,7 @@ def compute_event_losses(event_id,
                     for sample_idx in range(1, sample_size + 1):
                         vuln_cdf = eff_damage_cdf
 
-                        vuln_rval = vuln_rndms[sample_idx - 1]
+                        vuln_rval = vuln_z_unif[sample_idx - 1]
 
                         if debug == 2:
                             # store the random value used for the damage sampling instead of the loss
@@ -939,7 +927,7 @@ def compute_event_losses(event_id,
                             # if hazard intensity has a probability distribution, sample it
 
                             # cap `haz_rval` to the maximum `haz_cdf_prob` value (which should be 1.)
-                            haz_rval = haz_rndms[sample_idx - 1]
+                            haz_rval = haz_z_unif[sample_idx - 1]
 
                             if debug == 1:
                                 # store the random value used for the hazard intensity sampling instead of the loss
@@ -956,7 +944,7 @@ def compute_event_losses(event_id,
                         Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
                         vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
-                        vuln_rval = vuln_rndms[sample_idx - 1]
+                        vuln_rval = vuln_z_unif[sample_idx - 1]
 
                         if debug == 2:
                             # store the random value used for the damage sampling instead of the loss
@@ -1264,29 +1252,23 @@ def reconstruct_coverages(event_id,
 
 
 if __name__ == '__main__':
+    kwargs = {
+        'alloc_rule': 1,
+        'debug': 0,
+        'file_in': './static/events_p.bin',
+        'file_out': '/dev/null',
+        'loss_threshold': 0.0,
+        'sample_size': 10,
+        'effective_damageability': False,
+        'ignore_correlation': False,
+        'ignore_haz_correlation': False,
+        'ignore_file_type': set(),
+        'data_server': False,
+        'max_cached_vuln_cdf_size_MB': 200,
+        'peril_filter': None,
+        'random_generator': 1,
+        'run_dir': '.',
+        'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
+        'dynamic_footprint': False}
+    run(**kwargs)
 
-    # test_dir = Path(__file__).parent.parent.parent.parent.joinpath("tests") \
-    #     .joinpath("assets").joinpath("test_model_2")
-
-    test_dir = Path("runs/losses-20240108105851")
-
-    file_out = test_dir.joinpath('gulpy_mc.bin')
-    run(
-        run_dir=test_dir,
-        ignore_file_type=set(),
-        file_in=test_dir.joinpath("input").joinpath('events.bin'),
-        file_out=file_out,
-        sample_size=10,
-        loss_threshold=0.,
-        alloc_rule=1,
-        debug=0,
-        random_generator=1,
-        ignore_correlation=False,
-        ignore_haz_correlation=False,
-        effective_damageability=False,
-        dynamic_footprint=False
-    )
-
-    # remove temporary file
-    if file_out.exists():
-        file_out.unlink()

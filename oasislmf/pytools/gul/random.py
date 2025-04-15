@@ -134,7 +134,6 @@ def get_norm_cdf_cell_nb(x, x_min, x_max, N):
 @njit(cache=True, fastmath=True)
 def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
                   cdf_max, norm_cdf, Nsamples, z_unif):
-
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
 
@@ -144,6 +143,25 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
 
         z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, cdf_min, cdf_max, N)]
+
+
+@njit(cache=True, fastmath=True)
+def get_corr_rval_float(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
+                    norm_cdf, norm_factor, Nsamples, z_unif):
+    """
+    this calculate the new correlated values like in get_corr_rval but with precomputed inv_factor and norm_factor
+    inv_factor = (N - 1) // (x_max - x_min)
+    norm_factor = (N - 1) // (cdf_max - cdf_min)
+    """
+    sqrt_rho = sqrt(rho)
+    sqrt_1_minus_rho = sqrt(1. - rho)
+
+    for i in range(Nsamples):
+        x_norm = norm_inv_cdf[int((x_unif[i] - x_min) * inv_factor)]
+        y_norm = norm_inv_cdf[int((y_unif[i] - x_min) * inv_factor)]
+        z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
+
+        z_unif[i] = norm_cdf[int((z_norm - cdf_min) * norm_factor)]
 
 
 @njit(cache=True, fastmath=True)
