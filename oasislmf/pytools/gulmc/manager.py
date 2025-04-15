@@ -747,20 +747,16 @@ def compute_event_losses(event_id,
                                         nb_oasis_int(intensity_adjustment),
                                         nb_oasis_int(0)))
             do_calc_vuln_ptf = eff_damage_cdf_key not in cached_vuln_cdf_lookup
+            haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
+            Nhaz_bins = haz_cdf_prob.shape[0]
             if not effective_damageability:
-                haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
-                Nhaz_bins = haz_cdf_prob.shape[0]
                 for haz_i in range(Nhaz_bins):
                     haz_lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
                     do_calc_vuln_ptf = do_calc_vuln_ptf or (haz_lookup_key not in cached_vuln_cdf_lookup)
-            else:
-                # not used, default values
-                haz_cdf_prob = haz_pdf_prob
-                Nhaz_bins = 0
+
 
             if do_calc_vuln_ptf:
                 # we get the vuln_pdf, needed for effcdf and each cdf
-                Nhaz_bins = haz_bin_id.shape[0]
                 vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
                 vuln_pdf[:] = 0
                 if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:  # we calculate the custom vuln_array for this aggregate
