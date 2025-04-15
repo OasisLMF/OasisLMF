@@ -1,6 +1,21 @@
 OasisLMF Changelog
 ==================
 
+`2.4.2`_
+ ---------
+* [#1665](https://github.com/OasisLMF/OasisLMF/pull/1665) - add support for geotiff in buildin lookup
+* [#1527](https://github.com/OasisLMF/OasisLMF/pull/1636) - Add summary descriptions to output files
+* [#1637](https://github.com/OasisLMF/OasisLMF/pull/1637) -   Z-order Indexing
+* [#1610](https://github.com/OasisLMF/OasisLMF/pull/1610) - Feature/lecpy
+* [#1608](https://github.com/OasisLMF/OasisLMF/pull/1646) - pytools kat
+* [#1648](https://github.com/OasisLMF/OasisLMF/pull/1648) - in fm add polnumber information to level with no terms
+* [#1649](https://github.com/OasisLMF/OasisLMF/pull/1649) - Non-NumBa Error Logging
+* [#1650](https://github.com/OasisLMF/OasisLMF/pull/1650) - Fix for Platform V2 repairing run dir 
+* [#1652](https://github.com/OasisLMF/OasisLMF/pull/1652) - Fix workaround for failing data null string tests 
+* [#1653](https://github.com/OasisLMF/OasisLMF/pull/1653) - fix for  empty geopandas df sjoin not supported in geopandas 1.x
+* [#1655](https://github.com/OasisLMF/OasisLMF/pull/1654) - Vulnerability blending feature performance tuning
+.. _`2.4.2`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.1...2.4.2
+
 `2.4.1`_
  ---------
 * [#1629](https://github.com/OasisLMF/OasisLMF/pull/1632) - Add computaion schema to CI and update documentaion
