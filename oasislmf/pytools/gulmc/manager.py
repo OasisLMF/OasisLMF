@@ -754,7 +754,6 @@ def compute_event_losses(event_id,
                     haz_lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
                     do_calc_vuln_ptf = do_calc_vuln_ptf or (haz_lookup_key not in cached_vuln_cdf_lookup)
 
-
             if do_calc_vuln_ptf:
                 # we get the vuln_pdf, needed for effcdf and each cdf
                 vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
