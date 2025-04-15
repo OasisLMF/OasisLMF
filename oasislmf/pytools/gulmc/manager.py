@@ -4,7 +4,6 @@ import os
 import sys
 import json
 from contextlib import ExitStack
-from pathlib import Path
 from select import select
 
 import numpy as np
