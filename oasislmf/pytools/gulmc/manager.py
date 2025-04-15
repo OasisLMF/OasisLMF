@@ -57,6 +57,7 @@ cdf_max = 20.
 inv_factor = (norm_inv_N - 1) / (x_max - x_min)
 norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
 
+
 @nb.njit(cache=True)
 def gen_empty_vuln_cdf_lookup(list_size):
     """Generate structures needed to store and retrieve vulnerability cdf in the cache.
@@ -1271,4 +1272,3 @@ if __name__ == '__main__':
         'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader',
         'dynamic_footprint': False}
     run(**kwargs)
-
