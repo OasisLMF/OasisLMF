@@ -61,6 +61,11 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
             names = dtype->names;
             fields = dtype->fields;
             isnamedarray = true;
+            if (!names) {
+                PyErr_SetString(PyExc_ValueError,
+                                "No named fields found for structured array");
+                return NULL;
+            }
         }
         else {
             PyErr_Format(PyExc_ValueError,
@@ -69,19 +74,26 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
         }
     }
 
+    Py_ssize_t fmt_len = PyList_Size(fmt);
+    if (isnamedarray && fmt_len != PyTuple_Size(names)) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Format string length does not match number of columns");
+    }
+
+    if (!isnamedarray && fmt_len != ncols) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Format string length does not match number of columns");
+    }
+
+    char **fmt_strs = malloc(sizeof(char *) * fmt_len);
+    for (int j = 0; j < fmt_len; j++) {
+        fmt_strs[j] = PyUnicode_AsUTF8(PyList_GetItem(fmt, j));
+    }
+
     for (int i = 0; i < nrows; i++) {
         if (isnamedarray) {
-            if (!names) {
-                PyErr_SetString(PyExc_ValueError,
-                                "No named fields found for structured array");
-                return NULL;
-            }
-            Py_ssize_t fmt_len = PyList_Size(fmt);
-            if (fmt_len != PyTuple_Size(names)) {
-                PyErr_SetString(
-                    PyExc_ValueError,
-                    "Format string length does not match number of columns");
-            }
             for (int j = 0; j < fmt_len; j++) {
                 // Get column dtype
                 PyObject *key = PyTuple_GetItem(names, j);
@@ -94,28 +106,20 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
                     PyArray_GETPTR1(X, i) + field_dtype->elsize * j;
                 int type = field_dtype->type_num;
                 PyObject *fmt_item = PyList_GetItem(fmt, j);
-                const char *fmt_str = PyUnicode_AsUTF8(fmt_item);
-                const char *towrite = cast_value(value_ptr, type, fmt_str);
+                const char *towrite = cast_value(value_ptr, type, fmt_strs[j]);
                 fwrite(towrite, 1, strlen(towrite), fh);
                 if (j < fmt_len - 1) {
-                    fprintf(fh, ",");
+                    fputs(",", fh);
                 }
             }
         }
         else {
-            Py_ssize_t fmt_len = PyList_Size(fmt);
-            if (fmt_len != ncols) {
-                PyErr_SetString(
-                    PyExc_ValueError,
-                    "Format string length does not match number of columns");
-            }
             for (int j = 0; j < ncols; j++) {
                 void *value_ptr = PyArray_GETPTR2(X, i, j);
                 int type = PyArray_TYPE(X);
                 PyObject *fmt_item = PyList_GetItem(fmt, j);
-                const char *fmt_str = PyUnicode_AsUTF8(fmt_item);
 
-                const char *towrite = cast_value(value_ptr, type, fmt_str);
+                const char *towrite = cast_value(value_ptr, type, fmt_strs[j]);
                 fwrite(towrite, 1, strlen(towrite), fh);
                 if (j < fmt_len - 1) {
                     fputs(",", fh);
@@ -124,6 +128,7 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
         }
         fputs("\n", fh);
     }
+    free(fmt_strs);
 
     fflush(fh); // TODO: why do I need a buffer here when C++ ktools does not
 }
