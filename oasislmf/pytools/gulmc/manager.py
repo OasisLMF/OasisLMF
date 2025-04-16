@@ -598,6 +598,27 @@ def cache_cdf(next_cached_vuln_cdf, cached_vuln_cdfs, cached_vuln_cdf_lookup, ca
     return next_cached_vuln_cdf
 
 
+@nb.njit(fastmath=True, cache=True)
+def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, computation_tiv, loss_threshold):
+    # find the damage cdf bin in which the random value `vuln_rval` falls into
+    vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
+
+    # compute ground-up losses
+    # for relative vulnerability functions, gul are scaled by tiv
+    # for absolute vulnerability functions, gul are absolute values
+    gul = get_gul(
+        damage_bins['bin_from'][vuln_bin_idx],
+        damage_bins['bin_to'][vuln_bin_idx],
+        damage_bins['interpolation'][vuln_bin_idx],
+        vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
+        vuln_cdf[vuln_bin_idx],
+        vuln_rval,
+        computation_tiv,
+    )
+
+    return gul * (gul >= loss_threshold)
+
+
 @nb.njit(cache=True, fastmath=True)
 def compute_event_losses(event_id,
                          coverages,
@@ -734,9 +755,9 @@ def compute_event_losses(event_id,
             return_period = item['return_period']
 
             if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:
-                agg_key_id = item['areaperil_id']
+                agg_vuln_key_id = item['areaperil_id']
             else:
-                agg_key_id = nb_areaperil_int(0)
+                agg_vuln_key_id = nb_areaperil_int(0)
 
             haz_arr_i = item_event_data['haz_arr_i']
             haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
@@ -759,19 +780,21 @@ def compute_event_losses(event_id,
             haz_pdf_prob = haz_pdf_record['probability']
 
             eff_damage_cdf_key = tuple((item['vulnerability_id'],
-                                        agg_key_id,
+                                        agg_vuln_key_id,
                                         nb_oasis_int(haz_arr_i),
                                         nb_oasis_int(intensity_adjustment),
                                         nb_oasis_int(0)))
+
+            # determine if all the needed cdf are cached
             do_calc_vuln_ptf = eff_damage_cdf_key not in cached_vuln_cdf_lookup
             haz_cdf_prob = pdf_to_cdf(haz_pdf_prob, haz_cdf_empty)
             Nhaz_bins = haz_cdf_prob.shape[0]
             if not effective_damageability:
                 for haz_i in range(Nhaz_bins):
-                    haz_lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                    haz_lookup_key = tuple((item['vulnerability_id'], agg_vuln_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
                     do_calc_vuln_ptf = do_calc_vuln_ptf or (haz_lookup_key not in cached_vuln_cdf_lookup)
 
-            if do_calc_vuln_ptf:
+            if do_calc_vuln_ptf: # some cdf are not cached
                 # we get the vuln_pdf, needed for effcdf and each cdf
                 vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
                 vuln_pdf[:] = 0
@@ -806,10 +829,8 @@ def compute_event_losses(event_id,
                     for haz_i in range(Nhaz_bins):
                         vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_bin_id[haz_i] - 1]
 
-                ############ calculate eff_damage_cdf #########
+                # calculate and cache all cdf
                 eff_damage_cdf = calc_eff_damage_cdf(vuln_pdf, haz_pdf_prob, eff_damage_cdf_empty)
-
-                # cache the cdf
                 next_cached_vuln_cdf = cache_cdf(next_cached_vuln_cdf, cached_vuln_cdfs, cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys,
                                                  eff_damage_cdf, eff_damage_cdf_key)
 
@@ -818,30 +839,26 @@ def compute_event_losses(event_id,
                     haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
                     for haz_i in range(Nhaz_bins):
                         haz_i_to_Ndamage_bins[haz_i] = pdf_to_cdf(vuln_pdf[haz_i], haz_i_to_vuln_cdf[haz_i]).shape[0]
-                        lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+
+                        lookup_key = tuple((item['vulnerability_id'], agg_vuln_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
                         next_cached_vuln_cdf = cache_cdf(next_cached_vuln_cdf, cached_vuln_cdfs, cached_vuln_cdf_lookup,
                                                          cached_vuln_cdf_lookup_keys,
                                                          haz_i_to_vuln_cdf[haz_i][:haz_i_to_Ndamage_bins[haz_i]],
                                                          lookup_key)
 
-            else:
+            else: # cdf are cached
                 start, Ndamage_bins = cached_vuln_cdf_lookup[eff_damage_cdf_key]
                 eff_damage_cdf = cached_vuln_cdfs[start, :Ndamage_bins]
 
                 if not effective_damageability:
-                    # cdf is cached
-                    start, Ndamage_bins = cached_vuln_cdf_lookup[eff_damage_cdf_key]
-                    eff_damage_cdf = cached_vuln_cdfs[start, :Ndamage_bins]
-
                     haz_i_to_Ndamage_bins = haz_i_to_Ndamage_bins_empty[:Nhaz_bins]
                     haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
                     for haz_i in range(Nhaz_bins):
-                        lookup_key = tuple((item['vulnerability_id'], agg_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                        lookup_key = tuple((item['vulnerability_id'], agg_vuln_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
                         start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
-                        vuln_cdf = cached_vuln_cdfs[start, :Ndamage_bins]
 
                         haz_i_to_Ndamage_bins[haz_i] = Ndamage_bins
-                        haz_i_to_vuln_cdf[haz_i][:Ndamage_bins] = vuln_cdf
+                        haz_i_to_vuln_cdf[haz_i][:Ndamage_bins] = cached_vuln_cdfs[start, :Ndamage_bins]
 
             Neff_damage_bins = eff_damage_cdf.shape[0]
 
@@ -864,8 +881,7 @@ def compute_event_losses(event_id,
             losses[STD_DEV_IDX, item_j] = std_dev
             losses[MEAN_IDX, item_j] = gul_mean
 
-            # compute random losses
-            if sample_size > 0:
+            if sample_size > 0: # compute random losses
                 if do_haz_correlation and item['hazard_correlation_value'] > 0:
                     # use correlation definitions to draw correlated random values into haz_z_unif
                     get_corr_rval_float(
@@ -892,95 +908,40 @@ def compute_event_losses(event_id,
                 if vulnerability_id in vuln_adj_dict:
                     vuln_z_unif *= vuln_adj_dict[vulnerability_id]
 
-                if effective_damageability:
-                    # draw samples of effective damageability (i.e., intensity-averaged damage probability)
+                if debug == 1: # store the random value used for the hazard sampling instead of the loss
+                    losses[1:, item_j] = haz_z_unif[:]
 
-                    for sample_idx in range(1, sample_size + 1):
-                        vuln_cdf = eff_damage_cdf
+                elif debug == 2: # store the random value used for the damage sampling instead of the loss
+                    losses[1:, item_j] = vuln_z_unif[:]
 
-                        vuln_rval = vuln_z_unif[sample_idx - 1]
-
-                        if debug == 2:
-                            # store the random value used for the damage sampling instead of the loss
-                            losses[sample_idx, item_j] = vuln_rval
-                            continue
-
-                        # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
-                        if vuln_rval >= vuln_cdf[-1]:
-                            vuln_rval = vuln_cdf[-1] - 0.00000003
-                            vuln_bin_idx = Neff_damage_bins - 1
-                        else:
-                            # find the damage cdf bin in which the random value `vuln_rval` falls into
-                            vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Neff_damage_bins - 1)
-
-                        # compute ground-up losses
-                        gul = get_gul(
-                            damage_bins['bin_from'][vuln_bin_idx],
-                            damage_bins['bin_to'][vuln_bin_idx],
-                            damage_bins['interpolation'][vuln_bin_idx],
-                            vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
-                            vuln_cdf[vuln_bin_idx],
-                            vuln_rval,
-                            computation_tiv,
-                        )
-
-                        losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
-
-                else:
-                    # full monte carlo (sample hazard intensity and damage independently)
-                    for sample_idx in range(1, sample_size + 1):
-
-                        # 1) get the intensity bin
-                        if Nhaz_bins == 1:
-                            # if hazard intensity has no uncertainty, there is no need to sample
-                            haz_bin_idx = nb_int32(0)
-                        else:
-                            # if hazard intensity has a probability distribution, sample it
-                            haz_rval = haz_z_unif[sample_idx - 1]
-                            if debug == 1:
-                                # store the random value used for the hazard intensity sampling instead of the loss
-                                losses[sample_idx, item_j] = haz_rval
-                                continue
-
-                            # find the hazard intensity cdf bin in which the random value `haz_rval` falls into
+                else: # calculate gul
+                    if effective_damageability:
+                        for sample_idx in range(1, sample_size + 1):
+                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
+                                                                               Neff_damage_bins, damage_bins, computation_tiv,
+                                                                               loss_threshold)
+                    elif Nhaz_bins == 1: # only one hazard possible
+                        Ndamage_bins = haz_i_to_Ndamage_bins[0]
+                        vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
+                        for sample_idx in range(1, sample_size + 1):
+                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                                               Ndamage_bins, damage_bins, computation_tiv,
+                                                                               loss_threshold)
+                    else:
+                        for sample_idx in range(1, sample_size + 1):
+                            # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
                             # we don't need to use last haz_cdf_prob value because if for rounding reason haz_rval
                             # is bigger, we want the index Nhaz_bins-1 anyway. if we were using Nhaz_bins,
                             # bigger than haz_cdf_prob[-1] haz_rval would have index Nhaz_bins, outside haz_i_to_Ndamage_bins
-                            haz_bin_idx = binary_search(haz_rval, haz_cdf_prob, Nhaz_bins - 1)
+                            haz_bin_idx = binary_search(haz_z_unif[sample_idx - 1], haz_cdf_prob, Nhaz_bins - 1)
 
-                        # 2) get the individual vulnerability cdf
-                        Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
-                        vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
+                            # get the individual vulnerability cdf
+                            Ndamage_bins = haz_i_to_Ndamage_bins[haz_bin_idx]
+                            vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
-                        vuln_rval = vuln_z_unif[sample_idx - 1]
-
-                        if debug == 2:
-                            # store the random value used for the damage sampling instead of the loss
-                            losses[sample_idx, item_j] = vuln_rval
-                            continue
-
-                        # cap `vuln_rval` to the maximum `vuln_cdf` value (which should be 1.)
-                        if vuln_rval >= vuln_cdf[-1]:
-                            vuln_rval = vuln_cdf[-1] - 0.00000003
-                            vuln_bin_idx = Ndamage_bins - 1
-                        else:
-                            # find the damage cdf bin in which the random value `vuln_rval` falls into
-                            vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
-
-                        # compute ground-up losses
-                        # for relative vulnerability functions, gul are scaled by tiv
-                        # for absolute vulnerability functions, gul are absolute values
-                        gul = get_gul(
-                            damage_bins['bin_from'][vuln_bin_idx],
-                            damage_bins['bin_to'][vuln_bin_idx],
-                            damage_bins['interpolation'][vuln_bin_idx],
-                            vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
-                            vuln_cdf[vuln_bin_idx],
-                            vuln_rval,
-                            computation_tiv,
-                        )
-
-                        losses[sample_idx, item_j] = gul * (gul >= loss_threshold)
+                            losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
+                                                                               Ndamage_bins, damage_bins, computation_tiv,
+                                                                               loss_threshold)
 
         # write the losses to the output memoryview
         cursor = write_losses(event_id,
@@ -996,8 +957,7 @@ def compute_event_losses(event_id,
         # register that another `coverage_id` has been processed
         last_processed_coverage_ids_idx += 1
 
-    return (cursor,
-            last_processed_coverage_ids_idx, next_cached_vuln_cdf)
+    return cursor, last_processed_coverage_ids_idx, next_cached_vuln_cdf
 
 
 @nb.njit(cache=True, fastmath=True)
