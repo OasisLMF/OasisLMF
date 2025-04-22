@@ -15,7 +15,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from numba import int32 as nb_int32, float64 as nb_float64
+from numba import int32 as nb_int32
 from numba.typed import Dict
 
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
