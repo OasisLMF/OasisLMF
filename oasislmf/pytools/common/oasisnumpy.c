@@ -92,32 +92,57 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
         fmt_strs[j] = PyUnicode_AsUTF8(PyList_GetItem(fmt, j));
     }
 
-    for (int i = 0; i < nrows; i++) {
-        if (isnamedarray) {
+    if (!isnamedarray) {
+        npy_intp multi_index[2];
+        NpyIter *iter = NpyIter_New(X, NPY_ITER_READONLY | NPY_ITER_MULTI_INDEX,
+                                    NPY_CORDER, NPY_NO_CASTING, NULL);
+        if (iter == NULL) return;
+
+        NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
+        if (iternext == NULL) {
+            NpyIter_Deallocate(iter);
+            return;
+        }
+
+        char **dataptr = NpyIter_GetDataPtrArray(iter);
+        NpyIter_GetMultiIndexFunc *get_multi_index =
+            NpyIter_GetGetMultiIndex(iter, NULL);
+        if (get_multi_index == NULL) {
+            NpyIter_Deallocate(iter);
+            return -1;
+        }
+        int type = PyArray_TYPE(X);
+
+        do {
+            get_multi_index(iter, multi_index);
+            int i = (int) multi_index[0];
+            int j = (int) multi_index[1];
+
+            const char *towrite = cast_value(*dataptr, type, fmt_strs[j]);
+            fwrite(towrite, 1, strlen(towrite), fh);
+            if (j == ncols - 1) {
+                fputs("\n", fh);
+            }
+            else {
+                fputs(",", fh);
+            }
+
+        } while (iternext(iter));
+
+        NpyIter_Deallocate(iter);
+    }
+    else {
+        // Structured array iteration
+        for (int i = 0; i < nrows; i++) {
+            char *row_ptr = PyArray_GETPTR1(X, i);
             for (int j = 0; j < fmt_len; j++) {
-                // Get column dtype
                 PyObject *key = PyTuple_GetItem(names, j);
-                PyObject *field = PyDict_GetItem(dtype->fields, key);
+                PyObject *field = PyDict_GetItem(fields, key);
                 PyArray_Descr *field_dtype =
                     (PyArray_Descr *) PyTuple_GetItem(field, 0);
-
-                // Get column value
-                void *value_ptr =
-                    PyArray_GETPTR1(X, i) + field_dtype->elsize * j;
+                int offset = ((int) PyLong_AsLong(PyTuple_GetItem(field, 1)));
+                void *value_ptr = row_ptr + offset;
                 int type = field_dtype->type_num;
-                PyObject *fmt_item = PyList_GetItem(fmt, j);
-                const char *towrite = cast_value(value_ptr, type, fmt_strs[j]);
-                fwrite(towrite, 1, strlen(towrite), fh);
-                if (j < fmt_len - 1) {
-                    fputs(",", fh);
-                }
-            }
-        }
-        else {
-            for (int j = 0; j < ncols; j++) {
-                void *value_ptr = PyArray_GETPTR2(X, i, j);
-                int type = PyArray_TYPE(X);
-                PyObject *fmt_item = PyList_GetItem(fmt, j);
 
                 const char *towrite = cast_value(value_ptr, type, fmt_strs[j]);
                 fwrite(towrite, 1, strlen(towrite), fh);
@@ -125,11 +150,11 @@ static void _savefmttxt(FILE *fh, PyArrayObject *X, PyObject *fmt,
                     fputs(",", fh);
                 }
             }
+            fputs("\n", fh);
         }
-        fputs("\n", fh);
     }
-    free(fmt_strs);
 
+    free(fmt_strs);
     fflush(fh); // TODO: why do I need a buffer here when C++ ktools does not
 }
 
