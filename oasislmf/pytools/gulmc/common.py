@@ -101,3 +101,19 @@ NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float32),
                                                   ('inv_factor', np.float64),
                                                   ('norm_factor', np.float64),
                                                   ]))
+
+gulmc_compute_info_type = nb.from_dtype(np.dtype([
+    ('event_id', oasis_int),
+    ('cursor', oasis_int),
+    ('coverage_i', oasis_int),  # last_processed_coverage_ids_idx
+    ('coverage_n', oasis_int),
+    ('next_cached_vuln_cdf_i', oasis_int),
+    ('max_bytes_per_item', oasis_int),
+    ('Ndamage_bins_max', oasis_int),
+    ('loss_threshold', oasis_float),
+    ('alloc_rule', np.int8),
+    ('do_correlation', np.int8),
+    ('do_haz_correlation', np.int8),
+    ('effective_damageability', np.int8),
+    ('debug', np.int8),
+]))

@@ -5,17 +5,16 @@ import logging
 import os
 
 import numpy as np
-from numba import njit
+import numba as nb
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
-from numba.types import int64 as nb_int64
+from numba.types import int8 as nb_int8
 
-from oasislmf.pytools.common.data import nb_areaperil_int
-from oasislmf.pytools.getmodel.common import Index_type
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, nb_oasis_int
 from oasislmf.pytools.gul.utils import append_to_dict_value
-from oasislmf.pytools.gulmc.aggregate import gen_empty_agg_vuln_to_vuln_ids
-from oasislmf.pytools.gulmc.common import (ITEM_MAP_KEY_TYPE,
-                                           ITEM_MAP_VALUE_TYPE, Item)
+from oasislmf.pytools.gulmc.aggregate import gen_empty_areaperil_vuln_idx_to_weights
+from oasislmf.pytools.gulmc.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, Item
+
 
 logger = logging.getLogger(__name__)
 
@@ -50,129 +49,69 @@ def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, lega
     return items
 
 
-@njit(cache=True, fastmath=True)
-def generate_item_map(items, coverages):
+@nb.njit(cache=True, fastmath=True)
+def generate_item_map(items, coverages, valid_areaperil_id, agg_vuln_to_vulns):
     """Generate item_map; requires items to be sorted.
 
     Args:
         items (numpy.ndarray[int32, int32, int32]): 1-d structured array storing
-          `item_id`, `coverage_id`, `group_id` for all items.
-          items need to be sorted by increasing areaperil_id, vulnerability_id
-          in order to output the items in correct order.
+            `item_id`, `coverage_id`, `group_id` for all items.
+            items need to be sorted by increasing areaperil_id, vulnerability_id
+            in order to output the items in correct order.
+        coverages (numpy.ndarray): coverage id to information on items
+        valid_areaperil_id (numpy.ndarray[int32]): list of non-filtered area_peril_id (None is no filter)
+        agg_vuln_to_vulns (dict[int, list[int]]): map of aggregate vulnerability id to list of vulnerability ids.
 
     Returns:
         item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
+            the mapping between areaperil_id, vulnerability_id to item.
         areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
-          areaperil_id and all the vulnerability ids associated with it.
+            areaperil_id and all the vulnerability ids associated with it.
+        vuln id to vuln idx for each vulnerability in each areaperil, list of all used vulnerability ids.
+        agg_vuln_to_vuln_idxs dict[int, list[int]]: map between aggregate vulnerability id and the list of indices where the individual vulnerability_ids
+          that compose it are stored in `vuln_array`.
+        areaperil_vuln_idx_to_weight dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]: map between the areaperil id and the index where the vulnerability function
+          is stored in `vuln_array` and the vulnerability weight.
 
     """
     item_map = Dict.empty(ITEM_MAP_KEY_TYPE, List.empty_list(ITEM_MAP_VALUE_TYPE))
-    areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int64))
+    areaperil_ids_map = Dict.empty(nb_areaperil_int, Dict.empty(nb_int32, nb_int8))
+    vuln_dict = Dict()
+    vuln_idx = 0
+    areaperil_vuln_idx_to_weight = gen_empty_areaperil_vuln_idx_to_weights()
+
+    agg_vuln_to_vuln_idxs = Dict.empty(nb_int32, List.empty_list(nb_int32))
 
     for j, item in enumerate(items):
         areaperil_id = item['areaperil_id']
         vulnerability_id = item['vulnerability_id']
 
+        if valid_areaperil_id is not None and item['areaperil_id'] not in valid_areaperil_id:
+            continue
+
         append_to_dict_value(item_map, tuple((areaperil_id, vulnerability_id)), j, ITEM_MAP_VALUE_TYPE)
         coverages[item['coverage_id']]['max_items'] += 1
+
+        # Populate vuln_dict, to map all used vuln_id to vuln_i
+        if item['vulnerability_id'] not in vuln_dict:
+            if item['vulnerability_id'] in agg_vuln_to_vulns:  # vulnerability is an aggregate
+                for sub_vuln_id in agg_vuln_to_vulns[item['vulnerability_id']]:
+                    if sub_vuln_id not in vuln_dict:
+                        vuln_dict[sub_vuln_id] = nb_oasis_int(vuln_idx)
+                        vuln_idx += 1
+                agg_vuln_to_vuln_idxs[item['vulnerability_id']] = List([vuln_dict[vuln] for vuln in agg_vuln_to_vulns[item['vulnerability_id']]])
+
+            else:  # single vulnerability
+                vuln_dict[item['vulnerability_id']] = nb_oasis_int(vuln_idx)
+                vuln_idx += 1
+
+        if item['vulnerability_id'] in agg_vuln_to_vulns:
+            for sub_vuln_id in agg_vuln_to_vulns[item['vulnerability_id']]:
+                areaperil_vuln_idx_to_weight[(nb_areaperil_int(areaperil_id), vuln_dict[sub_vuln_id])] = nb_oasis_float(0)
 
         if areaperil_id not in areaperil_ids_map:
             areaperil_ids_map[areaperil_id] = {vulnerability_id: 0}
         else:
             areaperil_ids_map[areaperil_id][vulnerability_id] = 0
 
-    return item_map, areaperil_ids_map
-
-
-@njit(cache=True)
-def process_items(items, valid_area_peril_id, agg_vuln_to_vulns=None):
-    """
-    Processes the Items loaded from the file extracting meta data around the vulnerability data.
-
-    Args:
-        items: (List[Item]) Data loaded from the vulnerability file
-        valid_area_peril_id: array of area_peril_id to be included (if none, all are included).
-        agg_vuln_to_vulns (dict[tuple[areaperil_int, int], int]): dict with aggregate vulnerability definitions.
-
-    Returns: (Tuple[Dict[int, int],  Dict[int, int], np.array[int], np.array[int], dict[int, dict[int, int]], List[int])
-             vulnerability dictionary, areaperil to vulnerability index dictionary, areaperil to vulnerability index array,
-             vuln id to vuln idx for each vulnerability in each areaperil, list of all used vulnerability ids.
-    """
-    if not agg_vuln_to_vulns:
-        agg_vuln_to_vulns = gen_empty_agg_vuln_to_vuln_ids()
-
-    areaperil_to_vulns_size = 0
-    areaperil_dict = Dict()
-    vuln_dict = Dict()
-    vuln_idx = 0
-    used_agg_vuln_ids = List.empty_list(nb_int32)
-    for i in range(items.shape[0]):
-        item = items[i]
-
-        # filter out invalid areaperil id
-        if valid_area_peril_id is not None:
-            if item['areaperil_id'] not in valid_area_peril_id:
-                continue
-
-        # import this vulnerability id if it has not been imported yet
-        if item['vulnerability_id'] not in vuln_dict:
-            if item['vulnerability_id'] in agg_vuln_to_vulns:
-                # vulnerability is aggregate
-                for vuln_i in agg_vuln_to_vulns[item['vulnerability_id']]:
-                    if vuln_i not in vuln_dict:
-                        # import this individual vulnerability_id only if it was not imported already
-                        vuln_dict[vuln_i] = np.int32(vuln_idx)
-                        vuln_idx += 1
-
-                used_agg_vuln_ids.append(item['vulnerability_id'])
-
-            else:
-                # vulnerability is not aggregate
-                vuln_dict[item['vulnerability_id']] = np.int32(vuln_idx)
-                vuln_idx += 1
-
-        # insert an area dictionary into areaperil_dict under the key of areaperil ID
-        if item['areaperil_id'] not in areaperil_dict:
-            area_vuln = Dict()
-
-            if item['vulnerability_id'] in agg_vuln_to_vulns:
-                for vuln_i in agg_vuln_to_vulns[item['vulnerability_id']]:
-                    if vuln_i not in area_vuln:
-                        area_vuln[vuln_i] = 0
-                        areaperil_to_vulns_size += 1
-            else:
-                area_vuln[item['vulnerability_id']] = 0
-                areaperil_to_vulns_size += 1
-
-            areaperil_dict[item['areaperil_id']] = area_vuln
-        else:
-            if item['vulnerability_id'] in agg_vuln_to_vulns:
-                for vuln_i in agg_vuln_to_vulns[item['vulnerability_id']]:
-                    if vuln_i not in areaperil_dict[item['areaperil_id']]:
-                        # import this individual vulnerability_id only if it was not imported already
-                        areaperil_to_vulns_size += 1
-                        areaperil_dict[item['areaperil_id']][vuln_i] = 0
-            else:
-                if item['vulnerability_id'] not in areaperil_dict[item['areaperil_id']]:
-                    areaperil_to_vulns_size += 1
-                    areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
-
-    areaperil_to_vulns_idx_dict = Dict()
-    areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype=Index_type)
-    areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype=np.int32)
-
-    areaperil_i = 0
-    vulnerability_i = 0
-
-    for areaperil_id, vulns in areaperil_dict.items():
-        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
-        areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
-
-        for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
-            areaperil_to_vulns[vulnerability_i] = vuln_id
-            vulnerability_i += 1
-        areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
-        areaperil_i += 1
-
-    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns, areaperil_dict, used_agg_vuln_ids
+    return item_map, areaperil_ids_map, vuln_dict, agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight

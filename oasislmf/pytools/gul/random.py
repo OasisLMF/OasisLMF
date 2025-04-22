@@ -87,24 +87,18 @@ HASH_MOD_CODE = np.int64(2147483648)
 
 
 @njit(cache=True, fastmath=True)
-def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, base_seed=0):
+def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, correlated_hashes, base_seed=0):
     """Generate hashes for all peril correlation groups for a given `event_id`.
 
     Args:
         unique_peril_correlation_groups (List[int]): list of the unique peril correlation groups.
         event_id (int): event id.
         base_seed (int, optional): base random seed. Defaults to 0.
-
-    Returns:
-        List[int64]: hashes
+        correlated_hashes: empty buffer for the output (size of max group id not the number of group id
     """
-    Nperil_correlation_groups = np.max(unique_peril_correlation_groups)
-    correlated_hashes = np.zeros(Nperil_correlation_groups + 1, dtype='int64')
-    correlated_hashes[0] = 0
-
     unique_peril_index = 0
     unique_peril_len = unique_peril_correlation_groups.shape[0]
-    for i in range(1, Nperil_correlation_groups + 1):
+    for i in range(1, correlated_hashes.shape[0]):
         if unique_peril_correlation_groups[unique_peril_index] == i:
             correlated_hashes[i] = (
                 base_seed +
@@ -114,8 +108,6 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, b
             unique_peril_index += 1
             if unique_peril_index == unique_peril_len:
                 break
-
-    return correlated_hashes
 
 
 def compute_norm_inv_cdf_lookup(cdf_min, cdf_max, N):
