@@ -679,7 +679,7 @@ def compute_event_losses(compute_info,
           drawn for each seed for the hazard intensity sampling.
         vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
           drawn for each seed for the damage sampling.
-        vuln_adj_dict (dict[int, float]): map between vulnerability_id and the adjustment factor to be applied to the (random numbers extracted) vulnerability function.
+        vuln_adj (np.array): map array between vulnerability_idx and the adjustment factor to be applied to the (random numbers extracted) vulnerability function.
         haz_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for hazard sampling.
         damage_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
