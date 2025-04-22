@@ -15,13 +15,14 @@ from numba.types import Tuple as nb_Tuple
 from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
+from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_vuln_rngadj_dict, get_intensity_bin_dict
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
@@ -98,22 +99,32 @@ def get_dynamic_footprint_adjustments(input_path):
     return adjustments_tb
 
 
-@nb.njit(cache=True)
-def jit_append_vuln_idx(new_items, items, vuln_dict):
-    for i in range(items.shape[0]):
-        if items[i]['vulnerability_id'] in vuln_dict:
-            new_items[i]['vulnerability_idx'] = vuln_dict[items[i]['vulnerability_id']]
-        else:  # agg_vulnerability, no need to idx in vuln_array, we ignore
-            pass
+def get_vuln_rngadj(run_dir, vuln_dict):
+    """
+    Loads vulnerability adjustments from the analysis settings file.
 
+    Args:
+        run_dir (str): path to the run directory (used to load the analysis settings)
 
-def append_vuln_idx(items, vuln_dict):
-    new_items = rfn.merge_arrays((items,
-                                  np.empty(items.shape,
-                                           dtype=nb.from_dtype(np.dtype([("vulnerability_idx", np.int32)])))),
-                                 flatten=True)
-    jit_append_vuln_idx(new_items, items, vuln_dict)
-    return new_items
+    Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
+    """
+    settings_path = os.path.join(run_dir, "analysis_settings.json")
+    vuln_adj = np.ones(len(vuln_dict), dtype=oasis_float)
+    if not os.path.exists(settings_path):
+        logger.debug(f"analysis_settings.json not found in {run_dir}.")
+        return vuln_adj
+    vulnerability_adjustments_field = analysis_settings_loader(settings_path).get('vulnerability_adjustments', None)
+    if vulnerability_adjustments_field is not None:
+        adjustments = vulnerability_adjustments_field.get('adjustments', None)
+    else:
+        adjustments = None
+    if adjustments is None:
+        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
+        return vuln_adj
+    for key, value in adjustments.items():
+        if nb_int32(key) in vuln_dict.keys():
+            vuln_adj[vuln_dict[nb_int32(key)]] = nb_oasis_float(value)
+    return vuln_adj
 
 
 @redirect_logging(exec_name='gulmc')
@@ -242,6 +253,20 @@ def run(run_dir,
                       'hazard_group_id': 0,
                       'hazard_correlation_value': 0.}
         )
+        items = rfn.merge_arrays((items,
+                                  np.empty(items.shape,
+                                           dtype=nb.from_dtype(np.dtype([("vulnerability_idx", np.int32)])))),
+                                 flatten=True)
+
+        # intensity adjustment
+        if dynamic_footprint:
+            logger.debug('get dynamic footprint adjustments')
+            adjustments_tb = get_dynamic_footprint_adjustments(input_path)
+            items = rfn.join_by(
+                'item_id', items, adjustments_tb,
+                jointype='leftouter', usemask=False,
+                defaults={'intensity_adjustment': 0, 'return_period': 0}
+            )
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
         # build item map
@@ -272,7 +297,7 @@ def run(run_dir,
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('import vulnerabilities')
-        vuln_adj_dict = get_vuln_rngadj_dict(run_dir, vuln_dict)
+        vuln_adj = get_vuln_rngadj(run_dir, vuln_dict)
         vuln_array, _, _ = get_vulns(model_storage, run_dir, vuln_dict, num_intensity_bins, ignore_file_type, df_engine=model_df_engine)
         Nvulnerability, Ndamage_bins_max, Nintensity_bins = vuln_array.shape
 
@@ -383,17 +408,6 @@ def run(run_dir,
             intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
             dynamic_footprint = None
 
-        # intensity adjustment
-        logger.debug('get dynamic footprint adjustments')
-        adjustments_tb = get_dynamic_footprint_adjustments(input_path)
-        items = rfn.join_by(
-            'item_id', items, adjustments_tb,
-            jointype='leftouter', usemask=False,
-            defaults={'intensity_adjustment': 0, 'return_period': 0}
-        )
-        items.sort(order=['areaperil_id', 'vulnerability_id'])
-        items = append_vuln_idx(items, vuln_dict)
-
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
 
         compute_info['max_bytes_per_item'] = max_bytes_per_item
@@ -438,6 +452,7 @@ def run(run_dir,
                     vuln_seeds,
                     damage_peril_correlation_groups,
                     damage_corr_seeds,
+                    dynamic_footprint,
                     byte_mv
                 )
 
@@ -473,7 +488,7 @@ def run(run_dir,
                             losses,
                             haz_rndms_base,
                             vuln_rndms_base,
-                            vuln_adj_dict,
+                            vuln_adj,
                             haz_eps_ij,
                             damage_eps_ij,
                             norm_inv_parameters,
@@ -626,7 +641,7 @@ def compute_event_losses(compute_info,
                          losses,
                          haz_rndms_base,
                          vuln_rndms_base,
-                         vuln_adj_dict,
+                         vuln_adj,
                          haz_eps_ij,
                          damage_eps_ij,
                          norm_inv_parameters,
@@ -714,8 +729,10 @@ def compute_event_losses(compute_info,
             item = items[item_event_data['item_idx']]
             areaperil_id = item['areaperil_id']
             vulnerability_id = item['vulnerability_id']
-            intensity_adjustment = item['intensity_adjustment']
-            return_period = item['return_period']
+            if dynamic_footprint is not None:
+                intensity_adjustment = item['intensity_adjustment']
+            else:
+                intensity_adjustment = 0
 
             if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:
                 agg_vuln_key_id = item['areaperil_id']
@@ -727,7 +744,7 @@ def compute_event_losses(compute_info,
 
             # we calculate this adjusted hazard pdf
             # get the right hazard pdf from the array containing all hazard cdfs
-            if dynamic_footprint:
+            if dynamic_footprint is not None:
                 # adjust intensity in dynamic footprint
                 haz_intensity = haz_pdf_record['intensity']
                 haz_intensity = haz_intensity - intensity_adjustment
@@ -869,8 +886,8 @@ def compute_event_losses(compute_info,
                     # do not use correlation
                     vuln_z_unif[:] = vuln_rndms_base[rng_index]
 
-                if vulnerability_id in vuln_adj_dict:
-                    vuln_z_unif *= vuln_adj_dict[vulnerability_id]
+                if agg_vuln_key_id == 0:  # if 0 we have a single vuln id
+                    vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
                 if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
                     losses[1:, item_j] = haz_z_unif[:]
@@ -1015,6 +1032,7 @@ def reconstruct_coverages(compute_info,
                           vuln_seeds,
                           damage_peril_correlation_groups,
                           damage_corr_seeds,
+                          dynamic_footprint,
                           byte_mv):
     """Register each item to its coverage, with the location of the corresponding hazard intensity cdf
     in the footprint, compute the random seeds for the hazard intensity and vulnerability samples.
@@ -1036,6 +1054,7 @@ def reconstruct_coverages(compute_info,
         vuln_seeds (numpy.array[int]): the random seeds to draw the damage samples.
         damage_peril_correlation_groups (numpy.array[int]): unique peril_correlation_groups for damage
         damage_corr_seeds (numpy.array[int]): empty buffer to write damage_corr_seeds
+        dynamic_footprint (bollean): true if dynamic_footprint is on
         byte_mv : writing buffer
 
     Returns:
@@ -1110,8 +1129,9 @@ def reconstruct_coverages(compute_info,
                 items_event_data[item_i]['haz_arr_i'] = areaperil_to_haz_arr_i[areaperil_id]
                 items_event_data[item_i]['rng_index'] = this_rng_index
                 items_event_data[item_i]['hazard_rng_index'] = this_hazard_rng_index
-                items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
-                items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
+                if dynamic_footprint is not None:
+                    items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
+                    items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
 
                 coverage['cur_items'] += 1
     compute_info['coverage_i'] = 0

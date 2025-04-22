@@ -108,6 +108,8 @@ def generate_item_map(items, coverages, valid_areaperil_id, agg_vuln_to_vulns):
         if item['vulnerability_id'] in agg_vuln_to_vulns:
             for sub_vuln_id in agg_vuln_to_vulns[item['vulnerability_id']]:
                 areaperil_vuln_idx_to_weight[(nb_areaperil_int(areaperil_id), vuln_dict[sub_vuln_id])] = nb_oasis_float(0)
+        else:
+            item['vulnerability_idx'] = vuln_dict[item['vulnerability_id']]
 
         if areaperil_id not in areaperil_ids_map:
             areaperil_ids_map[areaperil_id] = {vulnerability_id: 0}
