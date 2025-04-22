@@ -415,7 +415,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
-                if do_correlation and  corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
+                if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
                     get_corr_rval(
                         eps_ij[item_corr_data['peril_correlation_group']], rndms_base[rng_index],
