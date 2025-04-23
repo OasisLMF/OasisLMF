@@ -5,13 +5,16 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_event_rates, read_quantile
-from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, MELT_output, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
+from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -62,6 +65,26 @@ class ELTReader(EventReader):
         self.intervals = intervals
 
         self.curr_file_idx = None  # Current summary file idx being read
+
+    def get_data(self, out_type):
+        if out_type == "selt":
+            return self.selt_data
+        elif out_type == "melt":
+            return self.melt_data
+        elif out_type == "qelt":
+            return self.qelt_data
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
+
+    def get_data_idx(self, out_type):
+        if out_type == "selt":
+            return self.selt_idx
+        elif out_type == "melt":
+            return self.melt_idx
+        elif out_type == "qelt":
+            return self.qelt_idx
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
         # Check for new file idx to read summary_set_id at the start of each summary file stream
@@ -454,7 +477,13 @@ def run(
                 out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
                 outmap[out_type]["file"] = out_file
         elif output_parquet:
-            raise NotImplementedError("PARQUET YET TO BE IMPLEMENTED")
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                temp_df = pd.DataFrame(elt_reader.get_data(out_type), columns=outmap[out_type]["headers"])
+                temp_table = pa.Table.from_pandas(temp_df)
+                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                outmap[out_type]["file"] = out_file
         else:
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
@@ -469,20 +498,17 @@ def run(
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
                     continue
-                if out_type == "selt":
-                    data = elt_reader.selt_data[:elt_reader.selt_idx[0]]
-                elif out_type == "melt":
-                    data = elt_reader.melt_data[:elt_reader.melt_idx[0]]
-                elif out_type == "qelt":
-                    data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
-                else:
-                    raise RuntimeError(f"Unknown out_type {out_type}")
+
+                data_idx = elt_reader.get_data_idx(out_type)
+                data = elt_reader.get_data(out_type)[:data_idx[0]]
 
                 if outmap[out_type]["file"] is not None and data.size > 0:
                     if output_binary:
                         data.tofile(outmap[out_type]["file"])
                     elif output_parquet:
-                        raise NotImplementedError("PARQUET YET TO BE IMPLEMENTED")
+                        data_df = pd.DataFrame(data)
+                        data_table = pa.Table.from_pandas(data_df)
+                        outmap[out_type]["file"].write_table(data_table)
                     else:
                         write_ndarray_to_fmt_csv(
                             outmap[out_type]["file"],
@@ -490,15 +516,7 @@ def run(
                             outmap[out_type]["headers"],
                             outmap[out_type]["fmt"]
                         )
-
-                if out_type == "selt":
-                    elt_reader.selt_idx[0] = 0
-                elif out_type == "melt":
-                    elt_reader.melt_idx[0] = 0
-                elif out_type == "qelt":
-                    elt_reader.qelt_idx[0] = 0
-                else:
-                    raise RuntimeError(f"Unknown out_type {out_type}")
+                data_idx[0] = 0
 
 
 @redirect_logging(exec_name='eltpy')
