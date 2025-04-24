@@ -720,19 +720,12 @@ def compute_event_losses(event_id,
                             norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
                             norm_cdf, sample_size, vuln_z_unif
                         )
-                        if vulnerability_id in vuln_adj_dict:
-                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
-
                     else:
                         vuln_rndms[:] = vuln_rndms_base[rng_index]
-                        if vulnerability_id in vuln_adj_dict:
-                            vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                 else:
                     # do not use correlation
                     vuln_rndms[:] = vuln_rndms_base[rng_index]
-                    if vulnerability_id in vuln_adj_dict:
-                        vuln_rndms *= vuln_adj_dict[vulnerability_id]
 
                 if effective_damageability:
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)
