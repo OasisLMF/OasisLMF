@@ -66,8 +66,8 @@ class PlatformBase(ComputationStep):
                 password=API_EXAMPLE_AUTH['pass'],
             )
         except OasisException as e:
-            if isinstance(e.original_exception, HTTPError):
-                # Prompt for password and try to re-autehnticate
+            if isinstance(e.original_exception, HTTPError) and (e.original_exception.response.status_code == 401):
+                # Prompt for password and try to re-autehnticate if Unauthorized 401
                 self.logger.info("-- Authentication Required --")
                 credentials = self.load_credentials(self.server_login_json)
                 self.logger.info(f'Connecting to - {self.server_url}')
@@ -77,6 +77,7 @@ class PlatformBase(ComputationStep):
                     username=credentials['username'],
                     password=credentials['password'],
                 )
+            raise e
 
     def tabulate_json(self, json_data, items):
         table_data = dict()
