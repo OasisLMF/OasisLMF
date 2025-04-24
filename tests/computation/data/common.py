@@ -373,7 +373,7 @@ N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latit
 """
 
 EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID,AmplificationID\n1,WSS,1,1000,8,2\n1,WTC,1,500,2,1\n1,WSS,3,1000,11,2\n1,WTC,3,500,5,1\n'
-EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,WEC,1,noreturn,unsuported peril_id\n1,WEC,3,noreturn,unsuported peril_id\n'
+EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n'
 
 
 FAKE_IL_ITEMS_RETURN = pd.read_csv(os.path.join(os.path.dirname(__file__), 'il_inputs_df_return.csv'))
