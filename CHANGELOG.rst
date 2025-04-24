@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.28.13`_
+ ---------
+* [#1667](https://github.com/OasisLMF/OasisLMF/pull/1667) - add keys in error for loc_id not modelled
+* [#1677](https://github.com/OasisLMF/OasisLMF/pull/1677) - fix gulmc hazard cdf when both hazard and vuln corellation are present
+* [#1685](https://github.com/OasisLMF/OasisLMF/pull/1685) - Fixed health check exception on api connect
+* [#1686](https://github.com/OasisLMF/OasisLMF/pull/1686) - Backport 1.28.x ~ fix gulmc hazard cdf when both hazard and vuln corellation are presen…
+* [#1687](https://github.com/OasisLMF/OasisLMF/pull/1687) - Backport 1.28.x ~ add keys in error for loc_id not modelled (#1667)
+.. _`1.28.13`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.12...1.28.13
+
 `1.28.12`_
  ---------
 * [#1655](https://github.com/OasisLMF/OasisLMF/pull/1654) - Vulnerability blending feature performance tuning

@@ -281,15 +281,14 @@ def run(run_dir,
             norm_inv_parameters = np.array((1e-16, 1 - 1e-16, 1000000, -20., 20.), dtype=NormInversionParameters)
             norm_inv_cdf = compute_norm_inv_cdf_lookup(norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'])
             norm_cdf = compute_norm_cdf_lookup(norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'], norm_inv_parameters['N'])
-
-            # buffer to be re-used to store all the correlated random values
-            z_unif = np.zeros(sample_size, dtype='float64')
-
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
             norm_inv_parameters = np.array((0., 0., 0, 0., 0.), dtype=NormInversionParameters)
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
-            z_unif = np.zeros(1, dtype='float64')
+
+        # buffer to be re-used to store all the correlated random values
+        vuln_z_unif = np.zeros(sample_size, dtype='float64')
+        haz_z_unif = np.zeros(sample_size, dtype='float64')
 
         if effective_damageability is True:
             logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
@@ -426,7 +425,8 @@ def run(run_dir,
                                                                                                                        norm_inv_parameters,
                                                                                                                        norm_inv_cdf,
                                                                                                                        norm_cdf,
-                                                                                                                       z_unif,
+                                                                                                                       vuln_z_unif,
+                                                                                                                       haz_z_unif,
                                                                                                                        effective_damageability,
                                                                                                                        debug,
                                                                                                                        max_bytes_per_item,
@@ -484,7 +484,8 @@ def compute_event_losses(event_id,
                          norm_inv_parameters,
                          norm_inv_cdf,
                          norm_cdf,
-                         z_unif,
+                         vuln_z_unif,
+                         haz_z_unif,
                          effective_damageability,
                          debug,
                          max_bytes_per_item,
@@ -537,7 +538,8 @@ def compute_event_losses(event_id,
         norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
         norm_inv_cdf (np.array[float]): inverse Gaussian cdf.
         norm_cdf (np.array[float]): Gaussian cdf.
-        z_unif (np.array[float]): buffer to be re-used to store all the correlated random values.
+        vuln_z_unif (np.array[float]): buffer to be re-used to store all the correlated random values for vuln.
+        haz_z_unif (np.array[float]): buffer to be re-used to store all the correlated random values for haz.
         effective_damageability (bool): if True, it uses effective damageability to draw damage samples instead of
           using the full monte carlo approach (i.e., to draw hazard intensity first, then damage).
         debug (int): for each random sample, print to the output stream the random loss (if 0),
@@ -687,6 +689,7 @@ def compute_event_losses(event_id,
 
             # compute random losses
             if sample_size > 0:
+                haz_rndms = haz_z_unif
                 if do_haz_correlation:
                     # use correlation definitions to draw correlated random values
                     rho = item['hazard_correlation_value']
@@ -696,17 +699,16 @@ def compute_event_losses(event_id,
                             haz_eps_ij[item['peril_correlation_group']], haz_rndms_base[hazard_rng_index], rho,
                             norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'], norm_inv_cdf,
                             norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
-                            norm_cdf, sample_size, z_unif
+                            norm_cdf, sample_size, haz_z_unif
                         )
-                        haz_rndms = z_unif
-
                     else:
-                        haz_rndms = haz_rndms_base[hazard_rng_index]
+                        haz_rndms[:] = haz_rndms_base[hazard_rng_index]
 
                 else:
                     # do not use correlation
-                    haz_rndms = haz_rndms_base[hazard_rng_index]
+                    haz_rndms[:] = haz_rndms_base[hazard_rng_index]
 
+                vuln_rndms = vuln_z_unif
                 if do_correlation:
                     # use correlation definitions to draw correlated random values
                     rho = item['damage_correlation_value']
@@ -716,16 +718,14 @@ def compute_event_losses(event_id,
                             eps_ij[item['peril_correlation_group']], vuln_rndms_base[rng_index], rho,
                             norm_inv_parameters['x_min'], norm_inv_parameters['x_max'], norm_inv_parameters['N'], norm_inv_cdf,
                             norm_inv_parameters['cdf_min'], norm_inv_parameters['cdf_max'],
-                            norm_cdf, sample_size, z_unif
+                            norm_cdf, sample_size, vuln_z_unif
                         )
-                        vuln_rndms = z_unif
-
                     else:
-                        vuln_rndms = vuln_rndms_base[rng_index]
+                        vuln_rndms[:] = vuln_rndms_base[rng_index]
 
                 else:
                     # do not use correlation
-                    vuln_rndms = vuln_rndms_base[rng_index]
+                    vuln_rndms[:] = vuln_rndms_base[rng_index]
 
                 if effective_damageability:
                     # draw samples of effective damageability (i.e., intensity-averaged damage probability)
