@@ -6,6 +6,11 @@ import logging
 from . import manager, logger
 
 
+def validate_flags(args):
+    if args.binary and args.parquet:
+        raise RuntimeError("Cannot output both parquet and binary flags at the same time.")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Process period loss table stream')
     parser.add_argument('--run_dir', type=str, default='.', help='path to the run directory')
@@ -17,8 +22,10 @@ def main():
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
     parser.add_argument('-B', '--binary', action='store_true', help='Output data as binary files')
+    parser.add_argument('-P', '--parquet', action='store_true', help='Output data as parquet files')
 
     args = parser.parse_args()
+    validate_flags(args)
     kwargs = vars(args)
 
     # Set up logging

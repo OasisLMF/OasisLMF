@@ -5,6 +5,9 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
@@ -76,6 +79,26 @@ class PLTReader(EventReader):
         self.intervals = intervals
 
         self.curr_file_idx = None  # Current summary file idx being read
+
+    def get_data(self, out_type):
+        if out_type == "splt":
+            return self.splt_data
+        elif out_type == "mplt":
+            return self.mplt_data
+        elif out_type == "qplt":
+            return self.qplt_data
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
+
+    def get_data_idx(self, out_type):
+        if out_type == "splt":
+            return self.splt_idx
+        elif out_type == "mplt":
+            return self.mplt_idx
+        elif out_type == "qplt":
+            return self.qplt_idx
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
         # Check for new file idx to read summary_set_id at the start of each summary file stream
@@ -462,7 +485,16 @@ def read_input_files(run_dir, compute_qplt, sample_size):
     return file_data
 
 
-def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None, noheader=False, output_binary=False):
+def run(
+    run_dir,
+    files_in,
+    splt_output_file=None,
+    mplt_output_file=None,
+    qplt_output_file=None,
+    noheader=False,
+    output_binary=False,
+    output_parquet=False
+):
     """Runs PLT calculations
 
     Args:
@@ -472,35 +504,67 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
         noheader (bool): Boolean value to skip header in output file. Defaults to False.
-        output_binary (bool): Boolean value to output binary files instead of csv. Defaults to False.
+        output_binary (bool): Boolean value to output binary files. Defaults to False.
+        output_parquet (bool): Boolean value to output parquet files. Defaults to False.
     """
-    compute_splt = splt_output_file is not None
-    compute_mplt = mplt_output_file is not None
-    compute_qplt = qplt_output_file is not None
-
-    if not compute_splt and not compute_mplt and not compute_qplt:
-        logger.warning("No output files specified")
+    outmap = {
+        "splt": {
+            "compute": splt_output_file is not None,
+            "file_path": splt_output_file,
+            "fmt": SPLT_fmt,
+            "headers": SPLT_headers,
+            "file": None,
+        },
+        "mplt": {
+            "compute": mplt_output_file is not None,
+            "file_path": mplt_output_file,
+            "fmt": MPLT_fmt,
+            "headers": MPLT_headers,
+            "file": None,
+        },
+        "qplt": {
+            "compute": qplt_output_file is not None,
+            "file_path": qplt_output_file,
+            "fmt": QPLT_fmt,
+            "headers": QPLT_headers,
+            "file": None,
+        },
+    }
 
     # Check for correct suffix
-    for path in [splt_output_file, mplt_output_file, qplt_output_file]:
+    for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
-        if (output_binary and Path(path).suffix != '.bin') or\
-                (not output_binary and Path(path).suffix != '.csv'):
-            if Path(path).suffix != "":  # Ignore suffix for pipes
-                raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
+        if Path(path).suffix == "":  # Ignore suffix for pipes
+            continue
+        if (output_binary and Path(path).suffix != '.bin'):
+            raise ValueError(f"Invalid file extension for Binary, expected .binary, got {path},")
+        if (output_parquet and Path(path).suffix != '.parquet'):
+            raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
+        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
+            raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
+
+    if run_dir is None:
+        run_dir = './work'
+
+    if not all([v["compute"] for v in outmap.values()]):
+        logger.warning("No output files specified")
 
     with ExitStack() as stack:
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        file_data = read_input_files(run_dir, compute_qplt, len_sample)
+        file_data = read_input_files(
+            run_dir,
+            outmap["qplt"]["compute"],
+            len_sample
+        )
         plt_reader = PLTReader(
             len_sample,
-            compute_splt,
-            compute_mplt,
-            compute_qplt,
+            outmap["splt"]["compute"],
+            outmap["mplt"]["compute"],
+            outmap["qplt"]["compute"],
             file_data["occ_map"],
             file_data["period_weights"],
             file_data["granular_date"],
@@ -508,77 +572,58 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         )
 
         # Initialise csv column names for PLT files
-        output_files = {}
-        if compute_splt:
-            if output_binary:
-                splt_file = stack.enter_context(open(splt_output_file, 'wb'))
-            else:
-                splt_file = stack.enter_context(open(splt_output_file, 'w'))
-                if not noheader:
-                    csv_headers = ','.join(SPLT_headers)
-                    splt_file.write(csv_headers + '\n')
-            output_files['splt'] = splt_file
+        if output_binary:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+                outmap[out_type]["file"] = out_file
+        elif output_parquet:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                temp_df = pd.DataFrame(plt_reader.get_data(out_type), columns=outmap[out_type]["headers"])
+                temp_table = pa.Table.from_pandas(temp_df)
+                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                outmap[out_type]["file"] = out_file
         else:
-            output_files['splt'] = None
-
-        if compute_mplt:
-            if output_binary:
-                mplt_file = stack.enter_context(open(mplt_output_file, 'wb'))
-            else:
-                mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
                 if not noheader:
-                    csv_headers = ','.join(MPLT_headers)
-                    mplt_file.write(csv_headers + '\n')
-            output_files['mplt'] = mplt_file
-        else:
-            output_files['mplt'] = None
+                    csv_headers = ','.join(outmap[out_type]["headers"])
+                    out_file.write(csv_headers + '\n')
+                outmap[out_type]["file"] = out_file
 
-        if compute_qplt:
-            if output_binary:
-                qplt_file = stack.enter_context(open(qplt_output_file, 'wb'))
-            else:
-                qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
-                if not noheader:
-                    csv_headers = ','.join(QPLT_headers)
-                    qplt_file.write(csv_headers + '\n')
-            output_files['qplt'] = qplt_file
-        else:
-            output_files['qplt'] = None
-
+        # Process summary files
         for event_id in plt_reader.read_streams(streams_in):
-            if compute_splt:
-                # Extract SPLT data
-                splt_data = plt_reader.splt_data[:plt_reader.splt_idx[0]]
-                if output_files['splt'] is not None and splt_data.size > 0:
-                    if output_binary:
-                        splt_data.tofile(output_files["splt"])
-                    else:
-                        write_ndarray_to_fmt_csv(output_files["splt"], splt_data, SPLT_headers, SPLT_fmt)
-                plt_reader.splt_idx[0] = 0
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
 
-            if compute_mplt:
-                # Extract MPLT data
-                mplt_data = plt_reader.mplt_data[:plt_reader.mplt_idx[0]]
-                if output_files['mplt'] is not None and mplt_data.size > 0:
-                    if output_binary:
-                        mplt_data.tofile(output_files["mplt"])
-                    else:
-                        write_ndarray_to_fmt_csv(output_files["mplt"], mplt_data, MPLT_headers, MPLT_fmt)
-                plt_reader.mplt_idx[0] = 0
+                data_idx = plt_reader.get_data_idx(out_type)
+                data = plt_reader.get_data(out_type)[:data_idx[0]]
 
-            if compute_qplt:
-                # Extract QPLT data
-                qplt_data = plt_reader.qplt_data[:plt_reader.qplt_idx[0]]
-                if output_files['qplt'] is not None and qplt_data.size > 0:
+                if outmap[out_type]["file"] is not None and data.size > 0:
                     if output_binary:
-                        qplt_data.tofile(output_files["qplt"])
+                        data.tofile(outmap[out_type]["file"])
+                    elif output_parquet:
+                        data_df = pd.DataFrame(data)
+                        data_table = pa.Table.from_pandas(data_df)
+                        outmap[out_type]["file"].write_table(data_table)
                     else:
-                        write_ndarray_to_fmt_csv(output_files["qplt"], qplt_data, QPLT_headers, QPLT_fmt)
-                plt_reader.qplt_idx[0] = 0
+                        write_ndarray_to_fmt_csv(
+                            outmap[out_type]["file"],
+                            data,
+                            outmap[out_type]["headers"],
+                            outmap[out_type]["fmt"]
+                        )
+                data_idx[0] = 0
 
 
 @redirect_logging(exec_name='pltpy')
-def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, binary=False, **kwargs):
+def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, binary=False, parquet=False, **kwargs):
     run(
         run_dir,
         files_in,
@@ -587,4 +632,5 @@ def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=F
         qplt_output_file=qplt,
         noheader=noheader,
         output_binary=binary,
+        output_parquet=parquet,
     )

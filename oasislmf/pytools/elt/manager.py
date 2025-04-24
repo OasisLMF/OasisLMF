@@ -433,13 +433,13 @@ def run(
     for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
-        if Path(path).suffix != "":  # Ignore suffix for pipes
+        if Path(path).suffix == "":  # Ignore suffix for pipes
             continue
         if (output_binary and Path(path).suffix != '.bin'):
             raise ValueError(f"Invalid file extension for Binary, expected .binary, got {path},")
         if (output_parquet and Path(path).suffix != '.parquet'):
             raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
-        if (Path(path).suffix != '.csv'):
+        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
             raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
 
     if run_dir is None:
@@ -494,6 +494,7 @@ def run(
                     out_file.write(csv_headers + '\n')
                 outmap[out_type]["file"] = out_file
 
+        # Process summary files
         for event_id in elt_reader.read_streams(streams_in):
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
