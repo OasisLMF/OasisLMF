@@ -15,7 +15,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from numba import int32 as nb_int32, float64 as nb_float64
+from numba import int32 as nb_int32
 from numba.typed import Dict
 
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
@@ -444,34 +444,6 @@ def create_vulns_id(vuln_dict):
         vulns_id[vuln_idx] = vuln_id
 
     return vulns_id
-
-
-def get_vuln_rngadj_dict(run_dir, vuln_dict):
-    """
-    Loads vulnerability adjustments from the analysis settings file.
-
-    Args:
-        run_dir (str): path to the run directory (used to load the analysis settings)
-
-    Returns: (Dict[nb_int32, nb_float64]) vulnerability adjustments dictionary
-    """
-    settings_path = os.path.join(run_dir, "analysis_settings.json")
-    vuln_adj_numba_dict = Dict.empty(key_type=nb_int32, value_type=nb_float64)
-    if not os.path.exists(settings_path):
-        logger.debug(f"analysis_settings.json not found in {run_dir}.")
-        return vuln_adj_numba_dict
-    vulnerability_adjustments_field = analysis_settings_loader(settings_path).get('vulnerability_adjustments', None)
-    if vulnerability_adjustments_field is not None:
-        adjustments = vulnerability_adjustments_field.get('adjustments', None)
-    else:
-        adjustments = None
-    if adjustments is None:
-        logger.debug(f"vulnerability_adjustments not found in {settings_path}.")
-        return vuln_adj_numba_dict
-    for key, value in adjustments.items():
-        if nb_int32(key) in vuln_dict.keys():
-            vuln_adj_numba_dict[nb_int32(key)] = nb_float64(value)
-    return vuln_adj_numba_dict
 
 
 def get_vulns(
