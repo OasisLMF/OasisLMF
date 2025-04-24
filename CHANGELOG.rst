@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`2.4.3`_
+ ---------
+* [#1667](https://github.com/OasisLMF/OasisLMF/pull/1667) - add keys in error for loc_id not modelled
+* [#1669](https://github.com/OasisLMF/OasisLMF/pull/1668) - Pytools Optimisations
+* [#1672](https://github.com/OasisLMF/OasisLMF/pull/1672) - eltpy sum loss and sum loss square need to be float64 to avoid to much precision error
+* [#1613](https://github.com/OasisLMF/OasisLMF/pull/1673) - Support output of results grouped as Property Damage (PD)
+* [#1671](https://github.com/OasisLMF/OasisLMF/pull/1676) - Vulnerability blending optimisation
+* [#1685](https://github.com/OasisLMF/OasisLMF/pull/1685) - Fixed health check exception on api connect
+.. _`2.4.3`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.2...2.4.3
+
 `2.4.2`_
  ---------
 * [#1665](https://github.com/OasisLMF/OasisLMF/pull/1665) - add support for geotiff in buildin lookup
