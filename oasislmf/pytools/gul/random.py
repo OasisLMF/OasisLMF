@@ -87,24 +87,18 @@ HASH_MOD_CODE = np.int64(2147483648)
 
 
 @njit(cache=True, fastmath=True)
-def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, base_seed=0):
+def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, correlated_hashes, base_seed=0):
     """Generate hashes for all peril correlation groups for a given `event_id`.
 
     Args:
         unique_peril_correlation_groups (List[int]): list of the unique peril correlation groups.
         event_id (int): event id.
         base_seed (int, optional): base random seed. Defaults to 0.
-
-    Returns:
-        List[int64]: hashes
+        correlated_hashes: empty buffer for the output (size of max group id not the number of group id
     """
-    Nperil_correlation_groups = np.max(unique_peril_correlation_groups)
-    correlated_hashes = np.zeros(Nperil_correlation_groups + 1, dtype='int64')
-    correlated_hashes[0] = 0
-
     unique_peril_index = 0
     unique_peril_len = unique_peril_correlation_groups.shape[0]
-    for i in range(1, Nperil_correlation_groups + 1):
+    for i in range(1, correlated_hashes.shape[0]):
         if unique_peril_correlation_groups[unique_peril_index] == i:
             correlated_hashes[i] = (
                 base_seed +
@@ -114,8 +108,6 @@ def generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, b
             unique_peril_index += 1
             if unique_peril_index == unique_peril_len:
                 break
-
-    return correlated_hashes
 
 
 def compute_norm_inv_cdf_lookup(cdf_min, cdf_max, N):
@@ -134,7 +126,6 @@ def get_norm_cdf_cell_nb(x, x_min, x_max, N):
 @njit(cache=True, fastmath=True)
 def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
                   cdf_max, norm_cdf, Nsamples, z_unif):
-
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
 
@@ -144,6 +135,25 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, x_max, N, norm_inv_cdf, cdf_min,
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
 
         z_unif[i] = norm_cdf[get_norm_cdf_cell_nb(z_norm, cdf_min, cdf_max, N)]
+
+
+@njit(cache=True, fastmath=True)
+def get_corr_rval_float(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
+                        norm_cdf, norm_factor, Nsamples, z_unif):
+    """
+    this calculate the new correlated values like in get_corr_rval but with precomputed inv_factor and norm_factor
+    inv_factor = (N - 1) // (x_max - x_min)
+    norm_factor = (N - 1) // (cdf_max - cdf_min)
+    """
+    sqrt_rho = sqrt(rho)
+    sqrt_1_minus_rho = sqrt(1. - rho)
+
+    for i in range(Nsamples):
+        x_norm = norm_inv_cdf[int((x_unif[i] - x_min) * inv_factor)]
+        y_norm = norm_inv_cdf[int((y_unif[i] - x_min) * inv_factor)]
+        z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
+
+        z_unif[i] = norm_cdf[int((z_norm - cdf_min) * norm_factor)]
 
 
 @njit(cache=True, fastmath=True)
