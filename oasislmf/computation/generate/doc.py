@@ -1,4 +1,3 @@
-import csv
 from importlib import resources
 import json
 from jsonschema import validate, ValidationError
@@ -6,7 +5,7 @@ import os
 from pathlib import Path
 
 from oasislmf.computation.base import ComputationStep
-from oasislmf.utils.mdutils import DefaultJsonToMarkdownGenerator, MarkdownGenerator, RDLS_0_2_0_JsonToMarkdownGenerator
+from oasislmf.utils.mdutils import DefaultJsonToMarkdownGenerator, RDLS_0_2_0_JsonToMarkdownGenerator
 
 
 class GenerateModelDocumentation(ComputationStep):
