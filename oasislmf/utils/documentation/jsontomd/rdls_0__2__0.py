@@ -36,7 +36,102 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
             rows.append(row)
         self.md.add_table(headers, rows)
 
+    def generate_ds_overview(self, data, properties_schema, header_level):
+        ds_section_properties = [
+            "id",
+            "title",
+            "description",
+            "risk_data_type",
+            "version",
+            "purpose",
+            "project",
+            "details",
+        ]
+
+        self.md.add_header("Dataset Overview", level=header_level)
+
+        present_properties = [p for p in ds_section_properties if p in data]
+        for p in present_properties:
+            if p == "risk_data_type":
+                self.md.add_definition(properties_schema[p]["title"], ",".join(data[p]))
+            else:
+                self.md.add_definition(properties_schema[p]["title"], data[p])
+
+        return set(ds_section_properties)
+
+    def generate_ds_owner_contact_properties(self, data, properties_schema, header_level):
+        ds_section_properties = [
+            "publisher",
+            "creator",
+            "contact_point",
+        ]
+
+        self.md.add_header("Ownership and Contacts", level=header_level)
+
+        present_properties = [p for p in ds_section_properties if p in data]
+        for p in present_properties:
+            self.md.add_header(properties_schema[p]["title"], level=header_level + 1)
+            ref_properties_schema = self._resolve_internal_ref(properties_schema[p]["$ref"])["properties"]
+            headers = [ref_properties_schema[k]["title"] for k in data[p].keys()]
+            values = [data[p].values()]
+            self.md.add_table(headers, values)
+
+        return set(ds_section_properties)
+
+    def generate_ds_licensing_links_properties(self, data, properties_schema, header_level):
+        ds_section_properties = [
+            "license",
+            "links",
+        ]
+
+        self.md.add_header("Licensing and Links", level=header_level)
+        self.md.add_definition(properties_schema["license"]["title"], data["license"])
+        links_data = data.get("links", [])
+        if links_data:
+            self.md.add_header("Links", level=header_level + 1)
+            self.md.add_list([x["href"] for x in data["links"]])
+
+        return set(ds_section_properties)
+
+    def generate_ds_spatial_temporal_properties(self, data, properties_schema, header_level):
+        ds_section_properties = [
+            "spatial",
+            "temporal_resolution",
+        ]
+
+        self.md.add_header("Spatial and Temporal Coverage", level=header_level)
+        temporal_data = data.get("temporal_resolution", "No temporal information found in json.")
+        self.md.add_definition(properties_schema["temporal_resolution"]["title"], temporal_data)
+
+        self.md.add_header("Spatial", level=header_level + 1)
+        ref_properties_schema = self._resolve_internal_ref(properties_schema["spatial"]["$ref"])["properties"]
+        spatial_data = data["spatial"]
+        # TODO: geometry and gazettier_entries
+        # TODO: maybe split these into seperate functions as I think hazard data will require it later
+        if "countries" in spatial_data:
+            self.md.add_definition(ref_properties_schema["countries"]["title"], ",".join(spatial_data["countries"]))
+        if "bbox" in spatial_data:
+            self.md.add_definition(ref_properties_schema["bbox"]["title"], spatial_data["bbox"])
+        if "centroid" in spatial_data:
+            self.md.add_definition(ref_properties_schema["centroid"]["title"], spatial_data["centroid"])
+        if "scale" in spatial_data:
+            self.md.add_definition(ref_properties_schema["scale"]["title"], spatial_data["scale"])
+
+        return set(ds_section_properties)
+
     def generate_dataset(self, data, properties_schema, header_level):
+        all_properties = set(self.full_schema["properties"].keys())
+        ds_overview_properties = self.generate_ds_overview(data, properties_schema, header_level)
+        ds_spatial_temporal_properties = self.generate_ds_spatial_temporal_properties(data, properties_schema, header_level)
+        ds_owner_contact_properties = self.generate_ds_owner_contact_properties(data, properties_schema, header_level)
+        ds_licensing_links_properties = self.generate_ds_licensing_links_properties(data, properties_schema, header_level)
+
+        # TODO: resources
+        # TODO: hazards, exposure, vulnerability, loss
+        # TODO: attributions, sources, referenced_by go where?
+
+        return
+
         for key, value in data.items():
             if key == "title":
                 continue
@@ -98,7 +193,7 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
     def generate(self, json_data, generate_toc=False):
         self.md.add_header("Documentation", level=1)
         for dataset in json_data.get("datasets", []):
-            self.md.add_header(dataset.get("title", "Untitled"), level=2)
-            self.generate_dataset(dataset, self.full_schema["properties"], header_level=3)
+            self.md.add_header(dataset.get("title", "Untitled"), level=1)
+            self.generate_dataset(dataset, self.full_schema["properties"], header_level=2)
             self.md.add_text("")
         return self.md.get_markdown(generate_toc=generate_toc)
