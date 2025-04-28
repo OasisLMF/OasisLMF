@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from oasislmf.computation.base import ComputationStep
-from oasislmf.utils.mdutils import DefaultJsonToMarkdownGenerator, RDLS_0_2_0_JsonToMarkdownGenerator
+from oasislmf.utils.documentation.jsontomd import DefaultJsonToMarkdownGenerator, RDLS_0_2_0_JsonToMarkdownGenerator
 
 
 class GenerateModelDocumentation(ComputationStep):
@@ -65,7 +65,7 @@ class GenerateModelDocumentation(ComputationStep):
         else:
             self.logger.warning(f"WARN: Unsupported formatting for following schema: {schema_id}. Using DefaultJsonToMarkdownGenerator output")
         gen = json_to_md_generator(full_schema, data_path)
-        return gen.convert(json_data, generate_toc=True)
+        return gen.generate(json_data, generate_toc=True)
 
     def run(self):
         if not os.path.exists(self.doc_json):
