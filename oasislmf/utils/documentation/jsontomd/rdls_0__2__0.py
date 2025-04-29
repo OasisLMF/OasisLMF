@@ -270,6 +270,18 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         ds_owner_contact_properties = self.generate_ds_owner_contact_properties(data, properties_schema, header_level)
         ds_licensing_links_properties = self.generate_ds_licensing_links_properties(data, properties_schema, header_level)
 
+        missing_properties = all_properties - (
+            ds_overview_properties |
+            ds_risk_data_properties |
+            ds_spatial_temporal_properties |
+            ds_resources_properties |
+            ds_owner_contact_properties |
+            ds_licensing_links_properties
+        )
+
+        if len(missing_properties) > 0:
+            logger.warning(f"Warning: The following dataset properties have not been implemented for markdown output: {list(missing_properties)}")
+
     def generate(self, json_data, generate_toc=False):
         self.md.add_header("Documentation", level=1)
         for dataset in json_data.get("datasets", []):
