@@ -3,10 +3,11 @@ import json
 from pathlib import Path
 
 from oasislmf.utils.documentation.jsontomd.base import BaseJsonToMarkdownGenerator
+from sklearn.covariance import ledoit_wolf
 
 
 class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
-    def json_to_mdtable(self, data, ref):
+    def json_array_to_mdtable(self, data, ref):
         array_schema = self._resolve_internal_ref(ref)
         array_keys = array_schema["properties"].keys()
         headers = []
@@ -82,17 +83,8 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
             self.md.add_definition(ref_properties_schema["bbox"]["title"], spatial_data["bbox"])
         if "gazetteer_entries" in spatial_data:
             self.md.add_header(ref_properties_schema["gazetteer_entries"]["title"], level=header_level + 1)
-            gazetteer_ref_properties_schema = self._resolve_internal_ref(ref_properties_schema["gazetteer_entries"]["items"]["$ref"])["properties"]
-            headers = [v["title"] for _, v in gazetteer_ref_properties_schema.items()]
-            rows = []
-            for d in spatial_data["gazetteer_entries"]:
-                rows.append([
-                    d["id"],
-                    d.get("scheme", ""),
-                    d.get("description", ""),
-                    d.get("uri", ""),
-                ])
-            self.md.add_table(headers, rows)
+            gazetteer_items_ref = ref_properties_schema["gazetteer_entries"]["items"]["$ref"]
+            self.json_array_to_mdtable(spatial_data["gazetteer_entries"], gazetteer_items_ref)
         if "geometry" in spatial_data:
             self.md.add_header(ref_properties_schema["geometry"]["title"], level=header_level + 1)
             geometry_ref_properties_schema = self._resolve_internal_ref(ref_properties_schema["geometry"]["$ref"])["properties"]
@@ -106,16 +98,18 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
     def generate_ds_resources_properties(self, data, properties_schema, header_level):
         ds_section_properties = [
             "resources",
+            "sources",
         ]
 
         resources_data = data["resources"]
 
-        self.md.add_header(properties_schema["resources"]["title"], level=header_level)
+        self.md.add_header("Resources and Sources", level=header_level)
+        self.md.add_header(properties_schema["resources"]["title"], level=header_level + 1)
         items_ref = properties_schema["resources"]["items"]["$ref"]
-        self.json_to_mdtable(resources_data, items_ref)
+        self.json_array_to_mdtable(resources_data, items_ref)
 
         for entry in resources_data:
-            self.md.add_header(entry.get("title", "Unnamed Resource"), level=header_level + 1)
+            self.md.add_header(entry.get("title", "Unnamed Resource"), level=header_level + 2)
             fmt = entry.get("format", "unknown")
 
             if "download_url" not in entry:
@@ -139,6 +133,12 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
             else:
                 self.md.add_text(f"Cannot display preview for {fmt} files")
 
+        if "sources" in data:
+            self.md.add_header(properties_schema["sources"]["title"], level=header_level + 1)
+            sources_data = data["sources"]
+            items_ref = properties_schema["sources"]["items"]["$ref"]
+            self.json_array_to_mdtable(sources_data, items_ref)
+
         return set(ds_section_properties)
 
     def generate_ds_owner_contact_properties(self, data, properties_schema, header_level):
@@ -146,11 +146,12 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
             "publisher",
             "creator",
             "contact_point",
+            "attributions",
         ]
 
         self.md.add_header("Ownership and Contacts", level=header_level)
 
-        present_properties = [p for p in ds_section_properties if p in data]
+        present_properties = [p for p in ["publisher", "creator", "contact_point"] if p in data]
         for p in present_properties:
             self.md.add_header(properties_schema[p]["title"], level=header_level + 1)
             ref_properties_schema = self._resolve_internal_ref(properties_schema[p]["$ref"])["properties"]
@@ -158,12 +159,21 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
             rows = [data[p].values()]
             self.md.add_table(headers, rows)
 
+        if "attributions" in data:
+            self.md.add_header(properties_schema["attributions"]["title"], level=header_level + 1)
+            attributions_data = data["attributions"]
+            for v in attributions_data:
+                v["entity"] = list(v["entity"].values())
+            items_ref = properties_schema["attributions"]["items"]["$ref"]
+            self.json_array_to_mdtable(attributions_data, items_ref)
+
         return set(ds_section_properties)
 
     def generate_ds_licensing_links_properties(self, data, properties_schema, header_level):
         ds_section_properties = [
             "license",
             "links",
+            "referenced_by",
         ]
 
         self.md.add_header("Licensing and Links", level=header_level)
@@ -172,6 +182,11 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         if links_data:
             self.md.add_header("Links", level=header_level + 1)
             self.md.add_list([x["href"] for x in data["links"]])
+
+        if "referenced_by" in data:
+            self.md.add_header(properties_schema["referenced_by"]["title"], level=header_level + 1)
+            items_ref = properties_schema["referenced_by"]["items"]["$ref"]
+            self.json_array_to_mdtable(data["referenced_by"], items_ref)
 
         return set(ds_section_properties)
 
@@ -184,7 +199,6 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         ds_licensing_links_properties = self.generate_ds_licensing_links_properties(data, properties_schema, header_level)
 
         # TODO: hazards, exposure, vulnerability, loss
-        # TODO: attributions, sources, referenced_by go where?
 
         return
 

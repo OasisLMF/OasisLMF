@@ -9,7 +9,7 @@ class DefaultJsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
     Naively iterates through the dict and outputs with limited formatting.
     """
 
-    def json_to_mdtable(self, data, ref):
+    def json_array_to_mdtable(self, data, ref):
         array_schema = self._resolve_internal_ref(ref)
         array_keys = array_schema["properties"].keys()
         headers = []
@@ -48,7 +48,7 @@ class DefaultJsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
                     self.md.add_header(key_title, level=header_level)
                     items = schema.get("items", {})
                     if isinstance(items, dict) and "$ref" in items:
-                        self.json_to_mdtable(value, items["$ref"])
+                        self.json_array_to_mdtable(value, items["$ref"])
                     else:
                         self.md.add_list(value)
                 elif schema["type"] == "object":
