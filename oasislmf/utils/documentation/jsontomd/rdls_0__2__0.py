@@ -1,9 +1,11 @@
 import csv
 import json
+import logging
 from pathlib import Path
 
 from oasislmf.utils.documentation.jsontomd.base import BaseJsonToMarkdownGenerator
-from sklearn.covariance import ledoit_wolf
+
+logger = logging.getLogger(__name__)
 
 
 class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
@@ -57,6 +59,65 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
                 self.md.add_definition(properties_schema[p]["title"], ",".join(data[p]))
             else:
                 self.md.add_definition(properties_schema[p]["title"], data[p])
+
+        return set(ds_section_properties)
+
+    def _gen_ds_hazard(self, data, properties_schema, header_level):
+        self.md.add_header(properties_schema["hazard"]["title"], level=header_level)
+
+    def _gen_ds_exposure(self, data, properties_schema, header_level):
+        self.md.add_header(properties_schema["exposure"]["title"], level=header_level)
+
+    def _gen_ds_vulnerability(self, data, properties_schema, header_level):
+        self.md.add_header(properties_schema["vulnerability"]["title"], level=header_level)
+
+    def _gen_ds_loss(self, data, properties_schema, header_level):
+        loss_data = data["loss"]["losses"]
+
+        self.md.add_header(properties_schema["loss"]["title"], level=header_level)
+        items_ref = properties_schema["loss"]["properties"]["losses"]["items"]["$ref"]
+        ref_properties_schema = self._resolve_internal_ref(items_ref)["properties"]
+
+        cost_items = []
+        for loss_item in loss_data:
+            cost_items.append(loss_item["cost"])
+            loss_item["cost"] = loss_item["cost"]["id"]
+            if "impact" in loss_item:
+                impact_items_ref = ref_properties_schema["impact"]["$ref"]
+                impact_ref_properties_schema = self._resolve_internal_ref(impact_items_ref)["properties"]
+                loss_item["impact"] = [f"{impact_ref_properties_schema[k]["title"]}: {v}" for k, v in loss_item["impact"].items()]
+
+        self.json_array_to_mdtable(loss_data, items_ref)
+
+        cost_items_ref = ref_properties_schema["cost"]["$ref"]
+        self.md.add_header(ref_properties_schema["cost"]["title"], level=header_level + 1)
+        self.json_array_to_mdtable(cost_items, cost_items_ref)
+
+    def generate_ds_risk_data_properties(self, data, properties_schema, header_level):
+        ds_section_properties = [
+            "hazard",
+            "exposure",
+            "vulnerability",
+            "loss",
+        ]
+        risk_data_types = data["risk_data_type"]
+        present_properties = [p for p in ds_section_properties if p in data]
+
+        missing_properties = set(risk_data_types) - set(present_properties)
+        extra_properties = set(present_properties) - set(risk_data_types)
+        if len(missing_properties) > 0:
+            logger.warning(f"Warning: Missing risk data types from json: {list(missing_properties)}")
+        if len(extra_properties) > 0:
+            logger.warning(f"Warning: Extra risk data types found in json ({list(extra_properties)}) will also be output")
+
+        if "hazard" in data:
+            self._gen_ds_hazard(data, properties_schema, header_level)
+        if "exposure" in data:
+            self._gen_ds_exposure(data, properties_schema, header_level)
+        if "vulnerability" in data:
+            self._gen_ds_vulnerability(data, properties_schema, header_level)
+        if "loss" in data:
+            self._gen_ds_loss(data, properties_schema, header_level)
 
         return set(ds_section_properties)
 
@@ -193,19 +254,16 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
     def generate_dataset(self, data, properties_schema, header_level):
         all_properties = set(self.full_schema["properties"].keys())
         ds_overview_properties = self.generate_ds_overview(data, properties_schema, header_level)
+        ds_risk_data_properties = self.generate_ds_risk_data_properties(data, properties_schema, header_level)
         ds_spatial_temporal_properties = self.generate_ds_spatial_temporal_properties(data, properties_schema, header_level)
         ds_resources_properties = self.generate_ds_resources_properties(data, properties_schema, header_level)
         ds_owner_contact_properties = self.generate_ds_owner_contact_properties(data, properties_schema, header_level)
         ds_licensing_links_properties = self.generate_ds_licensing_links_properties(data, properties_schema, header_level)
 
-        # TODO: hazards, exposure, vulnerability, loss
-
-        return
-
     def generate(self, json_data, generate_toc=False):
         self.md.add_header("Documentation", level=1)
         for dataset in json_data.get("datasets", []):
-            self.md.add_header(dataset.get("title", "Untitled"), level=1)
+            self.md.add_header(dataset["title"], level=1)
             self.generate_dataset(dataset, self.full_schema["properties"], header_level=2)
             self.md.add_text("")
         return self.md.get_markdown(generate_toc=generate_toc)

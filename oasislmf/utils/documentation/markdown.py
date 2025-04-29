@@ -4,10 +4,7 @@ __all__ = [
 
 
 from collections import defaultdict
-import logging
 import re
-
-logger = logging.getLogger(__name__)
 
 
 class MarkdownGenerator:
