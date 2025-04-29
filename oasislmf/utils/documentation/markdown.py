@@ -104,6 +104,14 @@ class MarkdownGenerator:
             self.sections.append(f"- {item}\n")
         self.sections.append("\n")
 
+    def add_collapsible_section(self, text, title="Root"):
+        """Adds collapsible section to markdown
+        Args:
+            text (str): contents of collapsible section
+            title (str, optional): Collapsible section title text. Defaults to "Root".
+        """
+        self.add_text(f"<details><summary>{title}</summary>\n\n```json\n" + text + "\n```\n</details>")
+
     def add_text(self, content):
         """Adds text to markdown
         Args:
