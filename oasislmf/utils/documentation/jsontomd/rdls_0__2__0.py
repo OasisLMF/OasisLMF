@@ -66,7 +66,17 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         self.md.add_header(properties_schema["hazard"]["title"], level=header_level)
 
     def _gen_ds_exposure(self, data, properties_schema, header_level):
+        exposure_data = data["exposure"]
+
         self.md.add_header(properties_schema["exposure"]["title"], level=header_level)
+        self.md.add_definition(properties_schema["exposure"]["properties"]["category"]["title"], exposure_data["category"])
+        if "taxonomy" in exposure_data:
+            self.md.add_definition(properties_schema["exposure"]["properties"]["taxonomy"]["title"], exposure_data["taxonomy"])
+
+        exposure_properties_schema = properties_schema["exposure"]["properties"]
+        self.md.add_header(exposure_properties_schema["metrics"]["title"], level=header_level + 1)
+        gazetteer_items_ref = exposure_properties_schema["metrics"]["items"]["$ref"]
+        self.json_array_to_mdtable(exposure_data["metrics"], gazetteer_items_ref)
 
     def _gen_ds_vulnerability(self, data, properties_schema, header_level):
         self.md.add_header(properties_schema["vulnerability"]["title"], level=header_level)
@@ -85,7 +95,7 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
             if "impact" in loss_item:
                 impact_items_ref = ref_properties_schema["impact"]["$ref"]
                 impact_ref_properties_schema = self._resolve_internal_ref(impact_items_ref)["properties"]
-                loss_item["impact"] = [f"{impact_ref_properties_schema[k]["title"]}: {v}" for k, v in loss_item["impact"].items()]
+                loss_item["impact"] = [impact_ref_properties_schema[k]["title"] + ": " + v for k, v in loss_item["impact"].items()]
 
         self.json_array_to_mdtable(loss_data, items_ref)
 
