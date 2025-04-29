@@ -106,16 +106,35 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         self.md.add_header("Spatial", level=header_level + 1)
         ref_properties_schema = self._resolve_internal_ref(properties_schema["spatial"]["$ref"])["properties"]
         spatial_data = data["spatial"]
-        # TODO: geometry and gazettier_entries
-        # TODO: maybe split these into seperate functions as I think hazard data will require it later
-        if "countries" in spatial_data:
-            self.md.add_definition(ref_properties_schema["countries"]["title"], ",".join(spatial_data["countries"]))
-        if "bbox" in spatial_data:
-            self.md.add_definition(ref_properties_schema["bbox"]["title"], spatial_data["bbox"])
-        if "centroid" in spatial_data:
-            self.md.add_definition(ref_properties_schema["centroid"]["title"], spatial_data["centroid"])
         if "scale" in spatial_data:
             self.md.add_definition(ref_properties_schema["scale"]["title"], spatial_data["scale"])
+        if "countries" in spatial_data:
+            self.md.add_definition(ref_properties_schema["countries"]["title"], ",".join(spatial_data["countries"]))
+        if "centroid" in spatial_data:
+            self.md.add_definition(ref_properties_schema["centroid"]["title"], spatial_data["centroid"])
+        if "bbox" in spatial_data:
+            self.md.add_definition(ref_properties_schema["bbox"]["title"], spatial_data["bbox"])
+        if "gazetteer_entries" in spatial_data:
+            self.md.add_header(ref_properties_schema["gazetteer_entries"]["title"], level=header_level + 1)
+            gazetteer_ref_properties_schema = self._resolve_internal_ref(ref_properties_schema["gazetteer_entries"]["items"]["$ref"])["properties"]
+            headers = [v["title"] for _, v in gazetteer_ref_properties_schema.items()]
+            values = []
+            for d in spatial_data["gazetteer_entries"]:
+                values.append([
+                    d["id"],
+                    d.get("scheme", ""),
+                    d.get("description", ""),
+                    d.get("uri", ""),
+                ])
+            self.md.add_table(headers, values)
+        if "geometry" in spatial_data:
+            self.md.add_header(ref_properties_schema["geometry"]["title"], level=header_level + 1)
+            geometry_ref_properties_schema = self._resolve_internal_ref(ref_properties_schema["geometry"]["$ref"])["properties"]
+            if "type" in geometry_ref_properties_schema:
+                self.md.add_definition(geometry_ref_properties_schema["type"]["title"], spatial_data["geometry"]["type"])
+            if "coordinates" in geometry_ref_properties_schema:
+                self.md.add_text("<details><summary>Raw Coordinates</summary>\n\n```json\n" +
+                                 json.dumps(spatial_data["geometry"]["coordinates"], indent=2) + "\n```\n</details>")
 
         return set(ds_section_properties)
 
