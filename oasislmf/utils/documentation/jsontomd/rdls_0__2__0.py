@@ -32,12 +32,22 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
                     v = ",<br>".join(rets)
                 elif isinstance(v, dict):
                     pretty_json = json.dumps(v, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')
-                    v = f"{pretty_json}"
+                    v = f"<details><summary>Expand</summary>{pretty_json}</details>"
                 else:
                     v = str(v)
                 row.append(v)
             rows.append(row)
         self.md.add_table(headers, rows)
+
+    def _remove_duplicate_dicts_by_field(self, dicts, field):
+        seen_fields = set()
+        unique_dicts = []
+        for d in dicts:
+            if d[field] not in seen_fields:
+                unique_dicts.append(d)
+                seen_fields.add(d[field])
+        sorted_unique_dicts = sorted(unique_dicts, key=lambda d: d[field])
+        return sorted_unique_dicts
 
     def generate_ds_overview(self, data, properties_schema, header_level):
         ds_section_properties = [
@@ -63,8 +73,76 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         return set(ds_section_properties)
 
     def _gen_ds_hazard(self, data, properties_schema, header_level):
+        event_set_data = data["hazard"]["event_sets"]
+
         self.md.add_header(properties_schema["hazard"]["title"], level=header_level)
-        # TODO: implement
+        items_ref = properties_schema["hazard"]["properties"]["event_sets"]["items"]["$ref"]
+        ref_properties_schema = self._resolve_internal_ref(items_ref)["properties"]
+        period_ref = ref_properties_schema["temporal"]["$ref"]
+        period_properties_schema = self._resolve_internal_ref(period_ref)["properties"]
+        spatial_id = 0
+        spatial_data = []
+        hazard_items = []
+        events_items = []
+        for es_item in event_set_data:
+            hazard_items += es_item["hazards"]
+            es_item["hazards"] = [hz["id"] for hz in es_item["hazards"]]
+            if "spatial" in es_item:
+                spatial_data.append(es_item["spatial"])
+                es_item["spatial"] = f"loc_{spatial_id}"
+                spatial_id += 1
+            if "temporal" in es_item:
+                es_item["temporal"] = [period_properties_schema[k]["title"] + ": " + str(v) for k, v in es_item["temporal"].items()]
+            if "events" in es_item:
+                events_items += es_item["events"]
+                es_item["events"] = ", ".join([ev["id"] for ev in es_item["events"]])
+        self.json_array_to_mdtable(event_set_data, items_ref)
+
+        if spatial_data:
+            self.md.add_header(ref_properties_schema["spatial"]["title"], level=header_level + 1)
+            spatial_ref = ref_properties_schema["spatial"]["$ref"]
+            spatial_properties_schema = self._resolve_internal_ref(spatial_ref)["properties"]
+            for i, sp_data in enumerate(spatial_data):
+                self.md.add_header(f"loc_{i}", level=header_level + 2)
+                self._gen_ds_spatial_data(sp_data, spatial_properties_schema, header_level + 2)
+
+        if events_items:
+            self.md.add_header(ref_properties_schema["events"]["title"], level=header_level + 1)
+            events_items = self._remove_duplicate_dicts_by_field(events_items, "id")
+            events_items_ref = ref_properties_schema["events"]["items"]["$ref"]
+            events_items_properties_schema = self._resolve_internal_ref(events_items_ref)["properties"]
+            disaster_identifiers_items = []
+            footprints_items = []
+            for ev_item in events_items:
+                hazard_items.append(ev_item["hazard"])
+                ev_item["hazard"] = ev_item["hazard"]["id"]
+                disaster_identifiers_items += ev_item["disaster_identifiers"]
+                ev_item["disaster_identifiers"] = [di["id"] for di in ev_item["disaster_identifiers"]]
+                if "footprints" in ev_item:
+                    footprints_items += ev_item["footprints"]
+                    ev_item["footprints"] = [fp["id"] for fp in ev_item["footprints"]]
+            self.json_array_to_mdtable(events_items, events_items_ref)
+
+            self.md.add_header(events_items_properties_schema["disaster_identifiers"]["title"], level=header_level + 2)
+            disaster_identifiers_items = self._remove_duplicate_dicts_by_field(disaster_identifiers_items, "id")
+            class_items_ref = events_items_properties_schema["disaster_identifiers"]["items"]["$ref"]
+            self.json_array_to_mdtable(disaster_identifiers_items, class_items_ref)
+
+            self.md.add_header(events_items_properties_schema["footprints"]["title"], level=header_level + 2)
+            footprints_items = self._remove_duplicate_dicts_by_field(footprints_items, "id")
+            footprints_items_ref = events_items_properties_schema["footprints"]["items"]["$ref"]
+            self.json_array_to_mdtable(footprints_items, footprints_items_ref)
+
+        self.md.add_header(ref_properties_schema["hazards"]["title"], level=header_level + 1)
+        hazard_items = self._remove_duplicate_dicts_by_field(hazard_items, "id")
+        hazard_items_ref = ref_properties_schema["hazards"]["items"]["$ref"]
+        hazard_items_properties_schema = self._resolve_internal_ref(hazard_items_ref)["properties"]
+        trigger_ref = hazard_items_properties_schema["trigger"]["$ref"]
+        trigger_ref_properties_schema = self._resolve_internal_ref(trigger_ref)["properties"]
+        for hz_item in hazard_items:
+            if "trigger" in hz_item:
+                hz_item["trigger"] = [trigger_ref_properties_schema[k]["title"] + ": " + str(v) for k, v in hz_item["trigger"].items()]
+        self.json_array_to_mdtable(hazard_items, hazard_items_ref)
 
     def _gen_ds_exposure(self, data, properties_schema, header_level):
         exposure_data = data["exposure"]
@@ -165,6 +243,7 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
 
         self.json_array_to_mdtable(loss_data, items_ref)
 
+        cost_items = self._remove_duplicate_dicts_by_field(cost_items, "id")
         cost_items_ref = ref_properties_schema["cost"]["$ref"]
         self.md.add_header(ref_properties_schema["cost"]["title"], level=header_level + 1)
         self.json_array_to_mdtable(cost_items, cost_items_ref)

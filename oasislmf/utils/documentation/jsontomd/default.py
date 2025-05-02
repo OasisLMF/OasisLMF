@@ -32,7 +32,7 @@ class DefaultJsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
                     v = ",<br>".join(rets)
                 elif isinstance(v, dict):
                     pretty_json = json.dumps(v, indent=4).replace('\n', '<br>').replace(' ', '&nbsp;')
-                    v = f"{pretty_json}"
+                    v = f"<details><summary>Expand</summary>{pretty_json}</details>"
                 else:
                     v = str(v)
                 row.append(v)
