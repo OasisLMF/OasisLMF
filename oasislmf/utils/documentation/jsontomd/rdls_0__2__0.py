@@ -64,6 +64,7 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
 
     def _gen_ds_hazard(self, data, properties_schema, header_level):
         self.md.add_header(properties_schema["hazard"]["title"], level=header_level)
+        # TODO: implement
 
     def _gen_ds_exposure(self, data, properties_schema, header_level):
         exposure_data = data["exposure"]
@@ -79,7 +80,72 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
         self.json_array_to_mdtable(exposure_data["metrics"], gazetteer_items_ref)
 
     def _gen_ds_vulnerability(self, data, properties_schema, header_level):
+        vuln_data = data["vulnerability"]
         self.md.add_header(properties_schema["vulnerability"]["title"], level=header_level)
+
+        vuln_properties_schema = properties_schema["vulnerability"]["properties"]
+
+        self.md.add_header("Hazard info", level=header_level + 1)
+        headers = ["Key", "Value"]
+        rows = []
+        rows.append([vuln_properties_schema["hazard_primary"]["title"], vuln_data["hazard_primary"]])
+        if "hazard_secondary" in vuln_data:
+            rows.append([vuln_properties_schema["hazard_secondary"]["title"], vuln_data["hazard_secondary"]])
+        if "hazard_process_primary" in vuln_data:
+            rows.append([vuln_properties_schema["hazard_process_primary"]["title"], vuln_data["hazard_process_primary"]])
+        if "hazard_process_secondary" in vuln_data:
+            rows.append([vuln_properties_schema["hazard_process_secondary"]["title"], vuln_data["hazard_process_secondary"]])
+        if "hazard_analysis_type" in vuln_data:
+            rows.append([vuln_properties_schema["hazard_analysis_type"]["title"], vuln_data["hazard_analysis_type"]])
+        rows.append([vuln_properties_schema["intensity"]["title"], vuln_data["intensity"]])
+        self.md.add_table(headers, rows)
+
+        self.md.add_header("Exposure info", level=header_level + 1)
+        self.md.add_definition(vuln_properties_schema["category"]["title"], vuln_data["category"])
+        if "taxonomy" in vuln_data:
+            self.md.add_definition(vuln_properties_schema["taxonomy"]["title"], vuln_data["taxonomy"])
+        cost_items_ref = vuln_properties_schema["cost"]["items"]["$ref"]
+        self.json_array_to_mdtable(vuln_data["cost"], cost_items_ref)
+
+        self.md.add_header("Vulnerability Impact info", level=header_level + 1)
+        impact_ref = vuln_properties_schema["impact"]["$ref"]
+        impact_properties_schema = self._resolve_internal_ref(impact_ref)["properties"]
+        impact_data = vuln_data["impact"]
+        if "type" in impact_data:
+            self.md.add_definition(impact_properties_schema["type"]["title"], impact_data["type"])
+        if "metric" in impact_data:
+            self.md.add_definition(impact_properties_schema["metric"]["title"], impact_data["metric"])
+        if "unit" in impact_data:
+            self.md.add_definition(impact_properties_schema["unit"]["title"], impact_data["unit"])
+        if "base_data_type" in impact_data:
+            self.md.add_definition(impact_properties_schema["base_data_type"]["title"], impact_data["base_data_type"])
+
+        self.md.add_header("Vulnerability Spatial info", level=header_level + 1)
+        spatial_ref = vuln_properties_schema["spatial"]["$ref"]
+        spatial_properties_schema = self._resolve_internal_ref(spatial_ref)["properties"]
+        spatial_data = vuln_data["spatial"]
+        self._gen_ds_spatial_data(spatial_data, spatial_properties_schema, header_level)
+
+        self.md.add_header("Vulnerability Functions info", level=header_level + 1)
+        functions_data = vuln_data["functions"]
+        funcs_properties_schema = vuln_properties_schema["functions"]["properties"]
+        for f_id, f_data in functions_data.items():
+            self.md.add_header(funcs_properties_schema[f_id]["title"], level=header_level + 2)
+            headers = ["Key", "Value"]
+            rows = [[funcs_properties_schema[f_id]["properties"][k]["title"], v] for k, v in f_data.items()]
+            self.md.add_table(headers, rows)
+
+        if "analysis_details" in vuln_data or "se_category" in vuln_data:
+            self.md.add_header("Vulnerability Extra info", level=header_level + 1)
+            if "analysis_details" in vuln_data:
+                self.md.add_definition(vuln_properties_schema["analysis_details"]["title"], vuln_data["analysis_details"])
+            if "se_category" in vuln_data:
+                self.md.add_header(vuln_properties_schema["se_category"]["title"], header_level + 2)
+                class_ref = vuln_properties_schema["se_category"]["$ref"]
+                class_properties_schema = self._resolve_internal_ref(class_ref)["properties"]
+                headers = ["Key", "Value"]
+                rows = [[class_properties_schema[k]["title"], v] for k, v in vuln_data["se_category"].items()]
+                self.md.add_table(headers, rows)
 
     def _gen_ds_loss(self, data, properties_schema, header_level):
         loss_data = data["loss"]["losses"]
@@ -131,19 +197,7 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
 
         return set(ds_section_properties)
 
-    def generate_ds_spatial_temporal_properties(self, data, properties_schema, header_level):
-        ds_section_properties = [
-            "spatial",
-            "temporal_resolution",
-        ]
-
-        self.md.add_header("Spatial and Temporal Coverage", level=header_level)
-        temporal_data = data.get("temporal_resolution", "No temporal information found in json.")
-        self.md.add_definition(properties_schema["temporal_resolution"]["title"], temporal_data)
-
-        self.md.add_header("Spatial", level=header_level + 1)
-        ref_properties_schema = self._resolve_internal_ref(properties_schema["spatial"]["$ref"])["properties"]
-        spatial_data = data["spatial"]
+    def _gen_ds_spatial_data(self, spatial_data, ref_properties_schema, header_level):
         if "scale" in spatial_data:
             self.md.add_definition(ref_properties_schema["scale"]["title"], spatial_data["scale"])
         if "countries" in spatial_data:
@@ -163,6 +217,21 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
                 self.md.add_definition(geometry_ref_properties_schema["type"]["title"], spatial_data["geometry"]["type"])
             if "coordinates" in geometry_ref_properties_schema:
                 self.md.add_collapsible_section(json.dumps(spatial_data["geometry"]["coordinates"], indent=2), "Raw Coordinates")
+
+    def generate_ds_spatial_temporal_properties(self, data, properties_schema, header_level):
+        ds_section_properties = [
+            "spatial",
+            "temporal_resolution",
+        ]
+
+        self.md.add_header("Spatial and Temporal Coverage", level=header_level)
+        temporal_data = data.get("temporal_resolution", "No temporal information found in json.")
+        self.md.add_definition(properties_schema["temporal_resolution"]["title"], temporal_data)
+
+        self.md.add_header("Spatial", level=header_level + 1)
+        ref_properties_schema = self._resolve_internal_ref(properties_schema["spatial"]["$ref"])["properties"]
+        spatial_data = data["spatial"]
+        self._gen_ds_spatial_data(spatial_data, ref_properties_schema, header_level)
 
         return set(ds_section_properties)
 
