@@ -362,7 +362,8 @@ setup(
             'requirements-package.in',
             'LICENSE',
         ],
-        'oasislmf/_data/': ['*']
+        'oasislmf/_data/': ['*'],
+        'rdls': ["rdls_schema.json"]
     },
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
