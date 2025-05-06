@@ -6,7 +6,11 @@ import numba as nb
 import os
 from contextlib import ExitStack
 from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
+from oasislmf.pytools.aal.data import AAL_meanonly_dtype, AAL_meanonly_fmt, AAL_meanonly_headers, AAL_dtype, AAL_fmt, AAL_headers, ALCT_dtype, ALCT_fmt, ALCT_headers
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
@@ -41,30 +45,6 @@ _SUMMARIES_DTYPE = np.dtype([
     ("file_offset", np.int64),
 ])
 _SUMMARIES_DTYPE_size = _SUMMARIES_DTYPE.itemsize
-
-AAL_output = [
-    ('SummaryId', oasis_int, '%d'),
-    ('SampleType', oasis_int, '%d'),
-    ('MeanLoss', oasis_float, '%.6f'),
-    ('SDLoss', oasis_float, '%.6f'),
-]
-
-ALCT_output = [
-    ("SummaryId", oasis_float, '%d'),
-    ("MeanLoss", oasis_float, '%.6f'),
-    ("SDLoss", oasis_float, '%.6f'),
-    ("SampleSize", oasis_float, '%d'),
-    ("LowerCI", oasis_float, '%.6f'),
-    ("UpperCI", oasis_float, '%.6f'),
-    ("StandardError", oasis_float, '%.6f'),
-    ("RelativeError", oasis_float, '%.6f'),
-    ("VarElementHaz", oasis_float, '%.6f'),
-    ("StandardErrorHaz", oasis_float, '%.6f'),
-    ("RelativeErrorHaz", oasis_float, '%.6f'),
-    ("VarElementVuln", oasis_float, '%.6f'),
-    ("StandardErrorVuln", oasis_float, '%.6f'),
-    ("RelativeErrorVuln", oasis_float, '%.6f'),
-]
 
 
 @nb.njit(cache=True, error_model="numpy")
@@ -805,7 +785,17 @@ def get_alct_data(
     return alct_data
 
 
-def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonly=False, noheader=False, confidence=0.95):
+def run(
+    run_dir,
+    subfolder,
+    aal_output_file=None,
+    alct_output_file=None,
+    meanonly=False,
+    noheader=False,
+    confidence=0.95,
+    output_binary=False,
+    output_parquet=False
+):
     """Runs AAL calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -815,9 +805,43 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
         confidence (float): Confidence level between 0 and 1, default 0.95
+        output_binary (bool): Boolean value to output binary files. Defaults to False.
+        output_parquet (bool): Boolean value to output parquet files. Defaults to False.
     """
-    output_aal = aal_output_file is not None
-    output_alct = alct_output_file is not None
+    outmap = {
+        "aal": {
+            "compute": aal_output_file is not None,
+            "file_path": aal_output_file,
+            "fmt": AAL_fmt if not meanonly else AAL_meanonly_fmt,
+            "headers": AAL_headers if not meanonly else AAL_meanonly_headers,
+            "file": None,
+            "dtype": AAL_dtype if not meanonly else AAL_meanonly_dtype,
+        },
+        "alct": {
+            "compute": alct_output_file is not None,
+            "file_path": alct_output_file,
+            "fmt": ALCT_fmt,
+            "headers": ALCT_headers,
+            "file": None,
+            "dtype": ALCT_dtype,
+        },
+    }
+
+    # Check for correct suffix
+    for path in [v["file_path"] for v in outmap.values()]:
+        if path is None:
+            continue
+        if Path(path).suffix == "":  # Ignore suffix for pipes
+            continue
+        if (output_binary and Path(path).suffix != '.bin'):
+            raise ValueError(f"Invalid file extension for Binary, expected .binary, got {path},")
+        if (output_parquet and Path(path).suffix != '.parquet'):
+            raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
+        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
+            raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
+
+    if not all([v["compute"] for v in outmap.values()]):
+        logger.warning("No output files specified")
 
     with ExitStack() as stack:
         workspace_folder = Path(run_dir, "work", subfolder)
@@ -831,7 +855,7 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             stack
         )
         # aal vec are Indexed on summary_id - 1
-        num_subsets = get_num_subsets(output_alct, sample_size, max_summary_id)
+        num_subsets = get_num_subsets(outmap["alct"]["compute"], sample_size, max_summary_id)
         vecs_sample_aal = np.zeros(num_subsets * max_summary_id, dtype=_AAL_REC_PERIOD_DTYPE)
         vec_analytical_aal = np.zeros(max_summary_id, dtype=_AAL_REC_DTYPE)
         vec_used_summary_id = np.zeros(max_summary_id, dtype=np.bool_)
@@ -849,40 +873,32 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
             vec_used_summary_id,
         )
 
-        # Initialise csv column names for output files
-        output_files = {}
-        if output_aal:
-            aal_file = stack.enter_context(open(aal_output_file, "w"))
-            if not noheader:
-                if not meanonly:
-                    AAL_headers = [c[0] for c in AAL_output]
-                    csv_headers = ",".join(AAL_headers)
-                    aal_file.write(csv_headers + "\n")
-                else:
-                    AAL_headers = [c[0] for c in AAL_output if c[0] != "SDLoss"]
-                    csv_headers = ",".join(AAL_headers)
-                    aal_file.write(csv_headers + "\n")
-            output_files["aal"] = aal_file
-        if output_alct:
-            alct_file = stack.enter_context(open(alct_output_file, "w"))
-            if not noheader:
-                if not meanonly:
-                    ALCT_headers = [c[0] for c in ALCT_output]
-                    csv_headers = ",".join(ALCT_headers)
-                    alct_file.write(csv_headers + "\n")
-            output_files["alct"] = alct_file
-
-        # Output file data
-        if not meanonly:
-            AAL_fmt = ','.join([c[2] for c in AAL_output])
-            AAL_dtype = np.dtype([(c[0], c[1]) for c in AAL_output])
+        # Initialise output files AAL
+        if output_binary:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+                outmap[out_type]["file"] = out_file
+        elif output_parquet:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                temp_df = pd.DataFrame(outmap[out_type]["dtype"], columns=outmap[out_type]["headers"])
+                temp_table = pa.Table.from_pandas(temp_df)
+                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                outmap[out_type]["file"] = out_file
         else:
-            AAL_fmt = ','.join([c[2] for c in AAL_output if c[0] != "SDLoss"])
-            AAL_dtype = np.dtype([(c[0], c[1]) for c in AAL_output if c[0] != "SDLoss"])
-        ALCT_fmt = ','.join([c[2] for c in ALCT_output])
-        ALCT_dtype = np.dtype([(c[0], c[1]) for c in ALCT_output])
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
+                if not noheader:
+                    csv_headers = ','.join(outmap[out_type]["headers"])
+                    out_file.write(csv_headers + '\n')
+                outmap[out_type]["file"] = out_file
 
-        if output_aal:
+        if outmap["aal"]["compute"]:
             # Get Sample AAL data for subset_size == sample_size (last group of arrays)
             start_idx = (num_subsets - 1) * max_summary_id
             if not meanonly:
@@ -901,8 +917,22 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
                     sample_size,
                     file_data["no_of_periods"],
                 )
-            write_ndarray_to_fmt_csv(output_files["aal"], np.array(aal_data, dtype=AAL_dtype), AAL_headers, AAL_fmt)
-        if output_alct:
+            aal_data = np.array(aal_data, dtype=outmap["aal"]["dtype"])
+
+            if output_binary:
+                aal_data.tofile(outmap["aal"]["file"])
+            elif output_parquet:
+                data_df = pd.DataFrame(aal_data)
+                data_table = pa.Table.from_pandas(data_df)
+                outmap["aal"]["file"].write_table(data_table)
+            else:
+                write_ndarray_to_fmt_csv(
+                    outmap["aal"]["file"],
+                    aal_data,
+                    outmap["aal"]["headers"],
+                    outmap["aal"]["fmt"]
+                )
+        if outmap["alct"]["compute"]:
             alct_data = get_alct_data(
                 vecs_sample_aal,
                 max_summary_id,
@@ -910,11 +940,25 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
                 file_data["no_of_periods"],
                 confidence
             )
-            write_ndarray_to_fmt_csv(output_files["alct"], np.array([tuple(arr) for arr in alct_data], dtype=ALCT_dtype), ALCT_headers, ALCT_fmt)
+            alct_data = np.array([tuple(arr) for arr in alct_data], dtype=outmap["alct"]["dtype"])
+
+            if output_binary:
+                alct_data.tofile(outmap["alct"]["file"])
+            elif output_parquet:
+                data_df = pd.DataFrame(alct_data)
+                data_table = pa.Table.from_pandas(data_df)
+                outmap["alct"]["file"].write_table(data_table)
+            else:
+                write_ndarray_to_fmt_csv(
+                    outmap["alct"]["file"],
+                    alct_data,
+                    outmap["alct"]["headers"],
+                    outmap["alct"]["fmt"]
+                )
 
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, **kwargs):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, binary=False, parquet=False, **kwargs):
     run(
         run_dir,
         subfolder,
@@ -923,4 +967,6 @@ def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, nohea
         alct_output_file=alct,
         noheader=noheader,
         confidence=confidence,
+        output_binary=binary,
+        output_parquet=parquet,
     )

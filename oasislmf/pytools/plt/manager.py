@@ -579,7 +579,7 @@ def run(
             file_data["intervals"],
         )
 
-        # Initialise csv column names for PLT files
+        # Initialise output files PLT
         if output_binary:
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:

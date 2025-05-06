@@ -469,7 +469,7 @@ def run(
             file_data["intervals"]
         )
 
-        # Initialise ELT output files
+        # Initialise output files ELT
         if output_binary:
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
