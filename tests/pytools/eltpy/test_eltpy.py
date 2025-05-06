@@ -1,6 +1,7 @@
 import shutil
 from tempfile import TemporaryDirectory
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,22 +12,27 @@ from oasislmf.pytools.common.data import (oasis_int, oasis_float)
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_eltpy")
 
 
-def case_runner(test_name, with_event_rate=False):
-    csv_name = f"py_{test_name}.csv"
+def case_runner(test_name, out_ext="csv", with_event_rate=False):
+    if out_ext not in ["csv", "bin", "parquet"]:
+        raise Exception(f"Invalid or unimplemented test case for .{out_ext} output files for eltpy")
+
+    outfile_name = f"py_{test_name}.{out_ext}"
     summary_bin_input = Path(TESTS_ASSETS_DIR, "summarypy.bin")
     if with_event_rate:
-        csv_name = f"py_{test_name}_er.csv"
-    expected_csv = Path(TESTS_ASSETS_DIR, csv_name)
+        outfile_name = f"py_{test_name}_er.{out_ext}"
+    expected_outfile = Path(TESTS_ASSETS_DIR, outfile_name)
     with TemporaryDirectory() as tmp_result_dir_str:
-        actual_csv = Path(tmp_result_dir_str, csv_name)
+        actual_outfile = Path(tmp_result_dir_str, outfile_name)
 
         kwargs = {
             "run_dir": TESTS_ASSETS_DIR,
             "files_in": summary_bin_input,
+            "binary": out_ext == "bin",
+            "parquet": out_ext == "parquet",
         }
 
         if test_name in ["selt", "melt", "qelt"]:
-            kwargs[f"{test_name}"] = actual_csv
+            kwargs[f"{test_name}"] = actual_outfile
         else:
             raise Exception(f"Invalid or unimplemented test case {test_name} for eltpy")
 
@@ -39,17 +45,25 @@ def case_runner(test_name, with_event_rate=False):
                 main(**kwargs)
 
         try:
-            expected_csv_data = np.genfromtxt(expected_csv, delimiter=',', skip_header=1)
-            actual_csv_data = np.genfromtxt(actual_csv, delimiter=',', skip_header=1)
-            if expected_csv_data.shape != actual_csv_data.shape:
-                raise AssertionError(
-                    f"Shape mismatch: {expected_csv} has shape {expected_csv_data.shape}, {actual_csv} has shape {actual_csv_data.shape}")
-            np.testing.assert_allclose(expected_csv_data, actual_csv_data, rtol=1e-5, atol=1e-8)
+            if out_ext == "csv":
+                expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
+                actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
+                if expected_outfile_data.shape != actual_outfile_data.shape:
+                    raise AssertionError(
+                        f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}")
+                np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
+            if out_ext == "parquet":
+                expected_outfile_data = pd.read_parquet(expected_outfile)
+                actual_outfile_data = pd.read_parquet(actual_outfile)
+                pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data)
+            if out_ext == "bin":
+                with open(expected_outfile, 'rb') as f1, open(actual_outfile, 'rb') as f2:
+                    assert f1.read() == f2.read()
         except Exception as e:
             error_path = TESTS_ASSETS_DIR.joinpath('error_files')
             error_path.mkdir(exist_ok=True)
-            shutil.copyfile(Path(actual_csv),
-                            Path(error_path, csv_name))
+            shutil.copyfile(Path(actual_outfile),
+                            Path(error_path, outfile_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
             raise Exception(f"running 'eltpy {arg_str}' led to diff, see files at {error_path}") from e
 
@@ -68,3 +82,35 @@ def test_melt_output_with_event_rate():
 
 def test_qelt_output():
     case_runner("qelt")
+
+
+def test_selt_output_bin():
+    case_runner("selt", "bin")
+
+
+def test_melt_output_bin():
+    case_runner("melt", "bin")
+
+
+def test_melt_output_bin_with_event_rate():
+    case_runner("melt", "bin", with_event_rate=True)
+
+
+def test_qelt_output_bin():
+    case_runner("qelt", "bin")
+
+
+def test_selt_output_parquet():
+    case_runner("selt", "parquet")
+
+
+def test_melt_output_parquet():
+    case_runner("melt", "parquet")
+
+
+def test_melt_output_parquet_with_event_rate():
+    case_runner("melt", "parquet", with_event_rate=True)
+
+
+def test_qelt_output_parquet():
+    case_runner("qelt", "bin")
