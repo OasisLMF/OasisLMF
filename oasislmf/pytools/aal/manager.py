@@ -884,7 +884,8 @@ def run(
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
                     continue
-                temp_df = pd.DataFrame(outmap[out_type]["dtype"], columns=outmap[out_type]["headers"])
+                temp_out_data = np.zeros(1000000, dtype=outmap[out_type]["dtype"])
+                temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
                 temp_table = pa.Table.from_pandas(temp_df)
                 out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
                 outmap[out_type]["file"] = out_file
