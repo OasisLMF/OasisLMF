@@ -42,6 +42,17 @@ class AggReports():
         self.returnperiods = returnperiods
         self.lec_files_folder = lec_files_folder
 
+    def output_data(self, data, out_type):
+        if out_type == "ept":
+            outfile = self.output_files["ept"]
+            headers = EPT_headers
+            fmt = EPT_fmt
+        elif out_type == "psept":
+            outfile = self.output_files["psept"]
+            headers = PSEPT_headers
+            fmt = PSEPT_fmt
+        write_ndarray_to_fmt_csv(outfile, data, headers, fmt)
+
     def output_mean_damage_ratio(self, eptype, eptype_tvar, outloss_type):
         """Output Mean Damage Ratio
         Mean Damage Losses - This means do the loss calculation for a year using the event mean
@@ -110,7 +121,7 @@ class AggReports():
             )
 
         for data in gen:
-            write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
+            self.output_data(data, "ept")
 
     def output_full_uncertainty(self, eptype, eptype_tvar, outloss_type):
         """Output Full Uncertainty
@@ -180,7 +191,7 @@ class AggReports():
             )
 
         for data in gen:
-            write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
+            self.output_data(data, "ept")
 
     def output_wheatsheaf_and_wheatsheafmean(self, eptype, eptype_tvar, outloss_type, output_wheatsheaf, output_wheatsheaf_mean):
         """Output Wheatsheaf and Wheatsheaf Mean
@@ -259,7 +270,7 @@ class AggReports():
                     mean_map=mean_map,
                 )
                 for data in gen:
-                    write_ndarray_to_fmt_csv(self.output_files["psept"], data, PSEPT_headers, PSEPT_fmt)
+                    self.output_data(data, "psept")
 
             if output_wheatsheaf_mean:
                 gen = write_wheatsheaf_mean(
@@ -269,7 +280,7 @@ class AggReports():
                     self.max_summary_id,
                 )
                 for data in gen:
-                    write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
+                    self.output_data(data, "ept")
         else:
             if output_wheatsheaf:
                 gen = write_psept(
@@ -284,7 +295,7 @@ class AggReports():
                     self.num_sidxs,
                 )
                 for data in gen:
-                    write_ndarray_to_fmt_csv(self.output_files["psept"], data, PSEPT_headers, PSEPT_fmt)
+                    self.output_data(data, "psept")
 
             if not output_wheatsheaf_mean:
                 return
@@ -326,7 +337,7 @@ class AggReports():
             )
 
             for data in gen:
-                write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
+                self.output_data(data, "ept")
 
     def output_sample_mean(self, eptype, eptype_tvar, outloss_type):
         """Output Sample Mean
@@ -425,4 +436,4 @@ class AggReports():
             )
 
         for data in gen:
-            write_ndarray_to_fmt_csv(self.output_files["ept"], data, EPT_headers, EPT_fmt)
+            self.output_data(data, "ept")

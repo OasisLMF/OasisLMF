@@ -249,6 +249,8 @@ def run(
     occ_wheatsheaf_mean=False,
     use_return_period=False,
     noheader=False,
+    output_binary=False,
+    output_parquet=False
 ):
     """Runs LEC calculations
     Args:
@@ -266,6 +268,8 @@ def run(
         occ_wheatsheaf_mean (bool, optional): Occurrence Wheatsheaf Mean. Defaults to False.
         use_return_period (bool, optional): Use Return Period file. Defaults to False.
         noheader (bool): Boolean value to skip header in output file
+        output_binary (bool): Boolean value to output binary files. Defaults to False.
+        output_parquet (bool): Boolean value to output parquet files. Defaults to False.
     """
     output_ept = ept_output_file is not None
     output_psept = psept_output_file is not None
@@ -439,6 +443,8 @@ def main(
     occ_wheatsheaf_mean=False,
     use_return_period=False,
     noheader=False,
+    binary=False,
+    parquet=False,
     **kwargs
 ):
     run(
@@ -456,4 +462,6 @@ def main(
         occ_wheatsheaf_mean=occ_wheatsheaf_mean,
         use_return_period=use_return_period,
         noheader=noheader,
+        output_binary=binary,
+        output_parquet=parquet,
     )
