@@ -5,12 +5,16 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
-                                       OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR, OUTLOSS_DTYPE, EPT_headers, PSEPT_headers)
+                                       OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
+                                       OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
 from oasislmf.pytools.lec.aggreports import AggReports
 from oasislmf.pytools.lec.utils import get_outloss_mean_idx, get_outloss_sample_idx
 from oasislmf.pytools.utils import redirect_logging
@@ -271,8 +275,40 @@ def run(
         output_binary (bool): Boolean value to output binary files. Defaults to False.
         output_parquet (bool): Boolean value to output parquet files. Defaults to False.
     """
-    output_ept = ept_output_file is not None
-    output_psept = psept_output_file is not None
+    outmap = {
+        "ept": {
+            "compute": ept_output_file is not None,
+            "file_path": ept_output_file,
+            "fmt": EPT_fmt,
+            "headers": EPT_headers,
+            "file": None,
+            "dtype": EPT_dtype,
+        },
+        "psept": {
+            "compute": psept_output_file is not None,
+            "file_path": psept_output_file,
+            "fmt": PSEPT_fmt,
+            "headers": PSEPT_headers,
+            "file": None,
+            "dtype": PSEPT_dtype,
+        },
+    }
+
+    # Check for correct suffix
+    for path in [v["file_path"] for v in outmap.values()]:
+        if path is None:
+            continue
+        if Path(path).suffix == "":  # Ignore suffix for pipes
+            continue
+        if (output_binary and Path(path).suffix != '.bin'):
+            raise ValueError(f"Invalid file extension for Binary, expected .binary, got {path},")
+        if (output_parquet and Path(path).suffix != '.parquet'):
+            raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
+        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
+            raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
+
+    if not all([v["compute"] for v in outmap.values()]):
+        logger.warning("No output files specified")
 
     with ExitStack() as stack:
         workspace_folder = Path(run_dir, "work", subfolder)
@@ -320,14 +356,14 @@ def run(
         hasOCC = any([output_flags[idx] for idx in handles_occ])
         hasEPT = hasAGG or hasOCC
         hasPSEPT = any([output_flags[idx] for idx in handles_psept])
-        output_ept = output_ept and hasEPT
-        output_psept = output_psept and hasPSEPT
+        outmap["ept"]["compute"] = outmap["ept"]["compute"] and hasEPT
+        outmap["psept"]["compute"] = outmap["psept"]["compute"] and hasPSEPT
 
-        if not output_ept:
+        if not outmap["ept"]["compute"]:
             logger.warning("WARNING: no valid output stream to fill EPT file")
-        if not output_psept:
+        if not outmap["psept"]["compute"]:
             logger.warning("WARNING: no valid output stream to fill PSEPT file")
-        if not (output_ept or output_psept):
+        if not (outmap["ept"]["compute"] or outmap["psept"]["compute"]):
             return
 
         # Create outloss array maps
@@ -365,24 +401,35 @@ def run(
             max_summary_id,
         )
 
-        # Setup output files and headers
-        output_files = {}
-        if output_ept:
-            ept_file = stack.enter_context(open(ept_output_file, "w"))
-            if not noheader:
-                csv_headers = ",".join(EPT_headers)
-                ept_file.write(csv_headers + "\n")
-            output_files["ept"] = ept_file
-        if output_psept:
-            psept_file = stack.enter_context(open(psept_output_file, "w"))
-            if not noheader:
-                csv_headers = ",".join(PSEPT_headers)
-                psept_file.write(csv_headers + "\n")
-            output_files["psept"] = psept_file
+        # Initialise output files LEC
+        if output_binary:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+                outmap[out_type]["file"] = out_file
+        elif output_parquet:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                temp_out_data = np.zeros(1000000, dtype=outmap[out_type]["dtype"])
+                temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
+                temp_table = pa.Table.from_pandas(temp_df)
+                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                outmap[out_type]["file"] = out_file
+        else:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
+                if not noheader:
+                    csv_headers = ','.join(outmap[out_type]["headers"])
+                    out_file.write(csv_headers + '\n')
+                outmap[out_type]["file"] = out_file
 
         # Output aggregate reports to CSVs
         agg = AggReports(
-            output_files,
+            outmap,
             outloss_mean,
             outloss_sample,
             file_data["period_weights"],
@@ -393,10 +440,12 @@ def run(
             use_return_period,
             file_data["returnperiods"],
             lec_files_folder,
+            output_binary,
+            output_parquet,
         )
 
         # Output Mean Damage Ratio
-        if output_ept:
+        if outmap["ept"]["compute"]:
             if hasOCC:
                 agg.output_mean_damage_ratio(OEP, OEPTVAR, "max_out_loss")
             if hasAGG:
