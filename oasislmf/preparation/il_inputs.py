@@ -682,7 +682,6 @@ def get_il_input_items(
             level_df['layer_id'] = level_df['layer_id'].astype('int32')
             level_df['agg_id_prev'] = level_df['agg_id_prev'].fillna(0).astype('int64')
 
-
             if do_disaggregation:
                 if 'risk_id' in agg_key:
                     __split_fm_terms_by_risk(level_df)
