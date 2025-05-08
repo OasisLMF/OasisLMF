@@ -417,9 +417,10 @@ def run(
 
         dir_csv_input_files = glob.glob(str(dir_in / "*.csv"))
         dir_bin_input_files = glob.glob(str(dir_in / "*.bin"))
-        if not dir_csv_input_files and not dir_bin_input_files:
+        dir_parquet_input_files = glob.glob(str(dir_in / "*.parquet"))
+        if not dir_csv_input_files and not dir_bin_input_files and not dir_parquet_input_files:
             logger.warning(f"Warning: No valid files found in directory \'{dir_in}\'")
-        input_files += [Path(file).resolve() for file in dir_csv_input_files + dir_bin_input_files]
+        input_files += [Path(file).resolve() for file in dir_csv_input_files + dir_bin_input_files + dir_parquet_input_files]
 
     input_files.sort()
 
@@ -438,24 +439,28 @@ def run(
 
     out_file = Path(out_file).resolve()
     input_type = check_file_extensions(input_files)
+    output_type = out_file.suffix
 
-    if file_type:
-        input_type = "." + file_type
-    else:
-        if input_type == "":  # Inputs are pipes for example
+    if input_type == "":
+        if not file_type:
             raise RuntimeError("ERROR: katpy, no discernible file type suffix found from input files, please provide a file_type")
+        input_type = "." + file_type
 
     # If out_file is a csv and input_files are not csvs, then output to temporary outfile
     # of type input_type, and convert to csv after
-    convert_to_csv = False
-    if out_file.suffix != input_type:
-        if out_file.suffix == ".csv":
-            csv_out_file_path = out_file
+    bin_to_csv = False
+    bin_to_parquet = False
+    if output_type != input_type:
+        if input_type == ".bin":
+            if output_type not in [".csv", ".parquet"]:
+                raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {output_type}")
+            final_out_file_path = out_file
             temp_file = tempfile.NamedTemporaryFile(suffix=input_type, delete=False)
             out_file = Path(temp_file.name)
-            convert_to_csv = True
+            bin_to_csv = output_type == ".csv"
+            bin_to_parquet = output_type == ".parquet"
         else:
-            raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {out_file.suffix}")
+            raise RuntimeError(f"ERROR: katpy does not support concatenating input files of type {input_type} to output type {output_type}")
 
     output_flags = [
         concatenate_selt,
@@ -469,13 +474,13 @@ def run(
     sort_by_event = any(output_flags[KAT_SELT:KAT_QELT + 1])
     sort_by_period = any(output_flags[KAT_SPLT:KAT_QPLT + 1])
     assert sort_by_event + sort_by_period == 1, "incorrect flag config in katpy"
-    file_type = output_flags.index(True)
+    out_type = output_flags.index(True)
 
     with ExitStack() as stack:
         if input_type == ".csv":
             files_with_header, header = find_csv_with_header(stack, input_files)
             headers = header.strip().split(",")
-            check_correct_headers(headers, file_type)
+            check_correct_headers(headers, out_type)
 
             if unsorted:
                 csv_concat_unsorted(stack, input_files, files_with_header, headers, out_file)
@@ -504,30 +509,23 @@ def run(
         elif input_type == ".bin":
             if unsorted:
                 bin_concat_unsorted(stack, input_files, out_file)
-            elif sort_by_event:
+            else:
+                sort_type = "elt" if sort_by_event else "plt"
                 bin_concat_sort_by_headers(
                     stack,
                     input_files,
-                    file_type,
-                    "elt",
-                    out_file,
-                )
-            elif sort_by_period:
-                bin_concat_sort_by_headers(
-                    stack,
-                    input_files,
-                    file_type,
-                    "plt",
+                    out_type,
+                    sort_type,
                     out_file,
                 )
         else:
             raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
-    if convert_to_csv:
-        data = np.memmap(out_file, dtype=KAT_MAP[file_type]["dtype"])
-        headers = KAT_MAP[file_type]["headers"]
-        fmt = KAT_MAP[file_type]["fmt"]
-        csv_out_file = open(csv_out_file_path, "w")
+    if bin_to_csv:
+        data = np.memmap(out_file, dtype=KAT_MAP[out_type]["dtype"])
+        headers = KAT_MAP[out_type]["headers"]
+        fmt = KAT_MAP[out_type]["fmt"]
+        csv_out_file = open(final_out_file_path, "w")
         csv_out_file.write(",".join(headers) + "\n")
 
         num_rows = data.shape[0]
@@ -537,6 +535,8 @@ def run(
             buffer_data = data[start:end]
             write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
         csv_out_file.close()
+    if bin_to_parquet:
+        raise RuntimeError("CONVERSION TO PARQUET NOT SUPPORTED YET")
 
 
 @redirect_logging(exec_name='katpy')
