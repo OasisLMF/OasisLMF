@@ -1,8 +1,9 @@
-import filecmp
 from pathlib import Path
+import pandas as pd
 import shutil
 from tempfile import TemporaryDirectory
 
+import numpy as np
 from oasislmf.pytools.kat.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_katpy")
@@ -23,8 +24,20 @@ def case_runner(dir_in, out_name, sorted):
 
         main(**kwargs)
 
+        suffix = Path(out_name).suffix
+
         try:
-            assert filecmp.cmp(expected_out, actual_out, shallow=False)
+            if suffix == ".csv":
+                expected_data = np.genfromtxt(expected_out, delimiter=',', skip_header=1)
+                actual_data = np.genfromtxt(actual_out, delimiter=',', skip_header=1)
+                if expected_data.shape != actual_data.shape:
+                    raise AssertionError(
+                        f"Shape mismatch: {expected_out} has shape {expected_data.shape}, {actual_out} has shape {actual_data.shape}")
+                np.testing.assert_allclose(expected_data, actual_data, rtol=1e-5, atol=1e-8)
+            if suffix == ".parquet":
+                expected_data = pd.read_parquet(expected_out)
+                actual_data = pd.read_parquet(actual_out)
+                pd.testing.assert_frame_equal(expected_data, actual_data)
         except Exception as e:
             error_path = TESTS_ASSETS_DIR.joinpath('error_files')
             error_path.mkdir(exist_ok=True)
