@@ -9,7 +9,10 @@ import logging
 import numba as nb
 import numpy as np
 import shutil
+import pandas as pd
 from pathlib import Path
+import pyarrow as pa
+import pyarrow.parquet as pq
 import tempfile
 
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
@@ -359,10 +362,10 @@ def bin_concat_sort_by_headers(
     """Concats Binary files in order determined out_type and their respective merge functions
     Args:
         stack (ExitStack): Exit Stack.
-        file_paths (List[str | os.PathLike]): List of csv file paths.
+        file_paths (List[str | os.PathLike]): List of bin file paths.
         file_type (int): File type int matching KAT_NAMES index
         out_type (str): Out type str between "elt" and "plt"
-        out_file (str | os.PathLike): Output Concatenated CSV file.
+        out_file (str | os.PathLike): Output Concatenated Binary file.
     """
     files = [np.memmap(fp, dtype=KAT_MAP[file_type]["dtype"]) for fp in file_paths]
 
@@ -376,6 +379,142 @@ def bin_concat_sort_by_headers(
     with stack.enter_context(out_file.open("wb")) as out:
         for data in gen:
             data.tofile(out)
+
+
+def parquet_concat_unsorted(
+    file_paths,
+    out_file,
+):
+    """Concats Parquet files in order they are passed in.
+    Args:
+        file_paths (List[str | os.PathLike]): List of parquet file paths.
+        out_file (str | os.PathLike): Output Concatenated Parquet file.
+    """
+    writer = None
+    for fp in file_paths:
+        pq_file = pq.ParquetFile(fp)
+        for rg in range(pq_file.num_row_groups):
+            table = pq_file.read_row_group(rg)
+            if writer is None:
+                writer = pq.ParquetWriter(out_file, table.schema)
+            writer.write_table(table)
+
+    if writer:
+        writer.close()
+
+
+def parquet_kway_merge(
+    file_paths,
+    keys,
+    chunk_size=100000,
+):
+    """Merge sorted chunks using a k-way merge algorithm
+    Args:
+        file_paths (List[str | os.PathLike]): List of parquet file paths.
+        keys (List[str]): List of keys to sort by
+        chunk_size (int): Chunk size for reading parquet files. Defaults to 100000.
+    Yields:
+        buffer (pa.Table): yields sorted pyarrow table from input files
+    """
+    # Helper to read batches and manage current state for each file
+    class FileStream:
+        def __init__(self, path):
+            self.reader = pq.ParquetFile(str(path)).iter_batches(batch_size=chunk_size)
+            self.chunk = None
+            self.table = None
+            self.index = 0
+            self._load_next_chunk()
+
+        def _load_next_chunk(self):
+            try:
+                self.chunk = next(self.reader)
+                self.table = self.chunk.to_pydict()
+                self.index = 0
+            except StopIteration:
+                self.chunk = None
+                self.table = None
+
+        def has_data(self):
+            return self.table is not None
+
+        def current_key(self, keys):
+            return tuple(self.table[k][self.index] for k in keys)
+
+        def current_row(self):
+            return {k: self.table[k][self.index] for k in self.table}
+
+        def advance(self):
+            self.index += 1
+            if self.index >= len(next(iter(self.table.values()))):
+                self._load_next_chunk()
+
+    streams = [FileStream(fp) for fp in file_paths]
+    heap = [
+        (stream.current_key(keys), i)
+        for i, stream in enumerate(streams) if stream.has_data()
+    ]
+    heapq.heapify(heap)
+
+    buffer = {}
+    schema = None
+
+    while heap:
+        _, i = heapq.heappop(heap)
+        stream = streams[i]
+
+        # Initialize schema and buffer
+        if schema is None:
+            schema = stream.chunk.schema
+            buffer = {name: [] for name in schema.names}
+
+        # Append current row to buffer
+        row = stream.current_row()
+        for col in buffer:
+            buffer[col].append(row[col])
+
+        stream.advance()
+        if stream.has_data():
+            heapq.heappush(heap, (stream.current_key(keys), i))
+
+        # Output buffer if full
+        if len(buffer[keys[0]]) >= chunk_size:
+            yield pa.table(buffer, schema=schema)
+            buffer = {name: [] for name in schema.names}
+
+    # Yield remaining buffer
+    if buffer and buffer[keys[0]]:
+        yield pa.table(buffer, schema=schema)
+
+
+def parquet_concat_sorted(
+    file_paths,
+    out_type,
+    out_file,
+    chunk_size=100000,
+):
+    """Concats Parquet files in order determined out_type and their respective merge functions
+    Args:
+        file_paths (List[str | os.PathLike]): List of parquet file paths.
+        out_type (str): Out type str between "elt" and "plt"
+        out_file (str | os.PathLike): Output Concatenated Parquet file.
+        chunk_size (int): Chunk size for reading parquet files. Defaults to 100000.
+    """
+    if out_type == "elt":
+        keys = ["EventId"]
+    elif out_type == "plt":
+        keys = ["EventId", "Period"]
+    else:
+        raise RuntimeError(f"Unknown out_type: {out_type}")
+
+    writer = None
+
+    for table in parquet_kway_merge(file_paths, keys, chunk_size):
+        if writer is None:
+            writer = pq.ParquetWriter(out_file, table.schema)
+        writer.write_table(table)
+
+    if writer:
+        writer.close()
 
 
 def run(
@@ -518,25 +657,59 @@ def run(
                     sort_type,
                     out_file,
                 )
+        elif input_type == ".parquet":
+            if unsorted:
+                parquet_concat_unsorted(
+                    input_files,
+                    out_file,
+                )
+            else:
+                sort_type = "elt" if sort_by_event else "plt"
+                parquet_concat_sorted(
+                    input_files,
+                    sort_type,
+                    out_file,
+                )
         else:
             raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
-    if bin_to_csv:
+    if bin_to_csv or bin_to_parquet:
         data = np.memmap(out_file, dtype=KAT_MAP[out_type]["dtype"])
         headers = KAT_MAP[out_type]["headers"]
         fmt = KAT_MAP[out_type]["fmt"]
-        csv_out_file = open(final_out_file_path, "w")
-        csv_out_file.write(",".join(headers) + "\n")
-
         num_rows = data.shape[0]
-        buffer_size = 1000000
-        for start in range(0, num_rows, buffer_size):
-            end = min(start + buffer_size, num_rows)
-            buffer_data = data[start:end]
-            write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
-        csv_out_file.close()
-    if bin_to_parquet:
-        raise RuntimeError("CONVERSION TO PARQUET NOT SUPPORTED YET")
+        if bin_to_csv:
+            csv_out_file = open(final_out_file_path, "w")
+            csv_out_file.write(",".join(headers) + "\n")
+
+            buffer_size = 1000000
+            for start in range(0, num_rows, buffer_size):
+                end = min(start + buffer_size, num_rows)
+                buffer_data = data[start:end]
+                write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+            csv_out_file.close()
+        if bin_to_parquet:
+            parquet_writer = None
+            buffer_size = 1000000
+            for start in range(0, num_rows, buffer_size):
+                end = min(start + buffer_size, num_rows)
+                buffer_data = data[start:end]
+
+                arrays = []
+                fields = []
+                for name in buffer_data.dtype.names:
+                    array = pa.array(buffer_data[name])
+                    arrays.append(array)
+                    fields.append((name, array.type))
+
+                schema = pa.schema(fields)
+                table = pa.Table.from_arrays(arrays, schema=schema)
+                if parquet_writer is None:
+                    parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
+                parquet_writer.write_table(table)
+
+            if parquet_writer is not None:
+                parquet_writer.close()
 
 
 @redirect_logging(exec_name='katpy')
