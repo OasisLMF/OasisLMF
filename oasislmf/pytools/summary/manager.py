@@ -27,6 +27,7 @@ import numpy as np
 import numba as nb
 from numba.typed import Dict as nb_dict
 import pandas as pd
+import json
 
 from contextlib import ExitStack
 import logging
@@ -319,7 +320,7 @@ class SummaryReader(EventReader):
         self.has_affected_risk = has_affected_risk
         self.logger = logger
 
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id):
+    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
         return read_buffer(
             byte_mv, cursor, valid_buff, event_id, item_id,
             self.summary_sets_id, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
@@ -439,33 +440,44 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
             summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
             summary_sets_cursor[summary_set_index] += summary_pipe.write(nb_oasis_int(summary_set_id).tobytes())
 
-        for event_id in summary_reader.read_streams(streams_in):
-            for summary_set_index, summary_set_id in enumerate(summary_sets_id):
-                summary_pipe = summary_sets_pipe[summary_set_id]
-                summary_index_cursor = 0
-                last_loss_summary_index = 0
-                last_sidx = 0
-                while True:
-                    cursor, last_loss_summary_index, last_sidx, summary_index_cursor = mv_write_event(
-                        out_byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
-                        output_zeros, has_affected_risk,
-                        summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
-                        loss_summary,
-                        summary_index_cursor, summary_sets_cursor, summary_stream_index
-                    )
-                    write_mv_to_stream(summary_pipe, out_byte_mv, cursor)
-                    if last_loss_summary_index == -1:
-                        break
-                if low_memory:
-                    # write the summary.idx file
-                    np.savetxt(summary_sets_index_pipe[summary_set_id],
-                               summary_stream_index[:summary_index_cursor],
-                               fmt="%i,%i")
+        try:
+            for event_id in summary_reader.read_streams(streams_in):
+                for summary_set_index, summary_set_id in enumerate(summary_sets_id):
+                    summary_pipe = summary_sets_pipe[summary_set_id]
+                    summary_index_cursor = 0
+                    last_loss_summary_index = 0
+                    last_sidx = 0
+                    while True:
+                        cursor, last_loss_summary_index, last_sidx, summary_index_cursor = mv_write_event(
+                            out_byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
+                            output_zeros, has_affected_risk,
+                            summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
+                            loss_summary,
+                            summary_index_cursor, summary_sets_cursor, summary_stream_index
+                        )
+                        write_mv_to_stream(summary_pipe, out_byte_mv, cursor)
+                        if last_loss_summary_index == -1:
+                            break
+                    if low_memory:
+                        # write the summary.idx file
+                        np.savetxt(summary_sets_index_pipe[summary_set_id],
+                                   summary_stream_index[:summary_index_cursor],
+                                   fmt="%i,%i")
 
-            loss_summary.fill(0)
-            present_summary_id.fill(0)
-            summary_set_index_to_present_loss_ptr_end[:] = summary_set_index_to_loss_ptr
-            is_risk_affected.fill(0)
+                loss_summary.fill(0)
+                present_summary_id.fill(0)
+                summary_set_index_to_present_loss_ptr_end[:] = summary_set_index_to_loss_ptr
+                is_risk_affected.fill(0)
+
+        except Exception:
+            data = {
+                "event_id": event_id
+            }
+            with open("event_error.json", "w") as f:
+                json.dump(data, f, default=str)
+
+            logger.error(f"event id={event_id} failed in summary")
+            raise
 
 
 @redirect_logging(exec_name='summarypy')

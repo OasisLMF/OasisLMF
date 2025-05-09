@@ -64,47 +64,140 @@ ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
 ORD_ALT_OUTPUT_SWITCHES = {
     "alt_period": {
-        'csv_flag': '-o', 'parquet_flag': '-p', 'alct_flag': '-c',
-        'alct_confidence_level': '-l'
+        'ktools': {
+            'executable': 'aalcalc',
+            'subfolder_flag': '-K',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'alct_flag': '-c',
+            'alct_confidence_level': '-l',
+            'skip_header_flag': '-H',
+        },
+        'pytools': {
+            'executable': 'aalpy',
+            'subfolder_flag': '-K',
+            'csv_flag': '-a',
+            'alct_flag': '-c',
+            'alct_confidence_level': '-l',
+            'skip_header_flag': '-H',
+        }
     }
 }
 
 ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
     "alt_meanonly": {
-        'csv_flag': '-o', 'parquet_flag': '-p'
+        'ktools': {
+            'executable': 'aalcalcmeanonly',
+            'subfolder_flag': '-K',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'skip_header_flag': '-H',
+        },
+        'pytools': {
+            'executable': 'aalpy',
+            'subfolder_flag': '-K',
+            'csv_flag': '-a',
+            'skip_header_flag': '-H',
+        }
     }
 }
 
 ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
-        'csv_flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt',
-        'parquet_flag': '-s', 'kat_flag': '-S'
+        'table_name': 'splt',
+        'kat_flag': '-S',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-S',
+            'parquet_flag': '-s',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-s',
+            'skip_header_flag': '-H'
+        },
     },
     "plt_quantile": {
-        'csv_flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt',
-        'parquet_flag': '-q', 'kat_flag': '-Q'
+        'table_name': 'qplt',
+        'kat_flag': '-Q',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-Q',
+            'parquet_flag': '-q',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-q',
+            'skip_header_flag': '-H'
+        },
     },
     "plt_moment": {
-        'csv_flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt',
-        'parquet_flag': '-m', 'kat_flag': '-M'
+        'table_name': 'mplt',
+        'kat_flag': '-M',
+        'ktools': {
+            'executable': 'pltcalc',
+            'csv_flag': '-M',
+            'parquet_flag': '-m',
+            'skip_header_flag': '-H'
+        },
+        'pytools': {
+            'executable': 'pltpy',
+            'csv_flag': '-m',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
-        'csv_flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt',
-        'parquet_flag': '-q', 'kat_flag': '-q'
+        'table_name': 'qelt',
+        'kat_flag': '-q',
+        'ktools': {
+            'executable': 'eltcalc',
+            'csv_flag': '-Q',
+            'parquet_flag': '-q',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-q',
+            'skip_header_flag': '-H'
+        },
     },
     "elt_moment": {
-        'csv_flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt',
-        'parquet_flag': '-m', 'kat_flag': '-m'
+        'table_name': 'melt',
+        'kat_flag': '-m',
+        'ktools': {
+            'executable': 'eltcalc',
+            'csv_flag': '-M',
+            'parquet_flag': '-m',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-m',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
 ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
-        'csv_flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt',
-        'parquet_flag': '-p', 'kat_flag': '-s'
+        'table_name': 'selt',
+        'kat_flag': '-s',
+        'ktools': {
+            'executable': 'summarycalctocsv',
+            'csv_flag': '-o',
+            'parquet_flag': '-p',
+            'skip_header_flag': '-s'
+        },
+        'pytools': {
+            'executable': 'eltpy',
+            'csv_flag': '-s',
+            'skip_header_flag': '-H'
+        },
     }
 }
 
@@ -168,7 +261,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "${p}_[0-9]*.log" | wc -l)
@@ -413,7 +506,10 @@ def do_post_wait_processing(
     work_sub_dir='',
     output_dir='output/',
     stderr_guard=True,
-    inuring_priority=None
+    inuring_priority=None,
+    join_summary_info=False,
+    aalpy=False,
+    lecpy=False,
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
@@ -424,6 +520,9 @@ def do_post_wait_processing(
     for summary in analysis_settings['{}_summaries'.format(runtype)]:
         if "id" in summary:
             summary_set = summary['id']
+
+            aal_exec_type = "ktools" if not aalpy else "pytools"
+            lec_exec_type = "ktools" if not lecpy else "pytools"
 
             # ktools ORIG - aalcalc
             if summary.get('aalcalc'):
@@ -446,46 +545,37 @@ def do_post_wait_processing(
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                cmd = 'aalcalc -K{}{}_{}S{}_summary_palt'.format(
-                    work_sub_dir, runtype, inuring_priority, summary_set
-                )
-                palt_outfile_stem = '{}{}_{}S{}_palt'.format(
-                    output_dir, runtype, inuring_priority, summary_set
-                )
-                alct_outfile_stem = '{}{}_{}S{}_alct'.format(
-                    output_dir, runtype, inuring_priority, summary_set
-                )
+                aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["executable"]
+                aal_subfolder_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["subfolder_flag"]
+                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
 
-                alct_file_extension = ".csv"
+                palt_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_palt"
+                alct_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_alct"
+
+                outfile_ext = "csv"
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    alct_file_extension = ".parquet"
+                    if aal_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                    outfile_ext = "parquet"
 
                 if summary.get('ord_output', {}).get('alct_convergence'):
-                    cmd = '{} {} {}{}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('alct_flag', ''),
-                        alct_outfile_stem,
-                        alct_file_extension
-                    )
+                    aal_alct_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_flag"]
+                    cmd = f"{cmd} {aal_alct_flag} {alct_outfile_stem}.{outfile_ext}"
                     if summary.get('ord_output', {}).get('alct_confidence'):
-                        cmd = '{} {} {}'.format(
-                            cmd,
-                            ORD_ALT_OUTPUT_SWITCHES.get('alct_confidence_level', ''),
-                            summary.get('ord_output', {}).get('alct_confidence')
-                        )
+                        aal_alct_confidence_level = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_confidence_level"]
+                        cmd = f"{cmd} {aal_alct_confidence_level} {summary.get('ord_output', {}).get('alct_confidence')}"
 
-                if summary.get('ord_output', {}).get('parquet_format'):
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('parquet_flag', '')
-                    )
-                    cmd = '{} {}.parquet'.format(cmd, palt_outfile_stem)
+                if outfile_ext == 'parquet':
+                    if aal_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                    aal_parquet_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["parquet_flag"]
+                    cmd = f"{cmd} {aal_parquet_flag} {palt_outfile_stem}.parquet"
                 else:
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_OUTPUT_SWITCHES.get('alt_period', {}).get('csv_flag', '')
-                    )
-                    cmd = '{} > {}.csv'.format(cmd, palt_outfile_stem)
+                    aal_csv_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["csv_flag"]
+                    if aal_exec_type == "pytools":
+                        cmd = f"{cmd} {aal_csv_flag} {palt_outfile_stem}.csv"
+                    else:
+                        cmd = f"{cmd} {aal_csv_flag} > {palt_outfile_stem}.csv"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
@@ -493,6 +583,14 @@ def do_post_wait_processing(
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
+
+                if join_summary_info:
+                    summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
+                    cmd = f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext}'
+                    print_command(filename, cmd)
+                    if summary.get('ord_output', {}).get('alct_convergence'):
+                        cmd = f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext}'
+                        print_command(filename, cmd)
 
             # ktools ORIG - aalcalcmeanonly
             if summary.get('aalcalcmeanonly'):
@@ -512,25 +610,24 @@ def do_post_wait_processing(
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
-                cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summary_altmeanonly'.format(
-                    work_sub_dir, runtype, inuring_priority, summary_set
-                )
-                altmeanonly_outfile_stem = '{}{}_{}S{}_altmeanonly'.format(
-                    output_dir, runtype, inuring_priority, summary_set
-                )
+                aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["executable"]
+                aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["subfolder_flag"]
+                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
+                outfile_ext = 'csv'
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_MEANONLY_OUTPUT_SWITCHES.get('alt_meanonly', {}).get('parquet_flag', '')
-                    )
-                    cmd = '{} {}.parquet'.format(cmd, altmeanonly_outfile_stem)
+                    if aal_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                    aal_parquet_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["parquet_flag"]
+                    cmd = f"{cmd} {aal_parquet_flag} {altmeanonly_outfile_stem}.parquet"
+                    outfile_ext = 'parquet'
                 else:
-                    cmd = '{} {}'.format(
-                        cmd,
-                        ORD_ALT_MEANONLY_OUTPUT_SWITCHES.get('alt_meanonly', {}).get('csv_flag', '')
-                    )
-                    cmd = '{} > {}.csv'.format(cmd, altmeanonly_outfile_stem)
+                    aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["csv_flag"]
+                    if aal_exec_type == "pytools":
+                        cmd = f"{cmd} {aal_csv_flag} {altmeanonly_outfile_stem}.csv"
+                    else:
+                        cmd = f"{cmd} {aal_csv_flag} > {altmeanonly_outfile_stem}.csv"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
@@ -539,6 +636,11 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
+                if join_summary_info:
+                    summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
+                    cmd = f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext}'
+                    print_command(filename, cmd)
+
             # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
 
@@ -546,13 +648,12 @@ def do_post_wait_processing(
                 ept_output = False
                 psept_output = False
 
-                cmd = 'ordleccalc {} -K{}{}_{}S{}_summaryleccalc'.format(
-                    '-r' if ord_outputs.get('return_period_file') else '',
-                    work_sub_dir,
-                    runtype,
-                    inuring_priority,
-                    summary_set
-                )
+                lec_executable = "ordleccalc"
+                if lec_exec_type == "pytools":
+                    lec_executable = "lecpy"
+
+                cmd = f"{lec_executable} {'-r' if ord_outputs.get('return_period_file') else ''}"
+                cmd = f"{cmd} -K{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc"
 
                 process_counter['lpid_monitor_count'] += 1
                 for option, active in sorted(ord_outputs.items()):
@@ -574,20 +675,29 @@ def do_post_wait_processing(
                 psept_output_flag = '-o'
                 outfile_ext = 'csv'
                 if summary.get('ord_output', {}).get('parquet_format'):
+                    if lec_exec_type == "pytools":
+                        raise OasisException('ERROR: pytools executable does not support parquet_format output')
                     ept_output_flag = '-P'
                     psept_output_flag = '-p'
                     outfile_ext = 'parquet'
 
+                ept_filename = '{}{}_{}S{}_ept.{}'.format(
+                    output_dir, runtype, inuring_priority,
+                    summary_set, outfile_ext
+                )
+                psept_filename = '{}{}_{}S{}_psept.{}'.format(
+                    output_dir, runtype, inuring_priority,
+                    summary_set, outfile_ext
+                )
+
                 if ept_output:
-                    cmd = '{} {} {}{}_{}S{}_ept.{}'.format(
-                        cmd, ept_output_flag, output_dir, runtype,
-                        inuring_priority, summary_set, outfile_ext
+                    cmd = '{} {} {}'.format(
+                        cmd, ept_output_flag, ept_filename
                     )
 
                 if psept_output:
-                    cmd = '{} {} {}{}_{}S{}_psept.{}'.format(
-                        cmd, psept_output_flag, output_dir, runtype,
-                        inuring_priority, summary_set, outfile_ext
+                    cmd = '{} {} {}'.format(
+                        cmd, psept_output_flag, psept_filename
                     )
 
                 if stderr_guard:
@@ -595,6 +705,13 @@ def do_post_wait_processing(
                 else:
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
+
+                if join_summary_info:
+                    summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
+                    cmd = f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename}'
+                    print_command(filename, cmd)
+                    cmd = f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename}'
+                    print_command(filename, cmd)
 
             # ktools ORIG - Leccalc
             if leccalc_enabled(summary):
@@ -753,7 +870,10 @@ def do_kats(
     output_dir='output/',
     sort_by_event=False,
     process_number=None,
-    inuring_priority=None
+    inuring_priority=None,
+    join_summary_info=False,
+    eltpy=False,
+    pltpy=False,
 ):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -822,24 +942,51 @@ def do_kats(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table, v in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
+
+                        exec_type = "ktools"
+                        if eltpy and ord_type in ["elt_ord", "selt_ord"]:
+                            exec_type = "pytools"
+                        if pltpy and ord_type == "plt_ord":
+                            exec_type = "pytools"
+
                         anykats = True
 
-                        cmd = 'kat' if sort_by_event else 'kat -u'
-                        outfile_flag = '>'
-                        outfile_ext = 'csv'
-                        if summary.get('ord_output', {}).get('parquet_format'):
-                            cmd = f'katparquet {v["kat_flag"]}'
+                        if exec_type == "pytools":
+                            cmd = f'katpy {v["kat_flag"]}' if sort_by_event else f'katpy -u {v["kat_flag"]}'
                             outfile_flag = '-o'
-                            outfile_ext = 'parquet'
+                            outfile_ext = 'csv'
 
-                        for process_id in process_range(max_process_id, process_number):
-                            cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
+                            cmd = f'{cmd} -f bin -i'
+
+                            if summary.get('ord_output', {}).get('parquet_format'):
+                                raise OasisException('ERROR: pytools executable does not support parquet_format output')
+
+                            for process_id in process_range(max_process_id, process_number):
+                                cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
+
+                        else:
+                            cmd = 'kat' if sort_by_event else 'kat -u'
+                            outfile_flag = '>'
+                            outfile_ext = 'csv'
+
+                            if summary.get('ord_output', {}).get('parquet_format'):
+                                cmd = f'katparquet {v["kat_flag"]}'
+                                outfile_flag = '-o'
+                                outfile_ext = 'parquet'
+
+                            for process_id in process_range(max_process_id, process_number):
+                                cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
 
                         process_counter['kpid_monitor_count'] += 1
-                        cmd = f'{cmd} {outfile_flag} {output_dir}{runtype}_{inuring_priority}S{summary_set}_{v["table_name"]}.{outfile_ext}'
+                        csv_outfile = f'{output_dir}{runtype}_{inuring_priority}S{summary_set}_{v["table_name"]}.{outfile_ext}'
+                        cmd = f'{cmd} {outfile_flag} {csv_outfile}'
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
+                        if join_summary_info:
+                            summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
+                            cmd = f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile}'
+                            print_command(filename, cmd)
     return anykats
 
 
@@ -1024,7 +1171,9 @@ def do_ord(
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
-    inuring_priority=None
+    inuring_priority=None,
+    eltpy=False,
+    pltpy=False,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -1043,33 +1192,44 @@ def do_ord(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 cmd = ''
                 fifo_out_name = ''
+                exec_type = "ktools"
+                if eltpy and ord_type in ["elt_ord", "selt_ord"]:
+                    exec_type = "pytools"
+                if pltpy and ord_type == "plt_ord":
+                    exec_type = "pytools"
                 skip_line = True
                 for ord_table, flag_proc in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            if ord_type == 'plt_ord':
-                                cmd += ' -H'
-                            else:
-                                cmd += ' -s'
+                            cmd += f' {flag_proc[exec_type]["skip_header_flag"]}'
                             skip_line = False
 
                         if summary.get('ord_output', {}).get('parquet_format'):
-                            cmd += f' {flag_proc["parquet_flag"]}'
+                            if exec_type == "pytools":
+                                raise OasisException('ERROR: pytools executable does not support parquet_format output')
+                            cmd += f' {flag_proc[exec_type]["parquet_flag"]}'
                         else:
-                            cmd += f' {flag_proc["csv_flag"]}'
+                            cmd += f' {flag_proc[exec_type]["csv_flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_table}')
-                        if ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
+                        if exec_type == "pytools" or ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
                             cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
-                    if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
-                        cmd = f'{cmd} > {fifo_out_name}'
+                    if exec_type == "ktools":
+                        if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
+                            cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
-                    cmd = f'{flag_proc["ktools_exe"]}{cmd}'
+
+                    # Add binary output flag for ELTpy and PLTpy, will be converted to csv during kats
+                    if exec_type == "pytools":
+                        cmd = f'{flag_proc[exec_type]["executable"]} -B{cmd}'
+                    else:
+                        cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
+
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
@@ -1162,6 +1322,8 @@ def rl(
     process_counter,
     num_reinsurance_iterations,
     summarypy,
+    eltpy,
+    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1180,7 +1342,7 @@ def rl(
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1211,6 +1373,8 @@ def ri(
     process_counter,
     num_reinsurance_iterations,
     summarypy,
+    eltpy,
+    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1229,7 +1393,7 @@ def ri(
             do_ord(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1255,12 +1419,13 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, summarypy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, summarypy, eltpy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
+               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1283,6 +1448,8 @@ def do_gul(
     filename,
     process_counter,
     summarypy,
+    eltpy,
+    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     gul_legacy_stream=None,
@@ -1294,7 +1461,8 @@ def do_gul(
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
-        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
+               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1431,10 +1599,17 @@ def get_getmodel_itm_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine, dynamic_footprint=dynamic_footprint)} -S{number_of_samples} -L{gul_threshold}'
+        gulcmd = get_gulcmd(
+            gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
+            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
+            dynamic_footprint=dynamic_footprint
+        )
+        cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
+        modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
+        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1497,10 +1672,17 @@ def get_getmodel_cov_cmd(
     """
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
-        cmd += f'{get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,dynamic_footprint=dynamic_footprint)} -S{number_of_samples} -L{gul_threshold}'
+        gulcmd = get_gulcmd(
+            gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
+            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
+            dynamic_footprint=dynamic_footprint
+        )
+        cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        cmd += f'{get_modelcmd(modelpy, modelpy_server, peril_filter)} | {get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)} -S{number_of_samples} -L{gul_threshold}'
+        modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
+        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         if not gulpy and not gulmc:
@@ -1591,7 +1773,7 @@ def get_main_cmd_ri_stream(
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_'+str(i))}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_' + str(i))}"
         if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
             main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
         if i < num_reinsurance_iterations:   # Net output required to process next inuring priority
@@ -1681,7 +1863,6 @@ def get_main_cmd_gul_stream(
     :type consumer: string
     :return: generated command as str
     """
-
     gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
     main_cmd = f'{cmd} > {gul_fifo_name} '
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
@@ -1843,6 +2024,11 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     summarypy=False,
+    join_summary_info=False,
+    eltpy=False,
+    pltpy=False,
+    aalpy=False,
+    lecpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1883,6 +2069,11 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
+    bash_params['join_summary_info'] = join_summary_info if not gul_legacy_stream else False  # join_summary_info doesn't support gul_legacy_stream
+    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False  # eltpy doesn't support gul_legacy_stream
+    bash_params['pltpy'] = pltpy if not gul_legacy_stream else False  # pltpy doesn't support gul_legacy_stream
+    bash_params['aalpy'] = aalpy if not gul_legacy_stream else False  # aalpy doesn't support gul_legacy_stream
+    bash_params['lecpy'] = lecpy if not gul_legacy_stream else False  # lecpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2102,6 +2293,8 @@ def create_bash_analysis(
     model_py_server,
     peril_filter,
     summarypy,
+    eltpy,
+    pltpy,
     gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
@@ -2165,7 +2358,7 @@ def create_bash_analysis(
         if ri_output or rl_output:
             for i in range(1, num_reinsurance_iterations + 1):
                 print_command(
-                    filename, f"#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_'+str(i))}")
+                    filename, f"#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_' + str(i))}")
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
@@ -2290,6 +2483,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2309,6 +2504,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2328,6 +2525,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
@@ -2346,6 +2545,8 @@ def create_bash_analysis(
                     'filename': filename,
                     'process_counter': process_counter,
                     'summarypy': summarypy,
+                    'eltpy': eltpy,
+                    'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'gul_legacy_stream': gul_legacy_stream,
@@ -2576,6 +2777,11 @@ def create_bash_outputs(
     kat_sort_by_event,
     gul_item_stream,
     work_full_correlation_kat_dir,
+    join_summary_info,
+    eltpy,
+    pltpy,
+    aalpy,
+    lecpy,
     **kwargs
 ):
 
@@ -2603,7 +2809,8 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                 num_fm_output, filename, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     if ri_output:
@@ -2614,7 +2821,8 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
         if full_correlation:
             print_command(filename, '')
@@ -2626,7 +2834,8 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event,
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     if il_output:
@@ -2635,7 +2844,8 @@ def create_bash_outputs(
         print_command(filename, '')
         do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+            eltpy=eltpy, pltpy=pltpy
         )
         if full_correlation:
             print_command(filename, '')
@@ -2647,7 +2857,8 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event,
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     if gul_output:
@@ -2656,7 +2867,8 @@ def create_bash_outputs(
         print_command(filename, '')
         do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+            eltpy=eltpy, pltpy=pltpy
         )
         if full_correlation:
             print_command(filename, '')
@@ -2668,7 +2880,8 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event,
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
+                eltpy=eltpy, pltpy=pltpy
             )
 
     do_kwaits(filename, process_counter)
@@ -2680,24 +2893,26 @@ def create_bash_outputs(
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                aalpy=aalpy, lecpy=lecpy
             )
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                aalpy=aalpy, lecpy=lecpy
             )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard
+            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy, lecpy=lecpy
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard
+            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy, lecpy=lecpy
         )
 
     if full_correlation:
@@ -2705,17 +2920,20 @@ def create_bash_outputs(
         if ri_output:
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                aalpy=aalpy, lecpy=lecpy
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                aalpy=aalpy, lecpy=lecpy
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                aalpy=aalpy, lecpy=lecpy
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2770,6 +2988,11 @@ def genbash(
     model_py_server=False,
     peril_filter=[],
     summarypy=False,
+    join_summary_info=False,
+    eltpy=False,
+    pltpy=False,
+    aalpy=False,
+    lecpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False
@@ -2853,6 +3076,11 @@ def genbash(
         model_py_server=model_py_server,
         peril_filter=peril_filter,
         summarypy=summarypy,
+        join_summary_info=join_summary_info,
+        eltpy=eltpy,
+        pltpy=pltpy,
+        aalpy=aalpy,
+        lecpy=lecpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )

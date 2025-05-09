@@ -234,8 +234,14 @@ def get_cond_info(locations_df, accounts_df):
         # we get information about cond from accounts_df
         cond_tags = {}  # information about each cond tag
         account_layer_exclusion = {}  # for each account and layer, store info about cond class exclusion
-        fill_empty(accounts_df, 'CondPriority', 1)
-        fill_empty(accounts_df, 'CondPeril', '')
+        if 'CondPriority' in accounts_df.columns:
+            fill_empty(accounts_df, 'CondPriority', 1)
+        else:
+            accounts_df['CondPriority'] = 1
+        if 'CondPeril' in accounts_df.columns:
+            fill_empty(accounts_df, 'CondPeril', '')
+        else:
+            accounts_df['CondPeril'] = ''
         for acc_rec in accounts_df.to_dict(orient="records"):
             cond_tag_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'])
             cond_number_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'], acc_rec['CondNumber'])
@@ -315,7 +321,7 @@ def get_cond_info(locations_df, accounts_df):
 
 
 def get_levels(gul_inputs_df, locations_df, accounts_df):
-    if locations_df is not None:
+    if locations_df is not None and not {"CondTag", "CondNumber"}.difference(accounts_df.columns):
         level_conds, extra_accounts = get_cond_info(locations_df, accounts_df)
     else:
         level_conds = []
@@ -603,7 +609,10 @@ def get_il_input_items(
                                           .intersection(group_df.columns))]
                             .assign(FMTermGroupID=FMTermGroupID))
                 numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
-                keep_df = group_df[(group_df[numeric_terms] > 0).any(axis='columns')][list(
+                term_filter = False
+                for term in numeric_terms:
+                    term_filter |= (group_df[term] != oed_schema.get_default(term))
+                keep_df = group_df[term_filter][list(
                     set(agg_key).intersection(group_df.columns))].drop_duplicates()
                 group_df = keep_df.merge(group_df, how='left')
 
@@ -658,10 +667,15 @@ def get_il_input_items(
             # make sure agg_id without term still have the same amount of layer
             no_term_filter = level_df['layer_id'].isna()
             level_df_no_term = level_df[no_term_filter]
-            level_df_no_term = level_df_no_term.drop(columns=['layer_id']).merge(
+            level_df_no_term = level_df_no_term.drop(columns='layer_id').merge(
                 prev_level_df[prev_level_df['gul_input_id'].isin(set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']],
                 how='left'
             )
+            if 'PolNumber' in term_df_source.columns:
+                level_df_no_term = level_df_no_term.drop(columns=['PolNumber', 'acc_idx']).merge(
+                    term_df_source[['PortNumber', 'AccNumber', 'layer_id', 'PolNumber', 'acc_idx']],
+                    how='left'
+                )
             level_df = pd.concat([level_df[~no_term_filter], level_df_no_term]).reset_index()
             level_df['layer_id'] = level_df['layer_id'].astype('int32')
 

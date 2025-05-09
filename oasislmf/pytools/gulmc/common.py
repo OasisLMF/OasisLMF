@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import areaperil_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -19,18 +19,18 @@ ItemAdjustment = nb.from_dtype(np.dtype([('item_id', np.int32),
                                          ('return_period', np.int32)
                                          ]))
 
-items_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
-                                          ('damagecdf_i', np.int32),
-                                          ('rng_index', np.int32)
+items_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
+                                          ('damagecdf_i', oasis_int),
+                                          ('rng_index', oasis_int)
                                           ]))
 
-items_MC_data_type = nb.from_dtype(np.dtype([('item_id', np.int32),
-                                             ('item_idx', np.int32),
-                                             ('hazcdf_i', np.int32),
-                                             ('rng_index', np.int32),
-                                             ('hazard_rng_index', np.int32),
-                                             ('intensity_adjustment', np.int32),
-                                             ('return_period', np.int32)
+items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
+                                             ('item_idx', oasis_int),
+                                             ('haz_arr_i', oasis_int),
+                                             ('rng_index', oasis_int),
+                                             ('hazard_rng_index', oasis_int),
+                                             ('intensity_adjustment', oasis_int),
+                                             ('return_period', oasis_int)
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', np.int32),
@@ -56,7 +56,7 @@ AREAPERIL_TO_EFF_VULN_VALUE_TYPE = nb.types.UniTuple(nb.types.int32, 2)
 oasis_float_to_int32_size = oasis_float.itemsize // np.int32().itemsize
 areaperil_int_to_int32_size = areaperil_int.itemsize // np.int32().itemsize
 
-haz_cdf_type = nb.from_dtype(np.dtype([('probability', oasis_float),
+haz_arr_type = nb.from_dtype(np.dtype([('probability', oasis_float),
                                        ('intensity_bin_id', np.int32),
                                        ('intensity', np.int32)]))
 
@@ -98,4 +98,22 @@ NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float32),
                                                   ('N', np.int32),
                                                   ('cdf_min', np.float32),
                                                   ('cdf_max', np.float32),
+                                                  ('inv_factor', np.float64),
+                                                  ('norm_factor', np.float64),
                                                   ]))
+
+gulmc_compute_info_type = nb.from_dtype(np.dtype([
+    ('event_id', oasis_int),
+    ('cursor', oasis_int),
+    ('coverage_i', oasis_int),  # last_processed_coverage_ids_idx
+    ('coverage_n', oasis_int),
+    ('next_cached_vuln_cdf_i', oasis_int),
+    ('max_bytes_per_item', oasis_int),
+    ('Ndamage_bins_max', oasis_int),
+    ('loss_threshold', oasis_float),
+    ('alloc_rule', np.int8),
+    ('do_correlation', np.int8),
+    ('do_haz_correlation', np.int8),
+    ('effective_damageability', np.int8),
+    ('debug', np.int8),
+]))

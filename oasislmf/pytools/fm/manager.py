@@ -1,6 +1,7 @@
 import tempfile
 import logging
 import numpy as np
+import json
 from contextlib import ExitStack
 
 from .financial_structure import create_financial_structure, load_financial_structure
@@ -11,6 +12,7 @@ from .compute_sparse import reset_variable as reset_variable_sparse
 from .compute_sparse import load_net_value
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.pytools.common.event_stream import init_streams_in, GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID
+from oasislmf.utils.exceptions import OasisStreamException
 
 
 logger = logging.getLogger(__name__)
@@ -127,9 +129,8 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
 
         fm_reader = FMReader(nodes_array, sidx_indexes, sidx_indptr, sidx_val,
                              loss_indptr, loss_val, pass_through, len_array, computes, compute_idx)
-
-        for i, event_id in enumerate(fm_reader.read_streams(streams_in)):
-            try:
+        try:
+            for i, event_id in enumerate(fm_reader.read_streams(streams_in)):
                 compute_event_sparse(
                     compute_info,
                     keep_input_loss,
@@ -149,8 +150,20 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
                     load_net_value(computes, compute_idx, nodes_array, sidx_indptr, sidx_indexes, loss_indptr, loss_val)
                     net_writer.write(event_id, compute_idx)
                 reset_variable_sparse(children, compute_idx, computes)
-            except Exception:
-                node = nodes_array[computes[compute_idx['compute_i']]]
-                logger.error(f"event index={i} id={event_id}, "
-                             f"at node level_id={node['level_id']} agg_id={node['agg_id']}")
-                raise
+        except OasisStreamException:
+            logger.error("Stream read error in fm")
+            raise
+        except Exception:
+            node = nodes_array[computes[compute_idx['compute_i']]]
+            data = {
+                "event_index": i,
+                "event_id": event_id,
+                "agg_id": node['agg_id'],
+                "node_level_id": node['level_id']
+            }
+
+            with open("event_error.json", "w") as f:
+                json.dump(data, f, default=str)
+
+            logger.error(f"event index={i} id={event_id}, at node level_id={node['level_id']} agg_id={node['agg_id']} failed in fm")
+            raise

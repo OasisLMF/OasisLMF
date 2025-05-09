@@ -268,6 +268,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             )
 
             unique_peril_correlation_groups = np.unique(corr_data_by_item_id[1:]['peril_correlation_group'])
+            corr_seeds = np.zeros(np.max(unique_peril_correlation_groups) + 1, dtype='int64')
 
             # pre-compute lookup tables for the Gaussian cdf and inverse cdf
             # Notes:
@@ -283,6 +284,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
+            corr_seeds = np.zeros(1, dtype='int64')
             corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
             arr_min, arr_max, arr_N = 0, 0, 0
             arr_min_cdf, arr_max_cdf = 0, 0
@@ -306,12 +308,11 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             # to generate the correlated part, we do the hashing here for now (instead of in stream_to_data)
             # generate the correlated samples for the whole event, for all peril correlation groups
             if do_correlation:
-                corr_seeds = generate_correlated_hash_vector(unique_peril_correlation_groups, event_id)
+                generate_correlated_hash_vector(unique_peril_correlation_groups, event_id, corr_seeds)
                 eps_ij = generate_rndm(corr_seeds, sample_size, skip_seeds=1)
 
             else:
                 # create dummy data structures with proper dtypes to allow correct numba compilation
-                corr_seeds = np.zeros(1, dtype='int64')
                 eps_ij = np.zeros((1, 1), dtype='float64')
 
             last_processed_coverage_ids_idx = 0
@@ -414,23 +415,14 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
             losses[MEAN_IDX, item_i] = gul_mean
 
             if sample_size > 0:
-                if do_correlation:
+                if do_correlation and corr_data_by_item_id[item['item_id']]['damage_correlation_value'] > 0:
                     item_corr_data = corr_data_by_item_id[item['item_id']]
-                    rho = item_corr_data['damage_correlation_value']
-
-                    if rho > 0:
-                        peril_correlation_group = item_corr_data['peril_correlation_group']
-
-                        get_corr_rval(
-                            eps_ij[peril_correlation_group], rndms_base[rng_index],
-                            rho, arr_min, arr_max, arr_N, norm_inv_cdf,
-                            arr_min_cdf, arr_max_cdf, norm_cdf, sample_size, z_unif
-                        )
-                        rndms = z_unif
-
-                    else:
-                        rndms = rndms_base[rng_index]
-
+                    get_corr_rval(
+                        eps_ij[item_corr_data['peril_correlation_group']], rndms_base[rng_index],
+                        item_corr_data['damage_correlation_value'], arr_min, arr_max, arr_N, norm_inv_cdf,
+                        arr_min_cdf, arr_max_cdf, norm_cdf, sample_size, z_unif
+                    )
+                    rndms = z_unif
                 else:
                     rndms = rndms_base[rng_index]
 
