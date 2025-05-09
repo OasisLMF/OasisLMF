@@ -9,7 +9,6 @@ import logging
 import numba as nb
 import numpy as np
 import shutil
-import pandas as pd
 from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
