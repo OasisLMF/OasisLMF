@@ -49,7 +49,6 @@ class PLTReader(EventReader):
         read_buffer_state_dtype = np.dtype([
             ('len_sample', oasis_int),
             ('reading_losses', np.bool_),
-            ('skip_losses', np.bool_),
             ('read_summary_set_id', np.bool_),
             ('compute_splt', np.bool_),
             ('compute_mplt', np.bool_),
@@ -68,7 +67,6 @@ class PLTReader(EventReader):
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
         self.state["reading_losses"] = False  # Set to true after reading header in read_buffer
-        self.state["skip_losses"] = False  # Set to true if event_id not in occ_map
         self.state["read_summary_set_id"] = False
         self.state["len_sample"] = len_sample
         self.state["compute_splt"] = compute_splt
@@ -272,7 +270,6 @@ def read_buffer(
 
     def _reset_state():
         state["reading_losses"] = False
-        state["skip_losses"] = False
         state["max_loss"] = 0
         state["mean_impacted_exposure"] = 0
         state["max_impacted_exposure"] = 0
@@ -317,7 +314,6 @@ def read_buffer(
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
-                state["skip_losses"] = event_id not in occ_map
             else:
                 break  # Not enough for whole summary header
 
@@ -330,78 +326,73 @@ def read_buffer(
             if sidx == 0:  # sidx == 0, end of record
                 cursor += oasis_float_size  # Read extra 0 for end of record
 
-                if state["skip_losses"]:
-                    _reset_state()
-                    continue
-
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
                     firsttime = True
-                    for record in occ_map[event_id]:
-                        if firsttime:
-                            for l in state["vrec"]:
-                                state["sumloss"] += l
-                                state["sumlosssqr"] += l * l
-                            firsttime = False
-                        if state["hasrec"]:
-                            meanloss, sdloss = _get_mean_and_sd_loss()
-                            if meanloss > 0 or sdloss > 0:
-                                _update_mplt_data(
-                                    mplt_data, mi, period_weights, granular_date,
-                                    record=record,
-                                    event_id=event_id,
-                                    summary_id=state["summary_id"],
-                                    sample_type=MEAN_TYPE_SAMPLE,
-                                    chance_of_loss=state["chance_of_loss"],
-                                    meanloss=meanloss,
-                                    sdloss=sdloss,
-                                    maxloss=state["max_loss"],
-                                    footprint_exposure=state["exposure_value"],
-                                    mean_impacted_exposure=state["mean_impacted_exposure"],
-                                    max_impacted_exposure=state["max_impacted_exposure"],
-                                )
-                                mi += 1
-                                if mi >= mplt_data.shape[0]:
-                                    # Output array full
-                                    _update_idxs()
-                                    return cursor, event_id, item_id, 1
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            if firsttime:
+                                for l in state["vrec"]:
+                                    state["sumloss"] += l
+                                    state["sumlosssqr"] += l * l
+                                firsttime = False
+                            if state["hasrec"]:
+                                meanloss, sdloss = _get_mean_and_sd_loss()
+                                if meanloss > 0 or sdloss > 0:
+                                    _update_mplt_data(
+                                        mplt_data, mi, period_weights, granular_date,
+                                        record=record,
+                                        event_id=event_id,
+                                        summary_id=state["summary_id"],
+                                        sample_type=MEAN_TYPE_SAMPLE,
+                                        chance_of_loss=state["chance_of_loss"],
+                                        meanloss=meanloss,
+                                        sdloss=sdloss,
+                                        maxloss=state["max_loss"],
+                                        footprint_exposure=state["exposure_value"],
+                                        mean_impacted_exposure=state["mean_impacted_exposure"],
+                                        max_impacted_exposure=state["max_impacted_exposure"],
+                                    )
+                                    mi += 1
+                                    if mi >= mplt_data.shape[0]:
+                                        # Output array full
+                                        _update_idxs()
+                                        return cursor, event_id, item_id, 1
 
                 # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
-                    for record in occ_map[event_id]:
-                        for i in range(len(intervals)):
-                            q = intervals[i]["q"]
-                            ipart = intervals[i]["integer_part"]
-                            fpart = intervals[i]["fractional_part"]
-                            if ipart == len(state["vrec"]):
-                                loss = state["vrec"][ipart - 1]
-                            else:
-                                loss = (
-                                    (state["vrec"][ipart] - state["vrec"][ipart - 1]) *
-                                    fpart + state["vrec"][ipart - 1]
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            for i in range(len(intervals)):
+                                q = intervals[i]["q"]
+                                ipart = intervals[i]["integer_part"]
+                                fpart = intervals[i]["fractional_part"]
+                                if ipart == len(state["vrec"]):
+                                    loss = state["vrec"][ipart - 1]
+                                else:
+                                    loss = (
+                                        (state["vrec"][ipart] - state["vrec"][ipart - 1]) *
+                                        fpart + state["vrec"][ipart - 1]
+                                    )
+                                _update_qplt_data(
+                                    qplt_data, qi, period_weights, granular_date,
+                                    record=record,
+                                    event_id=event_id,
+                                    summary_id=state["summary_id"],
+                                    quantile=q,
+                                    loss=loss
                                 )
-                            _update_qplt_data(
-                                qplt_data, qi, period_weights, granular_date,
-                                record=record,
-                                event_id=event_id,
-                                summary_id=state["summary_id"],
-                                quantile=q,
-                                loss=loss
-                            )
-                            qi += 1
-                            if qi >= qplt_data.shape[0]:
-                                # Output array full
-                                _update_idxs()
-                                return cursor, event_id, item_id, 1
+                                qi += 1
+                                if qi >= qplt_data.shape[0]:
+                                    # Output array full
+                                    _update_idxs()
+                                    return cursor, event_id, item_id, 1
                 _reset_state()
                 continue
 
             # Read loss
             loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
-
-            if state["skip_losses"]:
-                continue
 
             impacted_exposure = 0
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX:
@@ -410,46 +401,48 @@ def read_buffer(
                 impacted_exposure = state["exposure_value"] * (loss > 0)
                 # Update SPLT data
                 if state["compute_splt"]:
-                    for record in occ_map[event_id]:
-                        _update_splt_data(
-                            splt_data, si, period_weights, granular_date,
-                            record=record,
-                            event_id=event_id,
-                            summary_id=state["summary_id"],
-                            sidx=sidx,
-                            loss=loss,
-                            impacted_exposure=impacted_exposure,
-                        )
-                        si += 1
-                        if si >= splt_data.shape[0]:
-                            # Output array full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            _update_splt_data(
+                                splt_data, si, period_weights, granular_date,
+                                record=record,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sidx=sidx,
+                                loss=loss,
+                                impacted_exposure=impacted_exposure,
+                            )
+                            si += 1
+                            if si >= splt_data.shape[0]:
+                                # Output array full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
             if sidx == MAX_LOSS_IDX:
                 state["max_loss"] = loss
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
-                    for record in occ_map[event_id]:
-                        _update_mplt_data(
-                            mplt_data, mi, period_weights, granular_date,
-                            record=record,
-                            event_id=event_id,
-                            summary_id=state["summary_id"],
-                            sample_type=MEAN_TYPE_ANALYTICAL,
-                            chance_of_loss=0,
-                            meanloss=loss,
-                            sdloss=0,
-                            maxloss=state["max_loss"],
-                            footprint_exposure=state["exposure_value"],
-                            mean_impacted_exposure=state["exposure_value"],
-                            max_impacted_exposure=state["exposure_value"],
-                        )
-                        mi += 1
-                        if mi >= mplt_data.shape[0]:
-                            # Output array full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            _update_mplt_data(
+                                mplt_data, mi, period_weights, granular_date,
+                                record=record,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sample_type=MEAN_TYPE_ANALYTICAL,
+                                chance_of_loss=0,
+                                meanloss=loss,
+                                sdloss=0,
+                                maxloss=state["max_loss"],
+                                footprint_exposure=state["exposure_value"],
+                                mean_impacted_exposure=state["exposure_value"],
+                                max_impacted_exposure=state["exposure_value"],
+                            )
+                            mi += 1
+                            if mi >= mplt_data.shape[0]:
+                                # Output array full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
             else:
                 # Update state variables
                 if sidx > 0:
