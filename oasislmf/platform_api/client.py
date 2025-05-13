@@ -419,7 +419,7 @@ class APIClient(object):
             self.logger.info("File uploaded: {}".format(upload_data))
 
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
-                      location_f=None, accounts_f=None, ri_info_f=None, ri_scope_f=None):
+                      location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
         if not portfolio_name:
             portfolio_name = time.strftime("Portfolio_%d%m%Y-%H%M%S")
 
@@ -433,14 +433,14 @@ class APIClient(object):
                 portfolio_id = portfolio.json()['id']
 
             # Upload exposure
-            if location_f:
-                self.upload_portfolio_file(portfolio_id, 'location_file', location_f)
-            if accounts_f:
-                self.upload_portfolio_file(portfolio_id, 'accounts_file', accounts_f)
-            if ri_info_f:
-                self.upload_portfolio_file(portfolio_id, 'reinsurance_info_file', ri_info_f)
-            if ri_scope_f:
-                self.upload_portfolio_file(portfolio_id, 'reinsurance_scope_file', ri_scope_f)
+            if location_fp:
+                self.upload_portfolio_file(portfolio_id, 'location_file', location_fp)
+            if accounts_fp:
+                self.upload_portfolio_file(portfolio_id, 'accounts_file', accounts_fp)
+            if ri_info_fp:
+                self.upload_portfolio_file(portfolio_id, 'reinsurance_info_file', ri_info_fp)
+            if ri_scope_fp:
+                self.upload_portfolio_file(portfolio_id, 'reinsurance_scope_file', ri_scope_fp)
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
