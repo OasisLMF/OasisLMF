@@ -149,7 +149,7 @@ class APISession(Session):
             try:
                 m = MultipartEncoder(fields={'file': (filename, file_bytes, content_type)})
                 r = super(APISession, self).post(url, data=m,
-                                                 headers={'Content-Type':m.content_type},
+                                                 headers={'Content-Type': m.content_type},
                                                  timeout=self.timeout,
                                                  **kwargs)
                 r.raise_for_status()
