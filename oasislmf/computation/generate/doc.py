@@ -50,12 +50,13 @@ class GenerateModelDocumentation(ComputationStep):
 
         return docjson, schema
 
-    def json_to_mdtxt(self, json_data, full_schema, data_path):
+    def json_to_mdtxt(self, json_data, full_schema, data_path, doc_out_dir):
         """Convert json data to markdown text with schemas provided
         Args:
             json_data (dict): Json data as dictionary
             full_schema (dict): Full schema file as dictionary
             data_path (str | os.PathLike): Path to data folder for any relative file paths
+            doc_out_dir (str | os.PathLike): Path to documentation file output folder for any relative file paths
         """
         schema_id = full_schema["$id"]
         json_to_md_generator = DefaultJsonToMarkdownGenerator
@@ -64,7 +65,7 @@ class GenerateModelDocumentation(ComputationStep):
             json_to_md_generator = RDLS_0_2_0_JsonToMarkdownGenerator
         else:
             self.logger.warning(f"WARN: Unsupported formatting for following schema: {schema_id}. Using DefaultJsonToMarkdownGenerator output")
-        gen = json_to_md_generator(full_schema, data_path)
+        gen = json_to_md_generator(full_schema, data_path, doc_out_dir)
         return gen.generate(json_data, generate_toc=True)
 
     def run(self):
@@ -83,5 +84,5 @@ class GenerateModelDocumentation(ComputationStep):
         json_data, schema = self.validate_doc_schema(doc_schema_info, doc_json)
 
         with open(doc_file, "w") as f:
-            mdtxt = self.json_to_mdtxt(json_data, schema, data_path)
+            mdtxt = self.json_to_mdtxt(json_data, schema, data_path, doc_out_dir)
             f.write(mdtxt)

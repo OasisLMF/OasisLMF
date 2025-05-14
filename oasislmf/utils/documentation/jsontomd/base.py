@@ -8,15 +8,17 @@ class BaseJsonToMarkdownGenerator(ABC):
     Base JSON to Markdown Generator class
     """
 
-    def __init__(self, full_schema, data_path, markdown_generator=None):
+    def __init__(self, full_schema, data_path, doc_out_dir, markdown_generator=None):
         """
         Args:
             full_schema (Dict): Full schema file as dictionary
             data_path (str | os.PathLike): Path to data folder for any relative file paths
+            doc_out_dir (str | os.PathLike): Path to documentation file output folder for any relative file paths
             markdown_generator (MarkdownGenerator, optional): MarkdownGenerator class. Defaults to None.
         """
         self.full_schema = full_schema
         self.data_path = data_path
+        self.doc_out_dir = doc_out_dir
         self.md = markdown_generator
         if not markdown_generator:
             self.md = MarkdownGenerator()

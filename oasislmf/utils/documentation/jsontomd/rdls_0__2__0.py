@@ -340,7 +340,7 @@ class RDLS_0_2_0_JsonToMarkdownGenerator(BaseJsonToMarkdownGenerator):
                 self.md.add_text(f"No file found at {fp}, could not display data")
                 continue
 
-            self.md.add_text(f"File ({fp.name}) found [here]({fp.as_posix()})")
+            self.md.add_text(f"File ({fp.name}) found [here]({fp.relative_to(self.doc_out_dir.resolve()).as_posix()})")
 
             if fmt == "csv":
                 with open(fp) as f:
