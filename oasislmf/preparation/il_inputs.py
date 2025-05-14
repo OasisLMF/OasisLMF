@@ -868,7 +868,7 @@ def get_il_input_items(
     il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('uint32')
 
     # Set the policy TC IDs
-    if 'StepTriggerType' in il_inputs_df:
+    if 'StepTriggerType' in il_inputs_df and (il_inputs_df['StepTriggerType'] > 0).any():
         il_inputs_df.loc[
             ~(il_inputs_df['StepTriggerType'] > 0), 'profile_id'
         ] = get_profile_ids(
