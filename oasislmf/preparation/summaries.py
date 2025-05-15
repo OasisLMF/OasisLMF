@@ -8,6 +8,7 @@ __all__ = [
     'get_xref_df',
     'write_summary_levels',
     'write_mapping_file',
+    'calculated_summary_cols'
 ]
 
 import pathlib
@@ -81,6 +82,15 @@ def get_useful_summary_cols(oed_hierarchy):
         'intensity_adjustment',
         'return_period'
     ]
+
+
+def is_property_damage(summary_df):
+    property_damage_cov_id = [SUPPORTED_COVERAGE_TYPES['buildings']['id'], SUPPORTED_COVERAGE_TYPES['contents']['id']]
+    summary_df['is_property_damage'] = summary_df['coverage_type_id'].isin(property_damage_cov_id)
+    return summary_df
+
+
+calculated_summary_cols = {'is_property_damage': is_property_damage}
 
 
 def get_xref_df(il_inputs_df):
@@ -199,28 +209,34 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
         summary_ids[0] is an int list 1..n  array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ... ])
         summary_ids[1] is an array of values used to factorize  `array(['Layer1', 'Layer2'], dtype=object)`
     """
-    oed_cols = oed_col_group  # All requred columns
-    unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]  # columns which in locations / Accounts file
+    oed_cols = oed_col_group  # All required columns
+    exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns
+                     and c not in calculated_summary_cols]  # columns which are in locations / Accounts file
     mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by]
                    if c in summary_map_df.columns]  # Columns already in summary_map_df
+    to_calculate_column = [c for c in oed_cols if c in calculated_summary_cols]
+
     tiv_cols = ['tiv', 'loc_id', 'building_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, list(set(tiv_cols).union(mapped_cols))]
 
     # Search Loc / Acc files and merge in remaing
-    if unmapped_cols is not []:
+    if exposure_cols is not []:
         # Location file columns
-        exposure_cols = [c for c in unmapped_cols if c in exposure_df.columns]
+        exposure_cols = [c for c in exposure_cols if c in exposure_df.columns]
         exposure_col_df = exposure_df.loc[:, exposure_cols + [SOURCE_IDX['loc']]]
         summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='left')
 
         # Account file columns
         if isinstance(accounts_df, pd.DataFrame):
-            accounts_cols = [c for c in unmapped_cols if c in set(accounts_df.columns) - set(exposure_df.columns)]
+            accounts_cols = [c for c in exposure_cols if c in set(accounts_df.columns) - set(exposure_df.columns)]
             if accounts_cols:
                 accounts_col_df = accounts_df.loc[:, accounts_cols + [SOURCE_IDX['acc']]]
                 summary_group_df = merge_dataframes(summary_group_df, accounts_col_df, join_on=SOURCE_IDX['acc'], how='left')
+
+    for col in to_calculate_column:
+        summary_group_df = calculated_summary_cols[col](summary_group_df)
 
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
@@ -503,7 +519,7 @@ def get_summary_xref_df(
     summaryxref_df = pd.DataFrame()
     summary_desc = {}
 
-    all_cols = set(map_df.columns.to_list() + exposure_df.columns.to_list())
+    all_cols = set(map_df.columns.to_list() + exposure_df.columns.to_list() + list(calculated_summary_cols.keys()))
     if isinstance(accounts_df, pd.DataFrame):
         all_cols.update(accounts_df.columns.to_list())
 

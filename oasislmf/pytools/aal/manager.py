@@ -7,7 +7,6 @@ import os
 from contextlib import ExitStack
 from pathlib import Path
 
-from oasislmf.pytools.aal.utils import exact_binary_search
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
@@ -73,24 +72,18 @@ def process_bin_file(
     fbin,
     offset,
     occ_map,
-    unique_event_ids,
-    event_id_counts,
     summaries_data,
     summaries_idx,
     file_index,
-    sample_size
 ):
     """Reads summary<n>.bin file event_ids and summary_ids to populate summaries_data
     Args:
         fbin (np.memmap): summary binary memmap
         offset (int): file offset to read from
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
-        unique_event_ids (ndarray[np.int32]): List of unique event_ids
-        event_id_counts (ndarray[np.int32]): List of the counts of occurrences for each unique event_id in occ_map
+        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         summaries_data (ndarray[_SUMMARIES_DTYPE]): Index summary data (summaries.idx data)
         summaries_idx (int): current index reached in summaries_data
         file_index (int): Summary bin file index
-        sample_size (int): Sample size
     Returns:
         summaries_idx (int): current index reached in summaries_data
         resize_flag (bool): flag to indicate whether to resize summaries_data when full
@@ -101,10 +94,7 @@ def process_bin_file(
         event_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
         summary_id, cursor = mv_read(fbin, cursor, oasis_int, oasis_int_size)
 
-        # Find the index of the event_id in the unique_event_ids array
-        event_id_index = exact_binary_search(unique_event_ids, event_id)
-
-        if event_id_index == len(unique_event_ids):
+        if event_id not in occ_map:
             # If the event_id doesn't exist in occ_map, continue with the next
             offset = cursor
             # Skip over Expval and losses
@@ -113,7 +103,7 @@ def process_bin_file(
             continue
 
         # Get the number of rows for the current event_id
-        n_rows = event_id_counts[event_id_index]
+        n_rows = occ_map[event_id].shape[0]
 
         if summaries_idx + n_rows >= len(summaries_data):
             # Resize array if full
@@ -121,16 +111,15 @@ def process_bin_file(
 
         # Now fill the summaries_data with the rows that match the current event_id
         current_row = 0
-        for row in occ_map:
-            if row["event_id"] == event_id:
-                summaries_data[summaries_idx]["summary_id"] = summary_id
-                summaries_data[summaries_idx]["file_idx"] = file_index
-                summaries_data[summaries_idx]["period_no"] = row["period_no"]
-                summaries_data[summaries_idx]["file_offset"] = offset
-                summaries_idx += 1
-                current_row += 1
-                if current_row >= n_rows:
-                    break
+        for row in occ_map[event_id]:
+            summaries_data[summaries_idx]["summary_id"] = summary_id
+            summaries_data[summaries_idx]["file_idx"] = file_index
+            summaries_data[summaries_idx]["period_no"] = row["period_no"]
+            summaries_data[summaries_idx]["file_offset"] = offset
+            summaries_idx += 1
+            current_row += 1
+            if current_row >= n_rows:
+                break
 
         offset = cursor
         # Read Expval
@@ -195,19 +184,13 @@ def get_summaries_data(
     path,
     files_handles,
     occ_map,
-    unique_event_ids,
-    event_id_counts,
-    sample_size,
     aal_max_memory
 ):
     """Gets the indexed summaries data, ordered with k-way merge if not enough memory
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
         files_handles (List[np.memmap]): List of memmaps for summary files data
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
-        unique_event_ids (ndarray[np.int32]): List of unique event_ids
-        event_id_counts (ndarray[np.int32]): List of the counts of occurrences for each unique event_id in occ_map
-        sample_size (int): Sample size
+        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         aal_max_memory (float): OASIS_AAL_MEMORY value (has to be passed in as numba won't update from environment variable)
     Returns:
         memmaps (List[np.memmap]): List of temporary file memmaps
@@ -232,12 +215,9 @@ def get_summaries_data(
                 fbin,
                 offset,
                 occ_map,
-                unique_event_ids,
-                event_id_counts,
                 summaries_data,
                 summaries_idx,
                 file_index,
-                sample_size
             )
 
             # Write new summaries partial file when buffer size or end of summary file reached
@@ -266,13 +246,11 @@ def get_summaries_data(
     return memmaps, max_summary_id
 
 
-def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
+def summary_index(path, occ_map, stack):
     """Index the summary binary outputs
     Args:
         path (os.PathLike): Path to the workspace folder containing summary binaries
-        occ_map (ndarray[occ_map_dtype]): numpy map of event_id, period_no, occ_date_id from the occurrence file
-        unique_event_ids (ndarray[np.int32]): List of unique event_ids
-        event_id_counts (ndarray[np.int32]): List of the counts of occurrences for each unique event_id in occ_map
+        occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
         stack (ExitStack): Exit stack
     Returns:
         files_handles (List[np.memmap]): List of memmaps for summary files data
@@ -296,9 +274,6 @@ def summary_index(path, occ_map, unique_event_ids, event_id_counts, stack):
         aal_files_folder,
         files_handles,
         occ_map,
-        unique_event_ids,
-        event_id_counts,
-        sample_size,
         OASIS_AAL_MEMORY
     )
     return files_handles, sample_size, max_summary_id, memmaps
@@ -314,26 +289,12 @@ def read_input_files(run_dir):
     occ_map, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
 
-    # Create a list of occurrences for each event_id
-    # Creates an array that stores indices corresponding
-    # to rows in occ_map that match each event_id
-    event_ids = [row["event_id"] for row in occ_map]
-    unique_event_ids = np.sort(np.unique(event_ids))
-
-    # Precompute the row counts for each event_id
-    event_id_counts = np.zeros(len(unique_event_ids), dtype=np.int32)
-    for row in occ_map:
-        event_id_index = np.where(unique_event_ids == row["event_id"])[0][0]
-        event_id_counts[event_id_index] += 1
-
     file_data = {
         "occ_map": occ_map,
         "date_algorithm": date_algorithm,
         "granular_date": granular_date,
         "no_of_periods": no_of_periods,
         "period_weights": period_weights,
-        "unique_event_ids": unique_event_ids,
-        "event_id_counts": event_id_counts,
     }
     return file_data
 
@@ -867,8 +828,6 @@ def run(run_dir, subfolder, aal_output_file=None, alct_output_file=None, meanonl
         files_handles, sample_size, max_summary_id, memmaps = summary_index(
             workspace_folder,
             file_data["occ_map"],
-            file_data["unique_event_ids"],
-            file_data["event_id_counts"],
             stack
         )
         # aal vec are Indexed on summary_id - 1

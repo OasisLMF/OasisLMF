@@ -585,12 +585,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             split_df.index = split_df.index.droplevel(-1)
             split_df.name = 'peril_group_id'
 
-            location = locations.join(split_df).merge(peril_groups_df)
+            peril_locations = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
                 df_model_perils_covered.name = 'model_perils_covered'
-                location = location.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
-            return location
+                peril_locations = peril_locations.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
+
+            not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])]
+            if not not_covered_location.empty:
+                not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']
+                not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
+                peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
+            return peril_locations
         return fct
 
     @staticmethod

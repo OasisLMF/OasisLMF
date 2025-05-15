@@ -16,6 +16,7 @@ from oasislmf.computation.generate.files import GenerateFiles
 from oasislmf.computation.generate.keys import GenerateKeysDeterministic
 from oasislmf.computation.generate.losses import GenerateLossesDeterministic
 from oasislmf.preparation.il_inputs import get_oed_hierarchy
+from oasislmf.preparation.summaries import calculated_summary_cols
 from oasislmf.utils.data import (get_dataframe, get_exposure_data,
                                  print_dataframe)
 from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
@@ -143,6 +144,7 @@ class RunExposure(ComputationStep):
             join_cols = ["event_id", "output_id", "loss_factor_idx"]
         else:
             join_cols = ["event_id", "output_id"]
+        all_losses_df = guls_df
         if il:
             ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
             ils_df.rename(columns={'loss': 'loss_il'}, inplace=True)
@@ -186,22 +188,24 @@ class RunExposure(ComputationStep):
                 'coverage_type_id', 'peril_id']
 
         summary_cols += self.extra_summary_cols
+        for col in self.extra_summary_cols:
+            if col in calculated_summary_cols:
+                all_losses_df = calculated_summary_cols[col](all_losses_df)
 
         if include_loss_factor:
             group_by_cols = summary_cols + ['loss_factor_idx']
         else:
             group_by_cols = summary_cols
-        guls_df = guls_df.loc[:, group_by_cols + ['loss_gul']]
 
         if not il and not ril:
             all_loss_cols = group_by_cols + ['loss_gul']
-            all_losses_df = guls_df.loc[:, all_loss_cols]
+            all_losses_df = all_losses_df.loc[:, all_loss_cols]
             all_losses_df.drop_duplicates(keep=False, inplace=True)
         elif not ril:
             all_loss_cols = group_by_cols + ['loss_gul', 'loss_il']
             all_losses_df = all_losses_df.loc[:, all_loss_cols]
             summary_gul_df = pd.DataFrame(
-                {'loss_gul': guls_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
+                {'loss_gul': all_losses_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
             summary_il_df = pd.DataFrame(
                 {'loss_il': all_losses_df.groupby(group_by_cols)['loss_il'].sum()}).reset_index()
             all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
@@ -209,7 +213,7 @@ class RunExposure(ComputationStep):
             all_loss_cols = group_by_cols + ['loss_gul', 'loss_il', 'loss_ri']
             all_losses_df = all_losses_df.loc[:, all_loss_cols]
             summary_gul_df = pd.DataFrame(
-                {'loss_gul': guls_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
+                {'loss_gul': all_losses_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
             summary_il_df = pd.DataFrame(
                 {'loss_il': all_losses_df.groupby(group_by_cols)['loss_il'].sum()}).reset_index()
             summary_ri_df = pd.DataFrame(
@@ -220,13 +224,13 @@ class RunExposure(ComputationStep):
         for i in range(len(self.loss_factor)):
 
             if include_loss_factor:
-                total_gul = guls_df[guls_df.loss_factor_idx == i].loss_gul.sum()
+                total_gul = all_losses_df[all_losses_df.loss_factor_idx == i].loss_gul.sum()
             else:
-                total_gul = guls_df.loss_gul.sum()
+                total_gul = all_losses_df.loss_gul.sum()
 
             if not il and not ril:
                 all_loss_cols = all_loss_cols + ['loss_gul']
-                all_losses_df = guls_df.loc[:, all_loss_cols]
+                all_losses_df = all_losses_df.loc[:, all_loss_cols]
                 all_losses_df.drop_duplicates(keep=False, inplace=True)
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f})'.format(
