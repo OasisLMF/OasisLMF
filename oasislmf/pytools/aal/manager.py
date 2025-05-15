@@ -834,7 +834,7 @@ def run(
         if Path(path).suffix == "":  # Ignore suffix for pipes
             continue
         if (output_binary and Path(path).suffix != '.bin'):
-            raise ValueError(f"Invalid file extension for Binary, expected .binary, got {path},")
+            raise ValueError(f"Invalid file extension for Binary, expected .bin, got {path},")
         if (output_parquet and Path(path).suffix != '.parquet'):
             raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
         if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
