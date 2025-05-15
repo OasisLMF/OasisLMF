@@ -880,7 +880,7 @@ def get_il_input_items(
         ] = get_step_profile_ids(
             il_inputs_df[il_inputs_df['StepTriggerType'] > 0],
             offset=il_inputs_df['profile_id'].max(),
-            idx_cols=['AccNumber', 'PolNumber', 'PortNumber']
+            idx_cols=['AccNumber', 'PolNumber', 'PortNumber', 'agg_id']
         )
     else:
         il_inputs_df['profile_id'] = get_profile_ids(il_inputs_df)
