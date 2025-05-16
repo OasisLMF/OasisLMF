@@ -12,7 +12,7 @@ def validate_flags(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process average annual loss and standard deviation')
+    parser = argparse.ArgumentParser(description='Process loss exceedance data')
     parser.add_argument('--run_dir', type=str, default='.', help='path to the run directory')
     parser.add_argument('-K', '--subfolder', type=str, default=None, help='workspace sub folder name, inside <run_dir>/work/<sub folder name>')
     parser.add_argument('-O', '--ept', type=str, default=None, help='Output Exeedance Probability Table (EPT)')
