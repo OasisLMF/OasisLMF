@@ -99,6 +99,38 @@ def get_dynamic_footprint_adjustments(input_path):
     return adjustments_tb
 
 
+def get_peril_id(input_path):
+    """
+    Get peril_id associated with item_id
+
+    Args:
+        input_path (str): The directory path where the 'gul_summary_map.csv' file is located.
+
+    Returns:
+        np.ndarray: A structured NumPy array with the following fields:
+            - 'item_id' (oasis_int): The item ID as an integer.
+            - 'peril_id' (oasis_int): The encoded peril ID as an integer.
+    """
+
+    dtype = np.dtype([
+        ('item_id', oasis_int),
+        ('peril_id', oasis_int)
+    ])
+
+    item_peril = pd.read_csv(
+        os.path.join(input_path, 'gul_summary_map.csv'), 
+        usecols=['item_id', 'peril_id']
+        )[['item_id', 'peril_id']]
+
+    item_peril['peril_id'] = item_peril['peril_id'].apply(encode_peril_id)
+
+    item_peril = np.array(
+        list(item_peril.itertuples(index=False, name=None)), 
+        dtype=dtype)
+
+    return item_peril
+
+
 def get_vuln_rngadj(run_dir, vuln_dict):
     """
     Loads vulnerability adjustments from the analysis settings file.
@@ -266,6 +298,16 @@ def run(run_dir,
                 'item_id', items, adjustments_tb,
                 jointype='leftouter', usemask=False,
                 defaults={'intensity_adjustment': 0, 'return_period': 0}
+            )
+
+        # include peril_id
+        if dynamic_footprint:
+            logger.debug('get peril_id')
+            item_peril = get_peril_id(input_path)
+            items = rfn.join_by(
+                'item_id', items, item_peril,
+                jointype='leftouter', usemask=False,
+                defaults={'peril_id': 0}
             )
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
