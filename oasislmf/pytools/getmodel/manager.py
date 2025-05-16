@@ -17,6 +17,7 @@ import pandas as pd
 
 from numba import int32 as nb_int32
 from numba.typed import Dict
+from numba.types import Tuple as nb_Tuple
 
 from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
 from oasis_data_manager.filestore.backends.base import BaseStorage
@@ -199,16 +200,21 @@ def get_intensity_bin_dict(input_path):
     Args:
         input_path: (str) the path pointing to the file
 
-    Returns: (Dict[int, int])
-             intensity bin dict, with intensity value and bin index
+    Returns: (Dict[(int, int), int])
+             intensity bin dict,
+             with index of peril_id (encoded) and intensity value, and value of bin index
     """
     input_files = set(os.listdir(input_path))
-    intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
+    intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
     if "intensity_bin_dict.csv" in input_files:
         logger.debug(f"loading {os.path.join(input_path, 'intensity_bin_dict.csv')}")
-        data = np.loadtxt(os.path.join(input_path, "intensity_bin_dict.csv"), dtype=np.int32, delimiter=",", skiprows=1, ndmin=1)
+        data = pd.read_csv(os.path.join(input_path, "intensity_bin_dict.csv"))
+        data = data[['peril_id', 'intensity', 'intensity_bin']]
+        data['peril_id'] = data['peril_id'].apply(encode_peril_id)
+        data = data.to_records(index=False).tolist()
+        data = np.array(data, dtype=np.int32)
         for d in data:
-            intensity_bin_dict[d[0]] = d[1]
+            intensity_bin_dict[(d[0], d[1])] = d[2]
     else:
         raise FileNotFoundError(f'intensity_bin_dict file not found at {input_path}')
 

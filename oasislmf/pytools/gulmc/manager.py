@@ -447,7 +447,7 @@ def run(run_dir,
         if dynamic_footprint:
             intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
-            intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
+            intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
             dynamic_footprint = None
 
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
@@ -792,11 +792,12 @@ def compute_event_losses(compute_info,
                 haz_intensity = haz_intensity - intensity_adjustment
                 haz_intensity = np.where(haz_intensity < 0, nb_int32(0), haz_intensity)
                 haz_bin_id = np.zeros_like(haz_pdf_record['intensity_bin_id'])
+                peril_id = item['peril_id']
                 for haz_bin_idx in range(haz_bin_id.shape[0]):
                     if haz_intensity[haz_bin_idx] <= 0:
-                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[0]
+                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, 0]
                     else:
-                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[haz_intensity[haz_bin_idx]]
+                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, haz_intensity[haz_bin_idx]]
             else:
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
             haz_pdf_prob = haz_pdf_record['probability']
