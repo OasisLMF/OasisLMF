@@ -11,7 +11,7 @@ import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (oasis_int, oasis_float, oasis_int_size, oasis_float_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
-from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_return_periods
+from oasislmf.pytools.common.input_files import PERIODS_FILE, read_occurrence, read_periods, read_returnperiods
 from oasislmf.pytools.lec.data import (AEP, AEPTVAR, AGG_FULL_UNCERTAINTY, AGG_SAMPLE_MEAN, AGG_WHEATSHEAF, AGG_WHEATSHEAF_MEAN,
                                        OCC_FULL_UNCERTAINTY, OCC_SAMPLE_MEAN, OCC_WHEATSHEAF, OCC_WHEATSHEAF_MEAN, OEP, OEPTVAR,
                                        OUTLOSS_DTYPE, EPT_dtype, EPT_fmt, EPT_headers, PSEPT_dtype, PSEPT_fmt, PSEPT_headers)
@@ -51,7 +51,7 @@ def read_input_files(
         period_weights = np.array([], dtype=period_weights.dtype)
     else:  # Normalise period weights
         period_weights["weighting"] /= sample_size
-    returnperiods, use_return_period = read_return_periods(use_return_period, input_dir)
+    returnperiods, use_return_period = read_returnperiods(use_return_period, input_dir)
 
     # User must define return periods if he/she wishes to use non-uniform period weights for
     # Wheatsheaf/per sample mean output

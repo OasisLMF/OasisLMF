@@ -394,6 +394,8 @@ setup(
             'pltpy=oasislmf.pytools.plt.cli:main',
             'aalpy=oasislmf.pytools.aal.cli:main',
             'lecpy=oasislmf.pytools.lec.cli:main',
+            'bintocsv=oasislmf.pytools.converters.bintocsv:main',
+            'csvtobin=oasislmf.pytools.converters.csvtobin:main',
         ]
     },
     license='BSD 3-Clause',

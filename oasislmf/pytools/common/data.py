@@ -83,6 +83,35 @@ MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
 
 
+def generate_output_metadata(output):
+    """Generates *_header, *_dtype and *_fmt items given a list of tuples describing some output description
+    output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
+    Args:
+        output_map (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
+    Returns:
+        result (tuple(list[str], np.dtype, str)): Tuple containing the generated *_header list, *_dtype np.dtype, *_fmt csv format string
+    """
+    headers = [c[0] for c in output]
+    dtype = np.dtype([(c[0], c[1]) for c in output])
+    fmt = ','.join([c[2] for c in output])
+    result = (headers, dtype, fmt)
+    return result
+
+
+# Types
+aggregatevulnerability_output = [
+    ("aggregate_vulnerability_id", 'i4', "%d"),
+    ("vulnerability_id", 'i4', "%d"),
+]
+aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt = generate_output_metadata(aggregatevulnerability_output)
+
+amplifications_output = [
+    ("item_id", 'i4', "%d"),
+    ("amplification_id", 'i4', "%d"),
+]
+amplifications_headers, amplifications_dtype, amplifications_fmt = generate_output_metadata(amplifications_output)
+
+
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
     load a file as a numpy ndarray

@@ -10,11 +10,49 @@ from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 logger = logging.getLogger(__name__)
 
 # Input file names (input/<file_name>)
+AMPLIFICATIONS_FILE = 'amplifications.bin'
 EVENTRATES_FILE = "event_rates.csv"
 OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
+
+
+def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
+    """
+    Get array of amplification IDs from amplifications.bin, where index
+    corresponds to item ID.
+
+    amplifications.bin is binary file with layout:
+        reserved header (4-byte int),
+        item ID 1 (4-byte int), amplification ID a_1 (4-byte int),
+        ...
+        item ID n (4-byte int), amplification ID a_n (4-byte int)
+
+    Args:
+        run_dir (str): path to amplifications.bin file
+
+    Returns:
+        items_amps (numpy.ndarray): array of amplification IDs, where index
+            corresponds to item ID
+    """
+    amplification_file = Path(run_dir, filename)
+    header_size = 4
+    try:
+        items_amps = np.fromfile(amplification_file, dtype=np.int32, offset=header_size)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f'amplifications.bin not found: {e}')
+
+    # Check item IDs start from 1 and are contiguous
+    if items_amps[0] != 1:
+        raise ValueError(f'First item ID is {items_amps[0]}. Expected 1.')
+    items_amps = items_amps.reshape(len(items_amps) // 2, 2)
+    if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
+        raise ValueError(f'Item IDs in {amplification_file} are not contiguous')
+
+    items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
+
+    return items_amps
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):
@@ -216,7 +254,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     return period_weights
 
 
-def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
+def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
     """Returns an array of return periods decreasing order with no duplicates.
     Args:
         use_return_period_file (bool): Bool to use Return Period File

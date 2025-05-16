@@ -10,5 +10,4 @@ event_count_dtype = np.dtype([('event_id', 'i4'), ('count', 'i4')])
 amp_factor_dtype = np.dtype([('amplification_id', 'i4'), ('factor', 'f4')])
 
 # File names for creating dictionary of factors
-AMPLIFICATIONS_FILE_NAME = 'amplifications.bin'
 LOSS_FACTORS_FILE_NAME = 'lossfactors.bin'

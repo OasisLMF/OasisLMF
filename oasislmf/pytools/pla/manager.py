@@ -4,12 +4,10 @@ import sys
 import logging
 
 from .streams import read_and_write_streams
-from .structure import (
-    get_items_amplifications,
-    get_post_loss_amplification_factors
-)
+from .structure import get_post_loss_amplification_factors
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.pytools.common.input_files import read_amplifications
 from oasislmf.pytools.common.event_stream import get_streams_in
 
 logger = logging.getLogger(__name__)
@@ -42,7 +40,7 @@ def run(
         os.path.join(run_dir, static_path),
     )
 
-    items_amps = get_items_amplifications(input_path)
+    items_amps = read_amplifications(input_path)
     plafactors = get_post_loss_amplification_factors(model_storage, secondary_factor, uniform_factor)
 
     # Set default factor should post loss amplification factor be missing
