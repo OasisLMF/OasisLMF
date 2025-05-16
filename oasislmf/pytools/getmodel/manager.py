@@ -215,6 +215,19 @@ def get_intensity_bin_dict(input_path):
     return intensity_bin_dict
 
 
+def encode_peril_id(peril_id):
+    """Encode a string to an integer.
+
+    Args:
+        peril_id (str): 3-digit Oasis peril code (also works with numeric codes).
+
+    Returns:
+        int: The encoded peril_id.
+    """
+
+    return sum(ord(c) << (8 * i) for i, c in enumerate(str(peril_id).upper()))
+
+
 def get_intensity_adjustment(input_path):
     pass
 
