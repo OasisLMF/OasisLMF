@@ -899,40 +899,35 @@ def run(
                     out_file.write(csv_headers + '\n')
                 outmap[out_type]["file"] = out_file
 
+        def write_output(data, out_type):
+            if output_binary:
+                data.tofile(outmap[out_type]["file"])
+            elif output_parquet:
+                data_df = pd.DataFrame(data)
+                data_table = pa.Table.from_pandas(data_df)
+                outmap[out_type]["file"].write_table(data_table)
+            else:
+                write_ndarray_to_fmt_csv(
+                    outmap[out_type]["file"],
+                    data,
+                    outmap[out_type]["headers"],
+                    outmap[out_type]["fmt"]
+                )
+
         if outmap["aal"]["compute"]:
             # Get Sample AAL data for subset_size == sample_size (last group of arrays)
             start_idx = (num_subsets - 1) * max_summary_id
-            if not meanonly:
-                aal_data = get_aal_data(
-                    vec_analytical_aal,
-                    vecs_sample_aal[start_idx:],
-                    vec_used_summary_id,
-                    sample_size,
-                    file_data["no_of_periods"],
-                )
-            else:
-                aal_data = get_aal_data_meanonly(
-                    vec_analytical_aal,
-                    vecs_sample_aal[start_idx:],
-                    vec_used_summary_id,
-                    sample_size,
-                    file_data["no_of_periods"],
-                )
+            aal_data_func = get_aal_data_meanonly if meanonly else get_aal_data
+            aal_data = aal_data_func(
+                vec_analytical_aal,
+                vecs_sample_aal[start_idx:],
+                vec_used_summary_id,
+                sample_size,
+                file_data["no_of_periods"],
+            )
             aal_data = np.array(aal_data, dtype=outmap["aal"]["dtype"])
 
-            if output_binary:
-                aal_data.tofile(outmap["aal"]["file"])
-            elif output_parquet:
-                data_df = pd.DataFrame(aal_data)
-                data_table = pa.Table.from_pandas(data_df)
-                outmap["aal"]["file"].write_table(data_table)
-            else:
-                write_ndarray_to_fmt_csv(
-                    outmap["aal"]["file"],
-                    aal_data,
-                    outmap["aal"]["headers"],
-                    outmap["aal"]["fmt"]
-                )
+            write_output(aal_data, "aal")
         if outmap["alct"]["compute"]:
             alct_data = get_alct_data(
                 vecs_sample_aal,
@@ -943,19 +938,7 @@ def run(
             )
             alct_data = np.array([tuple(arr) for arr in alct_data], dtype=outmap["alct"]["dtype"])
 
-            if output_binary:
-                alct_data.tofile(outmap["alct"]["file"])
-            elif output_parquet:
-                data_df = pd.DataFrame(alct_data)
-                data_table = pa.Table.from_pandas(data_df)
-                outmap["alct"]["file"].write_table(data_table)
-            else:
-                write_ndarray_to_fmt_csv(
-                    outmap["alct"]["file"],
-                    alct_data,
-                    outmap["alct"]["headers"],
-                    outmap["alct"]["fmt"]
-                )
+            write_output(alct_data, "alct")
 
 
 @redirect_logging(exec_name='aalpy')
