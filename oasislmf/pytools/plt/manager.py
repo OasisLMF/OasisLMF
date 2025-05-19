@@ -493,8 +493,7 @@ def run(
     mplt_output_file=None,
     qplt_output_file=None,
     noheader=False,
-    output_binary=False,
-    output_parquet=False
+    output_format="csv",
 ):
     """Runs PLT calculations
 
@@ -505,8 +504,7 @@ def run(
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
         noheader (bool): Boolean value to skip header in output file. Defaults to False.
-        output_binary (bool): Boolean value to output binary files. Defaults to False.
-        output_parquet (bool): Boolean value to output parquet files. Defaults to False.
+        output_format (str): Output format extension. Defaults to "csv".
     """
     outmap = {
         "splt": {
@@ -532,18 +530,17 @@ def run(
         },
     }
 
+    output_format = "." + output_format
+    output_binary = output_format == ".bin"
+    output_parquet = output_format == ".parquet"
     # Check for correct suffix
     for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
         if Path(path).suffix == "":  # Ignore suffix for pipes
             continue
-        if (output_binary and Path(path).suffix != '.bin'):
-            raise ValueError(f"Invalid file extension for Binary, expected .bin, got {path},")
-        if (output_parquet and Path(path).suffix != '.parquet'):
-            raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
-        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
-            raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
+        if (Path(path).suffix != output_format):
+            raise ValueError(f"Invalid file extension for {output_format}, got {path},")
 
     if run_dir is None:
         run_dir = './work'
@@ -624,7 +621,7 @@ def run(
 
 
 @redirect_logging(exec_name='pltpy')
-def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, binary=False, parquet=False, **kwargs):
+def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, ext="csv", **kwargs):
     run(
         run_dir,
         files_in,
@@ -632,6 +629,5 @@ def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=F
         mplt_output_file=mplt,
         qplt_output_file=qplt,
         noheader=noheader,
-        output_binary=binary,
-        output_parquet=parquet,
+        output_format=ext,
     )

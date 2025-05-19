@@ -3,6 +3,8 @@ import numpy as np
 from oasislmf.pytools.common.data import oasis_int, oasis_float
 
 
+VALID_EXT = ["csv", "bin", "parquet"]
+
 AAL_output = [
     ('SummaryId', oasis_int, '%d'),
     ('SampleType', oasis_int, '%d'),

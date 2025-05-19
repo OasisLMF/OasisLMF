@@ -3,6 +3,8 @@ import numpy as np
 from oasislmf.pytools.common.data import oasis_int, oasis_float
 
 
+VALID_EXT = ["csv", "bin", "parquet"]
+
 SELT_output = [
     ('EventId', oasis_int, '%d'),
     ('SummaryId', oasis_int, '%d'),
