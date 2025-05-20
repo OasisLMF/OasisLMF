@@ -70,8 +70,6 @@ fm_profile_csv_col_map = {
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
-coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', 'f4')])
-
 items_dtype = np.dtype([('item_id', 'i4'),
                         ('coverage_id', 'i4'),
                         ('areaperil_id', areaperil_int),
@@ -110,6 +108,12 @@ amplifications_output = [
     ("amplification_id", 'i4', "%d"),
 ]
 amplifications_headers, amplifications_dtype, amplifications_fmt = generate_output_metadata(amplifications_output)
+
+coverages_output = [
+    ("coverage_id", 'i4', "%d"),
+    ("tiv", 'f4', "%f"),
+]
+coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

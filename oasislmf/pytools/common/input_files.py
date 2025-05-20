@@ -3,14 +3,15 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int
+from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int, coverages_headers
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 
 
 logger = logging.getLogger(__name__)
 
 # Input file names (input/<file_name>)
-AMPLIFICATIONS_FILE = 'amplifications.bin'
+AMPLIFICATIONS_FILE = "amplifications.bin"
+COVERAGES_FILE = "coverages.bin"
 EVENTRATES_FILE = "event_rates.csv"
 OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
@@ -31,7 +32,7 @@ def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
 
     Args:
         run_dir (str): path to amplifications.bin file
-
+        filename (str | os.PathLike): amplifications file name
     Returns:
         items_amps (numpy.ndarray): array of amplification IDs, where index
             corresponds to item ID
@@ -53,6 +54,45 @@ def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
     items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
 
     return items_amps
+
+
+def read_coverages(run_dir, ignore_file_type=set(), filename=COVERAGES_FILE):
+    """Load the coverages from the coverages file.
+    Args:
+        run_dir (str): path to amplifications.bin file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+        filename (str | os.PathLike): coverages file name
+    Returns:
+        numpy.array[oasis_float]: array with the coverage values for each coverage_id.
+    """
+    coverages_file = Path(run_dir, filename)
+    coverages_ext = coverages_file.suffix
+
+    if coverages_ext in ignore_file_type:
+        raise FileNotFoundError(f'coverages file not found at {coverages_file} with ignore_file_type {ignore_file_type}')
+
+    if coverages_ext == ".bin":
+        logger.debug(f"loading {coverages_file}")
+        coverages = np.fromfile(coverages_file, dtype=oasis_float)
+    elif coverages_ext == ".csv":
+        logger.debug(f"loading {coverages_file}")
+
+        # Check for header
+        with open(coverages_file, "r") as fin:
+            first_line = fin.readline()
+            first_line_elements = [header.strip() for header in first_line.strip().split(',')]
+            has_header = first_line_elements == coverages_headers
+        coverages = np.loadtxt(
+            coverages_file,
+            dtype=oasis_float,
+            delimiter=",",
+            skiprows=1 if has_header else 0,
+            ndmin=1
+        )[:, 1]
+    else:
+        raise FileNotFoundError(f'coverages file type {coverages_ext} not supported for {coverages_file}')
+
+    return coverages
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):

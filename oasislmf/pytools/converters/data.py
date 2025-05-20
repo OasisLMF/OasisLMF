@@ -1,5 +1,6 @@
 from oasislmf.pytools.common.data import aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt
 from oasislmf.pytools.common.data import amplifications_headers, amplifications_dtype, amplifications_fmt
+from oasislmf.pytools.common.data import coverages_headers, coverages_dtype, coverages_fmt
 
 
 SUPPORTED_TYPES = {
@@ -12,5 +13,10 @@ SUPPORTED_TYPES = {
         "headers": amplifications_headers,
         "dtype": amplifications_dtype,
         "fmt": amplifications_fmt,
+    },
+    "coverages": {
+        "headers": coverages_headers,
+        "dtype": coverages_dtype,
+        "fmt": coverages_fmt,
     },
 }

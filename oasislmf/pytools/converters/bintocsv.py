@@ -5,7 +5,7 @@ import logging
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.input_files import read_amplifications
+from oasislmf.pytools.common.input_files import read_amplifications, read_coverages
 
 from . import logger
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
@@ -23,6 +23,24 @@ def amplifications_tocsv(file_in, file_out, type, noheader):
     data = np.zeros(len(items_amps), dtype=dtype)
     data["item_id"] = np.arange(1, len(items_amps) + 1)
     data["amplification_id"] = items_amps
+
+    csv_out_file = open(file_out, "w")
+    if not noheader:
+        csv_out_file.write(",".join(headers) + "\n")
+    write_ndarray_to_fmt_csv(csv_out_file, data, headers, fmt)
+    csv_out_file.close()
+
+
+def coverages_tocsv(file_in, file_out, type, noheader):
+    headers = SUPPORTED_TYPES[type]["headers"]
+    dtype = SUPPORTED_TYPES[type]["dtype"]
+    fmt = SUPPORTED_TYPES[type]["fmt"]
+
+    cov_fp = Path(file_in)
+    coverages = read_coverages(cov_fp.parent, filename=cov_fp.name)
+    data = np.zeros(len(coverages), dtype=dtype)
+    data["coverage_id"] = np.arange(1, len(coverages) + 1)
+    data["tiv"] = coverages
 
     csv_out_file = open(file_out, "w")
     if not noheader:
@@ -59,10 +77,13 @@ def bintocsv(file_in, file_out, type, noheader=False):
         type (str): File type str from SUPPORTED_TYPES
         noheader (bool): Bool to not output header. Defaults to False.
     """
+    tocsv_func = default_tocsv
     if type == "amplifications":
-        amplifications_tocsv(file_in, file_out, type, noheader)
-    else:
-        default_tocsv(file_in, file_out, type, noheader)
+        tocsv_func = amplifications_tocsv
+    elif type == "coverages":
+        tocsv_func = coverages_tocsv
+
+    tocsv_func(file_in, file_out, type, noheader)
 
 
 def main():

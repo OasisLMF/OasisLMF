@@ -53,3 +53,8 @@ def test_aggregatevulnerability():
 def test_amplifications():
     case_runner("bintocsv", "amplifications")
     case_runner("csvtobin", "amplifications")
+
+
+def test_coverages():
+    case_runner("bintocsv", "coverages")
+    case_runner("csvtobin", "coverages")

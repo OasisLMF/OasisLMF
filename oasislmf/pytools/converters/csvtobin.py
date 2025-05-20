@@ -9,15 +9,13 @@ from . import logger
 from oasislmf.pytools.converters.data import SUPPORTED_TYPES
 
 
-def amplifications_tobin(file_in, file_out, type):
+def read_csv_as_ndarray(file_in, type):
     headers = SUPPORTED_TYPES[type]["headers"]
     dtype = SUPPORTED_TYPES[type]["dtype"]
     with open(file_in, "r") as fin:
         first_line = fin.readline()
-        has_header = False
         first_line_elements = [header.strip() for header in first_line.strip().split(',')]
-        if first_line_elements == headers:
-            has_header = True
+        has_header = first_line_elements == headers
         fin.seek(0)
 
         data = np.genfromtxt(
@@ -26,31 +24,34 @@ def amplifications_tobin(file_in, file_out, type):
             dtype=dtype,
             skip_header=1 if has_header else 0
         )
+    return data
 
-        with open(file_out, "wb") as fout:
-            # Write the 4-byte zero header
-            np.array([0], dtype="i4").tofile(fout)
-            data.tofile(fout)
+
+def amplifications_tobin(file_in, file_out, type):
+    data = read_csv_as_ndarray(file_in, type)
+
+    # Check item IDs start from 1 and are contiguous
+    if data["item_id"][0] != 1:
+        raise ValueError(f'First item ID is {data["item_id"][0]}. Expected 1.')
+    if not np.all(data["item_id"][1:] - data["item_id"][:-1] == 1):
+        raise ValueError(f'Item IDs in {file_in} are not contiguous')
+
+    with open(file_out, "wb") as fout:
+        # Write the 4-byte zero header
+        np.array([0], dtype="i4").tofile(fout)
+        data.tofile(fout)
+
+
+def coverages_tobin(file_in, file_out, type):
+    data = read_csv_as_ndarray(file_in, type)
+
+    with open(file_out, "wb") as fout:
+        data["tiv"].tofile(fout)
 
 
 def default_tobin(file_in, file_out, type):
-    headers = SUPPORTED_TYPES[type]["headers"]
-    dtype = SUPPORTED_TYPES[type]["dtype"]
-    with open(file_in, "r") as fin:
-        first_line = fin.readline()
-        has_header = False
-        first_line_elements = [header.strip() for header in first_line.strip().split(',')]
-        if first_line_elements == headers:
-            has_header = True
-        fin.seek(0)
-
-        data = np.genfromtxt(
-            fin,
-            delimiter=',',
-            dtype=dtype,
-            skip_header=1 if has_header else 0
-        )
-        data.tofile(file_out)
+    data = read_csv_as_ndarray(file_in, type)
+    data.tofile(file_out)
 
 
 def csvtobin(file_in, file_out, type):
@@ -60,10 +61,13 @@ def csvtobin(file_in, file_out, type):
         file_out (str | os.PathLike): Output file path
         type (str): File type str from SUPPORTED_TYPES
     """
+    tobin_func = default_tobin
     if type == "amplifications":
-        amplifications_tobin(file_in, file_out, type)
-    else:
-        default_tobin(file_in, file_out, type)
+        tobin_func = amplifications_tobin
+    elif type == "coverages":
+        tobin_func = coverages_tobin
+
+    tobin_func(file_in, file_out, type)
 
 
 def main():
