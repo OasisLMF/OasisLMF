@@ -27,7 +27,7 @@ from oasislmf.pytools.common.data import (
     areaperil_int, areaperil_int_size,
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
-    damagebindictionary_dtype
+    damagebin_dtype
 )
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import Index_type, Keys
@@ -606,11 +606,11 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
         with storage.with_fileno("damage_bin_dict.bin") as f:
-            return np.fromfile(f, dtype=damagebindictionary_dtype)
+            return np.fromfile(f, dtype=damagebin_dtype)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
-            return np.loadtxt(f, dtype=damagebindictionary_dtype, skiprows=1, delimiter=',', ndmin=1)
+            return np.loadtxt(f, dtype=damagebin_dtype, skiprows=1, delimiter=',', ndmin=1)
     else:
         raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 

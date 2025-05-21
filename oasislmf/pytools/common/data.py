@@ -115,14 +115,14 @@ coverages_output = [
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
 
-damagebindictionary_output = [
+damagebin_output = [
     ("bin_index", 'i4', "%d"),
     ("bin_from", oasis_float, "%f"),
     ("bin_to", oasis_float, "%f"),
     ("interpolation", oasis_float, "%f"),
     ("interval_type", 'i4', "%d"),
 ]
-damagebindictionary_headers, damagebindictionary_dtype, damagebindictionary_fmt = generate_output_metadata(damagebindictionary_output)
+damagebin_headers, damagebin_dtype, damagebin_fmt = generate_output_metadata(damagebin_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

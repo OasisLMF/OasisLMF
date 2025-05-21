@@ -58,3 +58,8 @@ def test_amplifications():
 def test_coverages():
     case_runner("bintocsv", "coverages")
     case_runner("csvtobin", "coverages")
+
+
+def test_damagebin():
+    case_runner("bintocsv", "damagebin")
+    case_runner("csvtobin", "damagebin")
