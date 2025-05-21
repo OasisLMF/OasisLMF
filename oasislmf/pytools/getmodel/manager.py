@@ -23,9 +23,14 @@ from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
+from oasislmf.pytools.common.data import (
+    areaperil_int, areaperil_int_size,
+    oasis_float, oasis_float_size,
+    oasis_int, oasis_int_size,
+    damagebindictionary_dtype
+)
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.getmodel.common import (Index_type, Keys, areaperil_int,
-                                              oasis_float)
+from oasislmf.pytools.getmodel.common import Index_type, Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
 
@@ -36,22 +41,12 @@ logger = logging.getLogger(__name__)
 
 buff_size = PIPE_CAPACITY
 
-oasis_int_dtype = np.dtype('i4')
-oasis_int = np.int32
-oasis_int_size = np.int32().itemsize
 buff_int_size = buff_size // oasis_int_size
 
-areaperil_int_relative_size = areaperil_int.itemsize // oasis_int_size
-oasis_float_relative_size = oasis_float.itemsize // oasis_int_size
+areaperil_int_relative_size = areaperil_int_size // oasis_int_size
+oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
-
-damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                              ('bin_from', oasis_float),
-                                              ('bin_to', oasis_float),
-                                              ('interpolation', oasis_float),
-                                              ('interval_type', np.int32),
-                                              ]))
 
 EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
                                    ('areaperil_id', areaperil_int),
@@ -611,11 +606,11 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.bin', encode_params=False)[1]}")
         with storage.with_fileno("damage_bin_dict.bin") as f:
-            return np.fromfile(f, dtype=damagebindictionary)
+            return np.fromfile(f, dtype=damagebindictionary_dtype)
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
-            return np.loadtxt(f, dtype=damagebindictionary, skiprows=1, delimiter=',', ndmin=1)
+            return np.loadtxt(f, dtype=damagebindictionary_dtype, skiprows=1, delimiter=',', ndmin=1)
     else:
         raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
@@ -668,7 +663,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
     Returns: (int) PLEASE FILL IN
     """
     int32_mv[cursor], cursor = event_id, cursor + 1
-    int32_mv[cursor:cursor + areaperil_int_relative_size] = areaperil_id.view(oasis_int_dtype)
+    int32_mv[cursor:cursor + areaperil_int_relative_size] = areaperil_id.view(oasis_int)
     cursor += areaperil_int_relative_size
     int32_mv[cursor], cursor = vulns_id[vuln_i], cursor + 1
 
