@@ -476,7 +476,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             fm_profile_df = fm_profile_df.sort_values(by='profile_id').reset_index(drop=True)
 
             fm_policytc_df = profile_map_df[profile_map_df['level_id'] > 1][
-                ['layer_id', 'level_id', 'agg_id', 'profile_id']
+                ['level_id', 'agg_id', 'layer_id', 'profile_id']
             ].reset_index(drop=True)
             fm_policytc_df['level_id'] = fm_policytc_df['level_id'] - 1
             # Net losses across all layers is associated to the max layer ID.

@@ -887,7 +887,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['layer_id', 'level_id', 'agg_id', 'profile_id', 'orig_level_id']]
+        fm_policytc_df = il_inputs_df.loc[il_inputs_df['agg_id'] > 0, ['level_id', 'agg_id', 'layer_id', 'profile_id', 'orig_level_id']]
         fm_policytc_df.loc[fm_policytc_df['orig_level_id'].isin(cross_layer_level), 'layer_id'] = 1  # remove layer for cross layer level
         fm_policytc_df.drop(columns=['orig_level_id']).drop_duplicates().to_csv(
             path_or_buf=fm_policytc_fp,

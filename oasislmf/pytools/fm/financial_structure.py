@@ -14,7 +14,7 @@ from numba.typed import Dict, List
 
 
 from oasislmf.pytools.common.data import (load_as_ndarray, load_as_array, almost_equal,
-                                          fm_policytc_dtype,
+                                          fmpolicytc_dtype,
                                           fm_profile_csv_col_map, fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
                                           fm_xref_csv_col_map, fm_xref_dtype,
@@ -86,7 +86,7 @@ def load_static(static_path):
         FileNotFoundError if one of the static is missing
     """
     programme = load_as_ndarray(static_path, 'fm_programme', fm_programme_dtype)
-    policytc = load_as_ndarray(static_path, 'fm_policytc', fm_policytc_dtype)
+    policytc = load_as_ndarray(static_path, 'fm_policytc', fmpolicytc_dtype)
     profile = load_as_ndarray(static_path, 'fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
     if len(profile) == 0:
         profile = load_as_ndarray(static_path, 'fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)

@@ -23,7 +23,6 @@ summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summar
 
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
-fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('profile_id', 'i4')])
 fm_profile_dtype = np.dtype([('profile_id', 'i4'),
                              ('calcrule_id', 'i4'),
                              ('deductible_1', 'f4'),
@@ -128,6 +127,14 @@ eve_output = [
     ("event_id", oasis_int, "%d")
 ]
 eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
+
+fmpolicytc_output = [
+    ("level_id", 'i4', "%d"),
+    ("agg_id", 'i4', "%d"),
+    ("layer_id", 'i4', "%d"),
+    ("profile_id", 'i4', "%d"),
+]
+fmpolicytc_headers, fmpolicytc_dtype, fmpolicytc_fmt = generate_output_metadata(fmpolicytc_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

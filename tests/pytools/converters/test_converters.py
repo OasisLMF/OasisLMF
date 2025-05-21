@@ -38,7 +38,7 @@ def case_runner(converter, type):
         try:
             assert filecmp.cmp(expected_outfile, actual_outfile, shallow=False)
         except Exception as e:
-            error_path = Path(TESTS_ASSETS_DIR, "all_files", "error_files")
+            error_path = Path(TESTS_ASSETS_DIR, "error_files")
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
@@ -64,6 +64,12 @@ def test_damagebin():
     case_runner("bintocsv", "damagebin")
     case_runner("csvtobin", "damagebin")
 
+
 def test_eve():
     case_runner("bintocsv", "eve")
     case_runner("csvtobin", "eve")
+
+
+def test_fmpolicytc():
+    case_runner("bintocsv", "fmpolicytc")
+    case_runner("csvtobin", "fmpolicytc")

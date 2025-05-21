@@ -3,6 +3,7 @@ from oasislmf.pytools.common.data import amplifications_headers, amplifications_
 from oasislmf.pytools.common.data import coverages_headers, coverages_dtype, coverages_fmt
 from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
 from oasislmf.pytools.common.data import eve_headers, eve_dtype, eve_fmt
+from oasislmf.pytools.common.data import fmpolicytc_headers, fmpolicytc_dtype, fmpolicytc_fmt
 
 
 SUPPORTED_TYPES = {
@@ -30,5 +31,10 @@ SUPPORTED_TYPES = {
         "headers": eve_headers,
         "dtype": eve_dtype,
         "fmt": eve_fmt,
+    },
+    "fmpolicytc": {
+        "headers": fmpolicytc_headers,
+        "dtype": fmpolicytc_dtype,
+        "fmt": fmpolicytc_fmt,
     },
 }

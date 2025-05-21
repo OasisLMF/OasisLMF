@@ -661,7 +661,15 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
 
             cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
         else:
-            cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
+            # TODO: replace all old ktools with new ones
+            supported_tobin_tools = [
+                "fm_policytc"
+            ]
+            if input_file['name'] in supported_tobin_tools:
+                bintocsv_type = input_file["bintocsv_type"]
+                cmd_str = "csvtobin -i \"{}\" -o \"{}\" -t {}".format(input_file_path, output_file_path, bintocsv_type)
+            else:
+                cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
