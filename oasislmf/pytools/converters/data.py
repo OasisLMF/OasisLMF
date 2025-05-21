@@ -2,6 +2,7 @@ from oasislmf.pytools.common.data import aggregatevulnerability_headers, aggrega
 from oasislmf.pytools.common.data import amplifications_headers, amplifications_dtype, amplifications_fmt
 from oasislmf.pytools.common.data import coverages_headers, coverages_dtype, coverages_fmt
 from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
+from oasislmf.pytools.common.data import eve_headers, eve_dtype, eve_fmt
 
 
 SUPPORTED_TYPES = {
@@ -24,5 +25,10 @@ SUPPORTED_TYPES = {
         "headers": damagebin_headers,
         "dtype": damagebin_dtype,
         "fmt": damagebin_fmt,
+    },
+    "eve": {
+        "headers": eve_headers,
+        "dtype": eve_dtype,
+        "fmt": eve_fmt,
     },
 }

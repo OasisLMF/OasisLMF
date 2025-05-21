@@ -63,3 +63,7 @@ def test_coverages():
 def test_damagebin():
     case_runner("bintocsv", "damagebin")
     case_runner("csvtobin", "damagebin")
+
+def test_eve():
+    case_runner("bintocsv", "eve")
+    case_runner("csvtobin", "eve")

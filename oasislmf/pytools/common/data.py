@@ -124,6 +124,11 @@ damagebin_output = [
 ]
 damagebin_headers, damagebin_dtype, damagebin_fmt = generate_output_metadata(damagebin_output)
 
+eve_output = [
+    ("event_id", oasis_int, "%d")
+]
+eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
+
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
