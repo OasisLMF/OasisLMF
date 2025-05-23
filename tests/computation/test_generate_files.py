@@ -1,6 +1,7 @@
 import pathlib
 import os
 import logging
+import re
 import responses
 
 from unittest import mock
@@ -150,7 +151,12 @@ class TestGenFiles(ComputationChecker):
             "datetime": "2018-10-10"
         }
 
-        responses.get(url='https://theforexapi.com/api/2018-10-10?base=GBP&symbols=JPY&rtype=fpy', json={'rates': {"JPY": 180.4}})
+        responses.add(
+            responses.GET,
+            re.compile(r'https://(theforexapi|theratesapi)\.com/api/.*'),
+            json={'rates': {"JPY": 180.4}},
+            status=200
+        )
         mock_get_il_items.return_value = FAKE_IL_ITEMS_RETURN
         currency_config_file = self.tmp_files.get('currency_conversion_json')
         self.write_json(currency_config_file, currency_config)
