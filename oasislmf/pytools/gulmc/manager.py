@@ -795,7 +795,7 @@ def compute_event_losses(compute_info,
                 for haz_bin_idx in range(haz_bin_id.shape[0]):
                     try:
                         haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, haz_intensity[haz_bin_idx]]
-                    except KeyError:
+                    except:
                         haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, 0]
             else:
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
