@@ -64,7 +64,7 @@ class CsvToBin(TestCase):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=False)
 
@@ -78,7 +78,7 @@ class CsvToBin(TestCase):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=True)
 
@@ -102,11 +102,11 @@ class CsvToBin(TestCase):
 
             for target in files:
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
             os.mkdir(os.path.join(csv_dir, "RI_1"))
             for target in files:
                 with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
 
@@ -127,15 +127,15 @@ class CsvToBin(TestCase):
 
             for target in files:
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
             os.mkdir(os.path.join(csv_dir, "RI_1"))
             for target in files:
                 with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
             os.mkdir(os.path.join(csv_dir, "RI_2"))
             for target in files:
                 with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
 

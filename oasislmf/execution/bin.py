@@ -20,7 +20,6 @@ __all__ = [
 import pathlib
 
 import errno
-import csv
 import filecmp
 import glob
 import logging
@@ -650,9 +649,8 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         step_flag = input_file.get('step_flag')
         col_names = []
         if step_flag:
-            with open(input_file_path) as f:
-                reader = csv.reader(f)
-                col_names = next(reader)
+            with open(input_file_path, "r") as f:
+                col_names = f.readline().strip().split(",")
 
         if 'step_id' in col_names:
             output_file_path = os.path.join(
