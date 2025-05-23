@@ -3,6 +3,7 @@ import argparse
 import tempfile
 import os
 
+
 def reorder_columns_in_place(file_path, desired_order):
     # Create a temporary file to write reordered content
     with tempfile.NamedTemporaryFile(mode='w', newline='', delete=False) as temp_file:
@@ -22,6 +23,7 @@ def reorder_columns_in_place(file_path, desired_order):
     # Replace the original file with the reordered one
     os.replace(temp_file.name, file_path)
 
+
 def main():
     parser = argparse.ArgumentParser(description='Reorder CSV columns in-place.')
     parser.add_argument('file', help='Path to the CSV file to modify')
@@ -39,6 +41,7 @@ def main():
         print(f"Reordered columns successfully in '{args.file}'")
     except Exception as e:
         print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     main()
