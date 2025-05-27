@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 AMPLIFICATIONS_FILE = "amplifications.bin"
 COVERAGES_FILE = "coverages.bin"
 EVENTRATES_FILE = "event_rates.csv"
+FMPOLICYTC_FILE = "fm_policytc.bin"
 OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
