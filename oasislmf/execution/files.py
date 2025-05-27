@@ -24,7 +24,8 @@ INPUT_FILES = {
     'coverages': {
         'name': 'coverages',
         'type': 'gul',
-        'conversion_tool': 'coveragetobin'
+        'conversion_tool': 'coveragetobin',
+        'csvtobin_type': 'coverages',
     },
     'gulsummaryxref': {
         'name': 'gulsummaryxref',
@@ -45,13 +46,14 @@ INPUT_FILES = {
         'name': 'fm_policytc',
         'type': 'il',
         'conversion_tool': 'fmpolicytctobin',
-        'bintocsv_type': 'fm_policytc',
+        'csvtobin_type': 'fm_policytc',
     },
     'fm_profile': {
         'name': 'fm_profile',
         'type': 'il',
         'conversion_tool': 'fmprofiletobin',
-        'step_flag': '-S'
+        'step_flag': '-S',
+        'csvtobin_type': 'fm_profile',
     },
     'fm_programme': {
         'name': 'fm_programme',

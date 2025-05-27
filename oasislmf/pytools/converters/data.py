@@ -4,6 +4,8 @@ from oasislmf.pytools.common.data import coverages_headers, coverages_dtype, cov
 from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
 from oasislmf.pytools.common.data import eve_headers, eve_dtype, eve_fmt
 from oasislmf.pytools.common.data import fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt
+from oasislmf.pytools.common.data import fm_profile_headers, fm_profile_dtype, fm_profile_fmt
+from oasislmf.pytools.common.data import fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt
 
 
 SUPPORTED_TYPES = {
@@ -36,5 +38,15 @@ SUPPORTED_TYPES = {
         "headers": fm_policytc_headers,
         "dtype": fm_policytc_dtype,
         "fmt": fm_policytc_fmt,
+    },
+    "fm_profile": {
+        "headers": fm_profile_headers,
+        "dtype": fm_profile_dtype,
+        "fmt": fm_profile_fmt,
+    },
+    "fm_profile_step": {
+        "headers": fm_profile_step_headers,
+        "dtype": fm_profile_step_dtype,
+        "fmt": fm_profile_step_fmt,
     },
 }

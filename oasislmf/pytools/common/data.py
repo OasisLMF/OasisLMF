@@ -23,36 +23,7 @@ summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summar
 
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
-fm_profile_dtype = np.dtype([('profile_id', 'i4'),
-                             ('calcrule_id', 'i4'),
-                             ('deductible_1', 'f4'),
-                             ('deductible_2', 'f4'),
-                             ('deductible_3', 'f4'),
-                             ('attachment_1', 'f4'),
-                             ('limit_1', 'f4'),
-                             ('share_1', 'f4'),
-                             ('share_2', 'f4'),
-                             ('share_3', 'f4'),
-                             ])
-fm_profile_step_dtype = np.dtype([('profile_id', 'i4'),
-                                  ('calcrule_id', 'i4'),
-                                  ('deductible_1', 'f4'),
-                                  ('deductible_2', 'f4'),
-                                  ('deductible_3', 'f4'),
-                                  ('attachment_1', 'f4'),
-                                  ('limit_1', 'f4'),
-                                  ('share_1', 'f4'),
-                                  ('share_2', 'f4'),
-                                  ('share_3', 'f4'),
-                                  ('step_id', 'i4'),
-                                  ('trigger_start', 'f4'),
-                                  ('trigger_end', 'f4'),
-                                  ('payout_start', 'f4'),
-                                  ('payout_end', 'f4'),
-                                  ('limit_2', 'f4'),
-                                  ('scale_1', 'f4'),
-                                  ('scale_2', 'f4'),
-                                  ])
+
 fm_profile_csv_col_map = {
     'deductible_1': 'deductible1',
     'deductible_2': 'deductible2',
@@ -135,6 +106,42 @@ fm_policytc_output = [
     ("profile_id", 'i4', "%d"),
 ]
 fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt = generate_output_metadata(fm_policytc_output)
+
+fm_profile_output = [
+    ("profile_id", 'i4', "%d"),
+    ("calcrule_id", 'i4', "%d"),
+    ("deductible_1", 'f4', "%f"),
+    ("deductible_2", 'f4', "%f"),
+    ("deductible_3", 'f4', "%f"),
+    ("attachment_1", 'f4', "%f"),
+    ("limit_1", 'f4', "%f"),
+    ("share_1", 'f4', "%f"),
+    ("share_2", 'f4', "%f"),
+    ("share_3", 'f4', "%f"),
+]
+fm_profile_headers, fm_profile_dtype, fm_profile_fmt = generate_output_metadata(fm_profile_output)
+
+fm_profile_step_output = [
+    ("profile_id", 'i4', "%d"),
+    ("calcrule_id", 'i4', "%d"),
+    ("deductible_1", 'f4', "%f"),
+    ("deductible_2", 'f4', "%f"),
+    ("deductible_3", 'f4', "%f"),
+    ("attachment_1", 'f4', "%f"),
+    ("limit_1", 'f4', "%f"),
+    ("share_1", 'f4', "%f"),
+    ("share_2", 'f4', "%f"),
+    ("share_3", 'f4', "%f"),
+    ("step_id", 'i4', "%d"),
+    ("trigger_start", 'f4', "%f"),
+    ("trigger_end", 'f4', "%f"),
+    ("payout_start", 'f4', "%f"),
+    ("payout_end", 'f4', "%f"),
+    ("limit_2", 'f4', "%f"),
+    ("scale_1", 'f4', "%f"),
+    ("scale_2", 'f4', "%f"),
+]
+fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt = generate_output_metadata(fm_profile_step_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

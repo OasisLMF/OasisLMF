@@ -3,6 +3,7 @@
 import argparse
 import logging
 import numpy as np
+import pandas as pd
 from pathlib import Path
 
 from . import logger
@@ -16,14 +17,20 @@ def read_csv_as_ndarray(file_in, type):
         first_line = fin.readline()
         first_line_elements = [header.strip() for header in first_line.strip().split(',')]
         has_header = first_line_elements == headers
-        fin.seek(0)
 
-        data = np.genfromtxt(
-            fin,
-            delimiter=',',
-            dtype=dtype,
-            skip_header=1 if has_header else 0
-        )
+    # Read using pandas
+    df = pd.read_csv(
+        file_in,
+        header=0 if has_header else None,
+        names=headers if not has_header else None,
+        dtype=dtype
+    )
+
+    # Now construct a structured ndarray
+    data = np.empty(len(df), dtype=dtype)
+    for name in headers:
+        data[name] = df[name].values
+
     return data
 
 

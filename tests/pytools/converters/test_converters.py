@@ -70,6 +70,11 @@ def test_eve():
     case_runner("csvtobin", "eve")
 
 
-def test_fmpolicytc():
+def test_fm_policytc():
     case_runner("bintocsv", "fm_policytc")
     case_runner("csvtobin", "fm_policytc")
+
+
+def test_fm_profile():
+    case_runner("bintocsv", "fm_profile")
+    case_runner("csvtobin", "fm_profile")
