@@ -45,7 +45,7 @@ INPUT_FILES = {
         'name': 'fm_policytc',
         'type': 'il',
         'conversion_tool': 'fmpolicytctobin',
-        'bintocsv_type': 'fmpolicytc',
+        'bintocsv_type': 'fm_policytc',
     },
     'fm_profile': {
         'name': 'fm_profile',

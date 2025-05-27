@@ -128,13 +128,13 @@ eve_output = [
 ]
 eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
 
-fmpolicytc_output = [
+fm_policytc_output = [
     ("level_id", 'i4', "%d"),
     ("agg_id", 'i4', "%d"),
     ("layer_id", 'i4', "%d"),
     ("profile_id", 'i4', "%d"),
 ]
-fmpolicytc_headers, fmpolicytc_dtype, fmpolicytc_fmt = generate_output_metadata(fmpolicytc_output)
+fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt = generate_output_metadata(fm_policytc_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

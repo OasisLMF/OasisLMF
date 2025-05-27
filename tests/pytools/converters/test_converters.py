@@ -71,5 +71,5 @@ def test_eve():
 
 
 def test_fmpolicytc():
-    case_runner("bintocsv", "fmpolicytc")
-    case_runner("csvtobin", "fmpolicytc")
+    case_runner("bintocsv", "fm_policytc")
+    case_runner("csvtobin", "fm_policytc")
