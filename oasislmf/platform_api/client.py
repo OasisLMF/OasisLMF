@@ -390,8 +390,14 @@ class APIClient(object):
         Upload a portfolio file using the API. Supports absolute filepaths or
         bytestreams.
 
-        If uplaoding a byte stream `upload_data` needs to be a dict containing
-        `name` giving the file name and `bytes` containing the byte stream.
+        If uploading a byte stream `upload_data` is a dict with the keys `name`
+        which is a `str` containing the filename and `bytes` containing the
+        byte stream of the file data. For example:
+
+        ```python
+        upload_portfolio_file(<portfolio_id>, "location_file",
+                              {'bytes': <byte_stream>, 'name': <filename>})
+        ```
 
         Parameters
         :param portfolio_id: Portfolio {id} from
