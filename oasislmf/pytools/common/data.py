@@ -24,19 +24,6 @@ summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summar
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
 
-fm_profile_csv_col_map = {
-    'deductible_1': 'deductible1',
-    'deductible_2': 'deductible2',
-    'deductible_3': 'deductible3',
-    'attachment_1': 'attachment1',
-    'limit_1': 'limit1',
-    'share_1': 'share1',
-    'share_2': 'share2',
-    'share_3': 'share3',
-    'limit_2': ' limit2',
-    'scale_1': 'scale1',
-    'scale_2': 'scale2',
-}
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
@@ -110,36 +97,36 @@ fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt = generate_output_metada
 fm_profile_output = [
     ("profile_id", 'i4', "%d"),
     ("calcrule_id", 'i4', "%d"),
-    ("deductible_1", 'f4', "%f"),
-    ("deductible_2", 'f4', "%f"),
-    ("deductible_3", 'f4', "%f"),
-    ("attachment_1", 'f4', "%f"),
-    ("limit_1", 'f4', "%f"),
-    ("share_1", 'f4', "%f"),
-    ("share_2", 'f4', "%f"),
-    ("share_3", 'f4', "%f"),
+    ("deductible1", 'f4', "%f"),
+    ("deductible2", 'f4', "%f"),
+    ("deductible3", 'f4', "%f"),
+    ("attachment1", 'f4', "%f"),
+    ("limit1", 'f4', "%f"),
+    ("share1", 'f4', "%f"),
+    ("share2", 'f4', "%f"),
+    ("share3", 'f4', "%f"),
 ]
 fm_profile_headers, fm_profile_dtype, fm_profile_fmt = generate_output_metadata(fm_profile_output)
 
 fm_profile_step_output = [
     ("profile_id", 'i4', "%d"),
     ("calcrule_id", 'i4', "%d"),
-    ("deductible_1", 'f4', "%f"),
-    ("deductible_2", 'f4', "%f"),
-    ("deductible_3", 'f4', "%f"),
-    ("attachment_1", 'f4', "%f"),
-    ("limit_1", 'f4', "%f"),
-    ("share_1", 'f4', "%f"),
-    ("share_2", 'f4', "%f"),
-    ("share_3", 'f4', "%f"),
+    ("deductible1", 'f4', "%f"),
+    ("deductible2", 'f4', "%f"),
+    ("deductible3", 'f4', "%f"),
+    ("attachment1", 'f4', "%f"),
+    ("limit1", 'f4', "%f"),
+    ("share1", 'f4', "%f"),
+    ("share2", 'f4', "%f"),
+    ("share3", 'f4', "%f"),
     ("step_id", 'i4', "%d"),
     ("trigger_start", 'f4', "%f"),
     ("trigger_end", 'f4', "%f"),
     ("payout_start", 'f4', "%f"),
     ("payout_end", 'f4', "%f"),
-    ("limit_2", 'f4', "%f"),
-    ("scale_1", 'f4', "%f"),
-    ("scale_2", 'f4', "%f"),
+    ("limit2", 'f4', "%f"),
+    ("scale1", 'f4', "%f"),
+    ("scale2", 'f4', "%f"),
 ]
 fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt = generate_output_metadata(fm_profile_step_output)
 

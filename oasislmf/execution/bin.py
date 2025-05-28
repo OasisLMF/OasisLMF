@@ -661,6 +661,9 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         if input_file['name'] in supported_tobin_tools:
             csvtobin_type = input_file["csvtobin_type"]
             if 'step_id' in col_names:
+                output_file_path = os.path.join(
+                    bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
+                )
                 csvtobin_type = input_file["csvtobin_type"] + "_step"
             cmd_str = "csvtobin -i \"{}\" -o \"{}\" -t {}".format(input_file_path, output_file_path, csvtobin_type)
         else:
@@ -676,7 +679,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
-            raise OasisException("Error while converting csv's to ktools binary format: {}".format(e))
+            raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 @oasis_log

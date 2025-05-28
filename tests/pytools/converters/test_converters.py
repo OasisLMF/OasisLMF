@@ -78,3 +78,8 @@ def test_fm_policytc():
 def test_fm_profile():
     case_runner("bintocsv", "fm_profile")
     case_runner("csvtobin", "fm_profile")
+
+
+def test_fm_profile_step():
+    case_runner("bintocsv", "fm_profile_step")
+    case_runner("csvtobin", "fm_profile_step")

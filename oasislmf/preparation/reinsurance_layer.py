@@ -474,6 +474,17 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             fm_programme_df = xref_df[xref_df['agg_id_to'] != 0][['agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
             fm_programme_df.columns = ['from_agg_id', 'level_id', 'to_agg_id']
             fm_profile_df = fm_profile_df.sort_values(by='profile_id').reset_index(drop=True)
+            fm_profile_df.rename(
+                columns={
+                    'deductible': 'deductible1',
+                    'deductible_min': 'deductible2',
+                    'deductible_max': 'deductible3',
+                    'attachment': 'attachment1',
+                    'limit': 'limit1',
+                    'share': 'share1'
+                },
+                inplace=True
+            )
 
             fm_policytc_df = profile_map_df[profile_map_df['level_id'] > 1][
                 ['level_id', 'agg_id', 'layer_id', 'profile_id']

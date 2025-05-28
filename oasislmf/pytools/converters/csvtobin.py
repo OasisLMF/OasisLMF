@@ -15,22 +15,23 @@ def read_csv_as_ndarray(file_in, type):
     dtype = SUPPORTED_TYPES[type]["dtype"]
     with open(file_in, "r") as fin:
         first_line = fin.readline()
+        if not first_line.strip():
+            return np.empty(0, dtype=dtype)
         first_line_elements = [header.strip() for header in first_line.strip().split(',')]
         has_header = first_line_elements == headers
 
-    # Read using pandas
-    df = pd.read_csv(
-        file_in,
-        header=0 if has_header else None,
-        names=headers if not has_header else None,
-        dtype=dtype
-    )
-
-    # Now construct a structured ndarray
-    data = np.empty(len(df), dtype=dtype)
-    for name in headers:
-        data[name] = df[name].values
-
+    cvs_dtype = {key: col_dtype for key, (col_dtype, _) in dtype.fields.items()}
+    try:
+        df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype, usecols=list(cvs_dtype.keys()))
+    # except pd.errors.EmptyDataError:
+        # return np.empty(0, dtype=dtype)
+    except Exception as e:
+        print(e)
+        print(first_line)
+        raise e
+    data = np.empty(df.shape[0], dtype=dtype)
+    for name in dtype.names:
+        data[name] = df[name]
     return data
 
 
