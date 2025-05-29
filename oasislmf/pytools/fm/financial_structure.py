@@ -339,8 +339,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             level_node_len[programme['level_id']] = programme['to_agg_id']
 
     ##### fm_policytc (level_id agg_id layer_id => profile_id) #####
-    # programme_node_to_layers dict of (level_id, agg_id) => list of (layer_id, policy_index_start, policy_index_end)
+    # programme_node_to_profiles dict of (level_id, agg_id) => list of (layer_id, policy_index_start, policy_index_end)
     # for each policy needing tiv, we duplicate the policy for each node to then later on calculate the % tiv parameters
+    programme_node_to_profiles = Dict.empty(node_type, List.empty_list(layer_type))
     programme_node_to_layers = Dict.empty(node_type, List.empty_list(layer_type))
     i_new_fm_profile = fm_profile.shape[0]
     new_fm_profile_list = List.empty_list(np.int64)
@@ -361,12 +362,12 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
         layer = (nb_oasis_int(policytc['layer_id']), nb_oasis_int(i_start), nb_oasis_int(i_end))
 
-        if programme_node not in programme_node_to_layers:
+        if programme_node not in programme_node_to_profiles:
             _list = List.empty_list(layer_type)
             _list.append(layer)
-            programme_node_to_layers[programme_node] = _list
+            programme_node_to_profiles[programme_node] = _list
         else:
-            programme_node_to_layers[programme_node].append(layer)
+            programme_node_to_profiles[programme_node].append(layer)
 
     # create a new fm_profile with all the needed duplicated %tiv profiles
     if i_new_fm_profile - fm_profile.shape[0]:
@@ -392,7 +393,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     ##### xref #####
     # create mapping node (level_id, agg_id) => list of (layer_id, output_id)
-    node_to_output_id = Dict.empty(node_type, List.empty_list(output_type))
+    node_to_output_id = Dict.empty(node_type, Dict.empty(nb_oasis_int, nb_oasis_int))
 
     output_len = 0
     for i in range(fm_xref.shape[0]):
@@ -402,11 +403,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             output_len = nb_oasis_int(xref['output_id'])
 
         if programme_node in node_to_output_id:
-            node_to_output_id[programme_node].append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id'])))
+            node_to_output_id[programme_node][nb_oasis_int(xref['layer_id'])] = nb_oasis_int(xref['output_id'])
         else:
-            _list = List.empty_list(output_type)
-            _list.append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id'])))
-            node_to_output_id[programme_node] = _list
+            _dict = Dict.empty(nb_oasis_int, nb_oasis_int)
+            _dict[nb_oasis_int(xref['layer_id'])] = nb_oasis_int(xref['output_id'])
+            node_to_output_id[programme_node] = _dict
 
     ##### programme ####
     # node_layers will contain the number of layer for each nodes
@@ -417,7 +418,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for programme in fm_programme:
         parent = (nb_oasis_int(programme['level_id']), nb_oasis_int(programme['to_agg_id']))
         if parent not in node_layers:
-            node_layers[parent] = nb_oasis_int(len(programme_node_to_layers[parent]))
+            node_layers[parent] = nb_oasis_int(len(programme_node_to_profiles[parent]))
+            programme_node_to_layers[parent] = programme_node_to_profiles[parent]
 
     # create 2 mapping to get the parents and the childs of each nodes
     # update the number of layer for nodes based on the number of layer of their parents
@@ -457,8 +459,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 else:
                     child_to_parents[child_programme].insert(0, parent)
                 # child_to_parents[child_programme] = [parent]
-                if child_programme not in node_layers or node_layers[child_programme] < node_layers[parent]:
+                if child_programme not in node_layers or node_layers[child_programme] <= node_layers[parent]:
                     node_layers[child_programme] = node_layers[parent]
+                    programme_node_to_layers[child_programme] = programme_node_to_layers[parent]
                 elif node_layers[child_programme] > node_layers[parent]:  # cross layer node
                     grand_parents = get_all_parent(child_to_parents, [parent], max_level)
                     for grand_parent in grand_parents:
@@ -528,8 +531,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 node['parent_len'] = 0
 
             # profiles
-            if node_programme in programme_node_to_layers:
-                profiles = programme_node_to_layers[node_programme]
+            if node_programme in programme_node_to_profiles:
+                profiles = programme_node_to_profiles[node_programme]
                 if node_programme in node_cross_layers:
                     node['profile_len'] = node['layer_len']
                     node['cross_layer_profile'] = 1
@@ -585,8 +588,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             if level == out_level:
                 if node_programme in node_to_output_id:
                     node['output_ids'], output_i = output_i, output_i + node['layer_len']
-                    for layer, output_id in node_to_output_id[node_programme]:
-                        output_array[node['output_ids'] + layer - 1] = output_id
+                    for i, (layer_id, _, _) in enumerate(programme_node_to_layers[node_programme]):
+                        if layer_id in node_to_output_id[node_programme]:
+                            output_array[node['output_ids'] + i] = node_to_output_id[node_programme][layer_id]
                 else:
                     raise KeyError("Some output nodes are missing output_ids")
 

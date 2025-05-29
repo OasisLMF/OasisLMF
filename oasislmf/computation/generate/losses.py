@@ -297,7 +297,7 @@ class GenerateLossesDir(GenerateLossesBase):
             if self.check_missing_inputs:
                 raise OasisException(missing_input_files)
             else:
-                self.logger.warn(missing_input_files)
+                self.logger.warning(missing_input_files)
 
         gul_item_stream = (not self.ktools_legacy_stream)
         ri = self.settings.get('ri_output', False) and ril
