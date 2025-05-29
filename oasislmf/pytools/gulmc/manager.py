@@ -118,14 +118,14 @@ def get_peril_id(input_path):
     ])
 
     item_peril = pd.read_csv(
-        os.path.join(input_path, 'gul_summary_map.csv'), 
+        os.path.join(input_path, 'gul_summary_map.csv'),
         usecols=['item_id', 'peril_id']
-        )[['item_id', 'peril_id']]
+    )[['item_id', 'peril_id']]
 
     item_peril['peril_id'] = item_peril['peril_id'].apply(encode_peril_id)
 
     item_peril = np.array(
-        list(item_peril.itertuples(index=False, name=None)), 
+        list(item_peril.itertuples(index=False, name=None)),
         dtype=dtype)
 
     return item_peril
