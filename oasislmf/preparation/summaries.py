@@ -630,11 +630,17 @@ def generate_summaryxref_files(
         rl,
     ])
 
-    # Load il_map if present
+    # Verify account file + il_map file
+    il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
     if il_summaries or ri_summaries or rl_summaries:
         if account_df is None:
             raise OasisException('No account file found.')
-        il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+
+        if not os.path.exists(il_map_fp):
+            raise OasisException('No summary map file found.')
+
+    # Load il_map if present
+    if os.path.exists(il_map_fp):
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
             lowercase_cols=False,
