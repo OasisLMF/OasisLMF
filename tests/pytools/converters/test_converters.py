@@ -83,3 +83,8 @@ def test_fm_profile():
 def test_fm_profile_step():
     case_runner("bintocsv", "fm_profile_step")
     case_runner("csvtobin", "fm_profile_step")
+
+
+def test_fm_programme():
+    case_runner("bintocsv", "fm_programme")
+    case_runner("csvtobin", "fm_programme")

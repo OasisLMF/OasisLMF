@@ -22,8 +22,6 @@ null_index = oasis_int.type(-1)
 summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summary_set_id', 'i4')])
 
 # financial structure static input dtypes
-fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
-
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
@@ -129,6 +127,13 @@ fm_profile_step_output = [
     ("scale2", 'f4', "%f"),
 ]
 fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt = generate_output_metadata(fm_profile_step_output)
+
+fm_programme_output = [
+    ("from_agg_id", 'i4', "%d"),
+    ("level_id", 'i4', "%d"),
+    ("to_agg_id", 'i4', "%d"),
+]
+fm_programme_headers, fm_programme_dtype, fm_programme_fmt = generate_output_metadata(fm_programme_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

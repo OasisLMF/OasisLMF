@@ -58,7 +58,8 @@ INPUT_FILES = {
     'fm_programme': {
         'name': 'fm_programme',
         'type': 'il',
-        'conversion_tool': 'fmprogrammetobin'
+        'conversion_tool': 'fmprogrammetobin',
+        'csvtobin_type': 'fm_programme',
     },
     'fm_xref': {
         'name': 'fm_xref',

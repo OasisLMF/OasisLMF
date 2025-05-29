@@ -6,6 +6,7 @@ from oasislmf.pytools.common.data import eve_headers, eve_dtype, eve_fmt
 from oasislmf.pytools.common.data import fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt
 from oasislmf.pytools.common.data import fm_profile_headers, fm_profile_dtype, fm_profile_fmt
 from oasislmf.pytools.common.data import fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt
+from oasislmf.pytools.common.data import fm_programme_headers, fm_programme_dtype, fm_programme_fmt
 
 
 SUPPORTED_TYPES = {
@@ -48,5 +49,10 @@ SUPPORTED_TYPES = {
         "headers": fm_profile_step_headers,
         "dtype": fm_profile_step_dtype,
         "fmt": fm_profile_step_fmt,
+    },
+    "fm_programme": {
+        "headers": fm_programme_headers,
+        "dtype": fm_programme_dtype,
+        "fmt": fm_programme_fmt,
     },
 }
