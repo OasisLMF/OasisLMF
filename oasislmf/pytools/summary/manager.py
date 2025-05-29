@@ -85,12 +85,14 @@ def get_summary_object(static_path, run_type):
                                   dtype=oasis_int)
     elif run_type == RUNTYPE_INSURED_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
+        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
                                   usecols=['loc_id', 'output_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int,
                                   ).rename(columns={'output_id': 'item_id'})
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
+        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = None  # numba use none to optimise function when some part are not used
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
