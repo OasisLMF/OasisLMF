@@ -419,6 +419,12 @@ def run(run_dir,
         compute_info['effective_damageability'] = effective_damageability
         compute_info['debug'] = debug
 
+        # default random values array for sample_size==0 case
+        haz_rndms_base = np.empty((1, sample_size), dtype='float64')
+        vuln_rndms_base = np.empty((1, sample_size), dtype='float64')
+        haz_eps_ij = np.empty((1, sample_size), dtype='float64')
+        damage_eps_ij = np.empty((1, sample_size), dtype='float64')
+
         while True:
             if not streams_in.readinto(event_id_mv):
                 break
@@ -456,11 +462,16 @@ def run(run_dir,
                     byte_mv
                 )
 
-                # generation of "base" random values for hazard intensity and vulnerability sampling
-                haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
-                vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
-                haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
-                damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
+                # since these are never used outside of a sample > 0 branch we can remove the need to
+                # generate (and potentially allocate) the random values. As at 2.3.5 the sampling method
+                # for random values accounts for 25% of the runtime of the losses step not including
+                # the get_event despite having a sample size of 0.
+                if sample_size > 0:
+                    # generation of "base" random values for hazard intensity and vulnerability sampling
+                    haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
+                    vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
+                    haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+                    damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
                 # create vulnerability cdf cache
                 cached_vuln_cdfs = np.zeros((Nvulns_cached, compute_info['Ndamage_bins_max']), dtype=oasis_float)
