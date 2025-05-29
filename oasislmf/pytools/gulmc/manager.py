@@ -22,7 +22,7 @@ from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
-from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict
+from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict, encode_peril_id
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
 from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
@@ -97,6 +97,38 @@ def get_dynamic_footprint_adjustments(input_path):
         adjustments_tb = np.array([(i[0], 0, 0) for i in items_tb], dtype=ItemAdjustment)
 
     return adjustments_tb
+
+
+def get_peril_id(input_path):
+    """
+    Get peril_id associated with item_id
+
+    Args:
+        input_path (str): The directory path where the 'gul_summary_map.csv' file is located.
+
+    Returns:
+        np.ndarray: A structured NumPy array with the following fields:
+            - 'item_id' (oasis_int): The item ID as an integer.
+            - 'peril_id' (oasis_int): The encoded peril ID as an integer.
+    """
+
+    dtype = np.dtype([
+        ('item_id', oasis_int),
+        ('peril_id', oasis_int)
+    ])
+
+    item_peril = pd.read_csv(
+        os.path.join(input_path, 'gul_summary_map.csv'),
+        usecols=['item_id', 'peril_id']
+    )[['item_id', 'peril_id']]
+
+    item_peril['peril_id'] = item_peril['peril_id'].apply(encode_peril_id)
+
+    item_peril = np.array(
+        list(item_peril.itertuples(index=False, name=None)),
+        dtype=dtype)
+
+    return item_peril
 
 
 def get_vuln_rngadj(run_dir, vuln_dict):
@@ -267,6 +299,16 @@ def run(run_dir,
                 jointype='leftouter', usemask=False,
                 defaults={'intensity_adjustment': 0, 'return_period': 0}
             )
+
+        # include peril_id
+        if dynamic_footprint:
+            logger.debug('get peril_id')
+            item_peril = get_peril_id(input_path)
+            items = rfn.join_by(
+                'item_id', items, item_peril,
+                jointype='leftouter', usemask=False,
+                defaults={'peril_id': 0}
+            )
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
         # build item map
@@ -405,7 +447,7 @@ def run(run_dir,
         if dynamic_footprint:
             intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
-            intensity_bin_dict = Dict.empty(nb_int32, nb_int32)
+            intensity_bin_dict = Dict.empty(nb_Tuple((nb_int32, nb_int32)), nb_int32)
             dynamic_footprint = None
 
         compute_info = np.zeros(1, dtype=gulmc_compute_info_type)[0]
@@ -759,13 +801,13 @@ def compute_event_losses(compute_info,
                 # adjust intensity in dynamic footprint
                 haz_intensity = haz_pdf_record['intensity']
                 haz_intensity = haz_intensity - intensity_adjustment
-                haz_intensity = np.where(haz_intensity < 0, nb_int32(0), haz_intensity)
                 haz_bin_id = np.zeros_like(haz_pdf_record['intensity_bin_id'])
+                peril_id = item['peril_id']
                 for haz_bin_idx in range(haz_bin_id.shape[0]):
-                    if haz_intensity[haz_bin_idx] <= 0:
-                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[0]
-                    else:
-                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[haz_intensity[haz_bin_idx]]
+                    try:
+                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, haz_intensity[haz_bin_idx]]
+                    except:
+                        haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, 0]
             else:
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
             haz_pdf_prob = haz_pdf_record['probability']
