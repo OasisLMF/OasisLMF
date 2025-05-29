@@ -134,6 +134,11 @@ class FileEndpoint(object):
             content_type = self._set_content_type(file_path)
         return self.session.upload(self._build_url(ID), file_path, content_type)
 
+    def upload_byte(self, ID, file_bytes, filename, content_type=None):
+        if not content_type:
+            content_type = self._set_content_type(filename)
+        return self.session.upload_byte(self._build_url(ID), file_bytes, filename, content_type)
+
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
         dir_fp = os.path.dirname(abs_fp)
@@ -380,9 +385,47 @@ class APIClient(object):
     def healthcheck(self):
         return self.api.get('{}healthcheck/'.format(self.api.url_base))
 
+    def upload_portfolio_file(self, portfolio_id, portfolio_file, upload_data):
+        """
+        Upload a portfolio file using the API. Supports absolute filepaths or
+        bytestreams.
+
+        If uploading a byte stream `upload_data` is a dict with the keys `name`
+        which is a `str` containing the filename and `bytes` containing the
+        byte stream of the file data. For example:
+
+        ```python
+        upload_portfolio_file(<portfolio_id>, "location_file",
+                              {'bytes': <byte_stream>, 'name': <filename>})
+        ```
+
+        Parameters
+        :param portfolio_id: Portfolio {id} from
+        :type portfolio_id: int
+
+        :param portfolio_file: The name of the portfolio file to update. One of
+            the following options `location_file`, `accounts_file`,
+            `reinsurance_info_file` or `reinsurance_scope_file`.
+        :type settings: str
+
+        :param upload_data: The file to upload through the api. This should be
+        a `str` if it is a filepath or a `dict` if it is a byte stream with the
+        keys `name` and `bytes` corresponding to the filename and bytestream
+        respectively.
+        :type upload_data: [str, dict]
+        ----------
+        """
+        if isinstance(upload_data, dict):
+            getattr(self.portfolios, portfolio_file).upload_byte(portfolio_id,
+                                                                 upload_data['bytes'],
+                                                                 upload_data['name'])
+            self.logger.info("File uploaded: {}".format(upload_data['name']))
+        else:
+            getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data)
+            self.logger.info("File uploaded: {}".format(upload_data))
+
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
                       location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
-
         if not portfolio_name:
             portfolio_name = time.strftime("Portfolio_%d%m%Y-%H%M%S")
 
@@ -397,17 +440,13 @@ class APIClient(object):
 
             # Upload exposure
             if location_fp:
-                self.portfolios.location_file.upload(portfolio_id, location_fp)
-                self.logger.info("File uploaded: {}".format(location_fp))
+                self.upload_portfolio_file(portfolio_id, 'location_file', location_fp)
             if accounts_fp:
-                self.portfolios.accounts_file.upload(portfolio_id, accounts_fp)
-                self.logger.info("File uploaded: {}".format(accounts_fp))
+                self.upload_portfolio_file(portfolio_id, 'accounts_file', accounts_fp)
             if ri_info_fp:
-                self.portfolios.reinsurance_info_file.upload(portfolio_id, ri_info_fp)
-                self.logger.info("File uploaded: {}".format(ri_info_fp))
+                self.upload_portfolio_file(portfolio_id, 'reinsurance_info_file', ri_info_fp)
             if ri_scope_fp:
-                self.portfolios.reinsurance_scope_file.upload(portfolio_id, ri_scope_fp)
-                self.logger.info("File uploaded: {}".format(ri_scope_fp))
+                self.upload_portfolio_file(portfolio_id, 'reinsurance_scope_file', ri_scope_fp)
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
