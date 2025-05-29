@@ -7,6 +7,7 @@ __all__ = [
     'GenerateLossesPartialCmd',
     'GenerateLossesOutputCmd',
     'GenerateOasisFilesCmd',
+    'GenerateDocCmd',
     'ModelCmd',
     'RunCmd'
 ]
@@ -85,6 +86,17 @@ class GenerateLossesOutputCmd(OasisComputationCommand):
     computation_name = 'GenerateLossesOutput'
 
 
+class GenerateDocumentationCmd(OasisComputationCommand):
+    """
+    Generate Documentation for model from the config file
+
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateDocumentation'
+
+
 class RunCmd(OasisComputationCommand):
     """
     Run models end to end.
@@ -134,6 +146,7 @@ class ModelCmd(OasisBaseCommand):
         'generate-losses': GenerateLossesCmd,
         'generate-losses-chunk': GenerateLossesPartialCmd,
         'generate-losses-output': GenerateLossesOutputCmd,
+        'generate-doc': GenerateDocumentationCmd,
         'generate-computation-settings-json-schema': GenerateComputationSettingsJsonSchema,
         'run': RunCmd,
         'run-postanalysis': RunPostAnalysisCmd,
