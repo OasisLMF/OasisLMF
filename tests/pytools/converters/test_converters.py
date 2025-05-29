@@ -88,3 +88,13 @@ def test_fm_profile_step():
 def test_fm_programme():
     case_runner("bintocsv", "fm_programme")
     case_runner("csvtobin", "fm_programme")
+
+
+def test_fm_summary_xref():
+    case_runner("bintocsv", "fm_summary_xref")
+    case_runner("csvtobin", "fm_summary_xref")
+
+
+def test_gul_summary_xref():
+    case_runner("bintocsv", "gul_summary_xref")
+    case_runner("csvtobin", "gul_summary_xref")

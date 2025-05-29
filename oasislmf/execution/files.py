@@ -69,7 +69,8 @@ INPUT_FILES = {
     'fmsummaryxref': {
         'name': 'fmsummaryxref',
         'type': 'il',
-        'conversion_tool': 'fmsummaryxreftobin'
+        'conversion_tool': 'fmsummaryxreftobin',
+        'csvtobin_type': 'fm_summary_xref',
     }
 }
 GUL_INPUT_FILES = {k: v for k, v in INPUT_FILES.items() if v['type'] == 'gul'}

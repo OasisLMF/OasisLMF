@@ -658,6 +658,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             "fm_policytc",
             "fm_profile",
             "fm_programme",
+            "fmsummaryxref",
         ]
         if input_file['name'] in supported_tobin_tools:
             csvtobin_type = input_file["csvtobin_type"]
