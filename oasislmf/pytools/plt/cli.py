@@ -4,6 +4,7 @@ import argparse
 import logging
 
 from . import manager, logger
+from .data import VALID_EXT
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
-    parser.add_argument('-B', '--binary', action='store_true', help='Output data as binary files')
+    parser.add_argument('-E', '--ext', type=str, default='csv', choices=VALID_EXT, help='Output data format')
 
     args = parser.parse_args()
     kwargs = vars(args)

@@ -5,13 +5,16 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
 from oasislmf.pytools.common.input_files import read_event_rates, read_quantile
-from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, MELT_output, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
+from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -62,6 +65,26 @@ class ELTReader(EventReader):
         self.intervals = intervals
 
         self.curr_file_idx = None  # Current summary file idx being read
+
+    def get_data(self, out_type):
+        if out_type == "selt":
+            return self.selt_data
+        elif out_type == "melt":
+            return self.melt_data
+        elif out_type == "qelt":
+            return self.qelt_data
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
+
+    def get_data_idx(self, out_type):
+        if out_type == "selt":
+            return self.selt_idx
+        elif out_type == "melt":
+            return self.melt_idx
+        elif out_type == "qelt":
+            return self.qelt_idx
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
         # Check for new file idx to read summary_set_id at the start of each summary file stream
@@ -361,7 +384,15 @@ def read_input_files(run_dir, compute_melt, compute_qelt, sample_size):
     return file_data
 
 
-def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_output_file=None, noheader=False, output_binary=False):
+def run(
+    run_dir,
+    files_in,
+    selt_output_file=None,
+    melt_output_file=None,
+    qelt_output_file=None,
+    noheader=False,
+    output_format="csv",
+):
     """Runs ELT calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
@@ -370,25 +401,48 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         melt_output_file (str, optional): Path to MELT output file. Defaults to None.
         qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
         noheader (bool): Boolean value to skip header in output file. Defaults to False.
-        output_binary (bool): Boolean value to output binary files instead of csv. Defaults to False.
+        output_format (str): Output format extension. Defaults to "csv".
     """
-    compute_selt = selt_output_file is not None
-    compute_melt = melt_output_file is not None
-    compute_qelt = qelt_output_file is not None
+    outmap = {
+        "selt": {
+            "compute": selt_output_file is not None,
+            "file_path": selt_output_file,
+            "fmt": SELT_fmt,
+            "headers": SELT_headers,
+            "file": None,
+        },
+        "melt": {
+            "compute": melt_output_file is not None,
+            "file_path": melt_output_file,
+            "fmt": MELT_fmt,
+            "headers": MELT_headers,
+            "file": None,
+        },
+        "qelt": {
+            "compute": qelt_output_file is not None,
+            "file_path": qelt_output_file,
+            "fmt": QELT_fmt,
+            "headers": QELT_headers,
+            "file": None,
+        },
+    }
 
+    output_format = "." + output_format
+    output_binary = output_format == ".bin"
+    output_parquet = output_format == ".parquet"
     # Check for correct suffix
-    for path in [selt_output_file, melt_output_file, qelt_output_file]:
+    for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
-        if (output_binary and Path(path).suffix != '.bin') or\
-                (not output_binary and Path(path).suffix != '.csv'):
-            if Path(path).suffix != "":  # Ignore suffix for pipes
-                raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path},")
+        if Path(path).suffix == "":  # Ignore suffix for pipes
+            continue
+        if (Path(path).suffix != output_format):
+            raise ValueError(f"Invalid file extension for {output_format}, got {path},")
 
     if run_dir is None:
         run_dir = './work'
 
-    if not compute_selt and not compute_melt and not compute_qelt:
+    if not all([v["compute"] for v in outmap.values()]):
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
@@ -396,91 +450,75 @@ def run(run_dir, files_in, selt_output_file=None, melt_output_file=None, qelt_ou
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        file_data = read_input_files(run_dir, compute_melt, compute_qelt, len_sample)
+        file_data = read_input_files(
+            run_dir,
+            outmap["melt"]["compute"],
+            outmap["qelt"]["compute"],
+            len_sample
+        )
         elt_reader = ELTReader(
             len_sample,
-            compute_selt,
-            compute_melt,
-            compute_qelt,
+            outmap["selt"]["compute"],
+            outmap["melt"]["compute"],
+            outmap["qelt"]["compute"],
             file_data["unique_event_ids"],
             file_data["event_rates"],
             file_data["intervals"]
         )
 
-        # Initialise csv column names for ELT files
-        output_files = {}
-        if compute_selt:
-            if output_binary:
-                selt_file = stack.enter_context(open(selt_output_file, 'wb'))
-            else:
-                selt_file = stack.enter_context(open(selt_output_file, 'w'))
-                if not noheader:
-                    csv_headers = ','.join(SELT_headers)
-                    selt_file.write(csv_headers + '\n')
-            output_files['selt'] = selt_file
+        # Initialise output files ELT
+        if output_binary:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+                outmap[out_type]["file"] = out_file
+        elif output_parquet:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                temp_df = pd.DataFrame(elt_reader.get_data(out_type), columns=outmap[out_type]["headers"])
+                temp_table = pa.Table.from_pandas(temp_df)
+                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                outmap[out_type]["file"] = out_file
         else:
-            output_files['selt'] = None
-
-        if compute_melt:
-            if output_binary:
-                melt_file = stack.enter_context(open(melt_output_file, 'wb'))
-            else:
-                melt_file = stack.enter_context(open(melt_output_file, 'w'))
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
                 if not noheader:
-                    csv_headers = ','.join(MELT_headers)
-                    melt_file.write(csv_headers + '\n')
-            output_files['melt'] = melt_file
-        else:
-            output_files['melt'] = None
+                    csv_headers = ','.join(outmap[out_type]["headers"])
+                    out_file.write(csv_headers + '\n')
+                outmap[out_type]["file"] = out_file
 
-        if compute_qelt:
-            if output_binary:
-                qelt_file = stack.enter_context(open(qelt_output_file, 'wb'))
-            else:
-                qelt_file = stack.enter_context(open(qelt_output_file, 'w'))
-                if not noheader:
-                    csv_headers = ','.join(QELT_headers)
-                    qelt_file.write(csv_headers + '\n')
-            output_files['qelt'] = qelt_file
-        else:
-            output_files['qelt'] = None
-
+        # Process summary files
         for event_id in elt_reader.read_streams(streams_in):
-            if compute_selt:
-                # Extract SELT data
-                selt_data = elt_reader.selt_data[:elt_reader.selt_idx[0]]
-                if output_files['selt'] is not None and selt_data.size > 0:
-                    if output_binary:
-                        selt_data.tofile(output_files["selt"])
-                    else:
-                        write_ndarray_to_fmt_csv(output_files["selt"], selt_data, SELT_headers, SELT_fmt)
-                elt_reader.selt_idx[0] = 0
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
 
-            if compute_melt:
-                # Extract MELT data
-                melt_data = elt_reader.melt_data[:elt_reader.melt_idx[0]]
-                if output_files['melt'] is not None and melt_data.size > 0:
-                    MELT_cols = [c[0] for c in MELT_output]
-                    melt_data = melt_data[MELT_cols]
-                    if output_binary:
-                        melt_data.tofile(output_files["melt"])
-                    else:
-                        write_ndarray_to_fmt_csv(output_files["melt"], melt_data, MELT_headers, MELT_fmt)
-                elt_reader.melt_idx[0] = 0
+                data_idx = elt_reader.get_data_idx(out_type)
+                data = elt_reader.get_data(out_type)[:data_idx[0]]
 
-            if compute_qelt:
-                # Extract QELT data
-                qelt_data = elt_reader.qelt_data[:elt_reader.qelt_idx[0]]
-                if output_files['qelt'] is not None and qelt_data.size > 0:
+                if outmap[out_type]["file"] is not None and data.size > 0:
                     if output_binary:
-                        qelt_data.tofile(output_files["qelt"])
+                        data.tofile(outmap[out_type]["file"])
+                    elif output_parquet:
+                        data_df = pd.DataFrame(data)
+                        data_table = pa.Table.from_pandas(data_df)
+                        outmap[out_type]["file"].write_table(data_table)
                     else:
-                        write_ndarray_to_fmt_csv(output_files["qelt"], qelt_data, QELT_headers, QELT_fmt)
-                elt_reader.qelt_idx[0] = 0
+                        write_ndarray_to_fmt_csv(
+                            outmap[out_type]["file"],
+                            data,
+                            outmap[out_type]["headers"],
+                            outmap[out_type]["fmt"]
+                        )
+                data_idx[0] = 0
 
 
 @redirect_logging(exec_name='eltpy')
-def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=False, binary=False, **kwargs):
+def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=False, ext="csv", **kwargs):
     run(
         run_dir,
         files_in,
@@ -488,5 +526,5 @@ def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=F
         melt_output_file=melt,
         qelt_output_file=qelt,
         noheader=noheader,
-        output_binary=binary,
+        output_format=ext,
     )
