@@ -3,7 +3,6 @@ from numba import njit
 from numba.core import types
 from numba.typed import Dict
 import numpy as np
-import os
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
@@ -13,52 +12,10 @@ from .common import (
     FILE_HEADER_SIZE,
     event_count_dtype,
     amp_factor_dtype,
-    AMPLIFICATIONS_FILE_NAME,
     LOSS_FACTORS_FILE_NAME
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_items_amplifications(path):
-    """
-    Get array of amplification IDs from amplifications.bin, where index
-    corresponds to item ID.
-
-    amplifications.bin is binary file with layout:
-        reserved header (4-byte int),
-        item ID 1 (4-byte int), amplification ID a_1 (4-byte int),
-        ...
-        item ID n (4-byte int), amplification ID a_n (4-byte int)
-
-    Args:
-        path (str): path to amplifications.bin file
-
-    Returns:
-        items_amps (numpy.ndarray): array of amplification IDs, where index
-            corresponds to item ID
-    """
-    try:
-        items_amps = np.fromfile(
-            os.path.join(path, AMPLIFICATIONS_FILE_NAME), dtype=np.int32,
-            offset=FILE_HEADER_SIZE
-        )
-    except FileNotFoundError:
-        logger.error('amplifications.bin not found')
-        raise SystemExit(1)
-
-    # Check item IDs start from 1 and are contiguous
-    if items_amps[0] != 1:
-        logger.error(f'First item ID is {items_amps[0]}. Expected 1.')
-        raise SystemExit(1)
-    items_amps = items_amps.reshape(len(items_amps) // 2, 2)
-    if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
-        logger.error(f'Item IDs in {os.path.join(path, AMPLIFICATIONS_FILE_NAME)} are not contiguous')
-        raise SystemExit(1)
-
-    items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
-
-    return items_amps
 
 
 @njit(cache=True)

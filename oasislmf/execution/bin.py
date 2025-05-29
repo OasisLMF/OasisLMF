@@ -20,7 +20,6 @@ __all__ = [
 import pathlib
 
 import errno
-import csv
 import filecmp
 import glob
 import logging
@@ -650,23 +649,39 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         step_flag = input_file.get('step_flag')
         col_names = []
         if step_flag:
-            with open(input_file_path) as f:
-                reader = csv.reader(f)
-                col_names = next(reader)
+            with open(input_file_path, "r") as f:
+                col_names = f.readline().strip().split(",")
 
-        if 'step_id' in col_names:
-            output_file_path = os.path.join(
-                bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
-            )
-
-            cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
+        # TODO: replace all old ktools with new ones
+        supported_tobin_tools = [
+            "coverages",
+            "fm_policytc",
+            "fm_profile",
+            "fm_programme",
+            "fmsummaryxref",
+        ]
+        if input_file['name'] in supported_tobin_tools:
+            csvtobin_type = input_file["csvtobin_type"]
+            if 'step_id' in col_names:
+                output_file_path = os.path.join(
+                    bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
+                )
+                csvtobin_type = input_file["csvtobin_type"] + "_step"
+            cmd_str = "csvtobin -i \"{}\" -o \"{}\" -t {}".format(input_file_path, output_file_path, csvtobin_type)
         else:
-            cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
+            if 'step_id' in col_names:
+                output_file_path = os.path.join(
+                    bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
+                )
+
+                cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
+            else:
+                cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
-            raise OasisException("Error while converting csv's to ktools binary format: {}".format(e))
+            raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 @oasis_log

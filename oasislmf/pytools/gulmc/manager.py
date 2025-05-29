@@ -19,13 +19,14 @@ from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.input_files import read_coverages
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
-from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
+from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval_float, get_random_generator)
@@ -219,7 +220,7 @@ def run(run_dir,
 
         logger.debug('import coverages')
         # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-        coverages_tb = get_coverages(input_path, ignore_file_type)
+        coverages_tb = read_coverages(input_path, ignore_file_type)
         coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_type)
         coverages[1:]['tiv'] = coverages_tb
 

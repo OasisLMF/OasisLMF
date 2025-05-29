@@ -36,7 +36,7 @@ from itertools import zip_longest
 
 from oasislmf.execution.bash import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                          null_index, summary_xref_dtype)
+                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
@@ -79,28 +79,23 @@ def get_summary_object(static_path, run_type):
 
     # extract item_id to index in the loss summary
     if run_type == RUNTYPE_GROUNDUP_LOSS:
-        summary_xref_csv_col_map = {'summary_set_id': 'summaryset_id'}
-        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', summary_xref_dtype, col_map=summary_xref_csv_col_map)
+        summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', gul_summary_xref_dtype)
         summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
                                   usecols=['loc_id', 'item_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int)
     elif run_type == RUNTYPE_INSURED_LOSS:
-        summary_xref_csv_col_map = {'summary_set_id': 'summaryset_id',
-                                    'item_id': 'output'}
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype, col_map=summary_xref_csv_col_map)
+        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
                                   usecols=['loc_id', 'output_id', 'building_id', 'coverage_id'],
                                   dtype=oasis_int,
                                   ).rename(columns={'output_id': 'item_id'})
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
-        summary_xref_csv_col_map = {'summary_set_id': 'summaryset_id',
-                                    'item_id': 'output'}
-        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', summary_xref_dtype, col_map=summary_xref_csv_col_map)
+        summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_map = None  # numba use none to optimise function when some part are not used
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
-    summary_sets_id = np.sort(np.unique(summary_xref['summary_set_id']))
+    summary_sets_id = np.sort(np.unique(summary_xref['summaryset_id']))
     summary_set_id_to_summary_set_index = get_summary_set_id_to_summary_set_index(summary_sets_id)
     summary_set_index_to_loss_ptr, item_id_to_summary_id = get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index)
 
@@ -345,7 +340,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     max_item_id = 0
     for i in range(summary_xref.shape[0]):
         xref = summary_xref[i]
-        summary_set_index = summary_set_id_to_summary_set_index[xref['summary_set_id']]
+        summary_set_index = summary_set_id_to_summary_set_index[xref['summaryset_id']]
         if summary_set_index == null_index:
             continue
         if xref['summary_id'] > summary_set_index_to_loss_ptr[summary_set_index + 1]:
@@ -358,7 +353,7 @@ def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summa
     item_id_to_summary_id = np.full((max_item_id + 1, summary_sets_id.shape[0]), null_index, oasis_int)
     for i in range(summary_xref.shape[0]):
         xref = summary_xref[i]
-        summary_set_index = summary_set_id_to_summary_set_index[xref['summary_set_id']]
+        summary_set_index = summary_set_id_to_summary_set_index[xref['summaryset_id']]
         if summary_set_index == null_index:
             continue
         item_id_to_summary_id[xref['item_id'], summary_set_index] = xref['summary_id']
