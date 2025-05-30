@@ -138,7 +138,11 @@ class TestGenLosses(ComputationChecker):
 
     def test_losses__run_gul_with_oed(self):
         OED_SETTINGS = MIN_RUN_SETTINGS.copy()
-        OED_SETTINGS['gul_summaries'][0]['oed_fields'] = ['LocNumber', 'AccNumber', 'PolNumber']
+        gul_summary = {
+                **OED_SETTINGS['gul_summaries'][0],
+                'oed_fields': ['LocNumber', 'AccNumber', 'PolNumber']
+        }
+        OED_SETTINGS['gul_summaries'] = [gul_summary]
 
         gen_args = {
             **self.args_gen_files_gul,
