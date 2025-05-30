@@ -893,8 +893,19 @@ def compute_event_losses(event_id,
                                 if weighted_vuln_cdf[damage_bin_i - 1] > 0.999999940:
                                     break
 
+                            vuln_cdf = weighted_vuln_cdf[:damage_bin_i]
+                            if vuln_cdf[-1] < 0.999999940:  # some vuln_id where 0 as default we reajust the cdf
+                                diff = 1 - vuln_cdf[-1]
+                                damage_bin_i = nb_int32(0)
+                                while damage_bin_i < Ndamage_bins:
+                                    vuln_cdf[damage_bin_i] += diff
+                                    if vuln_cdf[damage_bin_i] > 0.999999940:
+                                        damage_bin_i += 1
+                                        break
+                                    damage_bin_i += 1
+                                vuln_cdf = vuln_cdf[:damage_bin_i]
+
                             Ndamage_bins = damage_bin_i
-                            vuln_cdf = weighted_vuln_cdf[:Ndamage_bins]
 
                             vuln_rval = vuln_rndms[sample_idx - 1]
 
