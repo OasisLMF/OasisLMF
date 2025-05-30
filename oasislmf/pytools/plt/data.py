@@ -3,6 +3,8 @@ import numpy as np
 from oasislmf.pytools.common.data import oasis_int, oasis_float
 
 
+VALID_EXT = ["csv", "bin", "parquet"]
+
 SPLT_output = [
     ('Period', oasis_int, '%d'),
     ('PeriodWeight', oasis_float, '%.6f'),

@@ -4,10 +4,11 @@ import argparse
 import logging
 
 from . import manager, logger
+from .data import VALID_EXT
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process average annual loss and standard deviation')
+    parser = argparse.ArgumentParser(description='Process loss exceedance data')
     parser.add_argument('--run_dir', type=str, default='.', help='path to the run directory')
     parser.add_argument('-K', '--subfolder', type=str, default=None, help='workspace sub folder name, inside <run_dir>/work/<sub folder name>')
     parser.add_argument('-O', '--ept', type=str, default=None, help='Output Exeedance Probability Table (EPT)')
@@ -24,6 +25,7 @@ def main():
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
+    parser.add_argument('-E', '--ext', type=str, default='csv', choices=VALID_EXT, help='Output data format')
 
     args = parser.parse_args()
     kwargs = vars(args)

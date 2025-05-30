@@ -5,6 +5,9 @@ import numpy as np
 import numba as nb
 from contextlib import ExitStack
 from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
@@ -46,7 +49,6 @@ class PLTReader(EventReader):
         read_buffer_state_dtype = np.dtype([
             ('len_sample', oasis_int),
             ('reading_losses', np.bool_),
-            ('skip_losses', np.bool_),
             ('read_summary_set_id', np.bool_),
             ('compute_splt', np.bool_),
             ('compute_mplt', np.bool_),
@@ -65,7 +67,6 @@ class PLTReader(EventReader):
 
         self.state = np.zeros(1, dtype=read_buffer_state_dtype)[0]
         self.state["reading_losses"] = False  # Set to true after reading header in read_buffer
-        self.state["skip_losses"] = False  # Set to true if event_id not in occ_map
         self.state["read_summary_set_id"] = False
         self.state["len_sample"] = len_sample
         self.state["compute_splt"] = compute_splt
@@ -78,6 +79,26 @@ class PLTReader(EventReader):
         self.intervals = intervals
 
         self.curr_file_idx = None  # Current summary file idx being read
+
+    def get_data(self, out_type):
+        if out_type == "splt":
+            return self.splt_data
+        elif out_type == "mplt":
+            return self.mplt_data
+        elif out_type == "qplt":
+            return self.qplt_data
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
+
+    def get_data_idx(self, out_type):
+        if out_type == "splt":
+            return self.splt_idx
+        elif out_type == "mplt":
+            return self.mplt_idx
+        elif out_type == "qplt":
+            return self.qplt_idx
+        else:
+            raise RuntimeError(f"Unknown out_type {out_type}")
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, file_idx):
         # Check for new file idx to read summary_set_id at the start of each summary file stream
@@ -249,7 +270,6 @@ def read_buffer(
 
     def _reset_state():
         state["reading_losses"] = False
-        state["skip_losses"] = False
         state["max_loss"] = 0
         state["mean_impacted_exposure"] = 0
         state["max_impacted_exposure"] = 0
@@ -294,7 +314,6 @@ def read_buffer(
                 state["summary_id"], cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
                 state["exposure_value"], cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
                 state["reading_losses"] = True
-                state["skip_losses"] = event_id not in occ_map
             else:
                 break  # Not enough for whole summary header
 
@@ -307,78 +326,73 @@ def read_buffer(
             if sidx == 0:  # sidx == 0, end of record
                 cursor += oasis_float_size  # Read extra 0 for end of record
 
-                if state["skip_losses"]:
-                    _reset_state()
-                    continue
-
                 # Update MPLT data (sample mean)
                 if state["compute_mplt"]:
                     firsttime = True
-                    for record in occ_map[event_id]:
-                        if firsttime:
-                            for l in state["vrec"]:
-                                state["sumloss"] += l
-                                state["sumlosssqr"] += l * l
-                            firsttime = False
-                        if state["hasrec"]:
-                            meanloss, sdloss = _get_mean_and_sd_loss()
-                            if meanloss > 0 or sdloss > 0:
-                                _update_mplt_data(
-                                    mplt_data, mi, period_weights, granular_date,
-                                    record=record,
-                                    event_id=event_id,
-                                    summary_id=state["summary_id"],
-                                    sample_type=MEAN_TYPE_SAMPLE,
-                                    chance_of_loss=state["chance_of_loss"],
-                                    meanloss=meanloss,
-                                    sdloss=sdloss,
-                                    maxloss=state["max_loss"],
-                                    footprint_exposure=state["exposure_value"],
-                                    mean_impacted_exposure=state["mean_impacted_exposure"],
-                                    max_impacted_exposure=state["max_impacted_exposure"],
-                                )
-                                mi += 1
-                                if mi >= mplt_data.shape[0]:
-                                    # Output array full
-                                    _update_idxs()
-                                    return cursor, event_id, item_id, 1
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            if firsttime:
+                                for l in state["vrec"]:
+                                    state["sumloss"] += l
+                                    state["sumlosssqr"] += l * l
+                                firsttime = False
+                            if state["hasrec"]:
+                                meanloss, sdloss = _get_mean_and_sd_loss()
+                                if meanloss > 0 or sdloss > 0:
+                                    _update_mplt_data(
+                                        mplt_data, mi, period_weights, granular_date,
+                                        record=record,
+                                        event_id=event_id,
+                                        summary_id=state["summary_id"],
+                                        sample_type=MEAN_TYPE_SAMPLE,
+                                        chance_of_loss=state["chance_of_loss"],
+                                        meanloss=meanloss,
+                                        sdloss=sdloss,
+                                        maxloss=state["max_loss"],
+                                        footprint_exposure=state["exposure_value"],
+                                        mean_impacted_exposure=state["mean_impacted_exposure"],
+                                        max_impacted_exposure=state["max_impacted_exposure"],
+                                    )
+                                    mi += 1
+                                    if mi >= mplt_data.shape[0]:
+                                        # Output array full
+                                        _update_idxs()
+                                        return cursor, event_id, item_id, 1
 
                 # Update QPLT data
                 if state["compute_qplt"]:
                     state["vrec"].sort()
-                    for record in occ_map[event_id]:
-                        for i in range(len(intervals)):
-                            q = intervals[i]["q"]
-                            ipart = intervals[i]["integer_part"]
-                            fpart = intervals[i]["fractional_part"]
-                            if ipart == len(state["vrec"]):
-                                loss = state["vrec"][ipart - 1]
-                            else:
-                                loss = (
-                                    (state["vrec"][ipart] - state["vrec"][ipart - 1]) *
-                                    fpart + state["vrec"][ipart - 1]
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            for i in range(len(intervals)):
+                                q = intervals[i]["q"]
+                                ipart = intervals[i]["integer_part"]
+                                fpart = intervals[i]["fractional_part"]
+                                if ipart == len(state["vrec"]):
+                                    loss = state["vrec"][ipart - 1]
+                                else:
+                                    loss = (
+                                        (state["vrec"][ipart] - state["vrec"][ipart - 1]) *
+                                        fpart + state["vrec"][ipart - 1]
+                                    )
+                                _update_qplt_data(
+                                    qplt_data, qi, period_weights, granular_date,
+                                    record=record,
+                                    event_id=event_id,
+                                    summary_id=state["summary_id"],
+                                    quantile=q,
+                                    loss=loss
                                 )
-                            _update_qplt_data(
-                                qplt_data, qi, period_weights, granular_date,
-                                record=record,
-                                event_id=event_id,
-                                summary_id=state["summary_id"],
-                                quantile=q,
-                                loss=loss
-                            )
-                            qi += 1
-                            if qi >= qplt_data.shape[0]:
-                                # Output array full
-                                _update_idxs()
-                                return cursor, event_id, item_id, 1
+                                qi += 1
+                                if qi >= qplt_data.shape[0]:
+                                    # Output array full
+                                    _update_idxs()
+                                    return cursor, event_id, item_id, 1
                 _reset_state()
                 continue
 
             # Read loss
             loss, cursor = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
-
-            if state["skip_losses"]:
-                continue
 
             impacted_exposure = 0
             if sidx == NUMBER_OF_AFFECTED_RISK_IDX:
@@ -387,46 +401,48 @@ def read_buffer(
                 impacted_exposure = state["exposure_value"] * (loss > 0)
                 # Update SPLT data
                 if state["compute_splt"]:
-                    for record in occ_map[event_id]:
-                        _update_splt_data(
-                            splt_data, si, period_weights, granular_date,
-                            record=record,
-                            event_id=event_id,
-                            summary_id=state["summary_id"],
-                            sidx=sidx,
-                            loss=loss,
-                            impacted_exposure=impacted_exposure,
-                        )
-                        si += 1
-                        if si >= splt_data.shape[0]:
-                            # Output array full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            _update_splt_data(
+                                splt_data, si, period_weights, granular_date,
+                                record=record,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sidx=sidx,
+                                loss=loss,
+                                impacted_exposure=impacted_exposure,
+                            )
+                            si += 1
+                            if si >= splt_data.shape[0]:
+                                # Output array full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
             if sidx == MAX_LOSS_IDX:
                 state["max_loss"] = loss
             elif sidx == MEAN_IDX:
                 # Update MPLT data (analytical mean)
                 if state["compute_mplt"]:
-                    for record in occ_map[event_id]:
-                        _update_mplt_data(
-                            mplt_data, mi, period_weights, granular_date,
-                            record=record,
-                            event_id=event_id,
-                            summary_id=state["summary_id"],
-                            sample_type=MEAN_TYPE_ANALYTICAL,
-                            chance_of_loss=0,
-                            meanloss=loss,
-                            sdloss=0,
-                            maxloss=state["max_loss"],
-                            footprint_exposure=state["exposure_value"],
-                            mean_impacted_exposure=state["exposure_value"],
-                            max_impacted_exposure=state["exposure_value"],
-                        )
-                        mi += 1
-                        if mi >= mplt_data.shape[0]:
-                            # Output array full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
+                    if event_id in occ_map:
+                        for record in occ_map[event_id]:
+                            _update_mplt_data(
+                                mplt_data, mi, period_weights, granular_date,
+                                record=record,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sample_type=MEAN_TYPE_ANALYTICAL,
+                                chance_of_loss=0,
+                                meanloss=loss,
+                                sdloss=0,
+                                maxloss=state["max_loss"],
+                                footprint_exposure=state["exposure_value"],
+                                mean_impacted_exposure=state["exposure_value"],
+                                max_impacted_exposure=state["exposure_value"],
+                            )
+                            mi += 1
+                            if mi >= mplt_data.shape[0]:
+                                # Output array full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
             else:
                 # Update state variables
                 if sidx > 0:
@@ -470,7 +486,15 @@ def read_input_files(run_dir, compute_qplt, sample_size):
     return file_data
 
 
-def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_output_file=None, noheader=False, output_binary=False):
+def run(
+    run_dir,
+    files_in,
+    splt_output_file=None,
+    mplt_output_file=None,
+    qplt_output_file=None,
+    noheader=False,
+    output_format="csv",
+):
     """Runs PLT calculations
 
     Args:
@@ -480,113 +504,124 @@ def run(run_dir, files_in, splt_output_file=None, mplt_output_file=None, qplt_ou
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
         noheader (bool): Boolean value to skip header in output file. Defaults to False.
-        output_binary (bool): Boolean value to output binary files instead of csv. Defaults to False.
+        output_format (str): Output format extension. Defaults to "csv".
     """
-    compute_splt = splt_output_file is not None
-    compute_mplt = mplt_output_file is not None
-    compute_qplt = qplt_output_file is not None
+    outmap = {
+        "splt": {
+            "compute": splt_output_file is not None,
+            "file_path": splt_output_file,
+            "fmt": SPLT_fmt,
+            "headers": SPLT_headers,
+            "file": None,
+        },
+        "mplt": {
+            "compute": mplt_output_file is not None,
+            "file_path": mplt_output_file,
+            "fmt": MPLT_fmt,
+            "headers": MPLT_headers,
+            "file": None,
+        },
+        "qplt": {
+            "compute": qplt_output_file is not None,
+            "file_path": qplt_output_file,
+            "fmt": QPLT_fmt,
+            "headers": QPLT_headers,
+            "file": None,
+        },
+    }
 
-    if not compute_splt and not compute_mplt and not compute_qplt:
-        logger.warning("No output files specified")
-
+    output_format = "." + output_format
+    output_binary = output_format == ".bin"
+    output_parquet = output_format == ".parquet"
     # Check for correct suffix
-    for path in [splt_output_file, mplt_output_file, qplt_output_file]:
+    for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
-        if (output_binary and Path(path).suffix != '.bin') or\
-                (not output_binary and Path(path).suffix != '.csv'):
-            if Path(path).suffix != "":  # Ignore suffix for pipes
-                raise ValueError(f"Invalid file extension for output_binary={output_binary}: {path}")
+        if Path(path).suffix == "":  # Ignore suffix for pipes
+            continue
+        if (Path(path).suffix != output_format):
+            raise ValueError(f"Invalid file extension for {output_format}, got {path},")
+
+    if run_dir is None:
+        run_dir = './work'
+
+    if not all([v["compute"] for v in outmap.values()]):
+        logger.warning("No output files specified")
 
     with ExitStack() as stack:
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        file_data = read_input_files(run_dir, compute_qplt, len_sample)
+        file_data = read_input_files(
+            run_dir,
+            outmap["qplt"]["compute"],
+            len_sample
+        )
         plt_reader = PLTReader(
             len_sample,
-            compute_splt,
-            compute_mplt,
-            compute_qplt,
+            outmap["splt"]["compute"],
+            outmap["mplt"]["compute"],
+            outmap["qplt"]["compute"],
             file_data["occ_map"],
             file_data["period_weights"],
             file_data["granular_date"],
             file_data["intervals"],
         )
 
-        # Initialise csv column names for PLT files
-        output_files = {}
-        if compute_splt:
-            if output_binary:
-                splt_file = stack.enter_context(open(splt_output_file, 'wb'))
-            else:
-                splt_file = stack.enter_context(open(splt_output_file, 'w'))
-                if not noheader:
-                    csv_headers = ','.join(SPLT_headers)
-                    splt_file.write(csv_headers + '\n')
-            output_files['splt'] = splt_file
+        # Initialise output files PLT
+        if output_binary:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
+                outmap[out_type]["file"] = out_file
+        elif output_parquet:
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                temp_df = pd.DataFrame(plt_reader.get_data(out_type), columns=outmap[out_type]["headers"])
+                temp_table = pa.Table.from_pandas(temp_df)
+                out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)
+                outmap[out_type]["file"] = out_file
         else:
-            output_files['splt'] = None
-
-        if compute_mplt:
-            if output_binary:
-                mplt_file = stack.enter_context(open(mplt_output_file, 'wb'))
-            else:
-                mplt_file = stack.enter_context(open(mplt_output_file, 'w'))
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
+                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
                 if not noheader:
-                    csv_headers = ','.join(MPLT_headers)
-                    mplt_file.write(csv_headers + '\n')
-            output_files['mplt'] = mplt_file
-        else:
-            output_files['mplt'] = None
+                    csv_headers = ','.join(outmap[out_type]["headers"])
+                    out_file.write(csv_headers + '\n')
+                outmap[out_type]["file"] = out_file
 
-        if compute_qplt:
-            if output_binary:
-                qplt_file = stack.enter_context(open(qplt_output_file, 'wb'))
-            else:
-                qplt_file = stack.enter_context(open(qplt_output_file, 'w'))
-                if not noheader:
-                    csv_headers = ','.join(QPLT_headers)
-                    qplt_file.write(csv_headers + '\n')
-            output_files['qplt'] = qplt_file
-        else:
-            output_files['qplt'] = None
-
+        # Process summary files
         for event_id in plt_reader.read_streams(streams_in):
-            if compute_splt:
-                # Extract SPLT data
-                splt_data = plt_reader.splt_data[:plt_reader.splt_idx[0]]
-                if output_files['splt'] is not None and splt_data.size > 0:
-                    if output_binary:
-                        splt_data.tofile(output_files["splt"])
-                    else:
-                        write_ndarray_to_fmt_csv(output_files["splt"], splt_data, SPLT_headers, SPLT_fmt)
-                plt_reader.splt_idx[0] = 0
+            for out_type in outmap:
+                if not outmap[out_type]["compute"]:
+                    continue
 
-            if compute_mplt:
-                # Extract MPLT data
-                mplt_data = plt_reader.mplt_data[:plt_reader.mplt_idx[0]]
-                if output_files['mplt'] is not None and mplt_data.size > 0:
-                    if output_binary:
-                        mplt_data.tofile(output_files["mplt"])
-                    else:
-                        write_ndarray_to_fmt_csv(output_files["mplt"], mplt_data, MPLT_headers, MPLT_fmt)
-                plt_reader.mplt_idx[0] = 0
+                data_idx = plt_reader.get_data_idx(out_type)
+                data = plt_reader.get_data(out_type)[:data_idx[0]]
 
-            if compute_qplt:
-                # Extract QPLT data
-                qplt_data = plt_reader.qplt_data[:plt_reader.qplt_idx[0]]
-                if output_files['qplt'] is not None and qplt_data.size > 0:
+                if outmap[out_type]["file"] is not None and data.size > 0:
                     if output_binary:
-                        qplt_data.tofile(output_files["qplt"])
+                        data.tofile(outmap[out_type]["file"])
+                    elif output_parquet:
+                        data_df = pd.DataFrame(data)
+                        data_table = pa.Table.from_pandas(data_df)
+                        outmap[out_type]["file"].write_table(data_table)
                     else:
-                        write_ndarray_to_fmt_csv(output_files["qplt"], qplt_data, QPLT_headers, QPLT_fmt)
-                plt_reader.qplt_idx[0] = 0
+                        write_ndarray_to_fmt_csv(
+                            outmap[out_type]["file"],
+                            data,
+                            outmap[out_type]["headers"],
+                            outmap[out_type]["fmt"]
+                        )
+                data_idx[0] = 0
 
 
 @redirect_logging(exec_name='pltpy')
-def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, binary=False, **kwargs):
+def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=False, ext="csv", **kwargs):
     run(
         run_dir,
         files_in,
@@ -594,5 +629,5 @@ def main(run_dir='.', files_in=None, splt=None, mplt=None, qplt=None, noheader=F
         mplt_output_file=mplt,
         qplt_output_file=qplt,
         noheader=noheader,
-        output_binary=binary,
+        output_format=ext,
     )
