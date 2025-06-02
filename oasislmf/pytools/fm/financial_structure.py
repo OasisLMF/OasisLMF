@@ -17,7 +17,7 @@ from oasislmf.pytools.common.data import (load_as_ndarray, load_as_array, almost
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
-                                          fm_xref_csv_col_map, fm_xref_dtype,
+                                          fm_xref_dtype,
                                           items_dtype,
                                           oasis_int, nb_oasis_int, oasis_float, null_index)
 from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
@@ -93,7 +93,7 @@ def load_static(static_path):
         stepped = None
     else:
         stepped = True
-    xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
+    xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
     coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
@@ -398,14 +398,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for i in range(fm_xref.shape[0]):
         xref = fm_xref[i]
         programme_node = (out_level, xref['agg_id'])
-        if output_len < xref['output_id']:
-            output_len = nb_oasis_int(xref['output_id'])
+        if output_len < xref['output']:
+            output_len = nb_oasis_int(xref['output'])
 
         if programme_node in node_to_output_id:
-            node_to_output_id[programme_node].append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id'])))
+            node_to_output_id[programme_node].append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output'])))
         else:
             _list = List.empty_list(output_type)
-            _list.append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id'])))
+            _list.append((nb_oasis_int(xref['layer_id']), nb_oasis_int(xref['output'])))
             node_to_output_id[programme_node] = _list
 
     ##### programme ####

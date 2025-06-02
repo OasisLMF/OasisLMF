@@ -20,9 +20,6 @@ null_index = oasis_int.type(-1)
 
 
 # financial structure static input dtypes
-fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
-fm_xref_csv_col_map = {'output_id': 'output'}
-
 items_dtype = np.dtype([('item_id', 'i4'),
                         ('coverage_id', 'i4'),
                         ('areaperil_id', areaperil_int),
@@ -139,6 +136,13 @@ fm_summary_xref_output = [
     ("summaryset_id", 'i4', "%d")
 ]
 fm_summary_xref_headers, fm_summary_xref_dtype, fm_summary_xref_fmt = generate_output_metadata(fm_summary_xref_output)
+
+fm_xref_output = [
+    ("output", 'i4', "%d"),
+    ("agg_id", 'i4', "%d"),
+    ("layer_id", 'i4', "%d"),
+]
+fm_xref_headers, fm_xref_dtype, fm_xref_fmt = generate_output_metadata(fm_xref_output)
 
 gul_summary_xref_output = [
     ("item_id", 'i4', "%d"),

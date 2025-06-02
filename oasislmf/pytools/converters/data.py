@@ -8,6 +8,7 @@ from oasislmf.pytools.common.data import fm_profile_headers, fm_profile_dtype, f
 from oasislmf.pytools.common.data import fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt
 from oasislmf.pytools.common.data import fm_programme_headers, fm_programme_dtype, fm_programme_fmt
 from oasislmf.pytools.common.data import fm_summary_xref_headers, fm_summary_xref_dtype, fm_summary_xref_fmt
+from oasislmf.pytools.common.data import fm_xref_headers, fm_xref_dtype, fm_xref_fmt
 from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt
 
 
@@ -61,6 +62,11 @@ SUPPORTED_TYPES = {
         "headers": fm_summary_xref_headers,
         "dtype": fm_summary_xref_dtype,
         "fmt": fm_summary_xref_fmt,
+    },
+    "fm_xref": {
+        "headers": fm_xref_headers,
+        "dtype": fm_xref_dtype,
+        "fmt": fm_xref_fmt,
     },
     "gul_summary_xref": {
         "headers": gul_summary_xref_headers,

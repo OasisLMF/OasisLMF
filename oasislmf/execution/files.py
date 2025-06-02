@@ -30,7 +30,8 @@ INPUT_FILES = {
     'gulsummaryxref': {
         'name': 'gulsummaryxref',
         'type': 'gul',
-        'conversion_tool': 'gulsummaryxreftobin'
+        'conversion_tool': 'gulsummaryxreftobin',
+        'csvtobin_type': 'gul_summary_xref',
     },
     'events': {
         'name': 'events',
@@ -64,7 +65,8 @@ INPUT_FILES = {
     'fm_xref': {
         'name': 'fm_xref',
         'type': 'il',
-        'conversion_tool': 'fmxreftobin'
+        'conversion_tool': 'fmxreftobin',
+        'csvtobin_type': 'fm_xref',
     },
     'fmsummaryxref': {
         'name': 'fmsummaryxref',
