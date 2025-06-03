@@ -1,0 +1,2 @@
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDedType6All,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,CondPeril,CondMinDed6All,CondLimit6All,OEDVersion
+Port1,ABC_1,1,WW1,USD,1,100000000,0,WW1,,10000,0,0,0,WW1,0,0,2.3.1

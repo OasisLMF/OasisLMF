@@ -1,6 +1,17 @@
 OasisLMF Changelog
 ==================
 
+`2.4.4`_
+ ---------
+* [#1697](https://github.com/OasisLMF/OasisLMF/pull/1697) - feature/dynamic_multiperil
+* [#1701](https://github.com/OasisLMF/OasisLMF/pull/1701) - Combus repo origin/combus fix sampling
+* [#1569](https://github.com/OasisLMF/OasisLMF/pull/1606) - Standardised model documentation 
+* [#1666](https://github.com/OasisLMF/OasisLMF/pull/1683) - Support parquet for new pytools
+* [#1690](https://github.com/OasisLMF/OasisLMF/pull/1690) - support uploading byte stream
+* [#1656](https://github.com/OasisLMF/OasisLMF/pull/1658) - Step policies with peril-specific terms
+* [#1695](https://github.com/OasisLMF/OasisLMF/pull/1694) - mock url for forex_python in test cases needs to be updated
+.. _`2.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.3...2.4.4
+
 `2.4.3`_
  ---------
 * [#1667](https://github.com/OasisLMF/OasisLMF/pull/1667) - add keys in error for loc_id not modelled

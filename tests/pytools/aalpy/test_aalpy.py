@@ -41,8 +41,7 @@ def case_runner(sub_folder, test_name, out_ext="csv", meanonly=False):
             "run_dir": tmp_workspace_dir,
             "subfolder": sub_folder,
             "meanonly": meanonly,
-            "binary": out_ext == "bin",
-            "parquet": out_ext == "parquet",
+            "ext": out_ext,
         }
 
         if test_name in ["aal", "alct"]:

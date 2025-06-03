@@ -793,8 +793,7 @@ def run(
     meanonly=False,
     noheader=False,
     confidence=0.95,
-    output_binary=False,
-    output_parquet=False
+    output_format="csv",
 ):
     """Runs AAL calculations
     Args:
@@ -805,8 +804,7 @@ def run(
         meanonly (bool): Boolean value to output AAL with mean only
         noheader (bool): Boolean value to skip header in output file
         confidence (float): Confidence level between 0 and 1, default 0.95
-        output_binary (bool): Boolean value to output binary files. Defaults to False.
-        output_parquet (bool): Boolean value to output parquet files. Defaults to False.
+        output_format (str): Output format extension. Defaults to "csv".
     """
     outmap = {
         "aal": {
@@ -827,18 +825,17 @@ def run(
         },
     }
 
+    output_format = "." + output_format
+    output_binary = output_format == ".bin"
+    output_parquet = output_format == ".parquet"
     # Check for correct suffix
     for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
         if Path(path).suffix == "":  # Ignore suffix for pipes
             continue
-        if (output_binary and Path(path).suffix != '.bin'):
-            raise ValueError(f"Invalid file extension for Binary, expected .bin, got {path},")
-        if (output_parquet and Path(path).suffix != '.parquet'):
-            raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
-        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
-            raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
+        if (Path(path).suffix != output_format):
+            raise ValueError(f"Invalid file extension for {output_format}, got {path},")
 
     if not all([v["compute"] for v in outmap.values()]):
         logger.warning("No output files specified")
@@ -899,40 +896,35 @@ def run(
                     out_file.write(csv_headers + '\n')
                 outmap[out_type]["file"] = out_file
 
+        def write_output(data, out_type):
+            if output_binary:
+                data.tofile(outmap[out_type]["file"])
+            elif output_parquet:
+                data_df = pd.DataFrame(data)
+                data_table = pa.Table.from_pandas(data_df)
+                outmap[out_type]["file"].write_table(data_table)
+            else:
+                write_ndarray_to_fmt_csv(
+                    outmap[out_type]["file"],
+                    data,
+                    outmap[out_type]["headers"],
+                    outmap[out_type]["fmt"]
+                )
+
         if outmap["aal"]["compute"]:
             # Get Sample AAL data for subset_size == sample_size (last group of arrays)
             start_idx = (num_subsets - 1) * max_summary_id
-            if not meanonly:
-                aal_data = get_aal_data(
-                    vec_analytical_aal,
-                    vecs_sample_aal[start_idx:],
-                    vec_used_summary_id,
-                    sample_size,
-                    file_data["no_of_periods"],
-                )
-            else:
-                aal_data = get_aal_data_meanonly(
-                    vec_analytical_aal,
-                    vecs_sample_aal[start_idx:],
-                    vec_used_summary_id,
-                    sample_size,
-                    file_data["no_of_periods"],
-                )
+            aal_data_func = get_aal_data_meanonly if meanonly else get_aal_data
+            aal_data = aal_data_func(
+                vec_analytical_aal,
+                vecs_sample_aal[start_idx:],
+                vec_used_summary_id,
+                sample_size,
+                file_data["no_of_periods"],
+            )
             aal_data = np.array(aal_data, dtype=outmap["aal"]["dtype"])
 
-            if output_binary:
-                aal_data.tofile(outmap["aal"]["file"])
-            elif output_parquet:
-                data_df = pd.DataFrame(aal_data)
-                data_table = pa.Table.from_pandas(data_df)
-                outmap["aal"]["file"].write_table(data_table)
-            else:
-                write_ndarray_to_fmt_csv(
-                    outmap["aal"]["file"],
-                    aal_data,
-                    outmap["aal"]["headers"],
-                    outmap["aal"]["fmt"]
-                )
+            write_output(aal_data, "aal")
         if outmap["alct"]["compute"]:
             alct_data = get_alct_data(
                 vecs_sample_aal,
@@ -943,23 +935,11 @@ def run(
             )
             alct_data = np.array([tuple(arr) for arr in alct_data], dtype=outmap["alct"]["dtype"])
 
-            if output_binary:
-                alct_data.tofile(outmap["alct"]["file"])
-            elif output_parquet:
-                data_df = pd.DataFrame(alct_data)
-                data_table = pa.Table.from_pandas(data_df)
-                outmap["alct"]["file"].write_table(data_table)
-            else:
-                write_ndarray_to_fmt_csv(
-                    outmap["alct"]["file"],
-                    alct_data,
-                    outmap["alct"]["headers"],
-                    outmap["alct"]["fmt"]
-                )
+            write_output(alct_data, "alct")
 
 
 @redirect_logging(exec_name='aalpy')
-def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, binary=False, parquet=False, **kwargs):
+def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, noheader=False, confidence=0.95, ext="csv", **kwargs):
     run(
         run_dir,
         subfolder,
@@ -968,6 +948,5 @@ def main(run_dir='.', subfolder=None, aal=None, alct=None, meanonly=False, nohea
         alct_output_file=alct,
         noheader=noheader,
         confidence=confidence,
-        output_binary=binary,
-        output_parquet=parquet,
+        output_format=ext,
     )

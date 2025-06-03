@@ -3,6 +3,9 @@ import numpy as np
 
 from oasislmf.pytools.common.data import oasis_float, oasis_int
 
+
+VALID_EXT = ["csv", "bin", "parquet"]
+
 # Output flags
 AGG_FULL_UNCERTAINTY = 0
 AGG_WHEATSHEAF = 1

@@ -46,8 +46,7 @@ def case_runner(sub_folder, test_name, out_ext="csv", use_return_period=False):
             "occ_wheatsheaf_mean": True,
             "ept": actual_ept,
             "psept": actual_psept,
-            "binary": out_ext == "bin",
-            "parquet": out_ext == "parquet",
+            "ext": out_ext,
         }
 
         if test_name not in ["lec_pw_rp", "lec_pw", "lec_rp", "lec"]:

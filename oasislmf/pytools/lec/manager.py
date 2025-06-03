@@ -253,8 +253,7 @@ def run(
     occ_wheatsheaf_mean=False,
     use_return_period=False,
     noheader=False,
-    output_binary=False,
-    output_parquet=False
+    output_format="csv",
 ):
     """Runs LEC calculations
     Args:
@@ -272,8 +271,7 @@ def run(
         occ_wheatsheaf_mean (bool, optional): Occurrence Wheatsheaf Mean. Defaults to False.
         use_return_period (bool, optional): Use Return Period file. Defaults to False.
         noheader (bool): Boolean value to skip header in output file
-        output_binary (bool): Boolean value to output binary files. Defaults to False.
-        output_parquet (bool): Boolean value to output parquet files. Defaults to False.
+        output_format (str): Output format extension. Defaults to "csv".
     """
     outmap = {
         "ept": {
@@ -294,18 +292,17 @@ def run(
         },
     }
 
+    output_format = "." + output_format
+    output_binary = output_format == ".bin"
+    output_parquet = output_format == ".parquet"
     # Check for correct suffix
     for path in [v["file_path"] for v in outmap.values()]:
         if path is None:
             continue
         if Path(path).suffix == "":  # Ignore suffix for pipes
             continue
-        if (output_binary and Path(path).suffix != '.bin'):
-            raise ValueError(f"Invalid file extension for Binary, expected .bin, got {path},")
-        if (output_parquet and Path(path).suffix != '.parquet'):
-            raise ValueError(f"Invalid file extension for Parquet, expected .parquet, got {path},")
-        if (not output_binary and not output_parquet and Path(path).suffix != '.csv'):
-            raise ValueError(f"Invalid file extension for CSV, expected .csv, got {path},")
+        if (Path(path).suffix != output_format):
+            raise ValueError(f"Invalid file extension for {output_format}, got {path},")
 
     if not all([v["compute"] for v in outmap.values()]):
         logger.warning("No output files specified")
@@ -492,8 +489,7 @@ def main(
     occ_wheatsheaf_mean=False,
     use_return_period=False,
     noheader=False,
-    binary=False,
-    parquet=False,
+    ext="csv",
     **kwargs
 ):
     run(
@@ -511,6 +507,5 @@ def main(
         occ_wheatsheaf_mean=occ_wheatsheaf_mean,
         use_return_period=use_return_period,
         noheader=noheader,
-        output_binary=binary,
-        output_parquet=parquet,
+        output_format=ext,
     )

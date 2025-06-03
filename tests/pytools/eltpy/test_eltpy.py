@@ -27,8 +27,7 @@ def case_runner(test_name, out_ext="csv", with_event_rate=False):
         kwargs = {
             "run_dir": TESTS_ASSETS_DIR,
             "files_in": summary_bin_input,
-            "binary": out_ext == "bin",
-            "parquet": out_ext == "parquet",
+            "ext": out_ext,
         }
 
         if test_name in ["selt", "melt", "qelt"]:

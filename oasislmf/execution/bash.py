@@ -566,7 +566,7 @@ def do_post_wait_processing(
                 aal_csv_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["csv_flag"]
                 if outfile_ext == 'parquet':
                     if aal_exec_type == "pytools":
-                        cmd = f"{cmd} -P {aal_csv_flag} {palt_outfile_stem}.parquet"
+                        cmd = f"{cmd} -E parquet {aal_csv_flag} {palt_outfile_stem}.parquet"
                     else:
                         aal_parquet_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["parquet_flag"]
                         cmd = f"{cmd} {aal_parquet_flag} {palt_outfile_stem}.parquet"
@@ -618,7 +618,7 @@ def do_post_wait_processing(
                 aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["csv_flag"]
                 if summary.get('ord_output', {}).get('parquet_format'):
                     if aal_exec_type == "pytools":
-                        cmd = f"{cmd} -P {aal_csv_flag} {altmeanonly_outfile_stem}.cparquetsv"
+                        cmd = f"{cmd} -E parquet {aal_csv_flag} {altmeanonly_outfile_stem}.cparquetsv"
                     else:
                         aal_parquet_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["parquet_flag"]
                         cmd = f"{cmd} {aal_parquet_flag} {altmeanonly_outfile_stem}.parquet"
@@ -676,7 +676,7 @@ def do_post_wait_processing(
                 outfile_ext = 'csv'
                 if summary.get('ord_output', {}).get('parquet_format'):
                     if lec_exec_type == "pytools":
-                        cmd = f"{cmd} -P"
+                        cmd = f"{cmd} -E parquet"
                     else:
                         ept_output_flag = '-P'
                         psept_output_flag = '-p'
@@ -1228,7 +1228,7 @@ def do_ord(
 
                     # Add binary output flag for ELTpy and PLTpy, will be converted to csv during kats
                     if exec_type == "pytools":
-                        cmd = f'{flag_proc[exec_type]["executable"]} -B{cmd}'
+                        cmd = f'{flag_proc[exec_type]["executable"]} -E bin {cmd}'
                     else:
                         cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
 

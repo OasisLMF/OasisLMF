@@ -304,3 +304,7 @@ fm57
 fm58
 fm64
 fmFranchise
+multi_locperil
+multi_peril_step6
+multi_peril_step7
+

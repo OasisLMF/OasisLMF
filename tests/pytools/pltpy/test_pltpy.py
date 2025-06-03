@@ -25,8 +25,7 @@ def case_runner(sub_folder, test_name, out_ext="csv"):
         kwargs = {
             "run_dir": Path(TESTS_ASSETS_DIR, sub_folder),
             "files_in": summary_bin_input,
-            "binary": out_ext == "bin",
-            "parquet": out_ext == "parquet",
+            "ext": out_ext,
         }
 
         if test_name in ["splt", "mplt", "qplt"]:

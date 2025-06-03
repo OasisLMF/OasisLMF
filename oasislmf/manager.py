@@ -23,6 +23,7 @@ from oasislmf.computation.hooks.post_analysis import PostAnalysis
 from oasislmf.computation.run.exposure import RunExposure, RunFmTest
 from oasislmf.computation.run.generate_files import GenerateOasisFiles
 from oasislmf.computation.run.generate_losses import GenerateOasisLosses
+from oasislmf.computation.run.generate_documentation import GenerateDocumentation
 from oasislmf.computation.run.model import RunModel, GenerateComputationSettingsJsonSchema
 from oasislmf.computation.run.platform import (PlatformDelete, PlatformGet,
                                                PlatformList, PlatformRun,
@@ -36,6 +37,7 @@ class OasisManager(object):
         ExposurePreAnalysis,
         GenerateFiles,
         GenerateOasisFiles,
+        GenerateDocumentation,
         PostFileGen,
         PreLoss,
         GenerateOasisLosses,

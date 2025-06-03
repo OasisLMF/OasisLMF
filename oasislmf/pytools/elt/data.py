@@ -1,6 +1,8 @@
 from oasislmf.pytools.common.data import generate_output_metadata, oasis_int, oasis_float
 
 
+VALID_EXT = ["csv", "bin", "parquet"]
+
 SELT_output = [
     ('EventId', oasis_int, '%d'),
     ('SummaryId', oasis_int, '%d'),
