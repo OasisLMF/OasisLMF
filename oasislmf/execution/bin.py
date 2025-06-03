@@ -40,6 +40,7 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
+from oasislmf.pytools.converters.csvtobin import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from oasislmf.pytools.pla.common import LOSS_FACTORS_FILE_NAME
@@ -661,6 +662,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             "fmsummaryxref",
             "fmxref",
             "gulsummaryxref",
+            "items",
         ]
         if input_file['name'] in supported_tobin_tools:
             csvtobin_type = input_file["csvtobin_type"]
@@ -669,7 +671,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
                     bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
                 )
                 csvtobin_type = input_file["csvtobin_type"] + "_step"
-            cmd_str = "csvtobin -i \"{}\" -o \"{}\" -t {}".format(input_file_path, output_file_path, csvtobin_type)
+            csvtobin(input_file_path, output_file_path, csvtobin_type)
         else:
             if 'step_id' in col_names:
                 output_file_path = os.path.join(
@@ -680,10 +682,10 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             else:
                 cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
 
-        try:
-            subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-        except subprocess.CalledProcessError as e:
-            raise OasisException("Error while converting csv's to binary format: {}".format(e))
+            try:
+                subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+            except subprocess.CalledProcessError as e:
+                raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 @oasis_log

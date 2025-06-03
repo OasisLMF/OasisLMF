@@ -19,13 +19,6 @@ areaperil_int_size = areaperil_int.itemsize
 null_index = oasis_int.type(-1)
 
 
-# financial structure static input dtypes
-items_dtype = np.dtype([('item_id', 'i4'),
-                        ('coverage_id', 'i4'),
-                        ('areaperil_id', areaperil_int),
-                        ('vulnerability_id', 'i4'),
-                        ('group_id', 'i4')])
-
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
@@ -150,6 +143,15 @@ gul_summary_xref_output = [
     ("summaryset_id", 'i4', "%d")
 ]
 gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt = generate_output_metadata(gul_summary_xref_output)
+
+items_output = [
+    ("item_id", 'i4', "%d"),
+    ("coverage_id", 'i4', "%d"),
+    ("areaperil_id", areaperil_int, "%u"),
+    ("vulnerability_id", 'i4', "%d"),
+    ("group_id", 'i4', "%d"),
+]
+items_headers, items_dtype, items_fmt = generate_output_metadata(items_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

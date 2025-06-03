@@ -103,3 +103,8 @@ def test_gul_summary_xref():
 def test_fm_xref():
     case_runner("bintocsv", "fm_xref")
     case_runner("csvtobin", "fm_xref")
+
+
+def test_items():
+    case_runner("bintocsv", "items")
+    case_runner("csvtobin", "items")

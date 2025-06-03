@@ -19,7 +19,8 @@ INPUT_FILES = {
     'items': {
         'name': 'items',
         'type': 'gul',
-        'conversion_tool': 'itemtobin'
+        'conversion_tool': 'itemtobin',
+        'csvtobin_type': 'items',
     },
     'coverages': {
         'name': 'coverages',
