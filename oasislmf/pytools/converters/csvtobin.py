@@ -39,9 +39,9 @@ def amplifications_tobin(file_in, file_out, type):
     data = read_csv_as_ndarray(file_in, type)
 
     # Check item IDs start from 1 and are contiguous
-    if data["item_id"][0] != 1:
+    if len(data) > 0 and data["item_id"][0] != 1:
         raise ValueError(f'First item ID is {data["item_id"][0]}. Expected 1.')
-    if not np.all(data["item_id"][1:] - data["item_id"][:-1] == 1):
+    if len(data) > 0 and not np.all(data["item_id"][1:] - data["item_id"][:-1] == 1):
         raise ValueError(f'Item IDs in {file_in} are not contiguous')
 
     with open(file_out, "wb") as fout:

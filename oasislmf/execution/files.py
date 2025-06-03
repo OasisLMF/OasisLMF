@@ -42,7 +42,8 @@ INPUT_FILES = {
     'amplifications': {
         'name': 'amplifications',
         'type': 'optional',
-        'conversion_tool': 'amplificationstobin'
+        'conversion_tool': 'amplificationstobin',
+        'csvtobin_type': 'amplifications',
     },
     'fm_policytc': {
         'name': 'fm_policytc',

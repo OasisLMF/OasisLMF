@@ -655,6 +655,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
 
         # TODO: replace all old ktools with new ones
         supported_tobin_tools = [
+            "amplifications",
             "coverages",
             "fm_policytc",
             "fm_profile",
