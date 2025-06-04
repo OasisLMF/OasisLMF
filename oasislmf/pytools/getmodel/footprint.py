@@ -570,6 +570,8 @@ class FootprintParquetDynamic(Footprint):
                 df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                     (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
                 df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+                df_footprint = df_footprint.sort_values('intensity', ascending=False)
+                df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
                 intensity_bin_dict = pd.read_csv('static/intensity_bin_dict.csv')
                 intensity_bin_dict.rename(columns={'intensity_bin': 'intensity_bin_id'}, inplace=True)
                 df_footprint = df_footprint.merge(intensity_bin_dict, on='intensity')
