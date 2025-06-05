@@ -548,9 +548,15 @@ class FootprintParquetDynamic(Footprint):
         sections = list(set(event_sections) & self.location_sections)
 
         if len(sections) > 0:
-            hazard_case_reader = self.get_df_reader(hazard_case_filename, filters=[("section_id", "in", sections)])
-            df_hazard_case = hazard_case_reader.as_pandas()
-            df_hazard_case = df_hazard_case[df_hazard_case['areaperil_id'].isin(self.areaperil_ids)]
+            df_hazard_case = {}
+            for section in sections:
+                hazard_case_reader = self.get_df_reader(
+                    f'{hazard_case_filename}/section_id={int(section)}',
+                    filters=[("areaperil_id", "in", self.areaperil_ids)]
+                )
+                df_hazard_case[section] = hazard_case_reader.as_pandas()
+                df_hazard_case[section]['section_id'] = section
+            df_hazard_case = pd.concat(df_hazard_case, ignore_index=True)
 
             from_cols = ['areaperil_id', 'intensity']
             to_cols = from_cols + ['interpolation', 'return_period']
