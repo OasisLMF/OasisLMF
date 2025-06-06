@@ -99,7 +99,7 @@ def get_xref_df(il_inputs_df):
     bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
             .drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
-            .sort_values(['gul_input_id', 'layer_id'])
+            .sort_values(['gul_input_id', 'layer_id'], kind='stable')
             )
 
 
@@ -239,7 +239,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
         summary_group_df = calculated_summary_cols[col](summary_group_df)
 
     fill_na_with_categoricals(summary_group_df, 0)
-    summary_group_df.sort_values(by=[sort_by], inplace=True)
+    summary_group_df.sort_values(by=[sort_by], inplace=True, kind='stable')
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
     summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
                                                    keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
@@ -524,7 +524,7 @@ def get_summary_xref_df(
         all_cols.update(accounts_df.columns.to_list())
 
     # Extract the summary id index column depending on id_set_index
-    map_df.sort_values(id_set_index, inplace=True)
+    map_df.sort_values(id_set_index, inplace=True, kind='stable')
     ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={'output_id': "output"})
 
     # For each granularity build a set grouping

@@ -397,7 +397,7 @@ class GenerateFiles(ComputationStep):
                 'PolExpiryDate': '',
             }
         )
-        xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id')
+        xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id', kind='stable')
 
         del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info
