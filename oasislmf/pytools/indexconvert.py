@@ -38,5 +38,5 @@ def change_footprint_apid_multi_peril(path, size_lat, size_lon, num_perils):
     filtered_df['areaperil_id'] = z_indices * num_perils + peril_values
     df.loc[mask, 'areaperil_id'] = filtered_df['areaperil_id']
 
-    df = df.sort_values(by=df.columns.tolist())
+    df = df.sort_values(by=df.columns.tolist(), kind='stable')
     df.to_csv(path, index=False)
