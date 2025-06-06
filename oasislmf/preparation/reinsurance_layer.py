@@ -322,8 +322,7 @@ def get_xref_df(xref_descriptions_df, risk_level):
         df_levels: list of dataframes, one per fm level
     """
 
-    xref_descriptions = xref_descriptions_df.sort_values(by=REINS_RISK_LEVEL_XREF_COLUMN_MAP.get(risk_level, XREF_COLUMN_DEFAULT)
-                                                         , kind='stable')
+    xref_descriptions = xref_descriptions_df.sort_values(by=REINS_RISK_LEVEL_XREF_COLUMN_MAP.get(risk_level, XREF_COLUMN_DEFAULT), kind='stable')
     risk_level_fields = RISK_LEVEL_FIELD_MAP[risk_level]
 
     df_levels = dict()
