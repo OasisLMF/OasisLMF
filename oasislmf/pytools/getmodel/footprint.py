@@ -558,7 +558,7 @@ class FootprintParquetDynamic(Footprint):
                 df_hazard_case[section]['section_id'] = section
             df_hazard_case = pd.concat(df_hazard_case, ignore_index=True)
 
-            from_cols = ['areaperil_id', 'intensity']
+            from_cols = ['section_id', 'areaperil_id', 'intensity']
             to_cols = from_cols + ['interpolation', 'return_period']
 
             df_hazard_case_from = df_hazard_case.merge(
@@ -569,7 +569,7 @@ class FootprintParquetDynamic(Footprint):
                 df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to'])[to_cols].rename(
                     columns={'intensity': 'to_intensity'})
 
-            df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on='areaperil_id', how='outer')
+            df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=['section_id', 'areaperil_id'], how='outer')
             df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
 
             if len(df_footprint.index) > 0:
@@ -578,9 +578,7 @@ class FootprintParquetDynamic(Footprint):
                 df_footprint['intensity'] = df_footprint['intensity'].astype('int')
                 df_footprint = df_footprint.sort_values('intensity', ascending=False)
                 df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
-                intensity_bin_dict = pd.read_csv('static/intensity_bin_dict.csv')
-                intensity_bin_dict.rename(columns={'intensity_bin': 'intensity_bin_id'}, inplace=True)
-                df_footprint = df_footprint.merge(intensity_bin_dict, on='intensity')
+                df_footprint['intensity_bin_id'] = 0  # Placeholder for intensity bin ID
                 df_footprint['probability'] = 1
             else:
                 df_footprint.loc[:, 'intensity'] = []
