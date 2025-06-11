@@ -778,7 +778,7 @@ def get_il_input_items(
                                                             .union(set(useful_cols).difference(set(gul_inputs_df.columns)))
                                                             .intersection(accounts_df.columns))])
             level_df['orig_level_id'] = level_id
-            level_df['level_id'] = len(il_inputs_df_list) + 2
+            level_df['level_id'] = len(il_inputs_df_list) + 1
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
             prev_level_df['to_agg_id'] = (prev_level_df[['gul_input_id']]
                                           .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
