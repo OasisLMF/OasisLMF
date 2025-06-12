@@ -898,7 +898,7 @@ def compute_event_losses(compute_info,
 
             computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['damage_type'] == 1 else 1.0
 
-            if damage_bins[Neff_damage_bins - 1]['damage_type'] == 0: # default
+            if damage_bins[Neff_damage_bins - 1]['damage_type'] == 0:  # default
                 # for relative vulnerability functions, gul are fraction of the tiv
                 # for absolute vulnerability functions, gul are absolute values
                 computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0

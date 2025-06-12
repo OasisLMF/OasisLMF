@@ -48,10 +48,10 @@ oasis_float_relative_size = oasis_float.itemsize // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
 damagebindictionary_4 = nb.from_dtype(np.dtype([('bin_index', np.int32),
-                                              ('bin_from', oasis_float),
-                                              ('bin_to', oasis_float),
-                                              ('interpolation', oasis_float),
-                                              ]))
+                                                ('bin_from', oasis_float),
+                                                ('bin_to', oasis_float),
+                                                ('interpolation', oasis_float),
+                                                ]))
 
 damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('bin_from', oasis_float),
@@ -641,7 +641,7 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
             header = f.readline().decode().strip().split(',')
-            if len(header) == 4: # Load `damage_type` with 0s by default if col missing
+            if len(header) == 4:  # Load `damage_type` with 0s by default if col missing
                 logger.debug("adding default `damage_type` column")
                 output = np.loadtxt(f, dtype=damagebindictionary_4, delimiter=',', ndmin=1)
                 return append_fields(output, 'damage_type', np.zeros(output.shape[0],
