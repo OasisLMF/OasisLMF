@@ -13,6 +13,7 @@ from contextlib import ExitStack
 
 import numba as nb
 import numpy as np
+from numpy.lib.recfunctions import append_fields
 import pandas as pd
 
 from numba import int32 as nb_int32
@@ -46,6 +47,11 @@ areaperil_int_relative_size = areaperil_int.itemsize // oasis_int_size
 oasis_float_relative_size = oasis_float.itemsize // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
+damagebindictionary_4 = nb.from_dtype(np.dtype([('bin_index', np.int32),
+                                              ('bin_from', oasis_float),
+                                              ('bin_to', oasis_float),
+                                              ('interpolation', oasis_float),
+                                              ]))
 
 damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('bin_from', oasis_float),
@@ -634,7 +640,13 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
-            return np.loadtxt(f, dtype=damagebindictionary, skiprows=1, delimiter=',', ndmin=1)
+            header = f.readline().decode().strip().split(',')
+            if len(header) == 4: # Load `damage_type` with 0s by default if col missing
+                logger.debug("adding default `damage_type` column")
+                output = np.loadtxt(f, dtype=damagebindictionary_4, delimiter=',', ndmin=1)
+                return append_fields(output, 'damage_type', np.zeros(output.shape[0],
+                                                                     dtype=np.int32), dtypes=np.int32).data
+            return np.loadtxt(f, dtype=damagebindictionary, delimiter=',', ndmin=1)
     else:
         raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
