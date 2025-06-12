@@ -415,8 +415,8 @@ def run(run_dir,
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
 
         # buffer to be re-used to store all the correlated random values
-        vuln_z_unif = np.zeros(sample_size, dtype='float64')
-        haz_z_unif = np.zeros(sample_size, dtype='float64')
+        vuln_z_unif = np.zeros(sample_size, dtype='float32')
+        haz_z_unif = np.zeros(sample_size, dtype='float32')
 
         if effective_damageability is True:
             logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
@@ -596,6 +596,23 @@ def get_haz_cdf(item_event_data, haz_cdf, haz_cdf_ptr, dynamic_footprint, intens
 
 
 @nb.njit(fastmath=True)
+def get_last_non_empty(cdf, bin_i):
+    """
+    remove empty bucket from the end
+    Args:
+        cdf: cumulative distribution
+        bin_i: last valid bin index
+
+    Returns:
+        last bin index with an increased in the cdf
+    """
+    last_prob = cdf[bin_i]
+    while bin_i > 0 and cdf[bin_i - 1] == last_prob:
+        bin_i -= 1
+    return bin_i
+
+
+@nb.njit(fastmath=True)
 def pdf_to_cdf(pdf, empty_cdf):
     """
     return the cumulative distribution from the probality distribution
@@ -613,7 +630,8 @@ def pdf_to_cdf(pdf, empty_cdf):
         i += 1
         if cumsum > 0.999999940:
             break
-    return empty_cdf[: i]
+    i = get_last_non_empty(empty_cdf, i - 1)
+    return empty_cdf[: i + 1]
 
 
 @nb.njit(fastmath=True)
@@ -637,7 +655,8 @@ def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
         damage_bin_i += 1
         if eff_damage_cdf_cumsum > 0.999999940:
             break
-    return eff_damage_cdf_empty[:damage_bin_i]
+    damage_bin_i = get_last_non_empty(eff_damage_cdf_empty, damage_bin_i - 1)
+    return eff_damage_cdf_empty[:damage_bin_i + 1]
 
 
 @nb.njit()
