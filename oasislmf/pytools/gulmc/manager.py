@@ -415,8 +415,8 @@ def run(run_dir,
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
 
         # buffer to be re-used to store all the correlated random values
-        vuln_z_unif = np.zeros(sample_size, dtype='float32')
-        haz_z_unif = np.zeros(sample_size, dtype='float32')
+        vuln_z_unif = np.zeros(sample_size, dtype='float64')
+        haz_z_unif = np.zeros(sample_size, dtype='float64')
 
         if effective_damageability is True:
             logger.info("effective_damageability is True: gulmc will draw the damage samples from the effective damageability distribution.")
