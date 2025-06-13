@@ -21,7 +21,10 @@ null_index = oasis_int.type(-1)
 
 summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summary_set_id', 'i4')])
 
+
 # financial structure static input dtypes
+# EDIT: the fmprofiletocsv component in ktools wites out using OASIS_FLOAT
+# changes have been made to fix inconsistencies
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
 fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('profile_id', 'i4')])
 fm_profile_dtype = np.dtype([('profile_id', 'i4'),
@@ -70,6 +73,7 @@ fm_profile_csv_col_map = {
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
+# seemingly unused but coverage TIV in ktools typically defined as OASIS_FLOAT 
 coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', oasis_float)])
 
 items_dtype = np.dtype([('item_id', 'i4'),

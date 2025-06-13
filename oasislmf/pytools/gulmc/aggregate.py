@@ -22,6 +22,9 @@ AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float32
 AggregateVulnerability = nb.from_dtype(np.dtype([('aggregate_vulnerability_id', np.int32),
                                                  ('vulnerability_id', np.int32), ]))
 
+# NOTE: VulnerabilityWeight in https://github.com/OasisLMF/ktools/blob/develop/src/include/oasis.h#L335
+# defines weight as OASIS_FLOAT, but here it is defined as np.float32
+# please check if this should be changed
 VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                               ('vulnerability_id', np.int32),
                                               ('weight', oasis_float)]))
