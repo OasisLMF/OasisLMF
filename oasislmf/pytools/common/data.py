@@ -73,7 +73,7 @@ fm_profile_csv_col_map = {
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
-# seemingly unused but coverage TIV in ktools typically defined as OASIS_FLOAT 
+# seemingly unused but coverage TIV in ktools typically defined as OASIS_FLOAT
 coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', oasis_float)])
 
 items_dtype = np.dtype([('item_id', 'i4'),
