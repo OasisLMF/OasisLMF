@@ -783,17 +783,23 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
         exposure_summary[peril_id][status]['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[peril_id][status]['tiv'] += tiv_sum
 
-        loc_count = df.loc[
+        num_df = df.loc[
             (df['peril_id'] == peril_id) & (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
-            'loc_id'
-        ].drop_duplicates().count()
-        loc_count = int(loc_count)
-        exposure_summary[peril_id][status]['number_of_locations_by_coverage'][coverage_type] = loc_count
+            ['loc_id', 'number_of_risks']
+        ].drop_duplicates(subset='loc_id').agg({'loc_id': 'count', 'number_of_risks': 'sum'})
+        exposure_summary[peril_id][status]['number_of_locations_by_coverage'][coverage_type] = int(num_df['loc_id'])
+        exposure_summary[peril_id][status]['number_of_risks_by_coverage'][coverage_type] = int(num_df['number_of_risks'])
 
-    # Find number of locations
+    # Find number of locations + risks
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_id][status]['number_of_locations'] = loc_count
+
+    num_df = (df.loc[df['peril_id'] == peril_id, ['loc_id', 'number_of_risks']]
+                .drop_duplicates(subset='loc_id')
+                .agg({'loc_id': 'count', 'number_of_risks': 'sum'}))
+    exposure_summary[peril_id][status]['number_of_locations'] = int(num_df['loc_id'])
+    exposure_summary[peril_id][status]['number_of_risks'] = int(num_df['number_of_risks'])
 
     return exposure_summary
 
@@ -968,6 +974,8 @@ def get_exposure_summary(
             exposure_summary[peril_id][status]['tiv_by_coverage'] = {}
             exposure_summary[peril_id][status]['number_of_locations'] = 0
             exposure_summary[peril_id][status]['number_of_locations_by_coverage'] = {}
+            exposure_summary[peril_id][status]['number_of_risks'] = 0
+            exposure_summary[peril_id][status]['number_of_risks_by_coverage'] = {}
             # Fill exposure summary dictionary
             if status == 'all':
                 exposure_summary = get_exposure_summary_all(
