@@ -804,7 +804,7 @@ def compute_event_losses(compute_info,
             if dynamic_footprint is not None:
                 intensity_adjustment = item['intensity_adjustment']
             else:
-                intensity_adjustment = 0
+                intensity_adjustment = nb_oasis_int(0)
 
             if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:
                 agg_vuln_key_id = item['areaperil_id']
