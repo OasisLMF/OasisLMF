@@ -73,7 +73,17 @@ fm_profile_csv_col_map = {
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
-coverage_dtype = nb.from_dtype(np.dtype([('tiv', oasis_float),
+# tiv field changed back to np.float64 instead of oasis_float
+# oasis_float type failing binary comparisons for output losses
+# E Name: loss, dtype: float64
+# E x: expected     E y: test
+# E 60 102666.66    E 60 102666.67
+# this is because by defualt oasis uses np.float32 but the tiv
+# is defined as np.float64 in the oasislmf codebase thus leading
+# to a precision error when reverting to defining tiv as
+# oasis_float float32
+# coverage_dtype = nb.from_dtype(np.dtype([('tiv', oasis_float),
+coverage_dtype = nb.from_dtype(np.dtype([('tiv', np.float64),
                                         ('max_items', oasis_int),
                                         ('start_items', oasis_int),
                                         ('cur_items', oasis_int)
