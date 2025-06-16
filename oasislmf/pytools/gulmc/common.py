@@ -39,15 +39,6 @@ items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),
                                         ('length', oasis_int)]))
 
-# NOTE: pytools/common/data.py line 73 sets tiv as oasis_float
-# but np.float64 is used here
-# please check if this should be changed
-coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
-                                        ('max_items', np.int32),
-                                        ('start_items', np.int32),
-                                        ('cur_items', np.int32)
-                                        ]))
-
 NP_BASE_ARRAY_SIZE = 8
 
 

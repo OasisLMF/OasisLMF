@@ -14,6 +14,7 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasislmf.pytools.common.data import coverage_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, CorrelationsData
@@ -22,8 +23,7 @@ from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
 from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
                                          ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
-                                         TIV_IDX, coverage_type,
-                                         gulSampleslevelHeader_size,
+                                         TIV_IDX, gulSampleslevelHeader_size,
                                          gulSampleslevelRec_size)
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, setmaxloss,
                                        split_tiv_classic,
@@ -194,7 +194,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
     # init the structure for computation
     # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_type)
+    coverages = np.zeros(coverages_tiv.shape[0] + 1, coverage_dtype)
     coverages[1:]['tiv'] = coverages_tiv
     del coverages_tiv
 

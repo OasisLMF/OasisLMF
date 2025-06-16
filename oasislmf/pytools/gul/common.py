@@ -5,7 +5,7 @@ This file defines the data types that are loaded from the data files.
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import areaperil_int, oasis_int, oasis_float
+from oasislmf.pytools.common.data import areaperil_int, oasis_int, oasis_float, coverage_dtype
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX
 
 items_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
@@ -15,15 +15,6 @@ items_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
 
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int), ('length', oasis_int)]))
-
-# NOTE: pytools/common/data.py line 73 sets tiv as oasis_float
-# but np.float64 is used here
-# please check if this should be changed
-coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
-                                        ('max_items', oasis_int),
-                                        ('start_items', oasis_int),
-                                        ('cur_items', oasis_int)
-                                        ]))
 
 NP_BASE_ARRAY_SIZE = 8
 
