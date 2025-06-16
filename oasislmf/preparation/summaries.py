@@ -861,24 +861,32 @@ def get_exposure_totals(df):
     within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     within_scope_num = len(df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
+    within_scope_num_risks = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum()
+
     outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     outside_scope_num = len(df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
+    outside_scope_num_risks = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum()
+
     portfolio_tiv = df.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     portfolio_num = len(df['loc_id'].unique())
+    portfolio_num_risks = df.drop_duplicates(subset='loc_id')['number_of_risks'].sum()
 
     return {
         "modelled": {
             "tiv": within_scope_tiv,
-            "number_of_locations": within_scope_num
+            "number_of_locations": within_scope_num,
+            "number_of_risks": within_scope_num_risks
         },
         "not-modelled": {
             "tiv": outside_scope_tiv,
-            "number_of_locations": outside_scope_num
+            "number_of_locations": outside_scope_num,
+            "number_of_risks": outside_scope_num_risks
         },
         "portfolio": {
             "tiv": portfolio_tiv,
-            "number_of_locations": portfolio_num
+            "number_of_locations": portfolio_num,
+            "number_of_risks": portfolio_num_risks
         }
     }
 
@@ -914,11 +922,21 @@ def get_exposure_summary(
             if exposure_profile[field]['FMTermType'] == 'TIV' and exposure_profile[field]['ProfileElementName'] in exposure_df.columns:
                 cov_name = exposure_profile[field]['ProfileElementName']
                 coverage_type_id = exposure_profile[field]['CoverageTypeID']
-                tmp_df = exposure_df[['loc_id', cov_name]]
-                tmp_df.columns = ['loc_id', 'tiv']
+                fields = ['loc_id', cov_name]
+                column_names = ['loc_id', 'tiv']
+                if 'NumberOfBuildings' in exposure_df:
+                    fields += ['NumberOfBuildings']
+                    column_names += ['number_of_risks']
+                tmp_df = exposure_df[fields]
+                tmp_df.columns = column_names
                 tmp_df['coverage_type_id'] = coverage_type_id
+                if 'NumberOfBuildings' not in exposure_df:
+                    tmp_df['number_of_risks'] = 1
                 df_summary.append(tmp_df)
     df_summary = pd.concat(df_summary)
+
+    # fix 0 number_of_risks
+    df_summary[df_summary['number_of_risks'] == 0] = 1
 
     # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
