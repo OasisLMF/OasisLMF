@@ -785,21 +785,21 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
 
         num_df = df.loc[
             (df['peril_id'] == peril_id) & (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
-            ['loc_id', 'number_of_risks']
-        ].drop_duplicates(subset='loc_id').agg({'loc_id': 'count', 'number_of_risks': 'sum'})
+            ['loc_id', 'number_of_items']
+        ].drop_duplicates(subset='loc_id').agg({'loc_id': 'count', 'number_of_items': 'sum'})
         exposure_summary[peril_id][status]['number_of_locations_by_coverage'][coverage_type] = int(num_df['loc_id'])
-        exposure_summary[peril_id][status]['number_of_risks_by_coverage'][coverage_type] = int(num_df['number_of_risks'])
+        exposure_summary[peril_id][status]['number_of_items_by_coverage'][coverage_type] = int(num_df['number_of_items'])
 
-    # Find number of locations + risks
+    # Find number of locations + items
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_id][status]['number_of_locations'] = loc_count
 
-    num_df = (df.loc[df['peril_id'] == peril_id, ['loc_id', 'number_of_risks']]
+    num_df = (df.loc[df['peril_id'] == peril_id, ['loc_id', 'number_of_items']]
                 .drop_duplicates(subset='loc_id')
-                .agg({'loc_id': 'count', 'number_of_risks': 'sum'}))
+                .agg({'loc_id': 'count', 'number_of_items': 'sum'}))
     exposure_summary[peril_id][status]['number_of_locations'] = int(num_df['loc_id'])
-    exposure_summary[peril_id][status]['number_of_risks'] = int(num_df['number_of_risks'])
+    exposure_summary[peril_id][status]['number_of_items'] = int(num_df['number_of_items'])
 
     return exposure_summary
 
@@ -832,20 +832,20 @@ def get_exposure_summary_all(df, exposure_summary, peril_id):
         exposure_summary[peril_id]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[peril_id]['all']['tiv'] += tiv_sum
 
-        loc_count = df.loc[
+        # Find number of locations + items by coverage type
+        num_df = df.loc[
             (df['peril_id'] == peril_id) &
             (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
-            'loc_id'
-        ].drop_duplicates().count()
-        loc_count = int(loc_count)
-        exposure_summary[peril_id]['all']['number_of_locations_by_coverage'][coverage_type] = loc_count
+            ['loc_id', 'number_of_items']
+        ].drop_duplicates(subset='loc_id').agg({'loc_id': 'count', 'number_of_items': 'sum'})
+        exposure_summary[peril_id]['all']['number_of_locations_by_coverage'][coverage_type] = int(num_df['loc_id'])
+        exposure_summary[peril_id]['all']['number_of_items_by_coverage'][coverage_type] = int(num_df['number_of_items'])
 
     # Find number of locations total
-    loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
-    loc_count = int(loc_count)
-    exposure_summary[peril_id]['all']['number_of_locations'] = loc_count
-
-    # Find number of locations by coverage type
+    num_df = (df.loc[df['peril_id'] == peril_id, ['loc_id', 'number_of_items']]
+              .drop_duplicates(subset='loc_id').agg({'loc_id': 'count', 'number_of_items': 'sum'}))
+    exposure_summary[peril_id]['all']['number_of_locations'] = int(num_df['loc_id'])
+    exposure_summary[peril_id]['all']['number_of_items'] = int(num_df['number_of_items'])
 
     return exposure_summary
 
@@ -867,32 +867,32 @@ def get_exposure_totals(df):
     within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     within_scope_num = len(df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
-    within_scope_num_risks = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum()
+    within_scope_num_items = int(df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_items'].sum())
 
     outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     outside_scope_num = len(df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
-    outside_scope_num_risks = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum()
+    outside_scope_num_items = int(df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_items'].sum())
 
     portfolio_tiv = df.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     portfolio_num = len(df['loc_id'].unique())
-    portfolio_num_risks = df.drop_duplicates(subset='loc_id')['number_of_risks'].sum()
+    portfolio_num_items = int(df.drop_duplicates(subset='loc_id')['number_of_items'].sum())
 
     return {
         "modelled": {
             "tiv": within_scope_tiv,
             "number_of_locations": within_scope_num,
-            "number_of_risks": within_scope_num_risks
+            "number_of_items": within_scope_num_items
         },
         "not-modelled": {
             "tiv": outside_scope_tiv,
             "number_of_locations": outside_scope_num,
-            "number_of_risks": outside_scope_num_risks
+            "number_of_items": outside_scope_num_items
         },
         "portfolio": {
             "tiv": portfolio_tiv,
             "number_of_locations": portfolio_num,
-            "number_of_risks": portfolio_num_risks
+            "number_of_items": portfolio_num_items
         }
     }
 
@@ -932,17 +932,17 @@ def get_exposure_summary(
                 column_names = ['loc_id', 'tiv']
                 if 'NumberOfBuildings' in exposure_df:
                     fields += ['NumberOfBuildings']
-                    column_names += ['number_of_risks']
+                    column_names += ['number_of_items']
                 tmp_df = exposure_df[fields]
                 tmp_df.columns = column_names
                 tmp_df['coverage_type_id'] = coverage_type_id
                 if 'NumberOfBuildings' not in exposure_df:
-                    tmp_df['number_of_risks'] = 1
+                    tmp_df['number_of_items'] = 1
                 df_summary.append(tmp_df)
     df_summary = pd.concat(df_summary)
 
-    # fix 0 number_of_risks
-    df_summary[df_summary['number_of_risks'] == 0] = 1
+    # fix 0 number_of_items
+    df_summary[df_summary['number_of_items'] == 0] = 1
 
     # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
@@ -974,8 +974,8 @@ def get_exposure_summary(
             exposure_summary[peril_id][status]['tiv_by_coverage'] = {}
             exposure_summary[peril_id][status]['number_of_locations'] = 0
             exposure_summary[peril_id][status]['number_of_locations_by_coverage'] = {}
-            exposure_summary[peril_id][status]['number_of_risks'] = 0
-            exposure_summary[peril_id][status]['number_of_risks_by_coverage'] = {}
+            exposure_summary[peril_id][status]['number_of_items'] = 0
+            exposure_summary[peril_id][status]['number_of_items_by_coverage'] = {}
             # Fill exposure summary dictionary
             if status == 'all':
                 exposure_summary = get_exposure_summary_all(
