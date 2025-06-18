@@ -65,6 +65,8 @@ class TestSummaries(TestCase):
                 peril_status = peril_expected[peril_expected.status == status]
                 self.assertAlmostEqual(peril_status.tiv.sum(), peril_summary[status]['tiv'])
                 self.assertEqual(len(peril_status.loc_id.unique()), peril_summary[status]['number_of_locations'])
+                self.assertEqual(len(peril_status.value_counts(subset=['loc_id', 'building_id'])),
+                                 peril_summary[status]['number_of_buildings'])
 
                 for cov in cov_types:
                     cov_type_id = SUPPORTED_COVERAGE_TYPES[cov]['id']
