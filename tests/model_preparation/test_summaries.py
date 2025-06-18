@@ -109,7 +109,9 @@ class TestSummaries(TestCase):
             from_building_tivs=integers(1000, 1000000),
             from_other_tivs=integers(100, 100000),
             from_contents_tivs=integers(50, 50000),
-            from_bi_tivs=integers(20, 20000))))
+            from_bi_tivs=integers(20, 20000),
+            from_number_of_buildings=integers(0, 10)
+        )))
         exposure = OedExposure(**{'location': loc_df, 'use_field': True})
         prepare_oed_exposure(exposure)
         loc_df = exposure.location.dataframe
@@ -137,6 +139,12 @@ class TestSummaries(TestCase):
         # Check number of locs
         self.assertEqual(len(loc_df), exp_summary['total']['portfolio']['number_of_locations'])
         self.assertEqual(len(gul_inputs.loc_id.unique()), exp_summary['total']['modelled']['number_of_locations'])
+
+        # Check number of buildings
+        buildings_portfolio = loc_df['NumberOfBuildings'].replace(0, 1).sum()
+        buildings_modelled = len(gul_inputs.value_counts(['loc_id', 'building_id']))
+        self.assertEqual(buildings_portfolio, exp_summary['total']['portfolio']['number_of_buildings'])
+        self.assertEqual(buildings_modelled, exp_summary['total']['modelled']['number_of_buildings'])
 
         # Check number of not-modelled
         # WARNING: current assumption is that all cov types must be covered to be modelled

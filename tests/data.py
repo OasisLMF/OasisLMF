@@ -204,6 +204,7 @@ def min_source_exposure(
     from_other_tivs=floats(min_value=0.0, allow_infinity=False),
     from_contents_tivs=floats(min_value=0.0, allow_infinity=False),
     from_bi_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_number_of_buildings=integers(min_value=0, max_value=10),
     size=None,
     min_size=0,
     max_size=10
@@ -223,6 +224,7 @@ def min_source_exposure(
                 'bitiv': from_bi_tivs,
                 'locperilscovered': from_location_perils_covered,
                 'locperil': from_location_perils,
+                'numberofbuildings': from_number_of_buildings,
 
                 # Fixed values (Don't care)
                 'accnumber': just('1'),
@@ -281,7 +283,6 @@ def min_source_exposure(
                 'locminded4bi': just(0),
                 'locminded5pd': just(0),
                 'locminded6all': just(0),
-
             }
         ),
         min_size=(size if size is not None else min_size),
