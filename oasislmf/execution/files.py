@@ -37,7 +37,8 @@ INPUT_FILES = {
     'events': {
         'name': 'events',
         'type': 'optional',
-        'conversion_tool': 'evetobin'
+        'conversion_tool': 'evetobin',
+        'csvtobin_type': 'eve',
     },
     'amplifications': {
         'name': 'amplifications',

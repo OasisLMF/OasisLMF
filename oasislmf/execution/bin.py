@@ -657,6 +657,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         supported_tobin_tools = [
             "amplifications",
             "coverages",
+            "eve",
             "fm_policytc",
             "fm_profile",
             "fm_programme",
