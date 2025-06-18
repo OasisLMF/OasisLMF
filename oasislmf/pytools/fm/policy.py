@@ -20,14 +20,14 @@ def calcrule_1(policy, loss_out, loss_in):
     """
     Deductible and limit
     """
-    lim = policy['limit_1'] + policy['deductible_1']
+    lim = policy['limit1'] + policy['deductible1']
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['deductible_1']:
+        if loss_in[i] <= policy['deductible1']:
             loss_out[i] = 0
         elif loss_in[i] <= lim:
-            loss_out[i] = loss_in[i] - policy['deductible_1']
+            loss_out[i] = loss_in[i] - policy['deductible1']
         else:
-            loss_out[i] = policy['limit_1']
+            loss_out[i] = policy['limit1']
 
 
 @njit(cache=True, fastmath=True)
@@ -36,14 +36,14 @@ def calcrule_2(policy, loss_out, loss_in):
     Deductible, attachment, limit and share
 
     """
-    ded_att = policy['deductible_1'] + policy['attachment_1']
-    lim = policy['limit_1'] + ded_att
-    maxi = policy['limit_1'] * policy['share_1']
+    ded_att = policy['deductible1'] + policy['attachment1']
+    lim = policy['limit1'] + ded_att
+    maxi = policy['limit1'] * policy['share1']
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= ded_att:
             loss_out[i] = 0
         elif loss_in[i] <= lim:
-            loss_out[i] = (loss_in[i] - ded_att) * policy['share_1']
+            loss_out[i] = (loss_in[i] - ded_att) * policy['share1']
         else:
             loss_out[i] = maxi
 
@@ -54,12 +54,12 @@ def calcrule_3(policy, loss_out, loss_in):
     Franchise deductible and limit
     """
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['deductible_1']:
+        if loss_in[i] <= policy['deductible1']:
             loss_out[i] = 0
-        elif loss_in[i] <= policy['limit_1']:
+        elif loss_in[i] <= policy['limit1']:
             loss_out[i] = loss_in[i]
         else:
-            loss_out[i] = policy['limit_1']
+            loss_out[i] = policy['limit1']
 
 
 @njit(cache=True, fastmath=True)
@@ -67,9 +67,9 @@ def calcrule_5(policy, loss_out, loss_in):
     """
     Deductible and limit as a proportion of loss
     """
-    effective_deductible = loss_in * policy['deductible_1']
-    effective_limit = loss_in * policy['limit_1']
-    if policy['deductible_1'] + policy['limit_1'] >= 1:  # always under limit
+    effective_deductible = loss_in * policy['deductible1']
+    effective_limit = loss_in * policy['limit1']
+    if policy['deductible1'] + policy['limit1'] >= 1:  # always under limit
         for i in range(loss_in.shape[0]):
             loss_out[i] = loss_in[i] - effective_deductible[i]
 
@@ -83,10 +83,10 @@ def calcrule_12(policy, loss_out, loss_in):
     Deductible only
     """
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['deductible_1']:
+        if loss_in[i] <= policy['deductible1']:
             loss_out[i] = 0
         else:
-            loss_out[i] = loss_in[i] - policy['deductible_1']
+            loss_out[i] = loss_in[i] - policy['deductible1']
 
 
 @njit(cache=True, fastmath=True)
@@ -95,10 +95,10 @@ def calcrule_14(policy, loss_out, loss_in):
     Limit only
     """
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['limit_1']:
+        if loss_in[i] <= policy['limit1']:
             loss_out[i] = loss_in[i]
         else:
-            loss_out[i] = policy['limit_1']
+            loss_out[i] = policy['limit1']
 
 
 @njit(cache=True, fastmath=True)
@@ -106,14 +106,14 @@ def calcrule_15(policy, loss_out, loss_in):
     """
     deductible and limit % loss
     """
-    effective_limit = policy['deductible_1'] / (1 - policy['limit_1'])
+    effective_limit = policy['deductible1'] / (1 - policy['limit1'])
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['deductible_1']:
+        if loss_in[i] <= policy['deductible1']:
             loss_out[i] = 0
         elif loss_in[i] <= effective_limit:
-            loss_out[i] = loss_in[i] - policy['deductible_1']
+            loss_out[i] = loss_in[i] - policy['deductible1']
         else:
-            loss_out[i] = loss_in[i] * policy['limit_1']
+            loss_out[i] = loss_in[i] * policy['limit1']
 
 
 @njit(cache=True, fastmath=True)
@@ -121,7 +121,7 @@ def calcrule_16(policy, loss_out, loss_in):
     """
     deductible % loss
     """
-    loss_out[:] = loss_in * (1 - policy['deductible_1'])
+    loss_out[:] = loss_in * (1 - policy['deductible1'])
 
 
 @njit(cache=True, fastmath=True)
@@ -129,17 +129,17 @@ def calcrule_17(policy, loss_out, loss_in):
     """
     deductible % loss with attachment, limit and share
     """
-    if policy['deductible_1'] >= 1:
+    if policy['deductible1'] >= 1:
         loss_out.fill(0)
     else:
-        post_ded_attachment = policy['attachment_1'] / (1 - policy['deductible_1'])
-        post_ded_attachment_limit = (policy['attachment_1'] + policy['limit_1']) / (1 - policy['deductible_1'])
-        maxi = policy['limit_1'] * policy['share_1']
+        post_ded_attachment = policy['attachment1'] / (1 - policy['deductible1'])
+        post_ded_attachment_limit = (policy['attachment1'] + policy['limit1']) / (1 - policy['deductible1'])
+        maxi = policy['limit1'] * policy['share1']
         for i in range(loss_in.shape[0]):
             if loss_in[i] <= post_ded_attachment:
                 loss_out[i] = 0
             elif loss_in[i] <= post_ded_attachment_limit:
-                loss_out[i] = (loss_in[i] * (1 - policy['deductible_1']) - policy['attachment_1']) * policy['share_1']
+                loss_out[i] = (loss_in[i] * (1 - policy['deductible1']) - policy['attachment1']) * policy['share1']
             else:
                 loss_out[i] = maxi
 
@@ -150,7 +150,7 @@ def calcrule_20(policy, loss_out, loss_in):
     reverse franchise deductible
     """
     for i in range(loss_in.shape[0]):
-        if loss_in[i] > policy['deductible_1']:
+        if loss_in[i] > policy['deductible1']:
             loss_out[i] = 0
         else:
             loss_out[i] = loss_in[i]
@@ -161,12 +161,12 @@ def calcrule_22(policy, loss_out, loss_in):
     """
     reinsurance % ceded, limit and % placed
     """
-    if policy['share_1'] == 0:
+    if policy['share1'] == 0:
         loss_out.fill(0)
     else:
-        pre_share_limit = policy['limit_1'] / policy['share_1']
-        all_share = policy['share_1'] * policy['share_2'] * policy['share_3']
-        maxi = policy['limit_1'] * policy['share_2'] * policy['share_3']
+        pre_share_limit = policy['limit1'] / policy['share1']
+        all_share = policy['share1'] * policy['share2'] * policy['share3']
+        maxi = policy['limit1'] * policy['share2'] * policy['share3']
         for i in range(loss_in.shape[0]):
             if loss_in[i] <= pre_share_limit:
                 loss_out[i] = loss_in[i] * all_share
@@ -179,10 +179,10 @@ def calcrule_23(policy, loss_out, loss_in):
     """
     reinsurance limit and % placed
     """
-    all_share = policy['share_2'] * policy['share_3']
-    maxi = policy['limit_1'] * all_share
+    all_share = policy['share2'] * policy['share3']
+    maxi = policy['limit1'] * all_share
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['limit_1']:
+        if loss_in[i] <= policy['limit1']:
             loss_out[i] = loss_in[i] * all_share
         else:
             loss_out[i] = maxi
@@ -193,14 +193,14 @@ def calcrule_24(policy, loss_out, loss_in):
     """
     reinsurance excess terms
     """
-    if policy['share_1'] == 0:
+    if policy['share1'] == 0:
         loss_out.fill(0)
     else:
-        pre_share_attachment = policy['attachment_1'] / policy['share_1']
-        pre_share_attachment_limit = (policy['limit_1'] + policy['attachment_1']) / policy['share_1']
-        attachment_share = policy['attachment_1'] * policy['share_2'] * policy['share_3']
-        all_share = policy['share_1'] * policy['share_2'] * policy['share_3']
-        maxi = policy['limit_1'] * policy['share_2'] * policy['share_3']
+        pre_share_attachment = policy['attachment1'] / policy['share1']
+        pre_share_attachment_limit = (policy['limit1'] + policy['attachment1']) / policy['share1']
+        attachment_share = policy['attachment1'] * policy['share2'] * policy['share3']
+        all_share = policy['share1'] * policy['share2'] * policy['share3']
+        maxi = policy['limit1'] * policy['share2'] * policy['share3']
         for i in range(loss_in.shape[0]):
             if loss_in[i] <= pre_share_attachment:
                 loss_out[i] = 0
@@ -215,21 +215,21 @@ def calcrule_25(policy, loss_out, loss_in):
     """
     reinsurance proportional terms
     """
-    loss_out[:] = loss_in * (policy['share_1'] * policy['share_2'] * policy['share_3'])
+    loss_out[:] = loss_in * (policy['share1'] * policy['share2'] * policy['share3'])
 
 
 @njit(cache=True, fastmath=True)
 def calcrule_28(policy, loss_out, loss_in):
     """
     % loss step payout
-    note that 1 was added to scale_1 in the precompute step
+    note that 1 was added to scale1 in the precompute step
     """
     if policy['step_id'] == 1:
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss = max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0)
-            loss_out[i] = (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
+            loss = max(policy['payout_start'] * loss_in[i] - policy['deductible1'], 0)
+            loss_out[i] = (loss + min(loss * policy['scale2'], policy['limit2'])) * policy['scale1']
 
 
 @njit(cache=True, fastmath=True)
@@ -241,7 +241,7 @@ def calcrule_281(policy, loss_out, loss_in):
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
+            loss_out[i] += min(loss_out[i] * policy['scale2'], policy['limit2']) * policy['scale1']
 
 
 @njit(cache=True, fastmath=True)
@@ -253,8 +253,8 @@ def calcrule_32(policy, loss_out, loss_in):
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i]:
-            loss = min(policy['payout_start'] * loss_in[i], policy['limit_1'])
-            loss_out[i] += (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
+            loss = min(policy['payout_start'] * loss_in[i], policy['limit1'])
+            loss_out[i] += (loss + min(loss * policy['scale2'], policy['limit2'])) * policy['scale1']
 
 
 @njit(cache=True, fastmath=True)
@@ -263,15 +263,15 @@ def calcrule_33(policy, loss_out, loss_in):
     deductible % loss with limit
 
     """
-    if policy['deductible_1'] >= 1:
+    if policy['deductible1'] >= 1:
         loss_out.fill(0)
     else:
-        post_ded_limit = policy['limit_1'] / (1 - policy['deductible_1'])
+        post_ded_limit = policy['limit1'] / (1 - policy['deductible1'])
         for i in range(loss_in.shape[0]):
             if loss_in[i] <= post_ded_limit:
-                loss_out[i] = loss_in[i] * (1 - policy['deductible_1'])
+                loss_out[i] = loss_in[i] * (1 - policy['deductible1'])
             else:
-                loss_out[i] = policy['limit_1']
+                loss_out[i] = policy['limit1']
 
 
 @njit(cache=True, fastmath=True)
@@ -281,12 +281,12 @@ def calcrule_34(policy, loss_out, loss_in):
 
     TODO: compare to the cpp, as there is shares, deductible won't be use later on so no need to compute it
     """
-    ded_att = policy['deductible_1'] + policy['attachment_1']
+    ded_att = policy['deductible1'] + policy['attachment1']
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= ded_att:
             loss_out[i] = 0
         else:
-            loss_out[i] = (loss_in[i] - ded_att) * policy['share_1']
+            loss_out[i] = (loss_in[i] - ded_att) * policy['share1']
 
 
 @njit(cache=True, fastmath=True)
@@ -298,8 +298,8 @@ def calcrule_37(policy, loss_out, loss_in):
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss = min(max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0), policy['limit_1'])
-            loss_out[i] = (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
+            loss = min(max(policy['payout_start'] * loss_in[i] - policy['deductible1'], 0), policy['limit1'])
+            loss_out[i] = (loss + min(loss * policy['scale2'], policy['limit2'])) * policy['scale1']
 
 
 @njit(cache=True, fastmath=True)
@@ -311,7 +311,7 @@ def calcrule_38(policy, loss_out, loss_in):
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss_out[i] = (loss_out[i] + min(loss_out[i] * policy['scale_2'], policy['limit_2'])) * (policy['scale_1'])
+            loss_out[i] = (loss_out[i] + min(loss_out[i] * policy['scale2'], policy['limit2'])) * (policy['scale1'])
 
 
 @njit(cache=True, fastmath=True)
@@ -320,7 +320,7 @@ def calcrule_39(policy, loss_out, loss_in):
     Franchise deductible
     """
     for i in range(loss_in.shape[0]):
-        if loss_in[i] <= policy['deductible_1']:
+        if loss_in[i] <= policy['deductible1']:
             loss_out[i] = 0
         else:
             loss_out[i] = loss_in[i]
@@ -371,34 +371,34 @@ def calc(policy, loss_out, loss_in, stepped):
         loss_out[:] = loss_in
     # policies non layer policy with share
     elif policy['calcrule_id'] == 200:
-        loss_out[:] = loss_in * policy['share_1']
+        loss_out[:] = loss_in * policy['share1']
     elif policy['calcrule_id'] == 101:
         calcrule_1(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 103:
         calcrule_3(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 105:
         calcrule_5(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 112:
         calcrule_12(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 114:
         calcrule_14(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 115:
         calcrule_15(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 116:
         calcrule_16(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 120:
         calcrule_20(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif policy['calcrule_id'] == 133:
         calcrule_33(policy, loss_out, loss_in)
-        loss_out *= policy['share_1']
+        loss_out *= policy['share1']
     elif stepped is not None:  # step policies
         if policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in)

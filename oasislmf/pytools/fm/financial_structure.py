@@ -15,9 +15,9 @@ from numba.typed import Dict, List
 
 from oasislmf.pytools.common.data import (load_as_ndarray, load_as_array, almost_equal,
                                           fm_policytc_dtype,
-                                          fm_profile_csv_col_map, fm_profile_dtype, fm_profile_step_dtype,
+                                          fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
-                                          fm_xref_csv_col_map, fm_xref_dtype,
+                                          fm_xref_dtype,
                                           items_dtype,
                                           oasis_int, nb_oasis_int, oasis_float, null_index)
 from .common import (allowed_allocation_rule, need_extras, need_tiv_policy)
@@ -87,13 +87,13 @@ def load_static(static_path):
     """
     programme = load_as_ndarray(static_path, 'fm_programme', fm_programme_dtype)
     policytc = load_as_ndarray(static_path, 'fm_policytc', fm_policytc_dtype)
-    profile = load_as_ndarray(static_path, 'fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
+    profile = load_as_ndarray(static_path, 'fm_profile_step', fm_profile_step_dtype, False)
     if len(profile) == 0:
-        profile = load_as_ndarray(static_path, 'fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)
+        profile = load_as_ndarray(static_path, 'fm_profile', fm_profile_dtype)
         stepped = None
     else:
         stepped = True
-    xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
+    xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
     coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
@@ -116,12 +116,12 @@ def does_nothing(profile):
         boolean : True is profile is actually doing nothing
     """
     return ((profile['calcrule_id'] == 100) or
-            (profile['calcrule_id'] == 12 and almost_equal(profile['deductible_1'], 0)) or
-            (profile['calcrule_id'] == 15 and almost_equal(profile['limit_1'], 1)) or
-            (profile['calcrule_id'] == 16 and almost_equal(profile['deductible_1'], 0)) or
-            (profile['calcrule_id'] == 34 and almost_equal(profile['deductible_1'], 0)
-                and almost_equal(profile['attachment_1'], 0)
-                and almost_equal(profile['share_1'], 1))
+            (profile['calcrule_id'] == 12 and almost_equal(profile['deductible1'], 0)) or
+            (profile['calcrule_id'] == 15 and almost_equal(profile['limit1'], 1)) or
+            (profile['calcrule_id'] == 16 and almost_equal(profile['deductible1'], 0)) or
+            (profile['calcrule_id'] == 34 and almost_equal(profile['deductible1'], 0)
+                and almost_equal(profile['attachment1'], 0)
+                and almost_equal(profile['share1'], 1))
             )
 
 
@@ -188,25 +188,25 @@ def prepare_profile_simple(profile, tiv):
     # if use TIV convert calcrule to fix deductible
     if profile['calcrule_id'] == 4:
         profile['calcrule_id'] = 1
-        profile['deductible_1'] *= tiv
+        profile['deductible1'] *= tiv
 
     elif profile['calcrule_id'] == 6:
         profile['calcrule_id'] = 12
-        profile['deductible_1'] *= tiv
+        profile['deductible1'] *= tiv
 
     elif profile['calcrule_id'] == 18:
         profile['calcrule_id'] = 2
-        profile['deductible_1'] *= tiv
+        profile['deductible1'] *= tiv
 
     elif profile['calcrule_id'] == 21:
         profile['calcrule_id'] = 13
-        profile['deductible_1'] *= tiv
+        profile['deductible1'] *= tiv
 
     elif profile['calcrule_id'] == 9:
         profile['calcrule_id'] = 1
-        profile['deductible_1'] *= profile['limit_1']
+        profile['deductible1'] *= profile['limit1']
     elif profile['calcrule_id'] == 15:
-        if profile['limit_1'] >= 1:
+        if profile['limit1'] >= 1:
             profile['calcrule_id'] = 12
 
 
@@ -219,9 +219,9 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        loss = min(max(profile['payout_start'] * tiv - profile['deductible_1'], 0), profile['limit_1'])
-        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
-        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+        loss = min(max(profile['payout_start'] * tiv - profile['deductible1'], 0), profile['limit1'])
+        cond_loss = min(loss * profile['scale2'], profile['limit2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale1'])
 
     elif profile['calcrule_id'] == 28:
         profile['trigger_start'] *= tiv
@@ -229,7 +229,7 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        profile['scale_1'] += 1
+        profile['scale1'] += 1
 
         if profile['payout_start'] == 0:  # backward compatibility v1.22.x
             profile['calcrule_id'] = 281
@@ -241,9 +241,9 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        loss = max(profile['payout_start'] * tiv - profile['deductible_1'], 0)
-        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
-        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+        loss = max(profile['payout_start'] * tiv - profile['deductible1'], 0)
+        cond_loss = min(loss * profile['scale2'], profile['limit2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale1'])
 
     elif profile['calcrule_id'] == 30:
         profile['calcrule_id'] = 27
@@ -252,9 +252,9 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        loss = max(profile['payout_start'] * profile['limit_1'] - profile['deductible_1'], 0)
-        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
-        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+        loss = max(profile['payout_start'] * profile['limit1'] - profile['deductible1'], 0)
+        cond_loss = min(loss * profile['scale2'], profile['limit2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale1'])
 
     elif profile['calcrule_id'] == 31:
         profile['calcrule_id'] = 27
@@ -263,12 +263,12 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        loss = max(profile['payout_start'] - profile['deductible_1'], 0)
-        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
-        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+        loss = max(profile['payout_start'] - profile['deductible1'], 0)
+        cond_loss = min(loss * profile['scale2'], profile['limit2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale1'])
 
     elif profile['calcrule_id'] == 32:
-        profile['scale_1'] += 1
+        profile['scale1'] += 1
 
     elif profile['calcrule_id'] == 37:
         profile['trigger_start'] *= tiv
@@ -276,7 +276,7 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        profile['scale_1'] += 1
+        profile['scale1'] += 1
 
     elif profile['calcrule_id'] == 38:
         profile['trigger_start'] *= tiv
@@ -284,7 +284,7 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] = np.inf
         else:
             profile['trigger_end'] *= tiv
-        profile['scale_1'] += 1
+        profile['scale1'] += 1
 
     else:
         prepare_profile_simple(profile, tiv)
@@ -399,14 +399,14 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for i in range(fm_xref.shape[0]):
         xref = fm_xref[i]
         programme_node = (out_level, xref['agg_id'])
-        if output_len < xref['output_id']:
-            output_len = nb_oasis_int(xref['output_id'])
+        if output_len < xref['output']:
+            output_len = nb_oasis_int(xref['output'])
 
         if programme_node in node_to_output_id:
-            node_to_output_id[programme_node][nb_oasis_int(xref['layer_id'])] = nb_oasis_int(xref['output_id'])
+            node_to_output_id[programme_node][nb_oasis_int(xref['layer_id'])] = nb_oasis_int(xref['output'])
         else:
             _dict = Dict.empty(nb_oasis_int, nb_oasis_int)
-            _dict[nb_oasis_int(xref['layer_id'])] = nb_oasis_int(xref['output_id'])
+            _dict[nb_oasis_int(xref['layer_id'])] = nb_oasis_int(xref['output'])
             node_to_output_id[programme_node] = _dict
 
     ##### programme ####

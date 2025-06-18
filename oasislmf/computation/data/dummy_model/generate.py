@@ -979,7 +979,7 @@ class FMPolicyTCFile(FMFile):
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
-            ('layer_id', 'i'), ('level_id', 'i'), ('agg_id', 'i'),
+            ('level_id', 'i'), ('agg_id', 'i'), ('layer_id', 'i'),
             ('profile_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location + num_layers

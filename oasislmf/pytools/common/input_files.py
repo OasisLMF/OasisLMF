@@ -3,18 +3,102 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int
+from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int, coverages_headers
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 
 
 logger = logging.getLogger(__name__)
 
 # Input file names (input/<file_name>)
+AMPLIFICATIONS_FILE = "amplifications.bin"
+COVERAGES_FILE = "coverages.bin"
 EVENTRATES_FILE = "event_rates.csv"
+FMPOLICYTC_FILE = "fm_policytc.bin"
+FMPROGRAMME_FILE = "fm_programme.bin"
+FMPROFILE_FILE = "fm_profile.bin"
+FMSUMMARYXREF_FILE = "fmsummaryxref.bin"
+FMXREF_FILE = "fmxref.bin"
+GULSUMMARYXREF_FILE = "gulsummaryxref.bin"
 OCCURRENCE_FILE = "occurrence.bin"
 PERIODS_FILE = "periods.bin"
 QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
+
+
+def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
+    """
+    Get array of amplification IDs from amplifications.bin, where index
+    corresponds to item ID.
+
+    amplifications.bin is binary file with layout:
+        reserved header (4-byte int),
+        item ID 1 (4-byte int), amplification ID a_1 (4-byte int),
+        ...
+        item ID n (4-byte int), amplification ID a_n (4-byte int)
+
+    Args:
+        run_dir (str): path to amplifications.bin file
+        filename (str | os.PathLike): amplifications file name
+    Returns:
+        items_amps (numpy.ndarray): array of amplification IDs, where index
+            corresponds to item ID
+    """
+    amplification_file = Path(run_dir, filename)
+    header_size = 4
+    try:
+        items_amps = np.fromfile(amplification_file, dtype=np.int32, offset=header_size)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f'amplifications.bin not found: {e}')
+
+    # Check item IDs start from 1 and are contiguous
+    if items_amps[0] != 1:
+        raise ValueError(f'First item ID is {items_amps[0]}. Expected 1.')
+    items_amps = items_amps.reshape(len(items_amps) // 2, 2)
+    if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
+        raise ValueError(f'Item IDs in {amplification_file} are not contiguous')
+
+    items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
+
+    return items_amps
+
+
+def read_coverages(run_dir, ignore_file_type=set(), filename=COVERAGES_FILE):
+    """Load the coverages from the coverages file.
+    Args:
+        run_dir (str): path to amplifications.bin file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+        filename (str | os.PathLike): coverages file name
+    Returns:
+        numpy.array[oasis_float]: array with the coverage values for each coverage_id.
+    """
+    coverages_file = Path(run_dir, filename)
+    coverages_ext = coverages_file.suffix
+
+    if coverages_ext in ignore_file_type:
+        raise FileNotFoundError(f'coverages file not found at {coverages_file} with ignore_file_type {ignore_file_type}')
+
+    if coverages_ext == ".bin":
+        logger.debug(f"loading {coverages_file}")
+        coverages = np.fromfile(coverages_file, dtype=oasis_float)
+    elif coverages_ext == ".csv":
+        logger.debug(f"loading {coverages_file}")
+
+        # Check for header
+        with open(coverages_file, "r") as fin:
+            first_line = fin.readline()
+            first_line_elements = [header.strip() for header in first_line.strip().split(',')]
+            has_header = first_line_elements == coverages_headers
+        coverages = np.loadtxt(
+            coverages_file,
+            dtype=oasis_float,
+            delimiter=",",
+            skiprows=1 if has_header else 0,
+            ndmin=1
+        )[:, 1]
+    else:
+        raise FileNotFoundError(f'coverages file type {coverages_ext} not supported for {coverages_file}')
+
+    return coverages
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):
@@ -216,7 +300,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     return period_weights
 
 
-def read_return_periods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
+def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_FILE):
     """Returns an array of return periods decreasing order with no duplicates.
     Args:
         use_return_period_file (bool): Bool to use Return Period File

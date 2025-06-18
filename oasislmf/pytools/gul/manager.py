@@ -16,6 +16,7 @@ from numba.typed import Dict, List
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
+from oasislmf.pytools.common.input_files import read_coverages
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, CorrelationsData
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
 from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
@@ -60,34 +61,6 @@ def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
         byte_mv = np.empty(buff_size, dtype='b')
 
     return byte_mv
-
-
-def get_coverages(input_path, ignore_file_type=set()):
-    """Load the coverages from the coverages file.
-
-    Args:
-        input_path (str): the path containing the coverage file.
-        ignore_file_type (Set[str]): file extension to ignore when loading.
-
-    Returns:
-        numpy.array[oasis_float]: array with the coverage values for each coverage_id.
-    """
-    input_files = set(os.listdir(input_path))
-
-    if "coverages.bin" in input_files and "bin" not in ignore_file_type:
-        coverages_fname = os.path.join(input_path, 'coverages.bin')
-        logger.debug(f"loading {coverages_fname}")
-        coverages = np.fromfile(coverages_fname, dtype=oasis_float)
-
-    elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
-        coverages_fname = os.path.join(input_path, 'coverages.csv')
-        logger.debug(f"loading {coverages_fname}")
-        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)[:, 1]
-
-    else:
-        raise FileNotFoundError(f'coverages file not found at {input_path}')
-
-    return coverages
 
 
 def gul_get_items(input_path, ignore_file_type=set()):
@@ -181,7 +154,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     damage_bins = get_damage_bins(model_storage)
 
     # read coverages from file
-    coverages_tiv = get_coverages(input_path)
+    coverages_tiv = read_coverages(input_path)
 
     # load keys.csv to determine included AreaPerilID from peril_filter
     if peril_filter:

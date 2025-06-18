@@ -1,11 +1,86 @@
+import os
 import numpy as np
 import pytest
 from pathlib import Path
 
 from oasislmf.pytools.common.data import oasis_int, oasis_float
-from oasislmf.pytools.common.input_files import read_event_rates, read_occurrence, read_periods, read_quantile, read_return_periods
+from oasislmf.pytools.common.input_files import (
+    AMPLIFICATIONS_FILE,
+    read_amplifications,
+    read_event_rates,
+    read_occurrence,
+    read_periods,
+    read_quantile,
+    read_returnperiods,
+)
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_common")
+
+
+def write_items_amplifications_file(n_items, itemsamps_file, formula):
+    """
+    Class method to write items amplifications files, which are used in the
+    tests.
+
+    Args:
+        itemsamps_file (str): items amplications file name
+        n_items (int): number of unique item IDs
+        formula (str): expression to evaluate when filling file
+    """
+    data_size = 8
+    write_buffer = memoryview(bytearray(n_items * data_size))
+    item_amp_dtype = np.dtype([
+        ('item_id', 'i4'), ('amplification_id', 'i4')
+    ])
+    event_item = np.ndarray(
+        n_items, buffer=write_buffer, dtype=item_amp_dtype
+    )
+    it = np.nditer(event_item, op_flags=['writeonly'], flags=['c_index'])
+    for row in it:
+        row[...] = (eval('it.index' + formula), eval('it.index' + formula))
+    with open(itemsamps_file, 'wb') as f:
+        f.write(np.int32(0).tobytes())   # Empty header
+        f.write(write_buffer[:])
+
+
+def test_structure__read_amplifications__first_item_id_not_1():
+    """
+    Test read_amplifications() raises SystemExit if the
+    first item ID is not 1.
+    """
+    # Write items amplifications file with first item ID = 2
+    itemsamps_file = Path('.', AMPLIFICATIONS_FILE)
+    write_items_amplifications_file(2, itemsamps_file, formula='+ 2')
+
+    with pytest.raises(ValueError) as e:
+        read_amplifications('.')
+    os.remove(itemsamps_file)
+
+
+def test_structure__read_amplifications__non_contiguous_item_ids():
+    """
+    Test read_amplifications() raises SystemExit if the
+    item IDs are not contiguous.
+    """
+    # Write items amplfications file where difference between item IDs is
+    # not 1
+    itemsamps_file = Path('.', AMPLIFICATIONS_FILE)
+    write_items_amplifications_file(
+        4, itemsamps_file, formula='* 2 + 1'
+    )
+
+    with pytest.raises(ValueError) as e:
+        read_amplifications('.')
+    os.remove(itemsamps_file)
+
+
+def test_structure__read_amplifications__no_amplifications_file():
+    """
+    Test read_amplifications() raises SystemExit if the
+    amplifications.bin file does not exist.
+    """
+    with pytest.raises(FileNotFoundError) as e:
+        read_amplifications('.')
 
 
 def test_read_event_rates():
@@ -173,7 +248,7 @@ def test_read_periods():
         [5000, 1000, 500, 250, 200, 150, 100, 75, 50, 30, 25, 20, 10, 5, 2],
         dtype=np.int32
     )
-    returnperiods_actual, _ = read_return_periods(use_return_periods, run_dir, filename)
+    returnperiods_actual, _ = read_returnperiods(use_return_periods, run_dir, filename)
 
     np.testing.assert_array_equal(returnperiods_expected, returnperiods_actual, verbose=True)
 
@@ -186,4 +261,4 @@ def test_read_return_periods_no_file():
     use_return_periods = True
 
     with pytest.raises(RuntimeError, match="ERROR: Return Periods file not found at"):
-        read_return_periods(use_return_periods, run_dir, filename)
+        read_returnperiods(use_return_periods, run_dir, filename)
