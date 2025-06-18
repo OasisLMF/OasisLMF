@@ -554,6 +554,7 @@ def get_il_input_items(
     prev_level_df['orig_level_id'] = 0
     prev_level_df['agg_id'] = prev_level_df['gul_input_id']
     prev_level_df['layer_id'] = 1
+    prev_level_df['agg_tiv'] = prev_level_df['tiv']
     prev_df_subset = ['gul_input_id']
 
     il_inputs_df_list = []
