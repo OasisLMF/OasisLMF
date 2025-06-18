@@ -205,6 +205,7 @@ def min_source_exposure(
     from_contents_tivs=floats(min_value=0.0, allow_infinity=False),
     from_bi_tivs=floats(min_value=0.0, allow_infinity=False),
     from_number_of_buildings=integers(min_value=0, max_value=10),
+    from_is_aggregate=just(0),
     size=None,
     min_size=0,
     max_size=10
@@ -225,6 +226,7 @@ def min_source_exposure(
                 'locperilscovered': from_location_perils_covered,
                 'locperil': from_location_perils,
                 'numberofbuildings': from_number_of_buildings,
+                'isaggregate': from_is_aggregate,
 
                 # Fixed values (Don't care)
                 'accnumber': just('1'),
