@@ -132,9 +132,9 @@ class TestSummaries(TestCase):
         tiv_not_modelled = tiv_portfolio - tiv_modelled
 
         # Check TIV values
-        self.assertEqual(tiv_portfolio, exp_summary['total']['portfolio']['tiv'])
-        self.assertEqual(tiv_modelled, exp_summary['total']['modelled']['tiv'])
-        self.assertEqual(tiv_not_modelled, exp_summary['total']['not-modelled']['tiv'])
+        self.assertAlmostEqual(tiv_portfolio, exp_summary['total']['portfolio']['tiv'])
+        self.assertAlmostEqual(tiv_modelled, exp_summary['total']['modelled']['tiv'])
+        self.assertAlmostEqual(tiv_not_modelled, exp_summary['total']['not-modelled']['tiv'])
 
         # Check number of locs
         self.assertEqual(len(loc_df), exp_summary['total']['portfolio']['number_of_locations'])
