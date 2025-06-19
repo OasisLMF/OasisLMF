@@ -4,7 +4,7 @@ import pandas as pd
 from tempfile import TemporaryDirectory
 
 import numpy as np
-from oasislmf.pytools.lec.data import EPT_dtype
+from oasislmf.pytools.lec.data import EPT_dtype, PSEPT_dtype
 from oasislmf.pytools.lec.manager import main
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_lecpy")
@@ -92,9 +92,9 @@ def case_runner(sub_folder, test_name, out_ext="csv", use_return_period=False):
                 actual_psept_data = pd.read_parquet(actual_psept)
                 pd.testing.assert_frame_equal(expected_psept_data, actual_psept_data)
             if out_ext == "bin":
-                expected_ept_data = pd.DataFrame(np.fromfile(expected_ept, dtype=EPT_dtype))
-                actual_ept_data = pd.DataFrame(np.fromfile(actual_ept, dtype=EPT_dtype))
-                pd.testing.assert_frame_equal(expected_ept_data, actual_ept_data)
+                expected_psept_data = pd.DataFrame(np.fromfile(expected_psept, dtype=PSEPT_dtype))
+                actual_psept_data = pd.DataFrame(np.fromfile(actual_psept, dtype=PSEPT_dtype))
+                pd.testing.assert_frame_equal(expected_psept_data, actual_psept_data)
         except Exception as e:
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(actual_psept, Path(error_path, psept_outfile_name))
