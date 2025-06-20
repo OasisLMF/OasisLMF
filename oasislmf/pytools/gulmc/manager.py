@@ -17,7 +17,7 @@ from numba.types import int64 as nb_int64
 
 from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, coverage_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
@@ -35,7 +35,7 @@ from oasislmf.pytools.gulmc.aggregate import (
     read_vulnerability_weights, )
 from oasislmf.pytools.gulmc.common import (NP_BASE_ARRAY_SIZE,
                                            Item, Keys, ItemAdjustment,
-                                           NormInversionParameters, coverage_type, gul_header,
+                                           NormInversionParameters, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
                                            gulmc_compute_info_type)
@@ -252,7 +252,7 @@ def run(run_dir,
         logger.debug('import coverages')
         # coverages are numbered from 1, therefore we skip element 0 in `coverages`
         coverages_tb = get_coverages(input_path, ignore_file_type)
-        coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_type)
+        coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_dtype)
         coverages[1:]['tiv'] = coverages_tb
 
         # prepare for stochastic disaggregation

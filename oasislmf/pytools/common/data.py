@@ -21,38 +21,41 @@ null_index = oasis_int.type(-1)
 
 summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summary_set_id', 'i4')])
 
+
 # financial structure static input dtypes
+# EDIT: the fmprofiletocsv component in ktools wites out using OASIS_FLOAT
+# changes have been made to fix inconsistencies
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
 fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('profile_id', 'i4')])
 fm_profile_dtype = np.dtype([('profile_id', 'i4'),
                              ('calcrule_id', 'i4'),
-                             ('deductible_1', 'f4'),
-                             ('deductible_2', 'f4'),
-                             ('deductible_3', 'f4'),
-                             ('attachment_1', 'f4'),
-                             ('limit_1', 'f4'),
-                             ('share_1', 'f4'),
-                             ('share_2', 'f4'),
-                             ('share_3', 'f4'),
+                             ('deductible_1', oasis_float),
+                             ('deductible_2', oasis_float),
+                             ('deductible_3', oasis_float),
+                             ('attachment_1', oasis_float),
+                             ('limit_1', oasis_float),
+                             ('share_1', oasis_float),
+                             ('share_2', oasis_float),
+                             ('share_3', oasis_float),
                              ])
 fm_profile_step_dtype = np.dtype([('profile_id', 'i4'),
                                   ('calcrule_id', 'i4'),
-                                  ('deductible_1', 'f4'),
-                                  ('deductible_2', 'f4'),
-                                  ('deductible_3', 'f4'),
-                                  ('attachment_1', 'f4'),
-                                  ('limit_1', 'f4'),
-                                  ('share_1', 'f4'),
-                                  ('share_2', 'f4'),
-                                  ('share_3', 'f4'),
+                                  ('deductible_1', oasis_float),
+                                  ('deductible_2', oasis_float),
+                                  ('deductible_3', oasis_float),
+                                  ('attachment_1', oasis_float),
+                                  ('limit_1', oasis_float),
+                                  ('share_1', oasis_float),
+                                  ('share_2', oasis_float),
+                                  ('share_3', oasis_float),
                                   ('step_id', 'i4'),
-                                  ('trigger_start', 'f4'),
-                                  ('trigger_end', 'f4'),
-                                  ('payout_start', 'f4'),
-                                  ('payout_end', 'f4'),
-                                  ('limit_2', 'f4'),
-                                  ('scale_1', 'f4'),
-                                  ('scale_2', 'f4'),
+                                  ('trigger_start', oasis_float),
+                                  ('trigger_end', oasis_float),
+                                  ('payout_start', oasis_float),
+                                  ('payout_end', oasis_float),
+                                  ('limit_2', oasis_float),
+                                  ('scale_1', oasis_float),
+                                  ('scale_2', oasis_float),
                                   ])
 fm_profile_csv_col_map = {
     'deductible_1': 'deductible1',
@@ -70,7 +73,21 @@ fm_profile_csv_col_map = {
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
 fm_xref_csv_col_map = {'output_id': 'output'}
 
-coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', 'f4')])
+# tiv field changed back to np.float64 instead of oasis_float
+# oasis_float type failing binary comparisons for output losses
+# E Name: loss, dtype: float64
+# E x: expected     E y: test
+# E 60 102666.66    E 60 102666.67
+# this is because by defualt oasis uses np.float32 but the tiv
+# is defined as np.float64 in the oasislmf codebase thus leading
+# to a precision error when reverting to defining tiv as
+# oasis_float float32
+# coverage_dtype = nb.from_dtype(np.dtype([('tiv', oasis_float),
+coverage_dtype = nb.from_dtype(np.dtype([('tiv', np.float64),
+                                        ('max_items', oasis_int),
+                                        ('start_items', oasis_int),
+                                        ('cur_items', oasis_int)
+                                        ]))
 
 items_dtype = np.dtype([('item_id', 'i4'),
                         ('coverage_id', 'i4'),
