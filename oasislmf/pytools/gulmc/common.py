@@ -93,11 +93,11 @@ Keys = {'LocID': np.int32,
         'VulnerabilityID': np.int32}
 
 
-NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float32),
-                                                  ('x_max', np.float32),
+NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float64),
+                                                  ('x_max', np.float64),
                                                   ('N', np.int32),
-                                                  ('cdf_min', np.float32),
-                                                  ('cdf_max', np.float32),
+                                                  ('cdf_min', np.float64),
+                                                  ('cdf_max', np.float64),
                                                   ('inv_factor', np.float64),
                                                   ('norm_factor', np.float64),
                                                   ]))
