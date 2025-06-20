@@ -65,6 +65,15 @@ class TestSummaries(TestCase):
                 peril_status = peril_expected[peril_expected.status == status]
                 self.assertAlmostEqual(peril_status.tiv.sum(), peril_summary[status]['tiv'])
                 self.assertEqual(len(peril_status.loc_id.unique()), peril_summary[status]['number_of_locations'])
+                peril_status_nums = peril_status.drop_duplicates(subset=['loc_id', 'building_id'])
+                self.assertEqual(len(peril_status_nums),
+                                 peril_summary[status]['number_of_buildings'])
+                peril_status_nums = (peril_status_nums.groupby('loc_id')
+                                     .agg({'building_id': 'count', 'IsAggregate': 'first'})
+                                     .rename(columns={'building_id': 'number_col'}))
+                peril_status_nums.loc[peril_status_nums['IsAggregate'] == 0, 'number_col'] = 1
+                self.assertEqual(peril_status_nums['number_col'].sum(),
+                                 peril_summary[status]['number_of_risks'])
 
                 for cov in cov_types:
                     cov_type_id = SUPPORTED_COVERAGE_TYPES[cov]['id']
@@ -109,7 +118,10 @@ class TestSummaries(TestCase):
             from_building_tivs=integers(1000, 1000000),
             from_other_tivs=integers(100, 100000),
             from_contents_tivs=integers(50, 50000),
-            from_bi_tivs=integers(20, 20000))))
+            from_bi_tivs=integers(20, 20000),
+            from_number_of_buildings=integers(0, 10),
+            from_is_aggregate=integers(0, 1)
+        )))
         exposure = OedExposure(**{'location': loc_df, 'use_field': True})
         prepare_oed_exposure(exposure)
         loc_df = exposure.location.dataframe
@@ -130,13 +142,30 @@ class TestSummaries(TestCase):
         tiv_not_modelled = tiv_portfolio - tiv_modelled
 
         # Check TIV values
-        self.assertEqual(tiv_portfolio, exp_summary['total']['portfolio']['tiv'])
-        self.assertEqual(tiv_modelled, exp_summary['total']['modelled']['tiv'])
-        self.assertEqual(tiv_not_modelled, exp_summary['total']['not-modelled']['tiv'])
+        self.assertAlmostEqual(tiv_portfolio, exp_summary['total']['portfolio']['tiv'])
+        self.assertAlmostEqual(tiv_modelled, exp_summary['total']['modelled']['tiv'])
+        self.assertAlmostEqual(tiv_not_modelled, exp_summary['total']['not-modelled']['tiv'])
 
         # Check number of locs
         self.assertEqual(len(loc_df), exp_summary['total']['portfolio']['number_of_locations'])
         self.assertEqual(len(gul_inputs.loc_id.unique()), exp_summary['total']['modelled']['number_of_locations'])
+
+        # Check number of buildings
+        buildings_portfolio = loc_df['NumberOfBuildings'].replace(0, 1).sum()
+        buildings_modelled = len(gul_inputs.value_counts(['loc_id', 'building_id']))
+        self.assertEqual(buildings_portfolio, exp_summary['total']['portfolio']['number_of_buildings'])
+        self.assertEqual(buildings_modelled, exp_summary['total']['modelled']['number_of_buildings'])
+
+        # Check number of risks
+        risks_portfolio = loc_df['NumberOfBuildings'].replace(0, 1)
+        risks_portfolio.loc[loc_df['IsAggregate'] == 0] = 1
+        risks_portfolio = risks_portfolio.sum()
+        deduped_gul = gul_inputs.drop_duplicates(subset='loc_id')
+        risks_modelled = deduped_gul['NumberOfBuildings'].replace(0, 1)
+        risks_modelled.loc[deduped_gul['IsAggregate'] == 0] = 1
+        risks_modelled = risks_modelled.sum()
+        self.assertEqual(risks_portfolio, exp_summary['total']['portfolio']['number_of_risks'])
+        self.assertEqual(risks_modelled, exp_summary['total']['modelled']['number_of_risks'])
 
         # Check number of not-modelled
         # WARNING: current assumption is that all cov types must be covered to be modelled
