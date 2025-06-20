@@ -178,7 +178,7 @@ def run(run_dir,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         dynamic_footprint=False,
         **kwargs):
-    """Execute the main gulmc worklow.
+    """Execute the main gulmc workflow.
 
     Args:
         run_dir (str): the directory of where the process is running
