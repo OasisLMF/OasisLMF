@@ -756,7 +756,7 @@ def generate_summaryxref_files(
                 write_df_to_csv_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
 
-def get_exposure_summary_peril_by_status(df, exposure_summary, peril_id, status):
+def get_exposure_summary_peril(df, exposure_summary, peril_id, status):
     """
     Populate dictionary of TIV and number of locations, grouped by peril and
     validity respectively
@@ -780,14 +780,14 @@ def get_exposure_summary_peril_by_status(df, exposure_summary, peril_id, status)
                                                    'number_of_risks']]
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         df_cov = df_peril.loc[df_peril['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']]
+        df_cov = df_cov.drop_duplicates(subset='loc_id')
         tiv_sum = float(df_cov['tiv'].sum())
         exposure_summary['peril_id'][peril_id][status]['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary['peril_id'][peril_id][status]['tiv'] += tiv_sum
 
-        num_df = df_cov.drop_duplicates(subset='loc_id')
-        exposure_summary['peril_id'][peril_id][status]['number_of_locations_by_coverage'][coverage_type] = len(num_df)
-        exposure_summary['peril_id'][peril_id][status]['number_of_buildings_by_coverage'][coverage_type] = int(num_df['number_of_buildings'].sum())
-        exposure_summary['peril_id'][peril_id][status]['number_of_risks_by_coverage'][coverage_type] = int(num_df['number_of_risks'].sum())
+        exposure_summary['peril_id'][peril_id][status]['number_of_locations_by_coverage'][coverage_type] = len(df_cov)
+        exposure_summary['peril_id'][peril_id][status]['number_of_buildings_by_coverage'][coverage_type] = int(df_cov['number_of_buildings'].sum())
+        exposure_summary['peril_id'][peril_id][status]['number_of_risks_by_coverage'][coverage_type] = int(df_cov['number_of_risks'].sum())
 
     num_df = df_peril.drop_duplicates(subset='loc_id')
     exposure_summary['peril_id'][peril_id][status]['number_of_locations'] = len(num_df['loc_id'])
@@ -797,45 +797,44 @@ def get_exposure_summary_peril_by_status(df, exposure_summary, peril_id, status)
     return exposure_summary
 
 
-def get_exposure_summary_peril_all(df, exposure_summary, peril_id):
+def get_exposure_summary_country_code(df, exposure_summary, country_code, status):
     """
-    Populate dictionary of TIV and number of locations, grouped by peril
+    Populate dictionary of TIV and number of locations/buildings/risks, grouped by country code and
+    validity respectively
 
     :param df: dataframe from gul_inputs.get_gul_input_items(..)
     :type df: pandas.DataFrame
 
-    :param exposure_summary: dictionary to populate created in write_exposure_summary(..)
-    :type exposure_summary: dict
-
-    :param peril_id: Descriptive OED peril key, e.g. "WTC"
+    :param country_code: Descriptive OED CountryCode, e.g. "GB"
     :type peril_id: str
+
+    :param status: status returned by lookup ('all', 'success', 'fail' or 'nomatch')
+    :type status: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
     """
-    df_peril = df.loc[df['peril_id'] == peril_id, ['tiv', 'loc_id',
-                                                   'coverage_type_id',
-                                                   'number_of_buildings',
-                                                   'number_of_risks']]
-
     # Separate TIVs and number of distinct locations by coverage type and acquire sum
+    df_peril = df.loc[df['country_code'] == country_code, ['tiv', 'loc_id',
+                                                           'coverage_type_id',
+                                                           'number_of_buildings',
+                                                           'number_of_risks']]
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         df_cov = df_peril.loc[df_peril['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']]
+        df_cov = df_cov.drop_duplicates(subset='loc_id')  # Remove duplicates
         tiv_sum = float(df_cov['tiv'].sum())
-        exposure_summary['peril_id'][peril_id]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
-        exposure_summary['peril_id'][peril_id]['all']['tiv'] += tiv_sum
+        exposure_summary['country_code'][country_code][status]['tiv_by_coverage'][coverage_type] = tiv_sum
+        exposure_summary['country_code'][country_code][status]['tiv'] += tiv_sum
 
-        # Find number of locations + buildings by coverage type
-        num_df = df_cov.drop_duplicates(subset='loc_id')
-        exposure_summary['peril_id'][peril_id]['all']['number_of_locations_by_coverage'][coverage_type] = len(num_df['loc_id'])
-        exposure_summary['peril_id'][peril_id]['all']['number_of_buildings_by_coverage'][coverage_type] = int(num_df['number_of_buildings'].sum())
-        exposure_summary['peril_id'][peril_id]['all']['number_of_risks_by_coverage'][coverage_type] = int(num_df['number_of_risks'].sum())
+        exposure_summary['country_code'][country_code][status]['number_of_locations_by_coverage'][coverage_type] = len(df_cov)
+        exposure_summary['country_code'][country_code][status]['number_of_buildings_by_coverage'][coverage_type] = int(
+            df_cov['number_of_buildings'].sum())
+        exposure_summary['country_code'][country_code][status]['number_of_risks_by_coverage'][coverage_type] = int(df_cov['number_of_risks'].sum())
 
-    # Find number of locations total
     num_df = df_peril.drop_duplicates(subset='loc_id')
-    exposure_summary['peril_id'][peril_id]['all']['number_of_locations'] = len(num_df['loc_id'])
-    exposure_summary['peril_id'][peril_id]['all']['number_of_buildings'] = int(num_df['number_of_buildings'].sum())
-    exposure_summary['peril_id'][peril_id]['all']['number_of_risks'] = int(num_df['number_of_risks'].sum())
+    exposure_summary['country_code'][country_code][status]['number_of_locations'] = len(num_df['loc_id'])
+    exposure_summary['country_code'][country_code][status]['number_of_buildings'] = int(num_df['number_of_buildings'].sum())
+    exposure_summary['country_code'][country_code][status]['number_of_risks'] = int(num_df['number_of_risks'].sum())
 
     return exposure_summary
 
@@ -921,13 +920,23 @@ def get_exposure_summary(
     # get location tivs by coveragetype
     df_summary = []
 
+    all_fields = ['loc_id']
+    all_col_names = ['loc_id']
+
+    # Check for country codes
+    if 'CountryCode' in exposure_df.columns:
+        all_fields += ['CountryCode']
+        all_col_names += ['country_code']
+
     for field in exposure_profile:
         if 'FMTermType' in exposure_profile[field].keys():
             if exposure_profile[field]['FMTermType'] == 'TIV' and exposure_profile[field]['ProfileElementName'] in exposure_df.columns:
                 cov_name = exposure_profile[field]['ProfileElementName']
                 coverage_type_id = exposure_profile[field]['CoverageTypeID']
-                fields = ['loc_id', cov_name]
-                column_names = ['loc_id', 'tiv']
+
+                fields = all_fields + [cov_name]
+                column_names = all_col_names + ['tiv']
+
                 tmp_df = exposure_df[fields]
                 tmp_df.columns = column_names
                 tmp_df['coverage_type_id'] = coverage_type_id
@@ -972,6 +981,12 @@ def get_exposure_summary(
 
     # Initialise sub categories
     oed_categories = {'peril_id': peril_list}
+
+    # set country codes
+    if 'country_code' in df_summary:
+        country_code_list = df_summary['country_code'].drop_duplicates().to_list()
+        oed_categories['country_code'] = country_code_list
+
     for category, values in oed_categories.items():
         exposure_summary[category] = {}
         for value in values:
@@ -988,31 +1003,29 @@ def get_exposure_summary(
                 exposure_summary[category][value][status]['number_of_risks'] = 0
                 exposure_summary[category][value][status]['number_of_risks_by_coverage'] = {}
 
-    # Create perils sections
-    for peril_id in oed_categories['peril_id']:
-        for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
+    breakpoint()
+
+    for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
+        if status != 'all':
+            df_summary_peril_status = df_summary_peril[df_summary_peril['status'] == status]
+        else:
+            df_summary_peril_status = df_summary_peril.copy()
+
+        # Create perils sections
+        for peril_id in oed_categories['peril_id']:
             # Fill exposure summary dictionary
-            exposure_summary = get_exposure_summary_peril(df_summary_peril, exposure_summary, peril_id, status)
+            # exposure_summary = get_exposure_summary_peril(df_summary_peril, exposure_summary, peril_id, status)
+            exposure_summary = get_exposure_summary_peril(
+                df_summary_peril_status, exposure_summary, peril_id,
+                status)
 
-    return exposure_summary
+        for country_code in oed_categories.get('country_code', []):
+            exposure_summary = get_exposure_summary_country_code(
+                df_summary_peril_status, exposure_summary, country_code,
+                status)
 
+    breakpoint()
 
-def get_exposure_summary_peril(df_summary_peril, exposure_summary, peril_id, status):
-    # Fill all status
-    if status == 'all':
-        exposure_summary = get_exposure_summary_peril_all(
-            df_summary_peril,
-            exposure_summary,
-            peril_id
-        )
-    # Fill other statuses
-    else:
-        exposure_summary = get_exposure_summary_peril_by_status(
-            df_summary_peril[df_summary_peril['status'] == status],
-            exposure_summary,
-            peril_id,
-            status
-        )
     return exposure_summary
 
 
