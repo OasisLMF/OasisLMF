@@ -11,6 +11,7 @@ __all__ = [
     'calculated_summary_cols'
 ]
 
+import logging
 import pathlib
 
 import io
@@ -58,6 +59,8 @@ MAP_SUMMARY_DTYPES = {
     'building_id': 'int',
     'risk_id': 'int',
 }
+
+logger = logging.getLogger(__name__)
 
 
 def get_useful_summary_cols(oed_hierarchy):
@@ -861,11 +864,22 @@ def get_exposure_totals(df):
     }
 
 
+def convert_col_name(col_name):
+    col_list = [col_name[0].lower()]
+    print(col_name)
+    for i, c in enumerate(col_name[1:]):
+        if c.isupper() and not col_name[i].isupper():
+            col_list += ['_']
+        col_list += c.lower()
+    return ''.join(col_list)
+
+
 @oasis_log
 def get_exposure_summary(
         exposure_df,
         keys_df,
         exposure_profile=get_default_exposure_profile(),
+        additional_fields=[]
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -883,26 +897,27 @@ def get_exposure_summary(
     :return: Exposure summary dictionary
     :rtype: dict
     """
-
     # get location tivs by coveragetype
     df_summary = []
 
-    all_fields = ['loc_id']
-    all_col_names = ['loc_id']
+    exposure_fields = ['loc_id']
+    exposure_col_names = ['loc_id']
 
-    # Check for country codes
-    if 'CountryCode' in exposure_df.columns:
-        all_fields += ['CountryCode']
-        all_col_names += ['country_code']
+    for field_name in additional_fields:
+        if field_name in exposure_df.columns:
+            exposure_fields += [field_name]
+            exposure_col_names += [convert_col_name(field_name)]
+        else:
+            logger.warn(f'exposure summary field not found: {field_name}')
 
-    for field in exposure_profile:
-        if 'FMTermType' in exposure_profile[field].keys():
-            if exposure_profile[field]['FMTermType'] == 'TIV' and exposure_profile[field]['ProfileElementName'] in exposure_df.columns:
-                cov_name = exposure_profile[field]['ProfileElementName']
-                coverage_type_id = exposure_profile[field]['CoverageTypeID']
+    for field_name in exposure_profile:
+        if 'FMTermType' in exposure_profile[field_name].keys():
+            if exposure_profile[field_name]['FMTermType'] == 'TIV' and exposure_profile[field_name]['ProfileElementName'] in exposure_df.columns:
+                cov_name = exposure_profile[field_name]['ProfileElementName']
+                coverage_type_id = exposure_profile[field_name]['CoverageTypeID']
 
-                fields = all_fields + [cov_name]
-                column_names = all_col_names + ['tiv']
+                fields = exposure_fields + [cov_name]
+                column_names = exposure_col_names + ['tiv']
 
                 tmp_df = exposure_df[fields]
                 tmp_df.columns = column_names
@@ -929,6 +944,12 @@ def get_exposure_summary(
     # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
 
+    # Initialise sub categories
+    oed_categories = {'peril_id': peril_list}
+    for field_name in exposure_col_names[1:]:  # ignore 'loc_id'
+        field_list = df_summary[field_name].drop_duplicates().to_list()
+        oed_categories[field_name] = field_list
+
     df_summary_peril = []
     for peril_id in peril_list:
         tmp_df = df_summary.copy()
@@ -946,29 +967,21 @@ def get_exposure_summary(
     # Create totals section
     exposure_summary['total'] = get_exposure_totals(df_summary_peril)
 
-    # Initialise sub categories
-    oed_categories = {'peril_id': peril_list}
-
-    # set country codes
-    if 'country_code' in df_summary:
-        country_code_list = df_summary['country_code'].drop_duplicates().to_list()
-        oed_categories['country_code'] = country_code_list
-
-    for category, values in oed_categories.items():
-        exposure_summary[category] = {}
-        for value in values:
-            exposure_summary[category][value] = {}
+    for field_name, field_list in oed_categories.items():
+        exposure_summary[field_name] = {}
+        for value in field_list:
+            exposure_summary[field_name][value] = {}
             # Create dictionary structure for all and each validity status
             for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
-                exposure_summary[category][value][status] = {}
-                exposure_summary[category][value][status]['tiv'] = 0.0
-                exposure_summary[category][value][status]['tiv_by_coverage'] = {}
-                exposure_summary[category][value][status]['number_of_locations'] = 0
-                exposure_summary[category][value][status]['number_of_locations_by_coverage'] = {}
-                exposure_summary[category][value][status]['number_of_buildings'] = 0
-                exposure_summary[category][value][status]['number_of_buildings_by_coverage'] = {}
-                exposure_summary[category][value][status]['number_of_risks'] = 0
-                exposure_summary[category][value][status]['number_of_risks_by_coverage'] = {}
+                exposure_summary[field_name][value][status] = {}
+                exposure_summary[field_name][value][status]['tiv'] = 0.0
+                exposure_summary[field_name][value][status]['tiv_by_coverage'] = {}
+                exposure_summary[field_name][value][status]['number_of_locations'] = 0
+                exposure_summary[field_name][value][status]['number_of_locations_by_coverage'] = {}
+                exposure_summary[field_name][value][status]['number_of_buildings'] = 0
+                exposure_summary[field_name][value][status]['number_of_buildings_by_coverage'] = {}
+                exposure_summary[field_name][value][status]['number_of_risks'] = 0
+                exposure_summary[field_name][value][status]['number_of_risks_by_coverage'] = {}
 
     for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
         if status != 'all':
@@ -977,16 +990,12 @@ def get_exposure_summary(
             df_summary_peril_status = df_summary_peril.copy()
 
         # fill perils exposure_summary
-        for peril_id in oed_categories['peril_id']:
-            exposure_summary = get_exposure_summary_field(
-                df_summary_peril_status, exposure_summary, 'peril_id',
-                peril_id, status)
-
-        # fill country_code exposure_summary
-        for country_code in oed_categories.get('country_code', []):
-            exposure_summary = get_exposure_summary_field(
-                df_summary_peril_status, exposure_summary, 'country_code',
-                country_code, status)
+        for field_name, field_list in oed_categories.items():
+            for field_value in field_list:
+                exposure_summary = get_exposure_summary_field(
+                    df_summary_peril_status, exposure_summary, field_name,
+                    field_value, status
+                )
 
     return exposure_summary
 
@@ -1049,7 +1058,8 @@ def write_exposure_summary(
         exposure_df,
         keys_fp,
         keys_errors_fp,
-        exposure_profile
+        exposure_profile,
+        additional_fields=[]
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -1071,6 +1081,9 @@ def write_exposure_summary(
     :param exposure_profile: profile defining exposure file
     :type exposure_profile: dict
 
+    :param additional_fields: list of additional OED fields to add to exposure summary file
+    :type additional_fields: list[str]
+
     :return: Exposure summary file path
     :rtype: str
     """
@@ -1091,7 +1104,7 @@ def write_exposure_summary(
 
     # concatinate keys responses & run
     df_keys = pd.concat([keys_success_df, keys_errors_df])
-    exposure_summary = get_exposure_summary(exposure_df, df_keys, exposure_profile)
+    exposure_summary = get_exposure_summary(exposure_df, df_keys, exposure_profile, additional_fields)
 
     # write exposure summary as json fileV
     fp = os.path.join(target_dir, 'exposure_summary_report.json')

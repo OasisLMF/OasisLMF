@@ -314,6 +314,7 @@ class GenerateFiles(ComputationStep):
                 keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=location_profile,
+                additional_fields=model_settings.get('exposure_summary_fields', [])
             )
 
         # If exposure summary set, write valid columns for summary levels to file
