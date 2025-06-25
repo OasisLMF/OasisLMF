@@ -135,6 +135,22 @@ class TestGenLosses(ComputationChecker):
             print(open(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err')).read())
             raise
 
+    def test_losses__run_gul_with_oed(self):
+        OED_SETTINGS = MIN_RUN_SETTINGS.copy()
+        gul_summary = {
+            **OED_SETTINGS['gul_summaries'][0],
+            'oed_fields': ['LocNumber', 'AccNumber', 'PolNumber']
+        }
+        OED_SETTINGS['gul_summaries'] = [gul_summary]
+
+        gen_args = {
+            **self.args_gen_files_gul,
+            'oed_accounts_csv': self.tmp_oasis_files['oed_accounts_csv'].name  # accounts file for PolNumber
+        }
+        self.write_json(self.tmp_files.get('analysis_settings_json'), OED_SETTINGS)
+        self.manager.generate_files(**gen_args)
+        self.manager.generate_losses(**self.min_args)
+
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)
         run_settings = self.tmp_files.get('analysis_settings_json')
