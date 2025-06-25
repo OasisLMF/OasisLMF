@@ -426,7 +426,12 @@ def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
     :type sections_fp: str
     """
     try:
-        gul_inputs_df.loc[:, ['section_id']].drop_duplicates().to_csv(
+        sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
+        sections['section_id'] = sections['section_id'].astype(str)
+        sections['section_id'] = sections['section_id'].str.split(';')
+        sections = sections.explode('section_id').drop_duplicates()
+        sections['section_id'] = sections['section_id'].astype(int)
+        sections.to_csv(
             path_or_buf=sections_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(sections_fp) else 'a'),
