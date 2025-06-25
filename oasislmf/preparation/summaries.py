@@ -871,8 +871,17 @@ def get_exposure_totals(df):
 
 
 def convert_col_name(col_name):
+    """
+    Convert a column from OED format to exposure summary report format. For
+    example `CountryCode` will be converted to `country_code`.
+
+    :param col_name: original OED column name
+    :type col_name: str
+
+    :return: exposure summary report field name
+    :rtype: str
+    """
     col_list = [col_name[0].lower()]
-    print(col_name)
     for i, c in enumerate(col_name[1:]):
         if c.isupper() and not col_name[i].isupper():
             col_list += ['_']
