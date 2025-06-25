@@ -447,7 +447,7 @@ class RunFmTest(ComputationStep):
 
             try:
                 df = pd.read_csv(expected)
-                # remove acc_idx from the check to avoid red hearing from merge order differences between pandas 2.1 and 2.2
+                # remove acc_idx from the check to avoid red herring from merge order differences between pandas 2.1 and 2.2
                 cols = [col for col in df.columns if col != 'acc_idx']
                 pd.testing.assert_frame_equal(
                     pd.read_csv(expected)[cols],
