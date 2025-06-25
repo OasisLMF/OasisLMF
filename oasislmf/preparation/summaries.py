@@ -224,8 +224,8 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     # Search Loc / Acc files and merge in remaing
     if exposure_cols is not []:
         # Location file columns
-        exposure_cols = [c for c in exposure_cols if c in exposure_df.columns]
-        exposure_col_df = exposure_df.loc[:, exposure_cols + [SOURCE_IDX['loc']]]
+        exposure_cols_loc = [c for c in exposure_cols if c in exposure_df.columns]
+        exposure_col_df = exposure_df.loc[:, exposure_cols_loc + [SOURCE_IDX['loc']]]
         summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='left')
 
         # Account file columns
@@ -630,11 +630,17 @@ def generate_summaryxref_files(
         rl,
     ])
 
-    # Load il_map if present
+    # Verify account file + il_map file
+    il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
     if il_summaries or ri_summaries or rl_summaries:
         if account_df is None:
             raise OasisException('No account file found.')
-        il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+
+        if not os.path.exists(il_map_fp):
+            raise OasisException('No summary map file found.')
+
+    # Load il_map if present
+    if os.path.exists(il_map_fp):
         il_map_df = get_dataframe(
             src_fp=il_map_fp,
             lowercase_cols=False,
