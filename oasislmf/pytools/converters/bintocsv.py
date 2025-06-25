@@ -9,13 +9,13 @@ from oasislmf.pytools.common.input_files import read_amplifications, read_covera
 
 from . import logger
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
-from oasislmf.pytools.converters.data import SUPPORTED_TYPES
+from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV, TYPE_MAP
 
 
 def amplifications_tocsv(file_in, file_out, type, noheader):
-    headers = SUPPORTED_TYPES[type]["headers"]
-    dtype = SUPPORTED_TYPES[type]["dtype"]
-    fmt = SUPPORTED_TYPES[type]["fmt"]
+    headers = TYPE_MAP[type]["headers"]
+    dtype = TYPE_MAP[type]["dtype"]
+    fmt = TYPE_MAP[type]["fmt"]
 
     amps_fp = Path(file_in)
     items_amps = read_amplifications(amps_fp.parent, amps_fp.name)
@@ -32,9 +32,9 @@ def amplifications_tocsv(file_in, file_out, type, noheader):
 
 
 def coverages_tocsv(file_in, file_out, type, noheader):
-    headers = SUPPORTED_TYPES[type]["headers"]
-    dtype = SUPPORTED_TYPES[type]["dtype"]
-    fmt = SUPPORTED_TYPES[type]["fmt"]
+    headers = TYPE_MAP[type]["headers"]
+    dtype = TYPE_MAP[type]["dtype"]
+    fmt = TYPE_MAP[type]["fmt"]
 
     cov_fp = Path(file_in)
     coverages = read_coverages(cov_fp.parent, filename=cov_fp.name)
@@ -50,9 +50,9 @@ def coverages_tocsv(file_in, file_out, type, noheader):
 
 
 def default_tocsv(file_in, file_out, type, noheader):
-    headers = SUPPORTED_TYPES[type]["headers"]
-    dtype = SUPPORTED_TYPES[type]["dtype"]
-    fmt = SUPPORTED_TYPES[type]["fmt"]
+    headers = TYPE_MAP[type]["headers"]
+    dtype = TYPE_MAP[type]["dtype"]
+    fmt = TYPE_MAP[type]["fmt"]
 
     data = np.memmap(file_in, dtype=dtype)
     num_rows = data.shape[0]
@@ -91,8 +91,8 @@ def main():
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-i', '--file_in', type=str, required=True, help='Input file path')
     parser.add_argument('-o', '--file_out', type=str, required=True, help='Output file path')
-    parser.add_argument('-t', '--type', type=str, required=True, choices=SUPPORTED_TYPES.keys(),
-                        help='Type of file to convert. Must be one of:\n' + '\n'.join(f'  - {key}' for key in SUPPORTED_TYPES.keys()))
+    parser.add_argument('-t', '--type', type=str, required=True, choices=SUPPORTED_BINTOCSV,
+                        help='Type of file to convert. Must be one of:\n' + '\n'.join(f'  - {key}' for key in SUPPORTED_BINTOCSV))
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')

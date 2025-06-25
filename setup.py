@@ -397,6 +397,7 @@ setup(
             'lecpy=oasislmf.pytools.lec.cli:main',
             'bintocsv=oasislmf.pytools.converters.bintocsv:main',
             'csvtobin=oasislmf.pytools.converters.csvtobin:main',
+            'cdftocsv=oasislmf.pytools.converters.cdftocsv:main',
         ]
     },
     license='BSD 3-Clause',

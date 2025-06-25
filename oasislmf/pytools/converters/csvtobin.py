@@ -7,12 +7,12 @@ import pandas as pd
 from pathlib import Path
 
 from . import logger
-from oasislmf.pytools.converters.data import SUPPORTED_TYPES
+from oasislmf.pytools.converters.data import SUPPORTED_CSVTOBIN, TYPE_MAP
 
 
 def read_csv_as_ndarray(file_in, type):
-    headers = SUPPORTED_TYPES[type]["headers"]
-    dtype = SUPPORTED_TYPES[type]["dtype"]
+    headers = TYPE_MAP[type]["headers"]
+    dtype = TYPE_MAP[type]["dtype"]
     with open(file_in, "r") as fin:
         first_line = fin.readline()
         if not first_line.strip():
@@ -23,12 +23,9 @@ def read_csv_as_ndarray(file_in, type):
     cvs_dtype = {key: col_dtype for key, (col_dtype, _) in dtype.fields.items()}
     try:
         df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype, usecols=list(cvs_dtype.keys()))
-    # except pd.errors.EmptyDataError:
-        # return np.empty(0, dtype=dtype)
-    except Exception as e:
-        print(e)
-        print(first_line)
-        raise e
+    except pd.errors.EmptyDataError:
+        return np.empty(0, dtype=dtype)
+
     data = np.empty(df.shape[0], dtype=dtype)
     for name in dtype.names:
         data[name] = df[name]
@@ -83,8 +80,8 @@ def main():
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-i', '--file_in', type=str, required=True, help='Input file path')
     parser.add_argument('-o', '--file_out', type=str, required=True, help='Output file path')
-    parser.add_argument('-t', '--type', type=str, required=True, choices=SUPPORTED_TYPES.keys(),
-                        help='Type of file to convert. Must be one of:\n' + '\n'.join(f'  - {key}' for key in SUPPORTED_TYPES.keys()))
+    parser.add_argument('-t', '--type', type=str, required=True, choices=SUPPORTED_CSVTOBIN,
+                        help='Type of file to convert. Must be one of:\n' + '\n'.join(f'  - {key}' for key in SUPPORTED_CSVTOBIN))
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     args = parser.parse_args()

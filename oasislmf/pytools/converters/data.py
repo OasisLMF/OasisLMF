@@ -13,7 +13,41 @@ from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_x
 from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
 
 
-SUPPORTED_TYPES = {
+SUPPORTED_CSVTOBIN = [
+    "aggregatevulnerability",
+    "amplifications",
+    "coverages",
+    "damagebin",
+    "eve",
+    "fm_policytc",
+    "fm_profile",
+    "fm_profile_step",
+    "fm_programme",
+    "fm_summary_xref",
+    "fm_xref",
+    "gul_summary_xref",
+    "items",
+]
+
+
+SUPPORTED_BINTOCSV = [
+    "aggregatevulnerability",
+    "amplifications",
+    "coverages",
+    "damagebin",
+    "eve",
+    "fm_policytc",
+    "fm_profile",
+    "fm_profile_step",
+    "fm_programme",
+    "fm_summary_xref",
+    "fm_xref",
+    "gul_summary_xref",
+    "items",
+]
+
+
+TYPE_MAP = {
     "aggregatevulnerability": {
         "headers": aggregatevulnerability_headers,
         "dtype": aggregatevulnerability_dtype,

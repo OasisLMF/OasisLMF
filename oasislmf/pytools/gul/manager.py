@@ -273,7 +273,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
 
-            event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
+            event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before
             rndms_base = generate_rndm(seeds[:rng_index], sample_size)

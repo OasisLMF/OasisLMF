@@ -5,6 +5,7 @@ from pathlib import Path
 
 from oasislmf.pytools.converters.bintocsv import bintocsv
 from oasislmf.pytools.converters.csvtobin import csvtobin
+from oasislmf.pytools.converters.cdftocsv import cdftocsv
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
 
@@ -108,3 +109,29 @@ def test_fm_xref():
 def test_items():
     case_runner("bintocsv", "items")
     case_runner("csvtobin", "items")
+
+
+def test_cdftocsv():
+    with TemporaryDirectory() as tmp_result_dir_str:
+        infile_name = "getmodel.bin"
+        outfile_name = "getmodel.csv"
+        run_dir = Path(TESTS_ASSETS_DIR, "cdftocsv")
+        infile = Path(run_dir, infile_name)
+        expected_outfile = Path(run_dir, outfile_name)
+        actual_outfile = Path(tmp_result_dir_str, outfile_name)
+
+        kwargs = {
+            "file_in": infile,
+            "file_out": actual_outfile,
+            "run_dir": run_dir,
+        }
+        cdftocsv(**kwargs)
+
+        try:
+            assert filecmp.cmp(expected_outfile, actual_outfile, shallow=False)
+        except Exception as e:
+            error_path = Path(TESTS_ASSETS_DIR, "error_files")
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
+            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
+            raise Exception(f"running 'cdftocsv {arg_str}' led to diff, see files at {error_path}") from e
