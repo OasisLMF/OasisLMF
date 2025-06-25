@@ -269,8 +269,10 @@ def get_gul_input_items(
 
     # make query to retain only rows with positive TIV for each coverage type, e.g.: (coverage_type_id == 1 and BuildingsTIV > 0.0) or (...)
     positive_TIV_query = " or ".join(
-        map(lambda cov_type: f"(coverage_type_id == {cov_type} and {tiv_terms[cov_type]} > 0.0)", gul_inputs_df.coverage_type_id.unique()))
-
+        (f"(coverage_type_id == {cov_type} and {tiv_terms[cov_type]} > 0.0)" for cov_type in gul_inputs_df.coverage_type_id.unique()
+         if tiv_terms[cov_type] in gul_inputs_df))
+    if len(positive_TIV_query) == 0:
+        raise OasisException("No TIV columns were found in Exposure files")
     gul_inputs_df[tiv_col].fillna(0, inplace=True)  # convert null T&C values to 0
     gul_inputs_df.query(positive_TIV_query, inplace=True)  # remove rows with TIV=null or TIV=0
 
@@ -424,7 +426,12 @@ def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
     :type sections_fp: str
     """
     try:
-        gul_inputs_df.loc[:, ['section_id']].drop_duplicates().to_csv(
+        sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
+        sections['section_id'] = sections['section_id'].astype(str)
+        sections['section_id'] = sections['section_id'].str.split(';')
+        sections = sections.explode('section_id').drop_duplicates()
+        sections['section_id'] = sections['section_id'].astype(int)
+        sections.to_csv(
             path_or_buf=sections_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(sections_fp) else 'a'),
