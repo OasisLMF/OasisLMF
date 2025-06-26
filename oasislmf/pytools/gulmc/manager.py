@@ -85,7 +85,7 @@ def run(run_dir,
         effective_damageability=False,
         max_cached_vuln_cdf_size_MB=200,
         **kwargs):
-    """Execute the main gulmc worklow.
+    """Execute the main gulmc workflow.
 
     Args:
         run_dir (str): the directory of where the process is running
