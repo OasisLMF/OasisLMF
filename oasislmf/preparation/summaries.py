@@ -765,7 +765,8 @@ def generate_summaryxref_files(
                 write_df_to_csv_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
 
-def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status):
+def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status,
+                               dedupe_cols=['loc_id', 'peril_id']):
     """
     Populate exposure_summary dictionary with the values below grouped by field and status
         - tiv
@@ -791,21 +792,22 @@ def get_exposure_summary_field(df, exposure_summary, field_name, field_value, st
     :return: populated exposure_summary dictionary
     :rtype: dict
     """
-    df_field = df.loc[df[field_name] == field_value, ['tiv', 'loc_id',
-                                                      'coverage_type_id',
-                                                      'number_of_buildings',
-                                                      'number_of_risks']]
+    useful_cols = ['tiv', 'loc_id', 'peril_id', 'coverage_type_id',
+                   'number_of_buildings', 'number_of_risks']
+    useful_cols = list(set(useful_cols + dedupe_cols))
+    df_field = df.loc[df[field_name] == field_value, useful_cols]
 
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         df_cov = df_field.loc[df_field['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']]
-        df_cov = df_cov.drop_duplicates(subset='loc_id')
+        df_cov = df_cov.drop_duplicates(subset=dedupe_cols)
         tiv_sum = float(df_cov['tiv'].sum())
         exposure_summary[field_name][field_value][status]['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[field_name][field_value][status]['tiv'] += tiv_sum
 
-        exposure_summary[field_name][field_value][status]['number_of_locations_by_coverage'][coverage_type] = len(df_cov)
-        exposure_summary[field_name][field_value][status]['number_of_buildings_by_coverage'][coverage_type] = int(df_cov['number_of_buildings'].sum())
-        exposure_summary[field_name][field_value][status]['number_of_risks_by_coverage'][coverage_type] = int(df_cov['number_of_risks'].sum())
+        df_num = df_cov.drop_duplicates(subset='loc_id')
+        exposure_summary[field_name][field_value][status]['number_of_locations_by_coverage'][coverage_type] = len(df_num)
+        exposure_summary[field_name][field_value][status]['number_of_buildings_by_coverage'][coverage_type] = int(df_num['number_of_buildings'].sum())
+        exposure_summary[field_name][field_value][status]['number_of_risks_by_coverage'][coverage_type] = int(df_num['number_of_risks'].sum())
 
     num_df = df_field.drop_duplicates(subset='loc_id')
     exposure_summary[field_name][field_value][status]['number_of_locations'] = len(num_df['loc_id'])
