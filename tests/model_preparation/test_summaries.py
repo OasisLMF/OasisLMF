@@ -50,7 +50,7 @@ class TestSummaries(TestCase):
 
         # Check each returned peril
         for peril in perils_expected:
-            peril_summary = exp_summary[peril]
+            peril_summary = exp_summary['peril_id'][peril]
 
             # Check the 'All' section
             supported_tivs = loc_df[['BuildingTIV', 'OtherTIV', 'BITIV', 'ContentsTIV']].sum(0).rename(loc_rename_cols)
