@@ -107,7 +107,7 @@ jobs:
 
       - name: run pytest (JIT enabled)
         if: matrix.cfg.upload-cov != true
-        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term --gul-rtol 1e-3 --gul-atol 1e-3
+        run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
 
       - name: run pytest (JIT disabled)
         if: matrix.cfg.upload-cov == true
