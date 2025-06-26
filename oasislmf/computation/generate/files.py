@@ -314,6 +314,8 @@ class GenerateFiles(ComputationStep):
                 keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=location_profile,
+                additional_fields=(model_settings.get('model_settings', {})
+                                   .get('summary_report_fields', []))
             )
 
         # If exposure summary set, write valid columns for summary levels to file
@@ -397,7 +399,7 @@ class GenerateFiles(ComputationStep):
                 'PolExpiryDate': '',
             }
         )
-        xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id')
+        xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id', kind='stable')
 
         del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info

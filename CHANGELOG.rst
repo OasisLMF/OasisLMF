@@ -1,6 +1,23 @@
 OasisLMF Changelog
 ==================
 
+`2.4.5`_
+ ---------
+* [#1729](https://github.com/OasisLMF/OasisLMF/pull/1729) - Combus type fix
+* [#1724](https://github.com/OasisLMF/OasisLMF/pull/1730) - add oed group fields to summary report
+* [#1731](https://github.com/OasisLMF/OasisLMF/pull/1731) - Update README minimum python version to 3.9
+* [#1699](https://github.com/OasisLMF/OasisLMF/pull/1702) - Error when requesting only ground-up losses by AccName
+* [#1707](https://github.com/OasisLMF/OasisLMF/pull/1708) - Dynamic footprint - confluences
+* [#1688](https://github.com/OasisLMF/OasisLMF/pull/1712) - Type 2 losses increasing differences when including secondary perils
+* [#1713](https://github.com/OasisLMF/OasisLMF/pull/1713) - add forgotten fm test unit
+* [#1715](https://github.com/OasisLMF/OasisLMF/pull/1715) - fix/lecpy `bin` tests assert equality with rounding
+* [#1466](https://github.com/OasisLMF/OasisLMF/pull/1716) - Pandas 2.2.0 and up generates inconsistent results 
+* [#1714, #1711](https://github.com/OasisLMF/OasisLMF/pull/1717) - fix level_id when an extra account level is needed
+* [#1718](https://github.com/OasisLMF/OasisLMF/pull/1718) - remove empty cdf bin
+* [#1691](https://github.com/OasisLMF/OasisLMF/pull/1722) - Added disaggregated locations info to exposure summary
+* [#1723](https://github.com/OasisLMF/OasisLMF/pull/1723) - use pd explode to split peril covered columns
+.. _`2.4.5`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.4...2.4.5
+
 `2.4.4`_
  ---------
 * [#1697](https://github.com/OasisLMF/OasisLMF/pull/1697) - feature/dynamic_multiperil
