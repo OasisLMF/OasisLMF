@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`2.3.17`_
+ ---------
+* [#1732](https://github.com/OasisLMF/OasisLMF/pull/1732) - Fix/setmaxloss 2.23.x
+* [#1699](https://github.com/OasisLMF/OasisLMF/pull/1702) - Error when requesting only ground-up losses by AccName
+* [#1678](https://github.com/OasisLMF/OasisLMF/pull/1678) - fix vuln_cdf for blended vulnerability when a sub vuln has no damage for a certain hazard bin
+.. _`2.3.17`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.16...2.3.17
+
 `2.3.16`_
  ---------
 * [#1689](https://github.com/OasisLMF/OasisLMF/pull/1689) - fix fm peril filter
