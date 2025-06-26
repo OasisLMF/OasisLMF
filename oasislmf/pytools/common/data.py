@@ -23,8 +23,6 @@ summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summar
 
 
 # financial structure static input dtypes
-# EDIT: the fmprofiletocsv component in ktools wites out using OASIS_FLOAT
-# changes have been made to fix inconsistencies
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
 fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('profile_id', 'i4')])
 fm_profile_dtype = np.dtype([('profile_id', 'i4'),
