@@ -381,7 +381,7 @@ def get_gul_input_items(
         gul_inputs_df
         [usecols]
         .drop_duplicates(subset='item_id')
-        .sort_values("item_id")
+        .sort_values("item_id", kind='stable')
         .reset_index()
     )
 

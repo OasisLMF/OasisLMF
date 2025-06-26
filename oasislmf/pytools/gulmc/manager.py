@@ -611,7 +611,7 @@ def pdf_to_cdf(pdf, empty_cdf):
         cumsum += pdf[i]
         empty_cdf[i] = cumsum
         i += 1
-        if cumsum > 0.999999940:
+        if cumsum >= 0.999999940:
             break
     return empty_cdf[: i]
 
@@ -635,7 +635,7 @@ def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
 
         eff_damage_cdf_empty[damage_bin_i] = eff_damage_cdf_cumsum
         damage_bin_i += 1
-        if eff_damage_cdf_cumsum > 0.999999940:
+        if eff_damage_cdf_cumsum >= 0.999999940:
             break
     return eff_damage_cdf_empty[:damage_bin_i]
 
