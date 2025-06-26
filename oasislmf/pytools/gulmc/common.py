@@ -33,9 +33,8 @@ items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
                                              ('return_period', oasis_int)
                                              ]))
 
-VulnCdfLookup = nb.from_dtype(np.dtype([('start', np.int32),
-                                        ('length', np.int32)]))
-
+VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),
+                                        ('length', oasis_int)]))
 
 coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
                                         ('max_items', np.int32),
