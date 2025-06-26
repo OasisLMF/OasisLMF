@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.28.14`_
+ ---------
+* [#1732](https://github.com/OasisLMF/OasisLMF/pull/1732) - Fix/setmaxloss 2.23.x
+* [#1699](https://github.com/OasisLMF/OasisLMF/pull/1702) - Error when requesting only ground-up losses by AccName
+* [#1695](https://github.com/OasisLMF/OasisLMF/pull/1694) - mock url for forex_python in test cases needs to be updated
+.. _`1.28.14`:  https://github.com/OasisLMF/OasisLMF/compare/1.28.13...1.28.14
+
 `1.28.13`_
  ---------
 * [#1667](https://github.com/OasisLMF/OasisLMF/pull/1667) - add keys in error for loc_id not modelled
