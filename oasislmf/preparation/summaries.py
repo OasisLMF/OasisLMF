@@ -765,8 +765,7 @@ def generate_summaryxref_files(
                 write_df_to_csv_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
 
-def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status,
-                               dedupe_cols=['loc_id', 'peril_id']):
+def get_exposure_summary_field(df, exposure_summary, field_name, field_value, status):
     """
     Populate exposure_summary dictionary with the values below grouped by field and status
         - tiv
@@ -792,14 +791,14 @@ def get_exposure_summary_field(df, exposure_summary, field_name, field_value, st
     :return: populated exposure_summary dictionary
     :rtype: dict
     """
+    dedupe_cols_tiv = ['loc_id', 'peril_id']
     useful_cols = ['tiv', 'loc_id', 'peril_id', 'coverage_type_id',
                    'number_of_buildings', 'number_of_risks']
-    useful_cols = list(set(useful_cols + dedupe_cols))
     df_field = df.loc[df[field_name] == field_value, useful_cols]
 
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         df_cov = df_field.loc[df_field['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']]
-        df_cov = df_cov.drop_duplicates(subset=dedupe_cols)
+        df_cov = df_cov.drop_duplicates(subset=dedupe_cols_tiv)
         tiv_sum = float(df_cov['tiv'].sum())
         exposure_summary[field_name][field_value][status]['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[field_name][field_value][status]['tiv'] += tiv_sum
