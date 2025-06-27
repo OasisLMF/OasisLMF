@@ -116,6 +116,11 @@ def test_items():
     case_runner("csvtobin", "items")
 
 
+def test_periods():
+    case_runner("bintocsv", "periods")
+    case_runner("csvtobin", "periods")
+
+
 def test_cdftocsv():
     with TemporaryDirectory() as tmp_result_dir_str:
         infile_name = "getmodel.bin"

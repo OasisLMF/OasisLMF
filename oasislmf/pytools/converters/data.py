@@ -12,6 +12,7 @@ from oasislmf.pytools.common.data import fm_summary_xref_headers, fm_summary_xre
 from oasislmf.pytools.common.data import fm_xref_headers, fm_xref_dtype, fm_xref_fmt
 from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt
 from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
+from oasislmf.pytools.common.data import periods_headers, periods_dtype, periods_fmt
 
 
 SUPPORTED_CSVTOBIN = [
@@ -29,6 +30,7 @@ SUPPORTED_CSVTOBIN = [
     "fm_xref",
     "gul_summary_xref",
     "items",
+    "periods",
 ]
 
 
@@ -47,6 +49,7 @@ SUPPORTED_BINTOCSV = [
     "fm_xref",
     "gul_summary_xref",
     "items",
+    "periods",
 ]
 
 
@@ -120,5 +123,10 @@ TYPE_MAP = {
         "headers": items_headers,
         "dtype": items_dtype,
         "fmt": items_fmt,
+    },
+    "periods": {
+        "headers": periods_headers,
+        "dtype": periods_dtype,
+        "fmt": periods_fmt,
     },
 }

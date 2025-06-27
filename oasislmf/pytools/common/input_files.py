@@ -3,7 +3,7 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int, coverages_headers
+from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int, coverages_headers, periods_dtype
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 
 
@@ -267,24 +267,20 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): periods binary file name
     Returns:
-        period_weights (ndarray[period_weights_dtype]): Period weights
+        period_weights (ndarray[periods_dtype]): Period weights
     """
     periods_fp = Path(run_dir, filename)
-    period_weights_dtype = np.dtype([
-        ("period_no", np.int32),
-        ("weighting", np.float64),
-    ])
 
     if not periods_fp.exists():
         # If no periods binary file found, the revert to using period weights reciprocal to no_of_periods
         logger.warning(f"Periods file not found at {periods_fp}, using reciprocal calculated period weights based on no_of_periods {no_of_periods}")
         period_weights = np.array(
             [(i + 1, 1 / no_of_periods) for i in range(no_of_periods)],
-            dtype=period_weights_dtype
+            dtype=periods_dtype
         )
         return period_weights
 
-    data = load_as_ndarray(run_dir, filename[:-4], period_weights_dtype, must_exist=True)
+    data = load_as_ndarray(run_dir, filename[:-4], periods_dtype, must_exist=True)
     # Less data than no_of_periods
     if len(data) != no_of_periods:
         raise RuntimeError(f"ERROR: no_of_periods does not match total period_no in period binary file {periods_fp}.")

@@ -161,6 +161,12 @@ items_output = [
 ]
 items_headers, items_dtype, items_fmt = generate_output_metadata(items_output)
 
+periods_output = [
+    ("period_no", 'i4', "%d"),
+    ("weighting", 'f8', "%0.9lf"),
+]
+periods_headers, periods_dtype, periods_fmt = generate_output_metadata(periods_output)
+
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """

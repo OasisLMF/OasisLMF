@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from oasislmf.pytools.common.data import oasis_int, oasis_float
+from oasislmf.pytools.common.data import oasis_int, oasis_float, periods_dtype
 from oasislmf.pytools.common.input_files import (
     AMPLIFICATIONS_FILE,
     read_amplifications,
@@ -165,14 +165,10 @@ def test_read_periods():
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "periods.bin"
     no_of_periods = 5
-    period_weights_dtype = np.dtype([
-        ("period_no", np.int32),
-        ("weighting", np.float64),
-    ])
 
     periods_expected = np.array(
         [(1, 0.15), (2, 0.05), (3, 0.4), (4, 0.1), (5, 0.3)],
-        dtype=period_weights_dtype
+        dtype=periods_dtype
     )
     periods_actual = read_periods(no_of_periods, run_dir, filename)
 
@@ -192,14 +188,9 @@ def test_read_periods_no_file():
     filename = "periods_doesnotexist.bin"
     no_of_periods = 5
 
-    period_weights_dtype = np.dtype([
-        ("period_no", np.int32),
-        ("weighting", np.float64),
-    ])
-
     periods_expected = np.array(
         [(1, 0.2), (2, 0.2), (3, 0.2), (4, 0.2), (5, 0.2)],
-        dtype=period_weights_dtype
+        dtype=periods_dtype
     )
     periods_actual = read_periods(no_of_periods, run_dir, filename)
 
