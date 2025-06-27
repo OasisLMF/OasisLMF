@@ -62,7 +62,7 @@ complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt = g
 
 coverages_output = [
     ("coverage_id", 'i4', "%d"),
-    ("tiv", 'f4', "%f"),
+    ("tiv", oasis_float, "%f"),
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
 
@@ -91,36 +91,36 @@ fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt = generate_output_metada
 fm_profile_output = [
     ("profile_id", 'i4', "%d"),
     ("calcrule_id", 'i4', "%d"),
-    ("deductible1", 'f4', "%f"),
-    ("deductible2", 'f4', "%f"),
-    ("deductible3", 'f4', "%f"),
-    ("attachment1", 'f4', "%f"),
-    ("limit1", 'f4', "%f"),
-    ("share1", 'f4', "%f"),
-    ("share2", 'f4', "%f"),
-    ("share3", 'f4', "%f"),
+    ("deductible1", oasis_float, "%f"),
+    ("deductible2", oasis_float, "%f"),
+    ("deductible3", oasis_float, "%f"),
+    ("attachment1", oasis_float, "%f"),
+    ("limit1", oasis_float, "%f"),
+    ("share1", oasis_float, "%f"),
+    ("share2", oasis_float, "%f"),
+    ("share3", oasis_float, "%f"),
 ]
 fm_profile_headers, fm_profile_dtype, fm_profile_fmt = generate_output_metadata(fm_profile_output)
 
 fm_profile_step_output = [
     ("profile_id", 'i4', "%d"),
     ("calcrule_id", 'i4', "%d"),
-    ("deductible1", 'f4', "%f"),
-    ("deductible2", 'f4', "%f"),
-    ("deductible3", 'f4', "%f"),
-    ("attachment1", 'f4', "%f"),
-    ("limit1", 'f4', "%f"),
-    ("share1", 'f4', "%f"),
-    ("share2", 'f4', "%f"),
-    ("share3", 'f4', "%f"),
+    ("deductible1", oasis_float, "%f"),
+    ("deductible2", oasis_float, "%f"),
+    ("deductible3", oasis_float, "%f"),
+    ("attachment1", oasis_float, "%f"),
+    ("limit1", oasis_float, "%f"),
+    ("share1", oasis_float, "%f"),
+    ("share2", oasis_float, "%f"),
+    ("share3", oasis_float, "%f"),
     ("step_id", 'i4', "%d"),
-    ("trigger_start", 'f4', "%f"),
-    ("trigger_end", 'f4', "%f"),
-    ("payout_start", 'f4', "%f"),
-    ("payout_end", 'f4', "%f"),
-    ("limit2", 'f4', "%f"),
-    ("scale1", 'f4', "%f"),
-    ("scale2", 'f4', "%f"),
+    ("trigger_start", oasis_float, "%f"),
+    ("trigger_end", oasis_float, "%f"),
+    ("payout_start", oasis_float, "%f"),
+    ("payout_end", oasis_float, "%f"),
+    ("limit2", oasis_float, "%f"),
+    ("scale1", oasis_float, "%f"),
+    ("scale2", oasis_float, "%f"),
 ]
 fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt = generate_output_metadata(fm_profile_step_output)
 

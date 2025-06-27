@@ -236,10 +236,10 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         model_perils_covered = np.unique(pd.DataFrame({'peril_group_id': self.config['model_perils_covered']})
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
-        split_df = locations[peril_covered_column].str.split(';').apply(pd.Series).stack()
-        split_df.index = split_df.index.droplevel(-1)
-        split_df.name = 'peril_group_id'
-        keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
+
+        locations['peril_group_id'] = locations[peril_covered_column].str.split(';')
+        keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
+        locations.drop(columns='peril_group_id')
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.sort_values('loc_id', kind='stable').merge(coverage_df, how="cross")
@@ -581,16 +581,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            split_df = locations[perils_covered_column].astype(str).str.split(';').apply(pd.Series).stack()
-            split_df.index = split_df.index.droplevel(-1)
-            split_df.name = 'peril_group_id'
+            locations['peril_group_id'] = locations[perils_covered_column].str.split(';')
+            peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
+            locations.drop(columns='peril_group_id')
 
-            peril_locations = locations.join(split_df).merge(peril_groups_df)
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
                 df_model_perils_covered.name = 'model_perils_covered'
-                peril_locations = peril_locations.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
-
+                peril_locations = peril_locations.merge(df_model_perils_covered,
+                                                        left_on='peril_id', right_on='model_perils_covered',
+                                                        sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])]
             if not not_covered_location.empty:
                 not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']

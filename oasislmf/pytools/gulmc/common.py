@@ -33,9 +33,8 @@ items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
                                              ('return_period', oasis_int)
                                              ]))
 
-VulnCdfLookup = nb.from_dtype(np.dtype([('start', np.int32),
-                                        ('length', np.int32)]))
-
+VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),
+                                        ('length', oasis_int)]))
 
 coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
                                         ('max_items', np.int32),
@@ -93,11 +92,11 @@ Keys = {'LocID': np.int32,
         'VulnerabilityID': np.int32}
 
 
-NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float32),
-                                                  ('x_max', np.float32),
+NormInversionParameters = nb.from_dtype(np.dtype([('x_min', np.float64),
+                                                  ('x_max', np.float64),
                                                   ('N', np.int32),
-                                                  ('cdf_min', np.float32),
-                                                  ('cdf_max', np.float32),
+                                                  ('cdf_min', np.float64),
+                                                  ('cdf_max', np.float64),
                                                   ('inv_factor', np.float64),
                                                   ('norm_factor', np.float64),
                                                   ]))

@@ -699,7 +699,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
         oasis_float_mv[result_cursor], result_cursor = p, result_cursor + 1
         oasis_float_mv[result_cursor], result_cursor = mean_damage_bins[damage_bin_i], result_cursor + 1
         damage_bin_i += 1
-        if p > 0.999999940:
+        if p >= 0.999999940:
             break
 
     int32_mv[cursor_start] = damage_bin_i

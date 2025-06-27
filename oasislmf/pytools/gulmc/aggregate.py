@@ -12,7 +12,7 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, aggregatevulnerability_dtype
+from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, oasis_float, nb_oasis_float, aggregatevulnerability_dtype
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float32
 
 VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                               ('vulnerability_id', np.int32),
-                                              ('weight', np.float32)]))
+                                              ('weight', oasis_float)]))
 
 
 @njit(cache=True)
