@@ -2,7 +2,6 @@
 
 import argparse
 import csv
-import json
 import logging
 import msgpack
 import numpy as np
