@@ -1,5 +1,6 @@
 from oasislmf.pytools.common.data import aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt
 from oasislmf.pytools.common.data import amplifications_headers, amplifications_dtype, amplifications_fmt
+from oasislmf.pytools.common.data import complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt
 from oasislmf.pytools.common.data import coverages_headers, coverages_dtype, coverages_fmt
 from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
 from oasislmf.pytools.common.data import eve_headers, eve_dtype, eve_fmt
@@ -16,6 +17,7 @@ from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
 SUPPORTED_CSVTOBIN = [
     "aggregatevulnerability",
     "amplifications",
+    "complex_items",
     "coverages",
     "damagebin",
     "eve",
@@ -33,6 +35,7 @@ SUPPORTED_CSVTOBIN = [
 SUPPORTED_BINTOCSV = [
     "aggregatevulnerability",
     "amplifications",
+    "complex_items",
     "coverages",
     "damagebin",
     "eve",
@@ -57,6 +60,11 @@ TYPE_MAP = {
         "headers": amplifications_headers,
         "dtype": amplifications_dtype,
         "fmt": amplifications_fmt,
+    },
+    "complex_items": {
+        "headers": complex_items_meta_headers,
+        "dtype": complex_items_meta_dtype,
+        "fmt": complex_items_meta_fmt,
     },
     "coverages": {
         "headers": coverages_headers,

@@ -2,6 +2,8 @@
 
 import argparse
 import logging
+import struct
+import msgpack
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -47,6 +49,29 @@ def amplifications_tobin(file_in, file_out, type):
         data.tofile(fout)
 
 
+def complex_items_tobin(file_in, file_out, type):
+    header_dtype = TYPE_MAP[type]["dtype"]
+    with open(file_out, "wb") as output:
+        s = struct.Struct('IIII')  # Matches dtype from complex_items_meta_output
+        try:
+            items_df = pd.read_csv(file_in)
+        except pd.errors.EmptyDataError:
+            np.empty(0, dtype=header_dtype).tofile(output)
+            return
+        for row in items_df.itertuples():
+            # item_id,coverage_id,model_data,group_id
+            packed_model_data = msgpack.packb(row.model_data)
+            values = (
+                int(row.item_id),
+                int(row.coverage_id),
+                int(float(row.group_id)),
+                len(packed_model_data)
+            )
+            packed_data = s.pack(*values)
+            output.write(packed_data)
+            output.write(packed_model_data)
+
+
 def coverages_tobin(file_in, file_out, type):
     data = read_csv_as_ndarray(file_in, type)
 
@@ -69,6 +94,8 @@ def csvtobin(file_in, file_out, type):
     tobin_func = default_tobin
     if type == "amplifications":
         tobin_func = amplifications_tobin
+    elif type == "complex_items":
+        tobin_func = complex_items_tobin
     elif type == "coverages":
         tobin_func = coverages_tobin
 

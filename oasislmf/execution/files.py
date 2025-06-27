@@ -14,7 +14,8 @@ INPUT_FILES = {
     'complex_items': {
         'name': 'complex_items',
         'type': 'gul',
-        'conversion_tool': 'complex_itemtobin'
+        'conversion_tool': 'complex_itemtobin',
+        'csvtobin_type': 'complex_items',
     },
     'items': {
         'name': 'items',

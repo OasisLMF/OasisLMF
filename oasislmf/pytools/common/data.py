@@ -52,6 +52,14 @@ amplifications_output = [
 ]
 amplifications_headers, amplifications_dtype, amplifications_fmt = generate_output_metadata(amplifications_output)
 
+complex_items_meta_output = [
+    ("item_id", 'u4', "%u"),
+    ("coverage_id", 'u4', "%u"),
+    ("group_id", 'u4', "%u"),
+    ("model_data_len", 'u4', "%u"),
+]
+complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt = generate_output_metadata(complex_items_meta_output)
+
 coverages_output = [
     ("coverage_id", 'i4', "%d"),
     ("tiv", 'f4', "%f"),
