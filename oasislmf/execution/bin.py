@@ -20,7 +20,6 @@ __all__ = [
 import pathlib
 
 import errno
-import csv
 import filecmp
 import glob
 import logging
@@ -41,6 +40,7 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
+from oasislmf.pytools.converters.csvtobin import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from oasislmf.pytools.pla.common import LOSS_FACTORS_FILE_NAME
@@ -650,23 +650,19 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         step_flag = input_file.get('step_flag')
         col_names = []
         if step_flag:
-            with open(input_file_path) as f:
-                reader = csv.reader(f)
-                col_names = next(reader)
+            with open(input_file_path, "r") as f:
+                col_names = f.readline().strip().split(",")
 
+        csvtobin_type = input_file["csvtobin_type"]
         if 'step_id' in col_names:
             output_file_path = os.path.join(
                 bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
             )
-
-            cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
-        else:
-            cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
-
+            csvtobin_type = input_file["csvtobin_type"] + "_step"
         try:
-            subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-        except subprocess.CalledProcessError as e:
-            raise OasisException("Error while converting csv's to ktools binary format: {}".format(e))
+            csvtobin(input_file_path, output_file_path, csvtobin_type)
+        except Exception as e:
+            raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 @oasis_log

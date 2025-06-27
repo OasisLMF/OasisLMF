@@ -19,70 +19,153 @@ areaperil_int_size = areaperil_int.itemsize
 null_index = oasis_int.type(-1)
 
 
-summary_xref_dtype = np.dtype([('item_id', 'i4'), ('summary_id', 'i4'), ('summary_set_id', 'i4')])
-
-
-# financial structure static input dtypes
-fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
-fm_policytc_dtype = np.dtype([('level_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4'), ('profile_id', 'i4')])
-fm_profile_dtype = np.dtype([('profile_id', 'i4'),
-                             ('calcrule_id', 'i4'),
-                             ('deductible_1', oasis_float),
-                             ('deductible_2', oasis_float),
-                             ('deductible_3', oasis_float),
-                             ('attachment_1', oasis_float),
-                             ('limit_1', oasis_float),
-                             ('share_1', oasis_float),
-                             ('share_2', oasis_float),
-                             ('share_3', oasis_float),
-                             ])
-fm_profile_step_dtype = np.dtype([('profile_id', 'i4'),
-                                  ('calcrule_id', 'i4'),
-                                  ('deductible_1', oasis_float),
-                                  ('deductible_2', oasis_float),
-                                  ('deductible_3', oasis_float),
-                                  ('attachment_1', oasis_float),
-                                  ('limit_1', oasis_float),
-                                  ('share_1', oasis_float),
-                                  ('share_2', oasis_float),
-                                  ('share_3', oasis_float),
-                                  ('step_id', 'i4'),
-                                  ('trigger_start', oasis_float),
-                                  ('trigger_end', oasis_float),
-                                  ('payout_start', oasis_float),
-                                  ('payout_end', oasis_float),
-                                  ('limit_2', oasis_float),
-                                  ('scale_1', oasis_float),
-                                  ('scale_2', oasis_float),
-                                  ])
-fm_profile_csv_col_map = {
-    'deductible_1': 'deductible1',
-    'deductible_2': 'deductible2',
-    'deductible_3': 'deductible3',
-    'attachment_1': 'attachment1',
-    'limit_1': 'limit1',
-    'share_1': 'share1',
-    'share_2': 'share2',
-    'share_3': 'share3',
-    'limit_2': ' limit2',
-    'scale_1': 'scale1',
-    'scale_2': 'scale2',
-}
-fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
-fm_xref_csv_col_map = {'output_id': 'output'}
-
-# seemingly unused but coverage TIV in ktools typically defined as OASIS_FLOAT
-coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', oasis_float)])
-
-items_dtype = np.dtype([('item_id', 'i4'),
-                        ('coverage_id', 'i4'),
-                        ('areaperil_id', areaperil_int),
-                        ('vulnerability_id', 'i4'),
-                        ('group_id', 'i4')])
-
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1
 MEAN_TYPE_SAMPLE = 2
+
+
+def generate_output_metadata(output):
+    """Generates *_header, *_dtype and *_fmt items given a list of tuples describing some output description
+    output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
+    Args:
+        output_map (list(tuple(str, Any, str))): Dictionary mapping string name to  {output description}_output list
+    Returns:
+        result (tuple(list[str], np.dtype, str)): Tuple containing the generated *_header list, *_dtype np.dtype, *_fmt csv format string
+    """
+    headers = [c[0] for c in output]
+    dtype = np.dtype([(c[0], c[1]) for c in output])
+    fmt = ','.join([c[2] for c in output])
+    result = (headers, dtype, fmt)
+    return result
+
+
+# Types
+aggregatevulnerability_output = [
+    ("aggregate_vulnerability_id", 'i4', "%d"),
+    ("vulnerability_id", 'i4', "%d"),
+]
+aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt = generate_output_metadata(aggregatevulnerability_output)
+
+amplifications_output = [
+    ("item_id", 'i4', "%d"),
+    ("amplification_id", 'i4', "%d"),
+]
+amplifications_headers, amplifications_dtype, amplifications_fmt = generate_output_metadata(amplifications_output)
+
+complex_items_meta_output = [
+    ("item_id", 'u4', "%u"),
+    ("coverage_id", 'u4', "%u"),
+    ("group_id", 'u4', "%u"),
+    ("model_data_len", 'u4', "%u"),
+]
+complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt = generate_output_metadata(complex_items_meta_output)
+
+coverages_output = [
+    ("coverage_id", 'i4', "%d"),
+    ("tiv", oasis_float, "%f"),
+]
+coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
+
+damagebin_output = [
+    ("bin_index", 'i4', "%d"),
+    ("bin_from", oasis_float, "%f"),
+    ("bin_to", oasis_float, "%f"),
+    ("interpolation", oasis_float, "%f"),
+    ("interval_type", 'i4', "%d"),
+]
+damagebin_headers, damagebin_dtype, damagebin_fmt = generate_output_metadata(damagebin_output)
+
+eve_output = [
+    ("event_id", oasis_int, "%d")
+]
+eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
+
+fm_policytc_output = [
+    ("level_id", 'i4', "%d"),
+    ("agg_id", 'i4', "%d"),
+    ("layer_id", 'i4', "%d"),
+    ("profile_id", 'i4', "%d"),
+]
+fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt = generate_output_metadata(fm_policytc_output)
+
+fm_profile_output = [
+    ("profile_id", 'i4', "%d"),
+    ("calcrule_id", 'i4', "%d"),
+    ("deductible1", oasis_float, "%f"),
+    ("deductible2", oasis_float, "%f"),
+    ("deductible3", oasis_float, "%f"),
+    ("attachment1", oasis_float, "%f"),
+    ("limit1", oasis_float, "%f"),
+    ("share1", oasis_float, "%f"),
+    ("share2", oasis_float, "%f"),
+    ("share3", oasis_float, "%f"),
+]
+fm_profile_headers, fm_profile_dtype, fm_profile_fmt = generate_output_metadata(fm_profile_output)
+
+fm_profile_step_output = [
+    ("profile_id", 'i4', "%d"),
+    ("calcrule_id", 'i4', "%d"),
+    ("deductible1", oasis_float, "%f"),
+    ("deductible2", oasis_float, "%f"),
+    ("deductible3", oasis_float, "%f"),
+    ("attachment1", oasis_float, "%f"),
+    ("limit1", oasis_float, "%f"),
+    ("share1", oasis_float, "%f"),
+    ("share2", oasis_float, "%f"),
+    ("share3", oasis_float, "%f"),
+    ("step_id", 'i4', "%d"),
+    ("trigger_start", oasis_float, "%f"),
+    ("trigger_end", oasis_float, "%f"),
+    ("payout_start", oasis_float, "%f"),
+    ("payout_end", oasis_float, "%f"),
+    ("limit2", oasis_float, "%f"),
+    ("scale1", oasis_float, "%f"),
+    ("scale2", oasis_float, "%f"),
+]
+fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt = generate_output_metadata(fm_profile_step_output)
+
+fm_programme_output = [
+    ("from_agg_id", 'i4', "%d"),
+    ("level_id", 'i4', "%d"),
+    ("to_agg_id", 'i4', "%d"),
+]
+fm_programme_headers, fm_programme_dtype, fm_programme_fmt = generate_output_metadata(fm_programme_output)
+
+fm_summary_xref_output = [
+    ("output", 'i4', "%d"),
+    ("summary_id", 'i4', "%d"),
+    ("summaryset_id", 'i4', "%d")
+]
+fm_summary_xref_headers, fm_summary_xref_dtype, fm_summary_xref_fmt = generate_output_metadata(fm_summary_xref_output)
+
+fm_xref_output = [
+    ("output", 'i4', "%d"),
+    ("agg_id", 'i4', "%d"),
+    ("layer_id", 'i4', "%d"),
+]
+fm_xref_headers, fm_xref_dtype, fm_xref_fmt = generate_output_metadata(fm_xref_output)
+
+gul_summary_xref_output = [
+    ("item_id", 'i4', "%d"),
+    ("summary_id", 'i4', "%d"),
+    ("summaryset_id", 'i4', "%d")
+]
+gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt = generate_output_metadata(gul_summary_xref_output)
+
+items_output = [
+    ("item_id", 'i4', "%d"),
+    ("coverage_id", 'i4', "%d"),
+    ("areaperil_id", areaperil_int, "%u"),
+    ("vulnerability_id", 'i4', "%d"),
+    ("group_id", 'i4', "%d"),
+]
+items_headers, items_dtype, items_fmt = generate_output_metadata(items_output)
+
+periods_output = [
+    ("period_no", 'i4', "%d"),
+    ("weighting", 'f8', "%0.9lf"),
+]
+periods_headers, periods_dtype, periods_fmt = generate_output_metadata(periods_output)
 
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):

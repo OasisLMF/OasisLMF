@@ -358,7 +358,7 @@ def do_calc_end(
     Args:
         period_no (int): Period Number
         no_of_periods (int): Number of periods
-        period_weights (ndarray[period_weights_dtype]): Period Weights
+        period_weights (ndarray[periods_dtype]): Period Weights
         sample_size (int): Sample Size
         curr_summary_id (int): Current summary_id
         max_summary_id (int): Max summary_id
@@ -499,7 +499,7 @@ def run_aal(
     Args:
         memmaps (List[np.memmap]): List of temporary file memmaps
         no_of_periods (int): Number of periods
-        period_weights (ndarray[period_weights_dtype]): Period Weights
+        period_weights (ndarray[periods_dtype]): Period Weights
         sample_size (int): Sample Size
         max_summary_id (int): Max summary_id
         files_handles (List[np.memmap]): List of memmaps for summary files data
