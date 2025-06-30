@@ -291,7 +291,7 @@ def read_buffer(
 
                     # Calculate loss for per quantile interval
                     for i in range(len(intervals)):
-                        q = intervals[i]["q"]
+                        q = intervals[i]["quantile"]
                         ipart = intervals[i]["integer_part"]
                         fpart = intervals[i]["fractional_part"]
                         if ipart == len(state["losses_vec"]):

@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from oasislmf.pytools.common.data import oasis_int, oasis_float, periods_dtype
+from oasislmf.pytools.common.data import oasis_int, oasis_float, periods_dtype, quantile_interval_dtype
 from oasislmf.pytools.common.input_files import (
     AMPLIFICATIONS_FILE,
     read_amplifications,
@@ -107,11 +107,6 @@ def test_read_quantile_get_intervals():
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "quantile.bin"
     sample_size = 100
-    quantile_interval_dtype = np.dtype([
-        ('q', oasis_float),
-        ('integer_part', oasis_int),
-        ('fractional_part', oasis_float),
-    ])
 
     intervals_actual = read_quantile(sample_size, run_dir, filename, False)
     intervals_expected = np.zeros(6, dtype=quantile_interval_dtype)
@@ -122,11 +117,11 @@ def test_read_quantile_get_intervals():
     intervals_expected[4] = (0.75, 75, 0.25)
     intervals_expected[5] = (1.0, 100, 0.0)
 
-    qs_actual = intervals_actual[:]["q"]
+    qs_actual = intervals_actual[:]["quantile"]
     iparts_actual = intervals_actual[:]["integer_part"]
     fparts_actual = intervals_actual[:]["fractional_part"]
 
-    qs_expected = intervals_expected[:]["q"]
+    qs_expected = intervals_expected[:]["quantile"]
     iparts_expected = intervals_expected[:]["integer_part"]
     fparts_expected = intervals_expected[:]["fractional_part"]
 

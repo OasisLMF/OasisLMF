@@ -167,6 +167,17 @@ periods_output = [
 ]
 periods_headers, periods_dtype, periods_fmt = generate_output_metadata(periods_output)
 
+quantile_output = [
+    ("quantile", "f4", "%f"),
+]
+quantile_headers, quantile_dtype, quantile_fmt = generate_output_metadata(quantile_output)
+
+quantile_interval_output = quantile_output + [
+    ('integer_part', oasis_int, "%d"),
+    ('fractional_part', oasis_float, "%f"),
+]
+quantile_interval_headers, quantile_interval_dtype, quantile_interval_fmt = generate_output_metadata(quantile_interval_output)
+
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """

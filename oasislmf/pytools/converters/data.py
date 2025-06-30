@@ -13,6 +13,7 @@ from oasislmf.pytools.common.data import fm_xref_headers, fm_xref_dtype, fm_xref
 from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt
 from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
 from oasislmf.pytools.common.data import periods_headers, periods_dtype, periods_fmt
+from oasislmf.pytools.common.data import quantile_headers, quantile_dtype, quantile_fmt
 
 
 SUPPORTED_CSVTOBIN = [
@@ -128,5 +129,10 @@ TYPE_MAP = {
         "headers": periods_headers,
         "dtype": periods_dtype,
         "fmt": periods_fmt,
+    },
+    "quantile": {
+        "headers": quantile_headers,
+        "dtype": quantile_dtype,
+        "fmt": quantile_fmt,
     },
 }

@@ -276,10 +276,9 @@ def _create_quantile_bin(run_dir, quantiles):
                                           ).to_csv(csv_fp, index=False)
 
     try:
-        cmd_str = "quantiletobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
-        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-    except subprocess.CalledProcessError as e:
-        raise OasisException("Error while converting quantile.csv to ktools binary format: {}".format(e))
+        csvtobin(csv_fp, bin_fp, "quantile")
+    except Exception as e:
+        raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 def _load_default_quantile_bin(run_dir):

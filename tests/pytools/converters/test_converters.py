@@ -121,6 +121,11 @@ def test_periods():
     case_runner("csvtobin", "periods")
 
 
+def test_quantile():
+    case_runner("bintocsv", "quantile")
+    case_runner("csvtobin", "quantile")
+
+
 def test_cdftocsv():
     with TemporaryDirectory() as tmp_result_dir_str:
         infile_name = "getmodel.bin"

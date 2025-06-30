@@ -3,7 +3,9 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import load_as_ndarray, nb_oasis_int, coverages_headers, periods_dtype
+from oasislmf.pytools.common.data import (
+    load_as_ndarray, nb_oasis_int, coverages_headers, periods_dtype, quantile_dtype, quantile_interval_dtype
+)
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 
 
@@ -143,16 +145,12 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
         intervals (quantile_interval_dtype): Numpy array emulating a dictionary for numba
     """
     intervals = []
-    quantile_interval_dtype = np.dtype([
-        ('q', oasis_float),
-        ('integer_part', oasis_int),
-        ('fractional_part', oasis_float),
-    ])
 
     if return_empty:
         return np.array([], dtype=quantile_interval_dtype)
-    data = load_as_ndarray(run_dir, filename[:-4], np.float32, must_exist=True)
-    for q in data:
+    data = load_as_ndarray(run_dir, filename[:-4], quantile_dtype, must_exist=True)
+    for row in data:
+        q = row["quantile"]
         # Calculate interval index and fractional part
         pos = (sample_size - 1) * q + 1
         integer_part = int(pos)
