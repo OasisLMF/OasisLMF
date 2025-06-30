@@ -125,6 +125,7 @@ def test_quantile():
     case_runner("bintocsv", "quantile")
     case_runner("csvtobin", "quantile")
 
+
 def test_returnperiods():
     case_runner("bintocsv", "returnperiods")
     case_runner("csvtobin", "returnperiods")
