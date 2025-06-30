@@ -178,6 +178,11 @@ quantile_interval_output = quantile_output + [
 ]
 quantile_interval_headers, quantile_interval_dtype, quantile_interval_fmt = generate_output_metadata(quantile_interval_output)
 
+random_output = [
+    ("random_no", 'f4', "%f"),
+]
+random_headers, random_dtype, random_fmt = generate_output_metadata(random_output)
+
 returnperiods_output = [
     ("return_period", 'i4', "%d"),
 ]
