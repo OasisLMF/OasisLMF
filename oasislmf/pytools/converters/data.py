@@ -14,6 +14,7 @@ from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_x
 from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
 from oasislmf.pytools.common.data import periods_headers, periods_dtype, periods_fmt
 from oasislmf.pytools.common.data import quantile_headers, quantile_dtype, quantile_fmt
+from oasislmf.pytools.common.data import returnperiods_headers, returnperiods_dtype, returnperiods_fmt
 
 
 SUPPORTED_CSVTOBIN = [
@@ -32,6 +33,8 @@ SUPPORTED_CSVTOBIN = [
     "gul_summary_xref",
     "items",
     "periods",
+    "quantile",
+    "returnperiods",
 ]
 
 
@@ -51,6 +54,8 @@ SUPPORTED_BINTOCSV = [
     "gul_summary_xref",
     "items",
     "periods",
+    "quantile",
+    "returnperiods",
 ]
 
 
@@ -134,5 +139,10 @@ TYPE_MAP = {
         "headers": quantile_headers,
         "dtype": quantile_dtype,
         "fmt": quantile_fmt,
+    },
+    "returnperiods": {
+        "headers": returnperiods_headers,
+        "dtype": returnperiods_dtype,
+        "fmt": returnperiods_fmt,
     },
 }

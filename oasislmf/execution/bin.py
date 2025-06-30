@@ -245,10 +245,9 @@ def _create_return_period_bin(run_dir, return_periods):
                                                ).to_csv(csv_fp, index=False)
 
     try:
-        cmd_str = "returnperiodtobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
-        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-    except subprocess.CalledProcessError as e:
-        raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
+        csvtobin(csv_fp, bin_fp, "returnperiods")
+    except Exception as e:
+        raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 def _create_events_bin(run_dir, event_ids):

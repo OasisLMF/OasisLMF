@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (
-    load_as_ndarray, nb_oasis_int, coverages_headers, periods_dtype, quantile_dtype, quantile_interval_dtype
+    load_as_ndarray, nb_oasis_int, coverages_headers, periods_dtype, quantile_dtype, quantile_interval_dtype, returnperiods_dtype
 )
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
 
@@ -306,7 +306,7 @@ def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_F
         use_return_period_file (bool): Bool to use Return Period File
     """
     if not use_return_period_file:
-        return np.array([], dtype=np.int32), use_return_period_file
+        return np.array([], dtype=returnperiods_dtype)["return_period"], use_return_period_file
     returnperiods_fp = Path(run_dir, filename)
 
     if not returnperiods_fp.exists():
@@ -315,7 +315,7 @@ def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_F
     returnperiods = load_as_ndarray(
         run_dir,
         filename[:-4],
-        np.int32,
+        returnperiods_dtype,
         must_exist=False
     )
 
@@ -328,9 +328,9 @@ def read_returnperiods(use_return_period_file, run_dir, filename=RETURNPERIODS_F
     if len(returnperiods) != len(np.unique(returnperiods)):
         raise RuntimeError(f"ERROR: Invalid return periods file. Duplicate return periods found: {returnperiods}")
     lastrp = -1
-    for rp in returnperiods:
+    for rp in returnperiods["return_period"]:
         if lastrp != -1 and lastrp <= rp:
             raise RuntimeError(f"ERROR: Invalid return periods file. Non-decreasing return periods found: {returnperiods}")
         lastrp = rp
 
-    return returnperiods, use_return_period_file
+    return returnperiods["return_period"], use_return_period_file

@@ -3,7 +3,9 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from oasislmf.pytools.common.data import oasis_int, oasis_float, periods_dtype, quantile_interval_dtype
+from oasislmf.pytools.common.data import (
+    oasis_int, oasis_float, periods_dtype, quantile_interval_dtype, returnperiods_dtype
+)
 from oasislmf.pytools.common.input_files import (
     AMPLIFICATIONS_FILE,
     read_amplifications,
@@ -223,8 +225,8 @@ def test_read_periods_wrong_period_no():
         read_periods(no_of_periods + 1, run_dir, filename)
 
 
-def test_read_periods():
-    """Tests read_periods from existing binary file
+def test_read_return_periods():
+    """Tests read_returnperiods from existing binary file
     """
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "returnperiods.bin"
@@ -232,15 +234,15 @@ def test_read_periods():
 
     returnperiods_expected = np.array(
         [5000, 1000, 500, 250, 200, 150, 100, 75, 50, 30, 25, 20, 10, 5, 2],
-        dtype=np.int32
-    )
+        dtype=returnperiods_dtype
+    )["return_period"]
     returnperiods_actual, _ = read_returnperiods(use_return_periods, run_dir, filename)
 
     np.testing.assert_array_equal(returnperiods_expected, returnperiods_actual, verbose=True)
 
 
 def test_read_return_periods_no_file():
-    """Tests read_return_periods with missing returnperiods file
+    """Tests read_returnperiods with missing returnperiods file
     """
     run_dir = Path(TESTS_ASSETS_DIR, "input")
     filename = "returnperiods_notexists.bin"

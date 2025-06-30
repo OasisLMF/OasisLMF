@@ -79,6 +79,12 @@ def coverages_tobin(file_in, file_out, type):
         data["tiv"].tofile(fout)
 
 
+def returnperiods_tobin(file_in, file_out, type):
+    data = read_csv_as_ndarray(file_in, type)
+    data = np.sort(data, order="return_period")[::-1]
+    data.tofile(file_out)
+
+
 def default_tobin(file_in, file_out, type):
     data = read_csv_as_ndarray(file_in, type)
     data.tofile(file_out)
@@ -98,6 +104,8 @@ def csvtobin(file_in, file_out, type):
         tobin_func = complex_items_tobin
     elif type == "coverages":
         tobin_func = coverages_tobin
+    elif type == "returnperiods":
+        tobin_func = returnperiods_tobin
 
     tobin_func(file_in, file_out, type)
 

@@ -125,6 +125,10 @@ def test_quantile():
     case_runner("bintocsv", "quantile")
     case_runner("csvtobin", "quantile")
 
+def test_returnperiods():
+    case_runner("bintocsv", "returnperiods")
+    case_runner("csvtobin", "returnperiods")
+
 
 def test_cdftocsv():
     with TemporaryDirectory() as tmp_result_dir_str:
