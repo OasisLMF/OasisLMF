@@ -365,7 +365,7 @@ def read_buffer(
                     if event_id in occ_map:
                         for record in occ_map[event_id]:
                             for i in range(len(intervals)):
-                                q = intervals[i]["q"]
+                                q = intervals[i]["quantile"]
                                 ipart = intervals[i]["integer_part"]
                                 fpart = intervals[i]["fractional_part"]
                                 if ipart == len(state["vrec"]):
