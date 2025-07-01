@@ -537,7 +537,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates().to_csv(
+        gul_inputs_df.loc[:, ['coverage_id', 'coverage_type_id', 'tiv']].drop_duplicates().to_csv(
             path_or_buf=coverages_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(coverages_fp) else 'a'),
