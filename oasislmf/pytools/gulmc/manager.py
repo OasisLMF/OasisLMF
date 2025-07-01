@@ -917,14 +917,21 @@ def compute_event_losses(compute_info,
 
             computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['damage_type'] == 1 else 1.0
 
-            if damage_bins[Neff_damage_bins - 1]['damage_type'] == 0:  # default
+            # for relative vulnerability functions, the `damage_type` in `damage_bins` is 1
+            # for absolute vulnerability functions, `damage_type` in `damage_bins` is 2
+            # for duration vulnerability functions, `damage_type` in `damage_bins` is 3
+            damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
+            if damage_type == 1:
+                computation_tiv = tiv
+            elif damage_type == 2:
+                computation_tiv = 1
+            elif damage_type == 3:
+                # convert annual tiv to daily
+                computation_tiv = tiv / 365
+            else:  # default behaviour
                 # for relative vulnerability functions, gul are fraction of the tiv
                 # for absolute vulnerability functions, gul are absolute values
                 computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
-            else:
-                # for relative vulnerability functions, the `damage_type` in `damage_bins` is 1
-                # for absolute vulnerability functions, `damage_type` in `damage_bins` is 2
-                computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['damage_type'] == 1 else 1.0
 
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
