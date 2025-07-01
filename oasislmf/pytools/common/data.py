@@ -60,6 +60,15 @@ complex_items_meta_output = [
 ]
 complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt = generate_output_metadata(complex_items_meta_output)
 
+correlations_output = [
+    ("item_id", 'i4', "%d"),
+    ("peril_correlation_group", 'i4', "%d"),
+    ("damage_correlation_value", oasis_float, "%f"),
+    ("hazard_group_id", 'i4', "%d"),
+    ("hazard_correlation_value", oasis_float, "%f"),
+]
+correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
+
 coverages_output = [
     ("coverage_id", 'i4', "%d"),
     ("tiv", oasis_float, "%f"),

@@ -17,11 +17,10 @@ from numba.types import int64 as nb_int64
 
 from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
-from oasislmf.pytools.common.input_files import read_coverages
+from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict, encode_peril_id
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
@@ -360,7 +359,7 @@ def run(run_dir,
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
         # create the array to store the seeds
-        haz_seeds = np.zeros(len(np.unique(items['hazard_group_id'])), dtype=Correlation.dtype['hazard_group_id'])
+        haz_seeds = np.zeros(len(np.unique(items['hazard_group_id'])), dtype=correlations_dtype['hazard_group_id'])
         vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
 
         # haz correlation

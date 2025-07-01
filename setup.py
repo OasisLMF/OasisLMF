@@ -374,8 +374,6 @@ setup(
             "vulnerability_to_parquet=oasislmf.pytools.getmodel.vulnerability:main",
             "footprint_bin_to_parquet=oasislmf.pytools.data_layer.conversions.footprint:main",
             'footprint_compress=oasislmf.pytools.footprintconv:footprintconvpy',
-            "correlationtobin=oasislmf.pytools.correlationtobin:main",
-            "correlationtocsv=oasislmf.pytools.correlationtocsv:main",
             'dfcompare=oasislmf.pytools.dfcompare:main',
             'fmpy=oasislmf.pytools.fm.cli:main',
             'gulmc=oasislmf.pytools.gulmc.cli:main',

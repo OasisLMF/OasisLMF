@@ -14,10 +14,10 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasislmf.pytools.common.data import correlations_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
-from oasislmf.pytools.common.input_files import read_coverages
-from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, CorrelationsData
+from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
 from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
 from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
@@ -217,8 +217,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
-            file_path = os.path.join(input_path, 'correlations.bin')
-            data = CorrelationsData.from_bin(file_path=file_path).data
+            data = read_correlations(input_path, filename='correlations.bin')
             Nperil_correlation_groups = len(data)
             logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
@@ -231,10 +230,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         if do_correlation:
             logger.info("Correlated random number generation: switched ON.")
 
-            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
+            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
             corr_data_by_item_id[0] = (0, 0., 0., 0, 0.)
-            corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(data['peril_correlation_group'])
-            corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(data['damage_correlation_value'])
+            corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
+            corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
 
             logger.info(
                 f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
@@ -258,7 +257,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_seeds = np.zeros(1, dtype='int64')
-            corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
+            corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
             arr_min, arr_max, arr_N = 0, 0, 0
             arr_min_cdf, arr_max_cdf = 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')

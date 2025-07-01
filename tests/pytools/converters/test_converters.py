@@ -56,6 +56,11 @@ def test_amplifications():
     case_runner("csvtobin", "amplifications")
 
 
+def test_correlations_items():
+    case_runner("bintocsv", "correlations")
+    case_runner("csvtobin", "correlations")
+
+
 def test_complex_items():
     case_runner("bintocsv", "complex_items")
     case_runner("csvtobin", "complex_items")
