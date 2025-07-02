@@ -32,7 +32,7 @@ def case_runner(converter, type):
         kwargs = {
             "file_in": infile,
             "file_out": actual_outfile,
-            "type": type,
+            "file_type": type,
         }
         converter(**kwargs)
 

@@ -15,10 +15,10 @@ from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV, TYPE_MAP
 
 
-def amplifications_tocsv(file_in, file_out, type, noheader):
-    headers = TYPE_MAP[type]["headers"]
-    dtype = TYPE_MAP[type]["dtype"]
-    fmt = TYPE_MAP[type]["fmt"]
+def amplifications_tocsv(file_in, file_out, file_type, noheader):
+    headers = TYPE_MAP[file_type]["headers"]
+    dtype = TYPE_MAP[file_type]["dtype"]
+    fmt = TYPE_MAP[file_type]["fmt"]
 
     amps_fp = Path(file_in)
     items_amps = read_amplifications(amps_fp.parent, amps_fp.name)
@@ -34,8 +34,8 @@ def amplifications_tocsv(file_in, file_out, type, noheader):
     csv_out_file.close()
 
 
-def complex_items_tocsv(file_in, file_out, type, noheader):
-    header_dtype = TYPE_MAP[type]["dtype"]
+def complex_items_tocsv(file_in, file_out, file_type, noheader):
+    header_dtype = TYPE_MAP[file_type]["dtype"]
 
     with open(file_in, "rb") as f:
         byte_data = np.frombuffer(f.read(), dtype=np.uint8)
@@ -77,10 +77,10 @@ def complex_items_tocsv(file_in, file_out, type, noheader):
     csv_out_file.close()
 
 
-def coverages_tocsv(file_in, file_out, type, noheader):
-    headers = TYPE_MAP[type]["headers"]
-    dtype = TYPE_MAP[type]["dtype"]
-    fmt = TYPE_MAP[type]["fmt"]
+def coverages_tocsv(file_in, file_out, file_type, noheader):
+    headers = TYPE_MAP[file_type]["headers"]
+    dtype = TYPE_MAP[file_type]["dtype"]
+    fmt = TYPE_MAP[file_type]["fmt"]
 
     cov_fp = Path(file_in)
     coverages = read_coverages(cov_fp.parent, filename=cov_fp.name)
@@ -95,10 +95,10 @@ def coverages_tocsv(file_in, file_out, type, noheader):
     csv_out_file.close()
 
 
-def default_tocsv(file_in, file_out, type, noheader):
-    headers = TYPE_MAP[type]["headers"]
-    dtype = TYPE_MAP[type]["dtype"]
-    fmt = TYPE_MAP[type]["fmt"]
+def default_tocsv(file_in, file_out, file_type, noheader):
+    headers = TYPE_MAP[file_type]["headers"]
+    dtype = TYPE_MAP[file_type]["dtype"]
+    fmt = TYPE_MAP[file_type]["fmt"]
 
     data = np.memmap(file_in, dtype=dtype)
     num_rows = data.shape[0]
@@ -115,44 +115,48 @@ def default_tocsv(file_in, file_out, type, noheader):
     csv_out_file.close()
 
 
-def bintocsv(file_in, file_out, type, noheader=False):
+def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
     """Convert bin file to csv file based on file type
     Args:
         file_in (str | os.PathLike): Input file path
         file_out (str | os.PathLike): Output file path
-        type (str): File type str from SUPPORTED_TYPES
+        file_type (str): File type str from SUPPORTED_BINTOCSV
         noheader (bool): Bool to not output header. Defaults to False.
     """
     tocsv_func = default_tocsv
-    if type == "amplifications":
+    if file_type == "amplifications":
         tocsv_func = amplifications_tocsv
-    elif type == "complex_items":
+    elif file_type == "complex_items":
         tocsv_func = complex_items_tocsv
-    elif type == "coverages":
+    elif file_type == "coverages":
         tocsv_func = coverages_tocsv
 
-    tocsv_func(file_in, file_out, type, noheader)
+    tocsv_func(file_in, file_out, file_type, noheader)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Convert Binary to CSV for various file types.',
                                      formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-i', '--file_in', type=str, required=True, help='Input file path')
-    parser.add_argument('-o', '--file_out', type=str, required=True, help='Output file path')
-    parser.add_argument('-t', '--type', type=str, required=True, choices=SUPPORTED_BINTOCSV,
-                        help='Type of file to convert. Must be one of:\n' + '\n'.join(f'  - {key}' for key in SUPPORTED_BINTOCSV))
-    parser.add_argument('-v', '--logging-level', type=int, default=30,
-                        help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
-    parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
-    args = parser.parse_args()
 
-    file_in = Path(args.file_in)
-    file_out = Path(args.file_out)
-    if args.file_in != "-" and file_in.suffix != '.bin':
-        raise ValueError(f"Invalid file extension for Binary, expected .bin, got {file_in},")
-    if args.file_out != "-" and file_out.suffix != '.csv':
-        raise ValueError(f"Invalid file extension for CSV, expected .csv, got {file_out},")
+    subparsers = parser.add_subparsers(dest='file_type', required=True, help='Type of file to convert')
+    for file_type in SUPPORTED_BINTOCSV:
+        parser_curr = subparsers.add_parser(file_type, help=f'bin to csv tool for {file_type}')
+        parser_curr.add_argument('-i', '--file_in', type=str, required=True, help='Input file path')
+        parser_curr.add_argument('-o', '--file_out', type=str, required=True, help='Output file path')
+        parser_curr.add_argument('-v', '--logging-level', type=int, default=30,
+                                 help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
+        parser_curr.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
+    args = parser.parse_args()
     kwargs = vars(args)
+
+    file_type = kwargs.pop('file_type')
+    file_in = Path(kwargs.pop('file_in'))
+    file_out = Path(kwargs.pop('file_out'))
+    noheader = kwargs.pop('noheader')
+    if file_in != "-" and file_in.suffix != '.bin':
+        raise ValueError(f"Invalid file extension for Binary, expected .bin, got {file_in},")
+    if file_out != "-" and file_out.suffix != '.csv':
+        raise ValueError(f"Invalid file extension for CSV, expected .csv, got {file_out},")
 
     # Set up logging
     ch = logging.StreamHandler()
@@ -162,7 +166,7 @@ def main():
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
 
-    bintocsv(args.file_in, args.file_out, args.type, args.noheader)
+    bintocsv(file_in, file_out, file_type, noheader, **kwargs)
 
 
 if __name__ == '__main__':
