@@ -131,6 +131,37 @@ def get_peril_id(input_path):
     return item_peril
 
 
+def get_coverage_type_id(input_path):
+    '''
+    Get coverage_type_id associated with item_id
+
+    Args:
+        input_path (str): The directory path where the 'gul_summary_map.csv' file is located.
+
+    Returns:
+        np.ndarray: A structured NumPy array with the following fields:
+            - `item_id` (oasis_int): The item ID as an integer.
+            - `coverage_type_id` (oasis_int): The encoded coverage type ID as
+              an integer.
+    '''
+
+    dtype = np.dtype([
+        ('item_id', oasis_int),
+        ('coverage_type_id', oasis_int)
+    ])
+
+    item_coverage_type = pd.read_csv(
+        os.path.join(input_path, 'gul_summary_map.csv'),
+        usecols=['item_id', 'coverage_type_id']
+    )
+
+    item_coverage_type = np.array(
+        list(item_coverage_type.itertuples(index=False, name=None)),
+        dtype=dtype)
+
+    return item_coverage_type
+
+
 def get_vuln_rngadj(run_dir, vuln_dict):
     """
     Loads vulnerability adjustments from the analysis settings file.
