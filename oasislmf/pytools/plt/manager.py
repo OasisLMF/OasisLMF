@@ -13,7 +13,7 @@ from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
-from oasislmf.pytools.common.input_files import read_occurrence, read_periods, read_quantile
+from oasislmf.pytools.common.input_files import occ_get_date, read_occurrence, read_periods, read_quantile
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
 from oasislmf.pytools.utils import redirect_logging
 
@@ -125,37 +125,6 @@ class PLTReader(EventReader):
 
 
 @nb.njit(cache=True)
-def _get_dates(occ_date_id, granular_date):
-    """Returns date as year, month, day, hour, minute from occ_date_id
-
-    Args:
-        occ_date_id (np.int32 | np.int64): occurrence file date id (int64 for granular dates)
-        granular_date (bool): boolean for whether granular date should be extracted or not
-
-    Returns:
-        (oasis_int, oasis_int, oasis_int, oasis_int, oasis_int): Returns year, month, date, hour, minute
-    """
-    days = occ_date_id / (1440 - 1439 * (not granular_date))
-
-    # Function void d(long long g, int& y, int& mm, int& dd) taken from pltcalc.cpp
-    y = (10000 * days + 14780) // 3652425
-    ddd = days - (365 * y + y // 4 - y // 100 + y // 400)
-    if ddd < 0:
-        y = y - 1
-        ddd = days - (365 * y + y // 4 - y // 100 + y // 400)
-    mi = (100 * ddd + 52) // 3060
-    mm = (mi + 2) % 12 + 1
-    y = y + (mi + 2) // 12
-    dd = ddd - (mi * 306 + 5) // 10 + 1
-
-    minutes = (occ_date_id % 1440) * granular_date
-    occ_hour = minutes // 60
-    occ_minutes = minutes % 60
-
-    return y, mm, dd, occ_hour, occ_minutes
-
-
-@nb.njit(cache=True)
 def _update_splt_data(
     splt_data, si, period_weights, granular_date,
     record,
@@ -167,7 +136,7 @@ def _update_splt_data(
 ):
     """updates splt_data to write to output
     """
-    year, month, day, hour, minute = _get_dates(record["occ_date_id"], granular_date)
+    year, month, day, hour, minute = occ_get_date(record["occ_date_id"], granular_date)
     splt_data[si]["Period"] = record["period_no"]
     splt_data[si]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
     splt_data[si]["EventId"] = event_id
@@ -199,7 +168,7 @@ def _update_mplt_data(
 ):
     """updates mplt_data to write to output
     """
-    year, month, day, hour, minute = _get_dates(record["occ_date_id"], granular_date)
+    year, month, day, hour, minute = occ_get_date(record["occ_date_id"], granular_date)
     mplt_data[mi]["Period"] = record["period_no"]
     mplt_data[mi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
     mplt_data[mi]["EventId"] = event_id
@@ -230,7 +199,7 @@ def _update_qplt_data(
 ):
     """updates mplt_data to write to output
     """
-    year, month, day, hour, minute = _get_dates(record["occ_date_id"], granular_date)
+    year, month, day, hour, minute = occ_get_date(record["occ_date_id"], granular_date)
     qplt_data[qi]["Period"] = record["period_no"]
     qplt_data[qi]["PeriodWeight"] = period_weights[record["period_no"] - 1]["weighting"]
     qplt_data[qi]["EventId"] = event_id

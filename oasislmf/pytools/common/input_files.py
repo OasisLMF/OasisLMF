@@ -294,6 +294,61 @@ def _read_occ_arr(occ_arr, occ_map_valtype, NB_occ_map_valtype):
     return occ_map
 
 
+@nb.njit(cache=True)
+def occ_get_date(occ_date_id, granular_date):
+    """Returns date as year, month, day, hour, minute from occ_date_id
+
+    Args:
+        occ_date_id (np.int32 | np.int64): occurrence file date id (int64 for granular dates)
+        granular_date (bool): boolean for whether granular date should be extracted or not
+
+    Returns:
+        (oasis_int, oasis_int, oasis_int, oasis_int, oasis_int): Returns year, month, date, hour, minute
+    """
+    days = occ_date_id / (1440 - 1439 * (not granular_date))
+
+    # Function void d(long long g, int& y, int& mm, int& dd) taken from pltcalc.cpp
+    y = (10000 * days + 14780) // 3652425
+    ddd = days - (365 * y + y // 4 - y // 100 + y // 400)
+    if ddd < 0:
+        y = y - 1
+        ddd = days - (365 * y + y // 4 - y // 100 + y // 400)
+    mi = (100 * ddd + 52) // 3060
+    mm = (mi + 2) % 12 + 1
+    y = y + (mi + 2) // 12
+    dd = ddd - (mi * 306 + 5) // 10 + 1
+
+    minutes = (occ_date_id % 1440) * granular_date
+    occ_hour = minutes // 60
+    occ_minutes = minutes % 60
+
+    return y, mm, dd, occ_hour, occ_minutes
+
+
+@nb.njit(cache=True)
+def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ_minute=0):
+    """Returns the occ_date_id from year, month, day, hour, minute and whether it is a granular date
+    Args:
+        granular_date (bool): boolean for whether granular date should be extracted or not
+        occ_year (int): Occurrence Year.
+        occ_month (int): Occurrence Month.
+        occ_day (int): Occurrence Day.
+        occ_hour (int): Occurrence Hour. Defaults to 0.
+        occ_minute (int): Occurrence Minute. Defaults to 0.
+    Returns:
+        occ_date_id (np.int64): occurrence file date id (int64 for granular dates)
+    """
+    occ_month = (occ_month + 9) % 12
+    occ_year = occ_year - occ_month / 10
+    occ_date_id = np.int64(
+        365 * occ_year + occ_year / 4 - occ_year / 100 + occ_year / 400 + (occ_month * 306 + 5) / 10 + (occ_day - 1)
+    )
+
+    occ_date_id *= (1440 / (1440 - 1439 * granular_date))
+    occ_date_id += (60 * occ_hour + occ_minute)
+    return occ_date_id
+
+
 def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     """Returns an array of period weights for each period between 1 and no_of_periods inclusive (with no gaps).
     Args:
