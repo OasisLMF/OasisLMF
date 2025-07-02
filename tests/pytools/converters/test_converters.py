@@ -10,7 +10,7 @@ from oasislmf.pytools.converters.cdftocsv import cdftocsv
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
 
 
-def case_runner(converter, type, filename=None):
+def case_runner(converter, type, filename=None, **kwargs):
     if converter == "bintocsv":
         in_ext = ".bin"
         out_ext = ".csv"
@@ -21,7 +21,7 @@ def case_runner(converter, type, filename=None):
         converter = csvtobin
     else:
         raise RuntimeError(f"Unknown test type {type}")
-    
+
     if filename == None:
         filename = type
     with TemporaryDirectory() as tmp_result_dir_str:
@@ -31,12 +31,13 @@ def case_runner(converter, type, filename=None):
         expected_outfile = Path(TESTS_ASSETS_DIR, outfile_name)
         actual_outfile = Path(tmp_result_dir_str, outfile_name)
 
-        kwargs = {
+        converter_args = {
             "file_in": infile,
             "file_out": actual_outfile,
             "file_type": type,
+            **kwargs,
         }
-        converter(**kwargs)
+        converter(**converter_args)
 
         try:
             assert filecmp.cmp(expected_outfile, actual_outfile, shallow=False)
@@ -44,7 +45,7 @@ def case_runner(converter, type, filename=None):
             error_path = Path(TESTS_ASSETS_DIR, "error_files")
             error_path.mkdir(exist_ok=True)
             shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
-            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
+            arg_str = ' '.join([f"{k}={v}" for k, v in converter_args.items()])
             raise Exception(f"running '{converter} {arg_str}' led to diff, see files at {error_path}") from e
 
 
