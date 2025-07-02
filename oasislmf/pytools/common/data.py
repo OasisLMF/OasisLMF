@@ -170,6 +170,20 @@ items_output = [
 ]
 items_headers, items_dtype, items_fmt = generate_output_metadata(items_output)
 
+occurrence_output = [
+    ("event_id", 'i4', "%d"),
+    ("period_no", 'i4', "%d"),
+    ("occ_date_id", 'i4', "%d"),
+]
+occurrence_headers, occurrence_dtype, occurrence_fmt = generate_output_metadata(occurrence_output)
+
+occurrence_granular_output = [
+    ("event_id", 'i4', "%d"),
+    ("period_no", 'i4', "%d"),
+    ("occ_date_id", 'i8', "%d"),
+]
+occurrence_granular_headers, occurrence_granular_dtype, occurrence_granular_fmt = generate_output_metadata(occurrence_granular_output)
+
 periods_output = [
     ("period_no", 'i4', "%d"),
     ("weighting", 'f8', "%0.9lf"),

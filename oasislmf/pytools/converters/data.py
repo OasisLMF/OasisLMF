@@ -13,6 +13,8 @@ from oasislmf.pytools.common.data import fm_summary_xref_headers, fm_summary_xre
 from oasislmf.pytools.common.data import fm_xref_headers, fm_xref_dtype, fm_xref_fmt
 from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt
 from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
+from oasislmf.pytools.common.data import occurrence_headers, occurrence_dtype, occurrence_fmt
+from oasislmf.pytools.common.data import occurrence_granular_headers, occurrence_granular_dtype, occurrence_granular_fmt
 from oasislmf.pytools.common.data import periods_headers, periods_dtype, periods_fmt
 from oasislmf.pytools.common.data import quantile_headers, quantile_dtype, quantile_fmt
 from oasislmf.pytools.common.data import random_headers, random_dtype, random_fmt
@@ -35,6 +37,7 @@ SUPPORTED_CSVTOBIN = [
     "fm_xref",
     "gul_summary_xref",
     "items",
+    "occurrence",
     "periods",
     "quantile",
     "random",
@@ -58,6 +61,7 @@ SUPPORTED_BINTOCSV = [
     "fm_xref",
     "gul_summary_xref",
     "items",
+    "occurrence",
     "periods",
     "quantile",
     "random",
@@ -145,6 +149,16 @@ TYPE_MAP = {
         "headers": periods_headers,
         "dtype": periods_dtype,
         "fmt": periods_fmt,
+    },
+    "occurrence": {
+        "headers": occurrence_headers,
+        "dtype": occurrence_dtype,
+        "fmt": occurrence_fmt,
+    },
+    "occurrence_granular": {
+        "headers": occurrence_granular_headers,
+        "dtype": occurrence_granular_dtype,
+        "fmt": occurrence_granular_fmt,
     },
     "quantile": {
         "headers": quantile_headers,

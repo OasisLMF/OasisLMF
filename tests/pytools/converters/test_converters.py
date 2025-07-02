@@ -10,7 +10,7 @@ from oasislmf.pytools.converters.cdftocsv import cdftocsv
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
 
 
-def case_runner(converter, type):
+def case_runner(converter, type, filename=None):
     if converter == "bintocsv":
         in_ext = ".bin"
         out_ext = ".csv"
@@ -21,10 +21,12 @@ def case_runner(converter, type):
         converter = csvtobin
     else:
         raise RuntimeError(f"Unknown test type {type}")
-
+    
+    if filename == None:
+        filename = type
     with TemporaryDirectory() as tmp_result_dir_str:
-        infile_name = f"{type}{in_ext}"
-        outfile_name = f"{type}{out_ext}"
+        infile_name = f"{filename}{in_ext}"
+        outfile_name = f"{filename}{out_ext}"
         infile = Path(TESTS_ASSETS_DIR, infile_name)
         expected_outfile = Path(TESTS_ASSETS_DIR, outfile_name)
         actual_outfile = Path(tmp_result_dir_str, outfile_name)
@@ -119,6 +121,12 @@ def test_fm_xref():
 def test_items():
     case_runner("bintocsv", "items")
     case_runner("csvtobin", "items")
+
+
+def test_occurrence():
+    case_runner("bintocsv", "occurrence", "occurrence")
+    case_runner("bintocsv", "occurrence", "occurrence_gran")
+    case_runner("bintocsv", "occurrence", "occurrence_noalg")
 
 
 def test_periods():

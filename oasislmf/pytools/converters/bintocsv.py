@@ -4,14 +4,15 @@ import argparse
 import csv
 import logging
 import msgpack
+import numba as nb
 import numpy as np
 from pathlib import Path
 
 from oasislmf.pytools.common.event_stream import mv_read
-from oasislmf.pytools.common.input_files import read_amplifications, read_coverages
+from oasislmf.pytools.common.input_files import occ_get_date, read_amplifications, read_coverages, read_occurrence_bin
 
 from . import logger
-from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import generate_output_metadata, write_ndarray_to_fmt_csv
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV, TYPE_MAP
 
 
@@ -95,6 +96,88 @@ def coverages_tocsv(file_in, file_out, file_type, noheader):
     csv_out_file.close()
 
 
+def occurrence_tocsv(file_in, file_out, file_type, noheader):
+    @nb.njit(cache=True, error_model="numpy")
+    def _get_occ_data_with_dates(occ_arr, occ_csv_dtype):
+        buffer_size = 1000000
+        buffer = np.zeros(buffer_size, dtype=occ_csv_dtype)
+
+        idx = 0
+        for row in occ_arr:
+            if idx >= buffer_size:
+                yield buffer[:idx]
+                buffer = np.zeros(buffer_size, dtype=occ_csv_dtype)
+                idx = 0
+            year, month, day, hour, minute = occ_get_date(row["occ_date_id"], granular_date)
+            buffer[idx]["event_id"] = row["event_id"]
+            buffer[idx]["period_no"] = row["period_no"]
+            buffer[idx]["occ_year"] = year
+            buffer[idx]["occ_month"] = month
+            buffer[idx]["occ_day"] = day
+            idx += 1
+        yield buffer[:idx]
+
+    @nb.njit(cache=True, error_model="numpy")
+    def _get_occ_data_with_dates_gran(occ_arr, occ_csv_dtype):
+        buffer_size = 1000000
+        buffer = np.zeros(buffer_size, dtype=occ_csv_dtype)
+
+        idx = 0
+        for row in occ_arr:
+            if idx >= buffer_size:
+                yield buffer[:idx]
+                buffer = np.zeros(buffer_size, dtype=occ_csv_dtype)
+                idx = 0
+            year, month, day, hour, minute = occ_get_date(row["occ_date_id"], granular_date)
+            buffer[idx]["event_id"] = row["event_id"]
+            buffer[idx]["period_no"] = row["period_no"]
+            buffer[idx]["occ_year"] = year
+            buffer[idx]["occ_month"] = month
+            buffer[idx]["occ_day"] = day
+            buffer[idx]["occ_hour"] = hour
+            buffer[idx]["occ_minute"] = minute
+            idx += 1
+        yield buffer[:idx]
+
+    run_dir = Path(file_in).parent
+    filename = Path(file_in).name
+    occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename)
+    if granular_date:
+        file_type = "occurrence_granular"
+    headers = TYPE_MAP[file_type]["headers"]
+    dtype = TYPE_MAP[file_type]["dtype"]
+    fmt = TYPE_MAP[file_type]["fmt"]
+
+    csv_out_file = open(file_out, "w")
+    if date_algorithm:
+        occ_csv_output = [
+            ("event_id", 'i4', "%d"),
+            ("period_no", 'i4', "%d"),
+            ("occ_year", 'i4', "%d"),
+            ("occ_month", 'i4', "%d"),
+            ("occ_day", 'i4', "%d"),
+        ]
+        if granular_date:
+            occ_csv_output += [
+                ("occ_hour", 'i4', "%d"),
+                ("occ_minute", 'i4', "%d"),
+            ]
+        headers, dtype, fmt = generate_output_metadata(occ_csv_output)
+        gen = _get_occ_data_with_dates(occ_arr, dtype)
+        if granular_date:
+            gen = _get_occ_data_with_dates_gran(occ_arr, dtype)
+
+        if not noheader:
+            csv_out_file.write(",".join(headers) + "\n")
+        for data in gen:
+            write_ndarray_to_fmt_csv(csv_out_file, data, headers, fmt)
+    else:
+        if not noheader:
+            csv_out_file.write(",".join(headers) + "\n")
+        write_ndarray_to_fmt_csv(csv_out_file, occ_arr, headers, fmt)
+    csv_out_file.close()
+
+
 def default_tocsv(file_in, file_out, file_type, noheader):
     headers = TYPE_MAP[file_type]["headers"]
     dtype = TYPE_MAP[file_type]["dtype"]
@@ -130,6 +213,8 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
         tocsv_func = complex_items_tocsv
     elif file_type == "coverages":
         tocsv_func = coverages_tocsv
+    elif file_type == "occurrence":
+        tocsv_func = occurrence_tocsv
 
     tocsv_func(file_in, file_out, file_type, noheader)
 
