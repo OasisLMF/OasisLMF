@@ -97,7 +97,8 @@ calculated_summary_cols = {'is_property_damage': is_property_damage}
 
 
 def get_xref_df(il_inputs_df):
-    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS]
+    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(),
+                                           ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS].drop_duplicates()
     bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0]
     bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
