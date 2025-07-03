@@ -347,12 +347,12 @@ def occ_get_date_id(granular_date, occ_year, occ_month, occ_day, occ_hour=0, occ
         occ_date_id (np.int64): occurrence file date id (int64 for granular dates)
     """
     occ_month = (occ_month + 9) % 12
-    occ_year = occ_year - occ_month / 10
+    occ_year = occ_year - occ_month // 10
     occ_date_id = np.int64(
-        365 * occ_year + occ_year / 4 - occ_year / 100 + occ_year / 400 + (occ_month * 306 + 5) / 10 + (occ_day - 1)
+        365 * occ_year + occ_year // 4 - occ_year // 100 + occ_year // 400 + (occ_month * 306 + 5) // 10 + (occ_day - 1)
     )
 
-    occ_date_id *= (1440 / (1440 - 1439 * granular_date))
+    occ_date_id *= (1440 // (1440 - 1439 * granular_date))
     occ_date_id += (60 * occ_hour + occ_minute)
     return occ_date_id
 

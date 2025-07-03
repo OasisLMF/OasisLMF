@@ -8,11 +8,10 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.event_stream import mv_read
-from oasislmf.pytools.common.input_files import occ_get_date, read_amplifications, read_coverages, read_occurrence_bin
-
 from . import logger
+from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.pytools.common.data import generate_output_metadata, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.input_files import occ_get_date, read_amplifications, read_coverages, read_occurrence_bin
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV, TYPE_MAP
 
 
@@ -142,8 +141,6 @@ def occurrence_tocsv(file_in, file_out, file_type, noheader):
     run_dir = Path(file_in).parent
     filename = Path(file_in).name
     occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename)
-    if granular_date:
-        file_type = "occurrence_granular"
     headers = TYPE_MAP[file_type]["headers"]
     dtype = TYPE_MAP[file_type]["dtype"]
     fmt = TYPE_MAP[file_type]["fmt"]
@@ -216,7 +213,7 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
     elif file_type == "occurrence":
         tocsv_func = occurrence_tocsv
 
-    tocsv_func(file_in, file_out, file_type, noheader)
+    tocsv_func(file_in, file_out, file_type, noheader, **kwargs)
 
 
 def main():

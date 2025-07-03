@@ -128,6 +128,9 @@ def test_occurrence():
     case_runner("bintocsv", "occurrence", "occurrence")
     case_runner("bintocsv", "occurrence", "occurrence_gran")
     case_runner("bintocsv", "occurrence", "occurrence_noalg")
+    case_runner("csvtobin", "occurrence", "occurrence", no_of_periods=9)
+    case_runner("csvtobin", "occurrence", "occurrence_gran", no_of_periods=9, granular=True)
+    case_runner("csvtobin", "occurrence", "occurrence_noalg", no_of_periods=9, no_date_alg=True)
 
 
 def test_periods():
