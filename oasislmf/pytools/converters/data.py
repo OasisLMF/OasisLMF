@@ -1,9 +1,11 @@
 from oasislmf.pytools.common.data import aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt
+from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
+from oasislmf.pytools.common.data import random_headers, random_dtype, random_fmt
+
 from oasislmf.pytools.common.data import amplifications_headers, amplifications_dtype, amplifications_fmt
 from oasislmf.pytools.common.data import complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt
 from oasislmf.pytools.common.data import correlations_headers, correlations_dtype, correlations_fmt
 from oasislmf.pytools.common.data import coverages_headers, coverages_dtype, coverages_fmt
-from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
 from oasislmf.pytools.common.data import eve_headers, eve_dtype, eve_fmt
 from oasislmf.pytools.common.data import fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt
 from oasislmf.pytools.common.data import fm_profile_headers, fm_profile_dtype, fm_profile_fmt
@@ -16,17 +18,32 @@ from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
 from oasislmf.pytools.common.data import occurrence_headers, occurrence_dtype, occurrence_fmt
 from oasislmf.pytools.common.data import periods_headers, periods_dtype, periods_fmt
 from oasislmf.pytools.common.data import quantile_headers, quantile_dtype, quantile_fmt
-from oasislmf.pytools.common.data import random_headers, random_dtype, random_fmt
 from oasislmf.pytools.common.data import returnperiods_headers, returnperiods_dtype, returnperiods_fmt
+
+from oasislmf.pytools.aal.data import AAL_headers, AAL_dtype, AAL_fmt
+from oasislmf.pytools.aal.data import AAL_meanonly_headers, AAL_meanonly_dtype, AAL_meanonly_fmt
+from oasislmf.pytools.aal.data import ALCT_headers, ALCT_dtype, ALCT_fmt
+
+from oasislmf.pytools.elt.data import SELT_headers, SELT_dtype, SELT_fmt
+from oasislmf.pytools.elt.data import MELT_headers, MELT_dtype, MELT_fmt
+from oasislmf.pytools.elt.data import QELT_headers, QELT_dtype, QELT_fmt
+
+from oasislmf.pytools.lec.data import EPT_headers, EPT_dtype, EPT_fmt
+from oasislmf.pytools.lec.data import PSEPT_headers, PSEPT_dtype, PSEPT_fmt
+
+from oasislmf.pytools.plt.data import SPLT_headers, SPLT_dtype, SPLT_fmt
+from oasislmf.pytools.plt.data import MPLT_headers, MPLT_dtype, MPLT_fmt
+from oasislmf.pytools.plt.data import QPLT_headers, QPLT_dtype, QPLT_fmt
 
 
 SUPPORTED_CSVTOBIN = [
     "aggregatevulnerability",
+    "damagebin",
+    "random",
     "amplifications",
     "complex_items",
     "correlations",
     "coverages",
-    "damagebin",
     "eve",
     "fm_policytc",
     "fm_profile",
@@ -39,18 +56,29 @@ SUPPORTED_CSVTOBIN = [
     "occurrence",
     "periods",
     "quantile",
-    "random",
     "returnperiods",
+    "aal",
+    "aalmeanonly",
+    "alct",
+    "selt",
+    "melt",
+    "qelt",
+    "ept",
+    "psept",
+    "splt",
+    "mplt",
+    "qplt",
 ]
 
 
 SUPPORTED_BINTOCSV = [
     "aggregatevulnerability",
+    "damagebin",
+    "random",
     "amplifications",
     "complex_items",
     "correlations",
     "coverages",
-    "damagebin",
     "eve",
     "fm_policytc",
     "fm_profile",
@@ -63,17 +91,39 @@ SUPPORTED_BINTOCSV = [
     "occurrence",
     "periods",
     "quantile",
-    "random",
     "returnperiods",
+    "aal",
+    "aalmeanonly",
+    "alct",
+    "selt",
+    "melt",
+    "qelt",
+    "ept",
+    "psept",
+    "splt",
+    "mplt",
+    "qplt",
 ]
 
 
 TYPE_MAP = {
+    # Static
     "aggregatevulnerability": {
         "headers": aggregatevulnerability_headers,
         "dtype": aggregatevulnerability_dtype,
         "fmt": aggregatevulnerability_fmt,
     },
+    "damagebin": {
+        "headers": damagebin_headers,
+        "dtype": damagebin_dtype,
+        "fmt": damagebin_fmt,
+    },
+    "random": {
+        "headers": random_headers,
+        "dtype": random_dtype,
+        "fmt": random_fmt,
+    },
+    # Input
     "amplifications": {
         "headers": amplifications_headers,
         "dtype": amplifications_dtype,
@@ -93,11 +143,6 @@ TYPE_MAP = {
         "headers": coverages_headers,
         "dtype": coverages_dtype,
         "fmt": coverages_fmt,
-    },
-    "damagebin": {
-        "headers": damagebin_headers,
-        "dtype": damagebin_dtype,
-        "fmt": damagebin_fmt,
     },
     "eve": {
         "headers": eve_headers,
@@ -159,14 +204,68 @@ TYPE_MAP = {
         "dtype": quantile_dtype,
         "fmt": quantile_fmt,
     },
-    "random": {
-        "headers": random_headers,
-        "dtype": random_dtype,
-        "fmt": random_fmt,
-    },
     "returnperiods": {
         "headers": returnperiods_headers,
         "dtype": returnperiods_dtype,
         "fmt": returnperiods_fmt,
+    },
+    # Output AAL
+    "aal": {
+        "headers": AAL_headers,
+        "dtype": AAL_dtype,
+        "fmt": AAL_fmt,
+    },
+    "aalmeanonly": {
+        "headers": AAL_meanonly_headers,
+        "dtype": AAL_meanonly_dtype,
+        "fmt": AAL_meanonly_fmt,
+    },
+    "alct": {
+        "headers": ALCT_headers,
+        "dtype": ALCT_dtype,
+        "fmt": ALCT_fmt,
+    },
+    # Output ELT
+    "selt": {
+        "headers": SELT_headers,
+        "dtype": SELT_dtype,
+        "fmt": SELT_fmt,
+    },
+    "melt": {
+        "headers": MELT_headers,
+        "dtype": MELT_dtype,
+        "fmt": MELT_fmt,
+    },
+    "qelt": {
+        "headers": QELT_headers,
+        "dtype": QELT_dtype,
+        "fmt": QELT_fmt,
+    },
+    # Output LEC
+    "ept": {
+        "headers": EPT_headers,
+        "dtype": EPT_dtype,
+        "fmt": EPT_fmt,
+    },
+    "psept": {
+        "headers": PSEPT_headers,
+        "dtype": PSEPT_dtype,
+        "fmt": PSEPT_fmt,
+    },
+    # Output PLT
+    "splt": {
+        "headers": SPLT_headers,
+        "dtype": SPLT_dtype,
+        "fmt": SPLT_fmt,
+    },
+    "mplt": {
+        "headers": MPLT_headers,
+        "dtype": MPLT_dtype,
+        "fmt": MPLT_fmt,
+    },
+    "qplt": {
+        "headers": QPLT_headers,
+        "dtype": QPLT_dtype,
+        "fmt": QPLT_fmt,
     },
 }
