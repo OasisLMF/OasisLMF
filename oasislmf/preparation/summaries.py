@@ -292,7 +292,10 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
     }
 
     # GUL perspective (loc columns only)
-    l_col_list = exposure_df.replace(0, np.nan).dropna(how='any', axis=1).columns.to_list()
+    l_col_list = (exposure_df.drop(columns=['peril_group_id'], errors='ignore')
+                             .replace(0, np.nan)
+                             .dropna(how='any', axis=1)
+                             .columns.to_list())
     l_col_info = exposure_data.get_input_fields('Loc')
     gul_avail = {k: l_col_info[k.lower()]["Type & Description"] if k.lower() in l_col_info else desc_non_oed
                  for k in set([c for c in l_col_list]).difference(int_excluded_cols)}

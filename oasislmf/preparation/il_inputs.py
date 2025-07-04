@@ -626,6 +626,8 @@ def get_il_input_items(
                 numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
                 term_filter = False
                 for term in numeric_terms:
+                    if pd.isna(oed_schema.get_default(term)):
+                        continue
                     term_filter |= (group_df[term] != oed_schema.get_default(term))
                 keep_df = group_df[term_filter][list(
                     set(agg_key).intersection(group_df.columns))].drop_duplicates()
