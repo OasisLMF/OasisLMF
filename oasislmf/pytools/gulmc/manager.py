@@ -447,7 +447,7 @@ def run(run_dir,
             get_event_items = event_footprint_obj.get_event_items
         else:
             def get_event_items(event_id, areaperil_ids_map, dynamic_footprint):
-                event_footprint = event_footprint_obj.get_event(event_id, areaperil_ids_map, dynamic_footprint)
+                event_footprint = event_footprint_obj.get_event(event_id)
                 if event_footprint is not None:
                     return process_areaperils_in_footprint(event_footprint, areaperil_ids_map, dynamic_footprint)
                 else:
