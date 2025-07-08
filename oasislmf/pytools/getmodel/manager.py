@@ -640,13 +640,7 @@ def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):
     elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('damage_bin_dict.csv', encode_params=False)[1]}")
         with storage.open("damage_bin_dict.csv") as f:
-            header = f.readline().decode().strip().split(',')
-            if len(header) == 4:  # Load `damage_type` with 0s by default if col missing
-                logger.debug("adding default `damage_type` column")
-                output = np.loadtxt(f, dtype=damagebindictionary_4, delimiter=',', ndmin=1)
-                return append_fields(output, 'damage_type', np.zeros(output.shape[0],
-                                                                     dtype=np.int32), dtypes=np.int32).data
-            return np.loadtxt(f, dtype=damagebindictionary, delimiter=',', ndmin=1)
+            return np.loadtxt(f, dtype=damagebindictionary, skiprows=1, delimiter=',', ndmin=1)
     else:
         raise FileNotFoundError(f"damage_bin_dict file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
