@@ -71,56 +71,67 @@ def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
 def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FILENAME):
     """Load the correlations from the correlations file.
     Args:
-        run_dir (str): path to amplifications.bin file
+        run_dir (str): path to correlations file
         ignore_file_type (Set[str]): file extension to ignore when loading.
-        filename (str | os.PathLike): coverages file name
+        filename (str | os.PathLike): correlations file name
     Returns:
         Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]]
         vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
         areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
 
-    for ext in [".bin", ".csv"]:
+    for ext in ["bin", "csv"]:
         if ext in ignore_file_type:
             continue
 
-        correlations_file = Path(run_dir, filename).with_suffix(ext)
+        correlations_file = Path(run_dir, filename).with_suffix("." + ext)
         if correlations_file.exists():
             logger.debug(f"loading {correlations_file}")
-            if ext == ".bin":
+            if ext == "bin":
                 try:
                     correlations = np.memmap(correlations_file, dtype=correlations_dtype, mode='r')
                 except ValueError:
                     logger.debug("binary file is empty, numpy.memmap failed. trying to read correlations.csv.")
                     correlations = read_correlations(run_dir, ignore_file_type={'bin'}, filename=correlations_file.with_suffix(".csv").name)
-            elif ext == ".csv":
-                correlations = np.loadtxt(correlations_file, dtype=correlations_dtype, delimiter=",", skiprows=1, ndmin=1)
+            elif ext == "csv":
+                # Check for header
+                with open(correlations_file, "r") as fin:
+                    first_line = fin.readline()
+                    first_line_elements = [header.strip() for header in first_line.strip().split(',')]
+                    has_header = first_line_elements == coverages_headers
+                correlations = np.loadtxt(
+                    correlations_file,
+                    dtype=correlations_dtype,
+                    delimiter=",",
+                    skiprows=1 if has_header else 0,
+                    ndmin=1
+                )
             else:
                 raise RuntimeError(f"Cannot read correlations file of type {ext}. Not Implemented.")
             return correlations
 
-    raise FileNotFoundError(f'correlations file not found at {run_dir}')
+    raise FileNotFoundError(f'correlations file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
 
 
 def read_coverages(run_dir, ignore_file_type=set(), filename=COVERAGES_FILE):
     """Load the coverages from the coverages file.
     Args:
-        run_dir (str): path to amplifications.bin file
+        run_dir (str): path to coverages file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): coverages file name
     Returns:
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
-    for ext in [".bin", ".csv"]:
+    for ext in ["bin", "csv"]:
         if ext in ignore_file_type:
             continue
 
-        coverages_file = Path(run_dir, filename).with_suffix(ext)
+        coverages_file = Path(run_dir, filename).with_suffix("." + ext)
         if coverages_file.exists():
             logger.debug(f"loading {coverages_file}")
-            if ext == ".bin":
+            if ext == "bin":
                 coverages = np.fromfile(coverages_file, dtype=oasis_float)
-            elif ext == ".csv":
+            elif ext == "csv":
                 # Check for header
                 with open(coverages_file, "r") as fin:
                     first_line = fin.readline()
@@ -137,7 +148,7 @@ def read_coverages(run_dir, ignore_file_type=set(), filename=COVERAGES_FILE):
                 raise RuntimeError(f"Cannot read coverages file of type {ext}. Not Implemented.")
             return coverages
 
-    raise FileNotFoundError(f'coverages file not found at {run_dir}')
+    raise FileNotFoundError(f'coverages file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):

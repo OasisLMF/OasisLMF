@@ -13,6 +13,7 @@ from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.pytools.common.data import generate_output_metadata, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.input_files import occ_get_date, read_amplifications, read_coverages, read_occurrence_bin
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV, TYPE_MAP
+from oasislmf.pytools.pla.structure import read_lossfactors
 
 
 def amplifications_tocsv(file_in, file_out, file_type, noheader):
@@ -83,10 +84,29 @@ def coverages_tocsv(file_in, file_out, file_type, noheader):
     fmt = TYPE_MAP[file_type]["fmt"]
 
     cov_fp = Path(file_in)
-    coverages = read_coverages(cov_fp.parent, filename=cov_fp.name)
+    coverages = read_coverages(cov_fp.parent, set(["csv"]), filename=cov_fp.name)
     data = np.zeros(len(coverages), dtype=dtype)
     data["coverage_id"] = np.arange(1, len(coverages) + 1)
     data["tiv"] = coverages
+
+    csv_out_file = open(file_out, "w")
+    if not noheader:
+        csv_out_file.write(",".join(headers) + "\n")
+    write_ndarray_to_fmt_csv(csv_out_file, data, headers, fmt)
+    csv_out_file.close()
+
+
+def lossfactors_tocsv(file_in, file_out, file_type, noheader):
+    headers = TYPE_MAP[file_type]["headers"]
+    dtype = TYPE_MAP[file_type]["dtype"]
+    fmt = TYPE_MAP[file_type]["fmt"]
+
+    lossfactors_fp = Path(file_in)
+    plafactors = read_lossfactors(lossfactors_fp.parent, set(["csv"]), filename=lossfactors_fp.name)
+
+    data = np.empty(len(plafactors), dtype=dtype)
+    for i, (k, v) in enumerate(plafactors.items()):
+        data[i] = (k[0], k[1], v)
 
     csv_out_file = open(file_out, "w")
     if not noheader:
@@ -210,6 +230,8 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
         tocsv_func = complex_items_tocsv
     elif file_type == "coverages":
         tocsv_func = coverages_tocsv
+    elif file_type == "lossfactors":
+        tocsv_func = lossfactors_tocsv
     elif file_type == "occurrence":
         tocsv_func = occurrence_tocsv
 

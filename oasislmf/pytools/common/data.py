@@ -170,6 +170,13 @@ items_output = [
 ]
 items_headers, items_dtype, items_fmt = generate_output_metadata(items_output)
 
+lossfactors_output = [
+    ("event_id", 'i4', "%d"),
+    ("amplification_id", 'i4', "%d"),
+    ("factor", 'f4', "%.2f"),
+]
+lossfactors_headers, lossfactors_dtype, lossfactors_fmt = generate_output_metadata(lossfactors_output)
+
 occurrence_output = [
     ("event_id", 'i4', "%d"),
     ("period_no", 'i4', "%d"),

@@ -73,6 +73,11 @@ def test_damagebin():
     case_runner("csvtobin", "damagebin", "static")
 
 
+def test_lossfactors():
+    case_runner("bintocsv", "lossfactors", "static")
+    case_runner("csvtobin", "lossfactors", "static")
+
+
 def test_random():
     case_runner("bintocsv", "random", "static")
     case_runner("csvtobin", "random", "static")

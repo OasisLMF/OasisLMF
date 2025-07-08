@@ -43,7 +43,7 @@ from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
 from oasislmf.pytools.converters.csvtobin import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
-from oasislmf.pytools.pla.common import LOSS_FACTORS_FILE_NAME
+from oasislmf.pytools.pla.common import PLAFACTORS_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -534,9 +534,9 @@ def set_vulnerability_set(setting_val, run_dir):
 @oasis_log
 def set_loss_factors_set(setting_val, run_dir):
     setting_val = str(setting_val)
-    stem, extension = LOSS_FACTORS_FILE_NAME.split('.', 1)
+    stem, extension = PLAFACTORS_FILE.split('.', 1)
     loss_factors_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
-    loss_factors_target_fp = os.path.join(run_dir, 'static', LOSS_FACTORS_FILE_NAME)
+    loss_factors_target_fp = os.path.join(run_dir, 'static', PLAFACTORS_FILE)
     if os.path.isfile(loss_factors_target_fp):
         os.rename(loss_factors_target_fp, os.path.join(run_dir, 'static', f'{stem}_default.{extension}'))
     if os.path.isfile(loss_factors_fp):

@@ -11,7 +11,7 @@ from oasislmf.pytools.pla.common import (
     DATA_SIZE,
     event_count_dtype,
     amp_factor_dtype,
-    LOSS_FACTORS_FILE_NAME
+    PLAFACTORS_FILE
 )
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM,
                                                   mv_write_item_header, mv_write_sidx_loss)
@@ -103,7 +103,7 @@ class TestPostLossAmplification(TestCase):
         # Write loss factors file
         self.static_dir = Path('./static')
         self.static_dir.mkdir(exist_ok=True)
-        lossfactors_file = os.path.join(self.static_dir, LOSS_FACTORS_FILE_NAME)
+        lossfactors_file = os.path.join(self.static_dir, PLAFACTORS_FILE)
         n_amplifications = 2
         factors = np.array([[1.125, 1.25], [1.0, 0.75]])
         n_pairs = n_events + sum(len(event) for event in factors)

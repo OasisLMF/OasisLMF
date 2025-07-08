@@ -13,6 +13,8 @@ from . import logger
 from oasislmf.pytools.common.data import generate_output_metadata, occurrence_dtype, occurrence_granular_dtype
 from oasislmf.pytools.common.input_files import occ_get_date_id
 from oasislmf.pytools.converters.data import SUPPORTED_CSVTOBIN, TYPE_MAP
+from oasislmf.pytools.pla.common import amp_factor_dtype
+from oasislmf.pytools.pla.structure import read_lossfactors
 
 
 def read_csv_as_ndarray(file_in, headers, dtype):
@@ -23,9 +25,9 @@ def read_csv_as_ndarray(file_in, headers, dtype):
         first_line_elements = [header.strip() for header in first_line.strip().split(',')]
         has_header = first_line_elements == headers
 
-    cvs_dtype = {key: col_dtype for key, (col_dtype, _) in dtype.fields.items()}
+    csv_dtype = {key: col_dtype for key, (col_dtype, _) in dtype.fields.items()}
     try:
-        df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype, usecols=list(cvs_dtype.keys()))
+        df = pd.read_csv(file_in, delimiter=',', dtype=csv_dtype, usecols=list(csv_dtype.keys()))
     except pd.errors.EmptyDataError:
         return np.empty(0, dtype=dtype)
 
@@ -90,6 +92,34 @@ def returnperiods_tobin(file_in, file_out, file_type):
     data = read_csv_as_ndarray(file_in, headers, dtype)
     data = np.sort(data, order="return_period")[::-1]
     data.tofile(file_out)
+
+
+def lossfactors_tobin(file_in, file_out, file_type):
+    headers = TYPE_MAP[file_type]["headers"]
+    dtype = TYPE_MAP[file_type]["dtype"]
+
+    lossfactors_fp = Path(file_in)
+    plafactors = read_lossfactors(lossfactors_fp.parent, set(["bin"]), filename=lossfactors_fp.name)
+
+    with open(file_out, "wb") as fout:
+        # Write the 4-byte zero header
+        np.array([0], dtype="i4").tofile(fout)
+
+        current_event_id = 0
+        counter = 0
+        factors = []
+        for k, v in plafactors.items():
+            if k[0] != current_event_id:
+                if current_event_id != 0:
+                    np.array([counter], dtype=np.int32).tofile(fout)
+                    for af in factors:
+                        np.array(af, dtype=amp_factor_dtype).tofile(fout)
+                np.array(k[0], dtype=np.int32).tofile(fout)
+                current_event_id = k[0]
+                counter = 0
+                factors = []
+            factors.append((k[1], v))
+            counter += 1
 
 
 def occurrence_tobin(file_in, file_out, file_type, no_of_periods, no_date_alg=False, granular=False):
@@ -201,6 +231,8 @@ def csvtobin(file_in, file_out, file_type, **kwargs):
         tobin_func = complex_items_tobin
     elif file_type == "coverages":
         tobin_func = coverages_tobin
+    elif file_type == "lossfactors":
+        tobin_func = lossfactors_tobin
     elif file_type == "occurrence":
         tobin_func = occurrence_tobin
     elif file_type == "returnperiods":

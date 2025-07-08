@@ -1,67 +1,17 @@
 import logging
+from pathlib import Path
 from numba import njit
 from numba.core import types
 from numba.typed import Dict
 import numpy as np
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from .common import (
-    BUFFER_SIZE,
-    DATA_SIZE,
-    N_PAIRS,
-    FILE_HEADER_SIZE,
-    event_count_dtype,
-    amp_factor_dtype,
-    LOSS_FACTORS_FILE_NAME
-)
+from oasislmf.pytools.common.data import lossfactors_headers, lossfactors_dtype
+from oasislmf.pytools.common.event_stream import mv_read
+from .common import PLAFACTORS_FILE
+
 
 logger = logging.getLogger(__name__)
-
-
-@njit(cache=True)
-def fill_post_loss_amplification_factors(
-    event_id, count, cursor, valid_length, event_count, amp_factor, plafactors,
-    secondary_factor
-):
-    """
-    Fill Post Loss Amplification (PLA) factors dictionary mapped to
-    event ID-item ID pair.
-
-    Args:
-        event_id (int): current event ID
-        count (int): number of remaning amplification IDs associated with
-            current event ID
-        cursor (int): position in buffer
-        valid_length (int): length of buffer in 8-bit chunks
-        event_count (numpy.ndarray): array of event ID-count pairs
-        amp_factor (numpy.ndarray): array of amplification ID-loss pairs
-        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary
-        secondary_factor (float): secondary factor to apply to post loss
-          amplification
-
-    Returns:
-        event_id (int): current event ID
-        count (int): number of remaining amplification IDs associated with
-            current event ID
-        plafactors (numba.typed.typeddict.Dict): PLA factors dictionary
-    """
-    while cursor < valid_length:
-
-        if count == 0:
-            event_id = event_count[cursor]['event_id']
-            count = event_count[cursor]['count']
-            cursor += 1
-
-        else:
-            amplification_id = amp_factor[cursor]['amplification_id']
-            loss_factor = max(
-                1 + (amp_factor[cursor]['factor'] - 1) * secondary_factor, 0.0
-            )   # Losses cannot be negative
-            plafactors[(event_id, amplification_id)] = loss_factor
-            cursor += 1
-            count -= 1
-
-    return event_id, count, plafactors
 
 
 def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, uniform_factor, ignore_file_type=set()):
@@ -94,45 +44,86 @@ def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, 
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
     """
     plafactors = Dict.empty(
-        key_type=types.UniTuple(types.int64, 2), value_type=types.float64
+        key_type=types.UniTuple(types.int32, 2), value_type=types.float32
     )
     if uniform_factor > 0.0:
-        return plafactors
+        return Dict.empty(
+            key_type=types.UniTuple(types.int32, 2), value_type=types.float32
+        )
 
     input_files = set(storage.listdir())
-    if LOSS_FACTORS_FILE_NAME in input_files and 'bin' not in ignore_file_type:
-        logger.debug(f"loading {storage.get_storage_url(LOSS_FACTORS_FILE_NAME, encode_params=False)[1]}")
-        with storage.with_fileno(LOSS_FACTORS_FILE_NAME) as f:
-            factors_buffer = memoryview(bytearray(BUFFER_SIZE))
-            event_count = np.ndarray(
-                N_PAIRS, buffer=factors_buffer, dtype=event_count_dtype
+    if PLAFACTORS_FILE in input_files and 'bin' not in ignore_file_type:
+        plafactors = read_lossfactors(storage.root_dir, set(["csv"]), PLAFACTORS_FILE)
+        for key, value in plafactors.items():
+            plafactors[key] = max(
+                1 + (value - 1) * secondary_factor, 0.0
             )
-            amp_factor = np.ndarray(
-                N_PAIRS, buffer=factors_buffer, dtype=amp_factor_dtype
-            )
-            f.readinto(factors_buffer[:FILE_HEADER_SIZE])   # Ignore first 4 bytes
-
-            cursor = 0
-            valid_buffer = 0
-            count = 0
-            event_id = 0
-            while True:
-                len_read = f.readinto(factors_buffer[valid_buffer:])
-                valid_buffer += len_read
-
-                if len_read == 0:
-                    break
-
-                valid_length = valid_buffer // DATA_SIZE
-
-                event_id, count, plafactors = fill_post_loss_amplification_factors(
-                    event_id, count, cursor, valid_length, event_count, amp_factor,
-                    plafactors, secondary_factor
-                )
-
-                valid_buffer = 0
-                cursor = 0
-
-            return plafactors
+        return plafactors
     else:
         raise FileNotFoundError(f"lossfactors.bin file not found at {storage.get_storage_url('', encode_params=False)[1]}")
+
+
+def read_lossfactors(run_dir, ignore_file_type=set(), filename=PLAFACTORS_FILE):
+    """Load the correlations from the lossfactors file.
+    Args:
+        run_dir (str): path to lossfactors.bin file
+        ignore_file_type (Set[str]): file extension to ignore when loading.
+        filename (str | os.PathLike): lossfactors file name
+    Returns:
+        plafactors (dict): event ID-item ID pairs mapped to amplification IDs
+    """
+    int32_itemsize = np.dtype(np.int32).itemsize
+    float32_itemsize = np.dtype(np.float32).itemsize
+
+    @njit(cache=True, error_model="numpy")
+    def _read_bin(lossfactors, plafactors):
+        cursor = 0
+        opts, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
+
+        valid_buf = len(lossfactors)
+        while cursor < valid_buf:
+            event_id, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
+            count, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
+            for _ in range(count):
+                amplification_id, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
+                factor, cursor = mv_read(lossfactors, cursor, np.float32, float32_itemsize)
+                plafactors[(event_id, amplification_id)] = factor
+
+    @njit(cache=True, error_model="numpy")
+    def _read_csv(lossfactors, plafactors):
+        for row in lossfactors:
+            plafactors[(row["event_id"], row["amplification_id"])] = row["factor"]
+
+    plafactors = Dict.empty(
+        key_type=types.UniTuple(types.int32, 2), value_type=types.float32
+    )
+    for ext in ["bin", "csv"]:
+        if ext in ignore_file_type:
+            continue
+
+        lossfactors_file = Path(run_dir, filename).with_suffix("." + ext)
+        if lossfactors_file.exists():
+            logger.debug(f"loading {lossfactors_file}")
+            if ext == "bin":
+                lossfactors = np.memmap(lossfactors_file, dtype=np.uint8, mode='r')
+                _read_bin(lossfactors, plafactors)
+
+            elif ext == "csv":
+                # Check for header
+                with open(lossfactors_file, "r") as fin:
+                    first_line = fin.readline()
+                    first_line_elements = [header.strip() for header in first_line.strip().split(',')]
+                    has_header = first_line_elements == lossfactors_headers
+                lossfactors = np.loadtxt(
+                    lossfactors_file,
+                    dtype=lossfactors_dtype,
+                    delimiter=",",
+                    skiprows=1 if has_header else 0,
+                    ndmin=1
+                )
+                _read_csv(lossfactors, plafactors)
+            else:
+                raise RuntimeError(f"Cannot read lossfactors file of type {ext}. Not Implemented.")
+            return plafactors
+
+    raise FileNotFoundError(f'lossfactors file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
