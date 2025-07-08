@@ -13,7 +13,6 @@ from contextlib import ExitStack
 
 import numba as nb
 import numpy as np
-from numpy.lib.recfunctions import append_fields
 import pandas as pd
 
 from numba import int32 as nb_int32
