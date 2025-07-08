@@ -33,7 +33,7 @@ from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights, )
-from oasislmf.pytools.gulmc.common import (NP_BASE_ARRAY_SIZE,
+from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION, DAMAGE_TYPE_RELATIVE, NP_BASE_ARRAY_SIZE,
                                            Item, Keys, ItemAdjustment,
                                            NormInversionParameters, coverage_type, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
@@ -681,9 +681,6 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_sc
     vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
 
     # compute ground-up losses
-    # for relative vulnerability functions, bin_scaling is tiv
-    # for absolute vulnerability functions, bin_scaling is 1, gul is absolute
-    # for duration vulnerability functions, bin_scaling is the loss per day
     return get_gul(
         damage_bins['bin_from'][vuln_bin_idx],
         damage_bins['bin_to'][vuln_bin_idx],
@@ -916,15 +913,12 @@ def compute_event_losses(compute_info,
 
             Neff_damage_bins = eff_damage_cdf.shape[0]
 
-            # for relative vulnerability functions, the `damage_type` in `damage_bins` is 1
-            # for absolute vulnerability functions, `damage_type` in `damage_bins` is 2
-            # for duration vulnerability functions, `damage_type` in `damage_bins` is 3
             damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
-            if damage_type == 1:
+            if damage_type == DAMAGE_TYPE_RELATIVE:
                 damage_bin_scaling = tiv
-            elif damage_type == 2:
+            elif damage_type == DAMAGE_TYPE_ABSOLUTE:
                 damage_bin_scaling = 1
-            elif damage_type == 3:
+            elif damage_type == DAMAGE_TYPE_DURATION:
                 # convert annual tiv to daily
                 damage_bin_scaling = tiv / 365
             else:  # default behaviour
