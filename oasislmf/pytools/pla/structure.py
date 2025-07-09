@@ -78,11 +78,11 @@ def read_lossfactors(run_dir, ignore_file_type=set(), filename=PLAFACTORS_FILE):
         opts, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
 
         valid_buf = len(lossfactors)
-        while cursor + (2 * int32_itemsize) < valid_buf:
+        while cursor + (2 * int32_itemsize) <= valid_buf:
             event_id, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
             count, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
             for _ in range(count):
-                if cursor + (int32_itemsize + float32_itemsize) >= valid_buf:
+                if cursor + (int32_itemsize + float32_itemsize) > valid_buf:
                     break
                 amplification_id, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
                 factor, cursor = mv_read(lossfactors, cursor, np.float32, float32_itemsize)
