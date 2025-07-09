@@ -43,12 +43,9 @@ def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, 
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
     """
-    plafactors = Dict.empty(
-        key_type=types.UniTuple(types.int32, 2), value_type=types.float32
-    )
     if uniform_factor > 0.0:
         return Dict.empty(
-            key_type=types.UniTuple(types.int32, 2), value_type=types.float32
+            key_type=types.UniTuple(types.int64, 2), value_type=types.float64
         )
 
     input_files = set(storage.listdir())
@@ -81,10 +78,12 @@ def read_lossfactors(run_dir, ignore_file_type=set(), filename=PLAFACTORS_FILE):
         opts, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
 
         valid_buf = len(lossfactors)
-        while cursor < valid_buf:
+        while cursor + (2 * int32_itemsize) < valid_buf:
             event_id, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
             count, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
             for _ in range(count):
+                if cursor + (int32_itemsize + float32_itemsize) >= valid_buf:
+                    break
                 amplification_id, cursor = mv_read(lossfactors, cursor, np.int32, int32_itemsize)
                 factor, cursor = mv_read(lossfactors, cursor, np.float32, float32_itemsize)
                 plafactors[(event_id, amplification_id)] = factor
@@ -95,7 +94,7 @@ def read_lossfactors(run_dir, ignore_file_type=set(), filename=PLAFACTORS_FILE):
             plafactors[(row["event_id"], row["amplification_id"])] = row["factor"]
 
     plafactors = Dict.empty(
-        key_type=types.UniTuple(types.int32, 2), value_type=types.float32
+        key_type=types.UniTuple(types.int64, 2), value_type=types.float64
     )
     for ext in ["bin", "csv"]:
         if ext in ignore_file_type:

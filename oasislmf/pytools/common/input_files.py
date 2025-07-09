@@ -5,7 +5,8 @@ from pathlib import Path
 
 from oasislmf.pytools.common.data import (
     load_as_ndarray, nb_oasis_int,
-    correlations_dtype, coverages_headers, occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
+    correlations_headers, correlations_dtype, coverages_headers,
+    occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
     quantile_interval_dtype, returnperiods_dtype
 )
 from oasislmf.pytools.common.event_stream import mv_read, oasis_int, oasis_float
@@ -98,7 +99,7 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
                 with open(correlations_file, "r") as fin:
                     first_line = fin.readline()
                     first_line_elements = [header.strip() for header in first_line.strip().split(',')]
-                    has_header = first_line_elements == coverages_headers
+                    has_header = first_line_elements == correlations_headers
                 correlations = np.loadtxt(
                     correlations_file,
                     dtype=correlations_dtype,
