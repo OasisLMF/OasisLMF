@@ -83,6 +83,11 @@ def test_random():
     case_runner("csvtobin", "random", "static")
 
 
+def test_weights():
+    case_runner("bintocsv", "weights", "static")
+    case_runner("csvtobin", "weights", "static")
+
+
 def test_amplifications():
     case_runner("bintocsv", "amplifications", "input")
     case_runner("csvtobin", "amplifications", "input")

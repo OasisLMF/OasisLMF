@@ -12,16 +12,12 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, oasis_float, nb_oasis_float, aggregatevulnerability_dtype
+from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, aggregatevulnerability_dtype, vulnerability_weight_dtype
 
 logger = logging.getLogger(__name__)
 
 AGG_VULN_WEIGHTS_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
 AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float32
-
-VulnerabilityWeight = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
-                                              ('vulnerability_id', np.int32),
-                                              ('weight', oasis_float)]))
 
 
 @njit(cache=True)
@@ -89,12 +85,12 @@ def read_vulnerability_weights(storage: BaseStorage, ignore_file_type=set()):
     if "weights.bin" in input_files and "bin" not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('weights.bin', encode_params=False)}")
         with storage.open("weights.bin") as f:
-            aggregate_weights = np.memmap(f, dtype=VulnerabilityWeight, mode='r')
+            aggregate_weights = np.memmap(f, dtype=vulnerability_weight_dtype, mode='r')
 
     elif "weights.csv" in input_files and "csv" not in ignore_file_type:
         logger.debug(f"loading {storage.get_storage_url('weights.csv', encode_params=False)}")
         with storage.open("weights.csv") as f:
-            aggregate_weights = np.loadtxt(f, dtype=VulnerabilityWeight, delimiter=",", skiprows=1, ndmin=1)
+            aggregate_weights = np.loadtxt(f, dtype=vulnerability_weight_dtype, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         aggregate_weights = None

@@ -1,6 +1,8 @@
 from oasislmf.pytools.common.data import aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt
 from oasislmf.pytools.common.data import damagebin_headers, damagebin_dtype, damagebin_fmt
+from oasislmf.pytools.common.data import lossfactors_headers, lossfactors_dtype, lossfactors_fmt
 from oasislmf.pytools.common.data import random_headers, random_dtype, random_fmt
+from oasislmf.pytools.common.data import vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_fmt
 
 from oasislmf.pytools.common.data import amplifications_headers, amplifications_dtype, amplifications_fmt
 from oasislmf.pytools.common.data import complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt
@@ -15,7 +17,6 @@ from oasislmf.pytools.common.data import fm_summary_xref_headers, fm_summary_xre
 from oasislmf.pytools.common.data import fm_xref_headers, fm_xref_dtype, fm_xref_fmt
 from oasislmf.pytools.common.data import gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt
 from oasislmf.pytools.common.data import items_headers, items_dtype, items_fmt
-from oasislmf.pytools.common.data import lossfactors_headers, lossfactors_dtype, lossfactors_fmt
 from oasislmf.pytools.common.data import occurrence_headers, occurrence_dtype, occurrence_fmt
 from oasislmf.pytools.common.data import periods_headers, periods_dtype, periods_fmt
 from oasislmf.pytools.common.data import quantile_headers, quantile_dtype, quantile_fmt
@@ -130,6 +131,11 @@ TYPE_MAP = {
         "headers": random_headers,
         "dtype": random_dtype,
         "fmt": random_fmt,
+    },
+    "weights": {
+        "headers": vulnerability_weight_headers,
+        "dtype": vulnerability_weight_dtype,
+        "fmt": vulnerability_weight_fmt,
     },
     # Input
     "amplifications": {

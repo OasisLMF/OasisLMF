@@ -218,6 +218,13 @@ returnperiods_output = [
 ]
 returnperiods_headers, returnperiods_dtype, returnperiods_fmt = generate_output_metadata(returnperiods_output)
 
+vulnerability_weight_output = [
+    ("areaperil_id", areaperil_int, "%d"),
+    ("vulnerability_id", 'i4', "%d"),
+    ("weight", oasis_float, "%f"),
+]
+vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_fmt = generate_output_metadata(vulnerability_weight_output)
+
 
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
