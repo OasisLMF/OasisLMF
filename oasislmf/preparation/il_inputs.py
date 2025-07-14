@@ -362,12 +362,17 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                 continue
         else:
             fill_empty(term_df_source, ProfileElementName, default_value)
+
+        if pd.isna(default_value):
+            non_default_val = ~term_df_source[ProfileElementName].isna()
+        else:
+            non_default_val = (term_df_source[ProfileElementName] != default_value)
         if 'FMProfileStep' in term_info:
             profile_steps = term_info["FMProfileStep"]
             if isinstance(profile_steps, int):
                 profile_steps = [profile_steps]
             valid_step_trigger_types = term_df_source.loc[(term_df_source['StepTriggerType'].isin(profile_steps))
-                                                          & (term_df_source[ProfileElementName] > 0), 'StepTriggerType'].unique()
+                                                          & non_default_val, 'StepTriggerType'].unique()
             if len(valid_step_trigger_types):
                 level_terms.add(term_info['FMTermType'].lower())
             for step_trigger_type in valid_step_trigger_types:
@@ -391,7 +396,7 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
                     if CALCRULE_ASSIGNMENT_METHODS[calcrule_assignment_method][FMTermGroupID]:
                         terms_map[ProfileElementName] = term_info['FMTermType'].lower()
         else:
-            if not (term_df_source[ProfileElementName] > 0).any():
+            if not (non_default_val).any():
                 continue
             level_terms.add(term_info['FMTermType'].lower())
             coverage_type_ids = term_info.get("CoverageTypeID", supp_cov_type_ids)
@@ -627,7 +632,9 @@ def get_il_input_items(
                 term_filter = False
                 for term in numeric_terms:
                     if pd.isna(oed_schema.get_default(term)):
-                        continue
+                        term_filter |= ~group_df[term].isna()
+                    else:
+                        term_filter |= (group_df[term] != oed_schema.get_default(term))
                     term_filter |= (group_df[term] != oed_schema.get_default(term))
                 keep_df = group_df[term_filter][list(
                     set(agg_key).intersection(group_df.columns))].drop_duplicates()
