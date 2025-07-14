@@ -215,7 +215,7 @@ def get_gul_input_items(
 
     actual_tiv_cols = [tiv_col for tiv_col in tiv_cols if tiv_col in location_df.columns]
     location_df[actual_tiv_cols] = location_df[actual_tiv_cols].fillna(0.0)
-    location_df = location_df[(location_df[actual_tiv_cols]!=0).any(axis=1)]
+    location_df = location_df[(location_df[actual_tiv_cols] != 0).any(axis=1)]
 
     gul_inputs_df = location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)

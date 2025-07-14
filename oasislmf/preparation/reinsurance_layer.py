@@ -199,7 +199,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
     if ri_term_map:
         # create a profile_id for each unique term combination
         ri_df.loc[reins_type_filter, 'profile_id'] = pd.factorize(ri_df[reins_type_filter][list(ri_term_map)].apply(tuple, axis=1)
-        )[0] + 1 + fm_profile_df['profile_id'].max()
+                                                                  )[0] + 1 + fm_profile_df['profile_id'].max()
 
         # create complete profile from terms and add it to fm_profile_df
         cur_fm_profiles = ri_df[reins_type_filter][['profile_id'] + list(ri_term_map)].rename(columns=ri_term_map)
