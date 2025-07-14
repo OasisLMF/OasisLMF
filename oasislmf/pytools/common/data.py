@@ -89,6 +89,14 @@ eve_output = [
 ]
 eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
 
+fm_output = [
+    ("event_id", 'i4', "%d"),
+    ("output_id", 'i4', "%d"),
+    ("sidx", 'i4', "%d"),
+    ("loss", 'f4', "%.2f"),
+]
+fm_headers, fm_dtype, fm_fmt = generate_output_metadata(fm_output)
+
 fm_policytc_output = [
     ("level_id", 'i4', "%d"),
     ("agg_id", 'i4', "%d"),

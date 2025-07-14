@@ -40,7 +40,7 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
-from oasislmf.pytools.converters.csvtobin import csvtobin
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from oasislmf.pytools.pla.common import PLAFACTORS_FILE

@@ -1,0 +1,45 @@
+import argparse
+import logging
+from pathlib import Path
+
+from .manager import bintocsv, logger
+from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Convert Binary to CSV for various file types.',
+                                     formatter_class=argparse.RawTextHelpFormatter)
+
+    subparsers = parser.add_subparsers(dest='file_type', required=True, help='Type of file to convert')
+    for file_type in SUPPORTED_BINTOCSV:
+        parser_curr = subparsers.add_parser(file_type, help=f'bin to csv tool for {file_type}')
+        parser_curr.add_argument('-i', '--file_in', type=str, required=True, help='Input file path')
+        parser_curr.add_argument('-o', '--file_out', type=str, required=True, help='Output file path')
+        parser_curr.add_argument('-v', '--logging-level', type=int, default=30,
+                                 help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
+        parser_curr.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
+    args = parser.parse_args()
+    kwargs = vars(args)
+
+    file_type = kwargs.pop('file_type')
+    file_in = Path(kwargs.pop('file_in'))
+    file_out = Path(kwargs.pop('file_out'))
+    noheader = kwargs.pop('noheader')
+    if file_in != "-" and file_in.suffix != '.bin':
+        raise ValueError(f"Invalid file extension for Binary, expected .bin, got {file_in},")
+    if file_out != "-" and file_out.suffix != '.csv':
+        raise ValueError(f"Invalid file extension for CSV, expected .csv, got {file_out},")
+
+    # Set up logging
+    ch = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logging_level = kwargs.pop('logging_level')
+    logger.setLevel(logging_level)
+
+    bintocsv(file_in, file_out, file_type, noheader, **kwargs)
+
+
+if __name__ == '__main__':
+    main()

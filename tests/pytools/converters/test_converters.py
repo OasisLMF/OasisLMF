@@ -5,8 +5,8 @@ from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
 
-from oasislmf.pytools.converters.bintocsv import bintocsv
-from oasislmf.pytools.converters.csvtobin import csvtobin
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.converters.cdftocsv import cdftocsv
 from oasislmf.pytools.converters.data import TYPE_MAP
 
@@ -209,6 +209,10 @@ def test_plt():
     case_runner("csvtobin", "mplt", "output")
     case_runner("bintocsv", "qplt", "output")
     case_runner("csvtobin", "qplt", "output")
+
+
+def test_fm():
+    case_runner("bintocsv", "fm", "misc", "raw_ils")
 
 
 def test_cdftocsv():

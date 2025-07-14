@@ -391,8 +391,8 @@ setup(
             'pltpy=oasislmf.pytools.plt.cli:main',
             'aalpy=oasislmf.pytools.aal.cli:main',
             'lecpy=oasislmf.pytools.lec.cli:main',
-            'bintocsv=oasislmf.pytools.converters.bintocsv:main',
-            'csvtobin=oasislmf.pytools.converters.csvtobin:main',
+            'bintocsv=oasislmf.pytools.converters.bintocsv.cli:main',
+            'csvtobin=oasislmf.pytools.converters.csvtobin.cli:main',
             'cdftocsv=oasislmf.pytools.converters.cdftocsv:main',
         ]
     },

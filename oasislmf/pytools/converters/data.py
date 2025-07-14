@@ -37,11 +37,17 @@ from oasislmf.pytools.plt.data import SPLT_headers, SPLT_dtype, SPLT_fmt
 from oasislmf.pytools.plt.data import MPLT_headers, MPLT_dtype, MPLT_fmt
 from oasislmf.pytools.plt.data import QPLT_headers, QPLT_dtype, QPLT_fmt
 
+from oasislmf.pytools.common.data import fm_headers, fm_dtype, fm_fmt
+
 
 SUPPORTED_CSVTOBIN = [
+    # Static
     "aggregatevulnerability",
     "damagebin",
+    "lossfactors",
     "random",
+    "weights",
+    # Input
     "amplifications",
     "complex_items",
     "correlations",
@@ -55,11 +61,11 @@ SUPPORTED_CSVTOBIN = [
     "fm_xref",
     "gul_summary_xref",
     "items",
-    "lossfactors",
     "occurrence",
     "periods",
     "quantile",
     "returnperiods",
+    # Output
     "aal",
     "aalmeanonly",
     "alct",
@@ -75,9 +81,13 @@ SUPPORTED_CSVTOBIN = [
 
 
 SUPPORTED_BINTOCSV = [
+    # Static
     "aggregatevulnerability",
     "damagebin",
+    "lossfactors",
     "random",
+    "weights",
+    # Input
     "amplifications",
     "complex_items",
     "correlations",
@@ -91,11 +101,11 @@ SUPPORTED_BINTOCSV = [
     "fm_xref",
     "gul_summary_xref",
     "items",
-    "lossfactors",
     "occurrence",
     "periods",
     "quantile",
     "returnperiods",
+    # Output
     "aal",
     "aalmeanonly",
     "alct",
@@ -107,6 +117,8 @@ SUPPORTED_BINTOCSV = [
     "splt",
     "mplt",
     "qplt",
+    # Misc
+    "fm",
 ]
 
 
@@ -281,5 +293,11 @@ TYPE_MAP = {
         "headers": QPLT_headers,
         "dtype": QPLT_dtype,
         "fmt": QPLT_fmt,
+    },
+    # Misc
+    "fm": {
+        "headers": fm_headers,
+        "dtype": fm_dtype,
+        "fmt": fm_fmt,
     },
 }
