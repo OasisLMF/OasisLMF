@@ -21,6 +21,7 @@ from json import JSONDecodeError
 from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 import pandas as pd
 import numpy as np
 
@@ -904,6 +905,7 @@ class GenerateLossesDeterministic(ComputationStep):
         guls.to_csv(guls_fp, index=False)
 
         # il_stream_type = 2 if self.fmpy else 1
+        ils_bin_fp = "ils.bin"
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
@@ -911,19 +913,21 @@ class GenerateLossesDeterministic(ComputationStep):
             with setcwd(self.oasis_files_dir):
                 check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
 
-        cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
+        cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee {} > /dev/null'.format(
             len(self.loss_factor),
             self.il_stream_type,
             guls_fp,
             get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
             self.ktools_alloc_rule_il,
-            step_flag, ils_fp
+            step_flag,
+            ils_bin_fp
         )
 
         try:
             self.logger.debug("RUN: " + cmd)
             check_call(cmd, shell=True)
+            bintocsv(ils_bin_fp, ils_fp, "fm")
         except CalledProcessError as e:
             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
 
@@ -980,9 +984,10 @@ class GenerateLossesDeterministic(ComputationStep):
                             step_flag
                         ) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
+                        ri_layer_bin_fp = f"ri{layer}.bin"
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                         net_flag = "-n" if self.net_ri else ""
-                        cmd = '{} {} -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
+                        cmd = '{} {} -p {} {} -a {} {} {} | tee {} > /dev/null'.format(
                             _input,
                             get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
@@ -990,12 +995,12 @@ class GenerateLossesDeterministic(ComputationStep):
                             self.ktools_alloc_rule_ri,
                             pipe_in_previous_layer,
                             step_flag,
-                            layer,
-                            ri_layer_fp
+                            ri_layer_bin_fp,
                         )
                         try:
                             self.logger.debug("RUN: " + cmd)
                             check_call(cmd, shell=True)
+                            bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
                         except CalledProcessError as e:
                             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
                         rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)

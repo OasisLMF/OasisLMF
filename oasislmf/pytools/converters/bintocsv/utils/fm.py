@@ -1,5 +1,4 @@
 
-from contextlib import ExitStack
 import logging
 import numba as nb
 import numpy as np
@@ -92,29 +91,30 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
     return cursor, event_id, item_id, 0
 
 
-def fm_tocsv(file_in, file_out, file_type, noheader):
+def fm_tocsv(stack, file_in, file_out, file_type, noheader):
     headers = TYPE_MAP[file_type]["headers"]
     dtype = TYPE_MAP[file_type]["dtype"]
     fmt = TYPE_MAP[file_type]["fmt"]
 
-    with ExitStack() as stack:
-        streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(file_in, stack)
-        if stream_source_type not in [GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID]:
-            raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
+    if str(file_in) == "-":
+        file_in = None  # init_streams checks for None to read from sys.stdin.buffer
 
-        csv_out_file = stack.enter_context(open(file_out, "w"))
-        if not noheader:
-            csv_out_file.write(",".join(headers) + "\n")
+    streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(file_in, stack)
+    if stream_source_type not in [GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID]:
+        raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
 
-        fm_reader = FMReader(len_sample=len_sample, data_dtype=dtype)
+    if not noheader:
+        file_out.write(",".join(headers) + "\n")
 
-        for event_id in fm_reader.read_streams(streams_in):
-            idx = fm_reader.idx
-            data = fm_reader.data[:idx[0]]
-            write_ndarray_to_fmt_csv(
-                csv_out_file,
-                data,
-                headers,
-                fmt,
-            )
-            idx[0] = 0
+    fm_reader = FMReader(len_sample=len_sample, data_dtype=dtype)
+
+    for event_id in fm_reader.read_streams(streams_in):
+        idx = fm_reader.idx
+        data = fm_reader.data[:idx[0]]
+        write_ndarray_to_fmt_csv(
+            file_out,
+            data,
+            headers,
+            fmt,
+        )
+        idx[0] = 0

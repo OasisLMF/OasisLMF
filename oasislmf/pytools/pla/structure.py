@@ -1,5 +1,7 @@
+from contextlib import ExitStack
 import logging
 from pathlib import Path
+import sys
 from numba import njit
 from numba.core import types
 from numba.typed import Dict
@@ -60,12 +62,13 @@ def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, 
         raise FileNotFoundError(f"lossfactors.bin file not found at {storage.get_storage_url('', encode_params=False)[1]}")
 
 
-def read_lossfactors(run_dir, ignore_file_type=set(), filename=PLAFACTORS_FILE):
+def read_lossfactors(run_dir="", ignore_file_type=set(), filename=PLAFACTORS_FILE, use_stdin=False):
     """Load the correlations from the lossfactors file.
     Args:
         run_dir (str): path to lossfactors.bin file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): lossfactors file name
+        use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
     """
@@ -104,23 +107,32 @@ def read_lossfactors(run_dir, ignore_file_type=set(), filename=PLAFACTORS_FILE):
         if lossfactors_file.exists():
             logger.debug(f"loading {lossfactors_file}")
             if ext == "bin":
-                lossfactors = np.memmap(lossfactors_file, dtype=np.uint8, mode='r')
+                if use_stdin:
+                    lossfactors = np.frombuffer(sys.stdin.buffer.read(), dtype=np.uint8)
+                else:
+                    lossfactors = np.memmap(lossfactors_file, dtype=np.uint8, mode='r')
                 _read_bin(lossfactors, plafactors)
 
             elif ext == "csv":
-                # Check for header
-                with open(lossfactors_file, "r") as fin:
-                    first_line = fin.readline()
-                    first_line_elements = [header.strip() for header in first_line.strip().split(',')]
+                with ExitStack() as stack:
+                    if use_stdin:
+                        fin = sys.stdin
+                    else:
+                        fin = stack.enter_context(open(lossfactors_file, "r"))
+
+                    lines = fin.readlines()
+                    # Check for header
+                    first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
                     has_header = first_line_elements == lossfactors_headers
-                lossfactors = np.loadtxt(
-                    lossfactors_file,
-                    dtype=lossfactors_dtype,
-                    delimiter=",",
-                    skiprows=1 if has_header else 0,
-                    ndmin=1
-                )
-                _read_csv(lossfactors, plafactors)
+
+                    data_lines = lines[1:] if has_header else lines
+                    lossfactors = np.loadtxt(
+                        data_lines,
+                        dtype=lossfactors_dtype,
+                        delimiter=",",
+                        ndmin=1
+                    )
+                    _read_csv(lossfactors, plafactors)
             else:
                 raise RuntimeError(f"Cannot read lossfactors file of type {ext}. Not Implemented.")
             return plafactors

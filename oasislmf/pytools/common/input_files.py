@@ -1,4 +1,6 @@
+from contextlib import ExitStack
 import logging
+import sys
 import numba as nb
 import numpy as np
 from pathlib import Path
@@ -32,7 +34,7 @@ QUANTILE_FILE = "quantile.bin"
 RETURNPERIODS_FILE = "returnperiods.bin"
 
 
-def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
+def read_amplifications(run_dir="", filename=AMPLIFICATIONS_FILE, use_stdin=False):
     """
     Get array of amplification IDs from amplifications.bin, where index
     corresponds to item ID.
@@ -46,23 +48,26 @@ def read_amplifications(run_dir, filename=AMPLIFICATIONS_FILE):
     Args:
         run_dir (str): path to amplifications.bin file
         filename (str | os.PathLike): amplifications file name
+        use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
     Returns:
         items_amps (numpy.ndarray): array of amplification IDs, where index
             corresponds to item ID
     """
-    amplification_file = Path(run_dir, filename)
     header_size = 4
-    try:
+    if use_stdin:
+        items_amps = np.frombuffer(sys.stdin.buffer.read(), dtype=np.int32, offset=header_size)
+    else:
+        amplification_file = Path(run_dir, filename)
+        if not amplification_file.exists():
+            raise FileNotFoundError('amplifications file not found.')
         items_amps = np.fromfile(amplification_file, dtype=np.int32, offset=header_size)
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f'amplifications.bin not found: {e}')
 
     # Check item IDs start from 1 and are contiguous
     if items_amps[0] != 1:
         raise ValueError(f'First item ID is {items_amps[0]}. Expected 1.')
     items_amps = items_amps.reshape(len(items_amps) // 2, 2)
     if not np.all(items_amps[1:, 0] - items_amps[:-1, 0] == 1):
-        raise ValueError(f'Item IDs in {amplification_file} are not contiguous')
+        raise ValueError('Item IDs in amplifications file are not contiguous')
 
     items_amps = np.concatenate((np.array([0]), items_amps[:, 1]))
 
@@ -114,12 +119,13 @@ def read_correlations(run_dir, ignore_file_type=set(), filename=CORRELATIONS_FIL
     raise FileNotFoundError(f'correlations file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
 
 
-def read_coverages(run_dir, ignore_file_type=set(), filename=COVERAGES_FILE):
+def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, use_stdin=False):
     """Load the coverages from the coverages file.
     Args:
         run_dir (str): path to coverages file
         ignore_file_type (Set[str]): file extension to ignore when loading.
         filename (str | os.PathLike): coverages file name
+        use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
     Returns:
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
@@ -131,20 +137,29 @@ def read_coverages(run_dir, ignore_file_type=set(), filename=COVERAGES_FILE):
         if coverages_file.exists():
             logger.debug(f"loading {coverages_file}")
             if ext == "bin":
-                coverages = np.fromfile(coverages_file, dtype=oasis_float)
+                if use_stdin:
+                    coverages = np.frombuffer(sys.stdin.buffer.read(), dtype=oasis_float)
+                else:
+                    coverages = np.fromfile(coverages_file, dtype=oasis_float)
             elif ext == "csv":
-                # Check for header
-                with open(coverages_file, "r") as fin:
-                    first_line = fin.readline()
-                    first_line_elements = [header.strip() for header in first_line.strip().split(',')]
+                with ExitStack() as stack:
+                    if use_stdin:
+                        fin = sys.stdin
+                    else:
+                        fin = stack.enter_context(open(coverages_file, "r"))
+
+                    lines = fin.readlines()
+                    # Check for header
+                    first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
                     has_header = first_line_elements == coverages_headers
-                coverages = np.loadtxt(
-                    coverages_file,
-                    dtype=oasis_float,
-                    delimiter=",",
-                    skiprows=1 if has_header else 0,
-                    ndmin=1
-                )[:, 1]
+
+                    data_lines = lines[1:] if has_header else lines
+                    coverages = np.loadtxt(
+                        data_lines,
+                        dtype=oasis_float,
+                        delimiter=",",
+                        ndmin=1
+                    )[:, 1]
             else:
                 raise RuntimeError(f"Cannot read coverages file of type {ext}. Not Implemented.")
             return coverages
@@ -210,16 +225,20 @@ def read_quantile(sample_size, run_dir, filename=QUANTILE_FILE, return_empty=Fal
     return intervals
 
 
-def read_occurrence_bin(run_dir, filename=OCCURRENCE_FILE):
+def read_occurrence_bin(run_dir="", filename=OCCURRENCE_FILE, use_stdin=False):
     """Read the occurrence binary file and returns an occurrence map
     Args:
         run_dir (str | os.PathLike): Path to input files dir
         filename (str | os.PathLike): occurrence binary file name
+        use_stdin (bool): Use standard input for file data, ignores run_dir/filename. Defaults to False.
     Returns:
         occ_map (nb.typed.Dict): numpy map of event_id, period_no, occ_date_id from the occurrence file
     """
     occurrence_fp = Path(run_dir, filename)
-    fin = np.memmap(occurrence_fp, mode="r", dtype="u1")
+    if use_stdin:
+        fin = np.frombuffer(sys.stdin.buffer.read(), dtype="u1")
+    else:
+        fin = np.memmap(occurrence_fp, mode="r", dtype="u1")
     cursor = 0
     valid_buff = len(fin)
 

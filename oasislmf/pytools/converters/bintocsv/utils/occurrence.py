@@ -6,7 +6,7 @@ from oasislmf.pytools.common.input_files import occ_get_date, read_occurrence_bi
 from oasislmf.pytools.converters.data import TYPE_MAP
 
 
-def occurrence_tocsv(file_in, file_out, file_type, noheader):
+def occurrence_tocsv(stack, file_in, file_out, file_type, noheader):
     @nb.njit(cache=True, error_model="numpy")
     def _get_occ_data_with_dates(occ_arr, occ_csv_dtype):
         buffer_size = 1000000
@@ -51,12 +51,19 @@ def occurrence_tocsv(file_in, file_out, file_type, noheader):
 
     run_dir = Path(file_in).parent
     filename = Path(file_in).name
-    occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(run_dir, filename)
+    if str(file_in) == "-":
+        occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(
+            use_stdin=True
+        )
+    else:
+        occ_arr, date_algorithm, granular_date, no_of_periods = read_occurrence_bin(
+            run_dir=run_dir,
+            filename=filename
+        )
     headers = TYPE_MAP[file_type]["headers"]
     dtype = TYPE_MAP[file_type]["dtype"]
     fmt = TYPE_MAP[file_type]["fmt"]
 
-    csv_out_file = open(file_out, "w")
     if date_algorithm:
         occ_csv_output = [
             ("event_id", 'i4', "%d"),
@@ -76,11 +83,10 @@ def occurrence_tocsv(file_in, file_out, file_type, noheader):
             gen = _get_occ_data_with_dates_gran(occ_arr, dtype)
 
         if not noheader:
-            csv_out_file.write(",".join(headers) + "\n")
+            file_out.write(",".join(headers) + "\n")
         for data in gen:
-            write_ndarray_to_fmt_csv(csv_out_file, data, headers, fmt)
+            write_ndarray_to_fmt_csv(file_out, data, headers, fmt)
     else:
         if not noheader:
-            csv_out_file.write(",".join(headers) + "\n")
-        write_ndarray_to_fmt_csv(csv_out_file, occ_arr, headers, fmt)
-    csv_out_file.close()
+            file_out.write(",".join(headers) + "\n")
+        write_ndarray_to_fmt_csv(file_out, occ_arr, headers, fmt)

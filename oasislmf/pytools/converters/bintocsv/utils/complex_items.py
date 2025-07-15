@@ -2,17 +2,17 @@ import csv
 import msgpack
 import numpy as np
 from oasislmf.pytools.common.event_stream import mv_read
+from oasislmf.pytools.converters.bintocsv.utils.common import resolve_file
 from oasislmf.pytools.converters.data import TYPE_MAP
 
 
-def complex_items_tocsv(file_in, file_out, file_type, noheader):
+def complex_items_tocsv(stack, file_in, file_out, file_type, noheader):
     header_dtype = TYPE_MAP[file_type]["dtype"]
 
-    with open(file_in, "rb") as f:
-        byte_data = np.frombuffer(f.read(), dtype=np.uint8)
+    file_in = resolve_file(file_in, "rb", stack)
+    byte_data = np.frombuffer(file_in.read(), dtype=np.uint8)
 
-    csv_out_file = open(file_out, "w")
-    writer = csv.writer(csv_out_file)
+    writer = csv.writer(file_out)
 
     # Write header line manually
     if not noheader:
@@ -44,5 +44,3 @@ def complex_items_tocsv(file_in, file_out, file_type, noheader):
             model_data,
             header_record["group_id"]
         ))
-
-    csv_out_file.close()
