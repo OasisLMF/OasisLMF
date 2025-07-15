@@ -14,7 +14,7 @@ from oasislmf.pytools.converters.bintocsv.utils import (
     lossfactors_tocsv,
     occurrence_tocsv,
 )
-from oasislmf.pytools.converters.bintocsv.utils.common import resolve_file
+from oasislmf.pytools.common.data import resolve_file
 from oasislmf.pytools.converters.data import TYPE_MAP
 
 logger = logging.getLogger(__name__)

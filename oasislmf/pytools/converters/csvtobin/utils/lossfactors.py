@@ -1,33 +1,38 @@
 from pathlib import Path
 import numpy as np
 from oasislmf.pytools.pla.common import amp_factor_dtype
-from oasislmf.pytools.converters.data import TYPE_MAP
 from oasislmf.pytools.pla.structure import read_lossfactors
 
 
-def lossfactors_tobin(file_in, file_out, file_type):
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
+def lossfactors_tobin(stack, file_in, file_out, file_type):
+    if str(file_in) == "-":
+        plafactors = read_lossfactors(
+            ignore_file_type=set(["bin"]),
+            use_stdin=True
+        )
+    else:
+        lossfactors_fp = Path(file_in)
+        plafactors = read_lossfactors(
+            run_dir=lossfactors_fp.parent,
+            ignore_file_type=set(["bin"]),
+            filename=lossfactors_fp.name
+        )
 
-    lossfactors_fp = Path(file_in)
-    plafactors = read_lossfactors(lossfactors_fp.parent, set(["bin"]), filename=lossfactors_fp.name)
+    # Write the 4-byte zero header
+    np.array([0], dtype="i4").tofile(file_out)
 
-    with open(file_out, "wb") as fout:
-        # Write the 4-byte zero header
-        np.array([0], dtype="i4").tofile(fout)
-
-        current_event_id = 0
-        counter = 0
-        factors = []
-        for k, v in plafactors.items():
-            if k[0] != current_event_id:
-                if current_event_id != 0:
-                    np.array([counter], dtype=np.int32).tofile(fout)
-                    for af in factors:
-                        np.array(af, dtype=amp_factor_dtype).tofile(fout)
-                np.array(k[0], dtype=np.int32).tofile(fout)
-                current_event_id = k[0]
-                counter = 0
-                factors = []
-            factors.append((k[1], v))
-            counter += 1
+    current_event_id = 0
+    counter = 0
+    factors = []
+    for k, v in plafactors.items():
+        if k[0] != current_event_id:
+            if current_event_id != 0:
+                np.array([counter], dtype=np.int32).tofile(file_out)
+                for af in factors:
+                    np.array(af, dtype=amp_factor_dtype).tofile(file_out)
+            np.array(k[0], dtype=np.int32).tofile(file_out)
+            current_event_id = k[0]
+            counter = 0
+            factors = []
+        factors.append((k[1], v))
+        counter += 1

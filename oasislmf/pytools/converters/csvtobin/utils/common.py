@@ -1,12 +1,10 @@
 import numpy as np
 import pandas as pd
+from oasislmf.pytools.common.data import resolve_file
 
 
-def read_csv_as_ndarray(file_in, headers, dtype):
-    with open(file_in, "r") as fin:
-        first_line = fin.readline()
-        if not first_line.strip():
-            return np.empty(0, dtype=dtype)
+def read_csv_as_ndarray(stack, file_in, headers, dtype):
+    file_in = resolve_file(file_in, "r", stack)
 
     csv_dtype = {key: col_dtype for key, (col_dtype, _) in dtype.fields.items()}
     try:

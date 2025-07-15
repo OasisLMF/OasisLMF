@@ -2,7 +2,7 @@ import csv
 import msgpack
 import numpy as np
 from oasislmf.pytools.common.event_stream import mv_read
-from oasislmf.pytools.converters.bintocsv.utils.common import resolve_file
+from oasislmf.pytools.common.data import resolve_file
 from oasislmf.pytools.converters.data import TYPE_MAP
 
 

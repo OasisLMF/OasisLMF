@@ -1,6 +1,5 @@
 import argparse
 import logging
-from pathlib import Path
 
 from .manager import csvtobin, logger
 from oasislmf.pytools.converters.data import SUPPORTED_CSVTOBIN
@@ -21,20 +20,16 @@ def main():
     for file_type in SUPPORTED_CSVTOBIN:
         parser_curr = subparsers.add_parser(file_type, help=f'csv to bin tool for {file_type}')
         add_custom_args(file_type, parser_curr)
-        parser_curr.add_argument('-i', '--file_in', type=str, required=True, help='Input file path')
-        parser_curr.add_argument('-o', '--file_out', type=str, required=True, help='Output file path')
+        parser_curr.add_argument('-i', '--file_in', type=str, default="-", help='Input file path')
+        parser_curr.add_argument('-o', '--file_out', type=str, default="-", help='Output file path')
         parser_curr.add_argument('-v', '--logging-level', type=int, default=30,
                                  help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     args = parser.parse_args()
     kwargs = vars(args)
 
     file_type = kwargs.pop('file_type')
-    file_in = Path(kwargs.pop('file_in'))
-    file_out = Path(kwargs.pop('file_out'))
-    if file_in != "-" and file_in.suffix != '.csv':
-        raise ValueError(f"Invalid file extension for CSV, expected .csv, got {file_in},")
-    if file_out != "-" and file_out.suffix != '.bin':
-        raise ValueError(f"Invalid file extension for Binary, expected .bin, got {file_out},")
+    file_in = kwargs.pop('file_in')
+    file_out = kwargs.pop('file_out')
 
     # Set up logging
     ch = logging.StreamHandler()
