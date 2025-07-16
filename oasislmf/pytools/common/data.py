@@ -163,6 +163,14 @@ fm_xref_output = [
 ]
 fm_xref_headers, fm_xref_dtype, fm_xref_fmt = generate_output_metadata(fm_xref_output)
 
+gul_output = [
+    ("event_id", 'i4', "%d"),
+    ("item_id", 'i4', "%d"),
+    ("sidx", 'i4', "%d"),
+    ("loss", 'f4', "%.2f"),
+]
+gul_headers, gul_dtype, gul_fmt = generate_output_metadata(gul_output)
+
 gul_summary_xref_output = [
     ("item_id", 'i4', "%d"),
     ("summary_id", 'i4', "%d"),

@@ -38,6 +38,7 @@ from oasislmf.pytools.plt.data import MPLT_headers, MPLT_dtype, MPLT_fmt
 from oasislmf.pytools.plt.data import QPLT_headers, QPLT_dtype, QPLT_fmt
 
 from oasislmf.pytools.common.data import fm_headers, fm_dtype, fm_fmt
+from oasislmf.pytools.common.data import gul_headers, gul_dtype, gul_fmt
 
 
 SUPPORTED_CSVTOBIN = [
@@ -79,6 +80,7 @@ SUPPORTED_CSVTOBIN = [
     "qplt",
     # Misc
     "fm",
+    "gul",
 ]
 
 
@@ -121,6 +123,7 @@ SUPPORTED_BINTOCSV = [
     "qplt",
     # Misc
     "fm",
+    "gul",
 ]
 
 
@@ -301,5 +304,10 @@ TYPE_MAP = {
         "headers": fm_headers,
         "dtype": fm_dtype,
         "fmt": fm_fmt,
+    },
+    "gul": {
+        "headers": gul_headers,
+        "dtype": gul_dtype,
+        "fmt": gul_fmt,
     },
 }

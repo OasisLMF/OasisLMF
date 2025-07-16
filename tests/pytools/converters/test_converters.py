@@ -216,6 +216,11 @@ def test_fm():
     case_runner("csvtobin", "fm", "misc", "raw_ils", stream_type=2, max_sample_index=1)
 
 
+def test_gul():
+    case_runner("bintocsv", "gul", "misc", "raw_guls")
+    case_runner("csvtobin", "gul", "misc", "raw_guls", stream_type=2, max_sample_index=1)
+
+
 def test_cdftocsv():
     with TemporaryDirectory() as tmp_result_dir_str:
         infile_name = "getmodel.bin"

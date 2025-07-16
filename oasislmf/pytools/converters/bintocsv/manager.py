@@ -11,6 +11,7 @@ from oasislmf.pytools.converters.bintocsv.utils import (
     complex_items_tocsv,
     coverages_tocsv,
     fm_tocsv,
+    gul_tocsv,
     lossfactors_tocsv,
     occurrence_tocsv,
 )
@@ -61,9 +62,9 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
         elif file_type == "coverages":
             tocsv_func = coverages_tocsv
         elif file_type == "fm":
-            # TODO: fix input with pipes, current checks don't work, and then try to open "-" as a file in init_streams
-            # TODO: Implement fmtobin with sample size and stream type arg options, this will need to be done for gultobin as well
             tocsv_func = fm_tocsv
+        elif file_type == "gul":
+            tocsv_func = gul_tocsv
         elif file_type == "lossfactors":
             tocsv_func = lossfactors_tocsv
         elif file_type == "occurrence":
