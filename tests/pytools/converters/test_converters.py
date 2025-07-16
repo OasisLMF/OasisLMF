@@ -213,6 +213,7 @@ def test_plt():
 
 def test_fm():
     case_runner("bintocsv", "fm", "misc", "raw_ils")
+    case_runner("csvtobin", "fm", "misc", "raw_ils", stream_type=2, max_sample_index=1)
 
 
 def test_cdftocsv():

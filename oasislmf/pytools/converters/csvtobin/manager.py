@@ -8,6 +8,7 @@ from oasislmf.pytools.converters.csvtobin.utils import (
     amplifications_tobin,
     complex_items_tobin,
     coverages_tobin,
+    fm_tobin,
     lossfactors_tobin,
     occurrence_tobin,
     returnperiods_tobin,
@@ -42,6 +43,8 @@ def csvtobin(file_in, file_out, file_type, **kwargs):
             tobin_func = complex_items_tobin
         elif file_type == "coverages":
             tobin_func = coverages_tobin
+        elif file_type == "fm":
+            tobin_func = fm_tobin
         elif file_type == "lossfactors":
             tobin_func = lossfactors_tobin
         elif file_type == "occurrence":

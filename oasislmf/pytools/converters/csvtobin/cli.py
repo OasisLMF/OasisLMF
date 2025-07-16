@@ -1,6 +1,8 @@
 import argparse
 import logging
 
+from oasislmf.pytools.common.event_stream import LOSS_STREAM_ID
+
 from .manager import csvtobin, logger
 from oasislmf.pytools.converters.data import SUPPORTED_CSVTOBIN
 
@@ -10,6 +12,9 @@ def add_custom_args(file_type, parser):
         parser.add_argument('-D', '--no_date_alg', action='store_true', help='No date algorithm in csv (use occ_date_id directly)')
         parser.add_argument('-G', '--granular', action='store_true', help='Use granular dates (occ_hour and occ_minute)')
         parser.add_argument('-P', '--no_of_periods', type=int, required=True, help='Number of periods')
+    if file_type == "fm":
+        parser.add_argument('-t', '--stream_type', type=int, default=LOSS_STREAM_ID, help=f'Stream Type. Default LOSS_STREAM_ID = {LOSS_STREAM_ID}')
+        parser.add_argument('-S', '--max_sample_index', type=int, required=True, help='Maximum sample index')
 
 
 def main():

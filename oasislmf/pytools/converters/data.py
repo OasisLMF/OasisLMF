@@ -77,6 +77,8 @@ SUPPORTED_CSVTOBIN = [
     "splt",
     "mplt",
     "qplt",
+    # Misc
+    "fm",
 ]
 
 
