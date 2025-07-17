@@ -296,7 +296,7 @@
         "FMLevelName": "SiteItem",
         "FMLevel": 0,
         "FMTermType": "Limit",
-        "FMTermGroupID": 4,
+        "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
     "BIWaitingPeriod": {
@@ -306,7 +306,7 @@
         "FMLevelName": "SiteItem",
         "FMLevel": 0,
         "FMTermType": "Deductible",
-        "FMTermGroupID": 4,
+        "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
     "LocDed4BI": {
