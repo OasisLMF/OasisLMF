@@ -6,7 +6,6 @@ from oasislmf.pytools.converters.data import TYPE_MAP
 def gul_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index):
     headers = TYPE_MAP[file_type]["headers"]
     dtype = TYPE_MAP[file_type]["dtype"]
-    item_id_col_name = "item_id"
     data = read_csv_as_ndarray(stack, file_in, headers, dtype)
 
     stream_agg_type = 1
@@ -21,7 +20,7 @@ def gul_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index
     sidx_losses = []
     for row in data:
         event_id = row["event_id"]
-        item_id = row[item_id_col_name]
+        item_id = row["item_id"]
         sidx = row["sidx"]
         loss = row["loss"]
         if (event_id != curr_event_id) or (item_id != curr_item_id):
