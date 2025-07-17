@@ -221,6 +221,10 @@ def test_gul():
     case_runner("csvtobin", "gul", "misc", "raw_guls", stream_type=2, max_sample_index=1)
 
 
+def test_summarycalc():
+    case_runner("csvtobin", "summarycalc", "misc", "summary", summary_set_id=1, max_sample_index=100)
+
+
 def test_cdftocsv():
     with TemporaryDirectory() as tmp_result_dir_str:
         infile_name = "getmodel.bin"

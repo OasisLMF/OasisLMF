@@ -1,4 +1,5 @@
 import numpy as np
+from oasislmf.pytools.common.data import oasis_float
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
 from oasislmf.pytools.converters.data import TYPE_MAP
 
@@ -18,6 +19,10 @@ def fm_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index)
     curr_event_id = -1
     curr_item_id = -1
     sidx_losses = []
+    sidx_loss_dtype = np.dtype([
+        ("sidx", np.int32),
+        ("loss", oasis_float)]
+    )
     for row in data:
         event_id = row["event_id"]
         item_id = row["output_id"]
@@ -25,17 +30,15 @@ def fm_tobin(stack, file_in, file_out, file_type, stream_type, max_sample_index)
         loss = row["loss"]
         if (event_id != curr_event_id) or (item_id != curr_item_id):
             if curr_event_id != -1:
+                sidx_losses.append((0, 0))
                 np.array([curr_event_id, curr_item_id], dtype=np.int32).tofile(file_out)
-                np.array(sidx_losses, dtype=np.dtype([("sidx", np.int32), ("loss", np.float32)])).tofile(file_out)
-                np.array([0], dtype=np.int32).tofile(file_out)
-                np.array([0], dtype=np.float32).tofile(file_out)
+                np.array(sidx_losses, dtype=sidx_loss_dtype).tofile(file_out)
             curr_event_id = event_id
             curr_item_id = item_id
             sidx_losses = []
         if sidx <= max_sample_index:
             sidx_losses.append((sidx, loss))
     if curr_event_id != -1:
+        sidx_losses.append((0, 0))
         np.array([curr_event_id, curr_item_id], dtype=np.int32).tofile(file_out)
-        np.array(sidx_losses, dtype=np.dtype([("sidx", np.int32), ("loss", np.float32)])).tofile(file_out)
-        np.array([0], dtype=np.int32).tofile(file_out)
-        np.array([0], dtype=np.float32).tofile(file_out)
+        np.array(sidx_losses, dtype=sidx_loss_dtype).tofile(file_out)

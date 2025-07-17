@@ -81,6 +81,7 @@ SUPPORTED_CSVTOBIN = [
     # Misc
     "fm",
     "gul",
+    "summarycalc",
 ]
 
 
@@ -309,5 +310,10 @@ TYPE_MAP = {
         "headers": gul_headers,
         "dtype": gul_dtype,
         "fmt": gul_fmt,
+    },
+    "summarycalc": {
+        "headers": SELT_headers,
+        "dtype": SELT_dtype,
+        "fmt": SELT_fmt,
     },
 }

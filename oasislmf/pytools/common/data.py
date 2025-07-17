@@ -94,7 +94,7 @@ fm_output = [
     ("event_id", 'i4', "%d"),
     ("output_id", 'i4', "%d"),
     ("sidx", 'i4', "%d"),
-    ("loss", 'f4', "%.2f"),
+    ("loss", oasis_float, "%.2f"),
 ]
 fm_headers, fm_dtype, fm_fmt = generate_output_metadata(fm_output)
 
@@ -167,7 +167,7 @@ gul_output = [
     ("event_id", 'i4', "%d"),
     ("item_id", 'i4', "%d"),
     ("sidx", 'i4', "%d"),
-    ("loss", 'f4', "%.2f"),
+    ("loss", oasis_float, "%.2f"),
 ]
 gul_headers, gul_dtype, gul_fmt = generate_output_metadata(gul_output)
 

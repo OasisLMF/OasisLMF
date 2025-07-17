@@ -7,6 +7,7 @@ __all__ = [
     "lossfactors_tobin",
     "occurrence_tobin",
     "returnperiods_tobin",
+    "summarycalc_tobin",
 ]
 
 from .amplifications import amplifications_tobin
@@ -17,3 +18,4 @@ from .gul import gul_tobin
 from .lossfactors import lossfactors_tobin
 from .occurrence import occurrence_tobin
 from .returnperiods import returnperiods_tobin
+from .summarycalc import summarycalc_tobin

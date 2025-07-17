@@ -13,6 +13,7 @@ from oasislmf.pytools.converters.csvtobin.utils import (
     lossfactors_tobin,
     occurrence_tobin,
     returnperiods_tobin,
+    summarycalc_tobin,
 )
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
 from oasislmf.pytools.converters.data import TYPE_MAP
@@ -54,5 +55,7 @@ def csvtobin(file_in, file_out, file_type, **kwargs):
             tobin_func = occurrence_tobin
         elif file_type == "returnperiods":
             tobin_func = returnperiods_tobin
+        elif file_type == "summarycalc":
+            tobin_func = summarycalc_tobin
 
         tobin_func(stack, file_in, file_out, file_type, **kwargs)
