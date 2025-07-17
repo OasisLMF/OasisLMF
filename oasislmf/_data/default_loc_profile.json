@@ -290,6 +290,25 @@
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
     },
+    "BIPOI": {
+        "ProfileElementName": "BIPOI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMLevel": 0,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 4,
+        "ProfileType": "Loc"
+    },
+    "BIWaitingPeriod": {
+        "ProfileElementName": "BIWaitingPeriod",
+        "DeductibleType": "B",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMLevel": 0,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 4,
+        "ProfileType": "Loc"
+    },
     "LocDed4BI": {
         "ProfileElementName": "LocDed4BI",
         "DeductibleType": "B",

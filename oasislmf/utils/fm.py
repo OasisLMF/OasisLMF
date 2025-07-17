@@ -42,6 +42,7 @@ DEDUCTIBLE_AND_LIMIT_TYPES = OrderedDict({
     'pctiv': {'id': DED_LIMIT_TYPE_PCTIV, 'desc': 'Percentage of TIV'}
 })
 
+FML_SITITM = 0
 FML_SITCOV = 1
 FML_SITPDM = 2
 FML_SITALL = 3
@@ -57,6 +58,7 @@ FML_ACCPDM = 12
 FML_ACCALL = 13
 
 FM_LEVELS = OrderedDict({
+    'site item': {'id': FML_SITITM, 'desc': 'site item'},
     'site coverage': {'id': FML_SITCOV, 'desc': 'site coverage'},
     'site pd': {'id': FML_SITPDM, 'desc': 'site property damage'},
     'site all': {'id': FML_SITALL, 'desc': 'site all (coverage + property damage)'},
@@ -73,6 +75,10 @@ FM_LEVELS = OrderedDict({
 })
 
 GROUPED_SUPPORTED_FM_LEVELS = {
+    'item': {
+        'oed_source': 'location',
+        'levels': {'site item': FM_LEVELS['site item']}
+    },
     'site': {
         'oed_source': 'location',
         'fm_peril_field': 'LocPeril',

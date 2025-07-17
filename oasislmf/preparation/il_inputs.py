@@ -330,7 +330,7 @@ def get_levels(gul_inputs_df, locations_df, accounts_df):
         if group_info['oed_source'] == 'location':
             if locations_df is not None:
                 locations_df['layer_id'] = 1
-                yield locations_df, list(group_info['levels'].items()), group_info['fm_peril_field']
+                yield locations_df, list(group_info['levels'].items()), group_info.get('fm_peril_field')
         elif group_info['oed_source'] == 'account':
             if group_name == 'cond' and level_conds:
                 loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
@@ -791,6 +791,7 @@ def get_il_input_items(
     il_inputs_df_list.append(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
 
     il_inputs_df = pd.concat(il_inputs_df_list)
+
     for col in set(list(il_inputs_df.columns)):
         try:
             il_inputs_df[col] = il_inputs_df[col].fillna(0)
