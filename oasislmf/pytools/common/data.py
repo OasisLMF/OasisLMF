@@ -53,6 +53,16 @@ amplifications_output = [
 ]
 amplifications_headers, amplifications_dtype, amplifications_fmt = generate_output_metadata(amplifications_output)
 
+cdf_output = [
+    ("event_id", 'i4', "%d"),
+    ("areaperil_id", 'i4', "%d"),
+    ("vulnerability_id", 'i4', "%d"),
+    ("bin_index", 'i4', "%d"),
+    ("prob_to", 'f4', "%f"),
+    ("bin_mean", 'f4', "%f"),
+]
+cdf_headers, cdf_dtype, cdf_fmt = generate_output_metadata(cdf_output)
+
 complex_items_meta_output = [
     ("item_id", 'u4', "%u"),
     ("coverage_id", 'u4', "%u"),

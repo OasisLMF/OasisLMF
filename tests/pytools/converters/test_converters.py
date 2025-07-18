@@ -1,4 +1,3 @@
-import filecmp
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -7,7 +6,6 @@ from tempfile import TemporaryDirectory
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.converters.cdftocsv import cdftocsv
 from oasislmf.pytools.converters.data import TOOL_INFO
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
@@ -225,27 +223,5 @@ def test_summarycalc():
     case_runner("csvtobin", "summarycalc", "misc", "summary", summary_set_id=1, max_sample_index=100)
 
 
-def test_cdftocsv():
-    with TemporaryDirectory() as tmp_result_dir_str:
-        infile_name = "getmodel.bin"
-        outfile_name = "getmodel.csv"
-        run_dir = Path(TESTS_ASSETS_DIR, "cdftocsv")
-        infile = Path(run_dir, infile_name)
-        expected_outfile = Path(run_dir, outfile_name)
-        actual_outfile = Path(tmp_result_dir_str, outfile_name)
-
-        kwargs = {
-            "file_in": infile,
-            "file_out": actual_outfile,
-            "run_dir": run_dir,
-        }
-        cdftocsv(**kwargs)
-
-        try:
-            assert filecmp.cmp(expected_outfile, actual_outfile, shallow=False)
-        except Exception as e:
-            error_path = Path(TESTS_ASSETS_DIR, "error_files")
-            error_path.mkdir(exist_ok=True)
-            shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
-            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
-            raise Exception(f"running 'cdftocsv {arg_str}' led to diff, see files at {error_path}") from e
+def test_cdf():
+    case_runner("bintocsv", "cdf", "cdftocsv", "getmodel", run_dir=Path(TESTS_ASSETS_DIR, "cdftocsv"))

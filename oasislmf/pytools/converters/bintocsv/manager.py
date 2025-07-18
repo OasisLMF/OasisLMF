@@ -8,6 +8,7 @@ import numpy as np
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
 from oasislmf.pytools.converters.bintocsv.utils import (
     amplifications_tocsv,
+    cdf_tocsv,
     complex_items_tocsv,
     coverages_tocsv,
     fm_tocsv,
@@ -57,6 +58,8 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
         tocsv_func = default_tocsv
         if file_type == "amplifications":
             tocsv_func = amplifications_tocsv
+        elif file_type == "cdf":
+            tocsv_func = cdf_tocsv
         elif file_type == "complex_items":
             tocsv_func = complex_items_tocsv
         elif file_type == "coverages":

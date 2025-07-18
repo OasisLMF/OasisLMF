@@ -5,6 +5,11 @@ from .manager import bintocsv, logger
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV
 
 
+def add_custom_args(file_type, parser):
+    if file_type == "cdf":
+        parser.add_argument('-d', '--run_dir', help='path to the run directory (default: ".")', default='.')
+
+
 def main():
     parser = argparse.ArgumentParser(description='Convert Binary to CSV for various file types.',
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -12,6 +17,7 @@ def main():
     subparsers = parser.add_subparsers(dest='file_type', required=True, help='Type of file to convert')
     for file_type in SUPPORTED_BINTOCSV:
         parser_curr = subparsers.add_parser(file_type, help=f'bin to csv tool for {file_type}')
+        add_custom_args(file_type, parser_curr)
         parser_curr.add_argument('-i', '--file_in', default="-", type=str, help='Input file path')
         parser_curr.add_argument('-o', '--file_out', default="-", type=str, help='Output file path')
         parser_curr.add_argument('-v', '--logging-level', type=int, default=30,
