@@ -541,7 +541,7 @@ class BasicKeyServer:
         else:
             config_dir = self.config_dir
 
-        pool_count = num_cores if num_cores > 0 else cpu_count()
+        pool_count = num_cores if num_cores > 0 else multiprocessing.cpu_count()
         if num_partitions > 0:
             part_count = num_partitions
         else:
