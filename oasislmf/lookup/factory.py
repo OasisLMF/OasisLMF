@@ -28,8 +28,10 @@ from .builtin import PerilCoveredDeterministicLookup
 from .builtin import Lookup as NewLookup
 
 try:
+    import billiard as multiprocessing
     from billiard import cpu_count, Queue, Process
 except ImportError:
+    import multiprocessing
     from multiprocessing import cpu_count, Queue, Process
 
 from queue import Empty, Full
@@ -48,6 +50,52 @@ def with_error_queue(fct):
             error_queue.put(sys.exc_info())
 
     return wrapped_fct
+
+
+@with_error_queue
+def location_producer(error_queue, loc_df, part_count, loc_queue):
+    loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
+    loc_df_parts = (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
+    loc_df_part = True
+    while loc_df_part is not None:
+        loc_df_part = next(loc_df_parts, None)
+        while error_queue.empty():
+            try:
+                loc_queue.put(loc_df_part, timeout=5)
+                break
+            except Full:
+                pass
+        else:
+            return
+
+
+@with_error_queue
+def lookup_multiproc_worker(error_queue, lookup_cls, config, config_dir, user_data_dir, output_dir, lookup_id, loc_queue, key_queue):
+    lookup = BasicKeyServer.create_lookup(lookup_cls, config, config_dir, user_data_dir, output_dir, lookup_id)
+    while True:
+        while error_queue.empty():
+            try:
+                loc_df_part = loc_queue.get(timeout=5)
+
+                break
+            except Empty:
+                pass
+        else:
+            return
+
+        if loc_df_part is None:
+            loc_queue.put(None)
+            key_queue.put(None)
+            break
+
+        while error_queue.empty():
+            try:
+                key_queue.put(lookup.process_locations_multiproc(loc_df_part), timeout=5)
+                break
+            except Full:
+                pass
+        else:
+            return
 
 
 class KeyServerFactory(object):
@@ -353,52 +401,6 @@ class BasicKeyServer:
                                   'if you want to provide you own loader from filepath')
 
     @staticmethod
-    @with_error_queue
-    def location_producer(error_queue, loc_df, part_count, loc_queue):
-        loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
-        loc_df_parts = (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
-        loc_df_part = True
-        while loc_df_part is not None:
-            loc_df_part = next(loc_df_parts, None)
-            while error_queue.empty():
-                try:
-                    loc_queue.put(loc_df_part, timeout=5)
-                    break
-                except Full:
-                    pass
-            else:
-                return
-
-    @staticmethod
-    @with_error_queue
-    def lookup_multiproc_worker(error_queue, lookup_cls, config, config_dir, user_data_dir, output_dir, lookup_id, loc_queue, key_queue):
-        lookup = BasicKeyServer.create_lookup(lookup_cls, config, config_dir, user_data_dir, output_dir, lookup_id)
-        while True:
-            while error_queue.empty():
-                try:
-                    loc_df_part = loc_queue.get(timeout=5)
-
-                    break
-                except Empty:
-                    pass
-            else:
-                return
-
-            if loc_df_part is None:
-                loc_queue.put(None)
-                key_queue.put(None)
-                break
-
-            while error_queue.empty():
-                try:
-                    key_queue.put(lookup.process_locations_multiproc(loc_df_part), timeout=5)
-                    break
-                except Full:
-                    pass
-            else:
-                return
-
-    @staticmethod
     def key_producer(key_queue, error_queue, worker_count):
         finished_workers = 0
         while finished_workers < worker_count and error_queue.empty():
@@ -551,19 +553,20 @@ class BasicKeyServer:
         if pool_count <= 1:
             return self.generate_key_files_singleproc(loc_df, successes_fp, errors_fp, output_format, keys_success_msg)
 
-        loc_queue = Queue(maxsize=pool_count)
-        key_queue = Queue(maxsize=pool_count)
-        error_queue = Queue()
+        ct = multiprocessing.get_context("fork")
+        loc_queue = ct.Queue(maxsize=pool_count)
+        key_queue = ct.Queue(maxsize=pool_count)
+        error_queue = ct.Queue()
 
-        location_producer = Process(target=self.location_producer, args=(error_queue, loc_df, part_count, loc_queue))
+        this_location_producer = ct.Process(target=location_producer, args=(error_queue, loc_df, part_count, loc_queue))
 
-        workers = [Process(target=self.lookup_multiproc_worker,
-                           args=(error_queue, self.lookup_cls, self.config, config_dir,
-                                 self.user_data_dir, self.output_dir,
-                                 lookup_id, loc_queue, key_queue))
+        workers = [ct.Process(target=lookup_multiproc_worker,
+                              args=(error_queue, self.lookup_cls, self.config, config_dir,
+                                    self.user_data_dir, self.output_dir,
+                                    lookup_id, loc_queue, key_queue))
                    for lookup_id in range(pool_count)]
 
-        location_producer.start()
+        this_location_producer.start()
         [worker.start() for worker in workers]
 
         try:
@@ -575,7 +578,7 @@ class BasicKeyServer:
         except Exception:
             error_queue.put(sys.exc_info())
         finally:
-            for process in [location_producer] + workers:
+            for process in [this_location_producer] + workers:
                 if process.is_alive():
                     process.terminate()
                     process.join()
