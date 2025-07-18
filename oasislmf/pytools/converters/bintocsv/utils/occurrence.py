@@ -3,7 +3,7 @@ import numba as nb
 import numpy as np
 from oasislmf.pytools.common.data import generate_output_metadata, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.input_files import occ_get_date, read_occurrence_bin
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 
 def occurrence_tocsv(stack, file_in, file_out, file_type, noheader):
@@ -60,9 +60,9 @@ def occurrence_tocsv(stack, file_in, file_out, file_type, noheader):
             run_dir=run_dir,
             filename=filename
         )
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
-    fmt = TYPE_MAP[file_type]["fmt"]
+    headers = TOOL_INFO[file_type]["headers"]
+    dtype = TOOL_INFO[file_type]["dtype"]
+    fmt = TOOL_INFO[file_type]["fmt"]
 
     if date_algorithm:
         occ_csv_output = [

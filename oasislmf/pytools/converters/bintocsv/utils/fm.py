@@ -6,7 +6,7 @@ from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float,
 from oasislmf.pytools.common.event_stream import (
     FM_STREAM_ID, GUL_STREAM_ID, LOSS_STREAM_ID, EventReader, init_streams_in, mv_read
 )
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +92,9 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
 
 
 def fm_tocsv(stack, file_in, file_out, file_type, noheader):
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
-    fmt = TYPE_MAP[file_type]["fmt"]
+    headers = TOOL_INFO[file_type]["headers"]
+    dtype = TOOL_INFO[file_type]["dtype"]
+    fmt = TOOL_INFO[file_type]["fmt"]
 
     if str(file_in) == "-":
         file_in = None  # init_streams checks for None to read from sys.stdin.buffer

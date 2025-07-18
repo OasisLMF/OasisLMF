@@ -16,15 +16,15 @@ from oasislmf.pytools.converters.bintocsv.utils import (
     occurrence_tocsv,
 )
 from oasislmf.pytools.common.data import resolve_file
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 logger = logging.getLogger(__name__)
 
 
 def default_tocsv(stack, file_in, file_out, file_type, noheader):
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
-    fmt = TYPE_MAP[file_type]["fmt"]
+    headers = TOOL_INFO[file_type]["headers"]
+    dtype = TOOL_INFO[file_type]["dtype"]
+    fmt = TOOL_INFO[file_type]["fmt"]
 
     file_in = resolve_file(file_in, "rb", stack)
     if file_in == sys.stdin.buffer:

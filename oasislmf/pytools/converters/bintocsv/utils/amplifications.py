@@ -2,13 +2,13 @@ from pathlib import Path
 import numpy as np
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.input_files import read_amplifications
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 
 def amplifications_tocsv(stack, file_in, file_out, file_type, noheader):
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
-    fmt = TYPE_MAP[file_type]["fmt"]
+    headers = TOOL_INFO[file_type]["headers"]
+    dtype = TOOL_INFO[file_type]["dtype"]
+    fmt = TOOL_INFO[file_type]["fmt"]
 
     if str(file_in) == "-":
         items_amps = read_amplifications(use_stdin=True)

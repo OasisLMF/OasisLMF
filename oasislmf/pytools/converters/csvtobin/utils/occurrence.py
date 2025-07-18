@@ -3,7 +3,7 @@ import numpy as np
 from oasislmf.pytools.common.data import generate_output_metadata, occurrence_dtype, occurrence_granular_dtype
 from oasislmf.pytools.common.input_files import occ_get_date_id
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 
 def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date_alg=False, granular=False):
@@ -63,8 +63,8 @@ def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date
     np.array([date_opts], dtype="i4").tofile(file_out)
     np.array([no_of_periods], dtype="i4").tofile(file_out)
 
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
+    headers = TOOL_INFO[file_type]["headers"]
+    dtype = TOOL_INFO[file_type]["dtype"]
     if no_date_alg:
         csv_data = read_csv_as_ndarray(stack, file_in, headers, dtype)
         csv_data.tofile(file_out)

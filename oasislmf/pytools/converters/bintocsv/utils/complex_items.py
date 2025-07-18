@@ -3,11 +3,11 @@ import msgpack
 import numpy as np
 from oasislmf.pytools.common.event_stream import mv_read
 from oasislmf.pytools.common.data import resolve_file
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 
 def complex_items_tocsv(stack, file_in, file_out, file_type, noheader):
-    header_dtype = TYPE_MAP[file_type]["dtype"]
+    header_dtype = TOOL_INFO[file_type]["dtype"]
 
     file_in = resolve_file(file_in, "rb", stack)
     byte_data = np.frombuffer(file_in.read(), dtype=np.uint8)

@@ -2,12 +2,12 @@ import numpy as np
 from oasislmf.pytools.common.data import oasis_int, oasis_float
 from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 
 def summarycalc_tobin(stack, file_in, file_out, file_type, max_sample_index, summary_set_id):
-    headers = TYPE_MAP[file_type]["headers"]
-    dtype = TYPE_MAP[file_type]["dtype"]
+    headers = TOOL_INFO[file_type]["headers"]
+    dtype = TOOL_INFO[file_type]["dtype"]
     data = read_csv_as_ndarray(stack, file_in, headers, dtype)
 
     stream_agg_type = 1

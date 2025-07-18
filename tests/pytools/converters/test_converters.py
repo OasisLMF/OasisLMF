@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.converters.cdftocsv import cdftocsv
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
 
@@ -52,8 +52,8 @@ def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
                     )
                 np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
             if converter == "csvtobin":
-                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=TYPE_MAP[file_type]))
-                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=TYPE_MAP[file_type]))
+                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=TOOL_INFO[file_type]))
+                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=TOOL_INFO[file_type]))
                 pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")

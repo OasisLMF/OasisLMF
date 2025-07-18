@@ -2,12 +2,12 @@ import msgpack
 import numpy as np
 import struct
 from oasislmf.pytools.common.data import resolve_file
-from oasislmf.pytools.converters.data import TYPE_MAP
+from oasislmf.pytools.converters.data import TOOL_INFO
 import pandas as pd
 
 
 def complex_items_tobin(stack, file_in, file_out, file_type):
-    header_dtype = TYPE_MAP[file_type]["dtype"]
+    header_dtype = TOOL_INFO[file_type]["dtype"]
 
     file_in = resolve_file(file_in, "r", stack)
 
