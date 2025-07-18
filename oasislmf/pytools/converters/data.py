@@ -33,5 +33,7 @@ def build_tool_info():
 
 
 TOOL_INFO = build_tool_info()
-SUPPORTED_CSVTOBIN = get_tools_by_cli(TOOL_INFO, "csvtobin")
 SUPPORTED_BINTOCSV = get_tools_by_cli(TOOL_INFO, "bintocsv")
+SUPPORTED_CSVTOBIN = get_tools_by_cli(TOOL_INFO, "csvtobin")
+SUPPORTED_BINTOPARQUET = get_tools_by_cli(TOOL_INFO, "bintoparquet")
+SUPPORTED_PARQUETTOBIN = get_tools_by_cli(TOOL_INFO, "parquettobin")

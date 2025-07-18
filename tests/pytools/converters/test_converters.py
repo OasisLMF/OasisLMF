@@ -6,6 +6,8 @@ from tempfile import TemporaryDirectory
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.converters.bintoparquet.manager import bintoparquet
+from oasislmf.pytools.converters.parquettobin.manager import parquettobin
 from oasislmf.pytools.converters.data import TOOL_INFO
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
@@ -20,6 +22,14 @@ def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
         in_ext = ".csv"
         out_ext = ".bin"
         converter = csvtobin
+    elif converter == "bintoparquet":
+        in_ext = ".bin"
+        out_ext = ".parquet"
+        converter = bintoparquet
+    elif converter == "parquettobin":
+        in_ext = ".parquet"
+        out_ext = ".bin"
+        converter = parquettobin
     else:
         raise RuntimeError(f"Unknown test type {file_type}")
 
@@ -41,7 +51,7 @@ def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
         converter(**converter_args)
 
         try:
-            if converter == "bintocsv":
+            if out_ext == ".csv":
                 expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
                 actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
                 if expected_outfile_data.shape != actual_outfile_data.shape:
@@ -49,10 +59,14 @@ def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
                         f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}"
                     )
                 np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
-            if converter == "csvtobin":
-                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=TOOL_INFO[file_type]))
-                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=TOOL_INFO[file_type]))
-                pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data)
+            if out_ext == ".bin":
+                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=TOOL_INFO[file_type]["dtype"]))
+                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=TOOL_INFO[file_type]["dtype"]))
+                pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
+            if out_ext == ".parquet":
+                expected_outfile_data = pd.read_parquet(expected_outfile)
+                actual_outfile_data = pd.read_parquet(actual_outfile)
+                pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")
             error_path.mkdir(exist_ok=True)
@@ -176,6 +190,7 @@ def test_returnperiods():
 
 
 def test_aal():
+    # Test bin/csv
     case_runner("bintocsv", "aal", "output")
     case_runner("csvtobin", "aal", "output")
     case_runner("bintocsv", "aalmeanonly", "output")
@@ -183,8 +198,17 @@ def test_aal():
     case_runner("bintocsv", "alct", "output")
     case_runner("csvtobin", "alct", "output")
 
+    # Test bin/parquet
+    case_runner("bintoparquet", "aal", "output")
+    case_runner("parquettobin", "aal", "output")
+    case_runner("bintoparquet", "aalmeanonly", "output")
+    case_runner("parquettobin", "aalmeanonly", "output")
+    case_runner("bintoparquet", "alct", "output")
+    case_runner("parquettobin", "alct", "output")
+
 
 def test_elt():
+    # Test bin/csv
     case_runner("bintocsv", "selt", "output")
     case_runner("csvtobin", "selt", "output")
     case_runner("bintocsv", "melt", "output")
@@ -192,21 +216,45 @@ def test_elt():
     case_runner("bintocsv", "qelt", "output")
     case_runner("csvtobin", "qelt", "output")
 
+    # Test bin/parquet
+    case_runner("bintoparquet", "selt", "output")
+    case_runner("parquettobin", "selt", "output")
+    case_runner("bintoparquet", "melt", "output")
+    case_runner("parquettobin", "melt", "output")
+    case_runner("bintoparquet", "qelt", "output")
+    case_runner("parquettobin", "qelt", "output")
+
 
 def test_lec():
+    # Test bin/csv
     case_runner("bintocsv", "ept", "output")
     case_runner("csvtobin", "ept", "output")
     case_runner("bintocsv", "psept", "output")
     case_runner("csvtobin", "psept", "output")
 
+    # Test bin/parquet
+    case_runner("bintoparquet", "ept", "output")
+    case_runner("parquettobin", "ept", "output")
+    case_runner("bintoparquet", "psept", "output")
+    case_runner("parquettobin", "psept", "output")
+
 
 def test_plt():
+    # Test bin/csv
     case_runner("bintocsv", "splt", "output")
     case_runner("csvtobin", "splt", "output")
     case_runner("bintocsv", "mplt", "output")
     case_runner("csvtobin", "mplt", "output")
     case_runner("bintocsv", "qplt", "output")
     case_runner("csvtobin", "qplt", "output")
+
+    # Test bin/parquet
+    case_runner("bintoparquet", "splt", "output")
+    case_runner("parquettobin", "splt", "output")
+    case_runner("bintoparquet", "mplt", "output")
+    case_runner("parquettobin", "mplt", "output")
+    case_runner("bintoparquet", "qplt", "output")
+    case_runner("parquettobin", "qplt", "output")
 
 
 def test_fm():

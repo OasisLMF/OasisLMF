@@ -393,7 +393,8 @@ setup(
             'lecpy=oasislmf.pytools.lec.cli:main',
             'bintocsv=oasislmf.pytools.converters.bintocsv.cli:main',
             'csvtobin=oasislmf.pytools.converters.csvtobin.cli:main',
-            'cdftocsv=oasislmf.pytools.converters.cdftocsv:main',
+            'bintoparquet=oasislmf.pytools.converters.bintoparquet.cli:main',
+            'parquettobin=oasislmf.pytools.converters.parquettobin.cli:main',
         ]
     },
     license='BSD 3-Clause',

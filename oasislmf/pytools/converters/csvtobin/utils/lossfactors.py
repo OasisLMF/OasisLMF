@@ -21,18 +21,23 @@ def lossfactors_tobin(stack, file_in, file_out, file_type):
     # Write the 4-byte zero header
     np.array([0], dtype="i4").tofile(file_out)
 
-    current_event_id = 0
+    current_event_id = -1
     counter = 0
     factors = []
     for k, v in plafactors.items():
         if k[0] != current_event_id:
-            if current_event_id != 0:
+            if current_event_id != -1:
+                np.array([current_event_id], dtype=np.int32).tofile(file_out)
                 np.array([counter], dtype=np.int32).tofile(file_out)
                 for af in factors:
                     np.array(af, dtype=amp_factor_dtype).tofile(file_out)
-            np.array(k[0], dtype=np.int32).tofile(file_out)
             current_event_id = k[0]
             counter = 0
             factors = []
         factors.append((k[1], v))
         counter += 1
+    if current_event_id != -1:
+        np.array([current_event_id], dtype=np.int32).tofile(file_out)
+        np.array([counter], dtype=np.int32).tofile(file_out)
+        for af in factors:
+            np.array(af, dtype=amp_factor_dtype).tofile(file_out)
