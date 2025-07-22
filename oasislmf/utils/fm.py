@@ -35,11 +35,13 @@ DEDUCTIBLE_CODES = OrderedDict({
 DED_LIMIT_TYPE_FLT = 0
 DED_LIMIT_TYPE_PCLOSS = 1
 DED_LIMIT_TYPE_PCTIV = 2
+DED_LIMIT_TYPE_BI = 3
 
 DEDUCTIBLE_AND_LIMIT_TYPES = OrderedDict({
     'flat': {'id': DED_LIMIT_TYPE_FLT, 'desc': 'Flat monetary amount'},
     'pcloss': {'id': DED_LIMIT_TYPE_PCLOSS, 'desc': 'Percentage of loss'},
-    'pctiv': {'id': DED_LIMIT_TYPE_PCTIV, 'desc': 'Percentage of TIV'}
+    'pctiv': {'id': DED_LIMIT_TYPE_PCTIV, 'desc': 'Percentage of TIV'},
+    'bi': {'id': DED_LIMIT_TYPE_BI, 'desc': 'BI Duration in days'}
 })
 
 FML_SITITM = 0

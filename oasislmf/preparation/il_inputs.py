@@ -831,12 +831,18 @@ def get_il_input_items(
     )
     il_inputs_df.loc[il_inputs_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'], 'ded_type'] = DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id']
 
+    type_filter = il_inputs_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['bi']['id']
+    il_inputs_df.loc[type_filter, 'deductible'] = il_inputs_df.loc[type_filter, 'deductible'] * il_inputs_df.loc[type_filter, 'tiv'] / 365.
+
     il_inputs_df['limit'] = np.where(
         il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
         il_inputs_df['limit'] * il_inputs_df['agg_tiv'],
         il_inputs_df['limit']
     )
     il_inputs_df.loc[il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'], 'lim_type'] = DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id']
+
+    type_filter = il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['bi']['id']
+    il_inputs_df.loc[type_filter, 'limit'] = il_inputs_df.loc[type_filter, 'limit'] * il_inputs_df.loc[type_filter, 'tiv'] / 365.
 
     if step_policies_present:
         # Before assigning calc. rule IDs and policy TC IDs, the StepTriggerType
