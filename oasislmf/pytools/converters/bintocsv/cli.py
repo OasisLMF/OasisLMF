@@ -1,8 +1,6 @@
 import argparse
 import logging
 
-from traitlets import default
-
 from .manager import bintocsv, logger
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV
 
