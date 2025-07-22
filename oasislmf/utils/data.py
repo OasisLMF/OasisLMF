@@ -767,6 +767,15 @@ def prepare_oed_exposure(exposure_data):
 def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
     location_df[SOURCE_IDX['loc']] = location_df.index
+
+    # Add BI ded + limit types
+    BI_FIELD_TYPES = [{'field': 'BIWaitingPeriod', 'type': 'BIWaitingPeriodType'},
+                      {'field': 'BIPOI', 'type': 'BIPOIType'}]
+
+    for field_type in BI_FIELD_TYPES:
+        if field_type['field'] in location_df.columns and field_type['type'] not in location_df.columns:
+            location_df[field_type['type']] = 3
+
     return location_df
 
 
