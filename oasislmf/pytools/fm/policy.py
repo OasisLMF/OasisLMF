@@ -326,6 +326,20 @@ def calcrule_39(policy, loss_out, loss_in):
             loss_out[i] = loss_in[i]
 
 
+@njit(cache=True, fastmath=True)
+def calcrule_40(policy, loss_out, loss_in):
+    """
+    BI deductible (waiting period) and limit (period of interest)
+    """
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            loss_out[i] = 0
+        elif loss_in[i] <= policy['limit_1']:
+            loss_out[i] = loss_in[i] - policy['deductible_1']
+        else:
+            loss_out[i] = policy['limit_1']
+
+
 @njit(cache=True)
 def calc(policy, loss_out, loss_in, stepped):
     if policy['calcrule_id'] == 1:
@@ -367,6 +381,8 @@ def calc(policy, loss_out, loss_in, stepped):
         calcrule_34(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 39:
         calcrule_39(policy, loss_out, loss_in)
+    elif policy['calcrule_id'] == 40:
+        calcrule_40(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
     # policies non layer policy with share
