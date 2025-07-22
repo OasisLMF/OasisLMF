@@ -1019,7 +1019,7 @@ def process_areaperils_in_footprint(event_footprint,
     Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions
 
     Args:
-        event_footprint (np.array[Event or EventCSV]): footprint, made of one or more event entries.
+        event_footprint (np.array[Event or footprint_event_dtype]): footprint, made of one or more event entries.
         present_areaperils (dict[int, int]): areaperil to vulnerability index dictionary.
         dynamic_footprint (boolean): true if there is dynamic_footprint
 

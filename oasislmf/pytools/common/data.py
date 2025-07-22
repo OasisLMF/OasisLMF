@@ -100,6 +100,14 @@ eve_output = [
 ]
 eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
 
+footprint_event_output = [
+    ('event_id', 'i4', "%d"),
+    ('areaperil_id', areaperil_int, "%d"),
+    ('intensity_bin_id', 'i4', "%d"),
+    ('probability', oasis_float, "%.6f"),
+]
+footprint_event_headers, footprint_event_dtype, footprint_event_fmt = generate_output_metadata(footprint_event_output)
+
 fm_output = [
     ("event_id", 'i4', "%d"),
     ("output_id", 'i4', "%d"),

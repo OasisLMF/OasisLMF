@@ -44,12 +44,6 @@ EventDynamic = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                        ('return_period', np.int32)
                                        ]))
 
-EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                   ('areaperil_id', areaperil_int),
-                                   ('intensity_bin_id', np.int32),
-                                   ('probability', oasis_float)
-                                   ]))
-
 EventIndexBin = nb.from_dtype(np.dtype([('event_id', np.int32),
                                         ('offset', np.int64),
                                         ('size', np.int64)

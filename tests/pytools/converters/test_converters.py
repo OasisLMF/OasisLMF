@@ -16,11 +16,15 @@ TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpa
 def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
     if converter == "bintocsv":
         in_ext = ".bin"
+        if file_type == "footprint" and kwargs["zip_files"]:
+            in_ext = ".bin.z"
         out_ext = ".csv"
         converter = bintocsv
     elif converter == "csvtobin":
         in_ext = ".csv"
         out_ext = ".bin"
+        if file_type == "footprint" and kwargs["zip_files"]:
+            out_ext = ".bin.z"
         converter = csvtobin
     elif converter == "bintoparquet":
         in_ext = ".bin"
@@ -83,6 +87,16 @@ def test_aggregatevulnerability():
 def test_damagebin():
     case_runner("bintocsv", "damagebin", "static")
     case_runner("csvtobin", "damagebin", "static")
+
+
+def test_footprint():
+    # zip_input = False
+    case_runner("bintocsv", "footprint", "static", filename="footprint", idx_file_in=Path(
+        TESTS_ASSETS_DIR, "static", "footprint.idx"), event_from_to="1-3", zip_files=False)
+
+    # zip_input = True
+    case_runner("bintocsv", "footprint", "static", filename="footprint_zip", idx_file_in=Path(
+        TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"), event_from_to="1-3", zip_files=True)
 
 
 def test_lossfactors():

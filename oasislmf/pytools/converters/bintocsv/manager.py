@@ -12,6 +12,7 @@ from oasislmf.pytools.converters.bintocsv.utils import (
     complex_items_tocsv,
     coverages_tocsv,
     fm_tocsv,
+    footprint_tocsv,
     gul_tocsv,
     lossfactors_tocsv,
     occurrence_tocsv,
@@ -66,6 +67,8 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
             tocsv_func = coverages_tocsv
         elif file_type == "fm":
             tocsv_func = fm_tocsv
+        elif file_type == "footprint":
+            tocsv_func = footprint_tocsv
         elif file_type == "gul":
             tocsv_func = gul_tocsv
         elif file_type == "lossfactors":

@@ -1,6 +1,8 @@
 import argparse
 import logging
 
+from traitlets import default
+
 from .manager import bintocsv, logger
 from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV
 
@@ -8,6 +10,10 @@ from oasislmf.pytools.converters.data import SUPPORTED_BINTOCSV
 def add_custom_args(file_type, parser):
     if file_type == "cdf":
         parser.add_argument('-d', '--run_dir', help='path to the run directory (default: ".")', default='.')
+    if file_type == "footprint":
+        parser.add_argument('-x', '--idx_file_in', required=True, type=str, help='Input index file path')
+        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
+        parser.add_argument('-e', '--event_from_to', default=None, type=str, help='[event_id from]-[event_id to] extract an inclusive range of event')
 
 
 def main():

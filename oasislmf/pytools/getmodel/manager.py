@@ -49,12 +49,6 @@ oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
 
-EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                   ('areaperil_id', areaperil_int),
-                                   ('intensity_bin_id', np.int32),
-                                   ('probability', oasis_float)
-                                   ]))
-
 Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ('coverage_id', np.int32),
                                ('areaperil_id', areaperil_int),
