@@ -331,10 +331,11 @@ def calcrule_40(policy, loss_out, loss_in):
     """
     BI deductible (waiting period) and limit (period of interest)
     """
+    lim = policy['limit_1'] + policy['deductible_1']
     for i in range(loss_in.shape[0]):
         if loss_in[i] <= policy['deductible_1']:
             loss_out[i] = 0
-        elif loss_in[i] <= policy['limit_1']:
+        elif loss_in[i] <= lim:
             loss_out[i] = loss_in[i] - policy['deductible_1']
         else:
             loss_out[i] = policy['limit_1']
