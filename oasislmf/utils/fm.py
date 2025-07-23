@@ -76,6 +76,23 @@ FM_LEVELS = OrderedDict({
     'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
 })
 
+FM_LEVELS_PROFILE = {
+    'SiteItem': FM_LEVELS['site item'],
+    'SiteCoverage': FM_LEVELS['site coverage'],
+    'SitePD': FM_LEVELS['site pd'],
+    'SiteAll': FM_LEVELS['site all'],
+    'CondCoverage': FM_LEVELS['cond coverage'],
+    'CondPD': FM_LEVELS['cond pd'],
+    'CondAll': FM_LEVELS['cond all'],
+    'PolCoverage': FM_LEVELS['policy coverage'],
+    'PolPD': FM_LEVELS['policy pd'],
+    'PolAll': FM_LEVELS['policy all'],
+    'PolLayer': FM_LEVELS['policy layer'],
+    'AccCoverage': FM_LEVELS['account coverage'],
+    'AccPD': FM_LEVELS['account pd'],
+    'AccAll': FM_LEVELS['account all']
+}
+
 GROUPED_SUPPORTED_FM_LEVELS = {
     'item': {
         'oed_source': 'location',
