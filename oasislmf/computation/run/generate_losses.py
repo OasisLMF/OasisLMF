@@ -31,7 +31,6 @@ class GenerateOasisLosses(ComputationStep):
     ]
 
     def run(self):
-        raise ValueError("1 IS HIT")
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
@@ -48,6 +47,7 @@ class GenerateOasisLosses(ComputationStep):
 
         with tqdm(total=len(cmds)) as pbar:
             for cmd in cmds:
+                self.logger.info(f'CURRENT COMMAND {cmd}')
                 cmd[0](**cmd[1]).run()
                 pbar.update(1)
 
