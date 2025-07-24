@@ -31,7 +31,7 @@ class GenerateOasisLosses(ComputationStep):
     ]
 
     def run(self):
-        self.logger.error("HELLO WORLD PLATFORM HITS GENERATE OASIS LOSSES")
+        raise ValueError("THIS IS HIT")
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
