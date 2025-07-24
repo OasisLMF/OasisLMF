@@ -35,7 +35,7 @@ from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, SUMMARY_TOP_LEVEL_COL
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
-                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
+                               DEDUCTIBLE_AND_LIMIT_TYPES, FM_LEVELS, FML_ACCALL, STEP_TRIGGER_TYPES,
                                SUPPORTED_FM_LEVELS, FM_TERMS, GROUPED_SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
@@ -492,7 +492,7 @@ def get_il_input_items(
     :rtype: pandas.DataFrame
     """
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
-    tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in profile[1].items()}
+    tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in profile[FM_LEVELS['site coverage']['id']].items()}
 
     # Get the FM aggregation profile - this describes how the IL input
     # items are to be aggregated in the various FM levels
