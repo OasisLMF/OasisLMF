@@ -162,7 +162,7 @@ def test_aggregatevulnerability():
 
 def test_damagebin():
     case_runner("bintocsv", "damagebin", "static")
-    case_runner("csvtobin", "damagebin", "static")
+    case_runner("csvtobin", "damagebin", "static", no_validation=False)
 
 
 def test_footprint():

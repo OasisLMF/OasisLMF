@@ -8,6 +8,7 @@ from oasislmf.pytools.converters.csvtobin.utils import (
     amplifications_tobin,
     complex_items_tobin,
     coverages_tobin,
+    damagebin_tobin,
     fm_tobin,
     footprint_tobin,
     gul_tobin,
@@ -46,6 +47,8 @@ def csvtobin(file_in, file_out, file_type, **kwargs):
             tobin_func = complex_items_tobin
         elif file_type == "coverages":
             tobin_func = coverages_tobin
+        elif file_type == "damagebin":
+            tobin_func = damagebin_tobin
         elif file_type == "fm":
             tobin_func = fm_tobin
         elif file_type == "footprint":

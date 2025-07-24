@@ -8,6 +8,8 @@ from oasislmf.pytools.converters.data import SUPPORTED_CSVTOBIN
 
 
 def add_custom_args(file_type, parser):
+    if file_type == "damagebin":
+        parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
     if file_type == "occurrence":
         parser.add_argument('-D', '--no_date_alg', action='store_true', help='No date algorithm in csv (use occ_date_id directly)')
         parser.add_argument('-G', '--granular', action='store_true', help='Use granular dates (occ_hour and occ_minute)')
