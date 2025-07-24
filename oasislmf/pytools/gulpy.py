@@ -47,7 +47,7 @@ def main():
     logger.addHandler(ch)
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
-
+    raise ValueError("2 IS HIT")
     manager.run(**kwargs)
 
 

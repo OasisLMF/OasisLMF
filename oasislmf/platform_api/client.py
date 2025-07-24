@@ -502,6 +502,7 @@ class APIClient(object):
         """
 
         try:
+            self.logger.info("HIT HERE")
             r = self.analyses.generate(analysis_id)
             analysis = r.json()
             self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
