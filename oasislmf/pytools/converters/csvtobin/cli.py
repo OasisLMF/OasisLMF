@@ -15,6 +15,13 @@ def add_custom_args(file_type, parser):
     if file_type == "fm" or file_type == "gul":
         parser.add_argument('-t', '--stream_type', type=int, default=LOSS_STREAM_ID, help=f'Stream Type. Default LOSS_STREAM_ID = {LOSS_STREAM_ID}')
         parser.add_argument('-S', '--max_sample_index', type=int, required=True, help='Maximum sample index')
+    if file_type == "footprint":
+        parser.add_argument('-x', '--idx_file_out', required=True, type=str, help='Output index file path')
+        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
+        parser.add_argument('-m', '--max_intensity_bin_idx', type=int, required=True, help='Maximum intensity bin index')
+        parser.add_argument('-n', '--no_intensity_uncertainty', action='store_true', help='No intensity uncertainty')
+        parser.add_argument('-d', '--decompressed_size', action='store_true', help='If True, add the decompressed size to the index file')
+        parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
     if file_type == "summarycalc":
         parser.add_argument('-t', '--summary_set_id', type=int, default=1, help='Summary Set Id. Default 1')
         parser.add_argument('-S', '--max_sample_index', type=int, required=True, help='Maximum sample index')

@@ -13,18 +13,14 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_converters")
 
 
-def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
+def case_runner(converter, file_type, sub_dir, filename=None, abnormal_dtype=False, **kwargs):
     if converter == "bintocsv":
         in_ext = ".bin"
-        if file_type == "footprint" and kwargs["zip_files"]:
-            in_ext = ".bin.z"
         out_ext = ".csv"
         converter = bintocsv
     elif converter == "csvtobin":
         in_ext = ".csv"
         out_ext = ".bin"
-        if file_type == "footprint" and kwargs["zip_files"]:
-            out_ext = ".bin.z"
         converter = csvtobin
     elif converter == "bintoparquet":
         in_ext = ".bin"
@@ -64,8 +60,12 @@ def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
                     )
                 np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
             if out_ext == ".bin":
-                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=TOOL_INFO[file_type]["dtype"]))
-                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=TOOL_INFO[file_type]["dtype"]))
+                if abnormal_dtype:  # This is if the binary file has headers or does not have a simple dtype, then compare raw bytes
+                    custom_dtype = "u1"
+                else:
+                    custom_dtype = TOOL_INFO[file_type]["dtype"]
+                expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype=custom_dtype))
+                actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype=custom_dtype))
                 pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
             if out_ext == ".parquet":
                 expected_outfile_data = pd.read_parquet(expected_outfile)
@@ -77,6 +77,82 @@ def case_runner(converter, file_type, sub_dir, filename=None, **kwargs):
             shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
             arg_str = ' '.join([f"{k}={v}" for k, v in converter_args.items()])
             raise Exception(f"running '{converter} {arg_str}' led to diff, see files at {error_path}") from e
+
+
+def case_runner_footprinttocsv(sub_dir, filename=None, **kwargs):
+    in_ext = ".bin"
+    out_ext = ".csv"
+    if kwargs["zip_files"]:
+        in_ext = ".bin.z"
+
+    with TemporaryDirectory() as tmp_result_dir_str:
+        infile_name = f"{filename}{in_ext}"
+        outfile_name = f"{filename}{out_ext}"
+        infile = Path(TESTS_ASSETS_DIR, sub_dir, infile_name)
+        expected_outfile = Path(TESTS_ASSETS_DIR, sub_dir, outfile_name)
+        actual_outfile = Path(tmp_result_dir_str, outfile_name)
+
+        converter_args = {
+            "file_in": infile,
+            "file_out": actual_outfile,
+            "file_type": "footprint",
+            **kwargs,
+        }
+        bintocsv(**converter_args)
+
+        try:
+            expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
+            actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
+            if expected_outfile_data.shape != actual_outfile_data.shape:
+                raise AssertionError(
+                    f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}"
+                )
+            np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
+        except Exception as e:
+            error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
+            arg_str = ' '.join([f"{k}={v}" for k, v in converter_args.items()])
+            raise Exception(f"running 'bintocsv {arg_str}' led to diff, see files at {error_path}") from e
+
+
+def case_runner_footprinttobin(sub_dir, filename=None, **kwargs):
+    in_ext = ".csv"
+    out_ext = ".bin"
+    if kwargs["zip_files"]:
+        out_ext = ".bin.z"
+
+    with TemporaryDirectory() as tmp_result_dir_str:
+        infile_name = f"{filename}{in_ext}"
+        infile = Path(TESTS_ASSETS_DIR, sub_dir, infile_name)
+
+        expected_idx_outfile = kwargs["idx_file_out"]
+        idx_outfile_name = expected_idx_outfile.name
+        actual_idx_outfile = Path(tmp_result_dir_str, idx_outfile_name)
+        kwargs["idx_file_out"] = actual_idx_outfile
+
+        outfile_name = f"{filename}{out_ext}"
+        expected_outfile = Path(TESTS_ASSETS_DIR, sub_dir, outfile_name)
+        actual_outfile = Path(tmp_result_dir_str, outfile_name)
+
+        converter_args = {
+            "file_in": infile,
+            "file_out": actual_outfile,
+            "file_type": "footprint",
+            **kwargs,
+        }
+        csvtobin(**converter_args)
+
+        try:
+            expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype="u1"))
+            actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype="u1"))
+            pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
+        except Exception as e:
+            error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
+            arg_str = ' '.join([f"{k}={v}" for k, v in converter_args.items()])
+            raise Exception(f"running 'bintocsv {arg_str}' led to diff, see files at {error_path}") from e
 
 
 def test_aggregatevulnerability():
@@ -91,12 +167,42 @@ def test_damagebin():
 
 def test_footprint():
     # zip_input = False
-    case_runner("bintocsv", "footprint", "static", filename="footprint", idx_file_in=Path(
-        TESTS_ASSETS_DIR, "static", "footprint.idx"), event_from_to="1-3", zip_files=False)
+    case_runner_footprinttocsv(
+        sub_dir="static",
+        filename="footprint",
+        idx_file_in=Path(TESTS_ASSETS_DIR, "static", "footprint.idx"),
+        event_from_to="1-3",
+        zip_files=False
+    )
+    case_runner_footprinttobin(
+        sub_dir="static",
+        filename="footprint",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint.idx"),
+        max_intensity_bin_idx=3,
+        no_intensity_uncertainty=True,
+        decompressed_size=False,
+        no_validation=False,
+        zip_files=False
+    )
 
     # zip_input = True
-    case_runner("bintocsv", "footprint", "static", filename="footprint_zip", idx_file_in=Path(
-        TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"), event_from_to="1-3", zip_files=True)
+    case_runner_footprinttocsv(
+        sub_dir="static",
+        filename="footprint_zip",
+        idx_file_in=Path(TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"),
+        event_from_to="1-3",
+        zip_files=True
+    )
+    case_runner_footprinttobin(
+        sub_dir="static",
+        filename="footprint_zip",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"),
+        max_intensity_bin_idx=58,
+        no_intensity_uncertainty=False,
+        decompressed_size=False,
+        no_validation=False,
+        zip_files=True
+    )
 
 
 def test_lossfactors():
@@ -273,16 +379,16 @@ def test_plt():
 
 def test_fm():
     case_runner("bintocsv", "fm", "misc", "raw_ils")
-    case_runner("csvtobin", "fm", "misc", "raw_ils", stream_type=2, max_sample_index=1)
+    case_runner("csvtobin", "fm", "misc", "raw_ils", abnormal_dtype=True, stream_type=2, max_sample_index=1)
 
 
 def test_gul():
     case_runner("bintocsv", "gul", "misc", "raw_guls")
-    case_runner("csvtobin", "gul", "misc", "raw_guls", stream_type=2, max_sample_index=1)
+    case_runner("csvtobin", "gul", "misc", "raw_guls", abnormal_dtype=True, stream_type=2, max_sample_index=1)
 
 
 def test_summarycalc():
-    case_runner("csvtobin", "summarycalc", "misc", "summary", summary_set_id=1, max_sample_index=100)
+    case_runner("csvtobin", "summarycalc", "misc", "summary", abnormal_dtype=True, summary_set_id=1, max_sample_index=100)
 
 
 def test_cdf():

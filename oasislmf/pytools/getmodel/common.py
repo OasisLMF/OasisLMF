@@ -32,10 +32,12 @@ FootprintHeader = nb.from_dtype(np.dtype([('num_intensity_bins', np.int32),
                                            np.int32)
                                           ]))
 
-Event = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
-                                ('intensity_bin_id', np.int32),
-                                ('probability', oasis_float)
-                                ]))
+Event_dtype = np.dtype([
+    ('areaperil_id', areaperil_int),
+    ('intensity_bin_id', np.int32),
+    ('probability', oasis_float)
+])
+Event = nb.from_dtype(Event_dtype)
 
 EventDynamic = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                        ('intensity_bin_id', np.int32),
@@ -44,16 +46,20 @@ EventDynamic = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
                                        ('return_period', np.int32)
                                        ]))
 
-EventIndexBin = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                        ('offset', np.int64),
-                                        ('size', np.int64)
-                                        ]))
+EventIndexBin_dtype = np.dtype([
+    ('event_id', np.int32),
+    ('offset', np.int64),
+    ('size', np.int64)
+])
+EventIndexBin = nb.from_dtype(EventIndexBin_dtype)
 
-EventIndexBinZ = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                         ('offset', np.int64),
-                                         ('size', np.int64),
-                                         ('d_size', np.int64)
-                                         ]))
+EventIndexBinZ_dtype = np.dtype([
+    ('event_id', np.int32),
+    ('offset', np.int64),
+    ('size', np.int64),
+    ('d_size', np.int64)
+])
+EventIndexBinZ = nb.from_dtype(EventIndexBinZ_dtype)
 
 Index_type = nb.from_dtype(np.dtype([('start', np.int64),
                                      ('end', np.int64)

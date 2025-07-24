@@ -3,6 +3,7 @@ __all__ = [
     "complex_items_tobin",
     "coverages_tobin",
     "fm_tobin",
+    "footprint_tobin",
     "gul_tobin",
     "lossfactors_tobin",
     "occurrence_tobin",
@@ -14,6 +15,7 @@ from .amplifications import amplifications_tobin
 from .complex_items import complex_items_tobin
 from .coverages import coverages_tobin
 from .fm import fm_tobin
+from .footprint import footprint_tobin
 from .gul import gul_tobin
 from .lossfactors import lossfactors_tobin
 from .occurrence import occurrence_tobin
