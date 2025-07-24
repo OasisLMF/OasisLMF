@@ -32,6 +32,7 @@ class GenerateOasisLosses(ComputationStep):
 
     def run(self):
         # setup output dir
+        self.logger.info("HELLO HARRY")
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
         self.kwargs['model_run_dir'] = self.model_run_dir
