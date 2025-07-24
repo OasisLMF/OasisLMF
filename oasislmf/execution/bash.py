@@ -2172,6 +2172,7 @@ def bash_params(
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
     bash_params['dynamic_footprint'] = dynamic_footprint
+    bash_params['websocket'] = kwargs.get('websocket')
 
     return bash_params
 
@@ -2801,6 +2802,9 @@ def create_bash_outputs(
         num_lb = 0
         num_gul_output = num_fm_output = max_process_id
 
+    if kwargs['websocket']:
+        print_command(filename, "curl -s -X POST http://localhost:8888/ -H 'Content-Type: application/json' -d '{}'")
+
     # Output Kats
     if rl_output:
         print_command(filename, '')
@@ -2997,7 +3001,8 @@ def genbash(
     lecpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
-    dynamic_footprint=False
+    dynamic_footprint=False,
+    websocket=False
 ):
     """
     Generates a bash script containing ktools calculation instructions for an

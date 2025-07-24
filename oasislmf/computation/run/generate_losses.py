@@ -36,7 +36,7 @@ class GenerateOasisLosses(ComputationStep):
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
         self.kwargs['model_run_dir'] = self.model_run_dir
-
+        self.kwarfs['websocket'] = True
         # Run chain
         if self.pre_loss_module:
             cmds = [(PreLoss, self.kwargs)]

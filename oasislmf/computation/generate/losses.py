@@ -758,7 +758,8 @@ class GenerateLosses(GenerateLossesDir):
                         aalpy=self.aalpy,
                         lecpy=self.lecpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
-                        dynamic_footprint=self.dynamic_footprint
+                        dynamic_footprint=self.dynamic_footprint,
+                        send_websocket=self.kwargs.get('websocket', False)
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
