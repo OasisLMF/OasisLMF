@@ -108,7 +108,7 @@ def run(analysis_settings,
         dynamic_footprint=dynamic_footprint,
         **kwargs,
     )
-    logging.info("HARRY second hit")
+
     bash_trace = subprocess.check_output(['bash', filename])
     logging.info(bash_trace.decode('utf-8'))
 
