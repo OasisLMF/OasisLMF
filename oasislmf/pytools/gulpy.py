@@ -47,7 +47,7 @@ def main():
     logger.addHandler(ch)
     logging_level = kwargs.pop('logging_level')
     logger.setLevel(logging_level)
-    logger.info(f"HARRY {kwargs}")
+    logger.error(f"HARRY {kwargs}")
     manager.run(**kwargs)
 
 
