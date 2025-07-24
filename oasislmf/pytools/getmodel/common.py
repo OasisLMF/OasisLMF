@@ -65,12 +65,6 @@ Index_type = nb.from_dtype(np.dtype([('start', np.int64),
                                      ('end', np.int64)
                                      ]))
 
-Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
-                                        ('intensity_bin_id', np.int32),
-                                        ('damage_bin_id', np.int32),
-                                        ('probability', oasis_float)
-                                        ]))
-
 Event_defintion = nb.from_dtype(np.dtype([('section_id', np.int32),
                                           ('return_period', np.int32),
                                           ('rp_from', np.int32),

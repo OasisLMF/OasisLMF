@@ -28,7 +28,8 @@ from oasislmf.pytools.common.data import (
     areaperil_int, areaperil_int_size,
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
-    damagebin_dtype, items_dtype
+    damagebin_dtype, items_dtype,
+    vulnerability_dtype
 )
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import Index_type, Keys
@@ -49,21 +50,17 @@ oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
 
-Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
-                                        ('intensity_bin_id', np.int32),
-                                        ('damage_bin_id', np.int32),
-                                        ('probability', oasis_float)
-                                        ]))
-
 VulnerabilityIndex = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                              ('offset', np.int64),
                                              ('size', np.int64),
                                              ('original_size', np.int64)
                                              ]))
-VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
-                                           ('damage_bin_id', np.int32),
-                                           ('probability', oasis_float)
-                                           ]))
+VulnerabilityRow_dtype = np.dtype([
+    ('intensity_bin_id', np.int32),
+    ('damage_bin_id', np.int32),
+    ('probability', oasis_float)
+])
+VulnerabilityRow = nb.from_dtype(VulnerabilityRow_dtype)
 
 vuln_offset = 4
 
@@ -271,7 +268,7 @@ def load_vulns_bin_idx_adjusted(vulns_bin, vulns_idx_bin, vuln_dict,
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_damage_bins: (int) number of damage bins in the data
         num_intensity_bins: (int) the number of intensity bins
-        adj_vuln_data: (List[Vulnerability]) vulnerability adjustment data, sorted by vuln_id
+        adj_vuln_data: (List[vulnerability_dtype]) vulnerability adjustment data, sorted by vuln_id
 
     Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
     """
@@ -355,7 +352,7 @@ def load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_damage_bins: (int) number of damage bins in the data
         num_intensity_bins: (int) the number of intensity bins
-        adj_vuln_data: (List[Vulnerability]) vulnerability adjustment data, sorted by vuln_id
+        adj_vuln_data: (List[vulnerability_dtype]) vulnerability adjustment data, sorted by vuln_id
 
     Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
     """
@@ -417,7 +414,7 @@ def update_vuln_array_with_adj_data(vuln_array, vuln_dict, adj_vuln_data):
     Args:
         vuln_array: (3D array) The vulnerability data array.
         vuln_dict: (Dict[int, int]) Maps vulnerability IDs to indices in vuln_array.
-        adj_vuln_data: (List[Vulnerability]) The vulnerability adjustment data.
+        adj_vuln_data: (List[vulnerability_dtype]) The vulnerability adjustment data.
 
     Returns: (3D array) The updated vulnerability data array.
     """
@@ -511,7 +508,7 @@ def get_vulns(
                                                                     num_damage_bins, num_intensity_bins, VulnerabilityRow.dtype.itemsize)
             else:
                 with storage.with_fileno("vulnerability.bin") as f:
-                    vulns_bin = np.memmap(f, dtype=Vulnerability, offset=4, mode='r')
+                    vulns_bin = np.memmap(f, dtype=vulnerability_dtype, offset=4, mode='r')
                 if vuln_adj is not None and len(vuln_adj) > 0:
                     vuln_array, valid_vuln_ids = load_vulns_bin_adjusted(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
                 else:
@@ -521,7 +518,7 @@ def get_vulns(
             source_url = storage.get_storage_url('vulnerability.csv', encode_params=False)[1]
             logger.debug(f"loading {source_url}")
             with storage.open("vulnerability.csv") as f:
-                vuln_csv = np.loadtxt(f, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+                vuln_csv = np.loadtxt(f, dtype=vulnerability_dtype, delimiter=",", skiprows=1, ndmin=1)
             num_damage_bins = max(vuln_csv['damage_bin_id'])
             if vuln_adj is not None and len(vuln_adj) > 0:
                 vuln_array, valid_vuln_ids = load_vulns_bin_adjusted(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins, vuln_adj)
@@ -546,7 +543,7 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
         path: (str) the path pointing to the run directory
         vuln_dict: (Dict[int, int]) list of vulnerability IDs
 
-    Returns: (List[Vulnerability]) vulnerability replacement data
+    Returns: (List[vulnerability_dtype]) vulnerability replacement data
     """
     settings_path = os.path.join(run_dir, "analysis_settings.json")
 
@@ -570,12 +567,12 @@ def get_vulnerability_replacements(run_dir, vuln_dict):
         for v_id, adjustments in vulnerability_replacements_field.items():
             for adj in adjustments:
                 flat_data.append((v_id, *adj))
-        vuln_adj = np.array(flat_data, dtype=Vulnerability)
+        vuln_adj = np.array(flat_data, dtype=vulnerability_dtype)
     elif isinstance(vulnerability_replacements_field, str):
         # Load csv file
         absolute_path = os.path.abspath(vulnerability_replacements_field)
         logger.debug(f"loading {absolute_path}")
-        vuln_adj = np.loadtxt(absolute_path, dtype=Vulnerability, delimiter=",", skiprows=1, ndmin=1)
+        vuln_adj = np.loadtxt(absolute_path, dtype=vulnerability_dtype, delimiter=",", skiprows=1, ndmin=1)
     vuln_adj = np.array([adj_vuln for adj_vuln in vuln_adj if adj_vuln['vulnerability_id'] in vuln_dict],
                         dtype=vuln_adj.dtype)
     vuln_adj.sort(order='vulnerability_id')

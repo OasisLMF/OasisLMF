@@ -253,6 +253,14 @@ returnperiods_output = [
 ]
 returnperiods_headers, returnperiods_dtype, returnperiods_fmt = generate_output_metadata(returnperiods_output)
 
+vulnerability_output = [
+    ("vulnerability_id", 'i4', "%d"),
+    ("intensity_bin_id", 'i4', "%d"),
+    ("damage_bin_id", 'i4', "%d"),
+    ("probability", oasis_float, "%.6f"),
+]
+vulnerability_headers, vulnerability_dtype, vulnerability_fmt = generate_output_metadata(vulnerability_output)
+
 vulnerability_weight_output = [
     ("areaperil_id", areaperil_int, "%d"),
     ("vulnerability_id", 'i4', "%d"),

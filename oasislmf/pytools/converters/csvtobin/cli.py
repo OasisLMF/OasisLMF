@@ -27,6 +27,13 @@ def add_custom_args(file_type, parser):
     if file_type == "summarycalc":
         parser.add_argument('-t', '--summary_set_id', type=int, default=1, help='Summary Set Id. Default 1')
         parser.add_argument('-S', '--max_sample_index', type=int, required=True, help='Maximum sample index')
+    if file_type == "vulnerability":
+        parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
+        parser.add_argument('-x', '--idx_file_out', default=None, type=str, help='Output index file path, if not set will not use idx file')
+        parser.add_argument('-d', '--max_damage_bin_idx', type=int, required=True, help='Maximum damage bin index')
+        parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
+        parser.add_argument('-S', '--suppress_validation_checks', action='store_true',
+                            help='Suppress all intensity bins present for each vulnerability ID validation checks (recommended for multiple peril models)')
 
 
 def main():

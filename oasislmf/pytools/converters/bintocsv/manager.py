@@ -16,6 +16,7 @@ from oasislmf.pytools.converters.bintocsv.utils import (
     gul_tocsv,
     lossfactors_tocsv,
     occurrence_tocsv,
+    vulnerability_tocsv,
 )
 from oasislmf.pytools.common.data import resolve_file
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -75,5 +76,7 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
             tocsv_func = lossfactors_tocsv
         elif file_type == "occurrence":
             tocsv_func = occurrence_tocsv
+        elif file_type == "vulnerability":
+            tocsv_func = vulnerability_tocsv
 
         tocsv_func(stack, file_in, file_out, file_type, noheader, **kwargs)

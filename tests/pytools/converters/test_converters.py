@@ -79,7 +79,7 @@ def case_runner(converter, file_type, sub_dir, filename=None, abnormal_dtype=Fal
             raise Exception(f"running '{converter} {arg_str}' led to diff, see files at {error_path}") from e
 
 
-def case_runner_footprinttocsv(sub_dir, filename=None, **kwargs):
+def case_runner_tocsv_with_zip_and_idx(file_type, sub_dir, filename, **kwargs):
     in_ext = ".bin"
     out_ext = ".csv"
     if kwargs["zip_files"]:
@@ -95,7 +95,7 @@ def case_runner_footprinttocsv(sub_dir, filename=None, **kwargs):
         converter_args = {
             "file_in": infile,
             "file_out": actual_outfile,
-            "file_type": "footprint",
+            "file_type": file_type,
             **kwargs,
         }
         bintocsv(**converter_args)
@@ -116,7 +116,7 @@ def case_runner_footprinttocsv(sub_dir, filename=None, **kwargs):
             raise Exception(f"running 'bintocsv {arg_str}' led to diff, see files at {error_path}") from e
 
 
-def case_runner_footprinttobin(sub_dir, filename=None, **kwargs):
+def case_runner_tobin_with_zip_and_idx(file_type, sub_dir, filename, **kwargs):
     in_ext = ".csv"
     out_ext = ".bin"
     if kwargs["zip_files"]:
@@ -138,7 +138,7 @@ def case_runner_footprinttobin(sub_dir, filename=None, **kwargs):
         converter_args = {
             "file_in": infile,
             "file_out": actual_outfile,
-            "file_type": "footprint",
+            "file_type": file_type,
             **kwargs,
         }
         csvtobin(**converter_args)
@@ -147,6 +147,17 @@ def case_runner_footprinttobin(sub_dir, filename=None, **kwargs):
             expected_outfile_data = pd.DataFrame(np.fromfile(expected_outfile, dtype="u1"))
             actual_outfile_data = pd.DataFrame(np.fromfile(actual_outfile, dtype="u1"))
             pd.testing.assert_frame_equal(expected_outfile_data, actual_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
+        except Exception as e:
+            error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(actual_outfile, Path(error_path, outfile_name))
+            arg_str = ' '.join([f"{k}={v}" for k, v in converter_args.items()])
+            raise Exception(f"running 'bintocsv {arg_str}' led to diff, see files at {error_path}") from e
+
+        try:
+            expected_idx_outfile_data = pd.DataFrame(np.fromfile(expected_idx_outfile, dtype="u1"))
+            actual_idx_outfile_data = pd.DataFrame(np.fromfile(actual_idx_outfile, dtype="u1"))
+            pd.testing.assert_frame_equal(expected_idx_outfile_data, actual_idx_outfile_data, check_exact=False, rtol=1e-3, atol=1e-4)
         except Exception as e:
             error_path = Path(TESTS_ASSETS_DIR, sub_dir, "error_files")
             error_path.mkdir(exist_ok=True)
@@ -167,14 +178,16 @@ def test_damagebin():
 
 def test_footprint():
     # zip_input = False
-    case_runner_footprinttocsv(
+    case_runner_tocsv_with_zip_and_idx(
+        file_type="footprint",
         sub_dir="static",
         filename="footprint",
         idx_file_in=Path(TESTS_ASSETS_DIR, "static", "footprint.idx"),
         event_from_to="1-3",
         zip_files=False
     )
-    case_runner_footprinttobin(
+    case_runner_tobin_with_zip_and_idx(
+        file_type="footprint",
         sub_dir="static",
         filename="footprint",
         idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint.idx"),
@@ -186,14 +199,16 @@ def test_footprint():
     )
 
     # zip_input = True
-    case_runner_footprinttocsv(
+    case_runner_tocsv_with_zip_and_idx(
+        file_type="footprint",
         sub_dir="static",
         filename="footprint_zip",
         idx_file_in=Path(TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"),
         event_from_to="1-3",
         zip_files=True
     )
-    case_runner_footprinttobin(
+    case_runner_tobin_with_zip_and_idx(
+        file_type="footprint",
         sub_dir="static",
         filename="footprint_zip",
         idx_file_out=Path(TESTS_ASSETS_DIR, "static", "footprint_zip.idx.z"),
@@ -213,6 +228,33 @@ def test_lossfactors():
 def test_random():
     case_runner("bintocsv", "random", "static")
     case_runner("csvtobin", "random", "static")
+
+
+def test_vulnerability():
+    # zip_input = False
+    case_runner_tocsv_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_noidx",
+        idx_file_in=None,
+        zip_files=False
+    )
+    case_runner_tocsv_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_in=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx"),
+        zip_files=False
+    )
+
+    # zip_input = True
+    case_runner_tocsv_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_in=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx.z"),
+        zip_files=True
+    )
 
 
 def test_weights():

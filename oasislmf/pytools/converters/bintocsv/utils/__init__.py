@@ -8,6 +8,7 @@ __all__ = [
     "gul_tocsv",
     "lossfactors_tocsv",
     "occurrence_tocsv",
+    "vulnerability_tocsv",
 ]
 
 from .amplifications import amplifications_tocsv
@@ -19,3 +20,4 @@ from .footprint import footprint_tocsv
 from .gul import gul_tocsv
 from .lossfactors import lossfactors_tocsv
 from .occurrence import occurrence_tocsv
+from .vulnerability import vulnerability_tocsv
