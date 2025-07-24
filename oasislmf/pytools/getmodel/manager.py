@@ -28,7 +28,7 @@ from oasislmf.pytools.common.data import (
     areaperil_int, areaperil_int_size,
     oasis_float, oasis_float_size,
     oasis_int, oasis_int_size,
-    damagebin_dtype
+    damagebin_dtype, items_dtype
 )
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import Index_type, Keys
@@ -47,14 +47,6 @@ buff_int_size = buff_size // oasis_int_size
 areaperil_int_relative_size = areaperil_int_size // oasis_int_size
 oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
-
-
-Item = nb.from_dtype(np.dtype([('id', np.int32),
-                               ('coverage_id', np.int32),
-                               ('areaperil_id', areaperil_int),
-                               ('vulnerability_id', np.int32),
-                               ('group_id', np.int32)
-                               ]))
 
 
 Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
@@ -102,7 +94,7 @@ def load_items(items, valid_area_peril_id):
     Processes the Items loaded from the file extracting meta data around the vulnerability data.
 
     Args:
-        items: (List[Item]) Data loaded from the vulnerability file
+        items: (List[item_dtype]) Data loaded from the vulnerability file
         valid_area_peril_id: array of area_peril_id to be included (if none, all are included)
 
     Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
@@ -171,10 +163,10 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None):
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and "bin" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
-        items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
+        items = np.memmap(os.path.join(input_path, "items.bin"), dtype=items_dtype, mode='r')
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
-        items = np.loadtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+        items = np.loadtxt(os.path.join(input_path, "items.csv"), dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 

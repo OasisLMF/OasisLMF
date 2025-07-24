@@ -14,12 +14,12 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import correlations_dtype
+from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
-from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
+from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
                                          ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
@@ -79,11 +79,11 @@ def gul_get_items(input_path, ignore_file_type=set()):
     if "items.bin" in input_files and "bin" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.bin')
         logger.debug(f"loading {items_fname}")
-        items = np.memmap(items_fname, dtype=Item, mode='r')
+        items = np.memmap(items_fname, dtype=items_dtype, mode='r')
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+        items = np.loadtxt(items_fname, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
@@ -111,7 +111,7 @@ def generate_item_map(items, coverages):
         append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
+            tuple((items[j]['item_id'], items[j]['coverage_id'], items[j]['group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1
@@ -210,7 +210,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         cursor = 0
 
         # create the array to store the seeds
-        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
+        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
 
         do_correlation = False
         if ignore_correlation:

@@ -71,13 +71,6 @@ Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                         ('probability', oasis_float)
                                         ]))
 
-Item = nb.from_dtype(np.dtype([('id', np.int32),
-                               ('coverage_id', np.int32),
-                               ('areaperil_id', areaperil_int),
-                               ('vulnerability_id', np.int32),
-                               ('group_id', np.int32)
-                               ]))
-
 Event_defintion = nb.from_dtype(np.dtype([('section_id', np.int32),
                                           ('return_period', np.int32),
                                           ('rp_from', np.int32),

@@ -7,13 +7,6 @@ from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int
 # probably need to set this dynamically depending on the stream type
 gul_header = np.int32(1 | 2 << 24).tobytes()
 
-Item = nb.from_dtype(np.dtype([('item_id', np.int32),
-                               ('coverage_id', np.int32),
-                               ('areaperil_id', areaperil_int),
-                               ('vulnerability_id', np.int32),
-                               ('group_id', np.int32)
-                               ]))
-
 ItemAdjustment = nb.from_dtype(np.dtype([('item_id', np.int32),
                                          ('intensity_adjustment', np.int32),
                                          ('return_period', np.int32)

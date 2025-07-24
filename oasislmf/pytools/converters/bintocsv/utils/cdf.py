@@ -4,10 +4,9 @@ import logging
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import resolve_file, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import resolve_file, write_ndarray_to_fmt_csv, items_dtype
 from oasislmf.pytools.common.input_files import read_coverages
 from oasislmf.pytools.converters.data import TOOL_INFO
-from oasislmf.pytools.getmodel.manager import Item
 from oasislmf.pytools.gul.common import coverage_type
 from oasislmf.pytools.gul.manager import generate_item_map, gul_get_items, read_getmodel_stream
 
@@ -64,7 +63,7 @@ def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
     del coverages_tiv
 
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
-    seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
+    seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
     valid_area_peril_id = None
 
     for event_data in read_getmodel_stream(file_in, item_map, coverages, compute, seeds, valid_area_peril_id):
