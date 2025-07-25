@@ -232,10 +232,13 @@ def test_random():
 
 def test_vulnerability():
     # zip_input = False
-    case_runner_tocsv_with_zip_and_idx(
+    # bintocsv
+    case_runner(
+        converter="bintocsv",
         file_type="vulnerability",
         sub_dir="static",
         filename="vulnerability_noidx",
+        abnormal_dtype=True,
         idx_file_in=None,
         zip_files=False
     )
@@ -246,13 +249,48 @@ def test_vulnerability():
         idx_file_in=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx"),
         zip_files=False
     )
+    # csvtobin
+    case_runner(
+        converter="csvtobin",
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_noidx",
+        abnormal_dtype=True,
+        idx_file_out=None,
+        max_damage_bin_idx=2,
+        no_validation=False,
+        suppress_int_bin_checks=False,
+        zip_files=False
+    )
+    case_runner_tobin_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx"),
+        max_damage_bin_idx=2,
+        no_validation=False,
+        suppress_int_bin_checks=False,
+        zip_files=False
+    )
 
     # zip_input = True
+    # bintocsv
     case_runner_tocsv_with_zip_and_idx(
         file_type="vulnerability",
         sub_dir="static",
         filename="vulnerability_idx",
         idx_file_in=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx.z"),
+        zip_files=True
+    )
+    # csvtobin
+    case_runner_tobin_with_zip_and_idx(
+        file_type="vulnerability",
+        sub_dir="static",
+        filename="vulnerability_idx",
+        idx_file_out=Path(TESTS_ASSETS_DIR, "static", "vulnerability_idx.idx.z"),
+        max_damage_bin_idx=2,
+        no_validation=False,
+        suppress_int_bin_checks=False,
         zip_files=True
     )
 

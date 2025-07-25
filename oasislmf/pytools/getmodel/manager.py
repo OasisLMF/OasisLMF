@@ -50,11 +50,14 @@ oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
 
-VulnerabilityIndex = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
-                                             ('offset', np.int64),
-                                             ('size', np.int64),
-                                             ('original_size', np.int64)
-                                             ]))
+VulnerabilityIndex_dtype = np.dtype([
+    ('vulnerability_id', np.int32),
+    ('offset', np.int64),
+    ('size', np.int64),
+    ('original_size', np.int64)
+])
+VulnerabilityIndex = nb.from_dtype(VulnerabilityIndex_dtype)
+
 VulnerabilityRow_dtype = np.dtype([
     ('intensity_bin_id', np.int32),
     ('damage_bin_id', np.int32),

@@ -32,7 +32,7 @@ def add_custom_args(file_type, parser):
         parser.add_argument('-x', '--idx_file_out', default=None, type=str, help='Output index file path, if not set will not use idx file')
         parser.add_argument('-d', '--max_damage_bin_idx', type=int, required=True, help='Maximum damage bin index')
         parser.add_argument('-N', '--no_validation', action='store_true', help='No validation checks')
-        parser.add_argument('-S', '--suppress_validation_checks', action='store_true',
+        parser.add_argument('-S', '--suppress_int_bin_checks', action='store_true',
                             help='Suppress all intensity bins present for each vulnerability ID validation checks (recommended for multiple peril models)')
 
 
