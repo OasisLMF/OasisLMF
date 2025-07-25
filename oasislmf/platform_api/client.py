@@ -580,6 +580,7 @@ class APIClient(object):
         """
 
         try:
+            os.environ['id'] = analysis_id
             if analysis_settings_fp:
                 self.upload_settings(analysis_id, analysis_settings_fp)
 
