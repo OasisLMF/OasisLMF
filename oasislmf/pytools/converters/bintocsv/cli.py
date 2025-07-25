@@ -15,10 +15,7 @@ def add_custom_args(file_type, parser):
     if file_type == "vulnerability":
         parser.add_argument('-z', '--zip_files', action='store_true', help='Zip input files flag')
         parser.add_argument('-x', '--idx_file_in', default=None, type=str, help='Input index file path')
-        # TODO: rather than reusing/modifying the get_vulns function, just copy the code in it to work for stdin.
-        #       ... or, just rewrite your own read vulns file functions instead
-        # TODO: implement bintocsv with/without idx (not zip), and with with idx (required for zip)
-        # TODO: implement csvtobin with _validate function
+
 
 def main():
     parser = argparse.ArgumentParser(description='Convert Binary to CSV for various file types.',
