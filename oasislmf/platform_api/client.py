@@ -500,7 +500,7 @@ class APIClient(object):
         `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
-
+        os.environ['id'] = str(analysis_id)
         try:
             r = self.analyses.generate(analysis_id)
             analysis = r.json()
@@ -580,7 +580,6 @@ class APIClient(object):
         """
 
         try:
-            os.environ['id'] = str(analysis_id)
             if analysis_settings_fp:
                 self.upload_settings(analysis_id, analysis_settings_fp)
 
