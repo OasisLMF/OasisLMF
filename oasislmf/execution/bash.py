@@ -2422,6 +2422,10 @@ def create_bash_analysis(
         num_lb = 0
         num_gul_output = num_fm_output = max_process_id
 
+    if 'url' in os.environ:
+        print_command(filename, f"curl -s -X POST {os.environ['url']}:{os.environ['socket']}/"
+                      " -H 'Content-Type: application/json' -d '{\"counter\": 12}'")
+
     fifo_dirs = [fifo_queue_dir]
     if full_correlation:
         fifo_dirs.append(fifo_full_correlation_dir)

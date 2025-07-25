@@ -9,6 +9,7 @@ from ..base import ComputationStep
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_loss import PreLoss
 from ..hooks.post_analysis import PostAnalysis
+import os
 
 
 class GenerateOasisLosses(ComputationStep):
@@ -31,7 +32,8 @@ class GenerateOasisLosses(ComputationStep):
     ]
 
     def run(self):
-
+        os.environ['url'] = "http://localhost"
+        os.environ['socket'] = 8888
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
