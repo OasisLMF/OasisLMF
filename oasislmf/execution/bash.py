@@ -3112,7 +3112,7 @@ def add_server_call(call):
         return call
     if '| gul' not in call:
         return call
-    data = {"status": "complete", "id": os.environ.get('id', "Unknown")}
+    data = {"status": "complete"}
     post = os.environ['url'] + ':' + os.environ['socket'] + f" -H \"Content-Type: application/json\" -d '{str(data)}'"
     calls = call.split("&  pid")
     try:
