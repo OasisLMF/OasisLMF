@@ -32,7 +32,7 @@ class GenerateOasisLosses(ComputationStep):
     ]
 
     def run(self):
-        os.environ['url'] = "http://localhost"
+        os.environ['url'] = "http://host.minikube.internal"
         os.environ['socket'] = "8888"
         # setup output dir
         if not self.model_run_dir:

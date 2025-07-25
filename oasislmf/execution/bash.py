@@ -2424,7 +2424,7 @@ def create_bash_analysis(
 
     if 'url' in os.environ:
         print_command(filename, f"curl -s -X POST {os.environ['url']}:{os.environ['socket']}/"
-                      " -H 'Content-Type: application/json' -d '{\"counter\": 12}'")
+                      " -H 'Content-Type: application/json' -d '{\"counter\": " + num_gul_output + "}'")
 
     fifo_dirs = [fifo_queue_dir]
     if full_correlation:
