@@ -3114,4 +3114,7 @@ def add_server_call(call):
         return call
     data = os.environ['url'] + ':' + os.environ['socket'] + " -H \"Content-Type: application/json\" -d '{\"status\": \"complete\"}'"
     calls = call.split("&  pid")
-    return f"{calls[0]} && curl -s -X POST {data} & pid{calls[1]}"
+    try:
+        return f"{calls[0]} && curl -s -X POST {data} & pid{calls[1]}"
+    except Exception:
+        return call
