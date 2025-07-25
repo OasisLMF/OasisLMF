@@ -380,7 +380,7 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
     elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server' * modelpy_server} --model-df-engine=\'{model_df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
@@ -3112,7 +3112,6 @@ def add_server_call(call):
         return call
     if '| gul' not in call:
         return call
-    raise ValueError(call)
     data = os.environ['url'] + ':' + os.environ['socket'] + " -H \"Content-Type: application/json\" -d '{\"status\": \"complete\"}'"
-    calls = call.split("& pid")
+    calls = call.split("&  pid")
     return f"{calls[0]} && curl -s -X POST {data} & pid{calls[1]}"
