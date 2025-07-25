@@ -96,3 +96,6 @@ class FmAcceptanceTests(TestCase):
 
     def test_insurance_policy_coverage_2_subperils(self):
         self.run_test('insurance_policy_coverage', fmpy=True, model_perils_covered=['WW2'], expected_dir="expected_subperils")
+
+    def test_insurance_bi(self):
+        self.run_test('insurance_bi', fmpy=True, model_perils_covered=['WTC'])

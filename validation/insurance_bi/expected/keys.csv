@@ -1,0 +1,5 @@
+LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
+1,WTC,1,1,1
+1,WTC,2,2,2
+1,WTC,3,3,3
+1,WTC,4,4,4
