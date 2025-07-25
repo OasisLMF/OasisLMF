@@ -24,6 +24,20 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 logger = logging.getLogger(__name__)
 
 
+TOCSV_FUNC_MAP = {
+    "amplifications": amplifications_tocsv,
+    "cdf": cdf_tocsv,
+    "complex_items": complex_items_tocsv,
+    "coverages": coverages_tocsv,
+    "fm": fm_tocsv,
+    "footprint": footprint_tocsv,
+    "gul": gul_tocsv,
+    "lossfactors": lossfactors_tocsv,
+    "occurrence": occurrence_tocsv,
+    "vulnerability": vulnerability_tocsv,
+}
+
+
 def default_tocsv(stack, file_in, file_out, file_type, noheader):
     headers = TOOL_INFO[file_type]["headers"]
     dtype = TOOL_INFO[file_type]["dtype"]
@@ -57,26 +71,5 @@ def bintocsv(file_in, file_out, file_type, noheader=False, **kwargs):
     with ExitStack() as stack:
         file_out = resolve_file(file_out, "w", stack)
 
-        tocsv_func = default_tocsv
-        if file_type == "amplifications":
-            tocsv_func = amplifications_tocsv
-        elif file_type == "cdf":
-            tocsv_func = cdf_tocsv
-        elif file_type == "complex_items":
-            tocsv_func = complex_items_tocsv
-        elif file_type == "coverages":
-            tocsv_func = coverages_tocsv
-        elif file_type == "fm":
-            tocsv_func = fm_tocsv
-        elif file_type == "footprint":
-            tocsv_func = footprint_tocsv
-        elif file_type == "gul":
-            tocsv_func = gul_tocsv
-        elif file_type == "lossfactors":
-            tocsv_func = lossfactors_tocsv
-        elif file_type == "occurrence":
-            tocsv_func = occurrence_tocsv
-        elif file_type == "vulnerability":
-            tocsv_func = vulnerability_tocsv
-
+        tocsv_func = TOCSV_FUNC_MAP.get(file_type, default_tocsv)
         tocsv_func(stack, file_in, file_out, file_type, noheader, **kwargs)

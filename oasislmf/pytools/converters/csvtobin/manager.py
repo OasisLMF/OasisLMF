@@ -24,6 +24,22 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 logger = logging.getLogger(__name__)
 
 
+TOBIN_FUNC_MAP = {
+    "amplifications": amplifications_tobin,
+    "complex_items": complex_items_tobin,
+    "coverages": coverages_tobin,
+    "damagebin": damagebin_tobin,
+    "fm": fm_tobin,
+    "footprint": footprint_tobin,
+    "gul": gul_tobin,
+    "lossfactors": lossfactors_tobin,
+    "occurrence": occurrence_tobin,
+    "returnperiods": returnperiods_tobin,
+    "summarycalc": summarycalc_tobin,
+    "vulnerability": vulnerability_tobin,
+}
+
+
 def default_tobin(stack, file_in, file_out, file_type):
     headers = TOOL_INFO[file_type]["headers"]
     dtype = TOOL_INFO[file_type]["dtype"]
@@ -41,30 +57,5 @@ def csvtobin(file_in, file_out, file_type, **kwargs):
     with ExitStack() as stack:
         file_out = resolve_file(file_out, "wb", stack)
 
-        tobin_func = default_tobin
-        if file_type == "amplifications":
-            tobin_func = amplifications_tobin
-        elif file_type == "complex_items":
-            tobin_func = complex_items_tobin
-        elif file_type == "coverages":
-            tobin_func = coverages_tobin
-        elif file_type == "damagebin":
-            tobin_func = damagebin_tobin
-        elif file_type == "fm":
-            tobin_func = fm_tobin
-        elif file_type == "footprint":
-            tobin_func = footprint_tobin
-        elif file_type == "gul":
-            tobin_func = gul_tobin
-        elif file_type == "lossfactors":
-            tobin_func = lossfactors_tobin
-        elif file_type == "occurrence":
-            tobin_func = occurrence_tobin
-        elif file_type == "returnperiods":
-            tobin_func = returnperiods_tobin
-        elif file_type == "summarycalc":
-            tobin_func = summarycalc_tobin
-        elif file_type == "vulnerability":
-            tobin_func = vulnerability_tobin
-
+        tobin_func = TOBIN_FUNC_MAP.get(file_type, default_tobin)
         tobin_func(stack, file_in, file_out, file_type, **kwargs)
