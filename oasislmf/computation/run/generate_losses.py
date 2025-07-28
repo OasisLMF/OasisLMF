@@ -32,10 +32,6 @@ class GenerateOasisLosses(ComputationStep):
     ]
 
     def run(self):
-        os.environ['url'] = "http://host.minikube.internal"
-        os.environ['socket'] = "8888"
-        if "test" not in os.environ:
-            raise ValueError("Missing!")
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)

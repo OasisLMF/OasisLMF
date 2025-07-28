@@ -3108,11 +3108,11 @@ def genbash(
 
 
 def add_server_call(call):
-    if 'url' not in os.environ:
+    if not all(item in os.environ for item in ['url', 'socket', 'analysis_id']):
         return call
     if '| gul' not in call:
         return call
-    data = {"status": "complete"}
+    data = {"status": "complete", "analysis_id": os.environ['analysis_id']}
     post = os.environ['url'] + ':' + os.environ['socket'] + f" -H \"Content-Type: application/json\" -d '{str(data)}'"
     calls = call.split("&  pid")
     try:
