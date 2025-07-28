@@ -2303,6 +2303,8 @@ def create_bash_analysis(
     dynamic_footprint=False,
     **kwargs
 ):
+    if 'analysis_pk' not in kwargs:
+        raise ValueError("Not in create bash")
 
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
@@ -3100,6 +3102,8 @@ def genbash(
         os.remove(filename)
 
     params['analysis_pk'] = analysis_pk
+    if analysis_pk is None:
+        raise ValueError("not in Genbash")
 
     with bash_wrapper(
         filename,

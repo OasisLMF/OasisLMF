@@ -29,6 +29,8 @@ def run(analysis_settings,
         dynamic_footprint=False,
         **kwargs
         ):
+    if 'analysis_pk' not in kwargs:
+        raise ValueError('Not in run')
     model_df_engine = model_df_engine or df_engine
 
     #  MOVED into bash_params #########################################

@@ -761,6 +761,8 @@ class GenerateLosses(GenerateLossesDir):
                         dynamic_footprint=self.dynamic_footprint,
                         analysis_pk=self.kwargs['analysis_pk']
                     )
+                    if self.kwargs.get('analysis_pk', None) is None:
+                        raise ValueError("Not in GenerateLosses")
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
                     warnings.simplefilter("always")
