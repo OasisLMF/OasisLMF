@@ -79,6 +79,7 @@ instance/
 docs/_build/
 docs/build/
 docs/source/autoapi
+docs/source/generated_options.rst
 
 # PyBuilder
 target/

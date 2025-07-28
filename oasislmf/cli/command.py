@@ -324,11 +324,5 @@ class OasisComputationCommand(OasisBaseCommand):
         )
         _kwargs = self.get_arguments(args, manager_method)
 
-        # Override logger setup from kwargs
-        if "verbose" in _kwargs:
-            self.logger.level = (
-                logging.DEBUG if str2bool(_kwargs.get("verbose")) else logging.INFO
-            )
-
         self.logger.info(f"\nStarting oasislmf command - {self.computation_name}")
         manager_method(**_kwargs)
