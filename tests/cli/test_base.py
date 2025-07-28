@@ -17,7 +17,7 @@ class BaseLogger(TestCase):
         cmd.parse_args()
 
         self.assertEqual(cmd.logger.level, logging.INFO)
-        self.assertEqual(cmd.logger.handlers[0].formatter._fmt, '%(message)s')
+        self.assertEqual(cmd.logger.handlers[0].formatter._fmt, '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     def test_verbose_is_true___log_level_is_debug(self):
         cmd = OasisBaseCommand(argv=['--verbose'])
