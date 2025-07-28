@@ -9,7 +9,6 @@ from ..base import ComputationStep
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_loss import PreLoss
 from ..hooks.post_analysis import PostAnalysis
-import os
 
 
 class GenerateOasisLosses(ComputationStep):

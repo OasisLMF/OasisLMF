@@ -9,6 +9,7 @@ import shutil
 import string
 from collections import Counter
 from functools import partial
+import json
 
 import pandas as pd
 
@@ -3113,7 +3114,7 @@ def add_server_call(call):
     if '| gul' not in call:
         return call
     data = {"status": "complete", "analysis_id": os.environ['analysis_id']}
-    post = os.environ['url'] + ':' + os.environ['socket'] + f" -H \"Content-Type: application/json\" -d '{str(data)}'"
+    post = os.environ['url'] + ':' + os.environ['socket'] + f" -H \"Content-Type: application/json\" -d '{json.dumps(data)}'"
     calls = call.split("&  pid")
     try:
         return f"{calls[0]} && curl -s -X POST {post} & pid{calls[1]}"
