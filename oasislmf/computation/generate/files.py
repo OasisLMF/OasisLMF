@@ -574,7 +574,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
     step_params = [
         {'name': 'num_locations', 'flag': '-l', 'required': True, 'type': int, 'help': 'Number of locations'},
         {'name': 'coverages_per_location', 'flag': '-c', 'required': True, 'type': int, 'help': 'Number of coverage types per location'},
-        {'name': 'num_layers', 'flag': '-L', 'required': False, 'type': int, 'default': 1, 'help': 'Number of layers'}
+        {'name': 'num_layers', 'required': False, 'type': int, 'default': 1, 'help': 'Number of layers'}
     ]
     chained_commands = [GenerateDummyModelFiles]
 
