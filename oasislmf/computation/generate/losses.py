@@ -711,7 +711,6 @@ class GenerateLosses(GenerateLossesDir):
     ]
 
     def run(self):
-        raise ValueError(self.kwargs)
         # prep losses run dir / Setup
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
@@ -760,12 +759,13 @@ class GenerateLosses(GenerateLossesDir):
                         lecpy=self.lecpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
-                        analysis_pk=self.kwargs['analysis_pk']
+                        analysis_pk=self.kwargs.get('analysis_pk', None)
                     )
                     if self.kwargs.get('analysis_pk', None) is None:
                         raise ValueError("Not in GenerateLosses")
                     model_runner_module.run(self.settings, **run_args)
-                except TypeError:
+                except TypeError as e:
+                    raise ValueError(str(e))
                     warnings.simplefilter("always")
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
