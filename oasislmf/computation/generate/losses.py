@@ -764,8 +764,7 @@ class GenerateLosses(GenerateLossesDir):
                     if self.kwargs.get('analysis_pk', None) is None:
                         raise ValueError("Not in GenerateLosses")
                     model_runner_module.run(self.settings, **run_args)
-                except TypeError as e:
-                    raise ValueError(str(e))
+                except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")

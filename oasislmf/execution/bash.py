@@ -2303,8 +2303,6 @@ def create_bash_analysis(
     dynamic_footprint=False,
     **kwargs
 ):
-    if 'analysis_pk' not in kwargs:
-        raise ValueError("Not in create bash")
 
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
@@ -2427,7 +2425,7 @@ def create_bash_analysis(
 
     if 'url' in os.environ:
         curl_command = f"curl -s -X POST {os.environ['url']}:{os.environ['socket']}/ -H 'Content-Type: application/json' -d "
-        message = "'{\"counter\": " + str(num_gul_output) + ", \"analysis_pk\": " + kwargs["analysis_pk"] + "}'"
+        message = "'{\"counter\": " + str(num_gul_output) + ", \"analysis_pk\": " + kwargs.get("analysis_pk", "None") + "}'"
         print_command(filename, curl_command + message)
 
     fifo_dirs = [fifo_queue_dir]
@@ -3102,8 +3100,6 @@ def genbash(
         os.remove(filename)
 
     params['analysis_pk'] = analysis_pk
-    if analysis_pk is None:
-        raise ValueError("not in Genbash")
 
     with bash_wrapper(
         filename,
@@ -3117,7 +3113,7 @@ def genbash(
 
 
 def add_server_call(call, analysis_pk=None):
-    if not all(item in os.environ for item in ['url', 'socket', 'analysis_id']):
+    if not all(item in os.environ for item in ['url', 'socket']):
         return call
     if '| gul' not in call:
         return call
