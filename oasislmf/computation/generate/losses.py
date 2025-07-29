@@ -711,6 +711,7 @@ class GenerateLosses(GenerateLossesDir):
     ]
 
     def run(self):
+        raise ValueError(self.kwargs)
         # prep losses run dir / Setup
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
