@@ -3119,10 +3119,10 @@ def add_server_call(call, analysis_pk=None):
         return call
     if analysis_pk is None:
         return call
+    location = f"{os.environ['url']}:{os.environ['socket']}"
     data = {"status": "complete", "analysis_pk": analysis_pk}
-    post = os.environ['url'] + ':' + os.environ['socket'] + f" -H \"Content-Type: application/json\" -d '{json.dumps(data)}'"
     calls = call.split("&  pid")
     try:
-        return f"{calls[0]} && curl -s -X POST {post} & pid{calls[1]}"
+        return f"{calls[0]} && oasis-ping {location} '{json.dumps(data)}' & pid{calls[1]}"
     except Exception:
         return call
