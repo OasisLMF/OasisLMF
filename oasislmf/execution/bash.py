@@ -3119,7 +3119,7 @@ def add_server_call(call, analysis_pk=None):
         return call
     if analysis_pk is None:
         return call
-    location = f"{os.environ['url']}:{os.environ['socket']}"
+    location = f"{os.environ['url']}:{os.environ['socket']}/ws/analysis-status/"
     data = {"status": "complete", "analysis_pk": analysis_pk}
     calls = call.split("&  pid")
     try:
