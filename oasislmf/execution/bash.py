@@ -2424,9 +2424,9 @@ def create_bash_analysis(
         num_gul_output = num_fm_output = max_process_id
 
     if 'url' in os.environ:
-        curl_command = f"curl -s -X POST {os.environ['url']}:{os.environ['socket']}/ -H 'Content-Type: application/json' -d "
+        ping_command = f"oasis-ping {os.environ['url']}:{os.environ['socket']}/ws/analysis-status/ "
         message = "'{\"counter\": " + str(num_gul_output) + ", \"analysis_pk\": " + kwargs.get("analysis_pk", "None") + "}'"
-        print_command(filename, curl_command + message)
+        print_command(filename, ping_command + message)
 
     fifo_dirs = [fifo_queue_dir]
     if full_correlation:
