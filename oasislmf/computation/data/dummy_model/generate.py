@@ -483,7 +483,7 @@ class DamageBinDictFile(ModelFile):
         self.num_damage_bins = num_damage_bins
         self.dtypes = OrderedDict([
             ('bin_index', 'i'), ('bin_from', 'f'), ('bin_to', 'f'),
-            ('interpolation', 'f'), ('interval_type', 'i')
+            ('interpolation', 'f'), ('damage_type', 'i')
         ])
         self.start_stats = None
         self.data_length = num_damage_bins
@@ -502,7 +502,7 @@ class DamageBinDictFile(ModelFile):
             bin_from (float): damage bin lower limit.
             bin_to (float): damage bin upper limit.
             interpolation (float): damage bin midpoint.
-            interval_type (int): interval_type (deprecated).
+            damage_type (int): damage_type (deprecated).
         """
         # Exclude first and last bins for now
         bin_indexes = np.arange(self.num_damage_bins - 2)
@@ -519,13 +519,13 @@ class DamageBinDictFile(ModelFile):
             fields[i] = np.insert(field, 0, 0)
             fields[i] = np.append(fields[i], 1)
         bin_from_values, bin_to_values, interpolations = fields
-        # Set interval type for all bins to 0 (unused)
-        interval_type = 0
+        # Set damage_type for all bins to 0 (unused)
+        damage_type = 0
 
         for bin_id, bin_from, bin_to, interpolation in zip(
             bin_indexes, bin_from_values, bin_to_values, interpolations
         ):
-            yield bin_id, bin_from, bin_to, interpolation, interval_type
+            yield bin_id, bin_from, bin_to, interpolation, damage_type
 
 
 class OccurrenceFile(ModelFile):

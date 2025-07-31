@@ -91,7 +91,7 @@ damagebin_output = [
     ("bin_from", oasis_float, "%f"),
     ("bin_to", oasis_float, "%f"),
     ("interpolation", oasis_float, "%f"),
-    ("interval_type", 'i4', "%d"),
+    ("damage_type", 'i4', "%d"),
 ]
 damagebin_headers, damagebin_dtype, damagebin_fmt = generate_output_metadata(damagebin_output)
 

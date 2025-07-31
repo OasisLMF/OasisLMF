@@ -1,4 +1,4 @@
-bin_index,bin_from,bin_to,interpolation,interval_type
+bin_index,bin_from,bin_to,interpolation,damage_type
 1,0.010000,0.010000,0.010000,1202
 2,0.020000,0.020000,0.020000,1202
 3,0.030000,0.030000,0.030000,1202

@@ -49,7 +49,6 @@ areaperil_int_relative_size = areaperil_int_size // oasis_int_size
 oasis_float_relative_size = oasis_float_size // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
-
 VulnerabilityIndex_dtype = np.dtype([
     ('vulnerability_id', np.int32),
     ('offset', np.int64),

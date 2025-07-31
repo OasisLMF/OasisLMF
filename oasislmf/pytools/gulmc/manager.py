@@ -33,7 +33,7 @@ from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights, )
-from oasislmf.pytools.gulmc.common import (NP_BASE_ARRAY_SIZE,
+from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION, DAMAGE_TYPE_RELATIVE, NP_BASE_ARRAY_SIZE,
                                            Keys, ItemAdjustment,
                                            NormInversionParameters, coverage_type, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
@@ -676,13 +676,11 @@ def cache_cdf(next_cached_vuln_cdf_i, cached_vuln_cdfs, cached_vuln_cdf_lookup, 
 
 
 @nb.njit(fastmath=True, cache=True)
-def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, computation_tiv):
+def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_scaling):
     # find the damage cdf bin in which the random value `vuln_rval` falls into
     vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
 
     # compute ground-up losses
-    # for relative vulnerability functions, gul are scaled by tiv
-    # for absolute vulnerability functions, gul are absolute values
     return get_gul(
         damage_bins['bin_from'][vuln_bin_idx],
         damage_bins['bin_to'][vuln_bin_idx],
@@ -690,7 +688,7 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, comput
         vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
         vuln_cdf[vuln_bin_idx],
         vuln_rval,
-        computation_tiv,
+        bin_scaling,
     )
 
 
@@ -915,13 +913,22 @@ def compute_event_losses(compute_info,
 
             Neff_damage_bins = eff_damage_cdf.shape[0]
 
-            # for relative vulnerability functions, gul are fraction of the tiv
-            # for absolute vulnerability functions, gul are absolute values
-            computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
+            damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
+            if damage_type == DAMAGE_TYPE_RELATIVE:
+                damage_bin_scaling = tiv
+            elif damage_type == DAMAGE_TYPE_ABSOLUTE:
+                damage_bin_scaling = 1
+            elif damage_type == DAMAGE_TYPE_DURATION:
+                # convert annual tiv to daily
+                damage_bin_scaling = tiv / 365
+            else:  # default behaviour
+                # for relative vulnerability functions, gul are fraction of the tiv
+                # for absolute vulnerability functions, gul are absolute values
+                damage_bin_scaling = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
 
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                computation_tiv,
+                damage_bin_scaling,
                 eff_damage_cdf,
                 damage_bins['interpolation'],
                 Neff_damage_bins,
@@ -971,13 +978,13 @@ def compute_event_losses(compute_info,
                     if compute_info['effective_damageability']:
                         for sample_idx in range(1, sample_size + 1):
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                                               Neff_damage_bins, damage_bins, computation_tiv)
+                                                                               Neff_damage_bins, damage_bins, damage_bin_scaling)
                     elif Nhaz_bins == 1:  # only one hazard possible
                         Ndamage_bins = haz_i_to_Ndamage_bins[0]
                         vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
                         for sample_idx in range(1, sample_size + 1):
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, computation_tiv)
+                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
                     else:
                         for sample_idx in range(1, sample_size + 1):
                             # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -991,7 +998,7 @@ def compute_event_losses(compute_info,
                             vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, computation_tiv)
+                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
 
         # write the losses to the output memoryview
         compute_info['cursor'] = write_losses(
