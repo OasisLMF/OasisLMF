@@ -502,7 +502,7 @@ class DamageBinDictFile(ModelFile):
             bin_from (float): damage bin lower limit.
             bin_to (float): damage bin upper limit.
             interpolation (float): damage bin midpoint.
-            damage_type (int): damage_type (deprecated).
+            damage_type (int): damage_type.
         """
         # Exclude first and last bins for now
         bin_indexes = np.arange(self.num_damage_bins - 2)
