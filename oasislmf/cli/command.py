@@ -11,7 +11,7 @@ from argparsetree import BaseCommand
 from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
 
 from ..utils.path import PathCleaner
-from ..utils.inputs import InputValues, str2bool
+from ..utils.inputs import InputValues
 
 from ..manager import OasisManager as om
 
