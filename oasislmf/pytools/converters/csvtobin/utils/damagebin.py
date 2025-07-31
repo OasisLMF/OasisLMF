@@ -1,6 +1,7 @@
 import numpy as np
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
+from oasislmf.pytools.gulmc.common import VALID_DAMAGE_TYPE
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -40,6 +41,17 @@ def _validate(data):
             for i in bad_rows
         )
         raise OasisException(f"Error: Interpolation damage value outside of range.\n {error_msg}")
+
+    # Check valid damage_type
+    damages = data['damage_type']
+    invalid_mask = ~np.isin(damages, list(VALID_DAMAGE_TYPE))
+    invalid_indices = np.where(invalid_mask)[0]
+    if invalid_indices.size > 0:
+        invalid_values = damages[invalid_mask]
+        warning_msg = "\n".join(
+            f"Row {i}: damage_type={val}, damage_type must be in {VALID_DAMAGE_TYPE}" for i, val in zip(invalid_indices, invalid_values)
+        )
+        logger.warning(f"Error: Invalid damage_type values found:\n{warning_msg}")
 
 
 def damagebin_tobin(stack, file_in, file_out, file_type, no_validation):
