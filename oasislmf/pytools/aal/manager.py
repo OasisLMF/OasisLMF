@@ -11,7 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from oasislmf.pytools.aal.data import AAL_meanonly_dtype, AAL_meanonly_fmt, AAL_meanonly_headers, AAL_dtype, AAL_fmt, AAL_headers, ALCT_dtype, ALCT_fmt, ALCT_headers
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MEAN_IDX, MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID,
                                                   init_streams_in, mv_read)
@@ -881,7 +881,7 @@ def run(
             for out_type in outmap:
                 if not outmap[out_type]["compute"]:
                     continue
-                temp_out_data = np.zeros(1000000, dtype=outmap[out_type]["dtype"])
+                temp_out_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=outmap[out_type]["dtype"])
                 temp_df = pd.DataFrame(temp_out_data, columns=outmap[out_type]["headers"])
                 temp_table = pa.Table.from_pandas(temp_df)
                 out_file = pq.ParquetWriter(outmap[out_type]["file_path"], temp_table.schema)

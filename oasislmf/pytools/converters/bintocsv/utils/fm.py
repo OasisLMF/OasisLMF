@@ -2,7 +2,7 @@
 import logging
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float, oasis_float_size, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, oasis_int, oasis_int_size, oasis_float, oasis_float_size, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.event_stream import (
     FM_STREAM_ID, GUL_STREAM_ID, LOSS_STREAM_ID, EventReader, init_streams_in, mv_read
 )
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class FMReader(EventReader):
     def __init__(self, len_sample, data_dtype):
         self.logger = logger
-        self.data = np.zeros(1000000, dtype=data_dtype)
+        self.data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=data_dtype)
         self.idx = np.zeros(1, dtype=np.int64)
 
         read_buffer_state_dtype = np.dtype([

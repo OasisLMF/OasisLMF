@@ -5,7 +5,7 @@ import logging
 import sys
 import numpy as np
 
-from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, write_ndarray_to_fmt_csv
 from oasislmf.pytools.converters.bintocsv.utils import (
     amplifications_tocsv,
     cdf_tocsv,
@@ -53,7 +53,7 @@ def default_tocsv(stack, file_in, file_out, file_type, noheader):
     if not noheader:
         file_out.write(",".join(headers) + "\n")
 
-    buffer_size = 1000000
+    buffer_size = DEFAULT_BUFFER_SIZE
     for start in range(0, num_rows, buffer_size):
         end = min(start + buffer_size, num_rows)
         buffer_data = data[start:end]

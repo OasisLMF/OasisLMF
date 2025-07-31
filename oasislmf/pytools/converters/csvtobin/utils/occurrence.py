@@ -1,6 +1,6 @@
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import generate_output_metadata, occurrence_dtype, occurrence_granular_dtype
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, generate_output_metadata, occurrence_dtype, occurrence_granular_dtype
 from oasislmf.pytools.common.input_files import occ_get_date_id
 from oasislmf.pytools.converters.csvtobin.utils.common import read_csv_as_ndarray
 from oasislmf.pytools.converters.data import TOOL_INFO
@@ -9,7 +9,7 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date_alg=False, granular=False):
     @nb.njit(cache=True, error_model="numpy")
     def _get_occ_data_with_date_ids(occ_csv, occ_dtype):
-        buffer_size = 1000000
+        buffer_size = DEFAULT_BUFFER_SIZE
         buffer = np.zeros(buffer_size, dtype=occ_dtype)
 
         idx = 0
@@ -32,7 +32,7 @@ def occurrence_tobin(stack, file_in, file_out, file_type, no_of_periods, no_date
 
     @nb.njit(cache=True, error_model="numpy")
     def _get_occ_data_with_date_ids_gran(occ_csv, occ_dtype):
-        buffer_size = 1000000
+        buffer_size = DEFAULT_BUFFER_SIZE
         buffer = np.zeros(buffer_size, dtype=occ_dtype)
 
         idx = 0

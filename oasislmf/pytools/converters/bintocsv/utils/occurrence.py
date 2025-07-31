@@ -1,7 +1,7 @@
 from pathlib import Path
 import numba as nb
 import numpy as np
-from oasislmf.pytools.common.data import generate_output_metadata, write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, generate_output_metadata, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.input_files import occ_get_date, read_occurrence_bin
 from oasislmf.pytools.converters.data import TOOL_INFO
 
@@ -9,7 +9,7 @@ from oasislmf.pytools.converters.data import TOOL_INFO
 def occurrence_tocsv(stack, file_in, file_out, file_type, noheader):
     @nb.njit(cache=True, error_model="numpy")
     def _get_occ_data_with_dates(occ_arr, occ_csv_dtype):
-        buffer_size = 1000000
+        buffer_size = DEFAULT_BUFFER_SIZE
         buffer = np.zeros(buffer_size, dtype=occ_csv_dtype)
 
         idx = 0
@@ -29,7 +29,7 @@ def occurrence_tocsv(stack, file_in, file_out, file_type, noheader):
 
     @nb.njit(cache=True, error_model="numpy")
     def _get_occ_data_with_dates_gran(occ_arr, occ_csv_dtype):
-        buffer_size = 1000000
+        buffer_size = DEFAULT_BUFFER_SIZE
         buffer = np.zeros(buffer_size, dtype=occ_csv_dtype)
 
         idx = 0

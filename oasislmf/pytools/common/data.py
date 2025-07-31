@@ -19,6 +19,8 @@ areaperil_int_size = areaperil_int.itemsize
 
 null_index = oasis_int.type(-1)
 
+# A default buffer size for nd arrays to be initialised to
+DEFAULT_BUFFER_SIZE = 1_000_000
 
 # Mean type numbers for outputs (SampleType)
 MEAN_TYPE_ANALYTICAL = 1

@@ -14,7 +14,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import tempfile
 
-from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_heap
 from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
 from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
@@ -223,7 +223,7 @@ def csv_concat_sort_by_headers(
     # Merge all iterators
     merged_iterator = heapq.merge(*iterators, key=lambda x: x[0])
 
-    buffer_size = 1000000
+    buffer_size = DEFAULT_BUFFER_SIZE
     with stack.enter_context(out_file.open("w")) as out:
         writer = csv.writer(out, lineterminator="\n")
         writer.writerow(headers)
@@ -277,7 +277,7 @@ def merge_elt_data(memmaps):
                 [first_row["EventId"], i, 0], dtype=np.int32
             ))
 
-    buffer_size = 1000000
+    buffer_size = DEFAULT_BUFFER_SIZE
     buffer = np.empty(buffer_size, dtype=memmaps[0].dtype)
     bidx = 0
 
@@ -323,7 +323,7 @@ def merge_plt_data(memmaps):
                 [first_row["EventId"], first_row["Period"], i, 0], dtype=np.int32
             ))
 
-    buffer_size = 1000000
+    buffer_size = DEFAULT_BUFFER_SIZE
     buffer = np.empty(buffer_size, dtype=memmaps[0].dtype)
     bidx = 0
 
@@ -681,7 +681,7 @@ def run(
             csv_out_file = open(final_out_file_path, "w")
             csv_out_file.write(",".join(headers) + "\n")
 
-            buffer_size = 1000000
+            buffer_size = DEFAULT_BUFFER_SIZE
             for start in range(0, num_rows, buffer_size):
                 end = min(start + buffer_size, num_rows)
                 buffer_data = data[start:end]
@@ -689,7 +689,7 @@ def run(
             csv_out_file.close()
         if bin_to_parquet:
             parquet_writer = None
-            buffer_size = 1000000
+            buffer_size = DEFAULT_BUFFER_SIZE
             for start in range(0, num_rows, buffer_size):
                 end = min(start + buffer_size, num_rows)
                 buffer_data = data[start:end]
