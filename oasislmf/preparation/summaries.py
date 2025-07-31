@@ -97,7 +97,8 @@ calculated_summary_cols = {'is_property_damage': is_property_damage}
 
 
 def get_xref_df(il_inputs_df):
-    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS]
+    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(),
+                                           ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS].drop_duplicates()
     bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0]
     bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
@@ -292,7 +293,10 @@ def write_summary_levels(exposure_df, accounts_df, exposure_data, target_dir):
     }
 
     # GUL perspective (loc columns only)
-    l_col_list = exposure_df.replace(0, np.nan).dropna(how='any', axis=1).columns.to_list()
+    l_col_list = (exposure_df.drop(columns=['peril_group_id'], errors='ignore')
+                             .replace(0, np.nan)
+                             .dropna(how='any', axis=1)
+                             .columns.to_list())
     l_col_info = exposure_data.get_input_fields('Loc')
     gul_avail = {k: l_col_info[k.lower()]["Type & Description"] if k.lower() in l_col_info else desc_non_oed
                  for k in set([c for c in l_col_list]).difference(int_excluded_cols)}

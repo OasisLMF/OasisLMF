@@ -7,6 +7,11 @@ from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int
 # probably need to set this dynamically depending on the stream type
 gul_header = np.int32(1 | 2 << 24).tobytes()
 
+# define the damage_bin_dict damage_types
+DAMAGE_TYPE_RELATIVE = 1
+DAMAGE_TYPE_ABSOLUTE = 2
+DAMAGE_TYPE_DURATION = 3
+
 Item = nb.from_dtype(np.dtype([('item_id', np.int32),
                                ('coverage_id', np.int32),
                                ('areaperil_id', areaperil_int),

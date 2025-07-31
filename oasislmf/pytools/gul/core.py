@@ -11,7 +11,7 @@ from oasislmf.pytools.gul.common import NUM_IDX, MAX_LOSS_IDX, MEAN_IDX, TIV_IDX
 
 
 @njit(cache=True, fastmath=False, error_model="numpy")
-def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
+def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, bin_scaling):
     """Compute the ground-up loss using linear or quadratic interpolaiton if necessary.
 
     Args:
@@ -21,7 +21,7 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
         prob_from (oasis_float): bin minimum probability
         prob_to (oasis_float): bin maximum probability
         rval (float64): the random cdf value.
-        tiv (oasis_float): total insured value.
+        bin_scaling (oasis_float): scaling on the bins.
 
     Returns:
         float64: the computed ground-up loss
@@ -30,7 +30,7 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
 
     # point-like bin
     if bin_width == 0.:
-        gul = tiv * bin_to
+        gul = bin_scaling * bin_to
 
         return gul
 
@@ -41,7 +41,7 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     x = np.float64((bin_mean - bin_from) / bin_width)
     if np.abs(x - 0.5) <= 5e-6:
         # this condition requires 1 less operation
-        gul = tiv * (bin_from + rval_bin_offset * bin_width / bin_height)
+        gul = bin_scaling * (bin_from + rval_bin_offset * bin_width / bin_height)
 
         return gul
 
@@ -50,7 +50,7 @@ def get_gul(bin_from, bin_to, bin_mean, prob_from, prob_to, rval, tiv):
     bb = 2. * bin_height / bin_width * (2. - 3. * x)
     cc = - rval_bin_offset
 
-    gul = tiv * (bin_from + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
+    gul = bin_scaling * (bin_from + (sqrt(bb**2. - 4. * aa * cc) - bb) / (2. * aa))
 
     return gul
 
@@ -150,11 +150,11 @@ def split_tiv_multiplicative(gulitems, tiv):
 
 
 @njit(cache=True, fastmath=True)
-def compute_mean_loss(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
+def compute_mean_loss(bin_scaling, prob_to, bin_mean, bin_count, max_damage_bin_to):
     """Compute the mean ground-up loss and some properties.
 
     Args:
-        tiv (oasis_float): total insured value.
+        bin_scaling (oasis_float): scaling on damage bin values.
         prob_to (numpy.array[oasis_float]): bin maximum probability
         bin_mean (numpy.array[oasis_float]): bin mean damage (`interpolation` column in damagebins file).
         bin_count (int): number of bins.
@@ -177,9 +177,10 @@ def compute_mean_loss(tiv, prob_to, bin_mean, bin_count, max_damage_bin_to):
         ctr_var += new_gul * bin_mean[i]
         last_prob_to = prob_to[i]
 
-    gul_mean *= tiv
-    ctr_var *= tiv**2.
+    gul_mean *= bin_scaling
+    ctr_var *= bin_scaling**2.
+    # Var(aX) = a**2 E(X^2) - E(aX)**2
     std_dev = sqrt(max(ctr_var - gul_mean**2., 0.))
-    max_loss = max_damage_bin_to * tiv
+    max_loss = max_damage_bin_to * bin_scaling
 
     return gul_mean, std_dev, chance_of_loss, max_loss

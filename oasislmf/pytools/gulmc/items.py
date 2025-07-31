@@ -112,8 +112,7 @@ def generate_item_map(items, coverages, valid_areaperil_id, agg_vuln_to_vulns):
             item['vulnerability_idx'] = vuln_dict[item['vulnerability_id']]
 
         if areaperil_id not in areaperil_ids_map:
-            areaperil_ids_map[areaperil_id] = {vulnerability_id: 0}
-        else:
-            areaperil_ids_map[areaperil_id][vulnerability_id] = 0
+            areaperil_ids_map[areaperil_id] = Dict.empty(nb_int32, nb_int8)
+        areaperil_ids_map[areaperil_id][vulnerability_id] = 0
 
     return item_map, areaperil_ids_map, vuln_dict, agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight

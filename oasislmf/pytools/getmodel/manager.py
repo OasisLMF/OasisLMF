@@ -46,12 +46,11 @@ areaperil_int_relative_size = areaperil_int.itemsize // oasis_int_size
 oasis_float_relative_size = oasis_float.itemsize // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
-
 damagebindictionary = nb.from_dtype(np.dtype([('bin_index', np.int32),
                                               ('bin_from', oasis_float),
                                               ('bin_to', oasis_float),
                                               ('interpolation', oasis_float),
-                                              ('interval_type', np.int32),
+                                              ('damage_type', np.int32),
                                               ]))
 
 EventCSV = nb.from_dtype(np.dtype([('event_id', np.int32),

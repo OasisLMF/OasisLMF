@@ -9,10 +9,10 @@
 
 MAX_PERIODS=1500
 
-# extract number of intensity bins from intensity_bin_dict.csv 
+# extract number of intensity bins from intensity_bin_dict.csv
 INTENSITY_BINS := $(shell awk -F',' '{print $$1}' intensity_bin_dict.csv | sort -n | tail -n 1)
 
-# extract number of damage bins from damage_bin_dict.csv 
+# extract number of damage bins from damage_bin_dict.csv
 DAMAGE_BINS := $(shell awk -F',' '{print $$1}' damage_bin_dict.csv | sort -n | tail -n 1)
 
 #
@@ -22,11 +22,11 @@ BIN_FILES= \
 damage_bin_dict.bin \
 footprint.bin \
 footprint.idx \
-vulnerability.bin 
+vulnerability.bin
 # events.bin
 # events_p.bin \
 # occurrence.bin \
-returnperiods.bin 
+returnperiods.bin
 
 
 #
@@ -51,8 +51,9 @@ footprint.bin: footprint.csv
 footprint.csv.gz:
 	wget -N -O footprint.csv.gz http://sunstonerisk.com/files/domrep/footprint.csv.gz
 
+# Need to suppress tests as first damage_bin is not 1
 vulnerability.bin: vulnerability.csv
-	vulnerabilitytobin -d $(DAMAGE_BINS) \
+	vulnerabilitytobin -d $(DAMAGE_BINS) -N \
 		< vulnerability.csv > vulnerability.bin
 
 events.bin: events.csv
@@ -68,7 +69,7 @@ occurrence.bin: occurrence.csv intensity_bin_dict.csv
 	occurrencetobin -P$(MAX_PERIODS) < occurrence.csv > occurrence.bin
 
 returnperiods.bin: returnperiods.csv
-	returnperiodtobin < returnperiods.csv > returnperiods.bin 
+	returnperiodtobin < returnperiods.csv > returnperiods.bin
 
 periods.bin: periods.csv
 	periodstobin < periods.csv > periods.bin
