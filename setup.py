@@ -371,13 +371,9 @@ setup(
     scripts=['bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
     entry_points={
         'console_scripts': [
-            'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
-            'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
             "vulnerability_to_parquet=oasislmf.pytools.getmodel.vulnerability:main",
             "footprint_bin_to_parquet=oasislmf.pytools.data_layer.conversions.footprint:main",
             'footprint_compress=oasislmf.pytools.footprintconv:footprintconvpy',
-            "correlationtobin=oasislmf.pytools.correlationtobin:main",
-            "correlationtocsv=oasislmf.pytools.correlationtocsv:main",
             'dfcompare=oasislmf.pytools.dfcompare:main',
             'fmpy=oasislmf.pytools.fm.cli:main',
             'gulmc=oasislmf.pytools.gulmc.cli:main',
@@ -395,6 +391,10 @@ setup(
             'pltpy=oasislmf.pytools.plt.cli:main',
             'aalpy=oasislmf.pytools.aal.cli:main',
             'lecpy=oasislmf.pytools.lec.cli:main',
+            'bintocsv=oasislmf.pytools.converters.bintocsv.cli:main',
+            'csvtobin=oasislmf.pytools.converters.csvtobin.cli:main',
+            'bintoparquet=oasislmf.pytools.converters.bintoparquet.cli:main',
+            'parquettobin=oasislmf.pytools.converters.parquettobin.cli:main',
         ]
     },
     license='BSD 3-Clause',

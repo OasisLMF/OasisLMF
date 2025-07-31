@@ -1,0 +1,5 @@
+item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value
+1,1,0.700000,123451,0.000000
+2,2,0.500000,123451,0.300000
+3,1,0.700000,123452,0.000000
+4,2,0.500000,123452,0.300000

@@ -18,7 +18,7 @@ from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig,
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
-    FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
+    FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
     EventDynamic, footprint_filename, footprint_index_filename,
     zfootprint_filename, zfootprint_index_filename,
     csvfootprint_filename, parquetfootprint_filename,
@@ -27,6 +27,7 @@ from .common import (
     parquetfootprint_chunked_dir,
     parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
+from oasislmf.pytools.common.data import footprint_event_dtype
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +234,7 @@ class FootprintCsv(Footprint):
     This class is responsible for loading footprint data from CSV.
 
     Attributes (when in context):
-        footprint (np.array[EventCSV]): event data loaded from the CSV file
+        footprint (np.array[footprint_event_dtype]): event data loaded from the CSV file
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         footprint_index (dict): map of footprint IDs with the index in the data
@@ -242,7 +243,7 @@ class FootprintCsv(Footprint):
 
     def __enter__(self):
         self.reader = pd.read_csv()
-        self.reader = self.get_df_reader("footprint.csv", dtype=EventCSV)
+        self.reader = self.get_df_reader("footprint.csv", dtype=footprint_event_dtype)
 
         self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())
 
@@ -269,7 +270,7 @@ class FootprintCsv(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (np.array[EventCSV]) the event that was extracted
+        Returns: (np.array[footprint_event_dtype]) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:

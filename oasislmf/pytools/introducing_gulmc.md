@@ -252,17 +252,16 @@ The schema has been updated as follows in order to support correlation parameter
 
 ### Correlations files updated schema for csv <-> binary conversion tools
 The correlations.csv and .bin files are modified as they now contain two additional columns: `hazard_group_id` and `hazard_correlation_value`. They also feature a renamed column from `correlation_value` to `damage_correlation_value`.
-The `oasislmf` package ships conversion tools for the correlations files: `correlationtobin` to convert a correlations file from csv to bin:
+The `oasislmf` package ships conversion tools for the correlations files: `csvtobin -t correlations` to convert a correlations file from csv to bin:
 ```bash
-correlationtobin correlations.csv -o correlations.bin
+csvtobin -t correlations -i correlations.csv -o correlations.bin
 ```
-and `correlationtocsv` to convert a `correlations.bin` file to `csv`. If `-o <filename>` is specified, it writes the csv table to file:
+and `bintocsv -t correlations` to convert a `correlations.bin` file to `csv`. If `-o <filename>` is specified, it writes the csv table to file:
 ```
-correlationtocsv correlations.bin -o correlations.csv
+bintocsv -t correlations -i correlations.bin -o correlations.csv
 ```
-If no `-o <filename>` is specified, it prints the csv table to stdout:
+Example of correlations.csv
 ```bash
-correlationtocsv correlations.bin 
 item_id,peril_correlation_group,damage_correlation_value,hazard_correlation_value
 1,1,0.4,0.0
 2,1,0.4,0.0

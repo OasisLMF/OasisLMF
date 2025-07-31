@@ -69,18 +69,6 @@ IL_INPUTS_FILES = [
 OPTIONAL_INPUTS_FILES = [
     'events']
 
-CONVERSION_TOOLS = {
-    'coverages': 'coveragetobin',
-    'events': 'evetobin',
-    'fm_policytc': 'fmpolicytctobin',
-    'fm_profile': 'fmprofiletobin',
-    'fm_programme': 'fmprogrammetobin',
-    'fm_xref': 'fmxreftobin',
-    'fmsummaryxref': 'fmsummaryxreftobin',
-    'gulsummaryxref': 'gulsummaryxreftobin',
-    'items': "itemtobin"}
-
-
 NOT_SET_ID = -1
 LARGE_VALUE = 9999999999999
 

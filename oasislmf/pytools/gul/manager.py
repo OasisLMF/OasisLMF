@@ -14,11 +14,12 @@ from numba import njit
 from numba.typed import Dict, List
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)
-from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, CorrelationsData
+from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.getmodel.common import Keys, oasis_float
-from oasislmf.pytools.getmodel.manager import Item, get_damage_bins
+from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import (SPECIAL_SIDX, CHANCE_OF_LOSS_IDX, ITEM_MAP_KEY_TYPE,
                                          ITEM_MAP_VALUE_TYPE, MAX_LOSS_IDX,
                                          MEAN_IDX, NUM_IDX, STD_DEV_IDX,
@@ -62,34 +63,6 @@ def adjust_byte_mv_size(byte_mv, max_bytes_per_coverage):
     return byte_mv
 
 
-def get_coverages(input_path, ignore_file_type=set()):
-    """Load the coverages from the coverages file.
-
-    Args:
-        input_path (str): the path containing the coverage file.
-        ignore_file_type (Set[str]): file extension to ignore when loading.
-
-    Returns:
-        numpy.array[oasis_float]: array with the coverage values for each coverage_id.
-    """
-    input_files = set(os.listdir(input_path))
-
-    if "coverages.bin" in input_files and "bin" not in ignore_file_type:
-        coverages_fname = os.path.join(input_path, 'coverages.bin')
-        logger.debug(f"loading {coverages_fname}")
-        coverages = np.fromfile(coverages_fname, dtype=oasis_float)
-
-    elif "coverages.csv" in input_files and "csv" not in ignore_file_type:
-        coverages_fname = os.path.join(input_path, 'coverages.csv')
-        logger.debug(f"loading {coverages_fname}")
-        coverages = np.loadtxt(coverages_fname, dtype=oasis_float, delimiter=",", skiprows=1, ndmin=1)[:, 1]
-
-    else:
-        raise FileNotFoundError(f'coverages file not found at {input_path}')
-
-    return coverages
-
-
 def gul_get_items(input_path, ignore_file_type=set()):
     """Load the items from the items file.
 
@@ -106,11 +79,11 @@ def gul_get_items(input_path, ignore_file_type=set()):
     if "items.bin" in input_files and "bin" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.bin')
         logger.debug(f"loading {items_fname}")
-        items = np.memmap(items_fname, dtype=Item, mode='r')
+        items = np.memmap(items_fname, dtype=items_dtype, mode='r')
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+        items = np.loadtxt(items_fname, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
@@ -138,7 +111,7 @@ def generate_item_map(items, coverages):
         append_to_dict_value(
             item_map,
             tuple((items[j]['areaperil_id'], items[j]['vulnerability_id'])),
-            tuple((items[j]['id'], items[j]['coverage_id'], items[j]['group_id'])),
+            tuple((items[j]['item_id'], items[j]['coverage_id'], items[j]['group_id'])),
             ITEM_MAP_VALUE_TYPE
         )
         coverages[items[j]['coverage_id']]['max_items'] += 1
@@ -181,7 +154,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
     damage_bins = get_damage_bins(model_storage)
 
     # read coverages from file
-    coverages_tiv = get_coverages(input_path)
+    coverages_tiv = read_coverages(input_path)
 
     # load keys.csv to determine included AreaPerilID from peril_filter
     if peril_filter:
@@ -237,15 +210,14 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         cursor = 0
 
         # create the array to store the seeds
-        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
+        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
 
         do_correlation = False
         if ignore_correlation:
             logger.info("Correlated random number generation: switched OFF because --ignore-correlation is True.")
 
         else:
-            file_path = os.path.join(input_path, 'correlations.bin')
-            data = CorrelationsData.from_bin(file_path=file_path).data
+            data = read_correlations(input_path, filename='correlations.bin')
             Nperil_correlation_groups = len(data)
             logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
@@ -258,10 +230,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         if do_correlation:
             logger.info("Correlated random number generation: switched ON.")
 
-            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=Correlation)
+            corr_data_by_item_id = np.ndarray(Nperil_correlation_groups + 1, dtype=correlations_dtype)
             corr_data_by_item_id[0] = (0, 0., 0., 0, 0.)
-            corr_data_by_item_id[1:]['peril_correlation_group'] = np.array(data['peril_correlation_group'])
-            corr_data_by_item_id[1:]['damage_correlation_value'] = np.array(data['damage_correlation_value'])
+            corr_data_by_item_id[1:]['peril_correlation_group'] = data['peril_correlation_group']
+            corr_data_by_item_id[1:]['damage_correlation_value'] = data['damage_correlation_value']
 
             logger.info(
                 f"Correlation values for {Nperil_correlation_groups} peril correlation groups have been imported."
@@ -285,7 +257,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         else:
             # create dummy data structures with proper dtypes to allow correct numba compilation
             corr_seeds = np.zeros(1, dtype='int64')
-            corr_data_by_item_id = np.ndarray(1, dtype=Correlation)
+            corr_data_by_item_id = np.ndarray(1, dtype=correlations_dtype)
             arr_min, arr_max, arr_N = 0, 0, 0
             arr_min_cdf, arr_max_cdf = 0, 0
             norm_inv_cdf, norm_cdf = np.zeros(1, dtype='float64'), np.zeros(1, dtype='float64')
@@ -300,7 +272,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
 
-            event_id, compute_i, items_data, recs, rec_idx_ptr, rng_index = event_data
+            event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before
             rndms_base = generate_rndm(seeds[:rng_index], sample_size)
