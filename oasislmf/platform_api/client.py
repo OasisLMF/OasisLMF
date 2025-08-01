@@ -27,7 +27,6 @@ from requests.exceptions import (
 )
 from .session import APISession
 from ..utils.exceptions import OasisException
-from ..pytools.ping import oasis_ping
 
 
 class ApiEndpoint(object):
@@ -620,24 +619,31 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    if analysis.get('run_mode', '') == 'V2':
+                    if analysis.get('run_mode', '') == 'V1':
+                        analysis = self.analyses.get(analysis_id)
+
+                        with tqdm(total=analysis.num_events_total,
+                                  unit=' sub_task',
+                                  desc='Analysis Run') as pbar:
+                            while analysis.num_events_total > analysis.num_events_complete:
+                                analysis = self.analyses.get(analysis_id)
+                                pbar.update(analysis.num_events_complete - pbar.n)
+                                time.sleep(poll_interval)
+
+                                # Exit conditions
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                    break
+                                elif 'COMPLETED' in analysis['status']:
+                                    pbar.update(pbar.total - pbar.n)
+                                    break
+
+                    elif analysis.get('run_mode', '') == 'V2':
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
-                        import socket
-                        pod_name = os.environ.get('HOSTNAME', socket.gethostname())
-                        raise ValueError(f"[Ping] Running in pod: {pod_name} Env: url={os.environ.get('url')}, socket={os.environ.get('socket')}")
-
-                        send_ping = os.environ.get("url") and os.environ.get("socket")
-                        if send_ping:
-                            ws_url = f"{os.environ["url"]}:{os.environ["socket"]}/ws/analysis-status/"
-                            self.logger.info(f"ws_url: {ws_url}")
-                            oasis_ping(ws_url, {"counter": str(len(sub_tasks_list))})
-
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Analysis Run') as pbar:
 
                             completed = []
-
                             while len(completed) < len(sub_tasks_list):
                                 sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                                 analysis = self.analyses.get(analysis_id).json()
@@ -651,6 +657,7 @@ class APIClient(object):
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
                                     break
+
                     else:
                         time.sleep(poll_interval)
                         analysis = self.analyses.get(analysis_id).json()
