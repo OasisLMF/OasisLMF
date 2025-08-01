@@ -395,6 +395,7 @@ setup(
             'pltpy=oasislmf.pytools.plt.cli:main',
             'aalpy=oasislmf.pytools.aal.cli:main',
             'lecpy=oasislmf.pytools.lec.cli:main',
+            'oasis-ping=oasislmf.pytools.ping:main',
         ]
     },
     license='BSD 3-Clause',
