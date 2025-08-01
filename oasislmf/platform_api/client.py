@@ -27,7 +27,6 @@ from requests.exceptions import (
 )
 from .session import APISession
 from ..utils.exceptions import OasisException
-#from ..pytools.ping import oasis_ping
 
 
 class ApiEndpoint(object):
@@ -501,6 +500,7 @@ class APIClient(object):
         `INPUTS_GENERATION_CANCELLED`, `READY`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`.
         """
+
         try:
             r = self.analyses.generate(analysis_id)
             analysis = r.json()
@@ -620,23 +620,17 @@ class APIClient(object):
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
                     if analysis.get('run_mode', '') == 'V2':
-                        ping_updates = False #all(key in os.environ for key in ['url', 'socket'])
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Analysis Run') as pbar:
-                            if ping_updates:
-                                ws_url = f"{os.environ['url']}:{os.environ['socket']}/ws/analysis-status/"
-                                #oasis_ping(ws_url, {"counter": str(len(sub_tasks_list)), "analysis_pk": str(analysis_id)})
+
                             completed = []
                             while len(completed) < len(sub_tasks_list):
                                 sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                                 analysis = self.analyses.get(analysis_id).json()
                                 completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
-
                                 pbar.update(len(completed) - pbar.n)
-                                #if ping_updates:
-                                    #oasis_ping(ws_url, {"analysis_pk": str(analysis_id), "num_completed": str(len(completed))})
                                 time.sleep(poll_interval)
 
                                 # Exit conditions
@@ -644,8 +638,6 @@ class APIClient(object):
                                     break
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
-                                    #if ping_updates:
-                                        #oasis_ping(ws_url, {"analysis_pk": str(analysis_id), "num_completed": str(len(sub_tasks_list))})
                                     break
                     else:
                         time.sleep(poll_interval)
