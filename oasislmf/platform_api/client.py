@@ -631,8 +631,8 @@ class APIClient(object):
                             completed = []
                             if send_ping:
                                 ws_url = f"{os.environ["url"]}:{os.environ["socket"]}/ws/analysis-status/"
-                                self.logger.info(f"ws_url: {ws_url}")
-                                oasis_ping(ws_url, {"counter": str(len(sub_tasks_list))})
+                                #self.logger.info(f"ws_url: {ws_url}")
+                                #oasis_ping(ws_url, {"counter": str(len(sub_tasks_list))})
 
                             while len(completed) < len(sub_tasks_list):
                                 sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
