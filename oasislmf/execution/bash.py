@@ -2423,7 +2423,7 @@ def create_bash_analysis(
         num_lb = 0
         num_gul_output = num_fm_output = max_process_id
 
-    if 'url' in os.environ:
+    if 'url' in os.environ and kwargs.get("analysis_pk") is not None:
         ping_command = f"oasis-ping {os.environ['url']}:{os.environ['socket']}/ws/analysis-status/ "
         message = "'{\"counter\": " + str(num_gul_output) + ", \"analysis_pk\": " + kwargs.get("analysis_pk", "None") + "}'"
         print_command(filename, ping_command + message)
