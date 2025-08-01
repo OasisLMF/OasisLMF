@@ -2637,7 +2637,8 @@ def create_bash_analysis(
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
                                                consumer=RUNTYPE_LOAD_BALANCED_LOSS)
                     tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} > {tee_output} &"
-                    print_command(filename, add_server_call(tee_cmd, kwargs.get("analysis_pk", None)))
+                    if kwargs.get("analysis_pk"):
+                        print_command(filename, add_server_call(tee_cmd, kwargs.get("analysis_pk", None)))
 
                 else:
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
@@ -3117,7 +3118,7 @@ def add_server_call(call, analysis_pk=None):
         return call
     if '| gul' not in call:
         return call
-    if analysis_pk is None:
+    if analysis_pk is None or analysis_pk == "None":
         return call
     location = f"{os.environ['url']}:{os.environ['socket']}/ws/analysis-status/"
     data = {"status": "complete", "analysis_pk": analysis_pk}

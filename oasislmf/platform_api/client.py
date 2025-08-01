@@ -622,7 +622,7 @@ class APIClient(object):
 
                     if analysis.get('run_mode', '') == 'V2':
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
-                        send_ping = all(key in os.environ for key in ["url", "socket"])
+                        send_ping = os.environ.get("url") and os.environ.get("socket")
                         if send_ping:
                             ws_url = f"{os.environ["url"]}:{os.environ["socket"]}/ws/analysis-status/"
                             self.logger.info(f"ws_url: {ws_url}")
@@ -630,16 +630,12 @@ class APIClient(object):
                         else:
                             self.logger.error("missed")
                             raise ValueError("Missed")
-                        if ws_url != "ws://oasis-websocket:8001/ws/analysis-status/":
-                            self.logger.error("ws wrong")
-                            raise ValueError("Ws wrong")
 
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Analysis Run') as pbar:
 
                             completed = []
-
 
                             while len(completed) < len(sub_tasks_list):
                                 sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
