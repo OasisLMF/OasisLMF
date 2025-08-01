@@ -11,8 +11,10 @@ def main():
         data = json.loads(message)
     except Exception:
         logging.error("Ping called incorrectly: required call 'oasis-ping <location> <json>'")
-        return 0
+    oasis_ping(ws_url, data)
 
+
+def oasis_ping(ws_url, data):
     try:
         ws = websocket.WebSocket()
         ws.connect(ws_url)
@@ -21,5 +23,3 @@ def main():
         logging.info("Post sent successfully")
     except Exception:
         logging.error("Ping failed to call")
-
-    return 0
