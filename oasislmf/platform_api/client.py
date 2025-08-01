@@ -621,6 +621,7 @@ class APIClient(object):
 
                     if analysis.get('run_mode', '') == 'V1':
                         analysis = self.analyses.get(analysis_id)
+                        raise ValueError(f"analysis {analysis.json()}")
 
                         with tqdm(total=analysis.num_events_total,
                                   unit=' sub_task',
