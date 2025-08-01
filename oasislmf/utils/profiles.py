@@ -19,6 +19,7 @@ from .defaults import (
     get_default_step_policies_profile,
 )
 from .fm import (
+    FM_LEVELS_PROFILE,
     SUPPORTED_FM_LEVELS,
     FM_TERMS,
 )
@@ -28,14 +29,15 @@ def get_grouped_fm_profile_by_level(
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile()
 ):
-    exp_prof_fm_keys = {k: v for k, v in exposure_profile.items() if 'FMLevel' in v}
-    acc_prof_fm_keys = {k: v for k, v in accounts_profile.items() if 'FMLevel' in v}
+    exp_prof_fm_keys = {k: v for k, v in exposure_profile.items() if 'FMLevelName' in v}
+    acc_prof_fm_keys = {k: v for k, v in accounts_profile.items() if 'FMLevelName' in v}
 
     comb_prof = {**exp_prof_fm_keys, **acc_prof_fm_keys}
 
     return OrderedDict({
         int(k): {gid: v for gid, v in g}
-        for k, g in groupby(sorted(comb_prof.items(), key=lambda v: v[1]['FMLevel']), key=lambda v: v[1]['FMLevel'])
+        for k, g in groupby(sorted(comb_prof.items(), key=lambda v: FM_LEVELS_PROFILE[v[1]['FMLevelName']]['id']),
+                            key=lambda v: FM_LEVELS_PROFILE[v[1]['FMLevelName']]['id'])
     })
 
 

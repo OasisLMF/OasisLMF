@@ -35,28 +35,32 @@ DEDUCTIBLE_CODES = OrderedDict({
 DED_LIMIT_TYPE_FLT = 0
 DED_LIMIT_TYPE_PCLOSS = 1
 DED_LIMIT_TYPE_PCTIV = 2
+DED_LIMIT_TYPE_BI = 3
 
 DEDUCTIBLE_AND_LIMIT_TYPES = OrderedDict({
     'flat': {'id': DED_LIMIT_TYPE_FLT, 'desc': 'Flat monetary amount'},
     'pcloss': {'id': DED_LIMIT_TYPE_PCLOSS, 'desc': 'Percentage of loss'},
-    'pctiv': {'id': DED_LIMIT_TYPE_PCTIV, 'desc': 'Percentage of TIV'}
+    'pctiv': {'id': DED_LIMIT_TYPE_PCTIV, 'desc': 'Percentage of TIV'},
+    'bi': {'id': DED_LIMIT_TYPE_BI, 'desc': 'BI Duration in days'}
 })
 
-FML_SITCOV = 1
-FML_SITPDM = 2
-FML_SITALL = 3
-FML_CNDCOV = 4
-FML_CNDPDM = 5
-FML_CNDALL = 6
-FML_POLCOV = 7
-FML_POLPDM = 8
-FML_POLALL = 9
-FML_POLLAY = 10
-FML_ACCCOV = 11
-FML_ACCPDM = 12
-FML_ACCALL = 13
+FML_SITITM = 1
+FML_SITCOV = 2
+FML_SITPDM = 3
+FML_SITALL = 4
+FML_CNDCOV = 5
+FML_CNDPDM = 6
+FML_CNDALL = 7
+FML_POLCOV = 8
+FML_POLPDM = 9
+FML_POLALL = 10
+FML_POLLAY = 11
+FML_ACCCOV = 12
+FML_ACCPDM = 13
+FML_ACCALL = 14
 
 FM_LEVELS = OrderedDict({
+    'site item': {'id': FML_SITITM, 'desc': 'site item'},
     'site coverage': {'id': FML_SITCOV, 'desc': 'site coverage'},
     'site pd': {'id': FML_SITPDM, 'desc': 'site property damage'},
     'site all': {'id': FML_SITALL, 'desc': 'site all (coverage + property damage)'},
@@ -72,7 +76,28 @@ FM_LEVELS = OrderedDict({
     'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
 })
 
+FM_LEVELS_PROFILE = {
+    'SiteItem': FM_LEVELS['site item'],
+    'SiteCoverage': FM_LEVELS['site coverage'],
+    'SitePD': FM_LEVELS['site pd'],
+    'SiteAll': FM_LEVELS['site all'],
+    'CondCoverage': FM_LEVELS['cond coverage'],
+    'CondPD': FM_LEVELS['cond pd'],
+    'CondAll': FM_LEVELS['cond all'],
+    'PolCoverage': FM_LEVELS['policy coverage'],
+    'PolPD': FM_LEVELS['policy pd'],
+    'PolAll': FM_LEVELS['policy all'],
+    'PolLayer': FM_LEVELS['policy layer'],
+    'AccCoverage': FM_LEVELS['account coverage'],
+    'AccPD': FM_LEVELS['account pd'],
+    'AccAll': FM_LEVELS['account all']
+}
+
 GROUPED_SUPPORTED_FM_LEVELS = {
+    'item': {
+        'oed_source': 'location',
+        'levels': {'site item': FM_LEVELS['site item']}
+    },
     'site': {
         'oed_source': 'location',
         'fm_peril_field': 'LocPeril',

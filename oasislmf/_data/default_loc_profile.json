@@ -290,6 +290,43 @@
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
     },
+    "BIPOI": {
+        "ProfileElementName": "BIPOI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMLevel": 0,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BIPOIType": {
+        "ProfileElementName": "BIPOIType",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMLevel": 0,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BIWaitingPeriod": {
+        "ProfileElementName": "BIWaitingPeriod",
+        "DeductibleType": "B",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMLevel": 0,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BIWaitingPeriodType": {
+        "ProfileElementName": "BIWaitingPeriodType",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMLevel": 0,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
     "LocDed4BI": {
         "ProfileElementName": "LocDed4BI",
         "DeductibleType": "B",
