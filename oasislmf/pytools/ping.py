@@ -9,8 +9,11 @@ def main():
         ws_url = sys.argv[1]
         message = sys.argv[2]
         data = json.loads(message)
-    except Exception:
+    except Exception as e:
         logging.error("Ping called incorrectly: required call 'oasis-ping <location> <json>'")
+        logging.error(f"error={str(e)}")
+        logging.error(f"ws_url={ws_url}")
+        logging.error(f"message={message}")
         return
     oasis_ping(ws_url, data)
 
