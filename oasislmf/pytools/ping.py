@@ -20,6 +20,7 @@ def oasis_ping(ws_url, data):
         ws.connect(ws_url)
         ws.send(json.dumps(data))
         ws.close()
-        logging.info("Post sent successfully")
+        # logging.info("Post sent successfully")
     except Exception:
-        logging.error("Ping failed to call")
+        # logging.error("Ping failed to call")
+        pass
