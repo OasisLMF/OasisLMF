@@ -619,7 +619,26 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    if analysis.get('run_mode', '') == 'V2':
+                    if analysis.get('run_mode', '') == 'V1':
+                        analysis = self.analyses.get(analysis_id)
+                        raise ValueError(f"analysis {analysis.json()}")
+
+                        with tqdm(total=analysis.num_events_total,
+                                  unit=' sub_task',
+                                  desc='Analysis Run') as pbar:
+                            while analysis.num_events_total > analysis.num_events_complete:
+                                analysis = self.analyses.get(analysis_id)
+                                pbar.update(analysis.num_events_complete - pbar.n)
+                                time.sleep(poll_interval)
+
+                                # Exit conditions
+                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                    break
+                                elif 'COMPLETED' in analysis['status']:
+                                    pbar.update(pbar.total - pbar.n)
+                                    break
+
+                    elif analysis.get('run_mode', '') == 'V2':
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
@@ -639,6 +658,7 @@ class APIClient(object):
                                 elif 'COMPLETED' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
                                     break
+
                     else:
                         time.sleep(poll_interval)
                         analysis = self.analyses.get(analysis_id).json()

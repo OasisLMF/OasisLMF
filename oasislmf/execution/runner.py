@@ -136,7 +136,6 @@ def rerun():
     gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)
     fm_cmds = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))]
 
-    pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
     gul_output = f"{event_error}_gul.bin"
 
@@ -146,8 +145,8 @@ def rerun():
 
     fm_input = gul_output
     for i in range(len(fm_cmds)):
-        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i+1}.bin", fm_cmds[i])
-        fm_output = f"{event_error}_fm{i+1}.bin"
+        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i + 1}.bin", fm_cmds[i])
+        fm_output = f"{event_error}_fm{i + 1}.bin"
         fm_pipe = f"{fm_cmd} -o {fm_output} -i {fm_input}"
         with open("fm_errors.log", "a") as error_log:
             subprocess.run(fm_pipe, shell=True, env=env, stderr=error_log)
