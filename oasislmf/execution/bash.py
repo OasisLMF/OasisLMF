@@ -2423,9 +2423,9 @@ def create_bash_analysis(
         num_lb = 0
         num_gul_output = num_fm_output = max_process_id
 
-    if 'url' in os.environ:
+    if 'url' in os.environ and kwargs.get("analysis_pk") is not None:
         ping_command = f"oasis-ping {os.environ['url']}:{os.environ['socket']}/ws/analysis-status/ "
-        message = "'{\"counter\": " + str(num_gul_output) + ", \"analysis_pk\": " + kwargs.get("analysis_pk", "None") + "}'"
+        message = "'{\"counter\": " + str(num_gul_output) + ", \"analysis_pk\": " + kwargs["analysis_pk"] + "}'"
         print_command(filename, ping_command + message)
 
     fifo_dirs = [fifo_queue_dir]
@@ -3118,7 +3118,7 @@ def add_server_call(call, analysis_pk=None):
         return call
     if '| gul' not in call:
         return call
-    if analysis_pk is None or analysis_pk == "None":
+    if analysis_pk is None:
         return call
     location = f"{os.environ['url']}:{os.environ['socket']}/ws/analysis-status/"
     data = {"status": "complete", "analysis_pk": analysis_pk}

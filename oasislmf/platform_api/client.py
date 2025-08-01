@@ -622,14 +622,15 @@ class APIClient(object):
 
                     if analysis.get('run_mode', '') == 'V2':
                         sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
+                        import socket
+                        pod_name = os.environ.get('HOSTNAME', socket.gethostname())
+                        raise ValueError(f"[Ping] Running in pod: {pod_name} Env: url={os.environ.get('url')}, socket={os.environ.get('socket')}")
+
                         send_ping = os.environ.get("url") and os.environ.get("socket")
                         if send_ping:
                             ws_url = f"{os.environ["url"]}:{os.environ["socket"]}/ws/analysis-status/"
                             self.logger.info(f"ws_url: {ws_url}")
                             oasis_ping(ws_url, {"counter": str(len(sub_tasks_list))})
-                        else:
-                            self.logger.error("missed")
-                            raise ValueError("Missed")
 
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
