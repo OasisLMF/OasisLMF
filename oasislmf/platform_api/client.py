@@ -27,7 +27,7 @@ from requests.exceptions import (
 )
 from .session import APISession
 from ..utils.exceptions import OasisException
-from ..pytools.ping import oasis_ping
+# from ..pytools.ping import oasis_ping
 
 
 class ApiEndpoint(object):
