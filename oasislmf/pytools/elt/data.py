@@ -1,6 +1,4 @@
-import numpy as np
-
-from oasislmf.pytools.common.data import oasis_int, oasis_float
+from oasislmf.pytools.common.data import generate_output_metadata, oasis_int, oasis_float
 
 
 VALID_EXT = ["csv", "bin", "parquet"]
@@ -34,12 +32,6 @@ QELT_output = [
     ('Loss', oasis_float, '%.6f'),
 ]
 
-SELT_headers = [c[0] for c in SELT_output]
-MELT_headers = [c[0] for c in MELT_output]
-QELT_headers = [c[0] for c in QELT_output]
-SELT_dtype = np.dtype([(c[0], c[1]) for c in SELT_output])
-MELT_dtype = np.dtype([(c[0], c[1]) for c in MELT_output])
-QELT_dtype = np.dtype([(c[0], c[1]) for c in QELT_output])
-SELT_fmt = ','.join([c[2] for c in SELT_output])
-MELT_fmt = ','.join([c[2] for c in MELT_output])
-QELT_fmt = ','.join([c[2] for c in QELT_output])
+SELT_headers, SELT_dtype, SELT_fmt = generate_output_metadata(SELT_output)
+MELT_headers, MELT_dtype, MELT_fmt = generate_output_metadata(MELT_output)
+QELT_headers, QELT_dtype, QELT_fmt = generate_output_metadata(QELT_output)

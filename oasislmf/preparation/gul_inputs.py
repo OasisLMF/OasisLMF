@@ -16,8 +16,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
-    CorrelationsData
+from oasislmf.pytools.common.data import correlations_headers, correlations_dtype
 from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
@@ -584,12 +583,12 @@ def write_gul_input_files(
     oasis_files_prefixes = copy.deepcopy(oasis_files_prefixes)
 
     if correlations_df is None:
-        correlations_df = pd.DataFrame(columns=CorrelationsData.COLUMNS)
+        correlations_df = pd.DataFrame(columns=correlations_headers)
 
     # write the correlations to a binary file
-    correlation_data_handle = CorrelationsData(data=correlations_df)
-    correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
-    correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
+    correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
+    correlations_df_np_data = np.array([r for r in correlations_df.itertuples(index=False)], dtype=correlations_dtype)
+    correlations_df_np_data.tofile(f"{output_dir}/correlations.bin")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size

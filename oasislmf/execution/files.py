@@ -11,17 +11,73 @@ __all__ = [
 ]
 
 INPUT_FILES = {
-    'complex_items': {'name': 'complex_items', 'type': 'gul', 'conversion_tool': 'complex_itemtobin'},
-    'items': {'name': 'items', 'type': 'gul', 'conversion_tool': 'itemtobin'},
-    'coverages': {'name': 'coverages', 'type': 'gul', 'conversion_tool': 'coveragetobin'},
-    'gulsummaryxref': {'name': 'gulsummaryxref', 'type': 'gul', 'conversion_tool': 'gulsummaryxreftobin'},
-    'events': {'name': 'events', 'type': 'optional', 'conversion_tool': 'evetobin'},
-    'amplifications': {'name': 'amplifications', 'type': 'optional', 'conversion_tool': 'amplificationstobin'},
-    'fm_policytc': {'name': 'fm_policytc', 'type': 'il', 'conversion_tool': 'fmpolicytctobin'},
-    'fm_profile': {'name': 'fm_profile', 'type': 'il', 'conversion_tool': 'fmprofiletobin', 'step_flag': '-S'},
-    'fm_programme': {'name': 'fm_programme', 'type': 'il', 'conversion_tool': 'fmprogrammetobin'},
-    'fm_xref': {'name': 'fm_xref', 'type': 'il', 'conversion_tool': 'fmxreftobin'},
-    'fmsummaryxref': {'name': 'fmsummaryxref', 'type': 'il', 'conversion_tool': 'fmsummaryxreftobin'}
+    'complex_items': {
+        'name': 'complex_items',
+        'type': 'gul',
+        'conversion_tool': 'complex_itemtobin',
+        'csvtobin_type': 'complex_items',
+    },
+    'items': {
+        'name': 'items',
+        'type': 'gul',
+        'conversion_tool': 'itemtobin',
+        'csvtobin_type': 'items',
+    },
+    'coverages': {
+        'name': 'coverages',
+        'type': 'gul',
+        'conversion_tool': 'coveragetobin',
+        'csvtobin_type': 'coverages',
+    },
+    'gulsummaryxref': {
+        'name': 'gulsummaryxref',
+        'type': 'gul',
+        'conversion_tool': 'gulsummaryxreftobin',
+        'csvtobin_type': 'gul_summary_xref',
+    },
+    'events': {
+        'name': 'events',
+        'type': 'optional',
+        'conversion_tool': 'evetobin',
+        'csvtobin_type': 'eve',
+    },
+    'amplifications': {
+        'name': 'amplifications',
+        'type': 'optional',
+        'conversion_tool': 'amplificationstobin',
+        'csvtobin_type': 'amplifications',
+    },
+    'fm_policytc': {
+        'name': 'fm_policytc',
+        'type': 'il',
+        'conversion_tool': 'fmpolicytctobin',
+        'csvtobin_type': 'fm_policytc',
+    },
+    'fm_profile': {
+        'name': 'fm_profile',
+        'type': 'il',
+        'conversion_tool': 'fmprofiletobin',
+        'step_flag': '-S',
+        'csvtobin_type': 'fm_profile',
+    },
+    'fm_programme': {
+        'name': 'fm_programme',
+        'type': 'il',
+        'conversion_tool': 'fmprogrammetobin',
+        'csvtobin_type': 'fm_programme',
+    },
+    'fm_xref': {
+        'name': 'fm_xref',
+        'type': 'il',
+        'conversion_tool': 'fmxreftobin',
+        'csvtobin_type': 'fm_xref',
+    },
+    'fmsummaryxref': {
+        'name': 'fmsummaryxref',
+        'type': 'il',
+        'conversion_tool': 'fmsummaryxreftobin',
+        'csvtobin_type': 'fm_summary_xref',
+    }
 }
 GUL_INPUT_FILES = {k: v for k, v in INPUT_FILES.items() if v['type'] == 'gul'}
 IL_INPUT_FILES = {k: v for k, v in INPUT_FILES.items() if v['type'] == 'il'}

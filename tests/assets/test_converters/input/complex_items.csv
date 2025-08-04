@@ -1,0 +1,4 @@
+item_id,coverage_id,model_data,group_id
+1,1,"{""0"": {""depth_rp20"": 2.5, ""sop"": 0.0, ""T500_ID"": 1, ""depth_rp100"": 10.0, ""depth_rp50"": 5.0, ""orig_ref"": NaN}}",1
+2,2,"{""1"": {""depth_rp20"": 3.0, ""sop"": 75.0, ""T500_ID"": 1, ""depth_rp100"": 9.0, ""depth_rp50"": 6.0, ""orig_ref"": NaN}}",2
+3,3,"{""2"": {""depth_rp20"": NaN, ""sop"": 0.0, ""T500_ID"": 2, ""depth_rp100"": 1.2, ""depth_rp50"": NaN, ""orig_ref"": NaN}}",3
