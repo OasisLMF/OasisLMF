@@ -2,7 +2,6 @@ import os
 import io
 import json
 import logging
-import re
 
 import pathlib
 import pandas as pd
@@ -492,7 +491,7 @@ class FileEndpointTests(unittest.TestCase):
         responses.post(url=expected_url, json={"error": "not found"}, status=404,)
 
         with self.assertRaises(HTTPError) as context:
-            rsp = self.api.post(2, b'some data', 'application/octet-stream')
+            self.api.post(2, b'some data', 'application/octet-stream')
 
         exception = context.exception
         expected_msg = '404 Client Error: Not Found for url: http://example.com/api/2/resource'
@@ -582,7 +581,7 @@ class FileEndpointTests(unittest.TestCase):
             stream=True)
 
         with self.assertRaises(OasisException) as context:
-            result = self.api.get_dataframe(ID)
+            self.api.get_dataframe(ID)
 
         exception = context.exception
         expected_msg = f'Unsupported filetype for Dataframe conversion: {content_type}'
@@ -680,7 +679,7 @@ class APIDatafilesTests(unittest.TestCase):
         }
 
         responses.put(url=expected_url)
-        result = self.api.update(ID, file_description, file_category)
+        self.api.update(ID, file_description, file_category)
 
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
@@ -857,7 +856,7 @@ class APIPortfoliosTests(unittest.TestCase):
         expected_data = {"name": name}
 
         responses.put(url=expected_url)
-        result = self.api.update(ID, name)
+        self.api.update(ID, name)
 
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
@@ -869,7 +868,7 @@ class APIPortfoliosTests(unittest.TestCase):
         expected_data = {"name": name, "model": model_id}
 
         responses.post(url=expected_url)
-        result = self.api.create_analyses(ID, name, model_id)
+        self.api.create_analyses(ID, name, model_id)
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
         self.assertEqual(json.loads(request.body), expected_data)
@@ -964,7 +963,7 @@ class APIAnalysesTests(unittest.TestCase):
             "complex_model_data_files": data_files
         }
         responses.put(url=expected_url)
-        result = self.api.update(ID, name, portfolio_id, model_id, data_files)
+        self.api.update(ID, name, portfolio_id, model_id, data_files)
 
         request = responses.calls[-1].request
         self.assertEqual(request.headers['content-type'], 'application/json')
@@ -1171,8 +1170,8 @@ class APIClientTests(unittest.TestCase):
 
             responses.put(url=urljoin(self.client.portfolios.url_endpoint, f'{ID}/'), json={"error": "not found"}, status=404)
             responses.post(url=self.client.portfolios.location_file._build_url(ID))
-            with self.assertRaises(OasisException) as context:
-                result = self.client.upload_inputs(
+            with self.assertRaises(OasisException):
+                self.client.upload_inputs(
                     portfolio_id=ID,
                     location_fp=os.path.join(d, location_fp),
                 )
@@ -1204,7 +1203,7 @@ class APIClientTests(unittest.TestCase):
         self.assertEqual(json.loads(request.body), settings)
 
     def test_upload_settings__invalid(self):
-        with self.assertRaises(TypeError) as context:
+        with self.assertRaises(TypeError):
             self.client.upload_settings(1, 1)
 
     def test_create_analysis__success(self):
@@ -1220,7 +1219,7 @@ class APIClientTests(unittest.TestCase):
             with open(abs_fp, 'w') as file:
                 json.dump(settings, file)
 
-            resp = self.client.create_analysis(
+            self.client.create_analysis(
                 portfolio_id=42,
                 model_id=5,
                 analysis_name='my_analysis',
@@ -1241,8 +1240,8 @@ class APIClientTests(unittest.TestCase):
             with open(abs_fp, 'w') as file:
                 json.dump(settings, file)
 
-            with self.assertRaises(OasisException) as context:
-                resp = self.client.create_analysis(
+            with self.assertRaises(OasisException):
+                self.client.create_analysis(
                     portfolio_id=42,
                     model_id=5,
                 )
@@ -1373,9 +1372,11 @@ class APIClientTests(unittest.TestCase):
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(expected_settings_url)
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1, analysis_settings_fp=expected_settings)
 
@@ -1394,6 +1395,7 @@ class APIClientTests(unittest.TestCase):
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
             self.assertFalse(result)
@@ -1408,13 +1410,15 @@ class APIClientTests(unittest.TestCase):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED"})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_ERROR"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_ERROR"})
             rsps.get(trace_url, body=trace_error_msg)
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
 
             self.assertFalse(result)
-            self.logger.error.assert_called_with(trace_error_msg)
+            self.logger.error.assert_called_with(f"Analysis Run: Failed (id={ID})\n\nServer logs:\n{trace_error_msg}")
 
     def test_run_analysis__unknown_status(self):
         ID = 1
@@ -1452,8 +1456,9 @@ class APIClientTests(unittest.TestCase):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
@@ -1471,9 +1476,11 @@ class APIClientTests(unittest.TestCase):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            #rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             rsps.get(sub_task_url, json=sub_task_data)
-            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
             self.assertFalse(result)
