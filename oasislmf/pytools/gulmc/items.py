@@ -10,10 +10,10 @@ from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 from numba.types import int8 as nb_int8
 
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, nb_oasis_int
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, nb_oasis_int, items_dtype
 from oasislmf.pytools.gul.utils import append_to_dict_value
 from oasislmf.pytools.gulmc.aggregate import gen_empty_areaperil_vuln_idx_to_weights
-from oasislmf.pytools.gulmc.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE, Item
+from oasislmf.pytools.gulmc.common import ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE
 
 
 logger = logging.getLogger(__name__)
@@ -36,12 +36,12 @@ def read_items(input_path, ignore_file_type=set(), dynamic_footprint=False, lega
     if "items.bin" in input_files and "bin" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.bin')
         logger.debug(f"loading {items_fname}")
-        items = np.memmap(items_fname, dtype=Item, mode='r')
+        items = np.memmap(items_fname, dtype=items_dtype, mode='r')
 
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         items_fname = os.path.join(input_path, 'items.csv')
         logger.debug(f"loading {items_fname}")
-        items = np.loadtxt(items_fname, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+        items = np.loadtxt(items_fname, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
 
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
@@ -112,8 +112,7 @@ def generate_item_map(items, coverages, valid_areaperil_id, agg_vuln_to_vulns):
             item['vulnerability_idx'] = vuln_dict[item['vulnerability_id']]
 
         if areaperil_id not in areaperil_ids_map:
-            areaperil_ids_map[areaperil_id] = {vulnerability_id: 0}
-        else:
-            areaperil_ids_map[areaperil_id][vulnerability_id] = 0
+            areaperil_ids_map[areaperil_id] = Dict.empty(nb_int32, nb_int8)
+        areaperil_ids_map[areaperil_id][vulnerability_id] = 0
 
     return item_map, areaperil_ids_map, vuln_dict, agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight

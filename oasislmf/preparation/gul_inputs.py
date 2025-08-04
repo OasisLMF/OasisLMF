@@ -16,8 +16,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
-    CorrelationsData
+from oasislmf.pytools.common.data import correlations_headers, correlations_dtype
 from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
@@ -213,12 +212,9 @@ def get_gul_input_items(
             if location_df[correlation_field].astype('uint32').isnull().sum() == 0:
                 correlation_check = True
 
-    query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
-    for tiv_col in tiv_cols:
-        if tiv_col not in location_df.columns:
-            location_df[tiv_col] = 0
-    location_df.loc[:, tiv_cols] = location_df.loc[:, tiv_cols].fillna(0.0)
-    location_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
+    actual_tiv_cols = [tiv_col for tiv_col in tiv_cols if tiv_col in location_df.columns]
+    location_df[actual_tiv_cols] = location_df[actual_tiv_cols].fillna(0.0)
+    location_df = location_df[(location_df[actual_tiv_cols] != 0).any(axis=1)]
 
     gul_inputs_df = location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
@@ -267,18 +263,6 @@ def get_gul_input_items(
     # Free memory after merge, before memory-intensive restructuring of data
     del keys_df
 
-    # make query to retain only rows with positive TIV for each coverage type, e.g.: (coverage_type_id == 1 and BuildingsTIV > 0.0) or (...)
-    positive_TIV_query = " or ".join(
-        (f"(coverage_type_id == {cov_type} and {tiv_terms[cov_type]} > 0.0)" for cov_type in gul_inputs_df.coverage_type_id.unique()
-         if tiv_terms[cov_type] in gul_inputs_df))
-    if len(positive_TIV_query) == 0:
-        raise OasisException("No TIV columns were found in Exposure files")
-    gul_inputs_df[tiv_col].fillna(0, inplace=True)  # convert null T&C values to 0
-    gul_inputs_df.query(positive_TIV_query, inplace=True)  # remove rows with TIV=null or TIV=0
-
-    if gul_inputs_df.empty:
-        raise OasisException('Empty gul_inputs_df dataframe after dropping rows with zero tiv: please check the exposure input files')
-
     # prepare column mappings for all coverage types
     cols_by_cov_type = {}
     for cov_type in gul_inputs_df.coverage_type_id.unique():
@@ -299,8 +283,11 @@ def get_gul_input_items(
         gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
 
     for (number_of_buildings, cov_type), cov_type_group in gul_inputs_df.groupby(by=['NumberOfBuildings', 'coverage_type_id'], sort=True):
+        if tiv_terms[cov_type] not in gul_inputs_df:
+            continue
         cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
         cov_type_group['coverage_type_id'] = cov_type
+        cov_type_group = cov_type_group[cov_type_group['tiv'] > 0]
         if do_disaggregation:
             # if NumberOfBuildings == 0: still add one entry
             disagg_df_chunk = (cov_type_group.reset_index()
@@ -310,6 +297,12 @@ def get_gul_input_items(
             disagg_df_chunk = cov_type_group.copy().assign(building_id=1)
 
         gul_inputs_reformatted_chunks.append(disagg_df_chunk)
+
+    for disagg_df_chunk in gul_inputs_reformatted_chunks:
+        if disagg_df_chunk.shape[0]:
+            break
+    else:
+        raise OasisException('Empty gul_inputs_df dataframe after dropping rows with zero tiv: please check the exposure input files')
 
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
@@ -590,12 +583,12 @@ def write_gul_input_files(
     oasis_files_prefixes = copy.deepcopy(oasis_files_prefixes)
 
     if correlations_df is None:
-        correlations_df = pd.DataFrame(columns=CorrelationsData.COLUMNS)
+        correlations_df = pd.DataFrame(columns=correlations_headers)
 
     # write the correlations to a binary file
-    correlation_data_handle = CorrelationsData(data=correlations_df)
-    correlation_data_handle.to_bin(file_path=f"{output_dir}/correlations.bin")
-    correlation_data_handle.to_csv(file_path=f"{output_dir}/correlations.csv")
+    correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
+    correlations_df_np_data = np.array([r for r in correlations_df.itertuples(index=False)], dtype=correlations_dtype)
+    correlations_df_np_data.tofile(f"{output_dir}/correlations.bin")
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size

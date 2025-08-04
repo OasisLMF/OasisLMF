@@ -3,7 +3,7 @@ from mock import patch
 import numpy as np
 import os
 from pathlib import Path
-import pytest
+from oasislmf.pytools.common.input_files import AMPLIFICATIONS_FILE
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
@@ -11,14 +11,12 @@ from oasislmf.pytools.pla.common import (
     DATA_SIZE,
     event_count_dtype,
     amp_factor_dtype,
-    AMPLIFICATIONS_FILE_NAME,
-    LOSS_FACTORS_FILE_NAME
+    PLAFACTORS_FILE
 )
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, FM_STREAM_ID, ITEM_STREAM,
                                                   mv_write_item_header, mv_write_sidx_loss)
 
 from oasislmf.pytools.pla.manager import run
-from oasislmf.pytools.pla.structure import get_items_amplifications
 
 
 # Reduce BUFFER_SIZE to ensure that loop in
@@ -96,7 +94,7 @@ class TestPostLossAmplification(TestCase):
         self.input_dir = Path('./input')
         self.input_dir.mkdir(exist_ok=True)
         itemsamps_file = os.path.join(
-            self.input_dir, AMPLIFICATIONS_FILE_NAME
+            self.input_dir, AMPLIFICATIONS_FILE
         )
         self.write_items_amplifications_file(
             n_items * DATA_SIZE, itemsamps_file, formula='+ 1'
@@ -105,7 +103,7 @@ class TestPostLossAmplification(TestCase):
         # Write loss factors file
         self.static_dir = Path('./static')
         self.static_dir.mkdir(exist_ok=True)
-        lossfactors_file = os.path.join(self.static_dir, LOSS_FACTORS_FILE_NAME)
+        lossfactors_file = os.path.join(self.static_dir, PLAFACTORS_FILE)
         n_amplifications = 2
         factors = np.array([[1.125, 1.25], [1.0, 0.75]])
         n_pairs = n_events + sum(len(event) for event in factors)
@@ -295,46 +293,3 @@ class TestPostLossAmplification(TestCase):
         ))
 
         second_uni_out.close()
-
-    def test_structure__get_items_amplifications__first_item_id_not_1(self):
-        """
-        Test pla.structure.get_items_amplifications() raises SystemExit if the
-        first item ID is not 1.
-        """
-        # Write items amplifications file with first item ID = 2
-        itemsamps_file = os.path.join('.', AMPLIFICATIONS_FILE_NAME)
-        self.write_items_amplifications_file(2, itemsamps_file, formula='+ 2')
-
-        with pytest.raises(SystemExit) as e:
-            get_items_amplifications('.')
-        os.remove(itemsamps_file)
-        assert e.type == SystemExit
-        assert e.value.code == 1
-
-    def test_structure__get_items_amplifications__non_contiguous_item_ids(self):
-        """
-        Test pla.structure.get_items_amplifications() raises SystemExit if the
-        item IDs are not contiguous.
-        """
-        # Write items amplfications file where difference between item IDs is
-        # not 1
-        itemsamps_file = os.path.join('.', AMPLIFICATIONS_FILE_NAME)
-        self.write_items_amplifications_file(
-            4, itemsamps_file, formula='* 2 + 1'
-        )
-
-        with pytest.raises(SystemExit) as e:
-            get_items_amplifications('.')
-        os.remove(itemsamps_file)
-        assert e.type == SystemExit
-        assert e.value.code == 1
-
-    def test_structure__get_items_amplifications__no_amplifications_file(self):
-        """
-        Test pla.structure.get_items_amplifications() raises SystemExit if the
-        amplifications.bin file does not exist.
-        """
-        with pytest.raises(SystemExit) as e:
-            get_items_amplifications('.')
-        assert e.type == SystemExit
-        assert e.value.code == 1

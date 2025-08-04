@@ -17,15 +17,15 @@ from numba.types import int64 as nb_int64
 
 from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-from oasislmf.pytools.data_layer.oasis_files.correlations import Correlation, read_correlations
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.manager import get_damage_bins, get_vulns, get_intensity_bin_dict, encode_peril_id
 from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, STD_DEV_IDX, MEAN_IDX, NUM_IDX
 from oasislmf.pytools.gul.core import compute_mean_loss, get_gul
-from oasislmf.pytools.gul.manager import get_coverages, write_losses, adjust_byte_mv_size
+from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
                                          generate_correlated_hash_vector, generate_hash,
                                          generate_hash_hazard, get_corr_rval_float, get_random_generator)
@@ -33,8 +33,8 @@ from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights, )
-from oasislmf.pytools.gulmc.common import (NP_BASE_ARRAY_SIZE,
-                                           Item, Keys, ItemAdjustment,
+from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION, DAMAGE_TYPE_RELATIVE, NP_BASE_ARRAY_SIZE,
+                                           Keys, ItemAdjustment,
                                            NormInversionParameters, coverage_type, gul_header,
                                            gulSampleslevelHeader_size, gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
@@ -93,7 +93,7 @@ def get_dynamic_footprint_adjustments(input_path):
         adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
     else:
         items_fp = os.path.join(input_path, 'items.csv')
-        items_tb = np.loadtxt(items_fp, dtype=Item, delimiter=",", skiprows=1, ndmin=1)
+        items_tb = np.loadtxt(items_fp, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
         adjustments_tb = np.array([(i[0], 0, 0) for i in items_tb], dtype=ItemAdjustment)
 
     return adjustments_tb
@@ -251,7 +251,7 @@ def run(run_dir,
 
         logger.debug('import coverages')
         # coverages are numbered from 1, therefore we skip element 0 in `coverages`
-        coverages_tb = get_coverages(input_path, ignore_file_type)
+        coverages_tb = read_coverages(input_path, ignore_file_type)
         coverages = np.zeros(coverages_tb.shape[0] + 1, coverage_type)
         coverages[1:]['tiv'] = coverages_tb
 
@@ -323,7 +323,7 @@ def run(run_dir,
 
         # import array to store the coverages to be computed
         # coverages are numebered from 1, therefore skip element 0.
-        compute = np.zeros(coverages.shape[0] + 1, Item.dtype['coverage_id'])
+        compute = np.zeros(coverages.shape[0] + 1, items_dtype['coverage_id'])
 
         logger.debug('import peril correlation groups')
         unique_peril_correlation_groups = np.unique(items['peril_correlation_group'])
@@ -359,8 +359,8 @@ def run(run_dir,
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
         # create the array to store the seeds
-        haz_seeds = np.zeros(len(np.unique(items['hazard_group_id'])), dtype=Correlation.dtype['hazard_group_id'])
-        vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=Item.dtype['group_id'])
+        haz_seeds = np.zeros(len(np.unique(items['hazard_group_id'])), dtype=correlations_dtype['hazard_group_id'])
+        vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
 
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
@@ -676,13 +676,11 @@ def cache_cdf(next_cached_vuln_cdf_i, cached_vuln_cdfs, cached_vuln_cdf_lookup, 
 
 
 @nb.njit(fastmath=True, cache=True)
-def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, computation_tiv):
+def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, bin_scaling):
     # find the damage cdf bin in which the random value `vuln_rval` falls into
     vuln_bin_idx = binary_search(vuln_rval, vuln_cdf, Ndamage_bins - 1)
 
     # compute ground-up losses
-    # for relative vulnerability functions, gul are scaled by tiv
-    # for absolute vulnerability functions, gul are absolute values
     return get_gul(
         damage_bins['bin_from'][vuln_bin_idx],
         damage_bins['bin_to'][vuln_bin_idx],
@@ -690,7 +688,7 @@ def get_gul_from_vuln_cdf(vuln_rval, vuln_cdf, Ndamage_bins, damage_bins, comput
         vuln_cdf[vuln_bin_idx - 1] * (vuln_bin_idx > 0),
         vuln_cdf[vuln_bin_idx],
         vuln_rval,
-        computation_tiv,
+        bin_scaling,
     )
 
 
@@ -915,13 +913,22 @@ def compute_event_losses(compute_info,
 
             Neff_damage_bins = eff_damage_cdf.shape[0]
 
-            # for relative vulnerability functions, gul are fraction of the tiv
-            # for absolute vulnerability functions, gul are absolute values
-            computation_tiv = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
+            damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
+            if damage_type == DAMAGE_TYPE_RELATIVE:
+                damage_bin_scaling = tiv
+            elif damage_type == DAMAGE_TYPE_ABSOLUTE:
+                damage_bin_scaling = 1
+            elif damage_type == DAMAGE_TYPE_DURATION:
+                # convert annual tiv to daily
+                damage_bin_scaling = tiv / 365
+            else:  # default behaviour
+                # for relative vulnerability functions, gul are fraction of the tiv
+                # for absolute vulnerability functions, gul are absolute values
+                damage_bin_scaling = tiv if damage_bins[Neff_damage_bins - 1]['bin_to'] <= 1 else 1.0
 
             # compute mean loss values
             gul_mean, std_dev, chance_of_loss, max_loss = compute_mean_loss(
-                computation_tiv,
+                damage_bin_scaling,
                 eff_damage_cdf,
                 damage_bins['interpolation'],
                 Neff_damage_bins,
@@ -971,13 +978,13 @@ def compute_event_losses(compute_info,
                     if compute_info['effective_damageability']:
                         for sample_idx in range(1, sample_size + 1):
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], eff_damage_cdf,
-                                                                               Neff_damage_bins, damage_bins, computation_tiv)
+                                                                               Neff_damage_bins, damage_bins, damage_bin_scaling)
                     elif Nhaz_bins == 1:  # only one hazard possible
                         Ndamage_bins = haz_i_to_Ndamage_bins[0]
                         vuln_cdf = haz_i_to_vuln_cdf[0][:Ndamage_bins]
                         for sample_idx in range(1, sample_size + 1):
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, computation_tiv)
+                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
                     else:
                         for sample_idx in range(1, sample_size + 1):
                             # find the hazard intensity cdf bin in which the random value `haz_z_unif[sample_idx - 1]` falls into
@@ -991,7 +998,7 @@ def compute_event_losses(compute_info,
                             vuln_cdf = haz_i_to_vuln_cdf[haz_bin_idx][:Ndamage_bins]
 
                             losses[sample_idx, item_j] = get_gul_from_vuln_cdf(vuln_z_unif[sample_idx - 1], vuln_cdf,
-                                                                               Ndamage_bins, damage_bins, computation_tiv)
+                                                                               Ndamage_bins, damage_bins, damage_bin_scaling)
 
         # write the losses to the output memoryview
         compute_info['cursor'] = write_losses(
@@ -1019,7 +1026,7 @@ def process_areaperils_in_footprint(event_footprint,
     Process all the areaperils in the footprint, filtering and retaining only those who have associated vulnerability functions
 
     Args:
-        event_footprint (np.array[Event or EventCSV]): footprint, made of one or more event entries.
+        event_footprint (np.array[Event or footprint_event_dtype]): footprint, made of one or more event entries.
         present_areaperils (dict[int, int]): areaperil to vulnerability index dictionary.
         dynamic_footprint (boolean): true if there is dynamic_footprint
 

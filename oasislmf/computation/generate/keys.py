@@ -70,7 +70,7 @@ class GenerateKeys(KeyComputationStep):
         {'name': 'lookup_config_json', 'flag': '-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
         {'name': 'lookup_data_dir', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
-        {'name': 'lookup_complex_config_json', 'flag': '-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
+        {'name': 'lookup_complex_config_json', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
         {'name': 'lookup_num_processes', 'type': int, 'default': -1, 'help': 'Number of workers in multiprocess pools'},
         {'name': 'lookup_num_chunks', 'type': int, 'default': -1, 'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv', 'flag': '-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
