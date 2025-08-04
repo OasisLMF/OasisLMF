@@ -1476,7 +1476,6 @@ class APIClientTests(unittest.TestCase):
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            #rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             rsps.get(sub_task_url, json=sub_task_data)

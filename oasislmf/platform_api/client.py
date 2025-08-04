@@ -593,29 +593,29 @@ class APIClient(object):
         logged_queued = False
         while True:
             analysis = self.analyses.get(analysis_id).json()
-            match analysis['status']:  # Can revert this, never used match case but it seemed like it could be a good idea because function ugly
-                case 'RUN_COMPLETED':
-                    self.logger.info(f'Analysis Run: Complete (id={analysis_id})')
-                    return True
-                case 'RUN_CANCELLED':
-                    self.logger.info(f'Analysis Run: Cancelled (id={analysis_id})')
-                    return False
-                case 'RUN_ERROR':
-                    error_trace = self.analyses.run_traceback_file.get(analysis_id).text
-                    self.logger.error(f'Analysis Run: Failed (id={analysis_id})\n\nServer logs:\n{error_trace}')
-                    return False
-                case 'RUN_QUEUED':
-                    if not logged_queued:
-                        self.logger.info(f'Analysis Run: Queued (id={analysis_id})')
-                        logged_queued = True
-                case 'RUN_STARTED':
-                    self.logger.info(f'Analysis Run: Executing (id={analysis_id})')
-                    self._run_until_complete(analysis_id, poll_interval, analysis.get('run_mode', 'V1'))
-                    poll_interval = 0
-                case _:
-                    err_msg = f"Execution status in Unknown State: '{analysis['status']}'"
-                    self.logger.error(err_msg)
-                    raise OasisException(err_msg)
+            status = analysis['status']
+            if status == 'RUN_COMPLETED':
+                self.logger.info(f'Analysis Run: Complete (id={analysis_id})')
+                return True
+            elif status == 'RUN_CANCELLED':
+                self.logger.info(f'Analysis Run: Cancelled (id={analysis_id})')
+                return False
+            elif status == 'RUN_ERROR':
+                error_trace = self.analyses.run_traceback_file.get(analysis_id).text
+                self.logger.error(f'Analysis Run: Failed (id={analysis_id})\n\nServer logs:\n{error_trace}')
+                return False
+            elif status == 'RUN_QUEUED':
+                if not logged_queued:
+                    self.logger.info(f'Analysis Run: Queued (id={analysis_id})')
+                    logged_queued = True
+            elif status == 'RUN_STARTED':
+                self.logger.info(f'Analysis Run: Executing (id={analysis_id})')
+                self._run_until_complete(analysis_id, poll_interval, analysis.get('run_mode', 'V1'))
+                poll_interval = 0
+            else:
+                err_msg = f"Execution status in Unknown State: '{analysis['status']}'"
+                self.logger.error(err_msg)
+                raise OasisException(err_msg)
             time.sleep(poll_interval)
 
     def _run_until_complete(self, analysis_id, poll_interval, run_mode):
