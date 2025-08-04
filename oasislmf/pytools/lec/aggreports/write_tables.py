@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import nb_oasis_int
+from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, nb_oasis_int
 from oasislmf.pytools.lec.data import (EPT_dtype, PSEPT_dtype, TAIL_valtype, NB_TAIL_valtype)
 from oasislmf.pytools.lec.utils import (create_empty_array, get_wheatsheaf_items_idx, get_wheatsheaf_items_idx_data, resize_array)
 
@@ -301,7 +301,7 @@ def write_ept(
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """
-    buffer = np.zeros(1000000, dtype=EPT_dtype)
+    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
     bidx = 0
 
     if len(items) == 0 or sample_size == 0:
@@ -476,7 +476,7 @@ def write_ept_weighted(
     Yields:
         buffer (ndarray[EPT_dtype]): Buffered chunks of EPT data
     """
-    buffer = np.zeros(1000000, dtype=EPT_dtype)
+    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
     bidx = 0
 
     if len(items) == 0 or sample_size == 0:
@@ -655,7 +655,7 @@ def write_psept(
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
     """
-    buffer = np.zeros(1000000, dtype=PSEPT_dtype)
+    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
     bidx = 0
 
     if len(items) == 0:
@@ -829,7 +829,7 @@ def write_psept_weighted(
     Yields:
         buffer (ndarray[PSEPT_dtype]): Buffered chunks of PSEPT data
     """
-    buffer = np.zeros(1000000, dtype=PSEPT_dtype)
+    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=PSEPT_dtype)
     bidx = 0
 
     if len(items) == 0:
@@ -1008,7 +1008,7 @@ def write_wheatsheaf_mean(
     if len(mean_map) == 0:
         return
 
-    buffer = np.zeros(1000000, dtype=EPT_dtype)
+    buffer = np.zeros(DEFAULT_BUFFER_SIZE, dtype=EPT_dtype)
     bidx = 0
 
     for summary_id in range(1, max_summary_id + 1):

@@ -167,7 +167,7 @@ default_chunk_size = 1024 * 1024 * 8
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--static-path', help='path to the folder containing the footprint files', default='.')
 parser.add_argument('--chunk', help='if flag is set will create chunk footprint with the target raw size of chunk_size', action='store_true')
-parser.add_argument('--chunk-size', help=f'target size for chunk parquet, default {default_chunk_size/1024*1024}MB',
+parser.add_argument('--chunk-size', help=f'target size for chunk parquet, default {default_chunk_size / 1024 * 1024}MB',
                     type=int, default=default_chunk_size)
 
 

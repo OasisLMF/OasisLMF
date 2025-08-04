@@ -79,6 +79,7 @@ instance/
 docs/_build/
 docs/build/
 docs/source/autoapi
+docs/source/generated_options.rst
 
 # PyBuilder
 target/
@@ -137,6 +138,7 @@ tests/assets/test_pltpy/**/error_files/
 tests/assets/test_aalpy/**/error_files/
 tests/assets/test_lecpy/**/error_files/
 tests/assets/test_common/**/error_files/
+tests/assets/test_converters/**/error_files/
 
 !tests/pytools/data_layer/oasis_files/meta_data/correlations.bin
 
@@ -167,6 +169,8 @@ tests/assets/test_common/**/error_files/
 !tests/assets/test_lecpy/**/*.bin
 !tests/assets/test_common/*.bin
 !tests/assets/test_common/**/*.bin
+!tests/assets/test_converters/*.bin
+!tests/assets/test_converters/**/*.bin
 
 
 # pycharm

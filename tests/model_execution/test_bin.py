@@ -2,7 +2,6 @@ import glob
 import io
 import os
 import shutil
-import subprocess
 import tarfile
 
 from itertools import chain, islice
@@ -10,8 +9,6 @@ from tempfile import TemporaryDirectory
 from copy import copy, deepcopy
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
-
-import pytest
 
 from hypothesis import (
     given,
@@ -64,7 +61,7 @@ class CsvToBin(TestCase):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=False)
 
@@ -78,7 +75,7 @@ class CsvToBin(TestCase):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=True)
 
@@ -90,7 +87,7 @@ class CsvToBin(TestCase):
         with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             Path(os.path.join(csv_dir, 'events.csv')).touch()
 
-            with patch('oasislmf.model_execution.bin.subprocess.check_call', Mock(side_effect=subprocess.CalledProcessError(1, ''))):
+            with patch('oasislmf.model_execution.bin.csvtobin', Mock(side_effect=Exception(1, ''))):
                 with self.assertRaises(OasisException):
                     csv_to_bin(csv_dir, bin_dir, il=True)
 
@@ -102,11 +99,11 @@ class CsvToBin(TestCase):
 
             for target in files:
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
             os.mkdir(os.path.join(csv_dir, "RI_1"))
             for target in files:
                 with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
 
@@ -127,15 +124,15 @@ class CsvToBin(TestCase):
 
             for target in files:
                 with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
             os.mkdir(os.path.join(csv_dir, "RI_1"))
             for target in files:
                 with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
             os.mkdir(os.path.join(csv_dir, "RI_2"))
             for target in files:
                 with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write(target)
+                    f.write("")
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
 

@@ -20,7 +20,6 @@ __all__ = [
 import pathlib
 
 import errno
-import csv
 import filecmp
 import glob
 import logging
@@ -41,9 +40,10 @@ from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
-from oasislmf.pytools.pla.common import LOSS_FACTORS_FILE_NAME
+from oasislmf.pytools.pla.common import PLAFACTORS_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -245,10 +245,9 @@ def _create_return_period_bin(run_dir, return_periods):
                                                ).to_csv(csv_fp, index=False)
 
     try:
-        cmd_str = "returnperiodtobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
-        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-    except subprocess.CalledProcessError as e:
-        raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
+        csvtobin(csv_fp, bin_fp, "returnperiods")
+    except Exception as e:
+        raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 def _create_events_bin(run_dir, event_ids):
@@ -276,10 +275,9 @@ def _create_quantile_bin(run_dir, quantiles):
                                           ).to_csv(csv_fp, index=False)
 
     try:
-        cmd_str = "quantiletobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
-        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-    except subprocess.CalledProcessError as e:
-        raise OasisException("Error while converting quantile.csv to ktools binary format: {}".format(e))
+        csvtobin(csv_fp, bin_fp, "quantile")
+    except Exception as e:
+        raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 def _load_default_quantile_bin(run_dir):
@@ -536,9 +534,9 @@ def set_vulnerability_set(setting_val, run_dir):
 @oasis_log
 def set_loss_factors_set(setting_val, run_dir):
     setting_val = str(setting_val)
-    stem, extension = LOSS_FACTORS_FILE_NAME.split('.', 1)
+    stem, extension = PLAFACTORS_FILE.split('.', 1)
     loss_factors_fp = os.path.join(run_dir, 'static', f'{stem}_{setting_val}.{extension}')
-    loss_factors_target_fp = os.path.join(run_dir, 'static', LOSS_FACTORS_FILE_NAME)
+    loss_factors_target_fp = os.path.join(run_dir, 'static', PLAFACTORS_FILE)
     if os.path.isfile(loss_factors_target_fp):
         os.rename(loss_factors_target_fp, os.path.join(run_dir, 'static', f'{stem}_default.{extension}'))
     if os.path.isfile(loss_factors_fp):
@@ -650,23 +648,19 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         step_flag = input_file.get('step_flag')
         col_names = []
         if step_flag:
-            with open(input_file_path) as f:
-                reader = csv.reader(f)
-                col_names = next(reader)
+            with open(input_file_path, "r") as f:
+                col_names = f.readline().strip().split(",")
 
+        csvtobin_type = input_file["csvtobin_type"]
         if 'step_id' in col_names:
             output_file_path = os.path.join(
                 bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
             )
-
-            cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
-        else:
-            cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
-
+            csvtobin_type = input_file["csvtobin_type"] + "_step"
         try:
-            subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-        except subprocess.CalledProcessError as e:
-            raise OasisException("Error while converting csv's to ktools binary format: {}".format(e))
+            csvtobin(input_file_path, output_file_path, csvtobin_type)
+        except Exception as e:
+            raise OasisException("Error while converting csv's to binary format: {}".format(e))
 
 
 @oasis_log
