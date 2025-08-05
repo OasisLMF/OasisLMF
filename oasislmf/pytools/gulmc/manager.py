@@ -1008,7 +1008,7 @@ def get_vuln_cdf(vuln_i,
             vuln_cdf[damage_bin_i] = cumsum
             damage_bin_i += 1
 
-            if cumsum > 0.999999940:
+            if cumsum >= 0.999999940:
                 break
 
         Ndamage_bins = damage_bin_i
@@ -1123,7 +1123,7 @@ def process_areaperils_in_footprint(event_footprint,
 
                             eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
                             damage_bin_i += 1
-                            if eff_vuln_cdf_cumsum > 0.999999940:
+                            if eff_vuln_cdf_cumsum >= 0.999999940:
                                 break
 
                         Ndamage_bins = damage_bin_i

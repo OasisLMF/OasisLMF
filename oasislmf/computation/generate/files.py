@@ -369,7 +369,7 @@ class GenerateFiles(ComputationStep):
             exposure_data.location.dataframe,
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
-        ).sort_values(by='agg_id')
+        ).sort_values(by='agg_id', kind='stable')
         del fm_summary_mapping
         self.kwargs['oed_info_csv'] = exposure_data.ri_info
 
