@@ -396,7 +396,7 @@ def run(
     """Runs ELT calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
-        files_in (str | os.PathLike): Path to summary binary input file
+        files_in (str | os.PathLike | list[str]): Path to summary binary input file
         selt_output_file (str, optional): Path to SELT output file. Defaults to None.
         melt_output_file (str, optional): Path to MELT output file. Defaults to None.
         qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
@@ -446,6 +446,9 @@ def run(
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
+        if files_in == "-" or files_in == ["-"]:
+            files_in = None  # init_streams checks for None to read from sys.stdin.buffer
+
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")

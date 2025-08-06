@@ -468,7 +468,7 @@ def run(
 
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
-        files_in (str | os.PathLike): Path to summary binary input file
+        files_in (str | os.PathLike | list[str]): Path to summary binary input file
         splt_output_file (str, optional): Path to SPLT output file. Defaults to None.
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.
@@ -518,6 +518,9 @@ def run(
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
+        if files_in == "-" or files_in == ["-"]:
+            files_in = None  # init_streams checks for None to read from sys.stdin.buffer
+
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
