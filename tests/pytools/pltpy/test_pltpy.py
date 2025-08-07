@@ -1,3 +1,6 @@
+from io import BufferedReader
+import sys
+from unittest.mock import Mock
 import numpy as np
 import shutil
 import pandas as pd
@@ -129,3 +132,44 @@ def test_qplt_output_parquet():
     case_runner("all_files", "qplt", "parquet")  # All optional input files present
     case_runner("no_files", "qplt", "parquet")  # No optional input files present
     case_runner("occ_gran_files", "qplt", "parquet")  # Granular occurrence input file present
+
+
+def test_splt_stdin(monkeypatch):
+    test_asset_subdir = Path(TESTS_ASSETS_DIR, "all_files")
+    input_file = Path(TESTS_ASSETS_DIR, "summarypy.bin")
+    expected_outfile = Path(test_asset_subdir, "py_splt.csv")
+
+    with TemporaryDirectory() as tmp_result_dir_str:
+        actual_outfile = Path(tmp_result_dir_str, "py_splt.csv")
+
+        f = open(input_file, "rb")
+
+        mock_stdin = Mock()
+        mock_stdin.buffer = BufferedReader(f)
+        monkeypatch.setattr(sys, "stdin", mock_stdin)
+
+        kwargs = {
+            "run_dir": test_asset_subdir,
+            "files_in": ["-"],  # default value to use stdin
+            "ext": "csv",
+            "splt": actual_outfile,
+        }
+
+        main(**kwargs)
+
+        f.close()
+
+        try:
+            expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
+            actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
+            if expected_outfile_data.shape != actual_outfile_data.shape:
+                raise AssertionError(
+                    f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}")
+            np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
+        except Exception as e:
+            error_path = test_asset_subdir.joinpath('error_files')
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(Path(actual_outfile),
+                            Path(error_path, "py_splt.csv"))
+            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
+            raise Exception(f"running 'pltpy {arg_str}' led to diff, see files at {error_path}") from e
