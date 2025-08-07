@@ -446,7 +446,7 @@ def run(
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
-        if files_in == "-" or files_in == ["-"]:
+        if files_in == ["-"]:
             files_in = None  # init_streams checks for None to read from sys.stdin.buffer
 
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
