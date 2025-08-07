@@ -468,7 +468,7 @@ def run(
 
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
-        files_in (str | os.PathLike | list[str]): Path to summary binary input file
+        files_in (list[str]): Path to summary binary input file
         splt_output_file (str, optional): Path to SPLT output file. Defaults to None.
         mplt_output_file (str, optional): Path to MPLT output file. Defaults to None.
         qplt_output_file (str, optional): Path to QPLT output file. Defaults to None.

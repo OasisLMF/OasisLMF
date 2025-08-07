@@ -396,7 +396,7 @@ def run(
     """Runs ELT calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
-        files_in (str | os.PathLike | list[str]): Path to summary binary input file
+        files_in (list[str]): Path to summary binary input file
         selt_output_file (str, optional): Path to SELT output file. Defaults to None.
         melt_output_file (str, optional): Path to MELT output file. Defaults to None.
         qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
