@@ -44,8 +44,7 @@ from oasislmf.preparation.summaries import (get_summary_mapping,
                                             write_exposure_summary,
                                             write_mapping_file,
                                             write_summary_levels)
-from oasislmf.pytools.data_layer.oasis_files.correlations import \
-    CorrelationsData
+from oasislmf.pytools.common.data import correlations_headers
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df,
@@ -328,7 +327,7 @@ class GenerateFiles(ComputationStep):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            correlations_df=gul_inputs_df[CorrelationsData.COLUMNS],
+            correlations_df=gul_inputs_df[correlations_headers],
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
@@ -574,7 +573,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
     step_params = [
         {'name': 'num_locations', 'flag': '-l', 'required': True, 'type': int, 'help': 'Number of locations'},
         {'name': 'coverages_per_location', 'flag': '-c', 'required': True, 'type': int, 'help': 'Number of coverage types per location'},
-        {'name': 'num_layers', 'flag': '-L', 'required': False, 'type': int, 'default': 1, 'help': 'Number of layers'}
+        {'name': 'num_layers', 'required': False, 'type': int, 'default': 1, 'help': 'Number of layers'}
     ]
     chained_commands = [GenerateDummyModelFiles]
 

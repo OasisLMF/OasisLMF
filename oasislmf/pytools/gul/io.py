@@ -14,7 +14,7 @@ from numba.types import int64 as nb_int64
 from oasislmf.pytools.common.data import areaperil_int, areaperil_int_size, oasis_int, oasis_int_size, oasis_float, oasis_float_size
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY, bytes_to_stream_types, mv_read, CDF_STREAM_ID
 from oasislmf.pytools.gul.common import (NP_BASE_ARRAY_SIZE, ProbMean,
-                                         ProbMean_size,
+                                         ProbMean_size, damagecdfrec,
                                          damagecdfrec_stream, items_data_type)
 from oasislmf.pytools.gul.random import generate_hash
 
@@ -107,6 +107,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
     items_data_i = 0
     coverages['cur_items'].fill(0)
     recs = []
+    dmgcdfrecs = []
 
     items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
     select_stream_list = [stream_in]
@@ -122,11 +123,11 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
         if valid_buf == 0:
             # the stream has ended and all the data has been read
             if last_event_id != -1:
-                yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
+                yield last_event_id, compute_i, items_data, np.concatenate(dmgcdfrecs), np.concatenate(recs), rec_idx_ptr, rng_index
             break
 
         # read the streamed data into formatted data
-        cursor, yield_event, event_id, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
+        cursor, yield_event, event_id, dmgcdfrec, rec, rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i = stream_to_data(
             byte_mv, valid_buf, min_size_cdf_entry, last_event_id, item_map, coverages, valid_area_peril_dict,
             compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
             damagecdf_i, rec_idx_ptr
@@ -139,11 +140,12 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
             )
 
         # persist the cdf records read from the stream
+        dmgcdfrecs.append(dmgcdfrec)
         recs.append(rec)
 
         if yield_event:
             # event is fully read
-            yield last_event_id, compute_i, items_data, np.concatenate(recs), rec_idx_ptr, rng_index
+            yield last_event_id, compute_i, items_data, np.concatenate(dmgcdfrecs), np.concatenate(recs), rec_idx_ptr, rng_index
 
             # init the data structures for the next event
             last_event_id = event_id
@@ -156,6 +158,7 @@ def read_getmodel_stream(stream_in, item_map, coverages, compute, seeds, valid_a
             items_data_i = 0
             coverages['cur_items'].fill(0)
             recs = []
+            dmgcdfrecs = []
 
         # move the un-read data to the beginning of the memoryview
         mv[:valid_buf - cursor] = mv[cursor:valid_buf]
@@ -201,6 +204,8 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
     # `rec` is a temporary buffer to store the cdf being read
     # conservative choice: size `rec` as if the entire buffer is filled with cdf bins
     rec = np.zeros(valid_buf // ProbMean_size, dtype=ProbMean)
+    dmgcdfrec = np.zeros(valid_buf // ProbMean_size, dtype=damagecdfrec)
+    dmgcdfrec_idx = 0
 
     # int32 memoryview cursor
     cursor = 0
@@ -239,6 +244,10 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
             if areaperil_id not in valid_area_peril_dict:
                 cursor += ProbMean_size * Nbins_to_read
                 continue
+
+        dmgcdfrec[dmgcdfrec_idx]["areaperil_id"] = areaperil_id
+        dmgcdfrec[dmgcdfrec_idx]["vulnerability_id"] = vulnerability_id
+        dmgcdfrec_idx += 1
 
         # read damage cdf bins
         start_rec = last_rec_idx_ptr
@@ -292,4 +301,4 @@ def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, item_map, 
 
         damagecdf_i += 1
 
-    return cursor, yield_event, event_id, rec[:rec_valid_len], rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i
+    return cursor, yield_event, event_id, dmgcdfrec[:dmgcdfrec_idx], rec[:rec_valid_len], rec_idx_ptr, last_event_id, compute_i, items_data_i, items_data, rng_index, group_id_rng_index, damagecdf_i

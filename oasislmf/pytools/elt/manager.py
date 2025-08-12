@@ -9,7 +9,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import (MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
                                           oasis_int_size, oasis_float_size, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, EventReader, init_streams_in,
                                                   mv_read, SUMMARY_STREAM_ID)
@@ -25,15 +25,15 @@ class ELTReader(EventReader):
         self.logger = logger
 
         # Buffer for SELT data
-        self.selt_data = np.zeros(1000000, dtype=SELT_dtype)
+        self.selt_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=SELT_dtype)
         self.selt_idx = np.zeros(1, dtype=np.int64)
 
         # Buffer for MELT data
-        self.melt_data = np.zeros(1000000, dtype=MELT_dtype)
+        self.melt_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=MELT_dtype)
         self.melt_idx = np.zeros(1, dtype=np.int64)
 
         # Buffer for QELT data
-        self.qelt_data = np.zeros(1000000, dtype=QELT_dtype)
+        self.qelt_data = np.zeros(DEFAULT_BUFFER_SIZE, dtype=QELT_dtype)
         self.qelt_idx = np.zeros(1, dtype=np.int64)
 
         read_buffer_state_dtype = np.dtype([
@@ -291,7 +291,7 @@ def read_buffer(
 
                     # Calculate loss for per quantile interval
                     for i in range(len(intervals)):
-                        q = intervals[i]["q"]
+                        q = intervals[i]["quantile"]
                         ipart = intervals[i]["integer_part"]
                         fpart = intervals[i]["fractional_part"]
                         if ipart == len(state["losses_vec"]):
@@ -396,7 +396,7 @@ def run(
     """Runs ELT calculations
     Args:
         run_dir (str | os.PathLike): Path to directory containing required files structure
-        files_in (str | os.PathLike): Path to summary binary input file
+        files_in (list[str]): Path to summary binary input file
         selt_output_file (str, optional): Path to SELT output file. Defaults to None.
         melt_output_file (str, optional): Path to MELT output file. Defaults to None.
         qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
@@ -446,6 +446,9 @@ def run(
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
+        if files_in == ["-"]:
+            files_in = None  # init_streams checks for None to read from sys.stdin.buffer
+
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
         if stream_source_type != SUMMARY_STREAM_ID:
             raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
