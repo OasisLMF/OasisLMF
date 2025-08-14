@@ -151,6 +151,13 @@ RI_SCOPE_DEFAULTS = {
     'CededPercent': 1.0
 }
 
+DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
+                            'type_col': 'BIWaitingPeriodType',
+                            'type_value': 3},
+                           {'field_col': 'BIPOI',
+                            'type_col': 'BIPOIType',
+                            'type_value': 3}]
+
 
 def factorize_array(arr, sort_opt=False):
     """
@@ -768,20 +775,15 @@ def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
     location_df[SOURCE_IDX['loc']] = location_df.index
 
-    # Add BI ded + limit types
-    BI_FIELD_TYPES = [{'field': 'BIWaitingPeriod',
-                       'type': 'BIWaitingPeriodType'},
-                      {'field': 'BIPOI',
-                       'type': 'BIPOIType'}]
-
-    for field_type in BI_FIELD_TYPES:
-        if field_type['field'] not in location_df.columns:
+    # fill default types
+    for field_type in DEFAULT_LOC_FIELD_TYPES:
+        if field_type['field_col'] not in location_df.columns:
             continue
 
-        if field_type['type'] not in location_df.columns:
-            location_df[field_type['type']] = 3
+        if field_type['type_col'] not in location_df.columns:
+            location_df[field_type['type_col']] = field_type['type_value']
         else:
-            location_df[field_type['type']] = location_df[field_type['type']].fillna(3)
+            location_df[field_type['type_col']] = location_df[field_type['type_col']].fillna(field_type['type_value'])
 
     return location_df
 
