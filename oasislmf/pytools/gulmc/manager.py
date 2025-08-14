@@ -33,10 +33,15 @@ from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.gulmc.aggregate import (
     process_aggregate_vulnerability, process_vulnerability_weights, read_aggregate_vulnerability,
     read_vulnerability_weights, )
-from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION, DAMAGE_TYPE_RELATIVE, NP_BASE_ARRAY_SIZE,
-                                           Keys, ItemAdjustment,
-                                           NormInversionParameters, coverage_type, gul_header,
-                                           gulSampleslevelHeader_size, gulSampleslevelRec_size,
+from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
+                                           DAMAGE_TYPE_DURATION,
+                                           DAMAGE_TYPE_RELATIVE,
+                                           NP_BASE_ARRAY_SIZE, Keys,
+                                           ItemAdjustment,
+                                           NormInversionParameters,
+                                           coverage_type, gul_header,
+                                           gulSampleslevelHeader_size,
+                                           gulSampleslevelRec_size,
                                            haz_arr_type, items_MC_data_type,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.gulmc.items import read_items, generate_item_map

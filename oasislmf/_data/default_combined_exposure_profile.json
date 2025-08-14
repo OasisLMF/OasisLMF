@@ -3,7 +3,6 @@
         "1": {
             "ded_code": {
                 "CoverageTypeID": 1,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleCode",
@@ -12,7 +11,6 @@
             },
             "ded_type": {
                 "CoverageTypeID": 1,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleType",
@@ -22,7 +20,6 @@
             "deductible": {
                 "CoverageTypeID": 1,
                 "DeductibleType": "B",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "Deductible",
@@ -32,7 +29,6 @@
             "deductible_max": {
                 "CoverageTypeID": 1,
                 "DeductibleType": "MA",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMax",
@@ -42,7 +38,6 @@
             "deductible_min": {
                 "CoverageTypeID": 1,
                 "DeductibleType": "MI",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMin",
@@ -51,7 +46,6 @@
             },
             "lim_code": {
                 "CoverageTypeID": 1,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitCode",
@@ -60,7 +54,6 @@
             },
             "lim_type": {
                 "CoverageTypeID": 1,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitType",
@@ -69,7 +62,6 @@
             },
             "limit": {
                 "CoverageTypeID": 1,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "Limit",
@@ -78,7 +70,6 @@
             },
             "tiv": {
                 "CoverageTypeID": 1,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 1,
                 "FMTermType": "TIV",
@@ -89,7 +80,6 @@
         "2": {
             "ded_code": {
                 "CoverageTypeID": 2,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "DeductibleCode",
@@ -98,7 +88,6 @@
             },
             "ded_type": {
                 "CoverageTypeID": 2,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "DeductibleType",
@@ -108,7 +97,6 @@
             "deductible": {
                 "CoverageTypeID": 2,
                 "DeductibleType": "B",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "Deductible",
@@ -118,7 +106,6 @@
             "deductible_max": {
                 "CoverageTypeID": 2,
                 "DeductibleType": "MA",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "DeductibleMax",
@@ -128,7 +115,6 @@
             "deductible_min": {
                 "CoverageTypeID": 2,
                 "DeductibleType": "MI",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "DeductibleMin",
@@ -137,7 +123,6 @@
             },
             "lim_code": {
                 "CoverageTypeID": 2,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "LimitCode",
@@ -146,7 +131,6 @@
             },
             "lim_type": {
                 "CoverageTypeID": 2,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "LimitType",
@@ -155,7 +139,6 @@
             },
             "limit": {
                 "CoverageTypeID": 2,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "Limit",
@@ -164,7 +147,6 @@
             },
             "tiv": {
                 "CoverageTypeID": 2,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 2,
                 "FMTermType": "TIV",
@@ -175,7 +157,6 @@
         "3": {
             "ded_code": {
                 "CoverageTypeID": 3,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "DeductibleCode",
@@ -184,7 +165,6 @@
             },
             "ded_type": {
                 "CoverageTypeID": 3,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "DeductibleType",
@@ -194,7 +174,6 @@
             "deductible": {
                 "CoverageTypeID": 3,
                 "DeductibleType": "B",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "Deductible",
@@ -204,7 +183,6 @@
             "deductible_max": {
                 "CoverageTypeID": 3,
                 "DeductibleType": "MA",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "DeductibleMax",
@@ -214,7 +192,6 @@
             "deductible_min": {
                 "CoverageTypeID": 3,
                 "DeductibleType": "MI",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "DeductibleMin",
@@ -223,7 +200,6 @@
             },
             "lim_code": {
                 "CoverageTypeID": 3,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "LimitCode",
@@ -232,7 +208,6 @@
             },
             "lim_type": {
                 "CoverageTypeID": 3,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "LimitType",
@@ -241,7 +216,6 @@
             },
             "limit": {
                 "CoverageTypeID": 3,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "Limit",
@@ -250,7 +224,6 @@
             },
             "tiv": {
                 "CoverageTypeID": 3,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 3,
                 "FMTermType": "TIV",
@@ -261,7 +234,6 @@
         "4": {
             "ded_code": {
                 "CoverageTypeID": 4,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "DeductibleCode",
@@ -270,7 +242,6 @@
             },
             "ded_type": {
                 "CoverageTypeID": 4,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "DeductibleType",
@@ -280,7 +251,6 @@
             "deductible": {
                 "CoverageTypeID": 4,
                 "DeductibleType": "B",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "Deductible",
@@ -290,7 +260,6 @@
             "deductible_max": {
                 "CoverageTypeID": 4,
                 "DeductibleType": "MA",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "DeductibleMax",
@@ -300,7 +269,6 @@
             "deductible_min": {
                 "CoverageTypeID": 4,
                 "DeductibleType": "MI",
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "DeductibleMin",
@@ -309,7 +277,6 @@
             },
             "lim_code": {
                 "CoverageTypeID": 4,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "LimitCode",
@@ -318,7 +285,6 @@
             },
             "lim_type": {
                 "CoverageTypeID": 4,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "LimitType",
@@ -327,7 +293,6 @@
             },
             "limit": {
                 "CoverageTypeID": 4,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "Limit",
@@ -336,7 +301,6 @@
             },
             "tiv": {
                 "CoverageTypeID": 4,
-                "FMLevel": 1,
                 "FMLevelName": "SiteCoverage",
                 "FMTermGroupID": 4,
                 "FMTermType": "TIV",
@@ -348,7 +312,6 @@
     "2": {
         "1": {
             "ded_code": {
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleCode",
@@ -356,7 +319,6 @@
                 "ProfileType": "Loc"
             },
             "ded_type": {
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleType",
@@ -370,7 +332,6 @@
                     3
                 ],
                 "DeductibleType": "B",
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "Deductible",
@@ -379,7 +340,6 @@
             },
             "deductible_max": {
                 "DeductibleType": "MA",
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMax",
@@ -388,7 +348,6 @@
             },
             "deductible_min": {
                 "DeductibleType": "MI",
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMin",
@@ -396,7 +355,6 @@
                 "ProfileType": "Loc"
             },
             "lim_code": {
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitCode",
@@ -404,7 +362,6 @@
                 "ProfileType": "Loc"
             },
             "lim_type": {
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitType",
@@ -417,7 +374,6 @@
                     2,
                     3
                 ],
-                "FMLevel": 2,
                 "FMLevelName": "SitePD",
                 "FMTermGroupID": 1,
                 "FMTermType": "Limit",
@@ -429,7 +385,6 @@
     "3": {
         "1": {
             "ded_code": {
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleCode",
@@ -437,7 +392,6 @@
                 "ProfileType": "Loc"
             },
             "ded_type": {
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleType",
@@ -446,7 +400,6 @@
             },
             "deductible": {
                 "DeductibleType": "B",
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "Deductible",
@@ -455,7 +408,6 @@
             },
             "deductible_max": {
                 "DeductibleType": "MA",
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMax",
@@ -464,7 +416,6 @@
             },
             "deductible_min": {
                 "DeductibleType": "MI",
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMin",
@@ -472,7 +423,6 @@
                 "ProfileType": "Loc"
             },
             "lim_code": {
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitCode",
@@ -480,7 +430,6 @@
                 "ProfileType": "Loc"
             },
             "lim_type": {
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitType",
@@ -488,7 +437,6 @@
                 "ProfileType": "Loc"
             },
             "limit": {
-                "FMLevel": 3,
                 "FMLevelName": "SiteAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "Limit",
@@ -500,7 +448,6 @@
     "6": {
         "1": {
             "ded_code": {
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleCode",
@@ -508,7 +455,6 @@
                 "ProfileType": "Acc"
             },
             "ded_type": {
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleType",
@@ -517,7 +463,6 @@
             },
             "deductible": {
                 "DeductibleType": "B",
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "Deductible",
@@ -526,7 +471,6 @@
             },
             "deductible_max": {
                 "DeductibleType": "MA",
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMax",
@@ -535,7 +479,6 @@
             },
             "deductible_min": {
                 "DeductibleType": "MI",
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMin",
@@ -543,7 +486,6 @@
                 "ProfileType": "Acc"
             },
             "lim_code": {
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitCode",
@@ -551,7 +493,6 @@
                 "ProfileType": "Acc"
             },
             "lim_type": {
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitType",
@@ -559,7 +500,6 @@
                 "ProfileType": "Acc"
             },
             "limit": {
-                "FMLevel": 6,
                 "FMLevelName": "CondAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "Limit",
@@ -571,7 +511,6 @@
     "9": {
         "1": {
             "ded_code": {
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleCode",
@@ -580,7 +519,6 @@
             },
             "ded_type": {
                 "DeductibleType": "B",
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleType",
@@ -589,7 +527,6 @@
             },
             "deductible": {
                 "DeductibleType": "B",
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "Deductible",
@@ -598,7 +535,6 @@
             },
             "deductible_max": {
                 "DeductibleType": "MA",
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMax",
@@ -607,7 +543,6 @@
             },
             "deductible_min": {
                 "DeductibleType": "MI",
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "DeductibleMin",
@@ -615,7 +550,6 @@
                 "ProfileType": "Acc"
             },
             "lim_code": {
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitCode",
@@ -623,7 +557,6 @@
                 "ProfileType": "Acc"
             },
             "lim_type": {
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "LimitType",
@@ -631,7 +564,6 @@
                 "ProfileType": "Acc"
             },
             "limit": {
-                "FMLevel": 9,
                 "FMLevelName": "PolAll",
                 "FMTermGroupID": 1,
                 "FMTermType": "Limit",
@@ -643,7 +575,6 @@
     "10": {
         "1": {
             "attachment": {
-                "FMLevel": 10,
                 "FMLevelName": "PolLayer",
                 "FMTermGroupID": 1,
                 "FMTermType": "Attachment",
@@ -651,7 +582,6 @@
                 "ProfileType": "Acc"
             },
             "limit": {
-                "FMLevel": 10,
                 "FMLevelName": "PolLayer",
                 "FMTermGroupID": 1,
                 "FMTermType": "Limit",
@@ -659,7 +589,6 @@
                 "ProfileType": "Acc"
             },
             "share": {
-                "FMLevel": 10,
                 "FMLevelName": "PolLayer",
                 "FMTermGroupID": 1,
                 "FMTermType": "Share",
