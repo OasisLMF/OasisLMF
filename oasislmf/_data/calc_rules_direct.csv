@@ -73,7 +73,6 @@ no deductible with max deductible and limit % loss,36,0,0,0,1,1,0,0,1,0,0
 no deductible with min and max deductible and limit % loss,36,0,0,1,1,1,0,0,1,0,0
 waiting period deductible and period of interest limit,40,0,1,0,0,1,3,0,3,0,0
 no deductible and period of interest limit,41,0,0,0,0,1,3,0,3,0,0
-waiting period deductible and no limit,42,0,1,0,0,0,3,0,3,0,0
 "deductible, limit; share",101,0,1,0,0,1,0,0,0,0,1
 "franchise deductible, limit; share",103,0,1,0,0,1,0,2,0,0,1
 deductible % loss with limit % loss; share,105,0,1,0,0,1,1,0,1,0,1
