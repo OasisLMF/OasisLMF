@@ -839,20 +839,6 @@ class GenerateLosses(GenerateLossesDir):
         thread.join()
 
 
-class WorkerThread(threading.Thread):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.exc_info = None
-
-    def run(self):
-        try:
-            if self._target:
-                self._target(*self._args, **self._kwargs)
-        except Exception:
-            # Capture exception info (type, value, traceback)
-            self.exc_info = sys.exc_info()
-
-
 def run_model(model_runner_module, settings, run_args):
     model_runner_module.run(settings, **run_args)
 
