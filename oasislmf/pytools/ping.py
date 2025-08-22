@@ -2,6 +2,8 @@ import json
 import sys
 import websocket
 import logging
+import socket
+import os
 
 
 def main():
@@ -18,11 +20,24 @@ def main():
     oasis_ping(ws_url, data)
 
 
-def oasis_ping(ws_url, data):
+def oasis_ping(data):
+    data = json.dumps(data)
+    if os.environ.get('OASIS_WEBSOCKET_URL', None) is not None:
+        return oasis_ping_socket(data)
+    oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", data)
+
+
+def oasis_ping_socket(data):
+    oasis_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    oasis_socket.connect(("0.0.0.0", 8888))
+    oasis_socket.send(data.encode('utf-8'))
+
+
+def oasis_ping_websocket(ws_url, data):
     try:
         ws = websocket.WebSocket()
         ws.connect(ws_url)
-        ws.send(json.dumps(data))
+        ws.send(data)
         ws.close()
         logging.info("Post sent successfully")
     except Exception:

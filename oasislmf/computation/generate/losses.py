@@ -50,6 +50,11 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
+from .socket_server import GulProgressServer
+
+import threading
+import time
+from tqdm import tqdm
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -246,7 +251,7 @@ class GenerateLossesDir(GenerateLossesBase):
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE
                     )
-                    if not 'Parquet output enabled' in katparquet_output.stderr.decode():
+                    if 'Parquet output enabled' not in katparquet_output.stderr.decode():
                         raise OasisException(
                             'Parquet output format requested but not supported by ktools components. '
                             'Please set "parquet_format" to false in analysis settings file.'
@@ -761,9 +766,11 @@ class GenerateLosses(GenerateLossesDir):
                         lecpy=self.lecpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
-                        analysis_pk=self.kwargs.get('analysis_pk', None)
+                        analysis_pk=self.kwargs.get('analysis_pk', None),
+                        socket_server=True
                     )
-                    model_runner_module.run(self.settings, **run_args)
+                    # model_runner_module.run(self.settings, **run_args)
+                    self.run_progess(model_runner_module, run_args)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
@@ -781,7 +788,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
-                    model_runner_module.run(self.settings, **run_args)
+                    self.run_progess(model_runner_module, run_args)
 
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
@@ -809,9 +816,45 @@ class GenerateLosses(GenerateLossesDir):
                     'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
-
         self.logger.info('Losses generated in {}'.format(model_run_fp))
         return model_run_fp
+
+    def run_progess(self, model_runner_module, run_args):
+        thread = threading.Thread(target=run_model, args=(model_runner_module, self.settings, run_args))
+        thread.start()
+
+        server = GulProgressServer("0.0.0.0", 8888)
+        server.start()
+        counter = 0
+        import os
+        with tqdm(total=os.path.getsize("input/events.bin") / 4, unit="events", desc="Gul events completed", leave=False) as pbar:
+            while thread.is_alive():
+                with server.counter_lock:
+                    if counter != server.counter:
+                        pbar.update(server.counter - counter)
+                        counter = server.counter
+                time.sleep(1)
+        server.stop()
+
+        thread.join()
+
+
+class WorkerThread(threading.Thread):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.exc_info = None
+
+    def run(self):
+        try:
+            if self._target:
+                self._target(*self._args, **self._kwargs)
+        except Exception:
+            # Capture exception info (type, value, traceback)
+            self.exc_info = sys.exc_info()
+
+
+def run_model(model_runner_module, settings, run_args):
+    model_runner_module.run(settings, **run_args)
 
 
 class GenerateLossesDeterministic(ComputationStep):
