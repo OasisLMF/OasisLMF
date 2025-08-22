@@ -22,7 +22,7 @@ def main():
 
 def oasis_ping(data):
     data = json.dumps(data)
-    if os.environ.get('OASIS_WEBSOCKET_URL', None) is not None:
+    if os.environ.get('OASIS_WEBSOCKET_URL', None) is None:
         return oasis_ping_socket(data)
     oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", data)
 
