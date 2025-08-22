@@ -40,8 +40,13 @@ def run(
         os.path.join(run_dir, static_path),
     )
 
-    items_amps = read_amplifications(input_path)
-    plafactors = get_post_loss_amplification_factors(model_storage, secondary_factor, uniform_factor)
+    if uniform_factor > 0:
+        items_amps = None
+        plafactors  = None
+    else:
+        items_amps = read_amplifications(input_path)
+        plafactors = get_post_loss_amplification_factors(model_storage, secondary_factor)
+
 
     # Set default factor should post loss amplification factor be missing
     default_factor = 1.0 if uniform_factor == 0.0 else uniform_factor
