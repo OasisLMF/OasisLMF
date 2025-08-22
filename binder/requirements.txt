@@ -15,5 +15,4 @@ pytest
 qgrid
 tabulate
 graphviz
-websocket
 git+git://github.com/OasisLMF/OasisLMF.git@develop#egg=oasislmf

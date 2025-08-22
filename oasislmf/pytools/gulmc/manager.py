@@ -42,7 +42,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DUR
                                            gulmc_compute_info_type)
 from oasislmf.pytools.gulmc.items import read_items, generate_item_map
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.pytools.ping import oasis_ping_socket
+from oasislmf.pytools.ping import oasis_ping
 
 logger = logging.getLogger(__name__)
 
@@ -475,12 +475,12 @@ def run(run_dir,
             counter += 1
             if ping and time.time() - timer > 1:
                 timer = time.time()
-                oasis_ping_socket({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
+                oasis_ping({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
                 counter = 0
 
             if not streams_in.readinto(event_id_mv):
                 if ping:
-                    oasis_ping_socket({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
+                    oasis_ping({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
                 break
 
             # get the next event_id from the input stream

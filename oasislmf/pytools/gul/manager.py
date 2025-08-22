@@ -13,7 +13,7 @@ import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
 import time
-from oasislmf.pytools.ping import oasis_ping_socket
+from oasislmf.pytools.ping import oasis_ping
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
@@ -278,7 +278,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
             counter += 1
             if ping and time.time() - timer > 1.5:
-                oasis_ping_socket({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
+                oasis_ping({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
                 counter = 0
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
@@ -319,7 +319,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
             logger.info(f"event {event_id} DONE")
         if ping:
-            oasis_ping_socket({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
+            oasis_ping({"counter": counter, "analysis_pk": kwargs["analysis_pk"]})
 
     return 0
 

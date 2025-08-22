@@ -17,7 +17,7 @@ def main():
         logging.error(f"ws_url={ws_url}")
         logging.error(f"message={message}")
         return
-    oasis_ping(ws_url, data)
+    oasis_ping(data)
 
 
 def oasis_ping(data):
