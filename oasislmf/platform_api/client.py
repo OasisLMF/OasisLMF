@@ -215,7 +215,7 @@ class FileEndpoint(object):
         return self.session.delete(self._build_url(ID))
 
 
-class SettingsTemplateBaseEndpoint(object):
+class SettingTemplatesBaseEndpoint(object):
     def __init__(self, session, url_endpoint, url_resource=None, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.session = session
@@ -223,7 +223,7 @@ class SettingsTemplateBaseEndpoint(object):
         self.url_resource = url_resource
 
     def _build_url(self, model_pk, ID=None):
-        url_components = [self.url_endpoint, str(model_pk), 'setting_templates/']
+        url_components = [self.url_endpoint, str(model_pk), 'setting_templates']
         if ID is not None:
             url_components += [str(ID)]
 
@@ -248,14 +248,14 @@ class SettingsTemplateBaseEndpoint(object):
         return self.session.patch(self._build_url(model_pk, ID), json=data)
 
 
-class SettingsTemplateEndpoint(SettingsTemplateBaseEndpoint):
+class SettingTemplatesEndpoint(SettingTemplatesBaseEndpoint):
     """
     Settings Template Endpoint for interacting with analysis settings templates for a given model.
     """
 
     def __init__(self, session, url_endpoint, logger=None):
         super().__init__(session, url_endpoint)
-        self.content = SettingsTemplateBaseEndpoint(session, url_endpoint, 'content/', logger=logger)
+        self.content = SettingTemplatesBaseEndpoint(session, url_endpoint, 'content/', logger=logger)
 
 
 class API_models(ApiEndpoint):
@@ -269,7 +269,7 @@ class API_models(ApiEndpoint):
         self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
         self.scaling_configuration = JsonEndpoint(self.session, self.url_endpoint, 'scaling_configuration/')
 
-        self.setting_templates = SettingsTemplateEndpoint(self.session, self.url_endpoint)
+        self.setting_templates = SettingTemplatesEndpoint(self.session, self.url_endpoint)
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
