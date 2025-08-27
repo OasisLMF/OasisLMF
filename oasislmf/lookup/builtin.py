@@ -383,8 +383,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
                 df_model_perils_covered.name = 'model_perils_covered'
-                peril_locations = peril_locations.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
-
+                peril_locations = peril_locations.merge(df_model_perils_covered,
+                                                        left_on='peril_id', right_on='model_perils_covered',
+                                                        sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])]
             if not not_covered_location.empty:
                 not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']
