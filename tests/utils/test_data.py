@@ -619,7 +619,9 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
-            data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
+            int_col = list(range(len(data)))
+            np.random.shuffle(int_col)
+            data = [{k: (v if k != 'int_col' else int_col[i]) for i, (k, v) in enumerate(it.items())} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -650,7 +652,9 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
-            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
+            int_col = list(range(len(data)))
+            np.random.shuffle(int_col)
+            data = [{k: (v if k != 'IntCol' else int_col[i]) for i, (k, v) in enumerate(it.items())} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -1142,7 +1146,9 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile('w', delete=False, prefix='data')
         try:
-            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
+            int_col = list(range(len(data)))
+            np.random.shuffle(int_col)
+            data = [{k: (v if k != 'IntCol' else int_col[i]) for i, (k, v) in enumerate(it.items())} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()

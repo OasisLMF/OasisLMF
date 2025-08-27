@@ -91,6 +91,22 @@ def get_dynamic_footprint_adjustments(input_path):
     return adjustments_tb
 
 
+@njit(fastmath=True)
+def get_last_non_empty(cdf, bin_i):
+    """
+    remove empty bucket from the end
+    Args:
+        cdf: cumulative distribution
+        bin_i: last valid bin index
+    Returns:
+        last bin index with an increased in the cdf
+    """
+    last_prob = cdf[bin_i]
+    while bin_i > 0 and cdf[bin_i - 1] == last_prob:
+        bin_i -= 1
+    return bin_i + 1
+
+
 @redirect_logging(exec_name='gulmc')
 def run(run_dir,
         ignore_file_type,
@@ -709,7 +725,7 @@ def compute_event_losses(event_id,
                         if weighted_vuln_cdf[damage_bin_i - 1] > 0.999999940:
                             break
 
-                Ndamage_bins = damage_bin_i
+                Ndamage_bins = get_last_non_empty(weighted_vuln_cdf, damage_bin_i - 1)
                 eff_damag_cdf_Ndamage_bins = Ndamage_bins
                 eff_damag_cdf = weighted_vuln_cdf[:eff_damag_cdf_Ndamage_bins]
 
@@ -905,7 +921,7 @@ def compute_event_losses(event_id,
                                     damage_bin_i += 1
                                 vuln_cdf = vuln_cdf[:damage_bin_i]
 
-                            Ndamage_bins = damage_bin_i
+                            Ndamage_bins = get_last_non_empty(vuln_cdf, damage_bin_i - 1)
 
                             vuln_rval = vuln_rndms[sample_idx - 1]
 
@@ -1076,10 +1092,10 @@ def get_vuln_cdf(vuln_i,
             vuln_cdf[damage_bin_i] = cumsum
             damage_bin_i += 1
 
-            if cumsum > 0.999999940:
+            if cumsum >= 0.999999940:
                 break
 
-        Ndamage_bins = damage_bin_i
+        Ndamage_bins = get_last_non_empty(vuln_cdf, damage_bin_i - 1)
 
         if cached_vuln_cdf_lookup_keys[next_cached_vuln_cdf] in cached_vuln_cdf_lookup:
             # overwrite cache
@@ -1192,7 +1208,7 @@ def process_areaperils_in_footprint(event_footprint,
 
                             eff_vuln_cdf[eff_vuln_cdf_start + damage_bin_i] = eff_vuln_cdf_cumsum
                             damage_bin_i += 1
-                            if eff_vuln_cdf_cumsum > 0.999999940:
+                            if eff_vuln_cdf_cumsum >= 0.999999940:
                                 break
 
                         Ndamage_bins = damage_bin_i
