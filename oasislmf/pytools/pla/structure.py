@@ -16,7 +16,7 @@ from .common import PLAFACTORS_FILE
 logger = logging.getLogger(__name__)
 
 
-def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, uniform_factor, ignore_file_type=set()):
+def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, ignore_file_type=set()):
     """
     Get Post Loss Amplification (PLA) factors mapped to event ID-item ID pair.
     Returns empty dictionary if uniform factor to apply across all losses has
@@ -39,17 +39,11 @@ def get_post_loss_amplification_factors(storage: BaseStorage, secondary_factor, 
         storage: (BaseStorage) the storage connector for fetching the model data
         secondary_factor (float): secondary factor to apply to post loss
           amplification
-        uniform_factor (float): uniform factor to apply across all losses
         ignore_file_type: set(str) file extension to ignore when loading
 
     Returns:
         plafactors (dict): event ID-item ID pairs mapped to amplification IDs
     """
-    if uniform_factor > 0.0:
-        return Dict.empty(
-            key_type=types.UniTuple(types.int64, 2), value_type=types.float64
-        )
-
     input_files = set(storage.listdir())
     if PLAFACTORS_FILE in input_files and 'bin' not in ignore_file_type:
         plafactors = read_lossfactors(storage.root_dir, set(["csv"]), PLAFACTORS_FILE)
