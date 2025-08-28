@@ -413,13 +413,13 @@ class ReinsuranceLayer(object):
 
         if self.risk_level == oed.REINS_RISK_LEVEL_LOCATION_GROUP:
             xref_descriptions = self.xref_descriptions_df.sort_values(
-                by=["LocGroup", "PortNumber", "AccNumber", "PolNumber", "LocNumber"])
+                by=["LocGroup", "PortNumber", "AccNumber", "PolNumber", "LocNumber"], kind='stable')
         elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
             xref_descriptions = self.xref_descriptions_df.sort_values(
-                by=["PortNumber", "AccNumber", "LocNumber", "PolNumber"])
+                by=["PortNumber", "AccNumber", "LocNumber", "PolNumber"], kind='stable')
         else:
             xref_descriptions = self.xref_descriptions_df.sort_values(
-                by=["PortNumber", "AccNumber", "PolNumber", "LocNumber"])
+                by=["PortNumber", "AccNumber", "PolNumber", "LocNumber"], kind='stable')
 
         df_levels = []
         # Programme level
@@ -821,7 +821,7 @@ class ReinsuranceLayer(object):
         # Write out Oasis structure
         self.fmprogrammes_df = xref_df[xref_df['agg_id_to'] != 0][['agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
         self.fmprogrammes_df.columns = ['from_agg_id', 'level_id', 'to_agg_id']
-        self.fmprofiles_df = fmprofiles_df.sort_values(by='profile_id').reset_index(drop=True)
+        self.fmprofiles_df = fmprofiles_df.sort_values(by='profile_id', , kind='stable').reset_index(drop=True)
         self.fm_policytcs_df = profile_map_df[profile_map_df['level_id'] > 1][['layer_id', 'level_id', 'agg_id', 'profile_id']].reset_index(drop=True)
         self.fm_policytcs_df['level_id'] = self.fm_policytcs_df['level_id'] - 1
 

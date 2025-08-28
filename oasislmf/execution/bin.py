@@ -225,7 +225,7 @@ def _create_return_period_bin(run_dir, return_periods):
     bin_fp = os.path.join(run_dir, 'input', 'returnperiods.bin')
     pd.DataFrame(
         return_periods,
-        columns=['return_period']).sort_values(ascending=False, by=['return_period']
+        columns=['return_period']).sort_values(ascending=False, by=['return_period'], kind='stable'
                                                ).to_csv(csv_fp, index=False)
 
     try:
@@ -240,7 +240,7 @@ def _create_events_bin(run_dir, event_ids):
     bin_fp = os.path.join(run_dir, 'input', 'events.bin')
     pd.DataFrame(
         event_ids,
-        columns=['event_id']).sort_values(ascending=True, by=['event_id']
+        columns=['event_id']).sort_values(ascending=True, by=['event_id'], kind='stable'
                                           ).to_csv(csv_fp, index=False)
 
     try:
@@ -256,7 +256,7 @@ def _create_quantile_bin(run_dir, quantiles):
     pd.DataFrame(
         quantiles,
         dtype='float',
-        columns=['quantile']).sort_values(ascending=True, by=['quantile']
+        columns=['quantile']).sort_values(ascending=True, by=['quantile'], kind='stable'
                                           ).to_csv(csv_fp, index=False)
 
     try:

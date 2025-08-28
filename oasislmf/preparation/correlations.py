@@ -60,7 +60,7 @@ def get_correlation_input_items(gul_inputs_df: pd.DataFrame, correlation_map_df:
         .reset_index()
         .astype({"damage_correlation_value": "float32", "hazard_correlation_value": "float32"})
         [["item_id", "peril_correlation_group", "damage_correlation_value", "hazard_group_id", "hazard_correlation_value"]]
-        .sort_values('item_id')
+        .sort_values('item_id', kind='stable')
     )
 
     return correlation_df
