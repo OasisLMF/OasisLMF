@@ -151,6 +151,13 @@ RI_SCOPE_DEFAULTS = {
     'CededPercent': 1.0
 }
 
+DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
+                            'type_col': 'BIWaitingPeriodType',
+                            'type_value': 3},
+                           {'field_col': 'BIPOI',
+                            'type_col': 'BIPOIType',
+                            'type_value': 3}]
+
 
 def factorize_array(arr, sort_opt=False):
     """
@@ -767,6 +774,17 @@ def prepare_oed_exposure(exposure_data):
 def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
     location_df[SOURCE_IDX['loc']] = location_df.index
+
+    # fill default types
+    for field_type in DEFAULT_LOC_FIELD_TYPES:
+        if field_type['field_col'] not in location_df.columns:
+            continue
+
+        if field_type['type_col'] not in location_df.columns:
+            location_df[field_type['type_col']] = field_type['type_value']
+        else:
+            location_df[field_type['type_col']] = location_df[field_type['type_col']].fillna(field_type['type_value'])
+
     return location_df
 
 

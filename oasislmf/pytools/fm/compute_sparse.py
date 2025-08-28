@@ -1,4 +1,5 @@
 from oasislmf.pytools.common.data import oasis_float, oasis_int, null_index
+from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, TIV_IDX
 from .policy import calc
 from .policy_extras import calc as calc_extra
 from .common import EXTRA_VALUES, compute_idx_dtype, DEDUCTIBLE, UNDERLIMIT, OVERLIMIT
@@ -377,9 +378,9 @@ def compute_event(compute_info,
 
     # create all sidx array
     all_sidx = np.empty(max_sidx_val + EXTRA_VALUES, dtype=oasis_int)
-    all_sidx[0] = -5
-    all_sidx[1] = -3
-    all_sidx[2] = -1
+    all_sidx[0] = MAX_LOSS_IDX
+    all_sidx[1] = TIV_IDX
+    all_sidx[2] = MEAN_IDX
     all_sidx[3:] = np.arange(1, max_sidx_val + 1)
 
     is_allocation_rule_a0 = compute_info['allocation_rule'] == 0

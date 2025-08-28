@@ -39,7 +39,7 @@ import os
 from collections import OrderedDict
 
 from .exceptions import OasisException
-from .fm import SUPPORTED_FM_LEVELS
+from .fm import FM_LEVELS_PROFILE, SUPPORTED_FM_LEVELS
 
 try:
     from json import JSONDecodeError
@@ -193,39 +193,39 @@ def get_default_json(src_fp):
         raise OasisException('Error trying to load JSON from {}'.format(src_fp))
 
 
-def get_default_accounts_profile(path=False):
+def get_default_accounts_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_acc_profile.json')
-    return get_default_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp)
 
 
-def get_default_exposure_profile(path=False):
+def get_default_exposure_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
-    return get_default_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp)
 
 
-def get_default_fm_profile_field_values(path=False):
+def get_default_fm_profile_field_values():
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_profile_field_values.json')
-    return get_default_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp)
 
 
-def get_default_step_policies_profile(path=False):
+def get_default_step_policies_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_step_policies_profile.json')
-    return get_default_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp)
 
 
-def get_config_profile(path=False):
+def get_config_profile():
     fp = os.path.join(STATIC_DATA_FP, 'config_compatibility_profile.json')
-    return get_default_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp)
 
 
-def get_default_unified_profile(path=False):
+def get_default_unified_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_unified_profile.json')
-    return get_default_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp)
 
 
-def get_default_fm_aggregation_profile(path=False):
+def get_default_fm_aggregation_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
-    return {int(k): v for k, v in get_default_json(src_fp=fp).items()} if not path else fp
+    return {FM_LEVELS_PROFILE[v['FMLevelName']]['id']: v for _, v in get_default_json(src_fp=fp).items()}
 
 
 def assign_defaults_to_il_inputs(df):

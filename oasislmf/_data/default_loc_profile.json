@@ -33,7 +33,6 @@
         "ProfileElementName": "BuildingTIV",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -43,7 +42,6 @@
         "DeductibleType": "B",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -52,7 +50,6 @@
         "ProfileElementName": "LocDedCode1Building",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -61,7 +58,6 @@
         "ProfileElementName": "LocDedType1Building",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -71,7 +67,6 @@
         "DeductibleType": "MI",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -81,7 +76,6 @@
         "DeductibleType": "MA",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -90,7 +84,6 @@
         "ProfileElementName": "LocLimit1Building",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -99,7 +92,6 @@
         "ProfileElementName": "LocLimitCode1Building",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -108,7 +100,6 @@
         "ProfileElementName": "LocLimitType1Building",
         "CoverageTypeID": 1,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitType",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
@@ -117,7 +108,6 @@
         "ProfileElementName": "OtherTIV",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -127,7 +117,6 @@
         "DeductibleType": "B",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -136,7 +125,6 @@
         "ProfileElementName": "LocDedCode2Other",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -145,7 +133,6 @@
         "ProfileElementName": "LocDedType2Other",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -155,7 +142,6 @@
         "DeductibleType": "MI",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -165,7 +151,6 @@
         "DeductibleType": "MA",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -174,7 +159,6 @@
         "ProfileElementName": "LocLimit2Other",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -183,7 +167,6 @@
         "ProfileElementName": "LocLimitCode2Other",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -192,7 +175,6 @@
         "ProfileElementName": "LocLimitType2Other",
         "CoverageTypeID": 2,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitType",
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
@@ -201,7 +183,6 @@
         "ProfileElementName": "ContentsTIV",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -211,7 +192,6 @@
         "DeductibleType": "B",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -220,7 +200,6 @@
         "ProfileElementName": "LocDedCode3Contents",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -229,7 +208,6 @@
         "ProfileElementName": "LocDedType3Contents",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -239,7 +217,6 @@
         "DeductibleType": "MI",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -249,7 +226,6 @@
         "DeductibleType": "MA",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -258,7 +234,6 @@
         "ProfileElementName": "LocLimit3Contents",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -267,7 +242,6 @@
         "ProfileElementName": "LocLimitCode3Contents",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -276,7 +250,6 @@
         "ProfileElementName": "LocLimitType3Contents",
         "CoverageTypeID": 3,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitType",
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
@@ -285,9 +258,41 @@
         "ProfileElementName": "BITIV",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 4,
+        "ProfileType": "Loc"
+    },
+    "BIPOI": {
+        "ProfileElementName": "BIPOI",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BIPOIType": {
+        "ProfileElementName": "BIPOIType",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BIWaitingPeriod": {
+        "ProfileElementName": "BIWaitingPeriod",
+        "DeductibleType": "B",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BIWaitingPeriodType": {
+        "ProfileElementName": "BIWaitingPeriodType",
+        "CoverageTypeID": 4,
+        "FMLevelName": "SiteItem",
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
     "LocDed4BI": {
@@ -295,7 +300,6 @@
         "DeductibleType": "B",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -304,7 +308,6 @@
         "ProfileElementName": "LocDedCode4BI",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -313,7 +316,6 @@
         "ProfileElementName": "LocDedType4BI",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -323,7 +325,6 @@
         "DeductibleType": "MI",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -333,7 +334,6 @@
         "DeductibleType": "MA",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -342,7 +342,6 @@
         "ProfileElementName": "LocLimit4BI",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -351,7 +350,6 @@
         "ProfileElementName": "LocLimitCode4BI",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -360,7 +358,6 @@
         "ProfileElementName": "LocLimitType4BI",
         "CoverageTypeID": 4,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "LimitType",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
@@ -369,7 +366,6 @@
         "ProfileElementName": "LocDed5PD",
         "DeductibleType": "B",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -378,7 +374,6 @@
     "LocDedCode5PD": {
         "ProfileElementName": "LocDedCode5PD",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -387,7 +382,6 @@
     "LocDedType5PD": {
         "ProfileElementName": "LocDedType5PD",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -397,7 +391,6 @@
         "ProfileElementName": "LocMinDed5PD",
         "DeductibleType": "MI",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -407,7 +400,6 @@
         "ProfileElementName": "LocMaxDed5PD",
         "DeductibleType": "MA",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -416,7 +408,6 @@
     "LocLimit5PD": {
         "ProfileElementName": "LocLimit5PD",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -425,7 +416,6 @@
     "LocLimitCode5PD": {
         "ProfileElementName": "LocLimitCode5PD",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -434,7 +424,6 @@
     "LocLimitType5PD": {
         "ProfileElementName": "LocLimitType5PD",
         "FMLevelName": "SitePD",
-        "FMLevel": 2,
         "FMTermType": "LimitType",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3],
@@ -444,7 +433,6 @@
         "ProfileElementName": "LocDed6All",
         "DeductibleType": "B",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -453,7 +441,6 @@
     "LocDedCode6All": {
         "ProfileElementName": "LocDedCode6All",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "DeductibleCode",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -462,7 +449,6 @@
     "LocDedType6All": {
         "ProfileElementName": "LocDedType6All",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "DeductibleType",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -472,7 +458,6 @@
         "ProfileElementName": "LocMinDed6All",
         "DeductibleType": "MI",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -482,7 +467,6 @@
         "ProfileElementName": "LocMaxDed6All",
         "DeductibleType": "MA",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -491,7 +475,6 @@
     "LocLimit6All": {
         "ProfileElementName": "LocLimit6All",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -500,7 +483,6 @@
     "LocLimitCode6All": {
         "ProfileElementName": "LocLimitCode6All",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "LimitCode",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -509,7 +491,6 @@
     "LocLimitType6All": {
         "ProfileElementName": "LocLimitType6All",
         "FMLevelName": "SiteAll",
-        "FMLevel": 3,
         "FMTermType": "LimitType",
         "FMTermGroupID": 1,
         "CoverageTypeID": [1,2,3,4],
@@ -519,7 +500,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 7,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 7,
         "ProfileType": "Loc"
@@ -528,7 +508,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 8,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 8,
         "ProfileType": "Loc"
@@ -537,7 +516,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 9,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 9,
         "ProfileType": "Loc"
@@ -546,7 +524,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 10,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 10,
         "ProfileType": "Loc"
@@ -555,7 +532,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 11,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 11,
         "ProfileType": "Loc"
@@ -564,7 +540,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 12,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 12,
         "ProfileType": "Loc"
@@ -573,7 +548,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 13,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 13,
         "ProfileType": "Loc"
@@ -582,7 +556,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 14,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 14,
         "ProfileType": "Loc"
@@ -591,7 +564,6 @@
         "ProfileElementName": "AnnualRevenue",
         "CoverageTypeID": 15,
         "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 15,
         "ProfileType": "Loc"
