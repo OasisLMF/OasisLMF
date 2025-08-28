@@ -38,6 +38,8 @@ from oasislmf.platform_api.client import (
     API_datafiles,
     API_analyses,
     APIClient,
+    SettingTemplatesBaseEndpoint,
+    SettingTemplatesEndpoint,
 )
 
 
@@ -687,6 +689,94 @@ class APIDatafilesTests(unittest.TestCase):
         self.assertEqual(json.loads(request.body), expected_data)
 
 
+class SettingTemplatesBaseEndpointTest(unittest.TestCase):
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.url_endpoint = 'http://example.com/api'
+        self.session = create_api_session(self.url_endpoint)
+        self.url_resource = 'resource'
+        self.headers = {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+        }
+        self.api = SettingTemplatesBaseEndpoint(self.session, self.url_endpoint, self.url_resource)
+        responses.start()
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
+
+    def test_build_url(self):
+        model_pk = 123
+        ID = 456
+        expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                               'setting_templates', ID, self.url_resource)
+        result = self.api._build_url(model_pk, ID)
+        self.assertEqual(result, expected_url)
+
+    @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1))
+    def test_get_resource(self, model_pk, ID):
+        expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                               'setting_templates', ID,
+                                               self.url_resource)
+        responses.get(url=expected_url, json=[])
+
+        rsp = self.api.get(model_pk, ID)
+        self.assertEqual(rsp.url, expected_url)
+
+    @given(model_pk=st.integers(min_value=1))
+    def test_get(self, model_pk):
+        expected_url = '{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                         'setting_templates')
+        responses.get(url=expected_url, json=[])
+
+        self.api.url_resource = None
+        rsp = self.api.get(model_pk)
+        self.api.url_resource = 'resource'
+        self.assertEqual(rsp.url, expected_url)
+
+    @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1), data=st.dictionaries(keys=st.text(), values=st.text()))
+    def test_post(self, model_pk, ID, data):
+        expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                               'setting_templates', ID,
+                                               self.url_resource)
+        responses.post(url=expected_url, headers=self.headers)
+
+        rsp = self.api.post(model_pk=model_pk, ID=ID, data=data)
+        self.assertEqual(rsp.url, expected_url)
+
+    @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1))
+    def test_delete(self, model_pk, ID):
+        expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                               'setting_templates', ID,
+                                               self.url_resource)
+        responses.delete(url=expected_url, headers=self.headers)
+
+        rsp = self.api.delete(model_pk, ID)
+        self.assertEqual(rsp.url, expected_url)
+
+
+class SettingTemplatesEndpointTest(unittest.TestCase):
+    def setUp(self):
+        assert responses, 'responses package required to run'
+        self.url_endpoint = 'http://example.com/api'
+        self.session = create_api_session(self.url_endpoint)
+        self.api = SettingTemplatesEndpoint(self.session, self.url_endpoint)
+        responses.start()
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
+
+    def test_endpoint_setup(self):
+        self.assertTrue(isinstance(self.api, SettingTemplatesBaseEndpoint))
+
+        content_obj = getattr(self.api, 'content')
+        self.assertEqual(content_obj.url_resource, 'content/')
+        self.assertEqual(content_obj.url_endpoint, self.url_endpoint)
+        self.assertTrue(isinstance(content_obj, SettingTemplatesBaseEndpoint))
+
+
 class APIModelsTests(unittest.TestCase):
     def setUp(self):
         assert responses, 'responses package required to run'
@@ -716,6 +806,9 @@ class APIModelsTests(unittest.TestCase):
                 FileEndpoint,
                 JsonEndpoint
             )))
+
+        # SettingTemplates url_resource not set
+        self.assertTrue(isinstance(getattr(self.api, 'setting_templates'), SettingTemplatesEndpoint))
 
     @given(
         supplier_id=st.text(),
