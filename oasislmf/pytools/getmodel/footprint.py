@@ -1,6 +1,7 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
+import time
 import json
 import logging
 import pickle
@@ -121,7 +122,7 @@ class Footprint:
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
-            self.areaperil_ids = np.unique(areaperil_ids)
+            self.areaperil_ids = areaperil_ids
         else:
             self.areaperil_ids = None
 
@@ -429,6 +430,13 @@ class FootprintParquet(Footprint):
         self.num_intensity_bins = int(meta_data['num_intensity_bins'])
         self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
 
+        if self.areaperil_ids is not None:
+            print("I have an areaperil_id filter")
+            self.areaperil_ids_filter = [("areaperil_id", "in", list(self.areaperil_ids))]
+        else:
+            print("No areaperil_id filter")
+            self.areaperil_ids_filter = None
+
         return self
 
     def get_event(self, event_id: int):
@@ -442,8 +450,11 @@ class FootprintParquet(Footprint):
         """
         dir_path = f"footprint.parquet/event_id={event_id}/"
         if self.storage.exists(dir_path):
-            reader = self.get_df_reader(dir_path)
-            numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
+            reader = self.get_df_reader(dir_path, filters=self.areaperil_ids_filter)
+            t0 = time.time()
+            df = reader.as_pandas()
+            numpy_data = self.prepare_df_data(data_frame=df)
+            print(dir_path, "retrieve", time.time() - t0, df.shape, numpy_data.shape)
             return numpy_data
         else:
             return np.empty(0, dtype=Event)
