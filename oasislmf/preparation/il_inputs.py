@@ -35,7 +35,7 @@ from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES, SUMMARY_TOP_LEVEL_COL
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
-                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
+                               DEDUCTIBLE_AND_LIMIT_TYPES, FM_LEVELS, FML_ACCALL, STEP_TRIGGER_TYPES,
                                SUPPORTED_FM_LEVELS, FM_TERMS, GROUPED_SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
@@ -330,7 +330,7 @@ def get_levels(gul_inputs_df, locations_df, accounts_df):
         if group_info['oed_source'] == 'location':
             if locations_df is not None:
                 locations_df['layer_id'] = 1
-                yield locations_df, list(group_info['levels'].items()), group_info['fm_peril_field']
+                yield locations_df, list(group_info['levels'].items()), group_info.get('fm_peril_field')
         elif group_info['oed_source'] == 'account':
             if group_name == 'cond' and level_conds:
                 loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
@@ -497,7 +497,7 @@ def get_il_input_items(
     :rtype: pandas.DataFrame
     """
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
-    tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in profile[1].items()}
+    tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in profile[FM_LEVELS['site coverage']['id']].items()}
 
     # Get the FM aggregation profile - this describes how the IL input
     # items are to be aggregated in the various FM levels
@@ -800,6 +800,7 @@ def get_il_input_items(
     il_inputs_df_list.append(prev_level_df.drop_duplicates(subset=sub_agg_key + ['agg_id', 'layer_id']))
 
     il_inputs_df = pd.concat(il_inputs_df_list)
+
     for col in set(list(il_inputs_df.columns)):
         try:
             il_inputs_df[col] = il_inputs_df[col].fillna(0)
@@ -839,12 +840,18 @@ def get_il_input_items(
     )
     il_inputs_df.loc[il_inputs_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'], 'ded_type'] = DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id']
 
+    type_filter = il_inputs_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['bi']['id']
+    il_inputs_df.loc[type_filter, 'deductible'] = il_inputs_df.loc[type_filter, 'deductible'] * il_inputs_df.loc[type_filter, 'tiv'] / 365.
+
     il_inputs_df['limit'] = np.where(
         il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
         il_inputs_df['limit'] * il_inputs_df['agg_tiv'],
         il_inputs_df['limit']
     )
     il_inputs_df.loc[il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'], 'lim_type'] = DEDUCTIBLE_AND_LIMIT_TYPES['flat']['id']
+
+    type_filter = il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['bi']['id']
+    il_inputs_df.loc[type_filter, 'limit'] = il_inputs_df.loc[type_filter, 'limit'] * il_inputs_df.loc[type_filter, 'tiv'] / 365.
 
     if step_policies_present:
         # Before assigning calc. rule IDs and policy TC IDs, the StepTriggerType

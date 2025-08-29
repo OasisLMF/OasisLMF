@@ -215,6 +215,49 @@ class FileEndpoint(object):
         return self.session.delete(self._build_url(ID))
 
 
+class SettingTemplatesBaseEndpoint(object):
+    def __init__(self, session, url_endpoint, url_resource=None, logger=None):
+        self.logger = logger or logging.getLogger(__name__)
+        self.session = session
+        self.url_endpoint = str(url_endpoint)
+        self.url_resource = url_resource
+
+    def _build_url(self, model_pk, ID=None):
+        url_components = [self.url_endpoint, str(model_pk), 'setting_templates']
+        if ID is not None:
+            url_components += [str(ID)]
+
+        if self.url_resource is not None:
+            url_components += [str(self.url_resource)]
+
+        return urljoin(*url_components)
+
+    def get(self, model_pk, ID=None):
+        return self.session.get(self._build_url(model_pk, ID))
+
+    def post(self, model_pk, data, ID=None):
+        return self.session.post(self._build_url(model_pk, ID), json=data)
+
+    def delete(self, model_pk, ID):
+        return self.session.delete(self._build_url(model_pk, ID))
+
+    def put(self, model_pk, ID, data):
+        return self.session.put(self._build_url(model_pk, ID), json=data)
+
+    def patch(self, model_pk, ID, data):
+        return self.session.patch(self._build_url(model_pk, ID), json=data)
+
+
+class SettingTemplatesEndpoint(SettingTemplatesBaseEndpoint):
+    """
+    Settings Template Endpoint for interacting with analysis settings templates for a given model.
+    """
+
+    def __init__(self, session, url_endpoint, logger=None):
+        super().__init__(session, url_endpoint)
+        self.content = SettingTemplatesBaseEndpoint(session, url_endpoint, 'content/', logger=logger)
+
+
 class API_models(ApiEndpoint):
     def __init__(self, session, url_endpoint):
         super(API_models, self).__init__(session, url_endpoint)
@@ -225,6 +268,8 @@ class API_models(ApiEndpoint):
         # Platform 2.0 only (Check might be needed here)
         self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
         self.scaling_configuration = JsonEndpoint(self.session, self.url_endpoint, 'scaling_configuration/')
+
+        self.setting_templates = SettingTemplatesEndpoint(self.session, self.url_endpoint)
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))

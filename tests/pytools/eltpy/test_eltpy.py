@@ -1,9 +1,11 @@
+from io import BufferedReader
 import shutil
+import sys
 from tempfile import TemporaryDirectory
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from oasislmf.pytools.common.input_files import read_event_rates
 from oasislmf.pytools.elt.manager import main
@@ -113,3 +115,44 @@ def test_melt_output_parquet_with_event_rate():
 
 def test_qelt_output_parquet():
     case_runner("qelt", "bin")
+
+
+def test_selt_stdin(monkeypatch):
+    input_file = Path(TESTS_ASSETS_DIR, "summarypy.bin")
+    expected_outfile = Path(TESTS_ASSETS_DIR, "py_selt.csv")
+
+    with TemporaryDirectory() as tmp_result_dir_str:
+        actual_outfile = Path(tmp_result_dir_str, "py_selt.csv")
+
+        f = open(input_file, "rb")
+
+        mock_stdin = Mock()
+        mock_stdin.buffer = BufferedReader(f)
+        monkeypatch.setattr(sys, "stdin", mock_stdin)
+
+        kwargs = {
+            "run_dir": TESTS_ASSETS_DIR,
+            "files_in": ["-"],  # default value to use stdin
+            "ext": "csv",
+            "selt": actual_outfile,
+        }
+
+        with patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(**kwargs)
+
+        f.close()
+
+        try:
+            expected_outfile_data = np.genfromtxt(expected_outfile, delimiter=',', skip_header=1)
+            actual_outfile_data = np.genfromtxt(actual_outfile, delimiter=',', skip_header=1)
+            if expected_outfile_data.shape != actual_outfile_data.shape:
+                raise AssertionError(
+                    f"Shape mismatch: {expected_outfile} has shape {expected_outfile_data.shape}, {actual_outfile} has shape {actual_outfile_data.shape}")
+            np.testing.assert_allclose(expected_outfile_data, actual_outfile_data, rtol=1e-5, atol=1e-8)
+        except Exception as e:
+            error_path = TESTS_ASSETS_DIR.joinpath('error_files')
+            error_path.mkdir(exist_ok=True)
+            shutil.copyfile(Path(actual_outfile),
+                            Path(error_path, "py_selt.csv"))
+            arg_str = ' '.join([f"{k}={v}" for k, v in kwargs.items()])
+            raise Exception(f"running 'eltpy {arg_str}' led to diff, see files at {error_path}") from e

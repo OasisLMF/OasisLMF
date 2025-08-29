@@ -62,6 +62,36 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plaf
     return cursor, event_id, item_id, 1
 
 
+@nb.jit(nopython=True, cache=True)
+def read_buffer_uniform(byte_mv, cursor, valid_buff, event_id, item_id, items_amps, plafactors, default_factor, out_byte_mv, out_cursor):
+    while True:
+        if item_id:
+            if valid_buff - cursor < (oasis_int_size + oasis_float_size):
+                break
+            sidx, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            if sidx:
+                loss, _ = mv_read(byte_mv, cursor, oasis_float, oasis_float_size)
+                loss = 0 if np.isnan(loss) else loss
+
+                ###### do loss read ######
+                cursor = mv_write(byte_mv, cursor, oasis_float, oasis_float_size, loss * default_factor)
+                ##########
+
+            else:
+                ##### do item exit ####
+                ##########
+                cursor += oasis_float_size
+                item_id = 0
+        else:
+            if valid_buff - cursor < 2 * oasis_int_size:
+                break
+            event_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+            item_id, cursor = mv_read(byte_mv, cursor, oasis_int, oasis_int_size)
+    out_byte_mv[:cursor] = byte_mv[:cursor]
+    out_cursor[0] = cursor
+    return cursor, event_id, item_id, 1
+
+
 class PlaReader(EventReader):
     def __init__(self, items_amps, plafactors, default_factor):
         self.items_amps = items_amps
@@ -73,10 +103,15 @@ class PlaReader(EventReader):
         self.event_id = 0
         self.item_id = 0
 
+        if self.items_amps is None and self.plafactors is None:
+            self.reader = read_buffer_uniform
+        else:
+            self.reader = read_buffer
+
         self.logger = logger
 
     def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
-        cursor, self.event_id, self.item_id, yield_event = read_buffer(
+        cursor, self.event_id, self.item_id, yield_event = self.reader(
             byte_mv, cursor, valid_buff, self.event_id, self.item_id,
             self.items_amps, self.plafactors, self.default_factor, self.out_byte_mv, self.out_cursor
         )
