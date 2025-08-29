@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`2.4.7`_
+ ---------
+* [#1706](https://github.com/OasisLMF/OasisLMF/pull/1745) - improve BI calculations based on duration of interruption
+* [#1749](https://github.com/OasisLMF/OasisLMF/pull/1756) - PLA amplification file should not be required when uniform factor is given
+* [#1758](https://github.com/OasisLMF/OasisLMF/pull/1757) - add analysis settings template endpoint to platform_api
+* [#1737](https://github.com/OasisLMF/OasisLMF/pull/1751) - pytools output cli should support pipe operations ( | , < , > )
+.. _`2.4.7`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.6...2.4.7
+
 `2.4.6`_
  ---------
 * [#1733](https://github.com/OasisLMF/OasisLMF/pull/1733) - remove top level duplicate before xref merge to avoid massive cartesian product
