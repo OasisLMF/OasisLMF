@@ -32,6 +32,10 @@ parser.add_argument('--run-dir', help='path to the run directory', default='.')
 parser.add_argument('--logging-level',
                     help='logging level (debug:10, info:20, warning:30, error:40, critical:50). Default: 30.',
                     default=30, type=int)
+parser.add_argument('--socket-server', help='Send progress updates to a local socket server with this url',
+                    default=False)
+parser.add_argument('--analysis-pk', help='Only used by platform to link run to an analysis',
+                    default=None)
 
 
 def main():
