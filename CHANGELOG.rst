@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#1752](https://github.com/OasisLMF/OasisLMF/pull/1752) - Port/pandas 2.2.0 fix    (backport 2.3.x) 
+.. _`2.3.18`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.17...2.3.18
+
 `2.3.17`_
  ---------
 * [#1732](https://github.com/OasisLMF/OasisLMF/pull/1732) - Fix/setmaxloss 2.23.x

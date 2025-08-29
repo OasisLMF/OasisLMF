@@ -523,7 +523,7 @@ def get_dataframe(
             else (sort_cols.lower() if lowercase_cols else sort_cols)
         )
         sort_ascending = sort_ascending if sort_ascending is not None else True
-        df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
+        df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True, kind='stable')
     return df
 
 
@@ -593,7 +593,7 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
 
     if not group_by:
         if sort_keys:
-            sorted_df = df.loc[:, usecols].sort_values(by=usecols)
+            sorted_df = df.loc[:, usecols].sort_values(by=usecols, kind='stable')
             sorted_df['ids'] = factorize_ndarray(sorted_df.values, col_idxs=range(len(_usecols)))[0]
             return sorted_df.sort_index()['ids'].to_list()
         else:
