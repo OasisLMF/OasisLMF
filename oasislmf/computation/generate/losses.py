@@ -545,11 +545,11 @@ class GenerateLossesPartial(GenerateLossesDir):
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
             dynamic_footprint=self.dynamic_footprint,
-            analysis_pk=self.kwargs.get('analysis_pk', None)
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
             bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
+        bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
 
         with setcwd(model_run_fp):
             try:
