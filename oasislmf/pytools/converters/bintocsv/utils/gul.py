@@ -83,6 +83,10 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id, data, idxs, stat
             data[idx]["sidx"] = sidx
             data[idx]["loss"] = loss
             idx += 1
+            if idx >= data.shape[0]:
+                # Output array is full
+                _update_idxs()
+                return cursor, event_id, item_id, 1
         else:
             pass  # Should never reach here
 
