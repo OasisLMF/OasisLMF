@@ -116,12 +116,13 @@ class Footprint:
 
         Args:
             storage (BaseStorage): the storage object used to lookup files
+            areaperil_ids (list): areaperil_ids that will be useful
         """
         self.storage = storage
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
-            self.areaperil_ids = np.unique(areaperil_ids)
+            self.areaperil_ids = areaperil_ids
         else:
             self.areaperil_ids = None
 
@@ -429,6 +430,11 @@ class FootprintParquet(Footprint):
         self.num_intensity_bins = int(meta_data['num_intensity_bins'])
         self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
 
+        if self.areaperil_ids is not None:
+            self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
+        else:
+            self.areaperil_ids_filter = None
+
         return self
 
     def get_event(self, event_id: int):
@@ -442,7 +448,7 @@ class FootprintParquet(Footprint):
         """
         dir_path = f"footprint.parquet/event_id={event_id}/"
         if self.storage.exists(dir_path):
-            reader = self.get_df_reader(dir_path)
+            reader = self.get_df_reader(dir_path, filters=self.areaperil_ids_filter)
             numpy_data = self.prepare_df_data(data_frame=reader.as_pandas())
             return numpy_data
         else:
