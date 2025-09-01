@@ -544,7 +544,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             lecpy=self.lecpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
-            dynamic_footprint=self.dynamic_footprint
+            dynamic_footprint=self.dynamic_footprint,
+            analysis_pk=self.kwargs.get('analysis_pk', None)
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -560,7 +561,10 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
-
+                try:
+                    oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") / 4), 'type': 'v2'})
+                except Exception as e:
+                    self.logger.info(f"Harry {e}")
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
