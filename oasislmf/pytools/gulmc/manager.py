@@ -250,7 +250,7 @@ def run(run_dir,
                 logger.debug(
                     f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
             else:
-                valid_areaperil_id = keys_df['AreaPerilID']
+                valid_areaperil_id = np.unique(keys_df['AreaPerilID'])
         else:
             valid_areaperil_id = None
 
