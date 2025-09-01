@@ -210,7 +210,6 @@ def run(run_dir,
     Returns:
         int: 0 if no errors occurred.
     """
-    logger.setLevel(logging.DEBUG)
     logger.info("starting gulmc")
 
     model_storage = get_storage_from_config_path(
@@ -226,7 +225,7 @@ def run(run_dir,
     if debug > 0 and alloc_rule != 0:
         raise ValueError(f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}")
 
-    if data_server and False:
+    if data_server:
         logger.debug("data server active")
         FootprintLayerClient.register()
         logger.debug("registered with data server")
@@ -244,11 +243,14 @@ def run(run_dir,
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         # load keys.csv to determine included AreaPerilID from peril_filter
-        if peril_filter:
+        if os.path.exists(os.path.join(input_path, 'keys.csv')):
             keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-            valid_areaperil_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-            logger.debug(
-                f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
+            if peril_filter:
+                valid_areaperil_id = np.unique(keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
+                logger.debug(
+                    f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
+            else:
+                valid_areaperil_id = keys_df['AreaPerilID']
         else:
             valid_areaperil_id = None
 
@@ -337,7 +339,8 @@ def run(run_dir,
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
+                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
