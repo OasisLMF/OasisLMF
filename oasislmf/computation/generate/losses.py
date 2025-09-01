@@ -50,6 +50,7 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
+from ...pytools.ping import oasis_ping
 from .socket_server import GulProgressServer
 
 import threading
@@ -770,6 +771,7 @@ class GenerateLosses(GenerateLossesDir):
                         socket_server=True
                     )
                     if run_args['analysis_pk']:
+                        oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
                         model_runner_module.run(self.settings, **run_args)
                     else:
                         self.run_progess(model_runner_module, run_args)
