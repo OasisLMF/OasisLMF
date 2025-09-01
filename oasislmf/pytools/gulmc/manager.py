@@ -475,12 +475,12 @@ def run(run_dir,
             counter += 1
             if ping and time.time() - timer > 1:
                 timer = time.time()
-                oasis_ping_socket({"events_complete": counter, "analysis_pk": kwargs["analysis_pk"]})
+                oasis_ping_socket({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
                 counter = 0
 
             if not streams_in.readinto(event_id_mv):
                 if ping:
-                    oasis_ping_socket({"events_complete": counter, "analysis_pk": kwargs["analysis_pk"]})
+                    oasis_ping_socket({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
                 break
 
             # get the next event_id from the input stream
