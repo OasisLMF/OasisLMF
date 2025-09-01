@@ -769,8 +769,10 @@ class GenerateLosses(GenerateLossesDir):
                         analysis_pk=self.kwargs.get('analysis_pk', None),
                         socket_server=True
                     )
-                    model_runner_module.run(self.settings, **run_args)
-                    # self.run_progess(model_runner_module, run_args)
+                    if run_args['analysis_pk']:
+                        model_runner_module.run(self.settings, **run_args)
+                    else:
+                        self.run_progess(model_runner_module, run_args)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
