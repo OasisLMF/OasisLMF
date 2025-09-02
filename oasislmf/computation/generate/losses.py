@@ -565,7 +565,7 @@ class GenerateLossesPartial(GenerateLossesDir):
                     oasis_ping({'analysis_pk': bash_params['analysis_pk'],
                                 'events_total': str(os.path.getsize("input/events.bin") / 4), 'type': 'v2'})
                 except Exception as e:
-                    self.logger.info(f"Harry {e}")
+                    self.logger.info(str(e))
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
@@ -721,6 +721,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
         {'name': 'dynamic_footprint', 'default': False,
             'help': 'Dynamic Footprint'},
+        {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates'},
+        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates'}
     ]
 
     def run(self):
@@ -731,6 +733,16 @@ class GenerateLosses(GenerateLossesDir):
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
+
+        # setup for progress updates
+        if 'analysis_pk' in self.kwargs:
+            socket_server = True
+        elif all(self.kwargs.get(k) for k in ("socket_server_ip", "socket_server_port")):
+            os.environ['OASIS_SOCKET_SERVER_IP'] = self.kwargs['socket_server_ip']
+            os.environ['OASIS_SOCKET_SERVER_PORT'] = self.kwargs['socket_server_port']
+            socket_server = True
+        else:
+            socket_server = False
 
         with setcwd(model_run_fp):
             try:
@@ -773,13 +785,16 @@ class GenerateLosses(GenerateLossesDir):
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
                         analysis_pk=self.kwargs.get('analysis_pk', None),
-                        socket_server=True
+                        socket_server=socket_server
                     )
                     if run_args['analysis_pk']:
+                        # Send ping for total size to platform first
                         oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
                         model_runner_module.run(self.settings, **run_args)
-                    else:
+                    elif socket_server:
                         self.run_progess(model_runner_module, run_args)
+                    else:
+                        model_runner_module.run(self.settings, **run_args)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
@@ -831,11 +846,10 @@ class GenerateLosses(GenerateLossesDir):
     def run_progess(self, model_runner_module, run_args):
         thread = threading.Thread(target=run_model, args=(model_runner_module, self.settings, run_args))
         thread.start()
-
-        server = GulProgressServer("0.0.0.0", 8888)
+        import os
+        server = GulProgressServer(os.environ['OASIS_SOCKET_SERVER_IP'], os.environ['OASIS_SOCKET_SERVER_PORT'])
         server.start()
         counter = 0
-        import os
         with tqdm(total=os.path.getsize("input/events.bin") / 4, unit="events", desc="Gul events completed", leave=False) as pbar:
             while thread.is_alive():
                 with server.counter_lock:

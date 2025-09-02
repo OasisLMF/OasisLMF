@@ -6,7 +6,7 @@ import json
 class GulProgressServer:
     def __init__(self, host="0.0.0.0", port=8888):
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.counter = 0
         self.counter_lock = threading.Lock()
         self.running = False
@@ -33,7 +33,7 @@ class GulProgressServer:
         data = client_socket.recv(1024)
         payload = json.loads(data.decode("utf-8").strip())
         with self.counter_lock:
-            self.counter += int(payload.get("counter", 0))
+            self.counter += int(payload.get("events_complete", 0))
         try:
             client_socket.sendall(b"OK\n")
         finally:

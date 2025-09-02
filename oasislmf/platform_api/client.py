@@ -610,7 +610,7 @@ class APIClient(object):
                     logged_queued = True
             elif status == 'RUN_STARTED':
                 self.logger.info(f'Analysis Run: Executing (id={analysis_id})')
-                self._run_until_complete(analysis_id, poll_interval, analysis.get('run_mode', 'V1'))
+                self._run_until_complete(analysis_id, poll_interval)
                 poll_interval = 0
             else:
                 err_msg = f"Execution status in Unknown State: '{analysis['status']}'"
@@ -618,15 +618,10 @@ class APIClient(object):
                 raise OasisException(err_msg)
             time.sleep(poll_interval)
 
-    def _run_until_complete(self, analysis_id, poll_interval, run_mode):
-        if run_mode == 'V1':
-            self._run_until_complete_v1(analysis_id, poll_interval)
-        else:
-            self._run_until_complete_v2(analysis_id, poll_interval)
-
-    def _run_until_complete_v1(self, analysis_id, poll_interval):
+    def _run_until_complete(self, analysis_id, poll_interval):
         analysis = self.analyses.get(analysis_id).json()
         while analysis.get('num_events_total', 0) == 0:
+            self.logger.info(f"Harry {analysis}")
             self.logger.info("Run initiating...")
             if any(status in analysis['status'] for status in ['_CANCELLED', '_ERROR', 'COMPLETED']):
                 return
@@ -644,24 +639,6 @@ class APIClient(object):
                 elif 'COMPLETED' in analysis['status']:
                     pbar.update(pbar.total - pbar.n)
                     break
-
-    def _run_until_complete_v2(self, analysis_id, poll_interval):
-        analysis = self.analyses.get(analysis_id).json()
-        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
-        with tqdm(total=len(sub_tasks_list), unit=' sub_task', desc='Analysis Run') as pbar:
-            completed = []
-            while 'COMPLETED' not in analysis['status']:
-                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
-                pbar.update(len(completed) - pbar.n)
-                time.sleep(poll_interval)
-
-                analysis = self.analyses.get(analysis_id).json()
-                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
-                    break
-                elif 'COMPLETED' in analysis['status']:
-                    pbar.update(pbar.total - pbar.n)
-                    break
-                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
 
     def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:

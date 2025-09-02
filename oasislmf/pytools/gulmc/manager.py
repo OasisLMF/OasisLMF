@@ -470,7 +470,7 @@ def run(run_dir,
 
         counter = -1
         timer = time.time()
-        ping = kwargs.get('socket_server', False)
+        ping = kwargs.get('socket_server', 'False') != 'False'
         while True:
             counter += 1
             if ping and time.time() - timer > 1:

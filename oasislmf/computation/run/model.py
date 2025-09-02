@@ -35,9 +35,7 @@ class RunModel(ComputationStep):
         {'name': 'pre_loss_module', 'required': False, 'is_path': True,
          'pre_exist': True, 'help': 'pre-loss hook module path'},
         {'name': 'post_file_gen_module', 'required': False, 'is_path': True,
-         'pre_exist': True, 'help': 'post-file gen hook module path'},
-        {'name': 'socket_server', 'required': False, 'is_path': False,
-         'pre_exist': True, 'help': 'placeholder'}
+         'pre_exist': True, 'help': 'post-file gen hook module path'}
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [

@@ -274,7 +274,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         counter = -1
         timer = time.time()
-        ping = kwargs.get('socket_server', False)
+        ping = kwargs.get('socket_server', 'False') != 'False'
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
             counter += 1
             if ping and time.time() - timer > 1.5:

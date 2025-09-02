@@ -23,13 +23,16 @@ def main():
 def oasis_ping(data):
     msg = json.dumps(data)
     if data.get('analysis_pk', None) is not None:
-        return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
+        if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+            return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
+        return None
     return oasis_ping_socket(msg)
 
 
 def oasis_ping_socket(data):
     oasis_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    oasis_socket.connect(("0.0.0.0", 8888))
+    oasis_socket.connect((os.environ.get("OASIS_SOCKET_SERVER_IP", "0.0.0.0"),
+                          int(os.environ.get("OASIS_SOCKET_SERVER_PORT", 8888))))
     oasis_socket.send(data.encode('utf-8'))
 
 
