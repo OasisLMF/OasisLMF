@@ -562,7 +562,8 @@ class GenerateLossesPartial(GenerateLossesDir):
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
                 try:
-                    oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") / 4), 'type': 'v2'})
+                    oasis_ping({'analysis_pk': bash_params['analysis_pk'],
+                                'events_total': str(os.path.getsize("input/events.bin") / 4), 'type': 'v2'})
                 except Exception as e:
                     self.logger.info(f"Harry {e}")
                 return model_runner_module.run_analysis(**bash_params)
