@@ -13,4 +13,3 @@ pytest-ignore-flaky
 sphinx-autoapi
 tox
 responses<=0.25.3
-websocket-client==1.8.0
