@@ -736,7 +736,7 @@ class GenerateLosses(GenerateLossesDir):
         model_runner_module, package_name = self._get_model_runner()
 
         # setup for progress updates
-        if 'analysis_pk' in self.kwargs:
+        if 'analysis_pk' in self.kwargs and all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             socket_server = True
         elif all(self.kwargs.get(k) for k in ("socket_server_ip", "socket_server_port")):
             os.environ['OASIS_SOCKET_SERVER_IP'] = self.kwargs['socket_server_ip']
@@ -840,7 +840,8 @@ class GenerateLosses(GenerateLossesDir):
     def start_run(self, model_runner_module, run_args, socket_server):
         if run_args.get('analysis_pk', False):
             # Send ping for total size to platform first
-            oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
+            if socket_server:
+                oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
             model_runner_module.run(self.settings, **run_args)
         elif socket_server:
             self.run_progess(model_runner_module, run_args)
