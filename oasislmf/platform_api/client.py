@@ -621,8 +621,7 @@ class APIClient(object):
     def _run_until_complete(self, analysis_id, poll_interval):
         analysis = self.analyses.get(analysis_id).json()
         while analysis.get('num_events_total', 0) == 0:
-            self.logger.info(f"Harry {analysis}")
-            self.logger.info("Run initiating...")
+            # Possible to stay here if no env vars given to worker
             if any(status in analysis['status'] for status in ['_CANCELLED', '_ERROR', 'COMPLETED']):
                 return
             time.sleep(poll_interval)

@@ -220,8 +220,7 @@ class TestGenLosses(ComputationChecker):
         run_settings = self.tmp_files.get('analysis_settings_json')
         self.write_json(run_settings, RI_RUN_SETTINGS)
 
-        with (self.tmp_dir() as model_run_dir,
-              patch('oasislmf.pytools.ping.oasis_ping')):
+        with self.tmp_dir() as model_run_dir:
             call_args = {
                 **self.min_args,
                 'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],

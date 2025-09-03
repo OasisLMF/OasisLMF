@@ -3107,7 +3107,6 @@ def genbash(
 
 
 def add_server_call(call, analysis_pk=None, socket_server=False):
-    #raise ValueError(call, analysis_pk, socket_server)
     if '| gul' not in call:
         return call
     if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']) and analysis_pk is not None:

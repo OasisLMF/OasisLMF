@@ -53,7 +53,7 @@ parser.add_argument('--model-df-engine', help='The engine to use when loading mo
 parser.add_argument('--dynamic-footprint', help='Apply dynamic footprint logic with intensity adjustments',
                     default=False)
 parser.add_argument('--socket-server', help='Send progress updates to a local socket server with this url',
-                    default=False)
+                    default='False')
 parser.add_argument('--analysis-pk', help='Only used by platform to link run to an analysis',
                     default=None)
 
