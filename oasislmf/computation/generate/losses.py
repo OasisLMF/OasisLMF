@@ -548,6 +548,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
             bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
+        if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+            bash_params['socket_server'] = True
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
 
         with setcwd(model_run_fp):
