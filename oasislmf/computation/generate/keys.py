@@ -131,14 +131,20 @@ class GenerateKeys(KeyComputationStep):
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
         os.makedirs(os.path.dirname(keys_errors_fp), exist_ok=True)
+
         keys_success_msg = True if self.lookup_complex_config_json else False
+        if self.lookup_complex_config_json:
+            complex_lookup_config_fp = self.lookup_complex_config_json
+        else:
+            complex_lookup_config_fp = self.settings
+
 
         model_info, key_server = KeyServerFactory.create(
             lookup_config_fp=self.lookup_config_json,
             model_keys_data_path=self.lookup_data_dir,
             model_version_file_path=self.model_version_csv,
             lookup_module_path=self.lookup_module_path,
-            complex_lookup_config_fp=self.lookup_complex_config_json,
+            complex_lookup_config_fp=complex_lookup_config_fp,
             user_data_dir=self.user_data_dir,
             output_directory=output_dir
         )
