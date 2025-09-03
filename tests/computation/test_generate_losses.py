@@ -3,19 +3,19 @@ import pathlib
 import os
 import logging
 import shutil
-import pytest
 
-from unittest import mock
-from unittest.mock import patch, Mock, ANY
+from unittest.mock import patch, Mock
 
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
-from ods_tools.oed.common import OdsException
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
-from .data.common import *
+from .data.common import (
+    MIN_RUN_SETTINGS, MIN_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR, IL_RUN_SETTINGS, RI_RUN_SETTINGS,
+    RI_ALL_OUTPUT_SETTINGS, ALL_EXPECTED_SCRIPT, FAKE_MODEL_RUNNER, FAKE_MODEL_RUNNER__OLD, INVALID_RUN_SETTINGS, RI_AAL_SETTINGS,
+    PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, merge_dirs
+)
 from .test_computation import ComputationChecker
 
 
@@ -131,7 +131,7 @@ class TestGenLosses(ComputationChecker):
         try:
             self.manager.generate_files(**self.args_gen_files_gul)
             self.manager.generate_losses(**self.min_args)
-        except:
+        except Exception:
             print(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err'))
             print(open(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err')).read())
             raise
@@ -220,20 +220,22 @@ class TestGenLosses(ComputationChecker):
         run_settings = self.tmp_files.get('analysis_settings_json')
         self.write_json(run_settings, RI_RUN_SETTINGS)
 
-        with self.tmp_dir() as model_run_dir:
+        with (self.tmp_dir() as model_run_dir,
+              patch('oasislmf.pytools.ping.oasis_ping')):
             call_args = {
                 **self.min_args,
                 'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
                 'max_process_id': num_chunks,
                 'model_run_dir': model_run_dir,
             }
-            run_settings_return = self.manager.generate_losses_dir(**call_args)
+            self.manager.generate_losses_dir(**call_args)
             main_work_dir = os.path.join(model_run_dir, 'work')
 
             for i in range(1, num_chunks + 1):
                 chunk_args = {
                     **call_args,
-                    'process_number': i
+                    'process_number': i,
+                    'analysis_pk': 1
                 }
                 self.manager.generate_losses_partial(**chunk_args)
                 chunk_bash_path = os.path.join(model_run_dir, f'{i}.run_analysis.sh')
@@ -260,7 +262,7 @@ class TestGenLosses(ComputationChecker):
         mock_run_func.assert_called_once()
 
     @patch('oasislmf.execution.runner.run')
-    def test_losses__supplier_model_ruuner_old(self, mock_run_func):
+    def test_losses__supplier_model_runner_old(self, mock_run_func):
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
         call_args = {
@@ -357,7 +359,7 @@ class TestGenLosses(ComputationChecker):
         self.assertIn('GUL_STDERR', self._caplog.text)
         self.assertIn('STDOUT:', self._caplog.text)
 
-    def test_losses__bash_error__expection_raised__outputs(self):
+    def test_losses__bash_error__exception_raised__outputs(self):
         self.manager.generate_files(**self.args_gen_files_ri)
         run_settings = self.tmp_files.get('analysis_settings_json')
         self.write_json(run_settings, RI_AAL_SETTINGS)
@@ -369,12 +371,12 @@ class TestGenLosses(ComputationChecker):
             'max_process_id': 1,
             'model_run_dir': run_dir
         }
-        run_settings_return = self.manager.generate_losses_dir(**call_args)
-        main_work_dir = os.path.join(run_dir, 'work')
+        self.manager.generate_losses_dir(**call_args)
 
         chunk_args = {
             **call_args,
-            'process_number': 1
+            'process_number': 1,
+            'analysis_pk': 1
         }
         self.manager.generate_losses_partial(**chunk_args)
         with self.assertRaises(OasisException) as context:

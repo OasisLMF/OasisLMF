@@ -167,7 +167,6 @@ class GenerateLossesBase(ComputationStep):
                 self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
 
         self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
-
         raise OasisException(
             'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
             'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
@@ -787,14 +786,7 @@ class GenerateLosses(GenerateLossesDir):
                         analysis_pk=self.kwargs.get('analysis_pk', None),
                         socket_server=socket_server
                     )
-                    if run_args['analysis_pk']:
-                        # Send ping for total size to platform first
-                        oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
-                        model_runner_module.run(self.settings, **run_args)
-                    elif socket_server:
-                        self.run_progess(model_runner_module, run_args)
-                    else:
-                        model_runner_module.run(self.settings, **run_args)
+                    self.start_run(model_runner_module, run_args, socket_server)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
@@ -812,7 +804,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
-                    self.run_progess(model_runner_module, run_args)
+                    self.start_run(model_runner_module, run_args, socket_server)
 
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
@@ -842,6 +834,16 @@ class GenerateLosses(GenerateLossesDir):
                 )
         self.logger.info('Losses generated in {}'.format(model_run_fp))
         return model_run_fp
+
+    def start_run(self, model_runner_module, run_args, socket_server):
+        if run_args.get('analysis_pk', False):
+            # Send ping for total size to platform first
+            oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
+            model_runner_module.run(self.settings, **run_args)
+        elif socket_server:
+            self.run_progess(model_runner_module, run_args)
+        else:
+            model_runner_module.run(self.settings, **run_args)
 
     def run_progess(self, model_runner_module, run_args):
         thread = threading.Thread(target=run_model, args=(model_runner_module, self.settings, run_args))

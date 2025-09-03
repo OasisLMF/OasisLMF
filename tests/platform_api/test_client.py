@@ -1449,17 +1449,11 @@ class APIClientTests(unittest.TestCase):
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
         exec_url = f'{expected_url}run/'
 
-        sub_task_data_fp = os.path.join(os.path.dirname(__file__), 'data', 'losses_sub-tasks.json')
-        sub_task_url = f'{expected_url}sub_task_list/'
-        with open(sub_task_data_fp, mode='r') as f:
-            sub_task_data = json.load(f)
-
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
-            rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_COMPLETED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
             self.assertTrue(result)
@@ -1469,16 +1463,9 @@ class APIClientTests(unittest.TestCase):
         expected_url = f'{self.client.analyses.url_endpoint}{ID}/'
         exec_url = f'{expected_url}run/'
 
-        sub_task_data_fp = os.path.join(os.path.dirname(__file__), 'data', 'losses_sub-tasks.json')
-        sub_task_url = f'{expected_url}sub_task_list/'
-        with open(sub_task_data_fp, mode='r') as f:
-            sub_task_data = json.load(f)
-
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
             rsps.post(exec_url, json={"id": ID, "status": "RUN_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
-            rsps.get(sub_task_url, json=sub_task_data)
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             rsps.get(expected_url, json={"id": ID, "status": "RUN_CANCELLED"})
             result = self.client.run_analysis(analysis_id=ID, poll_interval=0.1)
