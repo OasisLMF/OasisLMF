@@ -138,7 +138,6 @@ class GenerateKeys(KeyComputationStep):
         else:
             complex_lookup_config_fp = self.settings
 
-
         model_info, key_server = KeyServerFactory.create(
             lookup_config_fp=self.lookup_config_json,
             model_keys_data_path=self.lookup_data_dir,
