@@ -5,6 +5,7 @@ __all__ = [
 from ..base import ComputationStep
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
+from ...utils.data import analysis_settings_loader, model_settings_loader
 
 
 class PostAnalysis(ComputationStep):
@@ -13,6 +14,9 @@ class PostAnalysis(ComputationStep):
     It passes the output directory to a customisable function that might modify or add to the
     standard output files.
     """
+    settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
+
     step_params = [
         {'name': 'post_analysis_module', 'required': True, 'is_path': True, 'pre_exist': True,
          'help': 'Post-Analysis module path'},
@@ -34,6 +38,7 @@ class PostAnalysis(ComputationStep):
         kwargs = {
             'model_data_dir': self.model_data_dir,
             'analysis_settings_json': self.analysis_settings_json,
+            'settings': self.settings,
             'model_run_dir': self.model_run_dir,
             'user_data_dir': self.user_data_dir,
         }

@@ -6,7 +6,7 @@ import json
 import pathlib
 
 from ..base import ComputationStep
-from ...utils.data import get_exposure_data
+from ...utils.data import get_exposure_data, analysis_settings_loader, model_settings_loader
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
@@ -18,6 +18,9 @@ class PreLoss(ComputationStep):
     On the platform it will be called on each machine performing the loss calculation,
     Add the ability to specify a model specific step that will modify or expand on the loss calculation input file on each worker.
     """
+    settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
+
     step_params = [{'name': 'pre_loss_module', 'required': True, 'is_path': True, 'pre_exist': True,
                     'help': 'pre loss calculation lookup module path'},
                    {'name': 'pre_loss_class_name', 'default': 'PreLoss',
@@ -83,6 +86,7 @@ class PreLoss(ComputationStep):
         kwargs['input_dir'] = input_dir
         kwargs['model_data_dir'] = self.model_data_dir
         kwargs['analysis_settings_json'] = self.analysis_settings_json
+        kwargs['settings'] = self.settings
         kwargs['user_data_dir'] = self.user_data_dir
         kwargs['logger'] = self.logger
 

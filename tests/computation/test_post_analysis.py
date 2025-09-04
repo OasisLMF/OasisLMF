@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from .data.common import MIN_RUN_CORRELATIONS_SETTINGS
 
 from oasislmf.manager import OasisManager
 from oasislmf.utils.exceptions import OasisException
@@ -108,7 +109,7 @@ def test_postanalysis_with_settings(tmp_path):
     (raw_output_dir / 'gul_S1_aalcalc.csv').write_text("999")  # Create one output file.
 
     settings_path = tmp_path / "analysis_settings.json"
-    settings_path.write_text(json.dumps({"file_to_create": "hello.txt"}))
+    settings_path.write_text(json.dumps({"file_to_create": "hello.txt", **MIN_RUN_CORRELATIONS_SETTINGS}))
 
     post_processed_output_dir = raw_output_dir / 'postprocessed'
 
