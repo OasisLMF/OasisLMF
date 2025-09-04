@@ -223,7 +223,7 @@ class SettingTemplatesBaseEndpoint(object):
         self.url_resource = url_resource
 
     def _build_url(self, model_pk, ID=None):
-        url_components = [self.url_endpoint, str(model_pk), 'setting_templates']
+        url_components = [self.url_endpoint, str(model_pk), 'setting_templates/']
         if ID is not None:
             url_components += [str(ID)]
 
