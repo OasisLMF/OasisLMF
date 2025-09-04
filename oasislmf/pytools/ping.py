@@ -1,42 +1,62 @@
 import json
-import sys
 import websocket
 import logging
 import socket
 import os
 
 
-def main():
-    try:
-        ws_url = sys.argv[1]
-        message = sys.argv[2]
-        data = json.loads(message)
-    except Exception as e:
-        logging.error("Ping called incorrectly: required call 'oasis-ping <location> <json>'")
-        logging.error(f"error={str(e)}")
-        logging.error(f"ws_url={ws_url}")
-        logging.error(f"message={message}")
-        return
-    oasis_ping(data)
-
-
 def oasis_ping(data):
+    """
+    Sends a JSON message to either a websocket server or a socket server.
+
+    If `analysis_pk` is in the data, `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` are in environment, sends a websocket message.
+    If `analysis_pk` but missing variables, no message sent.
+    Else, websocket sent to `OASIS_SOCKET_SERVER_IP` `OASIS_SOCKET_SERVER_PORT` defaulted to 127.0.0.1 8888.
+
+    For a specific socket or websocket, use `oasis_ping_socket` or `oasis_ping_websocket` with the target location.
+
+    Args:
+        data (dict): dictionary of data: JSON serialisable
+
+    Returns:
+        None
+    """
     msg = json.dumps(data)
     if data.get('analysis_pk', None) is not None:
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
         return None
-    return oasis_ping_socket(msg)
+    target = (os.environ.get("OASIS_SOCKET_SERVER_IP", "127.0.0.1"), int(os.environ.get("OASIS_SOCKET_SERVER_PORT", 8888)))
+    return oasis_ping_socket(target, msg)
 
 
-def oasis_ping_socket(data):
+def oasis_ping_socket(target, data):
+    """
+    Sends a JSON message to a target socket
+
+    Args:
+        target ((str, int)): IP and port to hit
+        data (str): JSON dumped string
+
+    Returns:
+        None
+    """
     oasis_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    oasis_socket.connect((os.environ.get("OASIS_SOCKET_SERVER_IP", "0.0.0.0"),
-                          int(os.environ.get("OASIS_SOCKET_SERVER_PORT", 8888))))
+    oasis_socket.connect(target)
     oasis_socket.send(data.encode('utf-8'))
 
 
 def oasis_ping_websocket(ws_url, data):
+    """
+    Sends a JSON message to a target websocket
+
+    Args:
+        ws_url (str): URL to hit (e.g. "ws://oasis-websocket:8001/ws/analysis-status/")
+        data (str): JSON dumped string
+
+    Returns:
+        None
+    """
     try:
         ws = websocket.WebSocket()
         ws.connect(ws_url)

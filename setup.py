@@ -391,7 +391,6 @@ setup(
             'pltpy=oasislmf.pytools.plt.cli:main',
             'aalpy=oasislmf.pytools.aal.cli:main',
             'lecpy=oasislmf.pytools.lec.cli:main',
-            'oasis-ping=oasislmf.pytools.ping:main',
             'bintocsv=oasislmf.pytools.converters.bintocsv.cli:main',
             'csvtobin=oasislmf.pytools.converters.csvtobin.cli:main',
             'bintoparquet=oasislmf.pytools.converters.bintoparquet.cli:main',

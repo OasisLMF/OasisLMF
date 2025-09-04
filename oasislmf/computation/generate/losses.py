@@ -722,8 +722,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
         {'name': 'dynamic_footprint', 'default': False,
             'help': 'Dynamic Footprint'},
-        {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates'},
-        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates'}
+        {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
+        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'}
     ]
 
     def run(self):
@@ -734,16 +734,16 @@ class GenerateLosses(GenerateLossesDir):
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
+        if self.kwargs.get("socket_server_ip"):
+            os.environ['OASIS_SOCKET_SERVER_IP'] = self.kwargs['socket_server_ip']
+        if self.kwargs.get("socket_server_port"):
+            os.environ['OASIS_SOCKET_SERVER_PORT'] = self.kwargs['socket_server_port']
 
         # setup for progress updates
-        if 'analysis_pk' in self.kwargs and all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-            socket_server = True
-        elif all(self.kwargs.get(k) for k in ("socket_server_ip", "socket_server_port")):
-            os.environ['OASIS_SOCKET_SERVER_IP'] = self.kwargs['socket_server_ip']
-            os.environ['OASIS_SOCKET_SERVER_PORT'] = self.kwargs['socket_server_port']
-            socket_server = True
-        else:
+        if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             socket_server = False
+        else:
+            socket_server = True
 
         with setcwd(model_run_fp):
             try:

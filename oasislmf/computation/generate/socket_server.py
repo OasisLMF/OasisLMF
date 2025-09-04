@@ -4,7 +4,7 @@ import json
 
 
 class GulProgressServer:
-    def __init__(self, host="0.0.0.0", port=8888):
+    def __init__(self, host="127.0.0.1", port=8888):
         self.host = host
         self.port = int(port)
         self.counter = 0
@@ -24,7 +24,7 @@ class GulProgressServer:
     def _accept_loop(self):
         while self.running:
             try:
-                client_socket, addr = self.server_socket.accept()
+                client_socket, _ = self.server_socket.accept()
                 threading.Thread(target=self._handle_client, args=(client_socket,), daemon=True).start()
             except OSError:
                 break  # socket was closed
