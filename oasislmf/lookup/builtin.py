@@ -5,7 +5,6 @@ in the future we may want to improve on the management of files used to generate
 tutorial for pandas and parquet https://towardsdatascience.com/a-gentle-introduction-to-apache-arrow-with-apache-spark-and-pandas-bb19ffe0ddae
 
 """
-import os.path
 import warnings
 
 import numba as nb
