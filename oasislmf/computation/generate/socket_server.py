@@ -1,15 +1,22 @@
 import socket
 import threading
 import json
+import os
 
 
 class GulProgressServer:
-    def __init__(self, host="127.0.0.1", port=8888):
-        self.host = host
-        self.port = int(port)
+    def __init__(self, host=None, port=None):
+        """
+        Args:
+            host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or `127.0.0.1` if unset.
+            port (int, optional): Non-default port to use. Defaults to `OASIS_SOCKET_SERVER_PORT` or 8888 if unset.
+        """
+        self.host = os.environ.get('OASIS_SOCKET_SERVER_IP', "127.0.0.1") if host is None else host
+        self.port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', 8888)) if port is None else port
         self.counter = 0
         self.counter_lock = threading.Lock()
         self.running = False
+        self._accept_thread = False
 
     def start(self):
         self.running = True
@@ -18,8 +25,8 @@ class GulProgressServer:
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
 
-        thread = threading.Thread(target=self._accept_loop, daemon=True)
-        thread.start()
+        self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
+        self._accept_thread.start()
 
     def _accept_loop(self):
         while self.running:
@@ -42,3 +49,5 @@ class GulProgressServer:
     def stop(self):
         self.running = False
         self.server_socket.close()
+        if self._accept_thread:
+            self._accept_thread.join(timeout=1)

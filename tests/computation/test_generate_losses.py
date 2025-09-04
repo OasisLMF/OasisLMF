@@ -17,7 +17,7 @@ from .data.common import (
     PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, merge_dirs
 )
 from .test_computation import ComputationChecker
-
+from oasislmf.computation.generate.losses import GenerateLosses
 
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
@@ -112,7 +112,8 @@ class TestGenLosses(ComputationChecker):
         }
 
     def test_losses__no_input__exception_raised(self):
-        with self.assertRaises(OasisException) as context:
+        with (self.assertRaises(OasisException) as context,
+              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10000"})):
             self.manager.generate_losses()
         expected_err_msg = 'parameter oasis_files_dir is required'
         self.assertIn(expected_err_msg, str(context.exception))
@@ -120,7 +121,8 @@ class TestGenLosses(ComputationChecker):
     def test_losses__run_gul(self):
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
-        self.manager.generate_losses(**self.min_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10001"}):
+            self.manager.generate_losses(**self.min_args)
 
     def test_losses__run_gul_with_pla(self):
         PLA_SETTINGS = MIN_RUN_SETTINGS.copy()
@@ -130,7 +132,8 @@ class TestGenLosses(ComputationChecker):
         self.write_json(self.tmp_files.get('analysis_settings_json'), PLA_SETTINGS)
         try:
             self.manager.generate_files(**self.args_gen_files_gul)
-            self.manager.generate_losses(**self.min_args)
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10002"}):
+                self.manager.generate_losses(**self.min_args)
         except Exception:
             print(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err'))
             print(open(os.path.join(self.tmp_dirs['model_run_dir'].name, 'log', 'stderror.err')).read())
@@ -150,7 +153,8 @@ class TestGenLosses(ComputationChecker):
         }
         self.write_json(self.tmp_files.get('analysis_settings_json'), OED_SETTINGS)
         self.manager.generate_files(**gen_args)
-        self.manager.generate_losses(**self.min_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10003"}):
+            self.manager.generate_losses(**self.min_args)
 
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)
@@ -160,7 +164,8 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'oasis_files_dir': self.args_gen_files_il['oasis_files_dir'],
         }
-        self.manager.generate_losses(**call_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10004"}):
+            self.manager.generate_losses(**call_args)
 
     def test_losses__run_ri(self):
         self.manager.generate_files(**self.args_gen_files_ri)
@@ -170,7 +175,8 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
         }
-        self.manager.generate_losses(**call_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10005"}):
+            self.manager.generate_losses(**call_args)
 
     @patch('oasislmf.computation.hooks.post_analysis.PostAnalysis.run')
     def test_losses__run__post_analysis_is_called(self, mock_post_analysis):
@@ -205,7 +211,8 @@ class TestGenLosses(ComputationChecker):
                     'model_run_dir': model_run_dir,
                     'summarypy': summary_type == 'summarypy'
                 }
-                self.manager.generate_losses(**call_args)
+                with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
+                    self.manager.generate_losses(**call_args)
 
                 # Check bash script vs reference
                 self.assertTrue(sub_process_run.called)
@@ -236,7 +243,8 @@ class TestGenLosses(ComputationChecker):
                     'process_number': i,
                     'analysis_pk': 1
                 }
-                self.manager.generate_losses_partial(**chunk_args)
+                with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10007"}):
+                    self.manager.generate_losses_partial(**chunk_args)
                 chunk_bash_path = os.path.join(model_run_dir, f'{i}.run_analysis.sh')
                 chunk_work_dir = os.path.join(model_run_dir, f'{i}.work')
 
@@ -257,10 +265,11 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'model_package_dir': FAKE_MODEL_RUNNER,
         }
-        self.manager.generate_losses(**call_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10008"}):
+            self.manager.generate_losses(**call_args)
         mock_run_func.assert_called_once()
 
-    @patch('oasislmf.execution.runner.run')
+    @patch('oasislmf.computation.generate.losses.run_model')
     def test_losses__supplier_model_runner_old(self, mock_run_func):
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
@@ -268,7 +277,8 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'model_package_dir': FAKE_MODEL_RUNNER__OLD,
         }
-        self.manager.generate_losses(**call_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10009"}):
+            self.manager.generate_losses(**call_args)
         mock_run_func.assert_called_once()
 
     @given(
@@ -290,7 +300,8 @@ class TestGenLosses(ComputationChecker):
                 'ktools_event_shuffle': event_shuffle,
                 'gulpy_random_generator': gulpy_random_generator
             }
-            with self.assertRaises(OasisException) as context:
+            with (self.assertRaises(OasisException) as context,
+                  patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10010"})):
                 self.manager.generate_losses(**call_args)
             self.assertIn('Not within valid ranges', str(context.exception))
             mock_run_func.assert_not_called()
@@ -303,15 +314,22 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'model_custom_gulcalc': 'dude_wheres_my_gulcalc?',
         }
-        with self.assertRaises(OasisException) as context:
+        with (self.assertRaises(OasisException) as context,
+              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10011"}),
+              patch('oasislmf.computation.generate.losses.run_model') as run_model):
             self.manager.generate_losses(**call_args)
-        self.assertIn('Run error: Custom Gulcalc command', str(context.exception))
+            run_model.assert_any_call()
+        (model_runner_module, settings, run_args), kwargs = run_model.call_args
+        with self.assertRaises(OasisException) as context:
+            model_runner_module.run(settings, **run_args)
+            self.assertIn('Run error: Custom Gulcalc command', str(context.exception))
 
     def test_losses__invalid_events__expection_raised(self):
         with self.tmp_dir() as model_run_dir:
             self.write_json(self.tmp_files.get('analysis_settings_json'), INVALID_RUN_SETTINGS)
             self.manager.generate_files(**self.args_gen_files_gul)
-            with self.assertRaises(OasisException) as context:
+            with (self.assertRaises(OasisException) as context,
+                  patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10012"})):
                 call_args = {**self.min_args, 'model_run_dir': model_run_dir}
                 self.manager.generate_losses(**call_args)
             self.assertIn('Could not find events data file:', str(context.exception))
@@ -327,7 +345,8 @@ class TestGenLosses(ComputationChecker):
             'model_custom_gulcalc': 'gulmc',
         }
         with self._caplog.at_level(logging.INFO):
-            with self.assertRaises(OasisException) as context:
+            with (self.assertRaises(OasisException) as context,
+                  patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10013"})):
                 self.manager.generate_losses(**call_args)
             expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
@@ -349,7 +368,8 @@ class TestGenLosses(ComputationChecker):
             'process_number': 1
         }
         with self._caplog.at_level(logging.INFO):
-            with self.assertRaises(OasisException) as context:
+            with (self.assertRaises(OasisException) as context,
+                  patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10014"})):
                 self.manager.generate_losses_partial(**call_args)
             expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
@@ -377,7 +397,8 @@ class TestGenLosses(ComputationChecker):
             'process_number': 1,
             'analysis_pk': 1
         }
-        self.manager.generate_losses_partial(**chunk_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10015"}):
+            self.manager.generate_losses_partial(**chunk_args)
         with self.assertRaises(OasisException) as context:
             self.manager.generate_losses_output(**call_args)
         expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
@@ -393,7 +414,8 @@ class TestGenLosses(ComputationChecker):
         mock_check_parquet.stderr.decode.return_value = 'Parquet output enabled'
         mock_subprocess.return_value = mock_check_parquet
 
-        self.manager.generate_losses(**self.min_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10016"}):
+            self.manager.generate_losses(**self.min_args)
         mock_runner.assert_called_once()
 
     @patch('oasislmf.execution.runner.run')
@@ -406,7 +428,8 @@ class TestGenLosses(ComputationChecker):
         mock_check_parquet.stderr.decode.return_value = 'Parquet output disabled'
         mock_subprocess.return_value = mock_check_parquet
 
-        with self.assertRaises(OasisException) as context:
+        with (self.assertRaises(OasisException) as context,
+              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10017"})):
             self.manager.generate_losses(**self.min_args)
         expected_error = 'Parquet output format requested but not supported by ktools components.'
         self.assertIn(expected_error, str(context.exception))
@@ -420,7 +443,8 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'check_missing_inputs': True,
         }
-        with self.assertRaises(OasisException) as context:
+        with (self.assertRaises(OasisException) as context,
+              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10018"})):
             self.manager.generate_losses(**call_args)
         expected_error = "[\'IL\', \'RI\', \'RL\'] are enabled in the analysis_settings without the generated input files"
         self.assertIn(expected_error, str(context.exception))
@@ -429,7 +453,8 @@ class TestGenLosses(ComputationChecker):
         self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
 
-        with self._caplog.at_level(logging.WARN):
+        with (self._caplog.at_level(logging.WARN),
+              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10019"})):
             self.manager.generate_losses(**self.min_args)
         expected_warning = "[\'IL\', \'RI\', \'RL\'] are enabled in the analysis_settings without the generated input files"
         self.assertIn(expected_warning, self._caplog.text)
@@ -440,7 +465,8 @@ class TestGenLosses(ComputationChecker):
 
         self.write_json(self.tmp_files.get('analysis_settings_json'), NO_SAMPLES_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
-        with self.assertRaises(OasisException) as context:
+        with (self.assertRaises(OasisException) as context,
+              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10020"})):
             self.manager.generate_losses(**self.min_args)
         expected_error = "'number_of_samples' not set in analysis_settings and no model_settings.json file provided"
         self.assertIn(expected_error, str(context.exception))
@@ -459,7 +485,8 @@ class TestGenLosses(ComputationChecker):
 
         call_args = {**self.min_args, 'model_settings_json': self.tmp_files.get('model_settings_json').name}
         self.manager.generate_files(**self.args_gen_files_gul)
-        self.manager.generate_losses(**call_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10021"}):
+            self.manager.generate_losses(**call_args)
 
         called_settings = mock_runner.call_args.args[0]
         self.assertEqual(expected_samples, called_settings['number_of_samples'])

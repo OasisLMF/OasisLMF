@@ -851,8 +851,7 @@ class GenerateLosses(GenerateLossesDir):
     def run_progess(self, model_runner_module, run_args):
         thread = threading.Thread(target=run_model, args=(model_runner_module, self.settings, run_args))
         thread.start()
-        import os
-        server = GulProgressServer(os.environ['OASIS_SOCKET_SERVER_IP'], os.environ['OASIS_SOCKET_SERVER_PORT'])
+        server = GulProgressServer()
         server.start()
         counter = 0
         with tqdm(total=os.path.getsize("input/events.bin") / 4, unit="events", desc="Gul events completed", leave=False) as pbar:
