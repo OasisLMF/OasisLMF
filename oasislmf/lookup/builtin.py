@@ -435,7 +435,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if "keys_data_path" in placeholder_keys:
             return filepath
         else:
-            return self.storage.get_storage_url(filepath, encode_params=False)[1]
+            return self.storage.get_storage_url(filepath, encode_params=False)[1].replace('file://', '')
 
     @staticmethod
     def set_id_columns(df, id_columns):

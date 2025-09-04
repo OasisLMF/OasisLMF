@@ -38,14 +38,14 @@ class AbstractBasicKeyLookup:
         self.user_data_dir = user_data_dir
         self.output_dir = output_dir
 
+        keys_data_path = config.get('keys_data_path')
+        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
+        config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
+
         if config.get("keys_data_storage"):
             self.storage = get_storage_from_config(config["keys_data_storage"])
         else:
             self.storage = LocalStorage(config['keys_data_path'])
-
-        keys_data_path = config.get('keys_data_path')
-        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
-        config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
     @abc.abstractmethod
     def process_locations(self, locations):

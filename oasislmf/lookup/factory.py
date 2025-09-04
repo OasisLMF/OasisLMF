@@ -138,7 +138,7 @@ class KeyServerFactory(object):
                           'model_version_file_path and lookup_module_path is now deprecated'
                           'those variables now need to be set in lookup config see (key server documentation)')
 
-        if complex_lookup_config_fp and not(isinstance(complex_lookup_config_fp, dict)):
+        if complex_lookup_config_fp and not isinstance(complex_lookup_config_fp, dict):
             config_dir, config = cls.get_config(complex_lookup_config_fp)
 
         if model_keys_data_path:
