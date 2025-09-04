@@ -18,6 +18,8 @@ import pandas as pd
 from ..utils.path import as_path
 from ..utils.exceptions import OasisException
 
+from oasis_data_manager.filestore.config import get_storage_from_config, LocalStorage
+
 UNKNOWN_ID = -1
 
 
@@ -35,6 +37,11 @@ class AbstractBasicKeyLookup:
         self.config_dir = config_dir or '.'
         self.user_data_dir = user_data_dir
         self.output_dir = output_dir
+
+        if config.get("keys_data_storage"):
+            self.storage = get_storage_from_config(config["keys_data_storage"])
+        else:
+            self.storage = LocalStorage(config['keys_data_path'])
 
         keys_data_path = config.get('keys_data_path')
         keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''

@@ -5,6 +5,7 @@ in the future we may want to improve on the management of files used to generate
 tutorial for pandas and parquet https://towardsdatascience.com/a-gentle-introduction-to-apache-arrow-with-apache-spark-and-pandas-bb19ffe0ddae
 
 """
+import os.path
 import warnings
 
 import numba as nb
@@ -431,7 +432,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         placeholder_keys = set(re.findall(r'%%(.+?)%%', filepath))
         for placeholder_key in placeholder_keys:
             filepath = filepath.replace(f'%%{placeholder_key}%%', self.config[placeholder_key.lower()])
-        return filepath
+        if "keys_data_path" in placeholder_keys:
+            return filepath
+        else:
+            return self.storage.get_storage_url(filepath, encode_params=False)[1]
 
     @staticmethod
     def set_id_columns(df, id_columns):

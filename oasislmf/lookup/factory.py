@@ -161,7 +161,7 @@ class KeyServerFactory(object):
             lookup_config=None,
             lookup_config_json=None,
             lookup_config_fp=None,
-            complex_lookup_config_fp=None,#  this is now use to pass the run settings if there is no complex_lookup_config_fp
+            complex_lookup_config_fp=None,  # this is now use to pass the run settings if there is no complex_lookup_config_fp
             user_data_dir=None,
             output_directory=None,
     ):
