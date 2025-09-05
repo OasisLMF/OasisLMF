@@ -558,8 +558,7 @@ class GenerateLossesPartial(GenerateLossesDir):
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
                 try:
-                    oasis_ping({'analysis_pk': bash_params['analysis_pk'],
-                                'events_total': str(os.path.getsize("input/events.bin") / 4), 'type': 'v2'})
+                    oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") / 4)})
                 except Exception as e:
                     self.logger.info(str(e))
                 return model_runner_module.run_analysis(**bash_params)
@@ -738,6 +737,7 @@ class GenerateLosses(GenerateLossesDir):
 
         with setcwd(model_run_fp):
             if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") / 4)})
                 socket_server = False
             elif 'analysis_pk' in self.kwargs:
                 socket_server = True
