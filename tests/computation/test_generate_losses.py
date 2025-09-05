@@ -114,6 +114,7 @@ class TestGenLosses(ComputationChecker):
     def test_losses__no_input__exception_raised(self):
         with (self.assertRaises(OasisException) as context,
               patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10000"})):
+            # Patch for port ensures when tests run side by side port not in use by other test
             self.manager.generate_losses()
         expected_err_msg = 'parameter oasis_files_dir is required'
         self.assertIn(expected_err_msg, str(context.exception))
@@ -314,15 +315,9 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'model_custom_gulcalc': 'dude_wheres_my_gulcalc?',
         }
-        with (self.assertRaises(OasisException) as context,
-              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10011"}),
-              patch('oasislmf.computation.generate.losses.run_model') as run_model):
-            self.manager.generate_losses(**call_args)
-            run_model.assert_any_call()
-        (model_runner_module, settings, run_args), kwargs = run_model.call_args
         with self.assertRaises(OasisException) as context:
-            model_runner_module.run(settings, **run_args)
-            self.assertIn('Run error: Custom Gulcalc command', str(context.exception))
+            self.manager.generate_losses(**call_args)
+        self.assertIn('Run error: Custom Gulcalc command', str(context.exception))
 
     def test_losses__invalid_events__expection_raised(self):
         with self.tmp_dir() as model_run_dir:

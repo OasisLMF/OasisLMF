@@ -19,13 +19,13 @@ def oasis_ping(data):
         data (dict): dictionary of data: JSON serialisable
 
     Returns:
-        None
+        Boolean: whether attempted call gets through
     """
     msg = json.dumps(data)
     if data.get('analysis_pk', None) is not None:
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
-        return None
+        return False
     target = (os.environ.get("OASIS_SOCKET_SERVER_IP", "127.0.0.1"), int(os.environ.get("OASIS_SOCKET_SERVER_PORT", 8888)))
     return oasis_ping_socket(target, msg)
 
@@ -39,11 +39,16 @@ def oasis_ping_socket(target, data):
         data (str): JSON dumped string
 
     Returns:
-        None
+        Boolean: whether attempted call gets through
     """
-    oasis_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    oasis_socket.connect(target)
-    oasis_socket.send(data.encode('utf-8'))
+    try:
+        oasis_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        oasis_socket.connect(target)
+        oasis_socket.send(data.encode('utf-8'))
+        return True
+    except ConnectionRefusedError:
+        # Keeps run going if the user accidentally specified an in-use port
+        return False
 
 
 def oasis_ping_websocket(ws_url, data):
@@ -55,13 +60,13 @@ def oasis_ping_websocket(ws_url, data):
         data (str): JSON dumped string
 
     Returns:
-        None
+        Boolean: whether attempted call gets through
     """
     try:
         ws = websocket.WebSocket()
         ws.connect(ws_url)
         ws.send(data)
         ws.close()
-        logging.info("Post sent successfully")
+        return True
     except Exception:
-        logging.error("Ping failed to call")
+        return False

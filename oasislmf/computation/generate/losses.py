@@ -740,12 +740,14 @@ class GenerateLosses(GenerateLossesDir):
             os.environ['OASIS_SOCKET_SERVER_PORT'] = self.kwargs['socket_server_port']
 
         # setup for progress updates
-        if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-            socket_server = False
-        else:
-            socket_server = True
 
         with setcwd(model_run_fp):
+            if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+                socket_server = False
+            elif 'analysis_pk' in self.kwargs:
+                socket_server = True
+            else:
+                socket_server = os.path.getsize("input/events.bin") / 4
             try:
                 try:
                     run_args = dict(
@@ -788,7 +790,7 @@ class GenerateLosses(GenerateLossesDir):
                         analysis_pk=self.kwargs.get('analysis_pk', None),
                         socket_server=socket_server
                     )
-                    self.start_run(model_runner_module, run_args, socket_server)
+                    model_runner_module.run(self.settings, **run_args)
                 except TypeError:
                     warnings.simplefilter("always")
                     warnings.warn(
@@ -806,7 +808,7 @@ class GenerateLosses(GenerateLossesDir):
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
-                    self.start_run(model_runner_module, run_args, socket_server)
+                    model_runner_module.run(self.settings, **run_args)
 
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
@@ -836,38 +838,6 @@ class GenerateLosses(GenerateLossesDir):
                 )
         self.logger.info('Losses generated in {}'.format(model_run_fp))
         return model_run_fp
-
-    def start_run(self, model_runner_module, run_args, socket_server):
-        if run_args.get('analysis_pk', False):
-            # Send ping for total size to platform first
-            if socket_server:
-                oasis_ping({'events_total': str(os.path.getsize("input/events.bin") / 4), 'analysis_pk': run_args['analysis_pk']})
-            model_runner_module.run(self.settings, **run_args)
-        elif socket_server:
-            self.run_progess(model_runner_module, run_args)
-        else:
-            model_runner_module.run(self.settings, **run_args)
-
-    def run_progess(self, model_runner_module, run_args):
-        thread = threading.Thread(target=run_model, args=(model_runner_module, self.settings, run_args))
-        thread.start()
-        server = GulProgressServer()
-        server.start()
-        counter = 0
-        with tqdm(total=os.path.getsize("input/events.bin") / 4, unit="events", desc="Gul events completed", leave=False) as pbar:
-            while thread.is_alive():
-                with server.counter_lock:
-                    if counter != server.counter:
-                        pbar.update(server.counter - counter)
-                        counter = server.counter
-                time.sleep(1)
-        server.stop()
-
-        thread.join()
-
-
-def run_model(model_runner_module, settings, run_args):
-    model_runner_module.run(settings, **run_args)
 
 
 class GenerateLossesDeterministic(ComputationStep):

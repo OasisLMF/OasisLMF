@@ -2,6 +2,10 @@ import socket
 import threading
 import json
 import os
+import time
+import sys
+import logging
+from tqdm import tqdm
 
 
 class GulProgressServer:
@@ -51,3 +55,18 @@ class GulProgressServer:
         self.server_socket.close()
         if self._accept_thread:
             self._accept_thread.join(timeout=1)
+
+
+def main():
+    total = float(sys.argv[1])
+    server = GulProgressServer()
+    server.start()
+    counter = 0
+    with tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar:
+        while counter < total:
+            with server.counter_lock:
+                if counter != server.counter:
+                    pbar.update(server.counter - counter)
+                    counter = server.counter
+            time.sleep(1)
+    server.stop()
