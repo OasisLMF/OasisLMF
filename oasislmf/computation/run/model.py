@@ -5,7 +5,6 @@ __all__ = [
 
 import os
 import json
-from tqdm import tqdm
 
 from ..base import ComputationStep
 
@@ -36,7 +35,7 @@ class RunModel(ComputationStep):
         {'name': 'pre_loss_module', 'required': False, 'is_path': True,
          'pre_exist': True, 'help': 'pre-loss hook module path'},
         {'name': 'post_file_gen_module', 'required': False, 'is_path': True,
-         'pre_exist': True, 'help': 'post-file gen hook module path'},
+         'pre_exist': True, 'help': 'post-file gen hook module path'}
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
@@ -61,7 +60,6 @@ class RunModel(ComputationStep):
         }
 
     def run(self):
-
         # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
@@ -88,11 +86,8 @@ class RunModel(ComputationStep):
         cmds += [(GenerateLosses, self.kwargs)]
         if self.post_analysis_module:
             cmds += [(PostAnalysis, self.kwargs)]
-
-        with tqdm(total=len(cmds)) as pbar:
-            for cmd in cmds:
-                cmd[0](**cmd[1]).run()
-                pbar.update(1)
+        for cmd in cmds:
+            cmd[0](**cmd[1]).run()
 
         self.logger.info('\nModel run completed successfully in {}'.format(self.model_run_dir))
 
