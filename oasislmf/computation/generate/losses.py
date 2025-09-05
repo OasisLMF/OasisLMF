@@ -737,9 +737,9 @@ class GenerateLosses(GenerateLossesDir):
 
         with setcwd(model_run_fp):
             if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
-                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") / 4)})
                 socket_server = False
             elif 'analysis_pk' in self.kwargs:
+                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") / 4)})
                 socket_server = True
             else:
                 socket_server = os.path.getsize("input/events.bin") / 4
