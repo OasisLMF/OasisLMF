@@ -1,6 +1,5 @@
 import json
 import websocket
-import logging
 import socket
 import os
 

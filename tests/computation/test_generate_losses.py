@@ -270,7 +270,7 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses(**call_args)
         mock_run_func.assert_called_once()
 
-    @patch('oasislmf.computation.generate.losses.run_model')
+    @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_runner_old(self, mock_run_func):
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
@@ -278,8 +278,7 @@ class TestGenLosses(ComputationChecker):
             **self.min_args,
             'model_package_dir': FAKE_MODEL_RUNNER__OLD,
         }
-        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10009"}):
-            self.manager.generate_losses(**call_args)
+        self.manager.generate_losses(**call_args)
         mock_run_func.assert_called_once()
 
     @given(

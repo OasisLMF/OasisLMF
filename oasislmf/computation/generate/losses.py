@@ -51,11 +51,6 @@ from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 from ...pytools.ping import oasis_ping
-from .socket_server import GulProgressServer
-
-import threading
-import time
-from tqdm import tqdm
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 

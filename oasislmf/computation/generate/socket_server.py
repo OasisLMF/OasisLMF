@@ -4,7 +4,6 @@ import json
 import os
 import time
 import sys
-import logging
 from tqdm import tqdm
 
 
