@@ -5,6 +5,7 @@ import sys
 import json
 from contextlib import ExitStack
 from select import select
+import time
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -46,6 +47,7 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.gulmc.items import read_items, generate_item_map
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.pytools.ping import oasis_ping
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +361,6 @@ def run(run_dir,
         # prepare output stream
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
-        cursor = 0
 
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
@@ -472,8 +473,19 @@ def run(run_dir,
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
 
+        counter = -1
+        timer = time.time()
+        ping = kwargs.get('socket_server', 'False') != 'False'
         while True:
+            counter += 1
+            if ping and time.time() - timer > 1:
+                timer = time.time()
+                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                counter = 0
+
             if not streams_in.readinto(event_id_mv):
+                if ping:
+                    oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
                 break
 
             # get the next event_id from the input stream
@@ -797,13 +809,10 @@ def compute_event_losses(compute_info,
         # compute losses for each item
         for item_j in range(Nitems):
             item_event_data = items_event_data[coverage['start_items'] + item_j]
-            item_id = item_event_data['item_id']
             rng_index = item_event_data['rng_index']
             hazard_rng_index = item_event_data['hazard_rng_index']
 
             item = items[item_event_data['item_idx']]
-            areaperil_id = item['areaperil_id']
-            vulnerability_id = item['vulnerability_id']
             if dynamic_footprint is not None:
                 intensity_adjustment = item['intensity_adjustment']
             else:
@@ -828,7 +837,7 @@ def compute_event_losses(compute_info,
                 for haz_bin_idx in range(haz_bin_id.shape[0]):
                     try:
                         haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, haz_intensity[haz_bin_idx]]
-                    except:
+                    except Exception:
                         haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, 0]
             else:
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
