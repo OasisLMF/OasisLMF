@@ -320,7 +320,6 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
             logger.info(f"event {event_id} DONE")
         if ping:
             oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
-
     return 0
 
 
