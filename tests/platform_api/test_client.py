@@ -718,7 +718,7 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
     def test_buil_url__no_id(self):
         model_pk = 123
         expected_url = '{}/{}/{}/'.format(self.url_endpoint, model_pk,
-                                               'setting_templates')
+                                          'setting_templates')
         result = self.api__noresource._build_url(model_pk)
         self.assertEqual(result, expected_url)
 
@@ -735,7 +735,7 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
     @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1))
     def test_get__model_id(self, model_pk, ID):
         expected_url = '{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
-                                               'setting_templates', ID)
+                                            'setting_templates', ID)
         responses.get(url=expected_url, json=[])
         logger = logging.getLogger(__name__)
         logger.info(f'expected_url: {expected_url}')
@@ -747,7 +747,7 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
     @given(model_pk=st.integers(min_value=1))
     def test_get(self, model_pk):
         expected_url = '{}/{}/{}/'.format(self.url_endpoint, model_pk,
-                                         'setting_templates')
+                                          'setting_templates')
         responses.get(url=expected_url, json=[])
 
         rsp = self.api__noresource.get(model_pk)
