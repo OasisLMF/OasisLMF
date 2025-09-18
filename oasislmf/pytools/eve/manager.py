@@ -21,6 +21,27 @@ def read_events(input_file):
     return np.fromfile(input_file, dtype=oasis_int)
 
 
+def partition_events__no_shuffle(events, process_number, total_processes):
+    """Assign events in the order they are loaded to each process in turn. Only
+    output the event IDs allocated to the given `process_number`.
+    """
+    pass
+
+
+def partition_events__random(events, process_number, total_processes):
+    """Shuffle the events randomly and allocate to each process. Only output
+    the event IDs to the given `process_number`.
+    """
+    pass
+
+
+def partition_events__sequential(events, process_number, total_processes):
+    """Partition the events sequentially in a round robin style per proccess.
+    Only output the events allocated to the given `process_number`.
+    """
+    pass
+
+
 def run(input_file, process_number, total_processes, no_shuffle=False,
         randomise=False,
         ):
@@ -54,6 +75,21 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
         randomise = False
 
     events = read_events(input_file)
+
+    if no_shuffle:
+        event_partitions = partition_events__no_shuffle(events,
+                                                        process_number,
+                                                        total_processes)
+    elif randomise:
+        event_partitions = partition_events__random(events,
+                                                    process_number,
+                                                    total_processes)
+    else:
+        event_partitions = partition_events__sequential(events,
+                                                        process_number,
+                                                        total_processes)
+
+    # output event partitions
 
 
 @redirect_logging(exec_name='evepy')
