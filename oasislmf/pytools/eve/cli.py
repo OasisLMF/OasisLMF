@@ -3,6 +3,7 @@
 import argparse
 import logging
 
+from oasislmf.pytools.eve.manager import DEFAULT_EVENTS_FILE
 from . import logger, manager
 
 
@@ -16,10 +17,12 @@ def validate_flags(args):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate partitioned event IDs stream.')
-    parser.add_argument('-p', '--process_number', type=int, required=True,
+    parser.add_argument('process_number', type=int,
                         help='Process number to receive a partition of events')
-    parser.add_argument('-t', '--total_processes', type=int, required=True,
+    parser.add_argument('total_processes', type=int,
                         help='Total number of partitions of events to distribute to processes')
+    parser.add_argument('-i', '--input_file', type=str, default=DEFAULT_EVENTS_FILE,
+                        help=f'Input file containing the events binary (default: {DEFAULT_EVENTS_FILE})')
 
     parser.add_argument('-n', '--no_shuffle', action='store_true',
                         help='Disable shuffle. Events respect input ordering')
