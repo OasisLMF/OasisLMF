@@ -2,12 +2,23 @@
 
 import logging
 from pathlib import Path
+import numpy as np
 
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.pytools.common.data import oasis_int
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_EVENTS_FILE = Path('input/events.bin')
+
+
+def read_events(input_file):
+    """Read the event IDs from the binary events file.
+
+    Args:
+        input_file (str | os.PathLike): Path to binary events file.
+    """
+    return np.fromfile(input_file, dtype=oasis_int)
 
 
 def run(input_file, process_number, total_processes, no_shuffle=False,
@@ -36,6 +47,13 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
         raise FileNotFoundError(f"ERROR: File \'{input_file}\' does not exist.")
     if not input_file.is_file():
         raise ValueError(f"ERROR: \'{input_file}\' is not a file.")
+
+    # Check shuffle and randomise settings
+    if no_shuffle and randomise:
+        logger.warning("Warning: `no_shuffle` and `randomise` options are incompatible. Ignoring `randomise`.")
+        randomise = False
+
+    events = read_events(input_file)
 
 
 @redirect_logging(exec_name='evepy')
