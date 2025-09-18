@@ -2756,7 +2756,7 @@ def create_bash_analysis(
     do_pwaits(filename, process_counter)
     if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
         # Ensure killed if server doesnt end
-        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill "$spid" && sleep 2 && kill -0 "$spid" 2>/dev/null && kill -9 "$spid"')
+        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid"')
 
 
 def create_bash_outputs(
