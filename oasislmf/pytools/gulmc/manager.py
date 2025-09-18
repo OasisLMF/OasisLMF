@@ -42,7 +42,8 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DUR
                                            gulmc_compute_info_type)
 from oasislmf.pytools.gulmc.items import read_items, generate_item_map
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.pytools.ping import oasis_ping
+from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -468,16 +469,10 @@ def run(run_dir,
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
 
-        counter = -1
+        counter = 0
         timer = time.time()
         ping = kwargs.get('socket_server', 'False') != 'False'
         while True:
-            counter += 1
-            if ping and time.time() - timer > 1:
-                timer = time.time()
-                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
-                counter = 0
-
             if not streams_in.readinto(event_id_mv):
                 if ping:
                     oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
@@ -495,6 +490,7 @@ def run(run_dir,
 
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
+                    counter += 1
                     continue
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
@@ -581,6 +577,12 @@ def run(run_dir,
                         write_start += stream_out.write(byte_mv[write_start: compute_info['cursor']].tobytes())
 
                 logger.info(f"event {event_ids[0]} DONE")
+
+            counter += 1
+            if ping and time.time() - timer > SERVER_UPDATE_TIME:
+                timer = time.time()
+                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                counter = 0
     return 0
 
 

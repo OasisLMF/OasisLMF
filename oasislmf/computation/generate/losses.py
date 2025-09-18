@@ -50,7 +50,7 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
-from ...pytools.ping import oasis_ping
+from ...utils.ping import oasis_ping
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -545,6 +545,8 @@ class GenerateLossesPartial(GenerateLossesDir):
             bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             bash_params['socket_server'] = True
+        else:
+            self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
         bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
 
         with setcwd(model_run_fp):
@@ -737,6 +739,7 @@ class GenerateLosses(GenerateLossesDir):
 
         with setcwd(model_run_fp):
             if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+                self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
                 socket_server = False
             elif 'analysis_pk' in self.kwargs:
                 oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") / 4)})

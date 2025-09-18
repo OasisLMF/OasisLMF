@@ -5,17 +5,18 @@ import os
 import time
 import sys
 from tqdm import tqdm
+from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 
 
 class GulProgressServer:
     def __init__(self, host=None, port=None):
         """
         Args:
-            host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or `127.0.0.1` if unset.
-            port (int, optional): Non-default port to use. Defaults to `OASIS_SOCKET_SERVER_PORT` or 8888 if unset.
+            host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or SERVER_DEFAULT_IP if unset.
+            port (int, optional): Non-default port to use. Defaults to `OASIS_SOCKET_SERVER_PORT` or SERVER_DEFAULT_PORT if unset.
         """
-        self.host = os.environ.get('OASIS_SOCKET_SERVER_IP', "127.0.0.1") if host is None else host
-        self.port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', 8888)) if port is None else port
+        self.host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP) if host is None else host
+        self.port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT)) if port is None else port
         self.counter = 0
         self.counter_lock = threading.Lock()
         self.running = False
@@ -40,14 +41,19 @@ class GulProgressServer:
                 break  # socket was closed
 
     def _handle_client(self, client_socket):
-        data = client_socket.recv(1024)
-        payload = json.loads(data.decode("utf-8").strip())
+        data = self._read_all(client_socket)
+        payload = json.loads(data)
         with self.counter_lock:
             self.counter += int(payload.get("events_complete", 0))
-        try:
-            client_socket.sendall(b"OK\n")
-        finally:
-            client_socket.close()
+
+    def _read_all(self, client_socket):
+        buffer = b""
+        while not buffer.endswith(b"\n"):
+            chunk = client_socket.recv(1024)
+            if not chunk:  # client disconnected
+                break
+            buffer += chunk
+        return buffer.decode("utf-8").strip()
 
     def stop(self):
         self.running = False
@@ -55,17 +61,22 @@ class GulProgressServer:
         if self._accept_thread:
             self._accept_thread.join(timeout=1)
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
+
 
 def main():
     total = float(sys.argv[1])
-    server = GulProgressServer()
-    server.start()
-    counter = 0
-    with tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar:
+    with (GulProgressServer() as server,
+          tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
+        counter = 0
         while counter < total:
             with server.counter_lock:
                 if counter != server.counter:
                     pbar.update(server.counter - counter)
                     counter = server.counter
-            time.sleep(1)
-    server.stop()
+            time.sleep(SERVER_UPDATE_TIME)

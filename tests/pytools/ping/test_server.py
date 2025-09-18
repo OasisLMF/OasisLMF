@@ -2,8 +2,8 @@ import json
 import socket
 import time
 
-from oasislmf.pytools.ping import oasis_ping_socket
-from oasislmf.computation.generate.socket_server import GulProgressServer
+from oasislmf.utils.ping import oasis_ping_socket
+from oasislmf.utils.socket_server import GulProgressServer
 
 
 def get_free_port():

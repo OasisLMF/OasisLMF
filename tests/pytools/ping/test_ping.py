@@ -1,14 +1,14 @@
 import json
 import os
 from unittest.mock import patch, MagicMock
-from oasislmf.pytools.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket
+from oasislmf.utils.ping import oasis_ping, oasis_ping_socket, oasis_ping_websocket
 
 
 def test_oasis_ping_websocket_path():
     data = {"analysis_pk": 123}
     with (patch.dict(os.environ, {"OASIS_WEBSOCKET_URL": "ws://fakehost", "OASIS_WEBSOCKET_PORT": "9999"}),
-          patch("oasislmf.pytools.ping.oasis_ping_websocket", return_value=True) as mock_ws,
-          patch("oasislmf.pytools.ping.oasis_ping_socket") as mock_sock):
+          patch("oasislmf.utils.ping.oasis_ping_websocket", return_value=True) as mock_ws,
+          patch("oasislmf.utils.ping.oasis_ping_socket") as mock_sock):
         result = oasis_ping(data)
 
     mock_ws.assert_called_once()
@@ -23,8 +23,8 @@ def test_oasis_ping_websocket_path():
 def test_oasis_ping_analysis_pk_missing_env():
     data = {"analysis_pk": 123}
     with (patch.dict(os.environ, {}, clear=True),
-          patch("oasislmf.pytools.ping.oasis_ping_websocket") as mock_ws,
-          patch("oasislmf.pytools.ping.oasis_ping_socket") as mock_sock):
+          patch("oasislmf.utils.ping.oasis_ping_websocket") as mock_ws,
+          patch("oasislmf.utils.ping.oasis_ping_socket") as mock_sock):
         result = oasis_ping(data)
 
     assert result is False
@@ -35,8 +35,8 @@ def test_oasis_ping_analysis_pk_missing_env():
 def test_oasis_ping_socket_path():
     data = {"hello": "world"}
     with (patch.dict(os.environ, {"OASIS_SOCKET_SERVER_IP": "1.2.3.4", "OASIS_SOCKET_SERVER_PORT": "4321"}),
-          patch("oasislmf.pytools.ping.oasis_ping_websocket") as mock_ws,
-          patch("oasislmf.pytools.ping.oasis_ping_socket", return_value=True) as mock_sock):
+          patch("oasislmf.utils.ping.oasis_ping_websocket") as mock_ws,
+          patch("oasislmf.utils.ping.oasis_ping_socket", return_value=True) as mock_sock):
         result = oasis_ping(data)
 
     mock_ws.assert_not_called()

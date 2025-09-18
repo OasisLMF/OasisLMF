@@ -2565,7 +2565,7 @@ def create_bash_analysis(
     get_gul_stream_cmds = {}
 
     if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
-        print_command(filename, f"socket-server {kwargs['socket_server']} > /dev/null &")
+        print_command(filename, f"socket-server {kwargs['socket_server']} > /dev/null & spid=$!")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
     # for gul_id in range(1, num_gul_output + 1):
@@ -2754,6 +2754,9 @@ def create_bash_analysis(
 
     print_command(filename, '')
     do_pwaits(filename, process_counter)
+    if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
+        # Ensure killed if server doesnt end
+        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill "$spid" && sleep 2 && kill -0 "$spid" 2>/dev/null && kill -9 "$spid"')
 
 
 def create_bash_outputs(
