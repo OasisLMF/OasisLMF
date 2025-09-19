@@ -14,11 +14,14 @@ def validate_flags(args):
     if args.total_processes <= 0:
         raise RuntimeError(f"ERROR: evepy total_processes {args.total_processes} is not valid.")
 
+    if args.total_processes < args.process_number:
+        raise ValueError(f"ERROR: evepy process_number {args.process_number} cannot be larger than the total_processes {args.total_processes}")
+
 
 def main():
     parser = argparse.ArgumentParser(description='Generate partitioned event IDs stream.')
     parser.add_argument('process_number', type=int,
-                        help='Process number to receive a partition of events')
+                        help='Process number to receive a partition of events. Processes are one-indexed.')
     parser.add_argument('total_processes', type=int,
                         help='Total number of partitions of events to distribute to processes')
     parser.add_argument('-i', '--input_file', type=str, default=DEFAULT_EVENTS_FILE,

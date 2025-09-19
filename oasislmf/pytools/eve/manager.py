@@ -21,11 +21,27 @@ def read_events(input_file):
     return np.fromfile(input_file, dtype=oasis_int)
 
 
+def ceil_int(numerator, divisor):
+    """Perform ceil on integers without converting to floar (like builtin
+    `ceil`).
+    """
+    quotient, remainder = divmod(numerator, divisor)
+    return quotient + bool(remainder)  # add 1 if remainder
+
+
 def partition_events__no_shuffle(events, process_number, total_processes):
     """Assign events in the order they are loaded to each process in turn. Only
     output the event IDs allocated to the given `process_number`.
+
+    Args:
+        events (np.array): Array of ordered event IDs.
+        process_number (int): The process number to receive a partition of events.
+        total_processes (int): Total number of partitions of events to distribute to processes.
     """
-    pass
+    # TODO - check #-events < total_processes
+    events_per_partition = ceil_int(len(events), total_processes)
+    return events[(process_number - 1) * events_per_partition:
+                  process_number * events_per_partition]
 
 
 def partition_events__random(events, process_number, total_processes):
