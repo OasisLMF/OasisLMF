@@ -2566,6 +2566,7 @@ def create_bash_analysis(
 
     if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
         print_command(filename, f"socket-server {kwargs['socket_server']} > /dev/null & spid=$!")
+        # print_command(filename, "trap 'kill -0 \"$spid\" 2>/dev/null && kill \"$spid\"' EXIT INT TERM")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
     # for gul_id in range(1, num_gul_output + 1):
