@@ -70,7 +70,12 @@ class GulProgressServer:
 
 
 def main():
-    total = float(sys.argv[1])
+    if len(sys.argv) < 2:
+        raise ValueError("Socket server must be called with an argument for pbar length")
+    try:
+        total = float(sys.argv[1])
+    except Exception:
+        raise TypeError("Socket server argument must be an integer or a float")
     with (GulProgressServer() as server,
           tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
         counter = 0

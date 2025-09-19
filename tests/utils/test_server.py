@@ -1,9 +1,13 @@
 import json
 import socket
 import time
+import sys
+import pytest
+from unittest.mock import MagicMock, patch
 
 from oasislmf.utils.ping import oasis_ping_socket
 from oasislmf.utils.socket_server import GulProgressServer
+from oasislmf.utils.socket_server import main as server_main
 
 
 def get_free_port():
@@ -72,3 +76,25 @@ def test_server_can_stop_and_not_accept():
         if not oasis_ping_socket(target, data):
             return True
     assert False
+
+
+def test_main_invalid_call():
+    sys.argv = []
+    with pytest.raises(ValueError):
+        server_main()
+    sys.argv = ['a']
+    with pytest.raises(ValueError):
+        server_main()
+    sys.argv = ['a', 'b']
+    with pytest.raises(TypeError):
+        server_main()
+
+
+def test_main_finishes_valid_call():
+    with (patch('time.sleep', side_effect=[None, StopIteration]),
+          patch('oasislmf.utils.socket_server.GulProgressServer') as fake_server_class):
+        mock_server = MagicMock()
+        fake_server_class.return_value.__enter__.return_value = mock_server
+        mock_server.counter = 10
+        sys.argv = ['a', 10]
+        server_main()
