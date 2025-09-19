@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 from numba import njit
 from numba.typed import Dict, List
+import time
+from oasislmf.utils.ping import oasis_ping
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
@@ -36,6 +38,7 @@ from oasislmf.pytools.gul.random import (compute_norm_cdf_lookup,
                                          get_corr_rval, get_random_generator)
 from oasislmf.pytools.gul.utils import append_to_dict_value, binary_search
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -270,8 +273,10 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         # maximum bytes to be written in the output stream for 1 item
         max_bytes_per_item = gulSampleslevelHeader_size + (sample_size + NUM_IDX + 1) * gulSampleslevelRec_size
 
+        counter = 0
+        timer = time.time()
+        ping = kwargs.get('socket_server', 'False') != 'False'
         for event_data in read_getmodel_stream(streams_in, item_map, coverages, compute, seeds, valid_area_peril_id):
-
             event_id, compute_i, items_data, damagecdfrecs, recs, rec_idx_ptr, rng_index = event_data
 
             # generation of "base" random values is done as before
@@ -306,11 +311,18 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
                 while write_start < cursor:
                     select([], select_stream_list, select_stream_list)
                     write_start += stream_out.write(byte_mv[write_start:cursor].tobytes())
+                    counter += 1
 
                 cursor = 0
 
             logger.info(f"event {event_id} DONE")
 
+            if ping and time.time() - timer > SERVER_UPDATE_TIME:
+                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                counter = 0
+
+        if ping:
+            oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
     return 0
 
 

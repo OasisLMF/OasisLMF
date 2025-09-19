@@ -11,7 +11,8 @@ from typing import Tuple
 
 import pandas as pd
 import pytest
-
+from unittest.mock import patch
+from oasislmf.pytools.gul.manager import run as gulpy_run
 from oasislmf.pytools.utils import assert_allclose
 
 # get tests dirs
@@ -26,6 +27,7 @@ sample_sizes = [1, 10, 100, 1000]
 alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
 random_generators = [0, 1]
+socket_server = ["True", "3.0", "False"]
 
 
 @pytest.fixture
@@ -74,7 +76,6 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             test_out_bin_fname)
 
         subprocess.run(test_cmd, cwd=test_model_dir, shell=True, capture_output=True, check=True)
-
         # compare the test results to the expected results
         try:
             assert filecmp.cmp(test_out_bin_fname, ref_out_bin_fname, shallow=False)
@@ -102,3 +103,21 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
         finally:
             # remove temporary files
             test_out_bin_fname.with_suffix('.bin').unlink()
+
+
+@pytest.mark.parametrize("socket_server", socket_server)
+@pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
+def test_gulpy_ping(test_model, socket_server):
+    _, test_model_dir_str = test_model
+    test_model_dir = Path(test_model_dir_str)
+    with (patch('oasislmf.pytools.gul.manager.oasis_ping') as mock_ping,
+          patch('oasislmf.pytools.gul.manager.read_getmodel_stream', return_value=[]),
+          TemporaryDirectory() as tmp_result_dir_str):
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
+        gulpy_run(run_dir=tmp_result_dir, ignore_file_type="", sample_size=1, loss_threshold=1,
+                  alloc_rule=1, debug=False, random_generator=1, socket_server=socket_server)
+        if socket_server != 'False':
+            mock_ping.assert_called()
+        else:
+            mock_ping.assert_not_called()

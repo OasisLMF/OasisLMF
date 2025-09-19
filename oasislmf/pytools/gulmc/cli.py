@@ -52,6 +52,10 @@ parser.add_argument('--model-df-engine', help='The engine to use when loading mo
                     default='oasis_data_manager.df_reader.reader.OasisPandasReader')
 parser.add_argument('--dynamic-footprint', help='Apply dynamic footprint logic with intensity adjustments',
                     default=False)
+parser.add_argument('--socket-server', help='Send progress updates to a local socket server with this url',
+                    default='False')
+parser.add_argument('--analysis-pk', help='Only used by platform to link run to an analysis',
+                    default=None)
 
 
 def main():
