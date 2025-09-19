@@ -23,7 +23,7 @@ def main():
     parser.add_argument('process_number', type=int,
                         help='Process number to receive a partition of events. Processes are one-indexed.')
     parser.add_argument('total_processes', type=int,
-                        help='Total number of partitions of events to distribute to processes')
+                        help='Total number of processes to distribute the events over')
     parser.add_argument('-i', '--input_file', type=str, default=DEFAULT_EVENTS_FILE,
                         help=f'Input file containing the events binary (default: {DEFAULT_EVENTS_FILE})')
 
