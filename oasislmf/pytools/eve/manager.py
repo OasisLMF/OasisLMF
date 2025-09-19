@@ -10,6 +10,7 @@ from oasislmf.pytools.common.data import oasis_int
 logger = logging.getLogger(__name__)
 
 DEFAULT_EVENTS_FILE = Path('input/events.bin')
+NUMPY_RANDOM_SEED = 1234
 
 
 def read_events(input_file):
@@ -61,7 +62,22 @@ def partition_events__random(events, process_number, total_processes):
         process_number (int): The process number to receive a partition of events.
         total_processes (int): Total number of processes to distribute the events over.
     """
-    pass
+    # `rng.shuffle` vs reimplementing Fisher Yates
+    # Profiling `rng.shuffle`
+    # Events: 10**2, Time take: 1.8717983039095998e-05
+    # Events: 10**3, Time take: 1.5375000657513738e-05
+    # Events: 10**4, Time take: 0.00015710399020463228
+    # Events: 10**5, Time take: 0.0012050450022798032
+    # Events: 10**6, Time take: 0.010783873993204907
+    # Events: 10**7, Time take: 0.21932732500135899
+    # Events: 10**8, Time take: 3.4394525219977368
+    # Above this the process gets killed... -> it blows up the memory
+    #
+    # TODO: reimplement streaming randomise from ktools eve
+    ###
+    rng = np.random.default_rng(NUMPY_RANDOM_SEED)
+    rng.shuffle(events)
+    return partition_events__no_shuffle(events, process_number, total_processes)
 
 
 def partition_events__round_robin(events, process_number, total_processes):
