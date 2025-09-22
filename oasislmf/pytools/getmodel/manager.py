@@ -883,6 +883,7 @@ def run(
         stream_out.write(np.uint32(1).tobytes())
 
         logger.debug('doCdf starting')
+        empty_events = 0
         while True:
             len_read = streams_in.readinto(event_id_mv)
             if len_read == 0:
@@ -896,7 +897,6 @@ def run(
             else:
                 event_footprint = footprint_obj.get_event(event_id)
 
-            empty_events = 0
             if event_footprint is not None:
                 # compute effective damageability probability distribution
                 # stream out: event_id, areaperil_id, number of damage bins, effecive damageability cdf bins (bin_mean and prob_to)
