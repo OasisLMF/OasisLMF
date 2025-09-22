@@ -53,7 +53,7 @@ def partition_events__no_shuffle(events, process_number, total_processes):
                   process_number * events_per_process]
 
 
-def partition_events__random(events, process_number, total_processes):
+def partition_events__random_legacy(events, process_number, total_processes):
     """Shuffle the events randomly and allocate to each process. Only output
     the event IDs to the given `process_number`.
 
@@ -78,6 +78,31 @@ def partition_events__random(events, process_number, total_processes):
     rng = np.random.default_rng(NUMPY_RANDOM_SEED)
     rng.shuffle(events)
     return partition_events__no_shuffle(events, process_number, total_processes)
+
+
+def partition_events__random(events, process_number, total_processes):
+    """Shuffle the events randomly and allocate to each process. Only output
+    the event IDs to the given `process_number`. Generates an iterator.
+
+    Randomisation is implemented using the Fisher-Yates algorithm.
+
+    Args:
+        events (np.array): Array of ordered event IDs.
+        process_number (int): The process number to receive a partition of events.
+        total_processes (int): Total number of processes to distribute the events over.
+    """
+    rng = np.random.default_rng(NUMPY_RANDOM_SEED)
+
+    for i in range(len(events) - 1, 0, -1):
+        j = rng.integers(0, i + 1)
+
+        events[i], events[j] = events[j], events[i]
+
+        if (i - process_number) % total_processes == 0:
+            yield events[i]
+
+    if process_number % total_processes == 0:  # Event at 0 index
+        yield events[0]
 
 
 def partition_events__round_robin(events, process_number, total_processes):
