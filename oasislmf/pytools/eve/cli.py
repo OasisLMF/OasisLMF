@@ -33,7 +33,9 @@ def main():
     parser.add_argument('-n', '--no_shuffle', action='store_true',
                         help='Disable shuffle. Events respect input ordering')
     parser.add_argument('-r', '--randomise', action='store_true',
-                        help='Randomise events using the Fisher-Yates shuffle.')
+                        help='Randomise events using the Fisher-Yates shuffle. Events are output during shuffling.')
+    parser.add_argument('-R', '--randomise_builtin', action='store_true',
+                        help='Randomise events using the builtin. Events are shuffled first and then output.')
 
     parser.add_argument('-v', '--logging-level', type=int, default=30,
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')

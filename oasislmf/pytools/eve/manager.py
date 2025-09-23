@@ -57,28 +57,18 @@ def partition_events__no_shuffle(events, process_number, total_processes):
                   process_number * events_per_process]
 
 
-def partition_events__random_legacy(events, process_number, total_processes):
-    """Shuffle the events randomly and allocate to each process. Only output
-    the event IDs to the given `process_number`.
+def partition_events__random_builtin(events, process_number, total_processes):
+    """Shuffle the events randomly and allocate to each process using builtin
+    shuffle. Only output the event IDs to the given `process_number`.
+
+    Note that this can be memory intensive. For `len(events) > 10**5` recommend
+    using `partition_events__random`.
 
     Args:
         events (np.array): Array of ordered event IDs.
         process_number (int): The process number to receive a partition of events.
         total_processes (int): Total number of processes to distribute the events over.
     """
-    # `rng.shuffle` vs reimplementing Fisher Yates
-    # Profiling `rng.shuffle`
-    # Events: 10**2, Time take: 1.8717983039095998e-05
-    # Events: 10**3, Time take: 1.5375000657513738e-05
-    # Events: 10**4, Time take: 0.00015710399020463228
-    # Events: 10**5, Time take: 0.0012050450022798032
-    # Events: 10**6, Time take: 0.010783873993204907
-    # Events: 10**7, Time take: 0.21932732500135899
-    # Events: 10**8, Time take: 3.4394525219977368
-    # Above this the process gets killed... -> it blows up the memory
-    #
-    # TODO: reimplement streaming randomise from ktools eve
-    ###
     rng = np.random.default_rng(NUMPY_RANDOM_SEED)
     rng.shuffle(events)
     return partition_events__no_shuffle(events, process_number, total_processes)
@@ -122,7 +112,7 @@ def partition_events__round_robin(events, process_number, total_processes):
 
 
 def run(input_file, process_number, total_processes, no_shuffle=False,
-        randomise=False, output_file=None,
+        randomise=False, randomise_builtin=False, output_file=None,
         ):
     """Generate event ID partitions as a binary data stream with shuffling. By
     default the events are shuffled by assiging to processes one by one
@@ -134,9 +124,14 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
         process_number (int): The process number to receive a partition of events.
         total_processes (int): Total number of processes to distribute the events over.
         no_shuffle (bool, optional): Disable shuffling events. Events are split
-            and distributed into blocks in the order they are input. Takes priority over `randomise`.
-        randomise (bool, optional): Shuffle events randomly in the blocks. If
-            `no_shuffle` is `True` then it takes priority.
+            and distributed into blocks in the order they are input. Takes
+            priority over `randomise(_builtin)`.
+        randomise (bool, optional): Shuffle events randomly in the blocks and
+            stream events on the fly. If `no_shuffle` is `True` then it takes
+            priority.
+        randomise_builtin (bool, optional): Shuffle events randomly in the blocks using
+            builtin shuffle. If `no_shuffle` or `randomise` is `True` then it
+            they take priority.
         output_file (str | os.PathLike): Path to output file. If None then outputs to stdout.
     """
     if input_file is None:
@@ -150,9 +145,14 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
         raise ValueError(f"ERROR: \'{input_file}\' is not a file.")
 
     # Check shuffle and randomise settings
-    if no_shuffle and randomise:
-        logger.warning("Warning: `no_shuffle` and `randomise` options are incompatible. Ignoring `randomise`.")
+    if no_shuffle and (randomise or randomise_builtin):
+        logger.warning("Warning: `no_shuffle` and `randomise(_builtin)` options are incompatible. Ignoring `randomise(_builtin)`.")
         randomise = False
+        randomise_builtin = False
+
+    if randomise and randomise_builtin:
+        logger.warning("Warning: `randomise` and `randomise_builtin` options are incompatible. Ignoring `randomise_builtin`.")
+        randomise_builtin = False
 
     events = read_events(input_file)
 
@@ -164,6 +164,10 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
         event_partitions = partition_events__random(events,
                                                     process_number,
                                                     total_processes)
+    elif randomise_builtin:
+        event_partitions = partition_events__random_builtin(events,
+                                                            process_number,
+                                                            total_processes)
     else:
         event_partitions = partition_events__round_robin(events,
                                                          process_number,
@@ -180,8 +184,8 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
 
 @redirect_logging(exec_name='evepy')
 def main(input_file=None, process_number=None, total_processes=None,
-         no_shuffle=False, randomise=False, output_file=None, **kwargs):
+         no_shuffle=False, randomise=False, randomise_builtin=False, output_file=None, **kwargs):
 
     run(input_file=input_file, process_number=process_number,
         total_processes=total_processes, no_shuffle=no_shuffle,
-        randomise=randomise, output_file=output_file)
+        randomise=randomise, randomise_builtin=randomise_builtin, output_file=output_file)

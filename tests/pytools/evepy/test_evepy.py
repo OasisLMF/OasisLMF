@@ -17,7 +17,9 @@ def update_expected(request):
     return request.config.getoption('--update-expected')
 
 
-def case_runner(input_file, output_file, process_number, total_processes, no_shuffle=False, randomise=False, update_expected=False):
+def case_runner(input_file, output_file, process_number, total_processes,
+                no_shuffle=False, randomise=False, randomise_builtin=False,
+                update_expected=False):
     with TemporaryDirectory() as tmp_result_dir:
         input_file = Path(TESTS_ASSETS_DIR).joinpath("input").joinpath(input_file)
         expected_output = Path(TESTS_ASSETS_DIR).joinpath("expected").joinpath(output_file)
@@ -29,7 +31,8 @@ def case_runner(input_file, output_file, process_number, total_processes, no_shu
             "process_number": process_number,
             "total_processes": total_processes,
             "no_shuffle": no_shuffle,
-            "randomise": randomise
+            "randomise": randomise,
+            "randomise_builtin": randomise_builtin
         }
 
         main(**kwargs)
@@ -93,6 +96,20 @@ def test_evepy__randomise(process_number, total_processes, update_expected):
 
 
 @pytest.mark.parametrize("process_number,total_processes", test_process_inputs)
+def test_evepy__randomise_builtin(process_number, total_processes, update_expected):
+    """Test evepy with randomise"""
+    kwargs = {
+        "input_file": Path("events.bin"),
+        "output_file": f"output_evepy__randomise_builtin_{process_number}_{total_processes}.bin",
+        "process_number": process_number,
+        "total_processes": total_processes,
+        "randomise_builtin": True
+    }
+
+    case_runner(update_expected=update_expected, **kwargs)
+
+
+@pytest.mark.parametrize("process_number,total_processes", test_process_inputs)
 def test_evepy__no_shuffle_randomise(process_number, total_processes, update_expected):
     """Test evepy with no_shuffle and randomise. Should ignore randomise and
     output the same as no_shuffle."""
@@ -103,6 +120,37 @@ def test_evepy__no_shuffle_randomise(process_number, total_processes, update_exp
         "total_processes": total_processes,
         "no_shuffle": True,
         "randomise": True
+    }
+
+    case_runner(update_expected=update_expected, **kwargs)
+
+
+@pytest.mark.parametrize("process_number,total_processes", test_process_inputs)
+def test_evepy__no_shuffle_randomise_randomise_builtin(process_number, total_processes, update_expected):
+    """Test evepy with no_shuffle, randomise and randomise_builtin. Should output the same as no_shuffle."""
+    kwargs = {
+        "input_file": Path("events.bin"),
+        "output_file": f"output_evepy__no_shuffle_{process_number}_{total_processes}.bin",
+        "process_number": process_number,
+        "total_processes": total_processes,
+        "no_shuffle": True,
+        "randomise": True,
+        "randomise_builtin": True
+    }
+
+    case_runner(update_expected=update_expected, **kwargs)
+
+
+@pytest.mark.parametrize("process_number,total_processes", test_process_inputs)
+def test_evepy__randomise_randomise_builtin(process_number, total_processes, update_expected):
+    """Test evepy with randomise and randomise_builtin. Should output the same as randomise."""
+    kwargs = {
+        "input_file": Path("events.bin"),
+        "output_file": f"output_evepy__randomise_{process_number}_{total_processes}.bin",
+        "process_number": process_number,
+        "total_processes": total_processes,
+        "randomise": True,
+        "randomise_builtin": True
     }
 
     case_runner(update_expected=update_expected, **kwargs)
