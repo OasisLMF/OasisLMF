@@ -333,12 +333,12 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P4 -2 fifo/gul_S2_summary_P4 < fifo/gu
 summarycalc -m -i  -1 fifo/gul_S1_summary_P5 -2 fifo/gul_S2_summary_P5 < fifo/gul_P5 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P6 -2 fifo/gul_S2_summary_P6 < fifo/gul_P6 &
 
-( eve 1 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
-( eve 2 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
-( eve 3 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
-( eve 4 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
-( eve 5 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P5 > fifo/gul_lb_P5  ) & 
-( eve 6 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P6 > fifo/gul_lb_P6  ) & 
+( evepy 1 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
+( evepy 2 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
+( evepy 3 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
+( evepy 4 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
+( evepy 5 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P5 > fifo/gul_lb_P5  ) & 
+( evepy 6 6 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P6 > fifo/gul_lb_P6  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 load_balancer -i fifo/gul_lb_P5 fifo/gul_lb_P6 -o fifo/lb_il_P5 fifo/lb_il_P6 &

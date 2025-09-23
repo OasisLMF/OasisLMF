@@ -31,7 +31,7 @@ pltcalc -H < fifo/il_S1_pltcalc_P8 > work/kat/il_S1_pltcalc_P8 & pid1=$!
 tee < fifo/il_S1_summary_P8 fifo/il_S1_pltcalc_P8 > /dev/null & pid2=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
 
-( eve 8 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | fmpy -a2 > fifo/il_P8  ) & pid3=$!
+( evepy 8 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | fmpy -a2 > fifo/il_P8  ) & pid3=$!
 
 wait $pid1 $pid2 $pid3
 

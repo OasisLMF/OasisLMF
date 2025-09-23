@@ -42,7 +42,7 @@ tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryaalcalc/P1.idx work/gul_S1_s
 
 summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
-( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P1  ) &  pid6=$!
+( evepy 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P1  ) &  pid6=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
 

@@ -84,7 +84,7 @@ mkfifo fifo/il_S1_eltcalc_P4
 tee < fifo/il_S1_summary_P4 fifo/il_S1_eltcalc_P4 > /dev/null & pid2=$!
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( eve 4 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid3=$!
+( ( evepy 4 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid3=$!
 
 wait $pid1 $pid2 $pid3
 

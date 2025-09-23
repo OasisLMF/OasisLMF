@@ -30,7 +30,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P14 > work/kat/gul_S1_eltcalc_P
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P14 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P14 > /dev/null & pid2=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P14 < /tmp/%FIFO_DIR%/fifo/gul_P14 &
 
-( eve 14 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P14  ) &  pid3=$!
+( evepy 14 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P14  ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

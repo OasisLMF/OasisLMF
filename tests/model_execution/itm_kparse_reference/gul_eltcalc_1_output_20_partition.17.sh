@@ -30,7 +30,7 @@ eltcalc -s < fifo/gul_S1_eltcalc_P18 > work/kat/gul_S1_eltcalc_P18 & pid1=$!
 tee < fifo/gul_S1_summary_P18 fifo/gul_S1_eltcalc_P18 > /dev/null & pid2=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
 
-( eve 18 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P18  ) &  pid3=$!
+( evepy 18 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P18  ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

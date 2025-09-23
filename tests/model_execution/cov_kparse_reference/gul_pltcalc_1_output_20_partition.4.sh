@@ -30,7 +30,7 @@ pltcalc -H < fifo/gul_S1_pltcalc_P5 > work/kat/gul_S1_pltcalc_P5 & pid1=$!
 tee < fifo/gul_S1_summary_P5 fifo/gul_S1_pltcalc_P5 > /dev/null & pid2=$!
 summarycalc -m -g  -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
 
-( eve 5 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P5  ) &  pid3=$!
+( evepy 5 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P5  ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

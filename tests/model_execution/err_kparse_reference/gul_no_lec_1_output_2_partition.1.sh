@@ -91,7 +91,7 @@ tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 f
 tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryaalcalc/P2.idx > /dev/null & pid5=$!
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P2  ) 2>> $LOG_DIR/stderror.err ) &  pid6=$!
+( ( evepy 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P2  ) 2>> $LOG_DIR/stderror.err ) &  pid6=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
 

@@ -89,7 +89,7 @@ tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null &
 
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
+( ( evepy 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

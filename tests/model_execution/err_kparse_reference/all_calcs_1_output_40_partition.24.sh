@@ -110,7 +110,7 @@ tee < fifo/gul_S1_summary_P25 fifo/gul_S1_eltcalc_P25 fifo/gul_S1_summarycalc_P2
 tee < fifo/gul_S1_summary_P25.idx work/gul_S1_summaryaalcalc/P25.idx work/gul_S1_summaryleccalc/P25.idx > /dev/null & pid10=$!
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P25 < fifo/gul_P25 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( eve 25 40 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | tee fifo/gul_P25 | fmcalc -a2 > fifo/il_P25  ) 2>> $LOG_DIR/stderror.err ) & pid11=$!
+( ( evepy 25 40 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | tee fifo/gul_P25 | fmcalc -a2 > fifo/il_P25  ) 2>> $LOG_DIR/stderror.err ) & pid11=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11
 

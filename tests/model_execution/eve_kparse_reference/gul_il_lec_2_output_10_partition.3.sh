@@ -80,7 +80,7 @@ tee < fifo/gul_S2_summary_P4 fifo/gul_S2_eltcalc_P4 fifo/gul_S2_summarycalc_P4 f
 tee < fifo/gul_S2_summary_P4.idx work/gul_S2_summaryaalcalc/P4.idx work/gul_S2_summaryleccalc/P4.idx > /dev/null & pid20=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P4 -2 fifo/gul_S2_summary_P4 < fifo/gul_P4 &
 
-( eve -R 4 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P4 | fmcalc -a2 > fifo/il_P4  ) & pid21=$!
+( evepy -R 4 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P4 | fmcalc -a2 > fifo/il_P4  ) & pid21=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21
 

@@ -153,7 +153,7 @@ tee < fifo/full_correlation/gul_S1_summary_P26.idx work/full_correlation/gul_S1_
 ( summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P26 < fifo/full_correlation/gul_P26 ) 2>> $LOG_DIR/stderror.err  &
 
 ( ( tee < fifo/full_correlation/gul_fc_P26 fifo/full_correlation/gul_P26  | fmcalc -a2 > fifo/full_correlation/il_P26  ) 2>> $LOG_DIR/stderror.err ) & pid21=$!
-( ( eve 26 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P26 -a1 -i - | tee fifo/gul_P26 | fmcalc -a2 > fifo/il_P26  ) 2>> $LOG_DIR/stderror.err ) & pid22=$!
+( ( evepy 26 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P26 -a1 -i - | tee fifo/gul_P26 | fmcalc -a2 > fifo/il_P26  ) 2>> $LOG_DIR/stderror.err ) & pid22=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22
 

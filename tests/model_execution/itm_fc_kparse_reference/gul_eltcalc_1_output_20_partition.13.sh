@@ -44,7 +44,7 @@ eltcalc -s < fifo/full_correlation/gul_S1_eltcalc_P14 > work/full_correlation/ka
 tee < fifo/full_correlation/gul_S1_summary_P14 fifo/full_correlation/gul_S1_eltcalc_P14 > /dev/null & pid4=$!
 summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P14 < fifo/full_correlation/gul_P14 &
 
-( eve 14 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P14 -a1 -i - > fifo/gul_P14  ) &  pid5=$!
+( evepy 14 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P14 -a1 -i - > fifo/gul_P14  ) &  pid5=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5
 

@@ -99,7 +99,7 @@ tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P16.idx work/full_cor
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P16 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P16 &
 
 ( tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P16 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P16  | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P16  ) & pid21=$!
-( eve 16 20 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P16 -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P16 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P16  ) & pid22=$!
+( evepy 16 20 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fc_P16 -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P16 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P16  ) & pid22=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22
 

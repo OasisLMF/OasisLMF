@@ -600,26 +600,26 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
 
-( eve -R 1 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
-( eve -R 2 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
-( eve -R 3 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
-( eve -R 4 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
-( eve -R 5 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P5 > fifo/gul_lb_P5  ) & 
-( eve -R 6 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P6 > fifo/gul_lb_P6  ) & 
-( eve -R 7 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P7 > fifo/gul_lb_P7  ) & 
-( eve -R 8 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P8 > fifo/gul_lb_P8  ) & 
-( eve -R 9 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P9 > fifo/gul_lb_P9  ) & 
-( eve -R 10 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P10 > fifo/gul_lb_P10  ) & 
-( eve -R 11 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P11 > fifo/gul_lb_P11  ) & 
-( eve -R 12 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P12 > fifo/gul_lb_P12  ) & 
-( eve -R 13 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P13 > fifo/gul_lb_P13  ) & 
-( eve -R 14 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P14 > fifo/gul_lb_P14  ) & 
-( eve -R 15 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P15 > fifo/gul_lb_P15  ) & 
-( eve -R 16 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P16 > fifo/gul_lb_P16  ) & 
-( eve -R 17 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P17 > fifo/gul_lb_P17  ) & 
-( eve -R 18 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P18 > fifo/gul_lb_P18  ) & 
-( eve -R 19 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P19 > fifo/gul_lb_P19  ) & 
-( eve -R 20 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P20 > fifo/gul_lb_P20  ) & 
+( evepy -R 1 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  ) & 
+( evepy -R 2 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  ) & 
+( evepy -R 3 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P3 > fifo/gul_lb_P3  ) & 
+( evepy -R 4 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P4 > fifo/gul_lb_P4  ) & 
+( evepy -R 5 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P5 > fifo/gul_lb_P5  ) & 
+( evepy -R 6 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P6 > fifo/gul_lb_P6  ) & 
+( evepy -R 7 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P7 > fifo/gul_lb_P7  ) & 
+( evepy -R 8 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P8 > fifo/gul_lb_P8  ) & 
+( evepy -R 9 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P9 > fifo/gul_lb_P9  ) & 
+( evepy -R 10 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P10 > fifo/gul_lb_P10  ) & 
+( evepy -R 11 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P11 > fifo/gul_lb_P11  ) & 
+( evepy -R 12 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P12 > fifo/gul_lb_P12  ) & 
+( evepy -R 13 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P13 > fifo/gul_lb_P13  ) & 
+( evepy -R 14 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P14 > fifo/gul_lb_P14  ) & 
+( evepy -R 15 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P15 > fifo/gul_lb_P15  ) & 
+( evepy -R 16 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P16 > fifo/gul_lb_P16  ) & 
+( evepy -R 17 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P17 > fifo/gul_lb_P17  ) & 
+( evepy -R 18 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P18 > fifo/gul_lb_P18  ) & 
+( evepy -R 19 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P19 > fifo/gul_lb_P19  ) & 
+( evepy -R 20 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P20 > fifo/gul_lb_P20  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 load_balancer -i fifo/gul_lb_P5 fifo/gul_lb_P6 -o fifo/lb_il_P5 fifo/lb_il_P6 &

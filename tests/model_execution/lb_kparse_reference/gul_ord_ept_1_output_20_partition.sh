@@ -168,26 +168,26 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
 
-( eve 1 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P1  ) &  pid41=$!
-( eve 2 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P2  ) &  pid42=$!
-( eve 3 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P3  ) &  pid43=$!
-( eve 4 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P4  ) &  pid44=$!
-( eve 5 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P5  ) &  pid45=$!
-( eve 6 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P6  ) &  pid46=$!
-( eve 7 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P7  ) &  pid47=$!
-( eve 8 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P8  ) &  pid48=$!
-( eve 9 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P9  ) &  pid49=$!
-( eve 10 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P10  ) &  pid50=$!
-( eve 11 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P11  ) &  pid51=$!
-( eve 12 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P12  ) &  pid52=$!
-( eve 13 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P13  ) &  pid53=$!
-( eve 14 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P14  ) &  pid54=$!
-( eve 15 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P15  ) &  pid55=$!
-( eve 16 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P16  ) &  pid56=$!
-( eve 17 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P17  ) &  pid57=$!
-( eve 18 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P18  ) &  pid58=$!
-( eve 19 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P19  ) &  pid59=$!
-( eve 20 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P20  ) &  pid60=$!
+( evepy 1 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P1  ) &  pid41=$!
+( evepy 2 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P2  ) &  pid42=$!
+( evepy 3 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P3  ) &  pid43=$!
+( evepy 4 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P4  ) &  pid44=$!
+( evepy 5 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P5  ) &  pid45=$!
+( evepy 6 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P6  ) &  pid46=$!
+( evepy 7 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P7  ) &  pid47=$!
+( evepy 8 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P8  ) &  pid48=$!
+( evepy 9 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P9  ) &  pid49=$!
+( evepy 10 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P10  ) &  pid50=$!
+( evepy 11 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P11  ) &  pid51=$!
+( evepy 12 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P12  ) &  pid52=$!
+( evepy 13 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P13  ) &  pid53=$!
+( evepy 14 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P14  ) &  pid54=$!
+( evepy 15 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P15  ) &  pid55=$!
+( evepy 16 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P16  ) &  pid56=$!
+( evepy 17 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P17  ) &  pid57=$!
+( evepy 18 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P18  ) &  pid58=$!
+( evepy 19 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P19  ) &  pid59=$!
+( evepy 20 20 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P20  ) &  pid60=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60
 

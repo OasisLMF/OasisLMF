@@ -100,7 +100,7 @@ tee < fifo/full_correlation/gul_S1_summary_P13 work/full_correlation/gul_S1_summ
 tee < fifo/full_correlation/gul_S1_summary_P13.idx work/full_correlation/gul_S1_summaryleccalc/P13.idx > /dev/null & pid4=$!
 ( summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P13 < fifo/full_correlation/gul_P13 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( eve 13 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P13 -a1 -i - > fifo/gul_P13  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
+( ( evepy 13 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P13 -a1 -i - > fifo/gul_P13  ) 2>> $LOG_DIR/stderror.err ) &  pid5=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5
 
