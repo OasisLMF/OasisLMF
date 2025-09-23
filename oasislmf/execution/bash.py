@@ -1599,7 +1599,7 @@ def get_getmodel_itm_cmd(
     :type  model_df_engine: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
@@ -1672,7 +1672,7 @@ def get_getmodel_cov_cmd(
     :type  df_engine: str
     :return: (str) The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
