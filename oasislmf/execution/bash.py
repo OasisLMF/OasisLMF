@@ -2317,7 +2317,6 @@ def create_bash_analysis(
     dynamic_footprint=False,
     **kwargs
 ):
-
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
 
@@ -2580,6 +2579,10 @@ def create_bash_analysis(
     # create all gul streams
     get_gul_stream_cmds = {}
 
+    if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
+        print_command(filename, f"socket-server {kwargs['socket_server']} > /dev/null & spid=$!")
+        print_command(filename, "trap 'kill -TERM -\"$spid\" 2>/dev/null' INT TERM")
+
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
     # for gul_id in range(1, num_gul_output + 1):
     for gul_id in process_range(num_gul_output, process_number):
@@ -2647,7 +2650,7 @@ def create_bash_analysis(
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
                                                consumer=RUNTYPE_LOAD_BALANCED_LOSS)
                     tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} > {tee_output} &"
-                    print_command(filename, tee_cmd)
+                    print_command(filename, add_server_call(tee_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
 
                 else:
                     tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
@@ -2677,7 +2680,7 @@ def create_bash_analysis(
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
-            print_command(filename, main_cmd_gul_stream)
+            print_command(filename, add_server_call(main_cmd_gul_stream, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
 
@@ -2698,7 +2701,7 @@ def create_bash_analysis(
                                              consumer=RUNTYPE_INSURED_LOSS)
             for lb_main_cmd in get_main_cmd_lb(num_lb, num_gul_per_lb, num_fm_per_lb, get_input_stream_name,
                                                get_output_stream_name, stderr_guard):
-                print_command(filename, lb_main_cmd)
+                print_command(filename, add_server_call(lb_main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
 
     # Establish whether step policies present
     step_flag = ''
@@ -2741,7 +2744,7 @@ def create_bash_analysis(
                         analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
                     rl_inuring_priorities={ip['level']: ip['text'] for ip in get_rl_inuring_priorities(num_reinsurance_iterations) if rl_output}
                 )
-                print_command(filename, main_cmd)
+                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
 
             elif il_output:
                 main_cmd = get_main_cmd_il_stream(
@@ -2754,7 +2757,7 @@ def create_bash_analysis(
                     step_flag,
                     process_counter=process_counter
                 )
-                print_command(filename, main_cmd)
+                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
 
             else:
                 main_cmd = get_main_cmd_gul_stream(
@@ -2764,10 +2767,13 @@ def create_bash_analysis(
                     stderr_guard=stderr_guard,
                     process_counter=process_counter,
                 )
-                print_command(filename, main_cmd)
+                print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
 
     print_command(filename, '')
     do_pwaits(filename, process_counter)
+    if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
+        # Ensure killed if server doesnt end
+        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid"')
 
 
 def create_bash_outputs(
@@ -3014,7 +3020,9 @@ def genbash(
     lecpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
-    dynamic_footprint=False
+    dynamic_footprint=False,
+    analysis_pk=None,
+    socket_server=None
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -3060,7 +3068,6 @@ def genbash(
     :param model_df_engine: The engine to use when loading model dataframes.
     :type  model_df_engine: str
     """
-
     model_df_engine = model_df_engine or base_df_engine
 
     params = bash_params(
@@ -3109,6 +3116,9 @@ def genbash(
     if os.path.exists(filename):
         os.remove(filename)
 
+    params['analysis_pk'] = analysis_pk
+    params['socket_server'] = socket_server
+
     with bash_wrapper(
         filename,
         bash_trace,
@@ -3118,3 +3128,11 @@ def genbash(
     ):
         create_bash_analysis(**params)
         create_bash_outputs(**params)
+
+
+def add_server_call(call, analysis_pk=None, socket_server=False):
+    if '| gul' not in call:
+        return call
+    if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']) and analysis_pk is not None:
+        return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
+    return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server}'", call)

@@ -7,7 +7,7 @@ import pathlib
 from ods_tools.oed import UnknownColumnSaveOption
 
 from ..base import ComputationStep
-from ...utils.data import get_exposure_data, prepare_oed_exposure
+from ...utils.data import get_exposure_data, prepare_oed_exposure, analysis_settings_loader, model_settings_loader
 from ...utils.inputs import str2bool
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
@@ -29,6 +29,9 @@ class ExposurePreAnalysis(ComputationStep):
     you can find an example of such custom module in OasisPyWind/custom_module/exposure_pre_analysis.py
 
     """
+    settings_params = [{'name': 'analysis_settings_json', 'loader': analysis_settings_loader, 'user_role': 'user'},
+                       {'name': 'model_settings_json', 'loader': model_settings_loader}]
+
     step_params = [{'name': 'exposure_pre_analysis_module', 'required': True, 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis lookup module path'},
                    {'name': 'exposure_pre_analysis_class_name', 'default': 'ExposurePreAnalysis',
@@ -98,6 +101,7 @@ class ExposurePreAnalysis(ComputationStep):
         kwargs['model_data_dir'] = self.model_data_dir
         kwargs['user_data_dir'] = self.user_data_dir
         kwargs['analysis_settings_json'] = self.analysis_settings_json
+        kwargs['settings'] = self.settings
 
         if self.exposure_pre_analysis_setting_json:
             with open(self.exposure_pre_analysis_setting_json) as exposure_pre_analysis_setting_file:

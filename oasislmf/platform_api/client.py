@@ -623,78 +623,66 @@ class APIClient(object):
         statuses, `NEW`, `RUN_COMPLETED`, `RUN_CANCELLED` or
         `RUN_ERROR`
         """
-
         try:
             if analysis_settings_fp:
                 self.upload_settings(analysis_id, analysis_settings_fp)
 
-            analysis = self.analyses.run(analysis_id).json()
-            self.logger.info('Analysis Run: Starting (id={})'.format(analysis_id))
-            logged_queued = None
-            logged_running = None
+            self.analyses.run(analysis_id)
+            self.logger.info(f'Analysis Run: Starting (id={analysis_id})')
+            return self._poll_analysis_until_complete(analysis_id, poll_interval)
 
-            while True:
-                if analysis['status'] in ['RUN_COMPLETED']:
-                    self.logger.info('Analysis Run: Complete (id={})'.format(analysis_id))
-                    return True
-
-                elif analysis['status'] in ['RUN_CANCELLED']:
-                    self.logger.info('Analysis Run: Cancelled (id={})'.format(analysis_id))
-                    return False
-
-                elif analysis['status'] in ['RUN_ERROR']:
-                    self.logger.error('Analysis Run: Failed (id={})'.format(analysis_id))
-                    error_trace = self.analyses.run_traceback_file.get(analysis_id).text
-                    self.logger.error("\nServer logs:")
-                    self.logger.error(error_trace)
-                    return False
-
-                elif analysis['status'] in ['RUN_QUEUED']:
-                    if not logged_queued:
-                        logged_queued = True
-                        self.logger.info('Analysis Run: Queued (id={})'.format(analysis_id))
-
-                    time.sleep(poll_interval)
-                    r = self.analyses.get(analysis_id)
-                    analysis = r.json()
-                    continue
-
-                elif analysis['status'] in ['RUN_STARTED']:
-                    if not logged_running:
-                        logged_running = True
-                        self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
-
-                    if analysis.get('run_mode', '') == 'V2':
-                        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
-                        with tqdm(total=len(sub_tasks_list),
-                                  unit=' sub_task',
-                                  desc='Analysis Run') as pbar:
-
-                            completed = []
-                            while len(completed) < len(sub_tasks_list):
-                                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
-                                analysis = self.analyses.get(analysis_id).json()
-                                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
-                                pbar.update(len(completed) - pbar.n)
-                                time.sleep(poll_interval)
-
-                                # Exit conditions
-                                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
-                                    break
-                                elif 'COMPLETED' in analysis['status']:
-                                    pbar.update(pbar.total - pbar.n)
-                                    break
-                    else:
-                        time.sleep(poll_interval)
-                        analysis = self.analyses.get(analysis_id).json()
-                    continue
-
-                else:
-                    err_msg = "Execution status in Unknown State: '{}'".format(analysis['status'])
-                    self.logger.error(err_msg)
-                    raise OasisException(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
+
+    def _poll_analysis_until_complete(self, analysis_id, poll_interval):
+        logged_queued = False
+        while True:
+            analysis = self.analyses.get(analysis_id).json()
+            status = analysis['status']
+            if status == 'RUN_COMPLETED':
+                self.logger.info(f'Analysis Run: Complete (id={analysis_id})')
+                return True
+            elif status == 'RUN_CANCELLED':
+                self.logger.info(f'Analysis Run: Cancelled (id={analysis_id})')
+                return False
+            elif status == 'RUN_ERROR':
+                error_trace = self.analyses.run_traceback_file.get(analysis_id).text
+                self.logger.error(f'Analysis Run: Failed (id={analysis_id})\n\nServer logs:\n{error_trace}')
+                return False
+            elif status == 'RUN_QUEUED':
+                if not logged_queued:
+                    self.logger.info(f'Analysis Run: Queued (id={analysis_id})')
+                    logged_queued = True
+            elif status == 'RUN_STARTED':
+                self.logger.info(f'Analysis Run: Executing (id={analysis_id})')
+                self._run_until_complete(analysis_id, poll_interval)
+                poll_interval = 0
+            else:
+                err_msg = f"Execution status in Unknown State: '{analysis['status']}'"
+                self.logger.error(err_msg)
+                raise OasisException(err_msg)
+            time.sleep(poll_interval)
+
+    def _run_until_complete(self, analysis_id, poll_interval):
+        analysis = self.analyses.get(analysis_id).json()
+        while analysis.get('num_events_total', 0) == 0:
+            # Possible to stay here if no env vars given to worker
+            if any(status in analysis['status'] for status in ['_CANCELLED', '_ERROR', 'COMPLETED']):
+                return
+            time.sleep(poll_interval)
+            analysis = self.analyses.get(analysis_id).json()
+
+        with tqdm(total=analysis['num_events_total'], unit=' gul stages', desc='Analysis Run') as pbar:
+            while "COMPLETED" not in analysis['status']:
+                pbar.update(analysis['num_events_complete'] - pbar.n)
+                time.sleep(poll_interval)
+
+                analysis = self.analyses.get(analysis_id).json()
+                if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                    break
+                elif 'COMPLETED' in analysis['status']:
+                    pbar.update(pbar.total - pbar.n)
+                    break
 
     def download_output(self, analysis_id, download_path='', filename=None, clean_up=False, overwrite=True):
         if not filename:

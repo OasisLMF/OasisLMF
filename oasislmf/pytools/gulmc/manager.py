@@ -5,6 +5,7 @@ import sys
 import json
 from contextlib import ExitStack
 from select import select
+import time
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -46,6 +47,8 @@ from oasislmf.pytools.gulmc.common import (DAMAGE_TYPE_ABSOLUTE,
                                            gulmc_compute_info_type)
 from oasislmf.pytools.gulmc.items import read_items, generate_item_map
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.utils.ping import oasis_ping
+from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -243,11 +246,14 @@ def run(run_dir,
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         # load keys.csv to determine included AreaPerilID from peril_filter
-        if peril_filter:
+        if os.path.exists(os.path.join(input_path, 'keys.csv')):
             keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-            valid_areaperil_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-            logger.debug(
-                f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
+            if peril_filter:
+                valid_areaperil_id = np.unique(keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
+                logger.debug(
+                    f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
+            else:
+                valid_areaperil_id = np.unique(keys_df['AreaPerilID'])
         else:
             valid_areaperil_id = None
 
@@ -336,7 +342,8 @@ def run(run_dir,
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=model_df_engine))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
+                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
@@ -359,7 +366,6 @@ def run(run_dir,
         # prepare output stream
         stream_out.write(gul_header)
         stream_out.write(np.int32(sample_size).tobytes())
-        cursor = 0
 
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
@@ -472,8 +478,13 @@ def run(run_dir,
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
 
+        counter = 0
+        timer = time.time()
+        ping = kwargs.get('socket_server', 'False') != 'False'
         while True:
             if not streams_in.readinto(event_id_mv):
+                if ping:
+                    oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
                 break
 
             # get the next event_id from the input stream
@@ -485,9 +496,9 @@ def run(run_dir,
                     event_footprint,
                     areaperil_ids_map,
                     dynamic_footprint)
-
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
+                    counter += 1
                     continue
 
                 items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
@@ -574,6 +585,12 @@ def run(run_dir,
                         write_start += stream_out.write(byte_mv[write_start: compute_info['cursor']].tobytes())
 
                 logger.info(f"event {event_ids[0]} DONE")
+
+            counter += 1
+            if ping and time.time() - timer > SERVER_UPDATE_TIME:
+                timer = time.time()
+                oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
+                counter = 0
     return 0
 
 
@@ -797,13 +814,10 @@ def compute_event_losses(compute_info,
         # compute losses for each item
         for item_j in range(Nitems):
             item_event_data = items_event_data[coverage['start_items'] + item_j]
-            item_id = item_event_data['item_id']
             rng_index = item_event_data['rng_index']
             hazard_rng_index = item_event_data['hazard_rng_index']
 
             item = items[item_event_data['item_idx']]
-            areaperil_id = item['areaperil_id']
-            vulnerability_id = item['vulnerability_id']
             if dynamic_footprint is not None:
                 intensity_adjustment = item['intensity_adjustment']
             else:
@@ -828,7 +842,7 @@ def compute_event_losses(compute_info,
                 for haz_bin_idx in range(haz_bin_id.shape[0]):
                     try:
                         haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, haz_intensity[haz_bin_idx]]
-                    except:
+                    except Exception:
                         haz_bin_id[haz_bin_idx] = intensity_bin_dict[peril_id, 0]
             else:
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
