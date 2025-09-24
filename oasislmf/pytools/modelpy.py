@@ -17,6 +17,7 @@ parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info
                     default=30, type=int)
 parser.add_argument('-V', '--version', action='version', version='{}'.format(oasis_version))
 parser.add_argument('--df-engine', help='The engine to use when loading dataframes', default='oasis_data_manager.df_reader.reader.OasisPandasReader')
+parser.add_argument('--analysis-pk', help='Analysis pk to send updates to', default=None)
 
 
 def main() -> None:

@@ -35,6 +35,7 @@ from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.common import Index_type, Keys
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.utils import redirect_logging
+from oasislmf.utils.ping import oasis_ping
 
 from .vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 from ..common.data import null_index
@@ -793,6 +794,7 @@ def run(
     data_server,
     peril_filter,
     df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+    analysis_pk=None
 ):
     """
     Runs the main process of the getmodel process.
@@ -881,6 +883,7 @@ def run(
         stream_out.write(np.uint32(1).tobytes())
 
         logger.debug('doCdf starting')
+        empty_events = 0
         while True:
             len_read = streams_in.readinto(event_id_mv)
             if len_read == 0:
@@ -906,4 +909,8 @@ def run(
                     if cursor_bytes:
                         stream_out.write(mv[:cursor_bytes])
                     else:
+                        empty_events += 1
                         break
+            else:
+                empty_events += 1
+        oasis_ping({"events_complete": empty_events, 'analysis_pk': analysis_pk})
