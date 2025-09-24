@@ -4,7 +4,6 @@ from contextlib import ExitStack
 import logging
 from pathlib import Path
 import numpy as np
-import sys
 
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.pytools.common.data import oasis_int, resolve_file
