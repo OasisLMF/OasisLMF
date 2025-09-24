@@ -431,7 +431,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         placeholder_keys = set(re.findall(r'%%(.+?)%%', filepath))
         for placeholder_key in placeholder_keys:
             filepath = filepath.replace(f'%%{placeholder_key}%%', self.config[placeholder_key.lower()])
-        return filepath
+        if "keys_data_path" in [key.lower() for key in placeholder_keys]:
+            return filepath
+        else:
+            return self.storage.get_storage_url(filepath, encode_params=False)[1].replace('file://', '')
 
     @staticmethod
     def set_id_columns(df, id_columns):
