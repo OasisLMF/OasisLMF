@@ -5,6 +5,7 @@ __all__ = [
 
 import os
 import json
+from tqdm import tqdm
 
 from ..base import ComputationStep
 
@@ -86,8 +87,10 @@ class RunModel(ComputationStep):
         cmds += [(GenerateLosses, self.kwargs)]
         if self.post_analysis_module:
             cmds += [(PostAnalysis, self.kwargs)]
-        for cmd in cmds:
-            cmd[0](**cmd[1]).run()
+        with tqdm(total=len(cmds)) as pbar:
+            for cmd in cmds:
+                cmd[0](**cmd[1]).run()
+                pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(self.model_run_dir))
 
