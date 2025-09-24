@@ -23,6 +23,7 @@ from subprocess import CalledProcessError, check_call
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.common.data import oasis_int_size
 import pandas as pd
 import numpy as np
 
@@ -559,7 +560,7 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
-                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") / 4)})
+                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
@@ -739,10 +740,10 @@ class GenerateLosses(GenerateLossesDir):
                 self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
                 socket_server = False
             elif 'analysis_pk' in self.kwargs:
-                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") / 4)})
+                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
                 socket_server = True
             else:
-                socket_server = os.path.getsize("input/events.bin") / 4
+                socket_server = os.path.getsize("input/events.bin") // oasis_int_size
             try:
                 try:
                     run_args = dict(
