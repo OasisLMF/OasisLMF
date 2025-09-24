@@ -31,7 +31,7 @@ tee < fifo/gul_S1_summary_P10 work/gul_S1_summaryleccalc/P10.bin > /dev/null & p
 tee < fifo/gul_S1_summary_P10.idx work/gul_S1_summaryleccalc/P10.idx > /dev/null & pid2=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P10 < fifo/gul_P10 &
 
-( evepy 10 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P10  ) &  pid3=$!
+( eve 10 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P10  ) &  pid3=$!
 
 wait $pid1 $pid2 $pid3
 

@@ -82,8 +82,8 @@ tee < fifo/il_S2_summary_P2.idx work/il_S2_summaryaalcalc/P2.idx > /dev/null & p
 summarycalc -m -f  -1 fifo/il_S1_summary_P1 -2 fifo/il_S2_summary_P1 < fifo/il_P1 &
 summarycalc -m -f  -1 fifo/il_S1_summary_P2 -2 fifo/il_S2_summary_P2 < fifo/il_P2 &
 
-( evepy 1 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_lb_P1  ) & 
-( evepy 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_lb_P2  ) & 
+( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_lb_P1  ) & 
+( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_lb_P2  ) & 
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 ( fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 ) & pid21=$!
 ( fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 ) & pid22=$!

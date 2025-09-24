@@ -139,16 +139,16 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P8 -2 fifo/gul_S2_summary_P8 < fifo/gu
 summarycalc -m -i  -1 fifo/gul_S1_summary_P9 -2 fifo/gul_S2_summary_P9 < fifo/gul_P9 &
 summarycalc -m -i  -1 fifo/gul_S1_summary_P10 -2 fifo/gul_S2_summary_P10 < fifo/gul_P10 &
 
-( evepy -R 1 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P1  ) &  pid41=$!
-( evepy -R 2 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P2  ) &  pid42=$!
-( evepy -R 3 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P3  ) &  pid43=$!
-( evepy -R 4 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P4  ) &  pid44=$!
-( evepy -R 5 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P5  ) &  pid45=$!
-( evepy -R 6 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P6  ) &  pid46=$!
-( evepy -R 7 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P7  ) &  pid47=$!
-( evepy -R 8 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P8  ) &  pid48=$!
-( evepy -R 9 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P9  ) &  pid49=$!
-( evepy -R 10 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P10  ) &  pid50=$!
+( eve -R 1 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P1  ) &  pid41=$!
+( eve -R 2 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P2  ) &  pid42=$!
+( eve -R 3 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P3  ) &  pid43=$!
+( eve -R 4 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P4  ) &  pid44=$!
+( eve -R 5 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P5  ) &  pid45=$!
+( eve -R 6 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P6  ) &  pid46=$!
+( eve -R 7 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P7  ) &  pid47=$!
+( eve -R 8 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P8  ) &  pid48=$!
+( eve -R 9 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P9  ) &  pid49=$!
+( eve -R 10 10 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_P10  ) &  pid50=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50
 

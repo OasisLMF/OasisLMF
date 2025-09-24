@@ -49,7 +49,7 @@ tee < fifo/full_correlation/il_S1_summary_P10.idx work/full_correlation/il_S1_su
 summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P10 < fifo/full_correlation/il_P10 &
 
 ( fmcalc -a2 < fifo/full_correlation/gul_fc_P10 > fifo/full_correlation/il_P10 ) & pid5=$!
-( evepy 10 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P10 -a1 -i - | fmcalc -a2 > fifo/il_P10  ) & pid6=$!
+( eve 10 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P10 -a1 -i - | fmcalc -a2 > fifo/il_P10  ) & pid6=$!
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
 
