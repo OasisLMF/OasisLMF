@@ -7,7 +7,7 @@ import numpy as np
 import sys
 
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.pytools.common.data import oasis_int
+from oasislmf.pytools.common.data import oasis_int, resolve_file
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def partition_events__round_robin(events, process_number, total_processes):
 
 
 def run(input_file, process_number, total_processes, no_shuffle=False,
-        randomise=False, randomise_builtin=False, output_file=None,
+        randomise=False, randomise_builtin=False, output_file='-',
         ):
     """Generate event ID partitions as a binary data stream with shuffling. By
     default the events are shuffled by assiging to processes one by one
@@ -131,7 +131,7 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
         randomise_builtin (bool, optional): Shuffle events randomly in the blocks using
             builtin shuffle. If `no_shuffle` or `randomise` is `True` then it
             they take priority.
-        output_file (str | os.PathLike): Path to output file. If None then outputs to stdout.
+        output_file (str | os.PathLike): Path to output file. If '-' then outputs to stdout.
     """
     if input_file is None:
         input_file = DEFAULT_EVENTS_FILE
@@ -173,17 +173,14 @@ def run(input_file, process_number, total_processes, no_shuffle=False,
                                                          total_processes)
 
     with ExitStack() as stack:
-        if output_file is None:
-            stream_out = sys.stdout.buffer
-        else:
-            stream_out = stack.enter_context(open(output_file, 'wb'))
+        stream_out = resolve_file(output_file, 'wb', stack)
 
         stream_events(event_partitions, stream_out)
 
 
 @redirect_logging(exec_name='evepy')
 def main(input_file=None, process_number=None, total_processes=None,
-         no_shuffle=False, randomise=False, randomise_builtin=False, output_file=None, **kwargs):
+         no_shuffle=False, randomise=False, randomise_builtin=False, output_file='-', **kwargs):
 
     run(input_file=input_file, process_number=process_number,
         total_processes=total_processes, no_shuffle=no_shuffle,

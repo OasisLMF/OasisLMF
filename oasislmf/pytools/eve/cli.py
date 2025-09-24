@@ -27,8 +27,8 @@ def main():
 
     parser.add_argument('-i', '--input_file', type=str, default=DEFAULT_EVENTS_FILE,
                         help=f'Input file containing the events binary (default: {DEFAULT_EVENTS_FILE})')
-    parser.add_argument('-o', '--output_file', type=str,
-                        help='Input file containing the events binary.')
+    parser.add_argument('-o', '--output_file', type=str, default='-',
+                        help='Path to output file, if present then save output stream into output file instead of stdout.')
 
     parser.add_argument('-n', '--no_shuffle', action='store_true',
                         help='Disable shuffle. Events respect input ordering')
