@@ -243,11 +243,14 @@ def run(run_dir,
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         # load keys.csv to determine included AreaPerilID from peril_filter
-        if peril_filter:
+        if os.path.exists(os.path.join(input_path, 'keys.csv')):
             keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
-            valid_areaperil_id = keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'].to_numpy()
-            logger.debug(
-                f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
+            if peril_filter:
+                valid_areaperil_id = np.unique(keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
+                logger.debug(
+                    f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_df)}')
+            else:
+                valid_areaperil_id = np.unique(keys_df['AreaPerilID'])
         else:
             valid_areaperil_id = None
 
@@ -336,7 +339,8 @@ def run(run_dir,
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type, df_engine=model_df_engine))
+        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
+                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
@@ -485,7 +489,6 @@ def run(run_dir,
                     event_footprint,
                     areaperil_ids_map,
                     dynamic_footprint)
-
                 if Nhaz_arr_this_event == 0:
                     # no items to be computed for this event
                     continue

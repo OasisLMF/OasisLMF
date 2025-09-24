@@ -856,7 +856,7 @@ def run(
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(
             Footprint.load(model_storage, ignore_file_type, df_engine=df_engine,
-                           areaperil_ids=valid_area_peril_id))
+                           areaperil_ids=list(areaperil_to_vulns_idx_dict.keys())))
 
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
