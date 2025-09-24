@@ -51,7 +51,6 @@ def partition_events__no_shuffle(events, process_number, total_processes):
         process_number (int): The process number to receive a partition of events.
         total_processes (int): Total number of processes to distribute the events over.
     """
-    # TODO - check #-events < total_processes
     events_per_process = calculate_events_per_process(len(events), total_processes)
     return events[(process_number - 1) * events_per_process:
                   process_number * events_per_process]

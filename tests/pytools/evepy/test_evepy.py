@@ -154,3 +154,17 @@ def test_evepy__randomise_randomise_builtin(process_number, total_processes, upd
     }
 
     case_runner(update_expected=update_expected, **kwargs)
+
+
+def test_less_events_than_processes(update_expected):
+    """Test evepy with fewer events than processes"""
+    total_processes = 3
+    for process_number in range(1, 4):
+        kwargs = {
+            "input_file": Path("events_2.bin"),
+            "output_file": f"output_test_less_events_than_processes_{process_number}_{total_processes}.bin",
+            "process_number": process_number,
+            "total_processes": total_processes
+        }
+
+        case_runner(update_expected=update_expected, **kwargs)
