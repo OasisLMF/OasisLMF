@@ -261,7 +261,7 @@ def get_check_function(custom_gulcalc_log_start=None, custom_gulcalc_log_finish=
     check_function = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy eltpy pltpy aalpy lecpy"
+    proc_list="eve evepy getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "${p}_[0-9]*.log" | wc -l)
@@ -1572,6 +1572,7 @@ def get_getmodel_itm_cmd(
         modelpy=False,
         modelpy_server=False,
         peril_filter=[],
+        evepy=False,
         gulpy=False,
         gulpy_random_generator=1,
         gulmc=False,
@@ -1595,11 +1596,16 @@ def get_getmodel_itm_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type eve_shuffle_flag: str
+    :param evepy: enable evepy
+    :type evepy: bool
     :param model_df_engine: The engine to use when loading dataframes
     :type  model_df_engine: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    if evepy:
+        cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
+    else:
+        cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
@@ -1642,6 +1648,7 @@ def get_getmodel_cov_cmd(
         process_id,
         max_process_id,
         eve_shuffle_flag,
+        evepy=False,
         modelpy=False,
         modelpy_server=False,
         peril_filter=[],
@@ -1668,11 +1675,16 @@ def get_getmodel_cov_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type  eve_shuffle_flag: str
+    :param evepy: enable evepy
+    :type evepy: bool
     :param df_engine: The engine to use when loading dataframes
     :type  df_engine: str
     :return: (str) The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    if evepy:
+        cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
+    else:
+        cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
@@ -2012,6 +2024,7 @@ def bash_params(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
+    evepy=False,
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
@@ -2048,6 +2061,7 @@ def bash_params(
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
+    bash_params['evepy'] = evepy
     bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
     bash_params['gulpy_random_generator'] = gulpy_random_generator
@@ -2286,6 +2300,7 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
+    evepy,
     gulpy,
     gulpy_random_generator,
     gulmc,
@@ -2580,6 +2595,7 @@ def create_bash_analysis(
             'process_id': gul_id,
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
+            'evepy': evepy,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
             'gulpy': gulpy,
@@ -2986,6 +3002,7 @@ def genbash(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
+    evepy=False,
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
@@ -3075,6 +3092,7 @@ def genbash(
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
+        evepy=evepy,
         modelpy=modelpy,
         gulpy=gulpy,
         gulpy_random_generator=gulpy_random_generator,
