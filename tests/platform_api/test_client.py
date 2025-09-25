@@ -693,11 +693,12 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
         assert responses, 'responses package required to run'
         self.url_endpoint = 'http://example.com/api'
         self.session = create_api_session(self.url_endpoint)
-        self.url_resource = 'resource'
+        self.url_resource = 'resource/'
         self.headers = {
             'accept': 'application/json',
             'content-type': 'application/json',
         }
+        self.api__noresource = SettingTemplatesBaseEndpoint(self.session, self.url_endpoint)
         self.api = SettingTemplatesBaseEndpoint(self.session, self.url_endpoint, self.url_resource)
         responses.start()
 
@@ -713,8 +714,15 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
         result = self.api._build_url(model_pk, ID)
         self.assertEqual(result, expected_url)
 
+    def test_buil_url__no_id(self):
+        model_pk = 123
+        expected_url = '{}/{}/{}/'.format(self.url_endpoint, model_pk,
+                                          'setting_templates')
+        result = self.api__noresource._build_url(model_pk)
+        self.assertEqual(result, expected_url)
+
     @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1))
-    def test_get_resource(self, model_pk, ID):
+    def test_get__resource(self, model_pk, ID):
         expected_url = '{}/{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
                                                'setting_templates', ID,
                                                self.url_resource)
@@ -723,15 +731,25 @@ class SettingTemplatesBaseEndpointTest(unittest.TestCase):
         rsp = self.api.get(model_pk, ID)
         self.assertEqual(rsp.url, expected_url)
 
+    @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1))
+    def test_get__model_id(self, model_pk, ID):
+        expected_url = '{}/{}/{}/{}'.format(self.url_endpoint, model_pk,
+                                            'setting_templates', ID)
+        responses.get(url=expected_url, json=[])
+        logger = logging.getLogger(__name__)
+        logger.info(f'expected_url: {expected_url}')
+
+        rsp = self.api__noresource.get(model_pk, ID)
+        logger.info(f'rsp_url: {rsp.url}')
+        self.assertEqual(rsp.url, expected_url)
+
     @given(model_pk=st.integers(min_value=1))
     def test_get(self, model_pk):
-        expected_url = '{}/{}/{}'.format(self.url_endpoint, model_pk,
-                                         'setting_templates')
+        expected_url = '{}/{}/{}/'.format(self.url_endpoint, model_pk,
+                                          'setting_templates')
         responses.get(url=expected_url, json=[])
 
-        self.api.url_resource = None
-        rsp = self.api.get(model_pk)
-        self.api.url_resource = 'resource'
+        rsp = self.api__noresource.get(model_pk)
         self.assertEqual(rsp.url, expected_url)
 
     @given(model_pk=st.integers(min_value=1), ID=st.integers(min_value=1), data=st.dictionaries(keys=st.text(), values=st.text()))
