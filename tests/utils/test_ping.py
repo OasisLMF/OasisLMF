@@ -74,22 +74,18 @@ def test_oasis_ping_socket_connection_refused():
 
 def test_oasis_ping_websocket_success():
     fake_ws = MagicMock()
-    with patch('oasislmf.utils.ping.create_connection') as mock_create_connection:
-        mock_create_connection.return_value.__enter__.return_value = fake_ws
-        ws_url = "fake_ws_url"
-        data = '{"hello": "world"}'
-
-        result = oasis_ping_websocket(ws_url, data)
-
-        fake_ws.send.assert_called_once_with(data)
-        assert result is True
+    with patch("websocket.WebSocket", return_value=fake_ws):
+        result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
+    assert result is True
+    fake_ws.connect.assert_called_once_with("ws://fakehost:1234/ws")
+    fake_ws.send.assert_called_once_with('{"hello": "world"}')
+    fake_ws.close.assert_called_once()
 
 
 def test_oasis_ping_websocket_failure():
-    with patch('oasislmf.utils.ping.create_connection') as mock_create_connection:
-        mock_create_connection.side_effect = Exception("Connection failed")
-        ws_url = "fake_ws_url"
-        data = '{"hello": "world"}'
-
-        result = oasis_ping_websocket(ws_url, data)
-        assert result is False
+    fake_ws = MagicMock()
+    fake_ws.connect.side_effect = Exception("boom")
+    with patch("websocket.WebSocket", return_value=fake_ws):
+        result = oasis_ping_websocket("ws://fakehost:1234/ws", '{"hello": "world"}')
+    assert result is False
+    fake_ws.send.assert_not_called()
