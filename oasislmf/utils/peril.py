@@ -46,7 +46,7 @@ PRL_GRP_ZZ1 = 'ZZ1'
 PRL_GRP_CC1 = 'CC1'
 
 PERIL_GROUPS = OrderedDict({
-    'all': {'id': PRL_GRP_AA1, 'desc': 'All perils', 'peril_ids': [PRL_QEQ, PRL_QFF, PRL_QTS, PRL_QSL, PRL_QLS, PRL_QLF, PRL_WTC, PRL_WEC, PRL_WSS, PRL_ORF, PRL_OSF, PRL_XSL, PRL_XTD, PRL_XHL, PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_BFR, PRL_BBF, PRL_MNT, PRL_MTR, PRL_XLT, PRL_ZST, PRL_BSK]},
+    'all': {'id': PRL_GRP_AA1, 'desc': 'All perils', 'peril_ids': [PRL_QEQ, PRL_QFF, PRL_QTS, PRL_QSL, PRL_QLS, PRL_QLF, PRL_WTC, PRL_WEC, PRL_WSS, PRL_ORF, PRL_OSF, PRL_XSL, PRL_XTD, PRL_XHL, PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_BFR, PRL_BBF, PRL_MNT, PRL_MTR, PRL_XLT, PRL_ZST, PRL_BSK, PRL_CSB, PRL_CPD]},
     'wildfire w/ smoke': {'id': PRL_GRP_BB1, 'desc': 'Wildfire with smoke', 'peril_ids': [PRL_BBF, PRL_BSK]},
     'terrorism': {'id': PRL_GRP_MM1, 'desc': 'Terrorism', 'peril_ids': [PRL_MNT, PRL_MTR]},
     'flood w/o storm surge': {'id': PRL_GRP_OO1, 'desc': 'Flood w/o storm surge', 'peril_ids': [PRL_ORF, PRL_OSF]},

@@ -395,6 +395,8 @@ setup(
             'csvtobin=oasislmf.pytools.converters.csvtobin.cli:main',
             'bintoparquet=oasislmf.pytools.converters.bintoparquet.cli:main',
             'parquettobin=oasislmf.pytools.converters.parquettobin.cli:main',
+            'evepy=oasislmf.pytools.eve.cli:main',
+            'socket-server=oasislmf.utils.socket_server:main'
         ]
     },
     license='BSD 3-Clause',

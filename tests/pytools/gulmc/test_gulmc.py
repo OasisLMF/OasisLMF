@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
-
+from unittest.mock import patch
 import pandas as pd
 import pytest
 
@@ -27,6 +27,7 @@ alloc_rules = [1, 2, 3]
 ignore_correlations = [True, False]
 random_generators = [0, 1]
 effective_damageabilities = [True, False]
+socket_server = ['False', '2.0', 'True']
 
 
 @pytest.fixture
@@ -59,7 +60,9 @@ def gul_atol(request):
 @pytest.mark.parametrize("alloc_rule", alloc_rules, ids=lambda x: f"a{x} ")
 @pytest.mark.parametrize("sample_size", sample_sizes, ids=lambda x: f"S{x:<6} ")
 @pytest.mark.parametrize("test_model", test_models_dirs, ids=lambda x: x[0])
-def test_gulmc(test_model: Tuple[str, str],
+@pytest.mark.parametrize("socket_server", socket_server, ids=lambda x: f"socket_server={x}")
+def test_gulmc(socket_server: str,
+               test_model: Tuple[str, str],
                sample_size: int,
                alloc_rule: int,
                ignore_correlation: bool,
@@ -97,7 +100,8 @@ def test_gulmc(test_model: Tuple[str, str],
     test_model_name, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
-    with TemporaryDirectory() as tmp_result_dir_str:
+    with (TemporaryDirectory() as tmp_result_dir_str,
+          patch('oasislmf.pytools.gulmc.manager.oasis_ping') as mock_ping):
 
         tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
 
@@ -126,6 +130,7 @@ def test_gulmc(test_model: Tuple[str, str],
                 random_generator=random_generator,
                 ignore_correlation=ignore_correlation,
                 effective_damageability=effective_damageability,
+                socket_server=socket_server
             )
 
         else:
@@ -143,8 +148,12 @@ def test_gulmc(test_model: Tuple[str, str],
                 random_generator=random_generator,
                 ignore_correlation=ignore_correlation,
                 effective_damageability=effective_damageability,
+                socket_server=socket_server
             )
-
+            if socket_server != 'False':
+                mock_ping.assert_called()
+            else:
+                mock_ping.assert_not_called()
             # compare the test results to the expected results
             try:
                 assert filecmp.cmp(file_out, ref_out_bin_fname.with_suffix('.bin'), shallow=False)
@@ -207,30 +216,29 @@ def test_debug_flag(test_model: Tuple[str, str],
     _, test_model_dir_str = test_model
     test_model_dir = Path(test_model_dir_str)
 
-    with pytest.raises(ValueError) as e:
+    with (pytest.raises(ValueError) as e,
+          TemporaryDirectory() as tmp_result_dir_str):
 
-        with TemporaryDirectory() as tmp_result_dir_str:
+        tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
 
-            tmp_result_dir = Path(tmp_result_dir_str).joinpath("assets")
+        # link to test model data and expected results (copy would be too slow)
+        os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
 
-            # link to test model data and expected results (copy would be too slow)
-            os.symlink(test_model_dir, tmp_result_dir, target_is_directory=True)
-
-            # run gulmc
-            file_out = tmp_result_dir.joinpath('tmp.bin')
-            run_gulmc(
-                run_dir=tmp_result_dir,
-                ignore_file_type=set(),
-                file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
-                file_out=file_out,
-                sample_size=sample_size,
-                loss_threshold=0.,
-                alloc_rule=alloc_rule,
-                debug=1,
-                random_generator=random_generator,
-                ignore_correlation=ignore_correlation,
-                effective_damageability=effective_damageability,
-            )
+        # run gulmc
+        file_out = tmp_result_dir.joinpath('tmp.bin')
+        run_gulmc(
+            run_dir=tmp_result_dir,
+            ignore_file_type=set(),
+            file_in=tmp_result_dir.joinpath('input').joinpath('events.bin'),
+            file_out=file_out,
+            sample_size=sample_size,
+            loss_threshold=0.,
+            alloc_rule=alloc_rule,
+            debug=1,
+            random_generator=random_generator,
+            ignore_correlation=ignore_correlation,
+            effective_damageability=effective_damageability,
+        )
 
     assert f"Expect alloc_rule to be 0 if debug is 1 or 2, got {alloc_rule}" == str(e.value)
 

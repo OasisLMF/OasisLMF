@@ -1,6 +1,18 @@
 OasisLMF Changelog
 ==================
 
+`2.4.8`_
+ ---------
+* [#1762](https://github.com/OasisLMF/OasisLMF/pull/1762) - adds check for full data buffer with read_buffer functions for fm and…
+* [#1763](https://github.com/OasisLMF/OasisLMF/pull/1763) - Add areaperil_id filter for FootprintParquet
+* [#1765, #1766](https://github.com/OasisLMF/OasisLMF/pull/1764) - Enhancement/add settings to lookup and hooks
+* [#1768](https://github.com/OasisLMF/OasisLMF/pull/1767) - trailing slash missing for `settings_template` endpoint
+* [#1769](https://github.com/OasisLMF/OasisLMF/pull/1770) - Port `eve` to pytools
+* [#1771](https://github.com/OasisLMF/OasisLMF/pull/1771) - add cyber perils to hardcoded AA1 list of perils
+* [#1773](https://github.com/OasisLMF/OasisLMF/pull/1773) - Fix: websocket does not support context manager
+* [#1747](https://github.com/OasisLMF/OasisLMF/pull/1747) - Progress bar
+.. _`2.4.8`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.7...2.4.8
+
 `2.4.7`_
  ---------
 * [#1706](https://github.com/OasisLMF/OasisLMF/pull/1745) - improve BI calculations based on duration of interruption

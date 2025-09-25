@@ -23,6 +23,7 @@ from subprocess import CalledProcessError, check_call
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
+from oasislmf.pytools.common.data import oasis_int_size
 import pandas as pd
 import numpy as np
 
@@ -50,6 +51,7 @@ from ...utils.inputs import str2bool
 from ...utils.path import setcwd
 from ..base import ComputationStep
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
+from ...utils.ping import oasis_ping
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -161,7 +163,6 @@ class GenerateLossesBase(ComputationStep):
                 self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
 
         self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
-
         raise OasisException(
             'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
             'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
@@ -246,7 +247,7 @@ class GenerateLossesDir(GenerateLossesBase):
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE
                     )
-                    if not 'Parquet output enabled' in katparquet_output.stderr.decode():
+                    if 'Parquet output enabled' not in katparquet_output.stderr.decode():
                         raise OasisException(
                             'Parquet output format requested but not supported by ktools components. '
                             'Please set "parquet_format" to false in analysis settings file.'
@@ -436,6 +437,8 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
          'nargs': '?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
+        {'name': 'evepy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'use eve python version instead of c++ version'},
         {'name': 'modelpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use getmodel python version instead of c++ version'},
         {'name': 'gulpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
@@ -525,6 +528,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
+            evepy=self.evepy,
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
@@ -538,11 +542,16 @@ class GenerateLossesPartial(GenerateLossesDir):
             lecpy=self.lecpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
-            dynamic_footprint=self.dynamic_footprint
+            dynamic_footprint=self.dynamic_footprint,
         )
         # Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
             bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
+        if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+            bash_params['socket_server'] = True
+        else:
+            self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
+        bash_params['analysis_pk'] = self.kwargs.get('analysis_pk', None)
 
         with setcwd(model_run_fp):
             try:
@@ -554,7 +563,7 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'], model_run_fp))
-
+                oasis_ping({'analysis_pk': bash_params['analysis_pk'], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
                 return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 log_fp = os.path.join(model_run_fp, 'log', str(bash_params.get('process_number', '')))
@@ -671,6 +680,8 @@ class GenerateLosses(GenerateLossesDir):
          'nargs': '?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
         {'name': 'modelpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use getmodel python version instead of c++ version'},
+        {'name': 'evepy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'use eve python version instead of c++ version'},
         {'name': 'gulpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use gulcalc python version instead of c++ version'},
         {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
@@ -710,6 +721,8 @@ class GenerateLosses(GenerateLossesDir):
             'help': 'The engine to use when loading exposure data dataframes (default: --base-df-engine if not set)'},
         {'name': 'dynamic_footprint', 'default': False,
             'help': 'Dynamic Footprint'},
+        {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
+        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'}
     ]
 
     def run(self):
@@ -720,8 +733,22 @@ class GenerateLosses(GenerateLossesDir):
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
+        if self.kwargs.get("socket_server_ip"):
+            os.environ['OASIS_SOCKET_SERVER_IP'] = self.kwargs['socket_server_ip']
+        if self.kwargs.get("socket_server_port"):
+            os.environ['OASIS_SOCKET_SERVER_PORT'] = self.kwargs['socket_server_port']
+
+        # setup for progress updates
 
         with setcwd(model_run_fp):
+            if 'analysis_pk' in self.kwargs and not all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
+                self.logger.info("Set `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_URL` environment variables for run progress updates")
+                socket_server = False
+            elif 'analysis_pk' in self.kwargs:
+                oasis_ping({"analysis_pk": self.kwargs["analysis_pk"], 'events_total': str(os.path.getsize("input/events.bin") // oasis_int_size)})
+                socket_server = True
+            else:
+                socket_server = os.path.getsize("input/events.bin") // oasis_int_size
             try:
                 try:
                     run_args = dict(
@@ -750,6 +777,7 @@ class GenerateLosses(GenerateLossesDir):
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
+                        evepy=self.evepy,
                         modelpy=self.modelpy,
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(self.settings),
@@ -760,7 +788,9 @@ class GenerateLosses(GenerateLossesDir):
                         aalpy=self.aalpy,
                         lecpy=self.lecpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
-                        dynamic_footprint=self.dynamic_footprint
+                        dynamic_footprint=self.dynamic_footprint,
+                        analysis_pk=self.kwargs.get('analysis_pk', None),
+                        socket_server=socket_server
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
@@ -808,7 +838,6 @@ class GenerateLosses(GenerateLossesDir):
                     'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
-
         self.logger.info('Losses generated in {}'.format(model_run_fp))
         return model_run_fp
 
