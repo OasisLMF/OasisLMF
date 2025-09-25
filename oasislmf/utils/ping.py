@@ -1,5 +1,5 @@
 import json
-from websocket import create_connection
+import websocket
 import socket
 import os
 import logging
@@ -63,10 +63,13 @@ def oasis_ping_websocket(ws_url, data):
     Returns:
         Boolean: whether attempted call gets through
     """
+    ws = websocket.WebSocket()
     try:
-        with create_connection(ws_url) as ws:
-            ws.send(data)
+        ws.connect(ws_url)
+        ws.send(data)
         return True
     except Exception as e:
         logging.error(f"oasis_ping_websocket could not connect: {e}")
         return False
+    finally:
+        ws.close()
