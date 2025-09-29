@@ -519,11 +519,12 @@ def get_il_input_items(
     useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'agg_tiv', 'NumberOfRisks']
                              + get_useful_summary_cols(oed_hierarchy) + list(tiv_terms.values()))
                          - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
-    gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
+    gul_inputs_df = gul_inputs_df.rename(columns={'item_id': 'gul_input_id'})
     # adjust tiv columns and name them as their coverage id
     gul_inputs_df.rename(columns=tiv_terms, inplace=True)
     gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
-    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
+    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, 'risk_id'] = 1
+    gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, 'NumberOfRisks'] = 1
     gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
     # initialization
@@ -553,7 +554,6 @@ def get_il_input_items(
             new_term_info['FMTermType'] = term_name
             column_map[term_info['ProfileElementName']] = new_term_info
 
-    level_id = 0  # we use 0 for gul level, this will be the input of the FM
     # create gul level/ level 0
     prev_level_df = gul_inputs_df[present_cols]
     prev_level_df['level_id'] = 0
@@ -639,7 +639,7 @@ def get_il_input_items(
                     term_filter |= (group_df[term] != oed_schema.get_default(term))
                 keep_df = group_df[term_filter][list(
                     set(agg_key).intersection(group_df.columns))].drop_duplicates()
-                group_df = keep_df.merge(group_df, how='left')
+                group_df = group_df.merge(keep_df, how='inner')
 
                 # multiple ProfileElementName can have the same fm terms (ex: StepTriggerType 5), we take the max to have a unique one
                 for ProfileElementName, term in terms.items():
@@ -690,7 +690,7 @@ def get_il_input_items(
 
             # make sure agg_id without term still have the same amount of layer
             no_term_filter = level_df['layer_id'].isna()
-            level_df_no_term = level_df[no_term_filter]
+            level_df_no_term = level_df[no_term_filter].copy()
             level_df_no_term['FMTermGroupID'] = -level_df_no_term['agg_id_prev']
             gul_input_to_layer = prev_level_df[prev_level_df['gul_input_id'].isin(
                 set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']]
@@ -727,14 +727,14 @@ def get_il_input_items(
             need_root_start_df = need_root_start_df[need_root_start_df > 1].index
 
             # create new prev df for element that need to restart from items
-            root_df = level_df[((level_df['agg_id_prev'].isin(need_root_start_df)) & (level_df['layer_id'] == 1))]
+            root_df = level_df[((level_df['agg_id_prev'].isin(need_root_start_df)) & (level_df['layer_id'] == 1))].copy()
 
             root_df['to_agg_id'] = root_df['agg_id']
             root_df['agg_id'] = -root_df['gul_input_id']
             root_df.drop_duplicates(subset='agg_id', inplace=True)
             root_df['level_id'] = cur_level_id - 1  # for previous level
 
-            max_agg_id = np.max(level_df['agg_id'])
+            max_agg_id = level_df['agg_id'].max()
 
             prev_level_df['to_agg_id'] = (prev_level_df[['gul_input_id']]
                                           .merge(level_df.drop_duplicates(subset=['gul_input_id'])[['gul_input_id', 'agg_id']])['agg_id'])
@@ -958,7 +958,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     try:
         # Step policies exist
         if 'StepTriggerType' in il_inputs_df:
-            fm_profile_df = il_inputs_df[list(set(il_inputs_df.columns).intersection(set(step_profile_cols)))]
+            fm_profile_df = il_inputs_df[list(set(il_inputs_df.columns).intersection(set(step_profile_cols)))].copy()
             for col in step_profile_cols:
                 if col not in fm_profile_df.columns:
                     fm_profile_df[col] = 0
@@ -1040,8 +1040,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        il_inputs_df = il_inputs_df[il_inputs_df['to_agg_id'] != 0]
-        fm_programme_df = il_inputs_df[['agg_id', 'level_id', 'to_agg_id']]
+        fm_programme_df = il_inputs_df[il_inputs_df['to_agg_id'] != 0][['agg_id', 'level_id', 'to_agg_id']].copy()
         fm_programme_df['level_id'] += 1
         fm_programme_df.rename(columns={'agg_id': 'from_agg_id'}, inplace=True)
         fm_programme_df.drop_duplicates(keep='first', inplace=True)
