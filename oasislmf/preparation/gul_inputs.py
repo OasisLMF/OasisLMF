@@ -216,8 +216,8 @@ def get_gul_input_items(
     location_df[actual_tiv_cols] = location_df[actual_tiv_cols].fillna(0.0)
     location_df = location_df[(location_df[actual_tiv_cols] != 0).any(axis=1)]
 
-    gul_inputs_df = location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
-    gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
+    gul_inputs_df = (location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
+                     .drop_duplicates('loc_id', ignore_index=True))
 
     # Rename the main keys dataframe columns - this is due to the fact that the
     # keys file headers use camel case, and don't use underscored names, which

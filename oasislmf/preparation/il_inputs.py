@@ -87,6 +87,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     Returns:
         pandas Series of calc. rule IDs
     """
+    il_inputs_calc_rules_df = il_inputs_calc_rules_df.copy()
     calc_rules_df, calc_rule_term_info = get_calc_rules(calc_rule_type)
     calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], axis=1, errors='ignore')
 
@@ -155,7 +156,7 @@ def get_step_profile_ids(
     """
     fm_policytc_cols = [col for col in idx_cols + ['layer_id', 'level_id', 'agg_id', 'coverage_id', 'assign_step_calcrule'] + step_profile_cols
                         if col in il_inputs_df.columns]
-    fm_policytc_df = il_inputs_df[fm_policytc_cols]
+    fm_policytc_df = il_inputs_df[fm_policytc_cols].copy()
     fm_policytc_df['profile_id'] = factorize_ndarray(fm_policytc_df.loc[:, ['layer_id', 'level_id', 'agg_id']].values, col_idxs=range(3))[0]
     fm_policytc_df['pol_id'] = factorize_ndarray(fm_policytc_df.loc[:, idx_cols + ['coverage_id']].values, col_idxs=range(len(idx_cols) + 1))[0]
 
@@ -201,9 +202,7 @@ def __drop_duplicated_row(prev_level_df, level_df, sub_agg_key):
     this_level_layer_needed = level_df['agg_id'].isin(level_value_count[level_value_count > 1].index.values)
     if 'share' in level_df.columns:
         this_level_layer_needed |= ~level_df['share'].isin({0, 1})
-    level_df['layer_id'] = np.where(sub_level_layer_needed | this_level_layer_needed,
-                                    level_df['layer_id'],
-                                    1)
+    level_df['layer_id'] = level_df['layer_id'].where(sub_level_layer_needed | this_level_layer_needed, 1)
     level_df.drop_duplicates(subset=['agg_id'] + sub_agg_key + ['layer_id'], inplace=True)
 
 
@@ -353,6 +352,8 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     fm_group_tiv = {}
     non_zero_default = {}
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
+        if term_info.get("FMTermType") == "tiv":
+            continue
         default_value = oed_schema.get_default(ProfileElementName)
         if ProfileElementName not in term_df_source.columns:
             if default_value == 0 or default_value in BLANK_VALUES:

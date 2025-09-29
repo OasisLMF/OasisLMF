@@ -99,7 +99,7 @@ calculated_summary_cols = {'is_property_damage': is_property_damage}
 def get_xref_df(il_inputs_df):
     top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(),
                                            ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS].drop_duplicates()
-    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0]
+    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0].copy()
     bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
             .drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
@@ -939,7 +939,7 @@ def get_exposure_summary(
                 fields = exposure_fields + [cov_name]
                 column_names = exposure_col_names + ['tiv']
 
-                tmp_df = exposure_df[fields]
+                tmp_df = exposure_df[fields].copy()
                 tmp_df.columns = column_names
                 tmp_df['coverage_type_id'] = coverage_type_id
 
