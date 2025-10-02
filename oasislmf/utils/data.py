@@ -854,7 +854,9 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
                 logger.debug("Exposure data is generated from `get_exposure_data_config` key of computation kwargs")
-                exposure_data = OedExposure(**computation_step.get_exposure_data_config())
+                exposure_data = OedExposure(**computation_step.get_exposure_data_config(),
+                                            base_df_engine=computation_step.kwargs['base_df_engine'],
+                                            exposure_df_engine=computation_step.kwargs['exposure_df_engine'])
             else:
                 logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
                 exposure_data = OedExposure.from_dir(
