@@ -395,7 +395,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
             logger.info("inside lookup testing")
-            # del step_function
+            del step_function
+            logger.info("deleted step function reference")
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
