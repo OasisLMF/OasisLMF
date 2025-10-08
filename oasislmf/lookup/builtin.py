@@ -366,6 +366,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     functions.append({'function': child_fct, 'columns': set(step_config.get("columns", []))})
                 step_config['parameters']['strategy'] = functions
 
+            logger.info(f"running build_{step_config['type']}")
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
             setattr(self, step_name, step_function)
         return step_function
@@ -385,6 +386,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         locations['status'] = OASIS_KEYS_STATUS['success']['id']
         locations['message'] = ''
 
+        breakpoint()
+
         # process each step of the strategy
         for step_name in self.config["strategy"]:
             step_config = self.config['step_definition'][step_name]
@@ -395,8 +398,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
             logger.info("inside lookup testing")
-            del step_function
-            logger.info("deleted step function reference")
+
+        breakpoint()
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
