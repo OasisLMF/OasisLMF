@@ -11,6 +11,9 @@ import numba as nb
 import numpy as np
 import pandas as pd
 from ods_tools.oed import fill_empty, is_empty
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:  # needed for rtree
     from shapely.geometry import Point
@@ -391,8 +394,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
-            print("Deleting step function")
-            del step_function
+            logger.info("inside lookup testing")
+            # del step_function
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
