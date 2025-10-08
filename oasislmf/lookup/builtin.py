@@ -386,7 +386,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         locations['status'] = OASIS_KEYS_STATUS['success']['id']
         locations['message'] = ''
 
-        breakpoint()
+        # breakpoint()
 
         # process each step of the strategy
         for step_name in self.config["strategy"]:
@@ -399,7 +399,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             locations = step_function(locations)
             logger.info("inside lookup testing")
 
-        breakpoint()
+        # breakpoint()
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
@@ -670,21 +670,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if Point is None:
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
-        if hasattr(gpd, f"read_{file_type}"):
-            if area_peril_read_params is None:
-                area_peril_read_params = {}
-            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **area_peril_read_params)
-        else:
-            raise OasisException(f"Unregognised Geopandas read type {file_type}")
+        def load_gdf_area_peril(file_type, area_peril_read_params):
+            if hasattr(gpd, f"read_{file_type}"):
+                if area_peril_read_params is None:
+                    area_peril_read_params = {}
+                gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **area_peril_read_params)
+            else:
+                raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
-        if nearest_neighbor_min_distance > 0:
-            if BallTree is None:
-                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
-            gdf_area_peril['center'] = gdf_area_peril.centroid
-            base_geometry_name = gdf_area_peril.geometry.name
+            if nearest_neighbor_min_distance > 0:
+                if BallTree is None:
+                    raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
+                gdf_area_peril['center'] = gdf_area_peril.centroid
+                base_geometry_name = gdf_area_peril.geometry.name
+
+            return gdf_area_peril
 
         def get_area(locations, gdf_area_peril):
             # this conversion could be done in a separate step allowing more posibilities for the geometry
+
             null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
             null_gdf_loc = locations[null_gdf]
             if not null_gdf_loc.empty:
@@ -701,6 +705,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
                 if nearest_neighbor_min_distance > 0:
+                    base_geometry_name = gdf_area_peril.geometry.name
                     gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
 
                     if gdf_loc_na.shape[0]:
@@ -721,6 +726,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return gdf_loc
 
         def fct(locations):
+            gdf_area_peril = load_gdf_area_peril(file_type, area_peril_read_params)
+
             if 'peril_id' in gdf_area_peril.columns:
                 peril_id_covered = np.unique(gdf_area_peril['peril_id'])
                 res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
