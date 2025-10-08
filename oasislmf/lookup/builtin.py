@@ -391,6 +391,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
+            print("Deleting step function")
             del step_function
 
         key_columns = [
