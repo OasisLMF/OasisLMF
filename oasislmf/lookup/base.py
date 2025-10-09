@@ -23,7 +23,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config, LocalSt
 UNKNOWN_ID = -1
 
 
-''' Basic abstract classes that facilitate the implementation of KeyLookupInterface  
+''' Basic abstract classes that facilitate the implementation of KeyLookupInterface
 '''
 
 

@@ -18,6 +18,8 @@ import math
 import numpy as np
 import pandas as pd
 
+from oasislmf.utils.memory import get_memory_usage
+
 from ..utils.data import get_json
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -616,18 +618,23 @@ class BasicKeyServer:
         else:
             locations = self.get_locations(location_fp)  # need overwrite as not supported anymore we pass the df
 
+        print(f"generate_key_files before: {get_memory_usage()}")
+
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
-            return self.generate_key_files_multiproc(locations,
-                                                     successes_fp=successes_fp,
-                                                     errors_fp=errors_fp,
-                                                     output_format=output_format,
-                                                     keys_success_msg=keys_success_msg,
-                                                     num_cores=multiproc_num_cores,
-                                                     num_partitions=multiproc_num_partitions)
+            retval = self.generate_key_files_multiproc(locations,
+                                                       successes_fp=successes_fp,
+                                                       errors_fp=errors_fp,
+                                                       output_format=output_format,
+                                                       keys_success_msg=keys_success_msg,
+                                                       num_cores=multiproc_num_cores,
+                                                       num_partitions=multiproc_num_partitions)
         else:
-            return self.generate_key_files_singleproc(locations,
-                                                      successes_fp=successes_fp,
-                                                      errors_fp=errors_fp,
-                                                      output_format=output_format,
-                                                      keys_success_msg=keys_success_msg,
-                                                      )
+            retval = self.generate_key_files_singleproc(locations,
+                                                        successes_fp=successes_fp,
+                                                        errors_fp=errors_fp,
+                                                        output_format=output_format,
+                                                        keys_success_msg=keys_success_msg,
+                                                        )
+        print(f"generate_key_files after: {get_memory_usage()}")
+
+        return retval
