@@ -621,6 +621,7 @@ class BasicKeyServer:
         print(f"generate_key_files before: {get_memory_usage()}")
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
+            print("running multiproc")
             retval = self.generate_key_files_multiproc(locations,
                                                        successes_fp=successes_fp,
                                                        errors_fp=errors_fp,
@@ -629,6 +630,7 @@ class BasicKeyServer:
                                                        num_cores=multiproc_num_cores,
                                                        num_partitions=multiproc_num_partitions)
         else:
+            print("running singleproc")
             retval = self.generate_key_files_singleproc(locations,
                                                         successes_fp=successes_fp,
                                                         errors_fp=errors_fp,
