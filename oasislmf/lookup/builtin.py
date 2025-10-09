@@ -735,9 +735,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     res.append(get_area(locations.loc[locations['peril_id'] == peril_id],
                                         gdf_area_peril.loc[gdf_area_peril['peril_id'] == peril_id].drop(columns=['peril_id'])))
 
-                return pd.concat(res).reset_index()
+                ret_val = pd.concat(res).reset_index()
             else:
-                return get_area(locations, gdf_area_peril)
+                ret_val = get_area(locations, gdf_area_peril)
+
+            del gdf_area_peril
+            return ret_val
         return fct
 
     @staticmethod
