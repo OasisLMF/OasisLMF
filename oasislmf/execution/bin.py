@@ -172,12 +172,12 @@ def prepare_run_directory(
                 continue
             dst = os.path.join(oasis_dst_fp, p)
             if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
-                shutil.copy2(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
+                shutil.copyfile(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
             else:
                 shutil.move(src, run_dir)
 
         dst = os.path.join(run_dir, 'analysis_settings.json')
-        shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
+        shutil.copyfile(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
 
@@ -186,7 +186,7 @@ def prepare_run_directory(
                 destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
                 if os.name == 'nt' or copy_model_data:
-                    shutil.copy(sourcefile, destfile)
+                    shutil.copyfile(sourcefile, destfile)
                 else:
                     os.symlink(sourcefile, destfile)
         except OSError as e:
@@ -204,7 +204,7 @@ def prepare_run_directory(
 
                 try:
                     if os.name == 'nt':
-                        shutil.copy(sourcefile, destfile)
+                        shutil.copyfile(sourcefile, destfile)
                     else:
                         os.symlink(sourcefile, destfile)
                 except OSError as e:

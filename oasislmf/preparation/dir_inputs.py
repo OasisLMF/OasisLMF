@@ -64,7 +64,7 @@ def prepare_input_files_directory(
 
         for src, dst in paths:
             if src and os.path.exists(src):
-                shutil.copy2(src, dst) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
+                shutil.copyfile(src, dst) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
     except (FileNotFoundError, IOError, OSError, shutil.Error, TypeError, ValueError) as e:
         raise OasisException("Exception raised in 'prepare_input_files_directory'", e)
 
