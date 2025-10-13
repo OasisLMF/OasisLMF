@@ -352,6 +352,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = getattr(self, step_name)
         else:
             if step_config['type'] == 'combine':  # we need to build the child function
+                print("running set step function in combine mode")
                 if function_being_set is None:  # make sure we catch cyclic strategy definition
                     function_being_set = {step_name}
                 elif step_name in function_being_set:
@@ -388,19 +389,26 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         locations['status'] = OASIS_KEYS_STATUS['success']['id']
         locations['message'] = ''
 
-        print(f"process_locations before: {get_memory_usage()}")
-
         # process each step of the strategy
+        from pympler import tracker
+        tr = tracker.SummaryTracker()
         for step_name in self.config["strategy"]:
+            print(f"Currently running: {step_name}")
+            print(f"Memory before {step_name}: {get_memory_usage()}")
             step_config = self.config['step_definition'][step_name]
             needed_column = set(step_config.get("columns", []))
             if not needed_column.issubset(locations.columns):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
+
+            print(f"memory after `set_step_function`: {get_memory_usage()}")
             locations = step_function(locations)
+            print(f"Memory after {step_name}: {get_memory_usage()}")
 
         print(f"process_locations after: {get_memory_usage()}")
+
+        tr.print_diff()
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
@@ -672,8 +680,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
         def load_gdf_area_peril(file_type, area_peril_read_params):
-            print(f"Loading file_type: {file_type}")
-            print(f"Memory usage before load: {get_memory_usage()}")
             if hasattr(gpd, f"read_{file_type}"):
                 if area_peril_read_params is None:
                     area_peril_read_params = {}
@@ -686,10 +692,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
                 gdf_area_peril['center'] = gdf_area_peril.centroid
 
-            print(f"Memory usage after load: {get_memory_usage()}")
             return gdf_area_peril
 
-        gdf_area_peril = load_gdf_area_peril(file_type, area_peril_read_params)
+        # gdf_area_peril = load_gdf_area_peril(file_type, area_peril_read_params)
 
         def get_area(locations, gdf_area_peril):
             # this conversion could be done in a separate step allowing more posibilities for the geometry
@@ -731,6 +736,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return gdf_loc
 
         def fct(locations):
+            gdf_area_peril = load_gdf_area_peril(file_type, area_peril_read_params)
             if 'peril_id' in gdf_area_peril.columns:
                 peril_id_covered = np.unique(gdf_area_peril['peril_id'])
                 res = [locations[~locations['peril_id'].isin(peril_id_covered)]]

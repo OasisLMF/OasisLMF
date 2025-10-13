@@ -507,10 +507,22 @@ class BasicKeyServer:
             config_dir = getattr(self, 'complex_lookup_config_fp', None)
         else:
             config_dir = self.config_dir
+
+        print(f"Inside single proc before lookup: {get_memory_usage()}")
         lookup = self.create_lookup(self.lookup_cls, self.config, config_dir, self.user_data_dir, self.output_dir,
                                     lookup_id=None)
 
         key_results = lookup.process_locations(loc_df)
+
+        print(f"Inside single proc after lookup: {get_memory_usage()}")
+
+        print("Deleting lookup")
+
+        del lookup
+        import gc
+        gc.collect()
+
+        print(f"Memory usage after delete: {get_memory_usage()}")
 
         def gen_results(results):
             if isinstance(results, pd.DataFrame):
@@ -553,6 +565,7 @@ class BasicKeyServer:
             part_count = math.ceil(loc_df.shape[0] / bloc_size)
             pool_count = min(pool_count, part_count)
         if pool_count <= 1:
+            print("pool count low, running in single proc")
             return self.generate_key_files_singleproc(loc_df, successes_fp, errors_fp, output_format, keys_success_msg)
 
         ct = multiprocessing.get_context("fork")
@@ -619,6 +632,7 @@ class BasicKeyServer:
             locations = self.get_locations(location_fp)  # need overwrite as not supported anymore we pass the df
 
         print(f"generate_key_files before: {get_memory_usage()}")
+        multiproc_enabled = False
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
             print("running multiproc")
