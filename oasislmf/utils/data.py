@@ -867,7 +867,6 @@ def get_exposure_data(computation_step, add_internal_col=False):
 
             if add_internal_col:
                 prepare_oed_exposure(exposure_data)
-        logger.info(f"HELLO HARRY {exposure_data.oed_schema.schema['version']}")
         return exposure_data
     except OdsException as ods_error:
         raise OasisException("Failed to load OED exposure files", ods_error)
