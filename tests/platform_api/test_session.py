@@ -62,7 +62,7 @@ class APISessionTests(unittest.TestCase):
         post_mock = Mock(return_value=response_mock)
 
         with patch.object(Session, 'post', post_mock):
-            self.session._APISession__get_access_token(self.username, self.password)
+            self.session._APISession__get_access_token()
 
         post_mock.assert_called_once_with(
             'http://example.com/api/access_token/',
@@ -81,7 +81,7 @@ class APISessionTests(unittest.TestCase):
 
         with patch.object(APISession, 'post', post_mock):
             with self.assertRaises(OasisException):
-                self.session._APISession__get_access_token(self.username, self.password)
+                self.session._APISession__get_access_token()
 
         post_mock.assert_called_once_with(
             'http://example.com/api/access_token/',
