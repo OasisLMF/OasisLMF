@@ -16,7 +16,20 @@ from ..utils.exceptions import OasisException
 
 
 class APISession(Session):
-    def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, request_interval=0.02, logger=None, **kwargs):
+    def __init__(
+        self,
+        api_url,
+        username=None,
+        password=None,
+        client_id=None,
+        client_secret=None,
+        timeout=25,
+        retries=5,
+        retry_delay=1,
+        request_interval=0.02,
+        logger=None,
+        **kwargs
+    ):
         super(APISession, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger(__name__)
 
@@ -39,12 +52,30 @@ class APISession(Session):
         # Check connectivity & authentication
         self.health_check()
         self.retry_max = retries
-        self.__get_access_token(username, password)
+        if client_id and client_secret:
+            self.__get_access_token(client_id=client_id, client_secret=client_secret)
+        elif username and password:
+            self.__get_access_token(username=username, password=password)
+        else:
+            raise OasisException("Missing credentials: must provide either username/password or client_id/client_secret.")
 
-    def __get_access_token(self, username, password):
+    def __get_access_token(
+        self,
+        username=None,
+        password=None,
+        client_id=None,
+        client_secret=None,
+    ):
         try:
+            if username and password:
+                auth_payload = {"username": username, "password": password}
+            elif client_id and client_secret:
+                auth_payload = {"client_id": client_id, "client_secret": client_secret}
+            else:
+                raise OasisException("No valid authentication credentials provided.")
+
             url = urljoin(self.url_base, 'access_token/')
-            r = self.post(url, json={"username": username, "password": password})
+            r = self.post(url, json=auth_payload)
             r.raise_for_status()
             self.tkn_access = r.json()['access_token']
             self.tkn_refresh = r.json()['refresh_token']

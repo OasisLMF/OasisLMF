@@ -50,34 +50,90 @@ class PlatformBase(ComputationStep):
             with io.open(login_arg, encoding='utf-8') as f:
                 return json.load(f)
 
+        while True:
+            user_response = input("Use simple JWT [Y/n]: ").lower().strip()
+            if user_response in ["y", "yes"]:
+                use_simple = True
+                break
+            elif user_response in ["n", "no"]:
+                use_simple = False
+                break
+
         self.logger.info('API Login:')
         api_login = {}
-        api_login['username'] = input('Username: ')
-        api_login['password'] = getpass.getpass('Password: ')
+        if use_simple:
+            api_login['username'] = input('Username: ')
+            api_login['password'] = getpass.getpass('Password: ')
+        else:
+            api_login['client_id'] = input('Client ID: ')
+            api_login['client_secret'] = getpass.getpass('Client Secret: ')
+
         return api_login
 
-    def open_connection(self):
+    def try_connection(self, fail_safe=True, **kwargs):
+        """Helper to safely try connecting and return None if unauthorized."""
         try:
-            # If no password given try the reference example
             return APIClient(
                 api_url=self.server_url,
                 api_ver=self.server_version,
-                username=API_EXAMPLE_AUTH['user'],
-                password=API_EXAMPLE_AUTH['pass'],
+                **kwargs
             )
         except OasisException as e:
-            if isinstance(e.original_exception, HTTPError) and (e.original_exception.response.status_code == 401):
-                # Prompt for password and try to re-autehnticate if Unauthorized 401
-                self.logger.info("-- Authentication Required --")
-                credentials = self.load_credentials(self.server_login_json)
-                self.logger.info(f'Connecting to - {self.server_url}')
-                return APIClient(
-                    api_url=self.server_url,
-                    api_ver=self.server_version,
-                    username=credentials['username'],
-                    password=credentials['password'],
+            if not fail_safe:
+                raise e
+            orig_excep = e.original_exception
+            if (isinstance(orig_excep, HTTPError) and orig_excep.response.status_code == 401):
+                self.logger.debug("Unauthorized (401) for credentials: %s", list(kwargs.keys()))
+                return None
+            elif isinstance(orig_excep, HTTPError) and orig_excep.response.status_code == 400 and "flow is disabled" in orig_excep.response.text.lower():
+                self.logger.debug(
+                    "Validation Error (400) for credentials, invalid flow used, must be one of username/password or client_id/client_secret: %s", list(kwargs.keys())
                 )
-            raise e
+                return None
+            else:
+                raise e  # Some other error – propagate
+
+    def open_connection(self):
+        """
+        Attempts connection in this order:
+        1. API_EXAMPLE_AUTH username/password
+        2. API_EXAMPLE_AUTH client_id/client_secret
+        3. Prompt or load credentials
+        """
+        # 1. Try example username/password
+        if 'username' in API_EXAMPLE_AUTH and 'password' in API_EXAMPLE_AUTH:
+            conn = self.try_connection(
+                username=API_EXAMPLE_AUTH['username'],
+                password=API_EXAMPLE_AUTH['password']
+            )
+            if conn:
+                return conn
+
+        # 2. Try example client_id/client_secret
+        if 'client_id' in API_EXAMPLE_AUTH and 'client_secret' in API_EXAMPLE_AUTH:
+            conn = self.try_connection(
+                client_id=API_EXAMPLE_AUTH['client_id'],
+                client_secret=API_EXAMPLE_AUTH['client_secret']
+            )
+            if conn:
+                return conn
+
+        # 3. Load credentials (file or prompt)
+        self.logger.info("-- Authentication Required --")
+        credentials = self.load_credentials(self.server_login_json)
+        self.logger.info(f'Connecting to - {self.server_url}')
+        if 'username' in credentials and 'password' in credentials:
+            return self.try_connection(
+                fail_safe=False,
+                username=credentials['username'],
+                password=credentials['password']
+            )
+        else:
+            return self.try_connection(
+                fail_safe=False,
+                client_id=credentials['client_id'],
+                client_secret=credentials['client_secret']
+            )
 
     def tabulate_json(self, json_data, items):
         table_data = dict()

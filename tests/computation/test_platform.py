@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, patch, Mock, call
 
 import os
 
@@ -204,12 +204,16 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(str(context.exception),
                          'Error: At least one of the following inputs is required [portfolio_id, oed_location_csv, oed_accounts_csv]')
 
-    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__enter_password__unauthorized(self, mock_password, mock_username):
+    def test_run_inputs__enter_password__unauthorized(self, mock_password, mock_input):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
@@ -218,12 +222,16 @@ class TestPlatformRunInputs(ComputationChecker):
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
         self.assertIn(f'HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
-        mock_username.assert_called_once_with('Username: ')
+        mock_input.assert_has_calls([
+            call('Use simple JWT [Y/n]: '),
+            call('Username: ')
+        ])
+        self.assertEqual(mock_input.call_count, 2)
         mock_password.assert_called_once_with('Password: ')
 
-    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__auth_failed__error_is_raised(self, mock_password, mock_username):
+    def test_run_inputs__auth_failed__error_is_raised(self, mock_password, mock_input):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -236,12 +244,16 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(str(context.exception),
                          f'Authentication Error, HTTPError: 500 Server Error: Internal Server Error for url: {self.api_url}/access_token/')
 
-    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__enter_password__authorized(self, mock_username, mock_password):
+    def test_run_inputs__enter_password__authorized(self, mock_password, mock_input):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
@@ -260,8 +272,13 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(unauthorized_req.body, b'{"username": "admin", "password": "password"}')
         self.assertEqual(unauthorized_rsp.status_code, 401)
 
-        authorized_req = responses.calls[3].request
-        authorized_rsp = responses.calls[3].response
+        unauthorized_req = responses.calls[3].request
+        unauthorized_rsp = responses.calls[3].response
+        self.assertEqual(unauthorized_req.body, b'{"client_id": "oasis-service", "client_secret": "serviceNotSoSecret"}')
+        self.assertEqual(unauthorized_rsp.status_code, 401)
+
+        authorized_req = responses.calls[5].request
+        authorized_rsp = responses.calls[5].response
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
@@ -269,6 +286,10 @@ class TestPlatformRunInputs(ComputationChecker):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
@@ -291,8 +312,13 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(unauthorized_req.body, b'{"username": "admin", "password": "password"}')
         self.assertEqual(unauthorized_rsp.status_code, 401)
 
-        authorized_req = responses.calls[3].request
-        authorized_rsp = responses.calls[3].response
+        unauthorized_req = responses.calls[3].request
+        unauthorized_rsp = responses.calls[3].response
+        self.assertEqual(unauthorized_req.body, b'{"client_id": "oasis-service", "client_secret": "serviceNotSoSecret"}')
+        self.assertEqual(unauthorized_rsp.status_code, 401)
+
+        authorized_req = responses.calls[5].request
+        authorized_rsp = responses.calls[5].response
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
