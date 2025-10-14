@@ -52,33 +52,22 @@ class APISession(Session):
         # Check connectivity & authentication
         self.health_check()
         self.retry_max = retries
-        if client_id and client_secret:
-            self.__get_access_token(client_id=client_id, client_secret=client_secret)
-        elif username and password:
-            self.__get_access_token(username=username, password=password)
+        if username and password:
+            self.auth_payload = {"username": username, "password": password}
+        elif client_id and client_secret:
+            self.auth_payload = {"client_id": client_id, "client_secret": client_secret}
         else:
             raise OasisException("Missing credentials: must provide either username/password or client_id/client_secret.")
+        self.__get_access_token()
 
-    def __get_access_token(
-        self,
-        username=None,
-        password=None,
-        client_id=None,
-        client_secret=None,
-    ):
+    def __get_access_token(self):
         try:
-            if username and password:
-                auth_payload = {"username": username, "password": password}
-            elif client_id and client_secret:
-                auth_payload = {"client_id": client_id, "client_secret": client_secret}
-            else:
-                raise OasisException("No valid authentication credentials provided.")
-
             url = urljoin(self.url_base, 'access_token/')
-            r = self.post(url, json=auth_payload)
+            r = self.post(url, json=self.auth_payload)
             r.raise_for_status()
             self.tkn_access = r.json()['access_token']
-            self.tkn_refresh = r.json()['refresh_token']
+            if 'refresh_token' in r.json():
+                self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return r
         except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
@@ -86,6 +75,9 @@ class APISession(Session):
             raise OasisException(err_msg, e)
 
     def _refresh_token(self):
+        if "client_secret" in self.auth_payload:
+            self.__get_access_token()
+            return
         try:
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_refresh)
             url = urljoin(self.url_base, 'refresh_token/')
@@ -134,10 +126,9 @@ class APISession(Session):
                 error = "HTTP {}".format(http_err_code)
                 return True
             elif http_err_code in [401, 403]:
-                if self.tkn_refresh is not None:
-                    self.logger.debug("requesting refresh token")
-                    self._refresh_token()
-                    return True
+                self.logger.debug("requesting refresh token")
+                self._refresh_token()
+                return True
         return False
 
     # @oasis_log
