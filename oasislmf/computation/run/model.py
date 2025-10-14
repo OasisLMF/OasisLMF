@@ -36,7 +36,9 @@ class RunModel(ComputationStep):
         {'name': 'pre_loss_module', 'required': False, 'is_path': True,
          'pre_exist': True, 'help': 'pre-loss hook module path'},
         {'name': 'post_file_gen_module', 'required': False, 'is_path': True,
-         'pre_exist': True, 'help': 'post-file gen hook module path'}
+         'pre_exist': True, 'help': 'post-file gen hook module path'},
+        {'name': 'oed_schema_version', 'required': False, 'is_path': False, 'pre_exist': True,
+         'help': 'Version of oed schema to validate against'}
     ]
     # Add params from each sub command not in 'step_params'
     chained_commands = [
@@ -57,7 +59,8 @@ class RunModel(ComputationStep):
             'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'oed_schema_version': self.oed_schema_version
         }
 
     def run(self):
