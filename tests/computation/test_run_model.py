@@ -56,6 +56,7 @@ class TestRunModel(ComputationChecker):
             self.pre_loss_args,
             self.gen_loss_args,
             self.post_hook_args,
+            {'oed_schema_version': None}
         ])
         self.assertEqual(expt_combined_args, self.default_args)
 
