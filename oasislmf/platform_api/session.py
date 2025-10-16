@@ -74,7 +74,7 @@ class APISession(Session):
             return
         try:
             url = urljoin(self.url_base, 'access_token/')
-            r = self.post(url, json=self.auth_payload)
+            r = self.post(url, json=self.auth_credentials)
             r.raise_for_status()
             self.tkn_access = r.json()['access_token']
             if self.auth_type == "simple":
