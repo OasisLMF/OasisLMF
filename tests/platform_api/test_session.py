@@ -39,8 +39,9 @@ class APISessionTests(unittest.TestCase):
                 patch.object(APISession, 'health_check', mock_healthcheck):
             self.session = APISession(
                 self.api_url,
-                self.username,
-                self.password,
+                auth_type="simple",
+                username=self.username,
+                password=self.password,
                 timeout=self.timeout,
                 retries=self.retries,
                 retry_delay=self.retry_delay,
