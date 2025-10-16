@@ -414,10 +414,13 @@ class APIClient(object):
         self,
         api_url='http://localhost:8000',
         api_ver='V2',
-        username=None,
-        password=None,
-        client_id=None,
-        client_secret=None,
+        auth_type="oidc",
+        username="admin",
+        password="password",
+        client_id="oasis-service",
+        client_secret="serviceNotSoSecret",
+        access_token=None,
+        refresh_token=None,
         timeout=25,
         logger=None,
         **kwargs
@@ -426,10 +429,13 @@ class APIClient(object):
 
         self.api = APISession(
             api_url=api_url,
+            auth_type=auth_type,
             username=username,
             password=password,
             client_id=client_id,
             client_secret=client_secret,
+            access_token=access_token,
+            refresh_token=refresh_token,
             timeout=timeout,
             **kwargs
         )

@@ -103,6 +103,7 @@ class PlatformBase(ComputationStep):
         # 1. Try example username/password
         if 'username' in API_EXAMPLE_AUTH and 'password' in API_EXAMPLE_AUTH:
             conn = self.try_connection(
+                auth_type="simple",
                 username=API_EXAMPLE_AUTH['username'],
                 password=API_EXAMPLE_AUTH['password']
             )
@@ -112,6 +113,7 @@ class PlatformBase(ComputationStep):
         # 2. Try example client_id/client_secret
         if 'client_id' in API_EXAMPLE_AUTH and 'client_secret' in API_EXAMPLE_AUTH:
             conn = self.try_connection(
+                auth_type="oidc",
                 client_id=API_EXAMPLE_AUTH['client_id'],
                 client_secret=API_EXAMPLE_AUTH['client_secret']
             )
@@ -125,12 +127,14 @@ class PlatformBase(ComputationStep):
         if 'username' in credentials and 'password' in credentials:
             return self.try_connection(
                 fail_safe=False,
+                auth_type="simple",
                 username=credentials['username'],
                 password=credentials['password']
             )
         else:
             return self.try_connection(
                 fail_safe=False,
+                auth_type="oidc",
                 client_id=credentials['client_id'],
                 client_secret=credentials['client_secret']
             )

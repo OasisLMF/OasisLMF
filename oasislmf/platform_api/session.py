@@ -19,10 +19,13 @@ class APISession(Session):
     def __init__(
         self,
         api_url,
+        auth_type=None,
         username=None,
         password=None,
         client_id=None,
         client_secret=None,
+        access_token=None,
+        refresh_token=None,
         timeout=25,
         retries=5,
         retry_delay=1,
@@ -52,17 +55,22 @@ class APISession(Session):
         # Check connectivity & authentication
         self.health_check()
         self.retry_max = retries
-        if username and password:
-            self.auth_type = "simple"
-            self.auth_payload = {"username": username, "password": password}
-        elif client_id and client_secret:
-            self.auth_type = "oidc"
-            self.auth_payload = {"client_id": client_id, "client_secret": client_secret}
+        self.auth_type=auth_type
+        if auth_type == "simple" and username and password:
+            self.auth_credentials = {"username": username, "password": password}
+        elif auth_type == "oidc" and client_id and client_secret:
+            self.auth_credentials = {"client_id": client_id, "client_secret": client_secret}
+        elif auth_type == "token" and access_token and refresh_token:
+            self.auth_credentials = {"access_token": access_token, "refresh_token": refresh_token}
         else:
-            raise OasisException("Missing credentials: must provide either username/password or client_id/client_secret.")
+            raise OasisException(f"Missing credentials for auth_type {auth_type}: must provide either username/password or client_id/client_secret or access_token/refresh_token.")
         self.__get_access_token()
 
     def __get_access_token(self):
+        if self.auth_type == "token":
+            self.tkn_access = self.auth_credentials["access_token"]
+            self.tkn_refresh = self.auth_credentials["refresh_token"]
+            return 
         try:
             url = urljoin(self.url_base, 'access_token/')
             r = self.post(url, json=self.auth_payload)
@@ -73,7 +81,7 @@ class APISession(Session):
             else:
                 self.tkn_refresh = self.tkn_access
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-            return r
+            return
         except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
             err_msg = 'Authentication Error'
             raise OasisException(err_msg, e)
@@ -93,7 +101,7 @@ class APISession(Session):
                 self.logger.debug("Refreshing access token")
                 self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-            return r
+            return
         except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
             err_msg = 'Authentication Error'
             raise OasisException(err_msg, e)
