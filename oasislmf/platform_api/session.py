@@ -55,7 +55,7 @@ class APISession(Session):
         # Check connectivity & authentication
         self.health_check()
         self.retry_max = retries
-        self.auth_type=auth_type
+        self.auth_type = auth_type
         if auth_type == "simple" and username and password:
             self.auth_credentials = {"username": username, "password": password}
         elif auth_type == "oidc" and client_id and client_secret:
@@ -63,14 +63,15 @@ class APISession(Session):
         elif auth_type == "token" and access_token and refresh_token:
             self.auth_credentials = {"access_token": access_token, "refresh_token": refresh_token}
         else:
-            raise OasisException(f"Missing credentials for auth_type {auth_type}: must provide either username/password or client_id/client_secret or access_token/refresh_token.")
+            raise OasisException(
+                f"Missing credentials for auth_type {auth_type}: must provide either username/password or client_id/client_secret or access_token/refresh_token.")
         self.__get_access_token()
 
     def __get_access_token(self):
         if self.auth_type == "token":
             self.tkn_access = self.auth_credentials["access_token"]
             self.tkn_refresh = self.auth_credentials["refresh_token"]
-            return 
+            return
         try:
             url = urljoin(self.url_base, 'access_token/')
             r = self.post(url, json=self.auth_payload)
