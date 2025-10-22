@@ -36,8 +36,7 @@ from oasislmf.preparation.gul_inputs import (get_gul_input_items,
                                              process_group_id_cols,
                                              write_gul_input_files)
 from oasislmf.preparation.il_inputs import (get_il_input_items,
-                                            get_oed_hierarchy,
-                                            write_il_input_files)
+                                            get_oed_hierarchy)
 from oasislmf.preparation.reinsurance_layer import write_files_for_reinsurance
 from oasislmf.preparation.summaries import (get_summary_mapping,
                                             merge_oed_to_mapping,
@@ -342,25 +341,20 @@ class GenerateFiles(ComputationStep):
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(gul_input_files, indent=4)))
             return gul_input_files
 
-        # Get the IL input items
+        # Get the IL input items and Write the IL/FM input files
         il_inputs_df = get_il_input_items(
             gul_inputs_df=gul_inputs_df.copy(),
-            locations_df=exposure_data.location.dataframe if exposure_data.location is not None else None,
-            accounts_df=exposure_data.account.dataframe,
-            oed_schema=exposure_data.oed_schema,
+            exposure_data=exposure_data,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile,
             do_disaggregation=self.do_disaggregation,
-        )
-
-        # Write the IL/FM input files
-        il_input_files = write_il_input_files(
-            il_inputs_df,
-            target_dir,
+            target_dir=target_dir,
             oasis_files_prefixes=files_prefixes['il'],
-            chunksize=self.write_chunksize
+            chunksize=self.write_chunksize,
+            logger=self.logger
         )
+        il_input_files = {fm_name: os.path.join(target_dir, f'{file_name}.csv') for fm_name, file_name in files_prefixes['il'].items()}
 
         fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
         write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)

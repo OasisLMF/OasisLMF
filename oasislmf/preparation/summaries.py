@@ -124,13 +124,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     """
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        summary_mapping = get_xref_df(inputs_df)
-        summary_mapping['agg_id'] = summary_mapping['gul_input_id']
-        summary_mapping = summary_mapping.reindex(sorted(summary_mapping.columns, key=str.lower), axis=1)
-        summary_mapping['output_id'] = factorize_ndarray(
-            summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values,
-            col_idxs=range(2)
-        )[0]
+        summary_mapping = inputs_df.rename(columns={'gul_input_id': 'agg_id'})
 
     # GUL Only
     else:

@@ -3,11 +3,9 @@ __all__ = [
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
-    'get_default_fm_profile_field_values',
     'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
-    'assign_defaults_to_il_inputs',
     'store_exposure_fp',
     'find_exposure_fp',
     'DAMAGE_GROUP_ID_COLS',
@@ -203,11 +201,6 @@ def get_default_exposure_profile():
     return get_default_json(src_fp=fp)
 
 
-def get_default_fm_profile_field_values():
-    fp = os.path.join(STATIC_DATA_FP, 'default_fm_profile_field_values.json')
-    return get_default_json(src_fp=fp)
-
-
 def get_default_step_policies_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_step_policies_profile.json')
     return get_default_json(src_fp=fp)
@@ -226,36 +219,6 @@ def get_default_unified_profile():
 def get_default_fm_aggregation_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {FM_LEVELS_PROFILE[v['FMLevelName']]['id']: v for _, v in get_default_json(src_fp=fp).items()}
-
-
-def assign_defaults_to_il_inputs(df):
-    """
-    Assign default values to IL inputs.
-
-    :param df: IL input items dataframe
-    :type df: pandas.DataFrame
-
-    :return: IL input items dataframe
-    :rtype: pandas.DataFrame
-    """
-    # Get default values for IL inputs
-    default_fm_profile_field_values = get_default_fm_profile_field_values()
-
-    for level in default_fm_profile_field_values.keys():
-        level_id = SUPPORTED_FM_LEVELS[level]['id']
-        for k, v in default_fm_profile_field_values[level].items():
-            # Evaluate condition for assigning default values if present
-            if v.get('condition'):
-                df.loc[df.level_id == level_id, k] = df.loc[
-                    df.level_id == level_id, k
-                ].where(eval(
-                    'df.loc[df.level_id == level_id, k]' + v['condition']),
-                    v['default_value']
-                )
-            else:
-                df.loc[df.level_id == level_id, k] = v['default_value']
-
-    return df
 
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
