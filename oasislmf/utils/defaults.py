@@ -37,7 +37,7 @@ import os
 from collections import OrderedDict
 
 from .exceptions import OasisException
-from .fm import FM_LEVELS_PROFILE, SUPPORTED_FM_LEVELS
+from .fm import FM_LEVELS_PROFILE
 
 try:
     from json import JSONDecodeError
