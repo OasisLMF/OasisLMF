@@ -24,7 +24,6 @@ import pandas as pd
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_dataframe,
-    factorize_ndarray,
     get_dataframe,
     get_json,
     merge_dataframes,
