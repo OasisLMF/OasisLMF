@@ -729,12 +729,12 @@ def get_il_input_items(
                             set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
 
                     tiv_df_list.append(gul_inputs_df[(gul_inputs_df["need_tiv"] == True) &
-                                                 (gul_inputs_df["FMTermGroupID"]==FMTermGroupID)]
-                                   .drop_duplicates(subset=['agg_id', 'loc_id', 'building_id'])
-                                   .rename(columns={tiv_key:'agg_tiv'})
-                                   .groupby("agg_id", observed=True)
-                                   .agg({**{col: 'first' for col in agg_id_merge_col}, **{'agg_tiv': 'sum'}})
-                                   )
+                                                     (gul_inputs_df["FMTermGroupID"] == FMTermGroupID)]
+                                       .drop_duplicates(subset=['agg_id', 'loc_id', 'building_id'])
+                                       .rename(columns={tiv_key: 'agg_tiv'})
+                                       .groupby("agg_id", observed=True)
+                                       .agg({**{col: 'first' for col in agg_id_merge_col}, **{'agg_tiv': 'sum'}})
+                                       )
                 tiv_df = pd.concat(tiv_df_list)
 
                 gul_inputs_df = gul_inputs_df.merge(tiv_df['agg_tiv'], left_on='agg_id', right_index=True, how='left')
