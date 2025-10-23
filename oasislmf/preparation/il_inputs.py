@@ -33,7 +33,7 @@ from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (CALCRULE_ASSIGNMENT_METHODS, COVERAGE_AGGREGATION_METHODS,
-                               DEDUCTIBLE_AND_LIMIT_TYPES, FML_ACCALL, STEP_TRIGGER_TYPES,
+                               DEDUCTIBLE_AND_LIMIT_TYPES, FM_LEVELS, FML_ACCALL, STEP_TRIGGER_TYPES,
                                SUPPORTED_FM_LEVELS, FM_TERMS, GROUPED_SUPPORTED_FM_LEVELS)
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
@@ -502,7 +502,6 @@ def get_il_input_items(
             raise OasisException(
                 'FM aggregation profile is empty - this is required to perform aggregation'
             )
-
         # Get the OED hierarchy terms profile - this defines the column names for loc.
         # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
         # and accounts files. This is to ensure that the method never makes hard
@@ -510,8 +509,10 @@ def get_il_input_items(
         # that would mean that changes to these column names in the source files
         # may break the method
         oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
+        tiv_terms = {v['tiv']['ProfileElementName']: str(v['tiv']['CoverageTypeID']) for k, v in
+                     profile[FM_LEVELS['site coverage']['id']].items()}
         useful_cols = sorted(set(['layer_id', 'orig_level_id', 'level_id', 'agg_id', 'gul_input_id', 'tiv', 'NumberOfRisks']
-                                 + get_useful_summary_cols(oed_hierarchy))
+                                 + get_useful_summary_cols(oed_hierarchy)).union(tiv_terms)
                              - {'profile_id', 'item_id', 'output_id'}, key=str.lower)
         gul_inputs_df = gul_inputs_df.rename(columns={'item_id': 'gul_input_id'})
         # adjust tiv columns and name them as their coverage id
@@ -526,7 +527,7 @@ def get_il_input_items(
             agg_keys = agg_keys.union(set([v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]))
 
         present_cols = [col for col in gul_inputs_df.columns if col in set(useful_cols).union(agg_keys).union(fm_term_ids)]
-        gul_inputs_df = gul_inputs_df[present_cols]
+        gul_inputs_df = gul_inputs_df[present_cols].rename(columns=tiv_terms)
 
         # Profile dict are base on key that correspond to the fm term name.
         # this prevents multiple file columns to point to the same fm term
@@ -719,19 +720,28 @@ def get_il_input_items(
                 gul_inputs_df["agg_id"] = factorize_ndarray(gul_inputs_df.loc[:, factorize_key].values, col_idxs=range(len(factorize_key)))[0]
 
                 # merge Tiv in level_df when needed
-                tiv_df = (
-                    gul_inputs_df[gul_inputs_df["need_tiv"] == True]
-                    .drop_duplicates(subset=agg_id_merge_col + ['loc_id', 'building_id', 'coverage_type_id'])
-                    .groupby("agg_id", observed=True)
-                    .agg({**{col: 'first' for col in agg_id_merge_col}, **{'tiv': 'sum'}})
-                    .rename(columns={'tiv': 'agg_tiv'})
-                )
+                # make sure correct tiv sum exist
+                tiv_df_list = []
+                for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
+                    tiv_key = '_'.join(map(str, sorted(coverage_type_ids)))
+                    if tiv_key not in gul_inputs_df:
+                        gul_inputs_df[tiv_key] = gul_inputs_df[list(
+                            set(gul_inputs_df.columns).intersection(map(str, sorted(coverage_type_ids))))].sum(axis=1)
+
+                    tiv_df_list.append(gul_inputs_df[(gul_inputs_df["need_tiv"] == True) &
+                                                 (gul_inputs_df["FMTermGroupID"]==FMTermGroupID)]
+                                   .drop_duplicates(subset=['agg_id', 'loc_id', 'building_id'])
+                                   .rename(columns={tiv_key:'agg_tiv'})
+                                   .groupby("agg_id", observed=True)
+                                   .agg({**{col: 'first' for col in agg_id_merge_col}, **{'agg_tiv': 'sum'}})
+                                   )
+                tiv_df = pd.concat(tiv_df_list)
+
                 gul_inputs_df = gul_inputs_df.merge(tiv_df['agg_tiv'], left_on='agg_id', right_index=True, how='left')
                 gul_inputs_df['agg_tiv'] = gul_inputs_df['agg_tiv'].fillna(0)
 
                 level_df = level_df.merge(tiv_df.drop_duplicates(), how='left').drop(columns=['need_tiv'])
                 level_df['agg_tiv'] = level_df['agg_tiv'].fillna(0)
-
                 # Apply rule to convert type 2 deductibles and limits to TIV shares
                 if 'deductible' in level_df.columns and 'ded_type' in level_df.columns:
                     level_df['deductible'] = level_df['deductible'].fillna(0.)
