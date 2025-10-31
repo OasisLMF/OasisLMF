@@ -162,7 +162,7 @@ def get_step_profile_ids(
     step_calcrule_policytc_agg = pd.DataFrame(
         fm_policytc_df[fm_policytc_df['step_id'] > 0]['profile_id'].to_list(),
         index=fm_policytc_df[fm_policytc_df['step_id'] > 0]['pol_id']
-    ).groupby('pol_id').aggregate(list).to_dict()[0]
+    ).groupby('pol_id', observed=True).aggregate(list).to_dict()[0]
 
     fm_policytc_df.loc[
         fm_policytc_df['step_id'] > 0, 'profile_id'
@@ -689,7 +689,7 @@ def get_il_input_items(
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, factorize_key].values, col_idxs=range(len(factorize_key)))[0]
 
             # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
-            need_root_start_df = level_df.groupby("agg_id_prev")["agg_id"].nunique()
+            need_root_start_df = level_df.groupby("agg_id_prev", observed=True)["agg_id"].nunique()
             need_root_start_df = need_root_start_df[need_root_start_df > 1].index
 
             # create new prev df for element that need to restart from items
@@ -739,17 +739,18 @@ def get_il_input_items(
         level = 'policy layer'
         level_id = SUPPORTED_FM_LEVELS[level]['id']
 
-        agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-        sub_agg_key = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
-                       if v['field'] in prev_level_df.columns]
+        agg_key_acc = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
+        sub_agg_key_acc = [v['field'] for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
+                           if v['field'] in prev_level_df.columns]
 
-        need_account_aggregation = (prev_level_df[agg_key + sub_agg_key + ['layer_id', 'agg_id']]
+        need_account_aggregation = (prev_level_df[agg_key_acc + sub_agg_key_acc + ['layer_id', 'agg_id']]
                                     .drop_duplicates()
-                                    .groupby(agg_key + sub_agg_key + ['layer_id'], observed=True)
+                                    .groupby(agg_key_acc + sub_agg_key_acc + ['layer_id'], observed=True)
                                     .size()
                                     .max() > 1) or set(SUMMARY_TOP_LEVEL_COLS).difference(set(prev_level_df.columns))
 
         if need_account_aggregation:
+            agg_key, sub_agg_key = agg_key_acc, sub_agg_key_acc
             level_df = gul_inputs_df.merge(accounts_df[list(set(agg_key + sub_agg_key + ['layer_id'])
                                                             .union(set(useful_cols).difference(set(gul_inputs_df.columns)))
                                                             .intersection(accounts_df.columns))])
