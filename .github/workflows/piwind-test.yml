@@ -57,7 +57,7 @@ jobs:
 
   platform1:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@fix/ci-fix-pip-ver
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
     secrets: inherit
     needs: [build, ods_tools]
     with:
@@ -72,7 +72,7 @@ jobs:
 
   platform2:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@fix/ci-fix-pip-ver
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
     secrets: inherit
     needs: [build, ods_tools]
     with:
