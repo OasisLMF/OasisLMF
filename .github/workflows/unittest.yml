@@ -58,7 +58,7 @@ jobs:
 
       - name: Install pip-tools
         run: |
-          python -m pip install --upgrade pip
+          #python -m pip install --upgrade pip<23.3
           pip install pip-tools
 
       - name: Set pip resolver flag
