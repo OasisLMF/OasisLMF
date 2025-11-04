@@ -136,7 +136,7 @@ class GenerateKeys(KeyComputationStep):
         if self.lookup_complex_config_json:
             complex_lookup_config_fp = self.lookup_complex_config_json
         else:
-            complex_lookup_config_fp = self.settings
+            complex_lookup_config_fp = None
 
         model_info, key_server = KeyServerFactory.create(
             lookup_config_fp=self.lookup_config_json,
