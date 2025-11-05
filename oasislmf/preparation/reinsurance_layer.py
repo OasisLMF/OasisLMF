@@ -322,7 +322,7 @@ def get_xref_df(xref_descriptions_df, risk_level):
         df_levels: list of dataframes, one per fm level
     """
 
-    xref_descriptions = xref_descriptions_df.sort_values(by=REINS_RISK_LEVEL_XREF_COLUMN_MAP.get(risk_level, XREF_COLUMN_DEFAULT))
+    xref_descriptions = xref_descriptions_df.sort_values(by=REINS_RISK_LEVEL_XREF_COLUMN_MAP.get(risk_level, XREF_COLUMN_DEFAULT), kind='stable')
     risk_level_fields = RISK_LEVEL_FIELD_MAP[risk_level]
 
     df_levels = dict()
@@ -473,7 +473,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             # create fm df
             fm_programme_df = xref_df[xref_df['agg_id_to'] != 0][['agg_id', 'level_id', 'agg_id_to']].reset_index(drop=True)
             fm_programme_df.columns = ['from_agg_id', 'level_id', 'to_agg_id']
-            fm_profile_df = fm_profile_df.sort_values(by='profile_id').reset_index(drop=True)
+            fm_profile_df = fm_profile_df.sort_values(by='profile_id', kind='stable').reset_index(drop=True)
 
             fm_policytc_df = profile_map_df[profile_map_df['level_id'] > 1][
                 ['layer_id', 'level_id', 'agg_id', 'profile_id']

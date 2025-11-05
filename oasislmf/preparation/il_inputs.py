@@ -663,20 +663,24 @@ def get_il_input_items(
             no_term_filter = level_df['layer_id'].isna()
             level_df_no_term = level_df[no_term_filter]
             level_df_no_term = level_df_no_term.drop(columns='layer_id').merge(
-                prev_level_df[prev_level_df['gul_input_id'].isin(set(level_df_no_term['gul_input_id']))][['gul_input_id', 'layer_id']],
+                prev_level_df[['gul_input_id', 'layer_id', 'agg_id']].rename(columns={'agg_id': 'agg_id_prev'}),
                 how='left'
             )
+            level_df_with_term = level_df[~no_term_filter]
+            level_df_with_term = level_df_with_term.merge(
+                prev_level_df[['gul_input_id', 'layer_id', 'agg_id']].rename(columns={'agg_id': 'agg_id_prev'}),
+                how='left'
+            )
+
             if 'PolNumber' in term_df_source.columns:
                 level_df_no_term = level_df_no_term.drop(columns=['PolNumber', 'acc_idx']).merge(
                     term_df_source[['PortNumber', 'AccNumber', 'layer_id', 'PolNumber', 'acc_idx']],
                     how='left'
                 )
-            level_df = pd.concat([level_df[~no_term_filter], level_df_no_term]).reset_index()
-            level_df['layer_id'] = level_df['layer_id'].astype('int32')
 
-            # map agg_id_prev using gul_input_id
-            prev_level_df_mapper = prev_level_df[['gul_input_id', 'agg_id']].drop_duplicates().set_index('gul_input_id')
-            level_df['agg_id_prev'] = level_df['gul_input_id'].map(prev_level_df_mapper['agg_id']).fillna(0).astype('int64')
+            level_df = pd.concat([level_df_with_term, level_df_no_term]).reset_index()
+            level_df['layer_id'] = level_df['layer_id'].astype('int32')
+            level_df['agg_id_prev'] = level_df['agg_id_prev'].fillna(0).astype('int64')
 
             if do_disaggregation:
                 if 'risk_id' in agg_key:

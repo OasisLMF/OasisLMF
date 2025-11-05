@@ -1,6 +1,24 @@
 OasisLMF Changelog
 ==================
 
+* [#1752](https://github.com/OasisLMF/OasisLMF/pull/1752) - Port/pandas 2.2.0 fix    (backport 2.3.x) 
+.. _`2.3.18`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.17...2.3.18
+
+`2.3.17`_
+ ---------
+* [#1732](https://github.com/OasisLMF/OasisLMF/pull/1732) - Fix/setmaxloss 2.23.x
+* [#1699](https://github.com/OasisLMF/OasisLMF/pull/1702) - Error when requesting only ground-up losses by AccName
+* [#1678](https://github.com/OasisLMF/OasisLMF/pull/1678) - fix vuln_cdf for blended vulnerability when a sub vuln has no damage for a certain hazard bin
+.. _`2.3.17`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.16...2.3.17
+
+`2.3.16`_
+ ---------
+* [#1689](https://github.com/OasisLMF/OasisLMF/pull/1689) - fix fm peril filter
+* [#1667](https://github.com/OasisLMF/OasisLMF/pull/1667) - add keys in error for loc_id not modelled
+* [#1695](https://github.com/OasisLMF/OasisLMF/pull/1694) - mock url for forex_python in test cases needs to be updated
+* [#1678](https://github.com/OasisLMF/OasisLMF/pull/1678) - fix vuln_cdf for blended vulnerability when a sub vuln has no damage for a certain hazard bin
+.. _`2.3.16`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.15...2.3.16
+
 `2.3.15`_
  ---------
 * [#1667](https://github.com/OasisLMF/OasisLMF/pull/1667) - add keys in error for loc_id not modelled

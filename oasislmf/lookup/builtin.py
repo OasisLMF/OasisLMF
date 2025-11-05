@@ -121,7 +121,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
         keys_df = locations.join(split_df).merge(peril_groups_df)[['loc_id', 'peril_id']]
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
-        keys_df = keys_df.sort_values('loc_id').merge(coverage_df, how="cross")
+        keys_df = keys_df.sort_values('loc_id', kind='stable').merge(coverage_df, how="cross")
         success_df = keys_df['peril_id'].isin(model_perils_covered)
         success_df_len = keys_df[success_df].shape[0]
         keys_df.loc[success_df, 'area_peril_id'] = np.arange(1, success_df_len + 1)
@@ -416,8 +416,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
                 df_model_perils_covered.name = 'model_perils_covered'
-                peril_locations = peril_locations.merge(df_model_perils_covered, left_on='peril_id', right_on='model_perils_covered')
-
+                peril_locations = peril_locations.merge(df_model_perils_covered,
+                                                        left_on='peril_id', right_on='model_perils_covered',
+                                                        sort=True)
             not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])]
             if not not_covered_location.empty:
                 not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']
