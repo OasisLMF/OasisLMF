@@ -353,9 +353,7 @@ class TestSummaries(TestCase):
         # Run Summary output check
         gul_inputs = get_gul_input_items(loc_df, keys_df, damage_group_id_cols=['loc_id'])
         # Add additional fields to gul inputs
-        gul_inputs = gul_inputs.merge(loc_df[['loc_id', 'CountryCode', 'LocCurrency']],
-                                      on='loc_id')
-
+        gul_inputs = gul_inputs.merge(loc_df[['loc_id', 'CountryCode', 'LocCurrency']], on='loc_id')
         self.assertSummaryIsValid(
             loc_df,
             gul_inputs,

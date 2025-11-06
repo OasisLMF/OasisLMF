@@ -1085,7 +1085,7 @@ def fill_na_with_categoricals(df, fill_value):
             continue
 
         col = df[col_name]
-        if pd.api.types.is_categorical_dtype(col):
+        if isinstance(col.dtype, pd.CategoricalDtype):
             # Force to be a string - using categorical for string columns
             value = str(value)
             fill_value[col_name] = value

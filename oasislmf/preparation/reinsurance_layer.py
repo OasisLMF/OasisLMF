@@ -440,7 +440,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
             ri_info_no_fac = cur_ri_info_df[cur_ri_info_df['ReinsType'] != oed.REINS_TYPE_FAC].reset_index(drop=True)
             ri_info_no_fac['layer_id'] = ri_info_no_fac.index + 1 + ri_df['layer_id'].max()
             ri_df = ri_df.merge(ri_info_no_fac, how='left', on=ri_info_no_fac.columns.to_list()[:-1], suffixes=['', '_y'])
-            ri_df['layer_id'] = ri_df['layer_id'].where(ri_df['layer_id_y'].isna(), ri_df['layer_id_y'])
+            ri_df.loc[~ri_df['layer_id_y'].isna(), 'layer_id'] = ri_df.loc[~ri_df['layer_id_y'].isna(), 'layer_id_y'].astype('int')
             ri_df = ri_df.drop('layer_id_y', axis=1)
 
             for field in RISK_LEVEL_ALL_FIELDS:

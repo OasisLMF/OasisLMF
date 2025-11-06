@@ -24,7 +24,6 @@ import pandas as pd
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_dataframe,
-    factorize_ndarray,
     get_dataframe,
     get_json,
     merge_dataframes,
@@ -99,7 +98,7 @@ calculated_summary_cols = {'is_property_damage': is_property_damage}
 def get_xref_df(il_inputs_df):
     top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(),
                                            ['top_agg_id'] + SUMMARY_TOP_LEVEL_COLS].drop_duplicates()
-    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0]
+    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 0].copy()
     bottom_level_layers_df.drop(columns=SUMMARY_TOP_LEVEL_COLS, inplace=True)
     return (merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
             .drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
@@ -124,13 +123,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     """
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        summary_mapping = get_xref_df(inputs_df)
-        summary_mapping['agg_id'] = summary_mapping['gul_input_id']
-        summary_mapping = summary_mapping.reindex(sorted(summary_mapping.columns, key=str.lower), axis=1)
-        summary_mapping['output_id'] = factorize_ndarray(
-            summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values,
-            col_idxs=range(2)
-        )[0]
+        summary_mapping = inputs_df.rename(columns={'gul_input_id': 'agg_id'})
 
     # GUL Only
     else:
@@ -246,7 +239,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     summary_group_df.sort_values(by=[sort_by], inplace=True, kind='stable')
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
     summary_tiv = summary_group_df.drop_duplicates(['loc_id', 'building_id', 'coverage_type_id'] + oed_col_group,
-                                                   keep='first').groupby(oed_col_group, observed=True).agg({'tiv': np.sum})
+                                                   keep='first').groupby(oed_col_group, observed=True).agg({'tiv': "sum"})
 
     return summary_ids[0], summary_ids[1], summary_tiv
 
@@ -939,7 +932,7 @@ def get_exposure_summary(
                 fields = exposure_fields + [cov_name]
                 column_names = exposure_col_names + ['tiv']
 
-                tmp_df = exposure_df[fields]
+                tmp_df = exposure_df[fields].copy()
                 tmp_df.columns = column_names
                 tmp_df['coverage_type_id'] = coverage_type_id
 
