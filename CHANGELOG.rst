@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`2.3.19`_
+ ---------
+* [#1784](https://github.com/OasisLMF/OasisLMF/pull/1784) - CI fix pip-comple error
+* [#1776](https://github.com/OasisLMF/OasisLMF/pull/1776) - fix simple step policies
+* [#1788](https://github.com/OasisLMF/OasisLMF/pull/1788) - bypass amplification.bin load in pla when uniform factor is provided (backport)
+.. _`2.3.19`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.18...2.3.19
+
 * [#1752](https://github.com/OasisLMF/OasisLMF/pull/1752) - Port/pandas 2.2.0 fix    (backport 2.3.x) 
 .. _`2.3.18`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.17...2.3.18
 
