@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`2.4.9`_
+ ---------
+* [#1775](https://github.com/OasisLMF/OasisLMF/pull/1775) - Fix: Giving df engine to exposure
+* [#1781](https://github.com/OasisLMF/OasisLMF/pull/1781) - Choice of OED schema
+* [#1782](https://github.com/OasisLMF/OasisLMF/pull/1782) - Revamp/il by level
+* [#8](https://github.com/OasisLMF/OasisLMF/pull/1783) - PiWind model run issues
+* [#1784](https://github.com/OasisLMF/OasisLMF/pull/1784) - CI fix pip-comple error
+* [#1785](https://github.com/OasisLMF/OasisLMF/pull/1790) - Lookup arg 'complex_lookup_config_fp' has unexpected value
+.. _`2.4.9`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.8...2.4.9
+
 `2.4.8`_
  ---------
 * [#1762](https://github.com/OasisLMF/OasisLMF/pull/1762) - adds check for full data buffer with read_buffer functions for fm and…
