@@ -854,7 +854,10 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
                 logger.debug("Exposure data is generated from `get_exposure_data_config` key of computation kwargs")
-                exposure_data = OedExposure(**computation_step.get_exposure_data_config())
+                data_config = computation_step.get_exposure_data_config()
+                data_config["base_df_engine"] = computation_step.kwargs.get('base_df_engine', data_config.get("base_df_engine", None))
+                data_config["exposure_df_engine"] = computation_step.kwargs.get('exposure_df_engine', data_config.get("exposure_df_engine", None))
+                exposure_data = OedExposure(**data_config)
             else:
                 logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
                 exposure_data = OedExposure.from_dir(
@@ -1082,7 +1085,7 @@ def fill_na_with_categoricals(df, fill_value):
             continue
 
         col = df[col_name]
-        if pd.api.types.is_categorical_dtype(col):
+        if isinstance(col.dtype, pd.CategoricalDtype):
             # Force to be a string - using categorical for string columns
             value = str(value)
             fill_value[col_name] = value

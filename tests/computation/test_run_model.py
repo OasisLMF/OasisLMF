@@ -55,7 +55,7 @@ class TestRunModel(ComputationChecker):
             self.post_file_gen_args,
             self.pre_loss_args,
             self.gen_loss_args,
-            self.post_hook_args,
+            self.post_hook_args
         ])
         self.assertEqual(expt_combined_args, self.default_args)
 

@@ -533,7 +533,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     locations = Lookup.set_id_columns(locations, id_columns)
                     is_valid = (locations[id_columns] != OASIS_UNKNOWN_ID).any(axis=1)
                     result.append(locations[is_valid])
-                    locations = locations[~is_valid][initial_columns]
+                    locations = locations[~is_valid][initial_columns].copy()
                     if locations.empty:
                         break
                 result.append(locations)

@@ -82,13 +82,20 @@ def first_time_layer_extra(profile_len, base_children_len, temp_children_queue, 
         child_val_len = sidx_indptr[sidx_indexes[child['node_id']] + 1] - sidx_indptr[sidx_indexes[child['node_id']]]
         child_loss_val_layer_0 = loss_val[loss_indptr[child['loss']]:
                                           loss_indptr[child['loss']] + child_val_len]
+        if base_children_len == 1:  # aggregation case
+            child_extra_val_layer_0 = extras_val[extras_indptr[child['extra']]:
+                                                 extras_indptr[child['extra']] + child_val_len]
+        else:  # back allocation case
+            child_extra_val_layer_0 = np.zeros_like(extras_val[extras_indptr[child['extra']]:
+                                                               extras_indptr[child['extra']] + child_val_len])
+
         for p in range(1, profile_len):
             loss_indptr[child['loss'] + p] = compute_idx['loss_ptr_i']
             loss_val[compute_idx['loss_ptr_i']: compute_idx['loss_ptr_i'] + child_val_len] = child_loss_val_layer_0
             compute_idx['loss_ptr_i'] += child_val_len
 
             extras_indptr[child['extra'] + p] = compute_idx['extras_ptr_i']
-            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len] = 0
+            extras_val[compute_idx['extras_ptr_i']: compute_idx['extras_ptr_i'] + child_val_len] = child_extra_val_layer_0
             compute_idx['extras_ptr_i'] += child_val_len
 
 
