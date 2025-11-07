@@ -285,7 +285,7 @@ class TestPostLossAmplification(TestCase):
         second_uni_out = NamedTemporaryFile(prefix='plaseconduni')
         run(
             run_dir='.', file_in=self.gul_in.name, file_out=second_uni_out.name,
-            input_path='input', static_path='static',
+            input_path='input_nowhere', static_path='static_nowhere',
             secondary_factor=self.second_factor, uniform_factor=self.uni_factor
         )
 
