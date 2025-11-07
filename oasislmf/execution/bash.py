@@ -583,7 +583,7 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-                if join_summary_info:
+                if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     cmd = f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext}'
                     print_command(filename, cmd)
@@ -636,7 +636,7 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-                if join_summary_info:
+                if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     cmd = f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext}'
                     print_command(filename, cmd)
@@ -707,7 +707,7 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-                if join_summary_info:
+                if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     cmd = f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename}'
                     print_command(filename, cmd)
@@ -984,7 +984,7 @@ def do_kats(
                         cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
-                        if join_summary_info:
+                        if join_summary_info or analysis_settings.get("join_summary_info", False):
                             summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                             cmd = f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile}'
                             print_command(filename, cmd)
