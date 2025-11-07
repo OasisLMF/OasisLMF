@@ -501,11 +501,7 @@ class BasicKeyServer:
             return successes_fp, successes_count
 
     def generate_key_files_singleproc(self, loc_df, successes_fp, errors_fp, output_format, keys_success_msg, **kwargs):
-        if getattr(self, 'complex_lookup_config_fp', None):  # backward compatibility 1.15 hack
-            config_dir = getattr(self, 'complex_lookup_config_fp', None)
-        else:
-            config_dir = self.config_dir
-        lookup = self.create_lookup(self.lookup_cls, self.config, config_dir, self.user_data_dir, self.output_dir,
+        lookup = self.create_lookup(self.lookup_cls, self.config, self.config_dir, self.user_data_dir, self.output_dir,
                                     lookup_id=None)
 
         key_results = lookup.process_locations(loc_df)
@@ -538,11 +534,6 @@ class BasicKeyServer:
         location_row is of type <class 'pandas.core.series.Series'>
 
         """
-        if getattr(self, 'complex_lookup_config_fp', None):  # backward compatibility 1.15 hack
-            config_dir = getattr(self, 'complex_lookup_config_fp', None)
-        else:
-            config_dir = self.config_dir
-
         pool_count = num_cores if num_cores > 0 else multiprocessing.cpu_count()
         if num_partitions > 0:
             part_count = num_partitions
@@ -561,7 +552,7 @@ class BasicKeyServer:
         this_location_producer = ct.Process(target=location_producer, args=(error_queue, loc_df, part_count, loc_queue))
 
         workers = [ct.Process(target=lookup_multiproc_worker,
-                              args=(error_queue, self.lookup_cls, self.config, config_dir,
+                              args=(error_queue, self.lookup_cls, self.config, self.config_dir,
                                     self.user_data_dir, self.output_dir,
                                     lookup_id, loc_queue, key_queue))
                    for lookup_id in range(pool_count)]
