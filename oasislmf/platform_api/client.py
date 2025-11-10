@@ -414,7 +414,7 @@ class APIClient(object):
         self,
         api_url='http://localhost:8000',
         api_ver='V2',
-        auth_type="simple",
+        auth_type="oidc",
         username="admin",
         password="password",
         client_id="oasis-service",
