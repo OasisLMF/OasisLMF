@@ -19,4 +19,4 @@ shutilwhich
 tabulate>=0.8.2
 tblib
 tqdm
-websocket-client>=1.8.0
+websocket-client

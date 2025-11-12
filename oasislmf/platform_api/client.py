@@ -410,10 +410,35 @@ class API_analyses(ApiEndpoint):
 
 
 class APIClient(object):
-    def __init__(self, api_url='http://localhost:8000', api_ver='V2', username='admin', password='password', timeout=25, logger=None, **kwargs):
+    def __init__(
+        self,
+        api_url='http://localhost:8000',
+        api_ver='V2',
+        auth_type="simple",
+        username="admin",
+        password="password",
+        client_id="oasis-service",
+        client_secret="serviceNotSoSecret",
+        access_token=None,
+        refresh_token=None,
+        timeout=25,
+        logger=None,
+        **kwargs
+    ):
         self.logger = logger or logging.getLogger(__name__)
 
-        self.api = APISession(api_url, username, password, timeout, **kwargs)
+        self.api = APISession(
+            api_url=api_url,
+            auth_type=auth_type,
+            username=username,
+            password=password,
+            client_id=client_id,
+            client_secret=client_secret,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            timeout=timeout,
+            **kwargs
+        )
         self.api_ver = api_ver.lower()
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, self.api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, self.api_ver))
