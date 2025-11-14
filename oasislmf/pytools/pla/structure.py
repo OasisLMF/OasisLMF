@@ -90,45 +90,64 @@ def read_lossfactors(run_dir="", ignore_file_type=set(), filename=PLAFACTORS_FIL
         for row in lossfactors:
             plafactors[(row["event_id"], row["amplification_id"])] = row["factor"]
 
+    def read_csv_lines(lines):
+        # Check for header
+        first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
+        has_header = first_line_elements == lossfactors_headers
+        data_lines = lines[1:] if has_header else lines
+        return np.loadtxt(
+            data_lines,
+            dtype=lossfactors_dtype,
+            delimiter=",",
+            ndmin=1
+        )
+
     plafactors = Dict.empty(
         key_type=types.UniTuple(types.int64, 2), value_type=types.float64
     )
-    for ext in ["bin", "csv"]:
+
+    supported_exts = ["bin", "csv"]
+
+    if use_stdin:
+        for ext in supported_exts:
+            if ext in ignore_file_type:
+                continue
+
+            if ext == "bin":
+                lossfactors = np.frombuffer(sys.stdin.buffer.read(), dtype=np.uint8)
+                _read_bin(lossfactors, plafactors)
+                return plafactors
+            elif ext == "csv":
+                lines = sys.stdin.readlines()
+                lossfactors = read_csv_lines(lines)
+                _read_csv(lossfactors, plafactors)
+                return plafactors
+            else:
+                raise RuntimeError(f"Cannot read lossfactors file of type {ext}. Not Implemented.")
+        raise RuntimeError(
+            f'lossfactors data not readable with use_stdin={use_stdin}, run_dir={run_dir}, filename={filename}. Ignoring files with ext {ignore_file_type}.')
+
+    for ext in supported_exts:
         if ext in ignore_file_type:
             continue
 
         lossfactors_file = Path(run_dir, filename).with_suffix("." + ext)
-        if lossfactors_file.exists():
-            logger.debug(f"loading {lossfactors_file}")
-            if ext == "bin":
-                if use_stdin:
-                    lossfactors = np.frombuffer(sys.stdin.buffer.read(), dtype=np.uint8)
-                else:
-                    lossfactors = np.memmap(lossfactors_file, dtype=np.uint8, mode='r')
-                _read_bin(lossfactors, plafactors)
+        if not lossfactors_file.exists():
+            continue
 
-            elif ext == "csv":
-                with ExitStack() as stack:
-                    if use_stdin:
-                        fin = sys.stdin
-                    else:
-                        fin = stack.enter_context(open(lossfactors_file, "r"))
-
-                    lines = fin.readlines()
-                    # Check for header
-                    first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
-                    has_header = first_line_elements == lossfactors_headers
-
-                    data_lines = lines[1:] if has_header else lines
-                    lossfactors = np.loadtxt(
-                        data_lines,
-                        dtype=lossfactors_dtype,
-                        delimiter=",",
-                        ndmin=1
-                    )
-                    _read_csv(lossfactors, plafactors)
-            else:
-                raise RuntimeError(f"Cannot read lossfactors file of type {ext}. Not Implemented.")
+        if ext == "bin":
+            lossfactors = np.memmap(lossfactors_file, dtype=np.uint8, mode='r')
+            _read_bin(lossfactors, plafactors)
             return plafactors
+        elif ext == "csv":
+            with ExitStack() as stack:
+                fin = stack.enter_context(open(lossfactors_file, "r"))
+                lines = fin.readlines()
+            lossfactors = read_csv_lines(lines)
+            _read_csv(lossfactors, plafactors)
+            return plafactors
+        else:
+            raise RuntimeError(f"Cannot read lossfactors file of type {ext}. Not Implemented.")
 
-    raise FileNotFoundError(f'lossfactors file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
+    raise RuntimeError(
+        f'lossfactors data not readable with use_stdin={use_stdin}, run_dir={run_dir}, filename={filename}. Ignoring files with ext {ignore_file_type}.')
