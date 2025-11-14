@@ -132,7 +132,6 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
     supported_exts = ["bin", "csv"]
 
     def read_csv_lines(lines):
-        lines = fin.readlines()
         # Check for header
         first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
         has_header = first_line_elements == coverages_headers
