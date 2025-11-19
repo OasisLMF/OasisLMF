@@ -21,7 +21,7 @@ def get_free_port():
 
 def test_server_increments_counter():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
     server.start()
 
     assert server.counter == 0
@@ -36,7 +36,7 @@ def test_server_increments_counter():
 
 def test_server_handles_multiple_clients():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(20, host="127.0.0.1", port=port)
     server.start()
     target = (server.host, server.port)
 
@@ -51,7 +51,7 @@ def test_server_handles_multiple_clients():
 
 def test_server_handles_missing_key():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
     server.start()
     target = (server.host, server.port)
     data = json.dumps({"hello": "world"})
@@ -66,7 +66,7 @@ def test_server_handles_missing_key():
 
 def test_server_can_stop_and_not_accept():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
     server.start()
     target = (server.host, server.port)
     data = json.dumps({"events_complete": 1})
