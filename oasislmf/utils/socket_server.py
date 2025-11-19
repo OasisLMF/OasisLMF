@@ -9,7 +9,7 @@ from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SER
 
 
 class GulProgressServer:
-    def __init__(self, host=None, port=None):
+    def __init__(self, total, host=None, port=None):
         """
         Args:
             host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or SERVER_DEFAULT_IP if unset.
@@ -17,6 +17,7 @@ class GulProgressServer:
         """
         self.host = os.environ.get('OASIS_SOCKET_SERVER_IP', SERVER_DEFAULT_IP) if host is None else host
         self.port = int(os.environ.get('OASIS_SOCKET_SERVER_PORT', SERVER_DEFAULT_PORT)) if port is None else port
+        self.total = total
         self.counter = 0
         self.counter_lock = threading.Lock()
         self.running = False
@@ -26,7 +27,14 @@ class GulProgressServer:
         self.running = True
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind((self.host, self.port))
+
+        try:
+            self.server_socket.bind((self.host, self.port))
+        except OSError:  # Desired socket unavailable
+            self.server_socket.bind((self.host, 0))
+            self.port = self.server_socket.getsockname()[1]
+            os.environ['OASIS_SOCKET_SERVER_PORT'] = str(self.port)
+
         self.server_socket.listen(5)
 
         self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
@@ -44,6 +52,8 @@ class GulProgressServer:
         data = self._read_all(client_socket)
         payload = json.loads(data)
         with self.counter_lock:
+            if 'terminate' in payload:
+                self.counter = self.total
             self.counter += int(payload.get("events_complete", 0))
 
     def _read_all(self, client_socket):
@@ -76,7 +86,7 @@ def main():
         total = int(sys.argv[1])
     except Exception:
         raise TypeError("Socket server argument must be an integer")
-    with (GulProgressServer() as server,
+    with (GulProgressServer(total) as server,
           tqdm(total=total, unit="events", desc="Gul events completed", leave=True) as pbar):
         counter = 0
         while counter < total:
