@@ -208,9 +208,10 @@ class GenerateFiles(ComputationStep):
             all_cols = set(location_df.columns)
             if account_df is not None:
                 all_cols = all_cols.union(set(account_df.columns))
-            if valid_fields.difference(all_cols):
+            missing_fields = valid_fields.difference(all_cols)
+            if missing_fields:
                 raise OasisException(
-                    f"Invalid \"oed_fields\" found in {summary_type}_summaries, not in input files: {valid_fields.difference(all_cols)}"
+                    f"Invalid \"oed_fields\" found in {summary_type}_summaries, not in input files: {missing_fields}"
                 )
 
         # If a pre-generated keys file path has not been provided,
