@@ -54,6 +54,7 @@ class GulProgressServer:
         with self.counter_lock:
             if 'terminate' in payload:
                 self.counter = self.total
+                self.stop()
             self.counter += int(payload.get("events_complete", 0))
 
     def _read_all(self, client_socket):

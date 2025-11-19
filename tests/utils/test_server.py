@@ -98,3 +98,14 @@ def test_main_finishes_valid_call():
         mock_server.counter = 10
         sys.argv = ['a', 10]
         server_main()
+
+
+def test_server_terminate():
+    port = get_free_port()
+    server = GulProgressServer(91, host="127.0.0.1", port=port)
+    server.start()
+    with patch.object(server, "stop", wraps=server.stop) as mock_stop:
+        assert oasis_ping_socket(("127.0.0.1", port), json.dumps({"terminate": "terminate"})) is True
+        time.sleep(0.1)
+        assert server.counter == server.total
+        mock_stop.assert_called_once()
