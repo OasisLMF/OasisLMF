@@ -164,12 +164,6 @@ class GenerateFiles(ComputationStep):
 
         validate_vulnerability_replacements(self.analysis_settings_json)
 
-        # Validate Analysis settings oed_fields
-        for summary_type in ["gul", "il", "ri"]:
-            invalid_fields = validate_analysis_oed_fields(self.analysis_settings_json, exposure_data, summary_type)
-            if len(invalid_fields) > 0:
-                raise OasisException(f"Invalid \"oed_fields\" found in {summary_type}_summaries: {invalid_fields}")
-
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
         target_dir = prepare_input_files_directory(
@@ -207,6 +201,17 @@ class GenerateFiles(ComputationStep):
             account_df = exposure_data.account.dataframe
         else:
             account_df = None
+
+        # Validate Analysis settings oed_fields against location and account files (ignores non OED column names)
+        for summary_type in ["gul", "il", "ri"]:
+            valid_fields, _ = validate_analysis_oed_fields(self.analysis_settings_json, exposure_data, summary_type)
+            all_cols = set(location_df.columns)
+            if account_df is not None:
+                all_cols = all_cols.union(set(account_df.columns))
+            if valid_fields.difference(all_cols):
+                raise OasisException(
+                    f"Invalid \"oed_fields\" found in {summary_type}_summaries, not in input files: {valid_fields.difference(all_cols)}"
+                )
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so

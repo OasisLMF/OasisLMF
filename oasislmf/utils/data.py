@@ -1068,9 +1068,10 @@ def validate_vulnerability_replacements(analysis_settings_json):
 def validate_analysis_oed_fields(analysis_settings_json, exposure_data, summaries_type):
     if analysis_settings_json is None:
         logger.info("No analysis_settings file provided, cannot validate oed fields in analysis settings")
-        return set()
+        return set(), set()
     summaries = analysis_settings_loader(analysis_settings_json).get(f"{summaries_type}_summaries", [])
 
+    valid_oed_fields = set()
     invalid_oed_fields = set()
     for summary in summaries:
         if "oed_fields" not in summary:
@@ -1078,9 +1079,10 @@ def validate_analysis_oed_fields(analysis_settings_json, exposure_data, summarie
         oed_fields = summary.get("oed_fields")
         valid_loc_fields = OedSchema.column_to_field(oed_fields, exposure_data.get_input_fields("Loc")).keys()
         valid_acc_fields = OedSchema.column_to_field(oed_fields, exposure_data.get_input_fields("Acc")).keys()
-        valid_fields = list(valid_loc_fields) + list(valid_acc_fields)
-        invalid_oed_fields = invalid_oed_fields.union(set(oed_fields).difference(set(valid_fields)))
-    return invalid_oed_fields
+        valid_fields = set(list(valid_loc_fields) + list(valid_acc_fields))
+        valid_oed_fields = valid_oed_fields.union(valid_fields)
+        invalid_oed_fields = invalid_oed_fields.union(set(oed_fields).difference(valid_fields))
+    return valid_oed_fields, invalid_oed_fields
 
 
 def fill_na_with_categoricals(df, fill_value):
