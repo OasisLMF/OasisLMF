@@ -207,7 +207,7 @@ class GenerateFiles(ComputationStep):
             valid_fields, _ = validate_analysis_oed_fields(self.analysis_settings_json, exposure_data, summary_type)
             all_cols = set(location_df.columns)
             if account_df is not None:
-                all_cols = all_cols.union(set(account_df.columns))
+                all_cols |= set(account_df.columns)
             missing_fields = valid_fields.difference(all_cols)
             if missing_fields:
                 raise OasisException(
