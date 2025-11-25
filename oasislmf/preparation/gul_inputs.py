@@ -153,7 +153,7 @@ def get_gul_input_items(
     if 'IsAggregate' not in location_df.columns:
         location_df['IsAggregate'] = 0
     else:
-        location_df['IsAggregate'].fillna(0, inplace=True)
+        location_df['IsAggregate'] = location_df['IsAggregate'].fillna(0)
 
     # Make sure NumberOfBuildings is there and filled (not mandatory), otherwise assume NumberOfBuildings = 1
     if 'NumberOfBuildings' not in location_df.columns:
