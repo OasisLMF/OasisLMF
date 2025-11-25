@@ -10,6 +10,7 @@ import warnings
 import numba as nb
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from ods_tools.oed import fill_empty, is_empty
 
 try:  # needed for rtree
@@ -906,7 +907,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return geotiff_lookup
 
-    def build_merge(self, file_path, id_columns=[], **kwargs):
+    def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
         """
         this method will merge the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
@@ -914,7 +915,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         this is an efficient way to map a combination of column that have a finite scope to an idea.
         """
 
-        df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
+        read_func = getattr(pd, f"read_{file_type}", None)
+        if callable(read_func):
+            df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
+        else:
+            df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
         df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
         def merge(locations: pd.DataFrame):
