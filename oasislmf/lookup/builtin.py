@@ -10,7 +10,6 @@ import warnings
 import numba as nb
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from ods_tools.oed import fill_empty, is_empty
 
 try:  # needed for rtree
