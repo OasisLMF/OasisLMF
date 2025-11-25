@@ -153,10 +153,10 @@ RI_SCOPE_DEFAULTS = {
 
 DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
                             'type_col': 'BIWaitingPeriodType',
-                            'type_value': 3},
+                            'type_value': '3'},
                            {'field_col': 'BIPOI',
                             'type_col': 'BIPOIType',
-                            'type_value': 3}]
+                            'type_value': '3'}]
 
 
 def factorize_array(arr, sort_opt=False):
