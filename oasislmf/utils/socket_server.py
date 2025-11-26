@@ -6,6 +6,7 @@ import time
 import sys
 from tqdm import tqdm
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME, SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
+import logging
 
 
 class GulProgressServer:
@@ -33,6 +34,7 @@ class GulProgressServer:
         except OSError:  # Desired socket unavailable
             self.server_socket.bind((self.host, 0))
             self.port = self.server_socket.getsockname()[1]
+            logging.info(f"Port for socket server changed to {self.port}")
             os.environ['OASIS_SOCKET_SERVER_PORT'] = str(self.port)
 
         self.server_socket.listen(5)
