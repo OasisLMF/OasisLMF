@@ -13,6 +13,7 @@ class GulProgressServer:
     def __init__(self, total, host=None, port=None):
         """
         Args:
+            total (int): How many events the server has
             host (str, optional): Non-default host to use. Defaults to `OASIS_SOCKET_SERVER_IP` or SERVER_DEFAULT_IP if unset.
             port (int, optional): Non-default port to use. Defaults to `OASIS_SOCKET_SERVER_PORT` or SERVER_DEFAULT_PORT if unset.
         """
