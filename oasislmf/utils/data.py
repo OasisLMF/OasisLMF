@@ -153,10 +153,10 @@ RI_SCOPE_DEFAULTS = {
 
 DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
                             'type_col': 'BIWaitingPeriodType',
-                            'type_value': '3'},
+                            'type_value': 3},
                            {'field_col': 'BIPOI',
                             'type_col': 'BIPOIType',
-                            'type_value': '3'}]
+                            'type_value': 3}]
 
 
 def factorize_array(arr, sort_opt=False):
@@ -783,7 +783,7 @@ def prepare_location_df(location_df):
         if field_type['type_col'] not in location_df.columns:
             location_df[field_type['type_col']] = field_type['type_value']
         else:
-            location_df[field_type['type_col']] = location_df[field_type['type_col']].fillna(field_type['type_value'])
+            location_df[field_type['type_col']] = location_df[field_type['type_col']].astype('Int64').fillna(field_type['type_value'])
 
     return location_df
 
