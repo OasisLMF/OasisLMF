@@ -158,6 +158,23 @@ DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
                             'type_col': 'BIPOIType',
                             'type_value': 3}]
 
+DEFAULT_ADDITIONAL_FIELDS = {
+    'Loc': {
+        'loc_id': 'Int64',
+        'loc_idx': 'Int64',
+        'BIWaitingPeriodType': 'Int8',
+        'BIPOIType': 'Int8'
+    },
+    'Acc': {
+        'acc_idx': 'Int64',
+        'layer_id': 'Int64'
+    },
+    'ReinsInfo': {
+    },
+    'ReinsScope': {
+    }
+}
+
 
 def factorize_array(arr, sort_opt=False):
     """
@@ -851,12 +868,14 @@ def get_exposure_data(computation_step, add_internal_col=False):
         else:
             if hasattr(computation_step, 'oasis_files_dir') and Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
                 logger.debug(f"Exposure data is read from {Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME)}")
-                exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME))
+                exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME),
+                                                        additional_fields=DEFAULT_ADDITIONAL_FIELDS)
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
                 logger.debug("Exposure data is generated from `get_exposure_data_config` key of computation kwargs")
                 data_config = computation_step.get_exposure_data_config()
                 data_config["base_df_engine"] = computation_step.kwargs.get('base_df_engine', data_config.get("base_df_engine", None))
                 data_config["exposure_df_engine"] = computation_step.kwargs.get('exposure_df_engine', data_config.get("exposure_df_engine", None))
+                data_config["additional_fields"] = DEFAULT_ADDITIONAL_FIELDS
                 exposure_data = OedExposure(**data_config)
             else:
                 logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
@@ -866,6 +885,7 @@ def get_exposure_data(computation_step, add_internal_col=False):
                     currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
                     reporting_currency=getattr(computation_step, 'reporting_currency', None),
                     check_oed=computation_step.check_oed,
+                    additional_fields=DEFAULT_ADDITIONAL_FIELDS,
                     use_field=True)
 
             if add_internal_col:
