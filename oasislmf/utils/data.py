@@ -800,7 +800,7 @@ def prepare_location_df(location_df):
         if field_type['type_col'] not in location_df.columns:
             location_df[field_type['type_col']] = field_type['type_value']
         else:
-            location_df[field_type['type_col']] = location_df[field_type['type_col']].astype('Int64').fillna(field_type['type_value'])
+            location_df[field_type['type_col']] = location_df[field_type['type_col']].fillna(field_type['type_value'])
 
     return location_df
 
