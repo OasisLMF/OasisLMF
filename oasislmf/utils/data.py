@@ -160,14 +160,14 @@ DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
 
 DEFAULT_ADDITIONAL_FIELDS = {
     'Loc': {
-        'loc_id': 'Int64',
-        'loc_idx': 'Int64',
-        'BIWaitingPeriodType': 'Int8',
-        'BIPOIType': 'Int8'
+        'loc_id': {'pd_dtype': 'Int64'},
+        'loc_idx': {'pd_dtype': 'Int64'},
+        'BIWaitingPeriodType': {'pd_dtype': 'Int8'},
+        'BIPOIType': {'pd_dtype': 'Int8'}
     },
     'Acc': {
-        'acc_idx': 'Int64',
-        'layer_id': 'Int64'
+        'acc_idx': {'pd_dtype': 'Int64'},
+        'layer_id': {'pd_dtype': 'Int64'}
     },
     'ReinsInfo': {
     },
