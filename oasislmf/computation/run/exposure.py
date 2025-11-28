@@ -38,7 +38,7 @@ class RunExposure(ComputationStep):
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'output_file', 'flag': '-f', 'is_path': True, 'pre_exist': False, 'help': '', 'type': str},
         {'name': 'loss_factor', 'flag': '-l', 'type': float, 'nargs': '+', 'help': '', 'default': [1.0]},
-        {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3"'},
+        {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
         {'name': 'ktools_alloc_rule_il', 'flag': '-a', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
@@ -58,6 +58,8 @@ class RunExposure(ComputationStep):
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
+        {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+         'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
     ]
 
     chained_commands = [GenerateKeysDeterministic]

@@ -1,14 +1,16 @@
 import pytest
 import numpy as np
 import numba as nb
+from pathlib import Path
 from oasislmf.lookup.builtin import (
-    z_index, undo_z_index,
+    Lookup, z_index, undo_z_index,
     z_index_to_normal, normal_to_z_index,
     create_lat_lon_id_functions, jit_geo_grid_lookup,
     get_step
 )
 
 from oasislmf.utils.status import OASIS_UNKNOWN_ID
+FILES_DIR = Path(__file__).resolve().parent
 
 
 @pytest.mark.parametrize("x, y, expected", [
@@ -94,3 +96,18 @@ def test_jit_geo_grid_lookup(idx, expected):
 ])
 def test_get_step(grid, expected):
     assert get_step(grid) == expected
+
+
+@pytest.mark.parametrize("file_path, file_type, success", [
+    ("example_input.csv", None, True),
+    ("example_input.csv", "csv", True),
+    ("example_input.parquet", "parquet", True),
+    ("example_input.parquet", None, False),
+    ("example_input.csv", "parquet", False)
+])
+def test_build_merge_respects_filetype(file_path, file_type, success):
+    if success:
+        Lookup(config={}).build_merge(file_path=str(FILES_DIR / file_path), file_type=file_type, id_columns=['FIRST_ID', 'SECOND_ID', 'FIFTH_ID'])
+    else:
+        with pytest.raises(Exception):
+            Lookup(config={}).build_merge(file_path=str(FILES_DIR / file_path), file_type=file_type, id_columns=['FIRST_ID', 'SECOND_ID', 'FIFTH_ID'])

@@ -3,6 +3,7 @@ import websocket
 import socket
 import os
 import logging
+from oasislmf.utils.defaults import SERVER_DEFAULT_PORT, SERVER_DEFAULT_IP
 
 
 def oasis_ping(data):
@@ -27,7 +28,7 @@ def oasis_ping(data):
             return oasis_ping_websocket(f"{os.environ['OASIS_WEBSOCKET_URL']}:{os.environ['OASIS_WEBSOCKET_PORT']}/ws/analysis-status/", msg)
         logging.error("Missing environment variables `OASIS_WEBSOCKET_URL` and `OASIS_WEBSOCKET_PORT`.")
         return False
-    target = (os.environ.get("OASIS_SOCKET_SERVER_IP", "127.0.0.1"), int(os.environ.get("OASIS_SOCKET_SERVER_PORT", 8888)))
+    target = (os.environ.get("OASIS_SOCKET_SERVER_IP", SERVER_DEFAULT_IP), int(os.environ.get("OASIS_SOCKET_SERVER_PORT", SERVER_DEFAULT_PORT)))
     return oasis_ping_socket(target, msg)
 
 

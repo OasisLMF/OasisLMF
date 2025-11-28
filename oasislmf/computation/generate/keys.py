@@ -20,7 +20,8 @@ class KeyComputationStep(ComputationStep):
             'location': self.oed_location_csv,
             'oed_schema_info': self.oed_schema_info,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'backend_dtype': self.oed_backend_dtype,
         }
 
 
@@ -62,7 +63,7 @@ class GenerateKeys(KeyComputationStep):
 
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
-        {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3"'},
+        {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
         {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
@@ -81,6 +82,8 @@ class GenerateKeys(KeyComputationStep):
          'help': 'Flag to enable/disable lookup multiprocessing'},
         {'name': 'disable_oed_version_update', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'Flag to enable/disable conversion to latest compatible OED version. Must be present in model settings.'},
+        {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+         'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
 
         # Manager only options
         {'name': 'verbose', 'default': False},
@@ -165,12 +168,14 @@ class GenerateKeys(KeyComputationStep):
 class GenerateKeysDeterministic(KeyComputationStep):
     step_params = [
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
-        {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3"'},
+        {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
         {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
         {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'help': 'Select List of supported coverage_types [1, .. ,15]'},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
-         'help': 'List of peril covered by the model'}
+         'help': 'List of peril covered by the model'},
+        {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+         'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
     ]
 
     def _get_output_dir(self):

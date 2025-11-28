@@ -905,7 +905,6 @@ def get_il_input_items(
         # merge acc_idx
         acc_idx_col = list(set(gul_inputs_df.columns).intersection(accounts_df.columns))
         gul_inputs_df_col = list(gul_inputs_df.columns)
-        gul_inputs_df['acc_idx'] = -1
         if 'CondTag' in acc_idx_col:
             gul_inputs_df = (
                 gul_inputs_df

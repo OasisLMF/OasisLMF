@@ -38,7 +38,7 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Name of the class to use for the exposure_pre_analysis'},
                    {'name': 'exposure_pre_analysis_setting_json', 'is_path': True, 'pre_exist': True,
                     'help': 'Exposure Pre-Analysis config JSON file path'},
-                   {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3"'},
+                   {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
                    {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
                    {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
                    {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
@@ -59,6 +59,8 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Analysis settings JSON file path'},
                    {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
                     'help': 'Directory containing additional model data files which varies between analysis runs'},
+                   {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+                    'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
                    ]
 
     run_dir_key = 'pre-analysis'
@@ -77,6 +79,7 @@ class ExposurePreAnalysis(ComputationStep):
             'account_numbers': self.account,
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine,
+            'backend_dtype': self.oed_backend_dtype,
         }
 
     def run(self):

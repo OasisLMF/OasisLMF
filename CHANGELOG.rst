@@ -1,6 +1,18 @@
 OasisLMF Changelog
 ==================
 
+`2.4.10`_
+ ---------
+* [#1793](https://github.com/OasisLMF/OasisLMF/pull/1793) - clearer step param help info
+* [#1794](https://github.com/OasisLMF/OasisLMF/pull/1795) - read coverages and lossfactors functions have faulty logic for stdin
+* [#1684](https://github.com/OasisLMF/OasisLMF/pull/1796) - Validate output OED fields against portfolio early in the model run
+* [#1803](https://github.com/OasisLMF/OasisLMF/pull/1797) - Port blocked issues
+* [#1798](https://github.com/OasisLMF/OasisLMF/pull/1799) - bug/summary-info files not grouping by fields from accounts file
+* [#1801](https://github.com/OasisLMF/OasisLMF/pull/1801) - allow selection of oed backend dtype (pyarrow of numpy)
+* [#1804](https://github.com/OasisLMF/OasisLMF/pull/1802) - Build_merge accepts only csv arguments
+* [#1800](https://github.com/OasisLMF/OasisLMF/pull/1805) - bug/`BIPOIType` and `BIWaitingPeriodType` loaded incorrectly
+.. _`2.4.10`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.9...2.4.10
+
 `2.4.9`_
  ---------
 * [#1775](https://github.com/OasisLMF/OasisLMF/pull/1775) - Fix: Giving df engine to exposure
