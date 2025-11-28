@@ -47,7 +47,7 @@ from oasislmf.pytools.common.data import correlations_headers
 from oasislmf.utils.data import (establish_correlations, get_dataframe,
                                  get_exposure_data, get_json, get_utctimestamp,
                                  prepare_account_df,
-                                 prepare_reinsurance_df, validate_vulnerability_replacements,
+                                 prepare_reinsurance_df, validate_analysis_oed_fields, validate_vulnerability_replacements,
                                  analysis_settings_loader, model_settings_loader)
 
 from oasislmf.utils.defaults import (DAMAGE_GROUP_ID_COLS,
@@ -201,6 +201,18 @@ class GenerateFiles(ComputationStep):
             account_df = exposure_data.account.dataframe
         else:
             account_df = None
+
+        # Validate Analysis settings oed_fields against location and account files (ignores non OED column names)
+        for summary_type in ["gul", "il", "ri"]:
+            valid_fields, _ = validate_analysis_oed_fields(self.analysis_settings_json, exposure_data, summary_type)
+            all_cols = set(location_df.columns)
+            if account_df is not None:
+                all_cols |= set(account_df.columns)
+            missing_fields = valid_fields.difference(all_cols)
+            if missing_fields:
+                raise OasisException(
+                    f"Invalid \"oed_fields\" found in {summary_type}_summaries, not in input files: {missing_fields}"
+                )
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so

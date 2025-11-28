@@ -29,6 +29,7 @@ __all__ = [
     'RI_INFO_DEFAULTS',
     'validate_vuln_csv_contents',
     'validate_vulnerability_replacements',
+    'validate_analysis_oed_fields',
 ]
 
 import builtins
@@ -41,6 +42,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ods_tools.oed import fill_empty, OedExposure, OdsException, AnalysisSettingHandler, ModelSettingHandler
+from ods_tools.oed.oed_schema import OedSchema
 
 try:
     from json import JSONDecodeError
@@ -1061,6 +1063,26 @@ def validate_vulnerability_replacements(analysis_settings_json):
         return True
     logger.warning('Vulnerability replacements must be a dict or a file path, got: {}'.format(vulnerability_replacements))
     return False
+
+
+def validate_analysis_oed_fields(analysis_settings_json, exposure_data, summaries_type):
+    if analysis_settings_json is None:
+        logger.info("No analysis_settings file provided, cannot validate oed fields in analysis settings")
+        return set(), set()
+    summaries = analysis_settings_loader(analysis_settings_json).get(f"{summaries_type}_summaries", [])
+
+    valid_oed_fields = set()
+    invalid_oed_fields = set()
+    for summary in summaries:
+        if "oed_fields" not in summary:
+            continue
+        oed_fields = summary.get("oed_fields")
+        valid_loc_fields = OedSchema.column_to_field(oed_fields, exposure_data.get_input_fields("Loc")).keys()
+        valid_acc_fields = OedSchema.column_to_field(oed_fields, exposure_data.get_input_fields("Acc")).keys()
+        summary_valid_fields = set(list(valid_loc_fields) + list(valid_acc_fields))
+        valid_oed_fields |= summary_valid_fields
+        invalid_oed_fields |= set(oed_fields).difference(summary_valid_fields)
+    return valid_oed_fields, invalid_oed_fields
 
 
 def fill_na_with_categoricals(df, fill_value):

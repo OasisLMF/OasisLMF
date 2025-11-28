@@ -22,7 +22,7 @@ from ods_tools.oed import OedExposure
 from oasislmf.utils.data import (PANDAS_DEFAULT_NULL_VALUES, factorize_array,
                                  factorize_ndarray, fast_zip_arrays,
                                  get_dataframe, get_timestamp,
-                                 get_utctimestamp, prepare_location_df,
+                                 get_utctimestamp, prepare_location_df, validate_analysis_oed_fields,
                                  validate_vuln_csv_contents, validate_vulnerability_replacements)
 from oasislmf.utils.exceptions import OasisException
 
@@ -1434,6 +1434,96 @@ class TestValidateVulnerabilityReplacements(TestCase):
                     message_found = any('Vulnerability replacements file is not valid' in args[0] and 'invalid_contents.csv' in args[0]
                                         for args, _ in self.mock_logger.warning.call_args_list)
                     self.assertTrue(message_found, "Expected log message not found")
+
+
+class TestValidateAnalysisOedFields(TestCase):
+    def setUp(self):
+        self.logger_patch = patch('oasislmf.utils.data.logger')
+        self.mock_logger = self.logger_patch.start()
+
+    def tearDown(self):
+        self.logger_patch.stop()
+
+    def test_none_analysis_settings_returns_empty_sets(self):
+        exposure_data = MagicMock()
+        valid, invalid = validate_analysis_oed_fields(None, exposure_data, "gul")
+        self.assertEqual(valid, set())
+        self.assertEqual(invalid, set())
+
+    def test_no_summaries_key(self):
+        with patch('oasislmf.utils.data.analysis_settings_loader', return_value={}):
+            exposure_data = MagicMock()
+            valid, invalid = validate_analysis_oed_fields("dummy_path", exposure_data, "gul")
+            self.assertEqual(valid, set())
+            self.assertEqual(invalid, set())
+
+    def test_summary_without_oed_fields_is_skipped(self):
+        with patch('oasislmf.utils.data.analysis_settings_loader',
+                   return_value={"gul_summaries": [{"randomKey": "randomValue"}]}):
+            exposure_data = MagicMock()
+            valid, invalid = validate_analysis_oed_fields("dummy_path", exposure_data, "gul")
+            self.assertEqual(valid, set())
+            self.assertEqual(invalid, set())
+
+    def test_valid_oed_fields(self):
+        with patch('oasislmf.utils.data.analysis_settings_loader',
+                   return_value={"gul_summaries": [{"oed_fields": ["A", "B"]}]}):
+            exposure_data = MagicMock()
+            exposure_data.get_input_fields.side_effect = (
+                lambda part: ["A", "B"] if part == "Loc" else ["A"]
+            )
+
+            with patch('oasislmf.utils.data.OedSchema.column_to_field') as mock_ctf:
+                mock_ctf.side_effect = [
+                    {"A": "x", "B": "y"},  # Return for "Loc"
+                    {"A": "z"},            # Return for "Acc"
+                ]
+
+                valid, invalid = validate_analysis_oed_fields("dummy_path", exposure_data, "gul")
+
+                self.assertEqual(valid, {"A", "B"})
+                self.assertEqual(invalid, set())
+
+    def test_invalid_fields_detected(self):
+        with patch('oasislmf.utils.data.analysis_settings_loader',
+                   return_value={"gul_summaries": [{"oed_fields": ["A", "XX"]}]}):
+            exposure_data = MagicMock()
+            exposure_data.get_input_fields.side_effect = (
+                lambda part: ["A"] if part == "Loc" else []
+            )
+
+            with patch('oasislmf.utils.data.OedSchema.column_to_field') as mock_ctf:
+                mock_ctf.side_effect = [
+                    {"A": "ok"},  # Return for Loc
+                    {},           # Return for Acc
+                ]
+
+                valid, invalid = validate_analysis_oed_fields("dummy_path", exposure_data, "gul")
+
+                self.assertEqual(valid, {"A"})
+                self.assertEqual(invalid, {"XX"})
+
+    def test_multiple_summaries_aggregate(self):
+        with patch('oasislmf.utils.data.analysis_settings_loader',
+                   return_value={"gul_summaries": [
+                       {"oed_fields": ["A", "B"]},
+                       {"oed_fields": ["B", "C", "X"]},
+                   ]}):
+            exposure_data = MagicMock()
+            exposure_data.get_input_fields.side_effect = (
+                lambda part: ["A", "B", "C"] if part == "Loc" else []
+            )
+
+            with patch('oasislmf.utils.data.OedSchema.column_to_field') as mock_ctf:
+                mock_ctf.side_effect = [
+                    {"A": "ok", "B": "ok"}, {},  # Return for summary 1 (Loc, Acc)
+                    {"B": "ok", "C": "ok"}, {},  # Return for summary 2 (Loc, Acc)
+                ]
+
+                valid, invalid = validate_analysis_oed_fields("dummy", exposure_data, "gul")
+
+                self.assertEqual(valid, {"A", "B", "C"})
+                self.assertEqual(invalid, {"X"})
 
 
 class TestOedDataTypes(TestCase):
