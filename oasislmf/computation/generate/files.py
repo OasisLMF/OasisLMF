@@ -112,6 +112,8 @@ class GenerateFiles(ComputationStep):
          'help': 'The default dataframe reading engine to use when loading files'},
         {'name': 'exposure_df_engine', 'type': str, 'default': None,
          'help': 'The dataframe reading engine to use when loading exposure files'},
+        {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+         'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
     ]
 
     chained_commands = [
@@ -139,6 +141,7 @@ class GenerateFiles(ComputationStep):
             'account_numbers': self.account,
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine,
+            'backend_dtype': self.oed_backend_dtype,
         }
 
     def run(self):

@@ -887,8 +887,10 @@ def get_exposure_data(computation_step, add_internal_col=False):
                     currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
                     reporting_currency=getattr(computation_step, 'reporting_currency', None),
                     check_oed=computation_step.check_oed,
+                    use_field=True,
                     additional_fields=DEFAULT_ADDITIONAL_FIELDS,
-                    use_field=True)
+                    backend_dtype=getattr(computation_step, 'oed_backend_dtype', None),
+                )
 
             if add_internal_col:
                 prepare_oed_exposure(exposure_data)

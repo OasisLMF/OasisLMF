@@ -57,7 +57,8 @@ class RunModel(ComputationStep):
             'oed_schema_info': self.oed_schema_info,
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
-            'use_field': True
+            'use_field': True,
+            'backend_dtype': self.oed_backend_dtype,
         }
 
     def run(self):

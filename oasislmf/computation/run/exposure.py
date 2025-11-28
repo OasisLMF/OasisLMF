@@ -58,6 +58,8 @@ class RunExposure(ComputationStep):
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
+        {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+         'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
     ]
 
     chained_commands = [GenerateKeysDeterministic]
