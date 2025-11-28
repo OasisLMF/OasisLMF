@@ -64,8 +64,12 @@ SOURCE_FILENAMES = OrderedDict({
 })
 
 API_EXAMPLE_AUTH = OrderedDict({
-    'user': 'admin',
-    'pass': 'password',
+    # Example credentials for simple JWT login
+    'username': 'admin',
+    'password': 'password',
+    # Example credentials for OIDC client_credentials login
+    'client_id': 'oasis-service',
+    'client_secret': 'serviceNotSoSecret',
 })
 
 DEFAULT_RTREE_INDEX_PROPS = {

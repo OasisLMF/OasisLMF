@@ -70,7 +70,7 @@ def create_api_session(url):
         url=f'{url}/access_token/',
         json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
         headers={"authorization": "Bearer acc_tkn"})
-    return APISession(url, 'testUser', 'testPass')
+    return APISession(url, auth_type='simple', username='testUser', password='testPass')
 
 
 class TestApiEndpoint(unittest.TestCase):
@@ -1180,6 +1180,7 @@ class APIClientTests(unittest.TestCase):
         self.client = APIClient(
             api_url=self.api_url,
             api_ver=self.api_ver,
+            auth_type="simple",
             username=self.username,
             password=self.password,
             timeout=self.timeout,
