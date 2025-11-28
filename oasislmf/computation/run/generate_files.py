@@ -48,6 +48,7 @@ class GenerateOasisFiles(ComputationStep):
             'account_numbers': self.account,
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine or self.base_df_engine,
+            'backend_dtype': self.oed_backend_dtype,
         }
 
     def run(self):

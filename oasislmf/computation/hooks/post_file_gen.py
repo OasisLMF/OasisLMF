@@ -48,6 +48,8 @@ class PostFileGen(ComputationStep):
                     'help': 'Analysis settings JSON file path'},
                    {'name': 'user_data_dir', 'flag': '-D', 'is_path': True, 'pre_exist': False,
                     'help': 'Directory containing additional model data files which varies between analysis runs'},
+                   {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
+                    'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
                    ]
 
     run_dir_key = 'pre-loss'
@@ -66,6 +68,7 @@ class PostFileGen(ComputationStep):
             'account_numbers': self.account,
             'base_df_engine': self.base_df_engine,
             'exposure_df_engine': self.exposure_df_engine,
+            'backend_dtype': self.oed_backend_dtype,
         }
 
     def run(self):
