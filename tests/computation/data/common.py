@@ -442,3 +442,5 @@ FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_run
 ALL_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script_{0}.sh')
 
 EXPECTED_CORRELATION_CSV = b'item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value\n1,1,0.7,833720067,0.4\n2,2,0.5,741910550,0.2\n'
+
+EXPECTED_SUMMARY_INFO_CSV = b'summary_id,LocNumber,AccNumber,PolNumber,AccCurrency,tiv\n1,10002082046,A11111,Layer1,GBP,220000.0\n'

@@ -12,7 +12,7 @@ from hypothesis import strategies as st
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
 from .data.common import (
-    MIN_RUN_SETTINGS, MIN_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR, IL_RUN_SETTINGS, RI_RUN_SETTINGS,
+    EXPECTED_SUMMARY_INFO_CSV, MIN_RUN_SETTINGS, MIN_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR, IL_RUN_SETTINGS, RI_RUN_SETTINGS,
     RI_ALL_OUTPUT_SETTINGS, ALL_EXPECTED_SCRIPT, FAKE_MODEL_RUNNER, FAKE_MODEL_RUNNER__OLD, INVALID_RUN_SETTINGS, RI_AAL_SETTINGS,
     PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, merge_dirs
 )
@@ -156,6 +156,29 @@ class TestGenLosses(ComputationChecker):
         self.manager.generate_files(**gen_args)
         with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10003"}):
             self.manager.generate_losses(**self.min_args)
+
+    def test_losses__summary_info(self):
+        OED_SETTINGS = MIN_RUN_SETTINGS.copy()
+        gul_summary = {
+            **OED_SETTINGS['gul_summaries'][0],
+            'oed_fields': ['LocNumber', 'AccNumber', 'PolNumber', 'AccCurrency']
+        }
+        gul_summary['eltcalc'] = False
+        OED_SETTINGS['gul_summaries'] = [gul_summary]
+        gen_args = {
+            **self.args_gen_files_gul,
+            'oed_accounts_csv': self.tmp_oasis_files['oed_accounts_csv'].name  # accounts file for PolNumber, AccCurrency
+        }
+        self.write_json(self.tmp_files.get('analysis_settings_json'), OED_SETTINGS)
+        self.manager.generate_files(**gen_args)
+        with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10003"}):
+            self.manager.generate_losses(**self.min_args)
+
+        # Verify correctness of summary-info files
+        summary_info_fpath = os.path.join(self.tmp_dirs.get('model_run_dir').name, 'output', 'gul_S1_summary-info.csv')
+        summary_info_csv = self.read_file(summary_info_fpath)
+
+        assert summary_info_csv == EXPECTED_SUMMARY_INFO_CSV
 
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)
