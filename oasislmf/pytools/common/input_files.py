@@ -129,42 +129,56 @@ def read_coverages(run_dir="", ignore_file_type=set(), filename=COVERAGES_FILE, 
     Returns:
         numpy.array[oasis_float]: array with the coverage values for each coverage_id.
     """
-    for ext in ["bin", "csv"]:
+    supported_exts = ["bin", "csv"]
+
+    def read_csv_lines(lines):
+        # Check for header
+        first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
+        has_header = first_line_elements == coverages_headers
+        data_lines = lines[1:] if has_header else lines
+        return np.loadtxt(
+            data_lines,
+            dtype=oasis_float,
+            delimiter=",",
+            ndmin=1
+        )[:, 1]
+
+    # STDIN
+    if use_stdin:
+        for ext in supported_exts:
+            if ext in ignore_file_type:
+                continue
+            if ext == "bin":
+                return np.frombuffer(sys.stdin.buffer.read(), dtype=oasis_float)
+            elif ext == "csv":
+                lines = sys.stdin.readlines()
+                return read_csv_lines(lines)
+            else:
+                raise RuntimeError(f"Cannot read coverages file of type {ext}. Not Implemented.")
+        raise RuntimeError(
+            f'coverages data not readable with use_stdin={use_stdin}, run_dir={run_dir}, filename={filename}. Ignoring files with ext {ignore_file_type}.')
+
+    # FILE
+    for ext in supported_exts:
         if ext in ignore_file_type:
             continue
 
         coverages_file = Path(run_dir, filename).with_suffix("." + ext)
-        if coverages_file.exists():
-            logger.debug(f"loading {coverages_file}")
-            if ext == "bin":
-                if use_stdin:
-                    coverages = np.frombuffer(sys.stdin.buffer.read(), dtype=oasis_float)
-                else:
-                    coverages = np.fromfile(coverages_file, dtype=oasis_float)
-            elif ext == "csv":
-                with ExitStack() as stack:
-                    if use_stdin:
-                        fin = sys.stdin
-                    else:
-                        fin = stack.enter_context(open(coverages_file, "r"))
+        if not coverages_file.exists():
+            continue
 
-                    lines = fin.readlines()
-                    # Check for header
-                    first_line_elements = [header.strip() for header in lines[0].strip().split(',')]
-                    has_header = first_line_elements == coverages_headers
+        if ext == "bin":
+            return np.fromfile(coverages_file, dtype=oasis_float)
+        elif ext == "csv":
+            with ExitStack() as stack:
+                fin = stack.enter_context(open(coverages_file, "r"))
+                lines = fin.readlines()
+            return read_csv_lines(lines)
+        else:
+            raise RuntimeError(f"Cannot read coverages file of type {ext}. Not Implemented.")
 
-                    data_lines = lines[1:] if has_header else lines
-                    coverages = np.loadtxt(
-                        data_lines,
-                        dtype=oasis_float,
-                        delimiter=",",
-                        ndmin=1
-                    )[:, 1]
-            else:
-                raise RuntimeError(f"Cannot read coverages file of type {ext}. Not Implemented.")
-            return coverages
-
-    raise FileNotFoundError(f'coverages file not found at {run_dir}. Ignoring files with ext {ignore_file_type}.')
+    raise RuntimeError(
+        f'coverages data not readable with use_stdin={use_stdin}, run_dir={run_dir}, filename={filename}. Ignoring files with ext {ignore_file_type}.')
 
 
 def read_event_rates(run_dir, filename=EVENTRATES_FILE):

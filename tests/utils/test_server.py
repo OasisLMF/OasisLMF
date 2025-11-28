@@ -21,7 +21,7 @@ def get_free_port():
 
 def test_server_increments_counter():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
     server.start()
 
     assert server.counter == 0
@@ -36,7 +36,7 @@ def test_server_increments_counter():
 
 def test_server_handles_multiple_clients():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(20, host="127.0.0.1", port=port)
     server.start()
     target = (server.host, server.port)
 
@@ -51,7 +51,7 @@ def test_server_handles_multiple_clients():
 
 def test_server_handles_missing_key():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
     server.start()
     target = (server.host, server.port)
     data = json.dumps({"hello": "world"})
@@ -66,7 +66,7 @@ def test_server_handles_missing_key():
 
 def test_server_can_stop_and_not_accept():
     port = get_free_port()
-    server = GulProgressServer(host="127.0.0.1", port=port)
+    server = GulProgressServer(10, host="127.0.0.1", port=port)
     server.start()
     target = (server.host, server.port)
     data = json.dumps({"events_complete": 1})
@@ -98,3 +98,14 @@ def test_main_finishes_valid_call():
         mock_server.counter = 10
         sys.argv = ['a', 10]
         server_main()
+
+
+def test_server_terminate():
+    port = get_free_port()
+    server = GulProgressServer(91, host="127.0.0.1", port=port)
+    server.start()
+    with patch.object(server, "stop", wraps=server.stop) as mock_stop:
+        assert oasis_ping_socket(("127.0.0.1", port), json.dumps({"terminate": "terminate"})) is True
+        time.sleep(0.1)
+        assert server.counter == server.total
+        mock_stop.assert_called_once()
