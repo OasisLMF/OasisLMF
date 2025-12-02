@@ -98,7 +98,7 @@ def get_dynamic_footprint_adjustments(input_path):
     """
     adjustments_fn = os.path.join(input_path, 'item_adjustments.csv')
     if os.path.isfile(adjustments_fn):
-        adjustments_tb = np.loadtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skiprows=1, ndmin=1)
+        adjustments_tb = np.genfromtxt(adjustments_fn, dtype=ItemAdjustment, delimiter=",", skip_header=1, encoding='utf-8')
     else:
         items_fp = os.path.join(input_path, 'items.csv')
         items_tb = np.loadtxt(items_fp, dtype=items_dtype, delimiter=",", skiprows=1, ndmin=1)
