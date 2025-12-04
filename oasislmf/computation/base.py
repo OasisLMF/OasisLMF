@@ -8,7 +8,7 @@ import logging
 import json
 import inspect
 from ods_tools.oed import OedSource
-from ods_tools.oed.settings import Settings
+from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
 from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
@@ -124,6 +124,10 @@ class ComputationStep:
         Return a list of default arguments values for the functions parameters
         If given arg values in 'kwargs' these will override the defaults
         """
+
+
+
+
         func_args = {el['name']: el.get('default', None) for el in cls.get_params()}
         type_map = {el['name']: el.get('type', None) for el in cls.get_params()}
 
@@ -135,7 +139,19 @@ class ComputationStep:
                 func_args[param] = get_oasis_env(param, type_map[param])
             elif param in func_kwargs:
                 func_args[param] = func_kwargs[param]
-        return func_args
+
+        computation_settings = Settings()
+        computation_settings.add_settings(func_args, ROOT_USER_ROLE)
+        for settings_info in cls.get_params(param_type="settings"):
+            setting_fp = func_args.get(settings_info["name"])
+            if setting_fp:
+                new_settings = settings_info["loader"](setting_fp)
+                computation_settings.add_settings(
+                    new_settings.pop("computation_settings", {}),
+                    {'admin'}
+                    #settings_info.get("user_role"),
+                )
+        return computation_settings.get_settings()
 
     @classmethod
     def get_signature(cls):
