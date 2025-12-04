@@ -52,7 +52,7 @@ class ComputationStep:
         settings = Settings()
         for settings_info in self.get_params(param_type="settings"):
             setting_fp = kwargs.get(settings_info['name'])
-            if setting_fp:
+            if setting_fp and pathlib.Path(setting_fp).exists():
                 new_settings = settings_info['loader'](setting_fp)
                 settings.add_settings(new_settings, settings_info.get('user_role'))
         self.settings = settings.get_settings()
