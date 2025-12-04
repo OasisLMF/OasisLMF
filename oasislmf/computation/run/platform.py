@@ -141,7 +141,9 @@ class PlatformBase(ComputationStep):
                 client_id=credentials['client_id'],
                 client_secret=credentials['client_secret']
             )
-        raise OasisException("Error: No credentials provided for platform.")
+        raise OasisException(
+            f"Error: No valid credentials provided for platform, current credential keys [{credentials.keys()}], must be one of username/password or client_id/client_secret"
+        )
 
     def tabulate_json(self, json_data, items):
         table_data = dict()

@@ -304,6 +304,39 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
+    def test_run_inputs__load_json_credentials_oidc(self):
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"},
+            match=[json_params_matcher({"client_id": "serviceId", "client_secret": "serviceSecret"})]
+        )
+
+        json_credentials_file = self.tmp_files.get('server_login_json')
+        self.write_json(json_credentials_file, {"client_id": "serviceId", "client_secret": "serviceSecret"})
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
+
+        authorized_req = responses.calls[1].request
+        authorized_rsp = responses.calls[1].response
+        self.assertEqual(authorized_req.body, b'{"client_id": "serviceId", "client_secret": "serviceSecret"}')
+        self.assertEqual(authorized_rsp.status_code, 200)
+
+    def test_run_inputs__load_json_credentials_invalid(self):
+        json_credentials_file = self.tmp_files.get('server_login_json')
+        self.write_json(json_credentials_file, {"invalid_credentials_1": "credentials_1", "invalid_credentials_2": "credentials_2"})
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
+
+        self.assertIn("Error: No valid credentials provided for platform", str(context.exception))
+        self.assertIn("invalid_credentials_1", str(context.exception))
+        self.assertIn("invalid_credentials_2", str(context.exception))
+
     def test_run_inputs__given_analysis_id(self):
         ID = 4
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
