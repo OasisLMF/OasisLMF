@@ -144,7 +144,7 @@ class ComputationStep:
             if setting_fp:
                 new_settings = settings_info["loader"](setting_fp)
                 computation_settings.add_settings(
-                    new_settings.pop("computation_settings", {}), {ROOT_USER_ROLE}
+                    new_settings.pop("computation_settings", {}), {'admin'}
                 )
         return computation_settings.get_settings()
 
