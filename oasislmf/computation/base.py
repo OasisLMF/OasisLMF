@@ -125,9 +125,6 @@ class ComputationStep:
         If given arg values in 'kwargs' these will override the defaults
         """
 
-
-
-
         func_args = {el['name']: el.get('default', None) for el in cls.get_params()}
         type_map = {el['name']: el.get('type', None) for el in cls.get_params()}
 
@@ -147,9 +144,7 @@ class ComputationStep:
             if setting_fp:
                 new_settings = settings_info["loader"](setting_fp)
                 computation_settings.add_settings(
-                    new_settings.pop("computation_settings", {}),
-                    {'admin'}
-                    #settings_info.get("user_role"),
+                    new_settings.pop("computation_settings", {}), {ROOT_USER_ROLE}
                 )
         return computation_settings.get_settings()
 
