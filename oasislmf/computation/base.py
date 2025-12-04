@@ -141,7 +141,7 @@ class ComputationStep:
         computation_settings.add_settings(func_args, ROOT_USER_ROLE)
         for settings_info in cls.get_params(param_type="settings"):
             setting_fp = func_args.get(settings_info["name"])
-            if setting_fp:
+            if setting_fp and pathlib.Path(setting_fp).exists():
                 new_settings = settings_info["loader"](setting_fp)
                 computation_settings.add_settings(
                     new_settings.pop("computation_settings", {}), {'admin'}
