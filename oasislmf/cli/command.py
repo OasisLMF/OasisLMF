@@ -12,6 +12,7 @@ from ods_tools.oed.settings import Settings, ROOT_USER_ROLE
 
 from ..utils.path import PathCleaner
 from ..utils.inputs import InputValues
+from ..utils.exceptions import OasisException
 
 from ..manager import OasisManager as om
 
@@ -306,11 +307,11 @@ class OasisComputationCommand(OasisBaseCommand):
                     settings_info.get("user_role"),
                 )
         inputs.config = computation_settings.get_settings()
+        manager_params = dict(get_kwargs_item(param) for param in manager_method.get_params())
+        if manager_params.get('oed_location_csv', True) is None and manager_params.get('oed_accounts_csv', True) is None:
+            raise OasisException("One of oed_location_csv or oed_accounts_csv must be set")
 
-        return {
-            **dict(get_kwargs_item(param) for param in manager_method.get_params()),
-            **_kwargs,
-        }
+        return {**manager_params, **_kwargs}
 
     def action(self, args):
         """
