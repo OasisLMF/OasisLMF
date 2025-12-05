@@ -85,7 +85,7 @@ if areaperil_int == 'u4':
 elif areaperil_int == 'u8':
     load_areaperil_id = load_areaperil_id_u8
 else:
-    raise Exception(f"AREAPERIL_TYPE {areaperil_int} is not implemented chose u4 or u8")
+    raise Exception(f"AREAPERIL_TYPE {areaperil_int} is not implemented choose u4 or u8")
 
 
 @nb.njit(cache=True)
