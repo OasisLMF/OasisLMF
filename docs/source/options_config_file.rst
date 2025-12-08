@@ -32,7 +32,7 @@ Enhanced logging configuration is available with configurable levels and output 
 **Available Options:**
 
 * ``level`` - Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-* ``format`` - Format template or custom format string  
+* ``format`` - Format template or custom format string
 * ``ods_tools_level`` - Separate level for ods_tools logger
 
 Related Configuration
@@ -41,6 +41,6 @@ Related Configuration
 See :doc:`logging-configuration` for detailed logging setup, including:
 
 * CLI arguments (``--log-level``, ``--log-format``)
-* Environment variables (``OASISLMF_LOG_LEVEL``)
+* Environment variables (``OASIS_OASISLMF_LOG_LEVEL``)
 * Format templates and custom formatting
 * Migration from ``--verbose`` flag

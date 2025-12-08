@@ -11,7 +11,7 @@ class OasisLogConfig:
     Designed to work alongside existing file-based logging in log.py.
 
     Environment Variables:
-        OASISLMF_LOG_LEVEL: Override log level (e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+        OASIS_OASISLMF_LOG_LEVEL: Override log level (e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
 
     Example:
         >>> # Basic usage with config file
@@ -82,7 +82,7 @@ class OasisLogConfig:
             return self._parse_level(cli_level)
 
         # 2. Environment variable
-        env_level = os.environ.get("OASISLMF_LOG_LEVEL")
+        env_level = os.environ.get("OASIS_OASISLMF_LOG_LEVEL")
         if env_level:
             return self._parse_level(env_level)
 
