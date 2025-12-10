@@ -227,7 +227,7 @@ def get_cond_info(locations_df, accounts_df):
             cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1, 'CondPeril': acc_rec['CondPeril']})
             cond_tag.setdefault('layers', {})[acc_rec['layer_id']] = {'CondNumber': cond_number_key}
             exclusion_cond_tags = account_layer_exclusion.setdefault(acc_rec['acc_id'], {}).setdefault(acc_rec['layer_id'],
-                                                                                                                                   set())
+                                                                                                       set())
             pol_info[(acc_rec['acc_id'], acc_rec['layer_id'])] = [acc_rec['PolNumber'], acc_rec['LayerNumber'], acc_rec['acc_idx']]
             if acc_rec.get('CondClass') == 1:
                 exclusion_cond_tags.add(acc_rec['CondTag'])
@@ -497,9 +497,9 @@ def get_il_input_items(
             gul_inputs_df = gul_inputs_df.merge(acc_id_map, how='left')
             locations_df = locations_df.merge(acc_id_map, how='left')
             locations_df = locations_df.drop(columns=['PortNumber', 'AccNumber', 'LocNumber'])
-            accounts_df = accounts_df.drop(columns=['PortNumber', 'AccNumber'])
+            accounts_df = accounts_df[accounts_df['acc_id'].isin(locations_df['acc_id'].unique())].drop(columns=['PortNumber', 'AccNumber'])
 
-        else: # no location, case for cyber, marine ...
+        else:  # no location, case for cyber, marine ...
             locations_df = None
             gul_inputs_df['acc_id'] = gul_inputs_df['loc_id']
             accounts_df = exposure_data.account.dataframe
