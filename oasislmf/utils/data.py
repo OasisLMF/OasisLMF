@@ -162,12 +162,14 @@ DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
 
 DEFAULT_ADDITIONAL_FIELDS = {
     'Loc': {
+        'acc_id': {'pd_dtype': 'Int64'},
         'loc_id': {'pd_dtype': 'Int64'},
         'loc_idx': {'pd_dtype': 'Int64'},
         'BIWaitingPeriodType': {'pd_dtype': 'Int8'},
         'BIPOIType': {'pd_dtype': 'Int8'}
     },
     'Acc': {
+        'acc_id': {'pd_dtype': 'Int64'},
         'acc_idx': {'pd_dtype': 'Int64'},
         'layer_id': {'pd_dtype': 'Int64'}
     },
@@ -792,7 +794,7 @@ def prepare_oed_exposure(exposure_data):
 
 def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
-    location_df[SOURCE_IDX['loc']] = location_df.index
+    location_df[SOURCE_IDX['loc']] = location_df.index.astype(DEFAULT_ADDITIONAL_FIELDS['Loc'][SOURCE_IDX['loc']]['pd_dtype'])
 
     # fill default types
     for field_type in DEFAULT_LOC_FIELD_TYPES:
@@ -808,10 +810,7 @@ def prepare_location_df(location_df):
 
 
 def prepare_account_df(accounts_df):
-    if SOURCE_IDX['acc'] not in accounts_df.columns:
-        accounts_df[SOURCE_IDX['acc']] = accounts_df.index
-    else:
-        accounts_df[SOURCE_IDX['acc']] = accounts_df[SOURCE_IDX['acc']].astype(int)
+    accounts_df[SOURCE_IDX['acc']] = accounts_df.index.astype(DEFAULT_ADDITIONAL_FIELDS['Acc'][SOURCE_IDX['acc']]['pd_dtype'])
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
     accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)

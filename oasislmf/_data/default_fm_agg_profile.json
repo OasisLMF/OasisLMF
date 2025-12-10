@@ -2,20 +2,10 @@
     "1": {
         "FMLevelName": "SiteItem",
         "FMAggKey": {
-            "PortNum": {
+            "loc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
-            },
-            "LocNum": {
-                "src": "FM",
-                "field": "LocNumber",
-                "name": "Location number"
+                "field": "loc_id",
+                "name": "location id based on unique PortNumber, AccNumber, LocNumber"
             },
             "risk_id": {
                 "src": "builtin",
@@ -27,20 +17,10 @@
     "2": {
         "FMLevelName": "SiteCoverage",
         "FMAggKey": {
-            "PortNum": {
+            "loc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
-            },
-            "LocNum": {
-                "src": "FM",
-                "field": "LocNumber",
-                "name": "Location number"
+                "field": "loc_id",
+                "name": "location id based on unique PortNumber, AccNumber, LocNumber"
             },
             "risk_id": {
                 "src": "builtin",
@@ -52,20 +32,10 @@
     "3": {
         "FMLevelName": "SitePD",
         "FMAggKey": {
-            "PortNum": {
+            "loc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
-            },
-            "LocNum": {
-                "src": "FM",
-                "field": "LocNumber",
-                "name": "Location number"
+                "field": "loc_id",
+                "name": "location id based on unique PortNumber, AccNumber, LocNumber"
             },
             "risk_id": {
                 "src": "builtin",
@@ -77,20 +47,10 @@
     "4": {
         "FMLevelName": "SiteAll",
         "FMAggKey": {
-            "PortNum": {
+            "loc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
-            },
-            "LocNum":  {
-                "src": "FM",
-                "field": "LocNumber",
-                "name": "Location num."
+                "field": "loc_id",
+                "name": "location id based on unique PortNumber, AccNumber, LocNumber"
             },
             "risk_id": {
                 "src": "builtin",
@@ -102,15 +62,10 @@
     "5": {
         "FMLevelName": "CondCoverage",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             },
             "CondTag":  {
                 "src": "FM",
@@ -122,15 +77,10 @@
     "6": {
         "FMLevelName": "CondPD",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             },
             "CondTag":  {
                 "src": "FM",
@@ -142,15 +92,10 @@
     "7": {
         "FMLevelName": "CondAll",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             },
             "CondTag":  {
                 "src": "FM",
@@ -162,45 +107,30 @@
     "8": {
         "FMLevelName": "PolCoverage",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             }
         }
     },
     "9": {
         "FMLevelName": "PolPD",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             }
         }
     },
     "10": {
         "FMLevelName": "PolAll",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             }
         },
         "FMSubAggKey": {
@@ -213,30 +143,20 @@
     "11": {
         "FMLevelName": "PolLayer",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             }
         }
     },
     "14": {
         "FMLevelName": "AccAll",
         "FMAggKey": {
-            "PortNum": {
+            "acc_id": {
                 "src": "FM",
-                "field": "PortNumber",
-                "name": "Account portfolio num."
-            },
-            "AccNum": {
-                "src": "FM",
-                "field": "AccNumber",
-                "name": "Account num."
+                "field": "acc_id",
+                "name": "Account id based on unique PortNumber, AccNumber"
             }
         }
     }
