@@ -79,6 +79,9 @@ class FmAcceptanceTests(TestCase):
     def test_issues(self):
         self.run_test('issues', model_perils_covered=['WTC'], fmpy=True)
 
+    def test_issue_1816(self):
+        self.run_test('issue_1816', model_perils_covered=['WTC'], fmpy=True)
+
     def test_insurance_policy_coverage(self):
         self.run_test('insurance_policy_coverage', model_perils_covered=['WTC'], fmpy=True)
 

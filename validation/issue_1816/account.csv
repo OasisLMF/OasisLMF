@@ -1,0 +1,3 @@
+AccNumber,AccName,PortNumber,PolNumber,PolPerilsCovered,AccCurrency,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,PolDedType6All,OEDVersion,AccLimit6All,AccDed6All,AccLimitType6All,AccDedType6All,AccPeril
+1,1,1,1,AA1,AUD,AA1,,,,,,,3.0.0,1000000000,20000000,0,0,AA1
+2,2,1,1,AA1,AUD,AA1,,,,,,,3.0.0,100000000,1000000,0,0,AA1
