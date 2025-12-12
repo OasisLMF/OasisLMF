@@ -33,6 +33,7 @@ def prepare_input_files_directory(
         complex_lookup_config_fp=None,
         accounts_profile_fp=None,
         fm_aggregation_profile_fp=None,
+        oed_compression=None
 ):
     try:
         # Prepare the target directory and copy the source files, profiles and
@@ -70,6 +71,6 @@ def prepare_input_files_directory(
 
     # if exposure pre-analysis has run then the data are already copied in the input directory and cur_version_name is ''
     if exposure_data.get_subject_at_risk_source().cur_version_name != '':
-        exposure_data.save(target_dir, version_name='', save_config=True)
+        exposure_data.save(target_dir, compression=oed_compression, version_name='', save_config=True)
 
     return target_dir
