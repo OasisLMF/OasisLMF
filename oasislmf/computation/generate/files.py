@@ -87,12 +87,12 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
         {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
+        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables creation of an exposure summary report'},
         {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
-        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
-         'help': 'Flag to enable/disable lookup multiprocessing'},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
 
         # Manager only options (pass data directy instead of filepaths)
@@ -159,6 +159,7 @@ class GenerateFiles(ComputationStep):
         self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
+        oed_compression = 'csv' if self.intermediary_csv else 'parquet'
 
         il = bool(exposure_data.account)
         ri = exposure_data.ri_info and exposure_data.ri_scope and il
@@ -180,6 +181,7 @@ class GenerateFiles(ComputationStep):
             complex_lookup_config_fp=self.lookup_complex_config_json,
             accounts_profile_fp=self.profile_acc_json,
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
+            oed_compression=oed_compression
         )
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
@@ -195,7 +197,7 @@ class GenerateFiles(ComputationStep):
 
         if self.reporting_currency:
             exposure_data.reporting_currency = self.reporting_currency
-            exposure_data.save(target_dir, self.reporting_currency, save_config=True)
+            exposure_data.save(target_dir, version_name=self.reporting_currency, oed_compression=oed_compression, save_config=True)
 
         location_df = exposure_data.get_subject_at_risk_source().dataframe
 
@@ -221,11 +223,13 @@ class GenerateFiles(ComputationStep):
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
         # the keys file.
+        ##### I'm here #####
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_csv:
-            _keys_fp = self.kwargs['keys_data_csv'] = os.path.join(target_dir, 'keys.csv')
-            _keys_errors_fp = self.kwargs['keys_errors_csv'] = os.path.join(target_dir, 'keys-errors.csv')
-            GenerateKeys(**self.kwargs).run()
+            gen_key_res = GenerateKeys(**self.kwargs).run()
+            _keys_fp = gen_key_res[0] #  _keys_fp is returned as the third element
+            if len(gen_key_res) == 4:
+                _keys_errors_fp = gen_key_res[2] # if present, keys_errors_fp is returned as the third element
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_csv))
             if self.keys_errors_csv:
@@ -253,10 +257,7 @@ class GenerateFiles(ComputationStep):
 
         # check that all loc_ids have been returned from keys lookup
         try:
-            if self.keys_errors_csv:
-                keys_errors_df = get_dataframe(src_fp=self.keys_errors_csv, memory_map=True)
-            else:
-                keys_errors_df = get_dataframe(src_fp=_keys_errors_fp, memory_map=True)
+            keys_errors_df = get_dataframe(src_fp=_keys_errors_fp, memory_map=True)
         except OasisException:
             # Assume empty file on read error.
             keys_errors_df = pd.DataFrame(columns=['locid'])
