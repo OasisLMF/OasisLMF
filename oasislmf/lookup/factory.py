@@ -316,8 +316,8 @@ class BasicKeyServer:
         ('message', 'Message')
     ])
 
-    min_bloc_size = 1000
-    max_bloc_size = 10000
+    min_bloc_size = int(os.environ.get('OASIS_MIN_BLOC_SIZE', 1000))
+    max_bloc_size = int(os.environ.get('OASIS_MAX_BLOC_SIZE', 10000))
 
     def __init__(self, config, config_dir=None, user_data_dir=None, output_dir=None):
         self.config = config
