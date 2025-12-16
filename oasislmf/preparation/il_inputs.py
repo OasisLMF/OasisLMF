@@ -27,7 +27,7 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
                                           )
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import factorize_ndarray
+from oasislmf.utils.data import factorize_ndarray, get_ids
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
@@ -191,17 +191,17 @@ def get_cond_info(locations_df, accounts_df):
     default_cond_tag = '0'
     if 'CondTag' in locations_df.columns:
         fill_empty(locations_df, 'CondTag', default_cond_tag)
-        loc_condkey_df = locations_df.loc[locations_df['CondTag'] != default_cond_tag, ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+        loc_condkey_df = locations_df.loc[locations_df['CondTag'] != default_cond_tag, ['acc_id', 'CondTag']].drop_duplicates()
     else:
-        loc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
+        loc_condkey_df = pd.DataFrame([], columns=['acc_id', 'CondTag'])
 
     if 'CondTag' in accounts_df.columns:
         fill_empty(accounts_df, 'CondTag', default_cond_tag)
-        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+        acc_condkey_df = accounts_df.loc[accounts_df['CondTag'] != '', ['acc_id', 'CondTag']].drop_duplicates()
         condkey_match_df = acc_condkey_df.merge(loc_condkey_df, how='outer', indicator=True)
-        missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['PortNumber', 'AccNumber', 'CondTag']]
+        missing_condkey_df = condkey_match_df.loc[condkey_match_df['_merge'] == 'right_only', ['acc_id', 'CondTag']]
     else:
-        acc_condkey_df = pd.DataFrame([], columns=['PortNumber', 'AccNumber', 'CondTag'])
+        acc_condkey_df = pd.DataFrame([], columns=['acc_id', 'CondTag'])
         missing_condkey_df = loc_condkey_df
 
     if missing_condkey_df.shape[0]:
@@ -222,13 +222,13 @@ def get_cond_info(locations_df, accounts_df):
         else:
             accounts_df['CondPeril'] = ''
         for acc_rec in accounts_df.to_dict(orient="records"):
-            cond_tag_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'])
-            cond_number_key = (acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['CondTag'], acc_rec['CondNumber'])
+            cond_tag_key = (acc_rec['acc_id'], acc_rec['CondTag'])
+            cond_number_key = (acc_rec['acc_id'], acc_rec['CondTag'], acc_rec['CondNumber'])
             cond_tag = cond_tags.setdefault(cond_tag_key, {'CondPriority': acc_rec['CondPriority'] or 1, 'CondPeril': acc_rec['CondPeril']})
             cond_tag.setdefault('layers', {})[acc_rec['layer_id']] = {'CondNumber': cond_number_key}
-            exclusion_cond_tags = account_layer_exclusion.setdefault((acc_rec['PortNumber'], acc_rec['AccNumber']), {}).setdefault(acc_rec['layer_id'],
-                                                                                                                                   set())
-            pol_info[(acc_rec['PortNumber'], acc_rec['AccNumber'], acc_rec['layer_id'])] = [acc_rec['PolNumber'], acc_rec['LayerNumber']]
+            exclusion_cond_tags = account_layer_exclusion.setdefault(acc_rec['acc_id'], {}).setdefault(acc_rec['layer_id'],
+                                                                                                       set())
+            pol_info[(acc_rec['acc_id'], acc_rec['layer_id'])] = [acc_rec['PolNumber'], acc_rec['LayerNumber'], acc_rec['acc_idx']]
             if acc_rec.get('CondClass') == 1:
                 exclusion_cond_tags.add(acc_rec['CondTag'])
 
@@ -237,8 +237,8 @@ def get_cond_info(locations_df, accounts_df):
         KEY_INDEX = 0
         PRIORITY_INDEX = 1
         for loc_rec in locations_df.to_dict(orient="records"):
-            loc_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec['LocNumber'])
-            cond_key = (loc_rec['PortNumber'], loc_rec['AccNumber'], loc_rec.get('CondTag', default_cond_tag))
+            loc_key = loc_rec['loc_id']
+            cond_key = (loc_rec['acc_id'], loc_rec.get('CondTag', default_cond_tag))
             if cond_key in cond_tags:
                 cond_tag = cond_tags[cond_key]
             else:
@@ -261,7 +261,7 @@ def get_cond_info(locations_df, accounts_df):
 
         # at first we just want condtag for each level
         for cond_key, cond_info in cond_tags.items():
-            port_num, acc_num, cond_tag = cond_key
+            acc_id, cond_tag = cond_key
             cond_level_start = 1
             for loc_key in cond_info.get('locations', set()):
                 for i, (cond_key_i, _) in enumerate(loc_conds[loc_key]):
@@ -269,13 +269,13 @@ def get_cond_info(locations_df, accounts_df):
                         cond_level_start = max(cond_level_start, i + 1)
                         break
             cond_info['cond_level_start'] = cond_level_start
-            for layer_id, exclusion_conds in account_layer_exclusion[(cond_key[0], cond_key[1])].items():
+            for layer_id, exclusion_conds in account_layer_exclusion[acc_id].items():
                 if layer_id not in cond_info['layers']:
-                    PolNumber, LayerNumber = pol_info[(port_num, acc_num, layer_id)]
+                    PolNumber, LayerNumber, acc_idx = pol_info[(acc_id, layer_id)]
                     if exclusion_conds:
                         extra_accounts.append({
-                            'PortNumber': port_num,
-                            'AccNumber': acc_num,
+                            'acc_idx': acc_idx,
+                            'acc_id': acc_id,
                             'PolNumber': PolNumber,
                             'LayerNumber': LayerNumber,
                             'CondTag': cond_tag,
@@ -287,8 +287,8 @@ def get_cond_info(locations_df, accounts_df):
                         })
                     else:
                         extra_accounts.append({
-                            'PortNumber': port_num,
-                            'AccNumber': acc_num,
+                            'acc_idx': acc_idx,
+                            'acc_id': acc_id,
                             'PolNumber': PolNumber,
                             'LayerNumber': LayerNumber,
                             'CondTag': cond_tag,
@@ -312,11 +312,11 @@ def get_levels(locations_df, accounts_df):
                 yield locations_df, list(group_info['levels'].items()), group_info.get('fm_peril_field'), None
         elif group_info['oed_source'] == 'account':
             if group_name == 'cond' and level_conds:
-                loc_conds_df = locations_df[['loc_id', 'PortNumber', 'AccNumber', 'CondTag']].drop_duplicates()
+                loc_conds_df = locations_df[['loc_id', 'acc_id', 'CondTag']].drop_duplicates()
                 for stage, cond_keys in level_conds.items():
-                    cond_filter_df = (pd.DataFrame(cond_keys, columns=['PortNumber', 'AccNumber', 'CondTag'])
-                                      .sort_values(by=['PortNumber', 'AccNumber', 'CondTag']))
-                    loc_conds_df_filter = cond_filter_df[['PortNumber', 'AccNumber', 'CondTag']].drop_duplicates().merge(loc_conds_df, how='left')
+                    cond_filter_df = (pd.DataFrame(cond_keys, columns=['acc_id', 'CondTag'])
+                                      .sort_values(by=['acc_id', 'CondTag']))
+                    loc_conds_df_filter = cond_filter_df[['acc_id', 'CondTag']].drop_duplicates().merge(loc_conds_df, how='left')
                     yield (cond_filter_df.merge(pd.concat([accounts_df, pd.DataFrame(extra_accounts)]), how='left'),
                            group_info['levels'].items(),
                            group_info['fm_peril_field'],
@@ -488,8 +488,24 @@ def get_il_input_items(
 
         fm_xref_file = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_xref']}.csv"), 'w'))
 
-        locations_df = exposure_data.location.dataframe if exposure_data.location is not None else None
-        accounts_df = exposure_data.account.dataframe
+        if exposure_data.location is not None:
+            locations_df = exposure_data.location.dataframe
+            accounts_df = exposure_data.account.dataframe
+            if 'acc_id' not in accounts_df:
+                accounts_df['acc_id'] = get_ids(exposure_data.account.dataframe, ['PortNumber', 'AccNumber'])
+            acc_id_map = accounts_df[['PortNumber', 'AccNumber', 'acc_id']].drop_duplicates()
+            gul_inputs_df = gul_inputs_df.merge(acc_id_map, how='left')
+            locations_df = locations_df.merge(acc_id_map, how='left')
+            locations_df = locations_df.drop(columns=['PortNumber', 'AccNumber', 'LocNumber'])
+            accounts_df = accounts_df[accounts_df['acc_id'].isin(locations_df['acc_id'].unique())].drop(columns=['PortNumber', 'AccNumber'])
+
+        else:  # no location, case for cyber, marine ...
+            locations_df = None
+            gul_inputs_df['acc_id'] = gul_inputs_df['loc_id']
+            accounts_df = exposure_data.account.dataframe
+            accounts_df['acc_id'] = accounts_df['loc_id']
+            accounts_df = accounts_df.drop(columns=['PortNumber', 'AccNumber'])
+
         oed_schema = exposure_data.oed_schema
 
         profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
@@ -558,7 +574,7 @@ def get_il_input_items(
         extra_fm_col = ['layer_id', 'PolNumber', 'NumberOfBuildings', 'IsAggregate']
         if 'StepTriggerType' in accounts_df and 'StepNumber' in accounts_df:
             fill_empty(accounts_df, ['StepTriggerType', 'StepNumber'], 0)
-            step_account = (accounts_df[accounts_df[accounts_df['StepTriggerType'].notnull()]['StepNumber'].gt(0)][['PortNumber', 'AccNumber']]
+            step_account = (accounts_df[accounts_df[accounts_df['StepTriggerType'].notnull()]['StepNumber'].gt(0)][['acc_id']]
                             .drop_duplicates())
             step_policies_present = bool(step_account.shape[0])
             # this is done only for fmcalc to make sure it program nodes stay as a tree, remove 'is_step' logic when fmcalc is dropped
@@ -638,7 +654,7 @@ def get_il_input_items(
 
                     # only keep policy with non default values, remove duplicate
                     numeric_terms = [term for term in terms.keys() if is_numeric_dtype(group_df[term])]
-                    term_filter = False
+                    term_filter = pd.Series(data=False, index=group_df.index)
                     for term in numeric_terms:
                         if pd.isna(oed_schema.get_default(term)):
                             term_filter |= ~group_df[term].isna()
@@ -661,7 +677,6 @@ def get_il_input_items(
                             group_df.rename(columns={ProfileElementName: term}, inplace=True)
                     level_df_list.append(group_df)
                 level_df = pd.concat(level_df_list, copy=True, ignore_index=True)
-                base_acc = level_df['AccNumber']
 
                 for term, default in valid_term_default.items():
                     level_df[term] = level_df[term].fillna(default)
