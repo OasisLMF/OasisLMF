@@ -628,6 +628,7 @@ def get_il_input_items(
                         cur_level_id += 1
                         write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file,
                                                  fm_programme_file, chunksize)
+                        gul_inputs_df = reset_gul_inputs(gul_inputs_df)
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
                     continue
@@ -718,6 +719,7 @@ def get_il_input_items(
                         cur_level_id += 1
                         write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file,
                                                  fm_programme_file, chunksize)
+                        gul_inputs_df = reset_gul_inputs(gul_inputs_df)
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
                     continue
@@ -893,11 +895,7 @@ def get_il_input_items(
                  .to_csv(fm_programme_file, index=False, header=False, chunksize=chunksize))
 
                 # reset gul_inputs_df level columns
-                gul_inputs_df = (gul_inputs_df
-                                 .drop(columns=["root_start", "agg_id_prev", "is_step", "FMTermGroupID",
-                                                "profile_id", "level_id", 'fm_peril', 'need_tiv',
-                                                'agg_tiv'], errors='ignore')
-                                 .rename(columns={"agg_id": "agg_id_prev"}))
+                gul_inputs_df = reset_gul_inputs(gul_inputs_df)
                 logger.info(f"level {cur_level_id} {level_info} took {time.time()-t0}")
                 t0 = time.time()
 
@@ -939,16 +937,23 @@ def get_il_input_items(
         return gul_inputs_df
 
 
+def reset_gul_inputs(gul_inputs_df):
+    return (
+        gul_inputs_df.drop(columns=["root_start", "agg_id_prev", "is_step", "FMTermGroupID",
+                                    "profile_id", "level_id", 'fm_peril', 'need_tiv',
+                                    'agg_tiv'], errors='ignore')
+        .rename(columns={"agg_id": "agg_id_prev"}))
+
+
 def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file, fm_programme_file, chunksize):
-    base_fm_df = gul_inputs_df[agg_key + ['layer_id', 'agg_id_prev']]
-    base_fm_df["agg_id"] = factorize_ndarray(gul_inputs_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
-    base_fm_df["profile_id"] = 1
-    base_fm_df["level_id"] = cur_level_id
-    fm_policytc_df = base_fm_df.loc[:, fm_policytc_headers]
+    gul_inputs_df["agg_id"] = factorize_ndarray(gul_inputs_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
+    gul_inputs_df["profile_id"] = 1
+    gul_inputs_df["level_id"] = cur_level_id
+    fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]
     fm_policytc_df.drop_duplicates().astype(fm_policytc_dtype).to_csv(fm_policytc_file, index=False, header=False,
                                                                       chunksize=chunksize)
-    fm_programe_df = base_fm_df[['level_id', 'agg_id']].rename(columns={'agg_id': 'to_agg_id'})
-    fm_programe_df['from_agg_id'] = base_fm_df['agg_id_prev']
+    fm_programe_df = gul_inputs_df[['level_id', 'agg_id']].rename(columns={'agg_id': 'to_agg_id'})
+    fm_programe_df['from_agg_id'] = gul_inputs_df['agg_id_prev']
     fm_programe_df[fm_programme_headers].drop_duplicates().astype(fm_programme_dtype).to_csv(fm_programme_file, index=False,
                                                                                              header=False, chunksize=chunksize)
 
