@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`2.4.11`_
+ ---------
+* [#1816](https://github.com/OasisLMF/OasisLMF/pull/1817) - very low Insurance Loss values for portfolio with account level terms on version 2.4
+* [#1818](https://github.com/OasisLMF/OasisLMF/pull/1818) - use acc_id and loc_id from merge and agg_id generation in fm files generation
+* [#1811](https://github.com/OasisLMF/OasisLMF/pull/1811) - add environment variables and coerce into integers
+* [#1813](https://github.com/OasisLMF/OasisLMF/pull/1813) - Fixed merging analyses computation_settings on the platform
+.. _`2.4.11`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.10...2.4.11
+
 `2.4.10`_
  ---------
 * [#1793](https://github.com/OasisLMF/OasisLMF/pull/1793) - clearer step param help info
