@@ -147,7 +147,7 @@ class TestGenFiles(ComputationChecker):
     @patch('oasislmf.computation.generate.files.get_il_input_items')
     def test_files__reporting_currency__is_set_valid(self, mock_get_il_items):
         currency_config = {
-            "currency_conversion_type": "FxCurrencyRates",
+            ": "FxCurrencyRates",
             "datetime": "2018-10-10"
         }
 
