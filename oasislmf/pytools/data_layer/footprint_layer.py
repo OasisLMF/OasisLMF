@@ -21,7 +21,7 @@ logging.basicConfig(
     filename='footprint_tcp_server.log',
     filemode='w',
     format='%(name)s - %(levelname)s - %(message)s',
-    level=os.environ.get("LOGLEVEL", "INFO")
+    level=os.environ.get("OASIS_OASISLMF_LOG_LEVEL", "INFO")
 )
 POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag.txt"
 TCP_IP = '127.0.0.1'
