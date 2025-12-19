@@ -22,9 +22,10 @@ class TestPrepareLocationDf(TestCase):
                 "BuildingTIV": [500000, 750000, 1200000],
             }
         )
+        location_df.index = pd.Index([10, 20, 30], name="original_index")
         result = prepare_location_df(location_df)
         self.assertIn("loc_idx", result.columns)
-        self.assertEqual(result["loc_idx"].tolist(), [0, 1, 2])
+        self.assertEqual(result["loc_idx"].tolist(), location_df.index.tolist())
 
     def test_default_field_types(self):
         location_df = pd.DataFrame(
@@ -43,6 +44,23 @@ class TestPrepareLocationDf(TestCase):
         self.assertIn("BIPOIType", result.columns)
         self.assertEqual(result["BIPOIType"].iloc[0], 3)
 
+    def test_default_field_types_fillna(self):
+        location_df = pd.DataFrame(
+            {
+                "PortNumber": [1],
+                "AccNumber": ["A11111"],
+                "LocNumber": [10001],
+                "BIWaitingPeriod": [30],
+                "BIWaitingPeriodType": [np.nan],
+                "BIPOI": [50000],
+                "BIPOIType": [pd.NA],
+            }
+        )
+
+        result = prepare_location_df(location_df)
+        self.assertEqual(result["BIWaitingPeriodType"].iloc[0], 3)
+        self.assertEqual(result["BIPOIType"].iloc[0], 3)
+
 
 class TestPrepareAccountDf(TestCase):
 
@@ -54,10 +72,10 @@ class TestPrepareAccountDf(TestCase):
                 "PolNumber": ["P100", "P200"],
             }
         )
-
+        account_df.index = pd.Index([100, 200], name="original_index")
         result = prepare_account_df(account_df)
         self.assertIn("acc_idx", result.columns)
-        self.assertEqual(result["acc_idx"].tolist(), [0, 1])
+        self.assertEqual(result["acc_idx"].tolist(), account_df.index.tolist())
 
     def test_layer_number_default(self):
         account_df = pd.DataFrame(
@@ -70,16 +88,18 @@ class TestPrepareAccountDf(TestCase):
     def test_layer_id(self):
         account_df = pd.DataFrame(
             {
-                "PortNumber": [1, 1, 2],
-                "AccNumber": ["A11111", "A11111", "A22222"],
-                "PolNumber": ["P100", "P100", "P200"],
-                "LayerNumber": [1, 2, 1],
+                "PortNumber": [1, 1, 1],
+                "AccNumber": ["A11111", "A11111", "A11111"],
+                "PolNumber": ["P100", "P100", "P100"],
+                "LayerNumber": [1, 1, 2],
             }
         )
 
         result = prepare_account_df(account_df)
         self.assertIn("layer_id", result.columns)
         self.assertEqual(result["layer_id"].dtype, np.uint32)
+        self.assertEqual(result["layer_id"].iloc[0], result["layer_id"].iloc[1])
+        self.assertNotEqual(result["layer_id"].iloc[1], result["layer_id"].iloc[2])
 
 
 class TestPrepareReinsuranceDf(TestCase):
@@ -104,6 +124,25 @@ class TestPrepareReinsuranceDf(TestCase):
         self.assertEqual(result_info["CededPercent"].iloc[0], 1.0)
         self.assertEqual(result_info["TreatyShare"].iloc[0], 1.0)
         self.assertEqual(result_info["AttachmentBasis"].iloc[0], "LO")
+        self.assertEqual(result_scope["CededPercent"].iloc[0], 1.0)
+
+    def test_fill_empty_and_fillna_defaults(self):
+        ri_info = pd.DataFrame(
+            {
+                "ReinsNumber": [1],
+                "RiskLevel": [""],
+                "CededPercent": [np.nan],
+            }
+        )
+        ri_scope = pd.DataFrame(
+            {
+                "ReinsNumber": [1],
+                "CededPercent": [np.nan],
+            }
+        )
+        result_info, result_scope = prepare_reinsurance_df(ri_info, ri_scope)
+        self.assertEqual(result_info["RiskLevel"].iloc[0], "SEL")
+        self.assertEqual(result_info["CededPercent"].iloc[0], 1.0)
         self.assertEqual(result_scope["CededPercent"].iloc[0], 1.0)
 
 
