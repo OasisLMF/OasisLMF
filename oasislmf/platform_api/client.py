@@ -297,7 +297,9 @@ class API_portfolios(ApiEndpoint):
         self.location_file = FileEndpoint(self.session, self.url_endpoint, 'location_file/')
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
+        self.currency_conversion_json = FileEndpoint(self.session, self.url_endpoint, 'currency_conversion_json/')
         self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
+        self.reporting_currency = JsonEndpoint(self.session, self.url_endpoint, 'reporting_currency/')
 
     def create(self, name):
         data = {"name": name}
@@ -475,7 +477,7 @@ class APIClient(object):
 
         :param portfolio_file: The name of the portfolio file to update. One of
             the following options `location_file`, `accounts_file`,
-            `reinsurance_info_file` or `reinsurance_scope_file`.
+            `reinsurance_info_file`, `reinsurance_scope_file` or `currency_conversion_json`.
         :type settings: str
 
         :param upload_data: The file to upload through the api. This should be
@@ -494,8 +496,18 @@ class APIClient(object):
             getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data)
             self.logger.info("File uploaded: {}".format(upload_data))
 
+    def upload_portfolio_reporting_currency(self, portfolio_id, endpoint, reporting_currency):
+        data = {'reporting_currency': reporting_currency}
+
+        getattr(self.portfolios, endpoint).post(
+            portfolio_id,
+            data
+        )
+
+        self.logger.info("Reporting currency uploaded: %s", reporting_currency)
+
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
-                      location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
+                      location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None, currency_conversion_fp=None, reporting_currency=None):
         if not portfolio_name:
             portfolio_name = time.strftime("Portfolio_%d%m%Y-%H%M%S")
 
@@ -517,6 +529,10 @@ class APIClient(object):
                 self.upload_portfolio_file(portfolio_id, 'reinsurance_info_file', ri_info_fp)
             if ri_scope_fp:
                 self.upload_portfolio_file(portfolio_id, 'reinsurance_scope_file', ri_scope_fp)
+            if currency_conversion_fp:
+                self.upload_portfolio_file(portfolio_id, 'currency_conversion_json', currency_conversion_fp)
+            if reporting_currency:
+                self.upload_portfolio_reporting_currency(portfolio_id, 'reporting_currency', reporting_currency)
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')

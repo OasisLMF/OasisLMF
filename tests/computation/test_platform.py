@@ -1,5 +1,4 @@
-import unittest
-from unittest.mock import MagicMock, patch, Mock, call
+from unittest.mock import patch, Mock, call
 
 import os
 
@@ -9,8 +8,9 @@ import oasislmf
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
 
-from .data.common import *
-from .data.platform_returns import *
+from .data.platform_returns import (
+    RETURN_PORT, RETURN_ANALYSIS, RETURN_MODELS, MODELS_TABLE, ANAL_TABLE, PORT_TABLE
+)
 from .test_computation import ComputationChecker
 
 import responses
@@ -221,7 +221,7 @@ class TestPlatformRunInputs(ComputationChecker):
 
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertIn(f'HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
+        self.assertIn('HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
         mock_input.assert_has_calls([
             call('Use simple JWT [Y/n]: '),
             call('Username: ')
@@ -522,7 +522,9 @@ class TestPlatformRunInputs(ComputationChecker):
                 location_fp=exposure_files['oed_location_csv'],
                 accounts_fp=exposure_files['oed_accounts_csv'],
                 ri_info_fp=exposure_files['oed_info_csv'],
-                ri_scope_fp=exposure_files['oed_scope_csv']
+                ri_scope_fp=exposure_files['oed_scope_csv'],
+                currency_conversion_fp=None,
+                reporting_currency=None
             )
 
 
@@ -635,6 +637,8 @@ class TestPlatformRun(ComputationChecker):
         oed_info_csv=st.booleans(),
         oed_scope_csv=st.booleans(),
         output_dir=st.booleans(),
+        currency_conversion_json=st.booleans(),
+        reporting_currency=st.booleans(),
     )
     def test_args__passed_correctly(self,
                                     server_login_json,
@@ -648,7 +652,9 @@ class TestPlatformRun(ComputationChecker):
                                     oed_accounts_csv,
                                     oed_info_csv,
                                     oed_scope_csv,
-                                    output_dir):
+                                    output_dir,
+                                    currency_conversion_json,
+                                    reporting_currency):
 
         # Extract funcution kwargs into dict, and replace booleans with temp file paths
         call_args = {k: v for k, v in locals().items() if k in self.default_args}
