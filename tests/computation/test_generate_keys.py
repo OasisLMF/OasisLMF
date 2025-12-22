@@ -1,17 +1,17 @@
 import json
 
-import logging
 import pathlib
 import os
 
-from unittest import mock
 from unittest.mock import patch, Mock
 
 from ods_tools.oed.common import OdsException
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
-from .data.common import *
+from .data.common import (
+    MIN_LOC, MIN_RUN_SETTINGS, EXPECTED_KEYS, EXPECTED_ERROR
+)
 from .test_computation import ComputationChecker
 
 
@@ -63,7 +63,7 @@ class TestGenKeys(ComputationChecker):
         call_args = {
             **self.min_args_output_set,
             'lookup_complex_config_json': lookup_complex_config_file.name}
-        keys_return = self.manager.generate_keys(**call_args)
+        self.manager.generate_keys(**call_args)
 
     def test_keys__lookup_complex_config_json__is_invalid(self):
         lookup_complex_config_file = self.tmp_files['lookup_complex_config_json']
@@ -72,13 +72,13 @@ class TestGenKeys(ComputationChecker):
             **self.min_args_output_set,
             'lookup_complex_config_json': lookup_complex_config_file.name}
         with self.assertRaises(OdsException) as context:
-            keys_return = self.manager.generate_keys(**call_args)
-        expected_err_msg = f'JSON Validation error'
+            self.manager.generate_keys(**call_args)
+        expected_err_msg = 'JSON Validation error'
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_keys__missing_lookup__execption_raised(self):
         with self.assertRaises(OasisException) as context:
-            keys_return = self.manager.generate_keys()
+            self.manager.generate_keys()
 
         expected_err_msg = 'No pre-generated keys file provided, and no lookup assets provided'
         self.assertIn(expected_err_msg, str(context.exception))
