@@ -1,15 +1,9 @@
 __all__ = [
     'get_gul_input_items',
-    'write_amplifications_file',
-    'write_coverages_file',
     'write_gul_input_files',
-    'write_items_file',
-    'write_complex_items_file',
-    'write_sections_file'
 ]
 import copy
 import os
-import sys
 import warnings
 from collections import OrderedDict
 
