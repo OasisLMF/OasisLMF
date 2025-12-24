@@ -42,231 +42,313 @@ def generate_output_metadata(output):
     return result
 
 
+# single type definition index
+DTYPE_IDX = 1
+NAME_DTYPE_SLICE = slice(2)
+
+# single type definition (alphabetical order)
+agg_id = ("agg_id", 'i4', "%d")
+aggregate_vulnerability_id = ("aggregate_vulnerability_id", 'i4', "%d")
+amplification_id = ("amplification_id", 'i4', "%d")
+areaperil_id = ("areaperil_id", areaperil_int, "%d")
+attachment1 = ("attachment1", oasis_float, "%f")
+bin_from = ("bin_from", oasis_float, "%f")
+bin_index = ("bin_index", 'i4', "%d")
+bin_mean = ("bin_mean", 'f4', "%f")
+bin_to = ("bin_to", oasis_float, "%f")
+calcrule_id = ("calcrule_id", 'i4', "%d")
+coverage_id = ("coverage_id", 'u4', "%u")
+damage_bin_id = ("damage_bin_id", 'i4', "%d")
+damage_correlation_value = ("damage_correlation_value", oasis_float, "%f")
+damage_type = ("damage_type", 'i4', "%d")
+deductible1 = ("deductible1", oasis_float, "%f")
+deductible2 = ("deductible2", oasis_float, "%f")
+deductible3 = ("deductible3", oasis_float, "%f")
+event_id = ("event_id", 'i4', "%d")
+factor = ("factor", 'f4', "%.2f")  # Amplification factor
+from_agg_id = ("from_agg_id", 'i4', "%d")
+group_id = ("group_id", 'u4', "%u")
+hazard_correlation_value = ("hazard_correlation_value", oasis_float, "%f")
+hazard_group_id = ("hazard_group_id", 'i4', "%d")
+intensity_adjustment = ('intensity_adjustment', 'i4', "%d")
+intensity_bin_id = ('intensity_bin_id', 'i4', "%d")
+interpolation = ("interpolation", oasis_float, "%f")
+item_id = ("item_id", 'i4', "%d")
+item_return_period = ('return_period', 'i4', "%d")
+layer_id = ("layer_id", 'i4', "%d")
+level_id = ("level_id", 'i4', "%d")
+limit1 = ("limit1", oasis_float, "%f")
+limit2 = ("limit2", oasis_float, "%f")
+loss = ("loss", oasis_float, "%.2f")
+model_data_len = ("model_data_len", 'u4', "%u")
+occ_date_id = ("occ_date_id", 'i4', "%d")
+occ_date_id_granular = ("occ_date_id", 'i8', "%d")
+output_id = ("output_id", 'i4', "%d")
+output = ("output", output_id[1], output_id[2])
+payout_end = ("payout_end", oasis_float, "%f")
+payout_start = ("payout_start", oasis_float, "%f")
+peril_correlation_group = ("peril_correlation_group", 'i4', "%d")
+period_no = ("period_no", 'i4', "%d")
+period_weighting = ("weighting", 'f8', "%0.9lf")
+prob_to = ("prob_to", 'f4', "%f")
+probability = ('probability', oasis_float, "%.6f")
+profile_id = ("profile_id", 'i4', "%d")
+quantile = ("quantile", 'f4', "%f")
+quantile_fractional_part = ('fractional_part', oasis_float, "%f")
+quantile_integer_part = ('integer_part', oasis_int, "%d")
+random_no = ("random_no", 'f4', "%f")
+return_period = ("return_period", 'i4', "%d")
+scale1 = ("scale1", oasis_float, "%f")
+scale2 = ("scale2", oasis_float, "%f")
+section_id = ("scale2", oasis_int, "%d")
+share1 = ("share1", oasis_float, "%f")
+share2 = ("share2", oasis_float, "%f")
+share3 = ("share3", oasis_float, "%f")
+sidx = ("sidx", 'i4', "%d")
+step_id = ("step_id", 'i4', "%d")
+summary_id = ("summary_id", 'i4', "%d")
+summaryset_id = ("summaryset_id", 'i4', "%d")
+tiv = ("tiv", oasis_float, "%f")
+to_agg_id = ("to_agg_id", 'i4', "%d")
+trigger_end = ("trigger_end", oasis_float, "%f")
+trigger_start = ("trigger_start", oasis_float, "%f")
+vulnerability_id = ("vulnerability_id", 'i4', "%d")
+vulnerability_weight = ("weight", oasis_float, "%f")
+
+
 # Types
 aggregatevulnerability_output = [
-    ("aggregate_vulnerability_id", 'i4', "%d"),
-    ("vulnerability_id", 'i4', "%d"),
+    aggregate_vulnerability_id,
+    vulnerability_id,
 ]
 aggregatevulnerability_headers, aggregatevulnerability_dtype, aggregatevulnerability_fmt = generate_output_metadata(aggregatevulnerability_output)
 
 amplifications_output = [
-    ("item_id", 'i4', "%d"),
-    ("amplification_id", 'i4', "%d"),
+    item_id,
+    amplification_id,
 ]
 amplifications_headers, amplifications_dtype, amplifications_fmt = generate_output_metadata(amplifications_output)
 
 cdf_output = [
-    ("event_id", 'i4', "%d"),
-    ("areaperil_id", 'i4', "%d"),
-    ("vulnerability_id", 'i4', "%d"),
-    ("bin_index", 'i4', "%d"),
-    ("prob_to", 'f4', "%f"),
-    ("bin_mean", 'f4', "%f"),
+    event_id,
+    areaperil_id,
+    vulnerability_id,
+    bin_index,
+    prob_to,
+    bin_mean,
 ]
 cdf_headers, cdf_dtype, cdf_fmt = generate_output_metadata(cdf_output)
 
 complex_items_meta_output = [
-    ("item_id", 'u4', "%u"),
-    ("coverage_id", 'u4', "%u"),
-    ("group_id", 'u4', "%u"),
-    ("model_data_len", 'u4', "%u"),
+    item_id,
+    coverage_id,
+    group_id,
+    model_data_len,
 ]
 complex_items_meta_headers, complex_items_meta_dtype, complex_items_meta_fmt = generate_output_metadata(complex_items_meta_output)
 
 correlations_output = [
-    ("item_id", 'i4', "%d"),
-    ("peril_correlation_group", 'i4', "%d"),
-    ("damage_correlation_value", oasis_float, "%f"),
-    ("hazard_group_id", 'i4', "%d"),
-    ("hazard_correlation_value", oasis_float, "%f"),
+    item_id,
+    peril_correlation_group,
+    damage_correlation_value,
+    hazard_group_id,
+    hazard_correlation_value,
 ]
 correlations_headers, correlations_dtype, correlations_fmt = generate_output_metadata(correlations_output)
 
 coverages_output = [
-    ("coverage_id", 'i4', "%d"),
-    ("tiv", oasis_float, "%f"),
+    coverage_id,
+    tiv,
 ]
 coverages_headers, coverages_dtype, coverages_fmt = generate_output_metadata(coverages_output)
 
 damagebin_output = [
-    ("bin_index", 'i4', "%d"),
-    ("bin_from", oasis_float, "%f"),
-    ("bin_to", oasis_float, "%f"),
-    ("interpolation", oasis_float, "%f"),
-    ("damage_type", 'i4', "%d"),
+    bin_index,
+    bin_from,
+    bin_to,
+    interpolation,
+    damage_type,
 ]
 damagebin_headers, damagebin_dtype, damagebin_fmt = generate_output_metadata(damagebin_output)
 
 eve_output = [
-    ("event_id", oasis_int, "%d")
+    event_id
 ]
 eve_headers, eve_dtype, eve_fmt = generate_output_metadata(eve_output)
 
 footprint_event_output = [
-    ('event_id', 'i4', "%d"),
-    ('areaperil_id', areaperil_int, "%d"),
-    ('intensity_bin_id', 'i4', "%d"),
-    ('probability', oasis_float, "%.6f"),
+    event_id,
+    areaperil_id,
+    intensity_bin_id,
+    probability,
 ]
 footprint_event_headers, footprint_event_dtype, footprint_event_fmt = generate_output_metadata(footprint_event_output)
 
 fm_output = [
-    ("event_id", 'i4', "%d"),
-    ("output_id", 'i4', "%d"),
-    ("sidx", 'i4', "%d"),
-    ("loss", oasis_float, "%.2f"),
+    event_id,
+    output_id,
+    sidx,
+    loss,
 ]
 fm_headers, fm_dtype, fm_fmt = generate_output_metadata(fm_output)
 
 fm_policytc_output = [
-    ("level_id", 'i4', "%d"),
-    ("agg_id", 'i4', "%d"),
-    ("layer_id", 'i4', "%d"),
-    ("profile_id", 'i4', "%d"),
+    level_id,
+    agg_id,
+    layer_id,
+    profile_id,
 ]
 fm_policytc_headers, fm_policytc_dtype, fm_policytc_fmt = generate_output_metadata(fm_policytc_output)
 
 fm_profile_output = [
-    ("profile_id", 'i4', "%d"),
-    ("calcrule_id", 'i4', "%d"),
-    ("deductible1", oasis_float, "%f"),
-    ("deductible2", oasis_float, "%f"),
-    ("deductible3", oasis_float, "%f"),
-    ("attachment1", oasis_float, "%f"),
-    ("limit1", oasis_float, "%f"),
-    ("share1", oasis_float, "%f"),
-    ("share2", oasis_float, "%f"),
-    ("share3", oasis_float, "%f"),
+    profile_id,
+    calcrule_id,
+    deductible1,
+    deductible2,
+    deductible3,
+    attachment1,
+    limit1,
+    share1,
+    share2,
+    share3,
 ]
 fm_profile_headers, fm_profile_dtype, fm_profile_fmt = generate_output_metadata(fm_profile_output)
 
 fm_profile_step_output = [
-    ("profile_id", 'i4', "%d"),
-    ("calcrule_id", 'i4', "%d"),
-    ("deductible1", oasis_float, "%f"),
-    ("deductible2", oasis_float, "%f"),
-    ("deductible3", oasis_float, "%f"),
-    ("attachment1", oasis_float, "%f"),
-    ("limit1", oasis_float, "%f"),
-    ("share1", oasis_float, "%f"),
-    ("share2", oasis_float, "%f"),
-    ("share3", oasis_float, "%f"),
-    ("step_id", 'i4', "%d"),
-    ("trigger_start", oasis_float, "%f"),
-    ("trigger_end", oasis_float, "%f"),
-    ("payout_start", oasis_float, "%f"),
-    ("payout_end", oasis_float, "%f"),
-    ("limit2", oasis_float, "%f"),
-    ("scale1", oasis_float, "%f"),
-    ("scale2", oasis_float, "%f"),
+    profile_id,
+    calcrule_id,
+    deductible1,
+    deductible2,
+    deductible3,
+    attachment1,
+    limit1,
+    share1,
+    share2,
+    share3,
+    step_id,
+    trigger_start,
+    trigger_end,
+    payout_start,
+    payout_end,
+    limit2,
+    scale1,
+    scale2,
 ]
 fm_profile_step_headers, fm_profile_step_dtype, fm_profile_step_fmt = generate_output_metadata(fm_profile_step_output)
 
 fm_programme_output = [
-    ("from_agg_id", 'i4', "%d"),
-    ("level_id", 'i4', "%d"),
-    ("to_agg_id", 'i4', "%d"),
+    from_agg_id,
+    level_id,
+    to_agg_id,
 ]
 fm_programme_headers, fm_programme_dtype, fm_programme_fmt = generate_output_metadata(fm_programme_output)
 
 fm_summary_xref_output = [
-    ("output", 'i4', "%d"),
-    ("summary_id", 'i4', "%d"),
-    ("summaryset_id", 'i4', "%d")
+    output,
+    summary_id,
+    summaryset_id
 ]
 fm_summary_xref_headers, fm_summary_xref_dtype, fm_summary_xref_fmt = generate_output_metadata(fm_summary_xref_output)
 
 fm_xref_output = [
-    ("output", 'i4', "%d"),
-    ("agg_id", 'i4', "%d"),
-    ("layer_id", 'i4', "%d"),
+    output,
+    agg_id,
+    layer_id,
 ]
 fm_xref_headers, fm_xref_dtype, fm_xref_fmt = generate_output_metadata(fm_xref_output)
 
 gul_output = [
-    ("event_id", 'i4', "%d"),
-    ("item_id", 'i4', "%d"),
-    ("sidx", 'i4', "%d"),
-    ("loss", oasis_float, "%.2f"),
+    event_id,
+    item_id,
+    sidx,
+    loss,
 ]
 gul_headers, gul_dtype, gul_fmt = generate_output_metadata(gul_output)
 
 gul_summary_xref_output = [
-    ("item_id", 'i4', "%d"),
-    ("summary_id", 'i4', "%d"),
-    ("summaryset_id", 'i4', "%d")
+    item_id,
+    summary_id,
+    summaryset_id
 ]
 gul_summary_xref_headers, gul_summary_xref_dtype, gul_summary_xref_fmt = generate_output_metadata(gul_summary_xref_output)
 
 items_output = [
-    ("item_id", 'i4', "%d"),
-    ("coverage_id", 'i4', "%d"),
-    ("areaperil_id", areaperil_int, "%u"),
-    ("vulnerability_id", 'i4', "%d"),
-    ("group_id", 'i4', "%d"),
+    item_id,
+    coverage_id,
+    areaperil_id,
+    vulnerability_id,
+    group_id
 ]
 items_headers, items_dtype, items_fmt = generate_output_metadata(items_output)
 
+item_adjustment = [
+    item_id,
+    intensity_adjustment,
+    item_return_period
+]
+
+item_adjustment_headers, item_adjustment_dtype, item_adjustment_fmt = generate_output_metadata(item_adjustment)
+
 lossfactors_output = [
-    ("event_id", 'i4', "%d"),
-    ("amplification_id", 'i4', "%d"),
-    ("factor", 'f4', "%.2f"),
+    event_id,
+    amplification_id,
+    factor,
 ]
 lossfactors_headers, lossfactors_dtype, lossfactors_fmt = generate_output_metadata(lossfactors_output)
 
 occurrence_output = [
-    ("event_id", 'i4', "%d"),
-    ("period_no", 'i4', "%d"),
-    ("occ_date_id", 'i4', "%d"),
+    event_id,
+    period_no,
+    occ_date_id,
 ]
 occurrence_headers, occurrence_dtype, occurrence_fmt = generate_output_metadata(occurrence_output)
 
 occurrence_granular_output = [
-    ("event_id", 'i4', "%d"),
-    ("period_no", 'i4', "%d"),
-    ("occ_date_id", 'i8', "%d"),
+    event_id,
+    period_no,
+    occ_date_id_granular,
 ]
 occurrence_granular_headers, occurrence_granular_dtype, occurrence_granular_fmt = generate_output_metadata(occurrence_granular_output)
 
 periods_output = [
-    ("period_no", 'i4', "%d"),
-    ("weighting", 'f8', "%0.9lf"),
+    period_no,
+    period_weighting,
 ]
 periods_headers, periods_dtype, periods_fmt = generate_output_metadata(periods_output)
 
 quantile_output = [
-    ("quantile", 'f4', "%f"),
+    quantile,
 ]
 quantile_headers, quantile_dtype, quantile_fmt = generate_output_metadata(quantile_output)
 
 quantile_interval_output = quantile_output + [
-    ('integer_part', oasis_int, "%d"),
-    ('fractional_part', oasis_float, "%f"),
+    quantile_integer_part,
+    quantile_fractional_part,
 ]
 quantile_interval_headers, quantile_interval_dtype, quantile_interval_fmt = generate_output_metadata(quantile_interval_output)
 
 random_output = [
-    ("random_no", 'f4', "%f"),
+    random_no,
 ]
 random_headers, random_dtype, random_fmt = generate_output_metadata(random_output)
 
 returnperiods_output = [
-    ("return_period", 'i4', "%d"),
+    return_period,
 ]
 returnperiods_headers, returnperiods_dtype, returnperiods_fmt = generate_output_metadata(returnperiods_output)
 
 vulnerability_output = [
-    ("vulnerability_id", 'i4', "%d"),
-    ("intensity_bin_id", 'i4', "%d"),
-    ("damage_bin_id", 'i4', "%d"),
-    ("probability", oasis_float, "%.6f"),
+    vulnerability_id,
+    intensity_bin_id,
+    damage_bin_id,
+    probability,
 ]
 vulnerability_headers, vulnerability_dtype, vulnerability_fmt = generate_output_metadata(vulnerability_output)
 
 vulnerability_weight_output = [
-    ("areaperil_id", areaperil_int, "%d"),
-    ("vulnerability_id", 'i4', "%d"),
-    ("weight", oasis_float, "%f"),
+    areaperil_id,
+    vulnerability_id,
+    vulnerability_weight,
 ]
 vulnerability_weight_headers, vulnerability_weight_dtype, vulnerability_weight_fmt = generate_output_metadata(vulnerability_weight_output)
 
