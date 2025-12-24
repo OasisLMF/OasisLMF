@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
 
-from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int
+from oasislmf.pytools.common.data import areaperil_int, oasis_float, oasis_int, item_adjustment_dtype, item_id, tiv, NAME_DTYPE_SLICE
 
 # gul stream type
 # probably need to set this dynamically depending on the stream type
@@ -14,17 +14,14 @@ DAMAGE_TYPE_ABSOLUTE = 2
 DAMAGE_TYPE_DURATION = 3
 VALID_DAMAGE_TYPE = {DAMAGE_TYPE_DEFAULT, DAMAGE_TYPE_RELATIVE, DAMAGE_TYPE_ABSOLUTE, DAMAGE_TYPE_DURATION}
 
-ItemAdjustment = nb.from_dtype(np.dtype([('item_id', np.int32),
-                                         ('intensity_adjustment', np.int32),
-                                         ('return_period', np.int32)
-                                         ]))
+ItemAdjustment = nb.from_dtype(item_adjustment_dtype)
 
-items_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
+items_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                           ('damagecdf_i', oasis_int),
                                           ('rng_index', oasis_int)
                                           ]))
 
-items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
+items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('item_idx', oasis_int),
                                              ('haz_arr_i', oasis_int),
                                              ('rng_index', oasis_int),
@@ -36,7 +33,7 @@ items_MC_data_type = nb.from_dtype(np.dtype([('item_id', oasis_int),
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),
                                         ('length', oasis_int)]))
 
-coverage_type = nb.from_dtype(np.dtype([('tiv', np.float64),
+coverage_type = nb.from_dtype(np.dtype([tiv[NAME_DTYPE_SLICE],
                                         ('max_items', np.int32),
                                         ('start_items', np.int32),
                                         ('cur_items', np.int32)
