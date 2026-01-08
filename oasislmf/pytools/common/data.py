@@ -13,7 +13,7 @@ oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
 nb_oasis_float = nb.from_dtype(oasis_float)
 oasis_float_size = oasis_float.itemsize
 
-areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
+areaperil_int = np.dtype(os.environ.get('OASIS_AREAPERIL_TYPE', 'u4'))
 nb_areaperil_int = nb.from_dtype(areaperil_int)
 areaperil_int_size = areaperil_int.itemsize
 

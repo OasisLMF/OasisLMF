@@ -150,8 +150,8 @@ if __name__ == '__main__':
     pkg_path = os.path.dirname(pkg_oasislmf.origin)
     action_tree = os.path.join(pkg_path, '_data', 'action_tree.p')
 
-    comp_line = os.environ.get('COMP_LINE') or ''
-    comp_point = int(os.environ.get('COMP_POINT') or len(comp_line))
+    comp_line = os.environ.get('OASIS_COMP_LINE') or ''
+    comp_point = int(os.environ.get('OASIS_COMP_POINT') or len(comp_line))
 
     try:
         Completer(action_tree).complete(comp_line, comp_point)
