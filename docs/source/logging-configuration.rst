@@ -56,7 +56,7 @@ Quick Start
 
 .. code-block:: bash
 
-   export OASIS_OASISLMF_LOG_LEVEL=DEBUG
+   export OASIS_PACKAGE_LOG_LEVEL=DEBUG
    oasislmf model run
 
 **Configuration File**
@@ -163,7 +163,7 @@ See :doc:`options_config_file` for more configuration file examples and general 
 Environment Variables
 ---------------------
 
-``OASIS_OASISLMF_LOG_LEVEL``
+``OASIS_PACKAGE_LOG_LEVEL``
    Override log level for all commands.
 
    .. versionadded:: 2.4.6
@@ -172,9 +172,9 @@ Environment Variables
 
    .. code-block:: bash
 
-      export OASIS_OASISLMF_LOG_LEVEL=ERROR
-      export OASIS_OASISLMF_LOG_LEVEL=DEBUG
-      export OASIS_OASISLMF_LOG_LEVEL=20  # INFO level
+      export OASIS_PACKAGE_LOG_LEVEL=ERROR
+      export OASIS_PACKAGE_LOG_LEVEL=DEBUG
+      export OASIS_PACKAGE_LOG_LEVEL=20  # INFO level
 
 Format Templates
 ----------------
@@ -235,7 +235,7 @@ Configuration Priority
 The system uses this priority order (highest to lowest):
 
 1. **CLI arguments** (``--log-level``, ``--log-format``)
-2. **Environment variables** (``OASIS_OASISLMF_LOG_LEVEL``)
+2. **Environment variables** (``OASIS_PACKAGE_LOG_LEVEL``)
 3. **Configuration file** (``logging`` section)
 4. **Legacy verbose flag** (``--verbose``)
 5. **Default values** (INFO level, standard format)
@@ -245,7 +245,7 @@ The system uses this priority order (highest to lowest):
 .. code-block:: bash
 
    # Config file has level: "WARNING"
-   # Environment has OASIS_OASISLMF_LOG_LEVEL=INFO
+   # Environment has OASIS_PACKAGE_LOG_LEVEL=INFO
    # CLI argument --log-level=DEBUG
    # Result: DEBUG (CLI takes precedence)
 

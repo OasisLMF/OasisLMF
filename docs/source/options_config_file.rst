@@ -41,6 +41,6 @@ Related Configuration
 See :doc:`logging-configuration` for detailed logging setup, including:
 
 * CLI arguments (``--log-level``, ``--log-format``)
-* Environment variables (``OASIS_OASISLMF_LOG_LEVEL``)
+* Environment variables (``OASIS_PACKAGE_LOG_LEVEL``)
 * Format templates and custom formatting
 * Migration from ``--verbose`` flag
