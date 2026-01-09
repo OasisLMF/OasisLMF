@@ -64,41 +64,21 @@ ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
 ORD_ALT_OUTPUT_SWITCHES = {
     "alt_period": {
-        'ktools': {
-            'executable': 'aalcalc',
-            'subfolder_flag': '-K',
-            'csv_flag': '-o',
-            'parquet_flag': '-p',
-            'alct_flag': '-c',
-            'alct_confidence_level': '-l',
-            'skip_header_flag': '-H',
-        },
-        'pytools': {
-            'executable': 'aalpy',
-            'subfolder_flag': '-K',
-            'csv_flag': '-a',
-            'alct_flag': '-c',
-            'alct_confidence_level': '-l',
-            'skip_header_flag': '-H',
-        }
+        'executable': 'aalpy',
+        'subfolder_flag': '-K',
+        'csv_flag': '-a',
+        'alct_flag': '-c',
+        'alct_confidence_level': '-l',
+        'skip_header_flag': '-H',
     }
 }
 
 ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
     "alt_meanonly": {
-        'ktools': {
-            'executable': 'aalcalcmeanonly',
-            'subfolder_flag': '-K',
-            'csv_flag': '-o',
-            'parquet_flag': '-p',
-            'skip_header_flag': '-H',
-        },
-        'pytools': {
-            'executable': 'aalpy',
-            'subfolder_flag': '-K',
-            'csv_flag': '-a',
-            'skip_header_flag': '-H',
-        }
+        'executable': 'aalpy',
+        'subfolder_flag': '-K',
+        'csv_flag': '-a',
+        'skip_header_flag': '-H',
     }
 }
 
@@ -106,47 +86,23 @@ ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
         'table_name': 'splt',
         'kat_flag': '-S',
-        'ktools': {
-            'executable': 'pltcalc',
-            'csv_flag': '-S',
-            'parquet_flag': '-s',
-            'skip_header_flag': '-H'
-        },
-        'pytools': {
-            'executable': 'pltpy',
-            'csv_flag': '-s',
-            'skip_header_flag': '-H'
-        },
+        'executable': 'pltpy',
+        'csv_flag': '-s',
+        'skip_header_flag': '-H'
     },
     "plt_quantile": {
         'table_name': 'qplt',
         'kat_flag': '-Q',
-        'ktools': {
-            'executable': 'pltcalc',
-            'csv_flag': '-Q',
-            'parquet_flag': '-q',
-            'skip_header_flag': '-H'
-        },
-        'pytools': {
-            'executable': 'pltpy',
-            'csv_flag': '-q',
-            'skip_header_flag': '-H'
-        },
+        'executable': 'pltpy',
+        'csv_flag': '-q',
+        'skip_header_flag': '-H'
     },
     "plt_moment": {
         'table_name': 'mplt',
         'kat_flag': '-M',
-        'ktools': {
-            'executable': 'pltcalc',
-            'csv_flag': '-M',
-            'parquet_flag': '-m',
-            'skip_header_flag': '-H'
-        },
-        'pytools': {
-            'executable': 'pltpy',
-            'csv_flag': '-m',
-            'skip_header_flag': '-H'
-        },
+        'executable': 'pltpy',
+        'csv_flag': '-m',
+        'skip_header_flag': '-H'
     }
 }
 
@@ -154,32 +110,16 @@ ORD_ELT_OUTPUT_SWITCHES = {
     "elt_quantile": {
         'table_name': 'qelt',
         'kat_flag': '-q',
-        'ktools': {
-            'executable': 'eltcalc',
-            'csv_flag': '-Q',
-            'parquet_flag': '-q',
-            'skip_header_flag': '-s'
-        },
-        'pytools': {
-            'executable': 'eltpy',
-            'csv_flag': '-q',
-            'skip_header_flag': '-H'
-        },
+        'executable': 'eltpy',
+        'csv_flag': '-q',
+        'skip_header_flag': '-H'
     },
     "elt_moment": {
         'table_name': 'melt',
         'kat_flag': '-m',
-        'ktools': {
-            'executable': 'eltcalc',
-            'csv_flag': '-M',
-            'parquet_flag': '-m',
-            'skip_header_flag': '-s'
-        },
-        'pytools': {
-            'executable': 'eltpy',
-            'csv_flag': '-m',
-            'skip_header_flag': '-H'
-        },
+        'executable': 'eltpy',
+        'csv_flag': '-m',
+        'skip_header_flag': '-H'
     }
 }
 
@@ -187,17 +127,9 @@ ORD_SELT_OUTPUT_SWITCH = {
     "elt_sample": {
         'table_name': 'selt',
         'kat_flag': '-s',
-        'ktools': {
-            'executable': 'summarycalctocsv',
-            'csv_flag': '-o',
-            'parquet_flag': '-p',
-            'skip_header_flag': '-s'
-        },
-        'pytools': {
-            'executable': 'eltpy',
-            'csv_flag': '-s',
-            'skip_header_flag': '-H'
-        },
+        'executable': 'eltpy',
+        'csv_flag': '-s',
+        'skip_header_flag': '-H'
     }
 }
 
@@ -508,8 +440,6 @@ def do_post_wait_processing(
     stderr_guard=True,
     inuring_priority=None,
     join_summary_info=False,
-    aalpy=False,
-    lecpy=False,
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
@@ -521,8 +451,6 @@ def do_post_wait_processing(
         if "id" in summary:
             summary_set = summary['id']
 
-            aal_exec_type = "ktools" if not aalpy else "pytools"
-            lec_exec_type = "ktools" if not lecpy else "pytools"
 
             # ktools ORIG - aalcalc
             if summary.get('aalcalc'):
@@ -545,8 +473,8 @@ def do_post_wait_processing(
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["executable"]
-                aal_subfolder_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["subfolder_flag"]
+                aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["executable"]
+                aal_subfolder_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["subfolder_flag"]
                 cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
 
                 palt_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_palt"
@@ -557,24 +485,17 @@ def do_post_wait_processing(
                     outfile_ext = "parquet"
 
                 if summary.get('ord_output', {}).get('alct_convergence'):
-                    aal_alct_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_flag"]
+                    aal_alct_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["alct_flag"]
                     cmd = f"{cmd} {aal_alct_flag} {alct_outfile_stem}.{outfile_ext}"
                     if summary.get('ord_output', {}).get('alct_confidence'):
-                        aal_alct_confidence_level = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["alct_confidence_level"]
+                        aal_alct_confidence_level = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["alct_confidence_level"]
                         cmd = f"{cmd} {aal_alct_confidence_level} {summary.get('ord_output', {}).get('alct_confidence')}"
 
-                aal_csv_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["csv_flag"]
+                aal_csv_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["csv_flag"]
                 if outfile_ext == 'parquet':
-                    if aal_exec_type == "pytools":
-                        cmd = f"{cmd} -E parquet {aal_csv_flag} {palt_outfile_stem}.parquet"
-                    else:
-                        aal_parquet_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"][aal_exec_type]["parquet_flag"]
-                        cmd = f"{cmd} {aal_parquet_flag} {palt_outfile_stem}.parquet"
+                    cmd = f"{cmd} -E parquet {aal_csv_flag} {palt_outfile_stem}.parquet"
                 else:
-                    if aal_exec_type == "pytools":
-                        cmd = f"{cmd} {aal_csv_flag} {palt_outfile_stem}.csv"
-                    else:
-                        cmd = f"{cmd} {aal_csv_flag} > {palt_outfile_stem}.csv"
+                    cmd = f"{cmd} {aal_csv_flag} {palt_outfile_stem}.csv"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
@@ -609,25 +530,18 @@ def do_post_wait_processing(
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
-                aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["executable"]
-                aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["subfolder_flag"]
+                aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["executable"]
+                aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["subfolder_flag"]
                 cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
                 altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
                 outfile_ext = 'csv'
-                aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["csv_flag"]
+                aal_csv_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["csv_flag"]
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    if aal_exec_type == "pytools":
-                        cmd = f"{cmd} -E parquet {aal_csv_flag} {altmeanonly_outfile_stem}.cparquetsv"
-                    else:
-                        aal_parquet_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"][aal_exec_type]["parquet_flag"]
-                        cmd = f"{cmd} {aal_parquet_flag} {altmeanonly_outfile_stem}.parquet"
+                    cmd = f"{cmd} -E parquet {aal_csv_flag} {altmeanonly_outfile_stem}.cparquetsv"
                     outfile_ext = 'parquet'
                 else:
-                    if aal_exec_type == "pytools":
-                        cmd = f"{cmd} {aal_csv_flag} {altmeanonly_outfile_stem}.csv"
-                    else:
-                        cmd = f"{cmd} {aal_csv_flag} > {altmeanonly_outfile_stem}.csv"
+                    cmd = f"{cmd} {aal_csv_flag} {altmeanonly_outfile_stem}.csv"
 
                 process_counter['lpid_monitor_count'] += 1
                 if stderr_guard:
@@ -647,10 +561,7 @@ def do_post_wait_processing(
                 ord_outputs = summary.get('ord_output', {})
                 ept_output = False
                 psept_output = False
-
-                lec_executable = "ordleccalc"
-                if lec_exec_type == "pytools":
-                    lec_executable = "lecpy"
+                lec_executable = "lecpy"
 
                 cmd = f"{lec_executable} {'-r' if ord_outputs.get('return_period_file') else ''}"
                 cmd = f"{cmd} -K{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc"
@@ -675,11 +586,7 @@ def do_post_wait_processing(
                 psept_output_flag = '-o'
                 outfile_ext = 'csv'
                 if summary.get('ord_output', {}).get('parquet_format'):
-                    if lec_exec_type == "pytools":
-                        cmd = f"{cmd} -E parquet"
-                    else:
-                        ept_output_flag = '-P'
-                        psept_output_flag = '-p'
+                    cmd = f"{cmd} -E parquet"
                     outfile_ext = 'parquet'
 
                 ept_filename = '{}{}_{}S{}_ept.{}'.format(
@@ -944,39 +851,19 @@ def do_kats(
                 for ord_table, v in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
 
-                        exec_type = "ktools"
-                        if eltpy and ord_type in ["elt_ord", "selt_ord"]:
-                            exec_type = "pytools"
-                        if pltpy and ord_type == "plt_ord":
-                            exec_type = "pytools"
-
                         anykats = True
 
-                        if exec_type == "pytools":
-                            cmd = f'katpy {v["kat_flag"]}' if sort_by_event else f'katpy -u {v["kat_flag"]}'
-                            outfile_flag = '-o'
-                            outfile_ext = 'csv'
+                        cmd = f'katpy {v["kat_flag"]}' if sort_by_event else f'katpy -u {v["kat_flag"]}'
+                        outfile_flag = '-o'
+                        outfile_ext = 'csv'
 
-                            cmd = f'{cmd} -f bin -i'
+                        cmd = f'{cmd} -f bin -i'
 
-                            if summary.get('ord_output', {}).get('parquet_format'):
-                                outfile_ext = 'parquet'
+                        if summary.get('ord_output', {}).get('parquet_format'):
+                            outfile_ext = 'parquet'
 
-                            for process_id in process_range(max_process_id, process_number):
-                                cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
-
-                        else:
-                            cmd = 'kat' if sort_by_event else 'kat -u'
-                            outfile_flag = '>'
-                            outfile_ext = 'csv'
-
-                            if summary.get('ord_output', {}).get('parquet_format'):
-                                cmd = f'katparquet {v["kat_flag"]}'
-                                outfile_flag = '-o'
-                                outfile_ext = 'parquet'
-
-                            for process_id in process_range(max_process_id, process_number):
-                                cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
+                        for process_id in process_range(max_process_id, process_number):
+                            cmd = f'{cmd} {work_dir}{runtype}_{inuring_priority}S{summary_set}_{ord_table}_P{process_id}'
 
                         process_counter['kpid_monitor_count'] += 1
                         csv_outfile = f'{output_dir}{runtype}_{inuring_priority}S{summary_set}_{v["table_name"]}.{outfile_ext}'
@@ -1193,44 +1080,30 @@ def do_ord(
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 cmd = ''
                 fifo_out_name = ''
-                exec_type = "ktools"
-                if eltpy and ord_type in ["elt_ord", "selt_ord"]:
-                    exec_type = "pytools"
-                if pltpy and ord_type == "plt_ord":
-                    exec_type = "pytools"
+
                 skip_line = True
                 for ord_table, flag_proc in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
 
                         if process_id != 1 and skip_line:
-                            cmd += f' {flag_proc[exec_type]["skip_header_flag"]}'
+                            cmd += f' {flag_proc["skip_header_flag"]}'
                             skip_line = False
 
                         if summary.get('ord_output', {}).get('parquet_format'):
-                            if exec_type == "ktools":
-                                cmd += f' {flag_proc[exec_type]["parquet_flag"]}'
-                            else:
-                                cmd += f' {flag_proc[exec_type]["csv_flag"]}'
+                            cmd += f' {flag_proc["csv_flag"]}'
                         else:
-                            cmd += f' {flag_proc[exec_type]["csv_flag"]}'
+                            cmd += f' {flag_proc["csv_flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_table}')
-                        if exec_type == "pytools" or ord_type != 'selt_ord' or summary.get('ord_output', {}).get('parquet_format'):
-                            cmd = f'{cmd} {fifo_out_name}'
+                        cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
-                    if exec_type == "ktools":
-                        if ord_type == 'selt_ord' and not summary.get('ord_output', {}).get('parquet_format'):
-                            cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
 
                     # Add binary output flag for ELTpy and PLTpy, will be converted to csv during kats
-                    if exec_type == "pytools":
-                        cmd = f'{flag_proc[exec_type]["executable"]} -E bin {cmd}'
-                    else:
-                        cmd = f'{flag_proc[exec_type]["executable"]}{cmd}'
+                    cmd = f'{flag_proc["executable"]} -E bin {cmd}'
 
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
