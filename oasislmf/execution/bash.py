@@ -323,16 +323,13 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
     return cmd
 
 
-def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
-    if fmpy:
-        cmd = 'fmpy'
-        if fmpy_low_memory:
-            cmd += ' -l'
-        if fmpy_sort_output:
-            cmd += ' --sort-output'
-        return cmd
-    else:
-        return 'fmcalc'
+def get_fmcmd(fmpy_low_memory=False, fmpy_sort_output=False):
+    cmd = 'fmpy'
+    if fmpy_low_memory:
+        cmd += ' -l'
+    if fmpy_sort_output:
+        cmd += ' --sort-output'
+    return cmd
 
 
 def print_command(command_file, cmd):
@@ -1588,7 +1585,6 @@ def get_main_cmd_ri_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     from_file=False,
-    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     step_flag='',
@@ -1622,15 +1618,15 @@ def get_main_cmd_ri_stream(
     :type rl_inuring_priorities: dict
     """
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
+        main_cmd = f'{get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag}'
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag}'
 
     if il_output:
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_' + str(i))}"
+        main_cmd += f" | {get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -p {os.path.join('input', 'RI_' + str(i))}"
         if rl_inuring_priorities:   # If rl output is requested then produce gross output at all inuring priorities
             main_cmd += f" -o {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_GROSS_LOSS, process_id, consumer=rl_inuring_priorities[i].rstrip('_'))}"
         if i < num_reinsurance_iterations:   # Net output required to process next inuring priority
@@ -1658,7 +1654,6 @@ def get_main_cmd_il_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     from_file=False,
-    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     step_flag='',
@@ -1684,10 +1679,10 @@ def get_main_cmd_il_stream(
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
+        main_cmd = f'{get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
     else:
         # need extra space at the end to pass test
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '
 
     main_cmd = f'( {main_cmd} ) 2>> $LOG_DIR/stderror.err' if stderr_guard else f'{main_cmd}'
     main_cmd = f'( {main_cmd} ) &'
@@ -1863,7 +1858,6 @@ def bash_params(
     custom_gulcalc_log_start=None,
     custom_gulcalc_log_finish=None,
     custom_args={},
-    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
@@ -1910,7 +1904,6 @@ def bash_params(
     bash_params['gulmc_random_generator'] = gulmc_random_generator
     bash_params['gulmc_effective_damageability'] = gulmc_effective_damageability
     bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
-    bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
     bash_params['process_number'] = process_number
@@ -2106,7 +2099,6 @@ def create_bash_analysis(
     filename,
     _get_getmodel_cmd,
     custom_args,
-    fmpy,
     fmpy_low_memory,
     fmpy_sort_output,
     process_number,
@@ -2206,15 +2198,14 @@ def create_bash_analysis(
 
     print_command(filename, '')
 
-    if fmpy:
-        if il_output or ri_output or rl_output:
+    if il_output or ri_output or rl_output:
+        print_command(
+            filename, f'#{get_fmcmd()} -a{il_alloc_rule} --create-financial-structure-files'
+        )
+    if ri_output or rl_output:
+        for i in range(1, num_reinsurance_iterations + 1):
             print_command(
-                filename, f'#{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
-            )
-        if ri_output or rl_output:
-            for i in range(1, num_reinsurance_iterations + 1):
-                print_command(
-                    filename, f"#{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_' + str(i))}")
+                filename, f"#{get_fmcmd()} -a{ri_alloc_rule} --create-financial-structure-files -p {os.path.join('input', 'RI_' + str(i))}")
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
@@ -2574,7 +2565,6 @@ def create_bash_analysis(
                     fifo_dir,
                     stderr_guard,
                     from_file,
-                    fmpy,
                     fmpy_low_memory,
                     fmpy_sort_output,
                     step_flag,
@@ -2590,7 +2580,6 @@ def create_bash_analysis(
                     getmodel_cmd, process_id, il_alloc_rule, fifo_dir,
                     stderr_guard,
                     from_file,
-                    fmpy,
                     fmpy_low_memory,
                     fmpy_sort_output,
                     step_flag,
@@ -2837,7 +2826,6 @@ def genbash(
     custom_gulcalc_log_start=None,
     custom_gulcalc_log_finish=None,
     custom_args={},
-    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
@@ -2926,7 +2914,6 @@ def genbash(
         custom_gulcalc_log_start=custom_gulcalc_log_start,
         custom_gulcalc_log_finish=custom_gulcalc_log_finish,
         custom_args=custom_args,
-        fmpy=fmpy,
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
