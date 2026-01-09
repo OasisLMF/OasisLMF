@@ -769,8 +769,6 @@ def do_kats(
     process_number=None,
     inuring_priority=None,
     join_summary_info=False,
-    eltpy=False,
-    pltpy=False,
 ):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -1037,8 +1035,6 @@ def do_ord(
     work_dir='work/',
     stderr_guard=True,
     inuring_priority=None,
-    eltpy=False,
-    pltpy=False,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -1173,8 +1169,6 @@ def rl(
     filename,
     process_counter,
     num_reinsurance_iterations,
-    eltpy,
-    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1193,7 +1187,7 @@ def rl(
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
+                inuring_priority=inuring_priority['text']
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1222,8 +1216,6 @@ def ri(
     filename,
     process_counter,
     num_reinsurance_iterations,
-    eltpy,
-    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1242,7 +1234,7 @@ def ri(
             do_ord(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
                 filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], eltpy=eltpy, pltpy=pltpy
+                inuring_priority=inuring_priority['text']
             )
 
         for process_id in process_range(max_process_id, process_number):
@@ -1267,13 +1259,13 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, eltpy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
-               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
+               process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1294,8 +1286,6 @@ def do_gul(
     max_process_id,
     filename,
     process_counter,
-    eltpy,
-    pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
     stderr_guard=True,
@@ -1307,7 +1297,7 @@ def do_gul(
 
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
-               process_counter, fifo_dir, work_dir, stderr_guard, eltpy=eltpy, pltpy=pltpy)
+               process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1849,8 +1839,6 @@ def bash_params(
     model_run_dir='',
     model_py_server=False,
     join_summary_info=False,
-    eltpy=False,
-    pltpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1889,8 +1877,6 @@ def bash_params(
 
     bash_params["model_py_server"] = model_py_server
     bash_params['join_summary_info'] = join_summary_info if not gul_legacy_stream else False  # join_summary_info doesn't support gul_legacy_stream
-    bash_params['eltpy'] = eltpy if not gul_legacy_stream else False  # eltpy doesn't support gul_legacy_stream
-    bash_params['pltpy'] = pltpy if not gul_legacy_stream else False  # pltpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2108,8 +2094,6 @@ def create_bash_analysis(
     gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
-    eltpy,
-    pltpy,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
     **kwargs
@@ -2294,8 +2278,6 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'eltpy': eltpy,
-                    'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2314,8 +2296,6 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'eltpy': eltpy,
-                    'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
@@ -2334,8 +2314,6 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'eltpy': eltpy,
-                    'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
@@ -2353,8 +2331,6 @@ def create_bash_analysis(
                     'max_process_id': num_gul_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'eltpy': eltpy,
-                    'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'stderr_guard': stderr_guard,
@@ -2589,8 +2565,6 @@ def create_bash_outputs(
     gul_item_stream,
     work_full_correlation_kat_dir,
     join_summary_info,
-    eltpy,
-    pltpy,
     **kwargs
 ):
 
@@ -2618,8 +2592,7 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                 num_fm_output, filename, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-                eltpy=eltpy, pltpy=pltpy
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
             )
 
     if ri_output:
@@ -2630,8 +2603,7 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-                eltpy=eltpy, pltpy=pltpy
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
             )
         if full_correlation:
             print_command(filename, '')
@@ -2643,8 +2615,7 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
-                eltpy=eltpy, pltpy=pltpy
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
             )
 
     if il_output:
@@ -2653,8 +2624,7 @@ def create_bash_outputs(
         print_command(filename, '')
         do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info,
-            eltpy=eltpy, pltpy=pltpy
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
         )
         if full_correlation:
             print_command(filename, '')
@@ -2666,8 +2636,7 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
-                eltpy=eltpy, pltpy=pltpy
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
             )
 
     if gul_output:
@@ -2676,8 +2645,7 @@ def create_bash_outputs(
         print_command(filename, '')
         do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info,
-            eltpy=eltpy, pltpy=pltpy
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
         )
         if full_correlation:
             print_command(filename, '')
@@ -2689,8 +2657,7 @@ def create_bash_outputs(
             do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info,
-                eltpy=eltpy, pltpy=pltpy
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
             )
 
     do_kwaits(filename, process_counter)
@@ -2790,8 +2757,6 @@ def genbash(
     model_py_server=False,
     peril_filter=[],
     join_summary_info=False,
-    eltpy=False,
-    pltpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False,
@@ -2874,8 +2839,6 @@ def genbash(
         model_py_server=model_py_server,
         peril_filter=peril_filter,
         join_summary_info=join_summary_info,
-        eltpy=eltpy,
-        pltpy=pltpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )
