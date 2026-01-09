@@ -1831,7 +1831,6 @@ def bash_params(
 
     # set dirs
     bash_params['stderr_guard'] = stderr_guard
-    bash_params['gul_item_stream'] = True
     bash_params['work_dir'] = os.path.join(model_run_dir, work_base_dir)
     bash_params['work_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'kat/'))
     bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'full_correlation/'))
@@ -1865,7 +1864,7 @@ def bash_params(
     # set full_correlation option
     full_correlation = False
     if 'full_correlation' in analysis_settings:
-        if _get_getmodel_cmd is None and bash_params['gul_item_stream']:
+        if _get_getmodel_cmd is None:
             full_correlation = analysis_settings['full_correlation']
             if full_correlation and gulmc:
                 full_correlation = False
@@ -1988,7 +1987,6 @@ def create_bash_analysis(
     fifo_queue_dir,
     fifo_full_correlation_dir,
     stderr_guard,
-    gul_item_stream,
     work_dir,
     work_kat_dir,
     work_full_correlation_dir,
@@ -2135,7 +2133,7 @@ def create_bash_analysis(
     print_command(filename, '')
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
-    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output) and gul_item_stream:
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
         block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
         num_lb = (max_process_id - 1) // block_process_size + 1
         num_gul_output = num_lb * num_gul_per_lb
@@ -2478,7 +2476,6 @@ def create_bash_outputs(
     max_process_id,
     work_kat_dir,
     kat_sort_by_event,
-    gul_item_stream,
     work_full_correlation_kat_dir,
     join_summary_info,
     **kwargs
@@ -2489,7 +2486,7 @@ def create_bash_outputs(
         num_fm_per_lb = 0
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
-    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output) and gul_item_stream:
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
         block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
         num_lb = (max_process_id - 1) // block_process_size + 1
         num_gul_output = num_lb * num_gul_per_lb
