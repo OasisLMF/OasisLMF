@@ -872,7 +872,6 @@ def do_summarycalcs(
     analysis_settings,
     process_id,
     filename,
-    summarypy,
     fifo_dir='fifo/',
     stderr_guard=True,
     num_reinsurance_iterations=0,
@@ -887,13 +886,7 @@ def do_summarycalcs(
     if process_id == 1:
         print_command(filename, '')
 
-    if summarypy:
-        summarycalc_switch = f'-t {runtype}'
-    else:
-        summarycalc_switch = '-f'
-        if runtype == RUNTYPE_GROUNDUP_LOSS:
-            # Accept item stream only
-            summarycalc_switch = '-i'
+    summarycalc_switch = f'-t {runtype}'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
@@ -909,7 +902,7 @@ def do_summarycalcs(
 
     # Use -m flag to create summary index files
     # This is likely to become default in future ktools releases
-    cmd = 'summarypy' if summarypy else 'summarycalc'
+    cmd = 'summarypy' 
     cmd = f'{cmd} -m {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
@@ -1180,7 +1173,6 @@ def rl(
     filename,
     process_counter,
     num_reinsurance_iterations,
-    summarypy,
     eltpy,
     pltpy,
     fifo_dir='fifo/',
@@ -1213,7 +1205,6 @@ def rl(
 
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
-                summarypy=summarypy,
                 runtype=RUNTYPE_REINSURANCE_GROSS_LOSS,
                 analysis_settings=analysis_settings,
                 process_id=process_id,
@@ -1231,7 +1222,6 @@ def ri(
     filename,
     process_counter,
     num_reinsurance_iterations,
-    summarypy,
     eltpy,
     pltpy,
     fifo_dir='fifo/',
@@ -1266,7 +1256,6 @@ def ri(
 
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
-                summarypy=summarypy,
                 runtype=RUNTYPE_REINSURANCE_LOSS,
                 analysis_settings=analysis_settings,
                 process_id=process_id,
@@ -1278,7 +1267,7 @@ def ri(
             )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, summarypy, eltpy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+def il(analysis_settings, max_process_id, filename, process_counter, eltpy, pltpy, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
@@ -1291,7 +1280,6 @@ def il(analysis_settings, max_process_id, filename, process_counter, summarypy, 
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
-            summarypy=summarypy,
             runtype=RUNTYPE_INSURED_LOSS,
             analysis_settings=analysis_settings,
             process_id=process_id,
@@ -1306,7 +1294,6 @@ def do_gul(
     max_process_id,
     filename,
     process_counter,
-    summarypy,
     eltpy,
     pltpy,
     fifo_dir='fifo/',
@@ -1327,7 +1314,6 @@ def do_gul(
 
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
-            summarypy=summarypy,
             runtype=RUNTYPE_GROUNDUP_LOSS,
             analysis_settings=analysis_settings,
             process_id=process_id,
@@ -1862,7 +1848,6 @@ def bash_params(
     remove_working_files=True,
     model_run_dir='',
     model_py_server=False,
-    summarypy=False,
     join_summary_info=False,
     eltpy=False,
     pltpy=False,
@@ -1905,7 +1890,6 @@ def bash_params(
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
 
     bash_params["model_py_server"] = model_py_server
-    bash_params['summarypy'] = summarypy if not gul_legacy_stream else False  # summarypy doesn't support gul_legacy_stream
     bash_params['join_summary_info'] = join_summary_info if not gul_legacy_stream else False  # join_summary_info doesn't support gul_legacy_stream
     bash_params['eltpy'] = eltpy if not gul_legacy_stream else False  # eltpy doesn't support gul_legacy_stream
     bash_params['pltpy'] = pltpy if not gul_legacy_stream else False  # pltpy doesn't support gul_legacy_stream
@@ -2128,7 +2112,6 @@ def create_bash_analysis(
     gulmc_vuln_cache_size,
     model_py_server,
     peril_filter,
-    summarypy,
     eltpy,
     pltpy,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
@@ -2315,7 +2298,6 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'summarypy': summarypy,
                     'eltpy': eltpy,
                     'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
@@ -2336,7 +2318,6 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'summarypy': summarypy,
                     'eltpy': eltpy,
                     'pltpy': pltpy,
                     'num_reinsurance_iterations': num_reinsurance_iterations,
@@ -2357,7 +2338,6 @@ def create_bash_analysis(
                     'max_process_id': num_fm_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'summarypy': summarypy,
                     'eltpy': eltpy,
                     'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
@@ -2377,7 +2357,6 @@ def create_bash_analysis(
                     'max_process_id': num_gul_output,
                     'filename': filename,
                     'process_counter': process_counter,
-                    'summarypy': summarypy,
                     'eltpy': eltpy,
                     'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
@@ -2821,7 +2800,6 @@ def genbash(
     gulmc_vuln_cache_size=200,
     model_py_server=False,
     peril_filter=[],
-    summarypy=False,
     join_summary_info=False,
     eltpy=False,
     pltpy=False,
@@ -2908,7 +2886,6 @@ def genbash(
         gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
         peril_filter=peril_filter,
-        summarypy=summarypy,
         join_summary_info=join_summary_info,
         eltpy=eltpy,
         pltpy=pltpy,
