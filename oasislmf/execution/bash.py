@@ -1852,7 +1852,6 @@ def bash_params(
     eltpy=False,
     pltpy=False,
     aalpy=False,
-    lecpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1894,7 +1893,6 @@ def bash_params(
     bash_params['eltpy'] = eltpy if not gul_legacy_stream else False  # eltpy doesn't support gul_legacy_stream
     bash_params['pltpy'] = pltpy if not gul_legacy_stream else False  # pltpy doesn't support gul_legacy_stream
     bash_params['aalpy'] = aalpy if not gul_legacy_stream else False  # aalpy doesn't support gul_legacy_stream
-    bash_params['lecpy'] = lecpy if not gul_legacy_stream else False  # lecpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2596,7 +2594,6 @@ def create_bash_outputs(
     eltpy,
     pltpy,
     aalpy,
-    lecpy,
     **kwargs
 ):
 
@@ -2709,7 +2706,7 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-                aalpy=aalpy, lecpy=lecpy
+                aalpy=aalpy
             )
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
@@ -2717,17 +2714,17 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-                aalpy=aalpy, lecpy=lecpy
+                aalpy=aalpy
             )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy, lecpy=lecpy
+            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy, lecpy=lecpy
+            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy
         )
 
     if full_correlation:
@@ -2736,19 +2733,19 @@ def create_bash_outputs(
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-                aalpy=aalpy, lecpy=lecpy
+                aalpy=aalpy
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-                aalpy=aalpy, lecpy=lecpy
+                aalpy=aalpy
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-                aalpy=aalpy, lecpy=lecpy
+                aalpy=aalpy
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2804,7 +2801,6 @@ def genbash(
     eltpy=False,
     pltpy=False,
     aalpy=False,
-    lecpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False,
@@ -2890,7 +2886,6 @@ def genbash(
         eltpy=eltpy,
         pltpy=pltpy,
         aalpy=aalpy,
-        lecpy=lecpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )
