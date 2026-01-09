@@ -289,22 +289,17 @@ def get_modelcmd(server=False, peril_filter=[]) -> str:
     return py_cmd
 
 
-def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
+def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
     """Get the ground-up loss calculation command.
 
     Args:
-        gulpy (bool): if True, return the python command name, else the c++ one.
+        gulmc (bool): if True, return the combined (model+ground up) command name, else use 'modelpy | gulpy' .
 
     Returns:
         str: the ground-up loss calculation command
     """
-    if gulpy and gulmc:
-        raise ValueError("Expect either gulpy or gulmc to be True, got both True.")
-
-    if gulpy:
-        cmd = f'gulpy --random-generator={gulpy_random_generator}'
-    elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
+    if gulmc:
+        cmd = f"gulmc --random-generator={gul_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
@@ -318,7 +313,7 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
         if dynamic_footprint:
             cmd += " --dynamic-footprint True"
     else:
-        cmd = 'gulcalc'
+        cmd = f'gulpy --random-generator={gul_random_generator}'
 
     return cmd
 
@@ -1401,10 +1396,8 @@ def get_getmodel_cmd(
         eve_shuffle_flag,
         modelpy_server=False,
         peril_filter=[],
-        gulpy=False,
-        gulpy_random_generator=1,
         gulmc=False,
-        gulmc_random_generator=1,
+        gul_random_generator=1,
         gulmc_effective_damageability=False,
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
@@ -1434,7 +1427,7 @@ def get_getmodel_cmd(
     # ground up 
     if gulmc is True:
         gulcmd = get_gulcmd(
-            gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
+            gulmc, gul_random_generator, gulmc_effective_damageability,
             gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
             dynamic_footprint=dynamic_footprint
         )
@@ -1442,7 +1435,7 @@ def get_getmodel_cmd(
 
     else:
         modelcmd = get_modelcmd(modelpy_server, peril_filter)
-        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
+        gulcmd = get_gulcmd(gulmc, gul_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
@@ -1752,10 +1745,8 @@ def bash_params(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    gulpy=False,
-    gulpy_random_generator=1,
-    gulmc=False,
-    gulmc_random_generator=1,
+    gulmc=True,
+    gul_random_generator=1,
     gulmc_effective_damageability=False,
     gulmc_vuln_cache_size=200,
 
@@ -1781,10 +1772,8 @@ def bash_params(
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
-    bash_params['gulpy'] = gulpy
-    bash_params['gulpy_random_generator'] = gulpy_random_generator
     bash_params['gulmc'] = gulmc
-    bash_params['gulmc_random_generator'] = gulmc_random_generator
+    bash_params['gul_random_generator'] = gul_random_generator
     bash_params['gulmc_effective_damageability'] = gulmc_effective_damageability
     bash_params['gulmc_vuln_cache_size'] = gulmc_vuln_cache_size
     bash_params['fmpy_low_memory'] = fmpy_low_memory
@@ -2008,10 +1997,8 @@ def create_bash_analysis(
     rl_output,
     need_summary_fifo_for_gul,
     analysis_settings,
-    gulpy,
-    gulpy_random_generator,
     gulmc,
-    gulmc_random_generator,
+    gul_random_generator,
     gulmc_effective_damageability,
     gulmc_vuln_cache_size,
     model_py_server,
@@ -2284,10 +2271,8 @@ def create_bash_analysis(
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
-            'gulpy': gulpy,
-            'gulpy_random_generator': gulpy_random_generator,
             'gulmc': gulmc,
-            'gulmc_random_generator': gulmc_random_generator,
+            'gul_random_generator': gul_random_generator,
             'gulmc_effective_damageability': gulmc_effective_damageability,
             'gulmc_vuln_cache_size': gulmc_vuln_cache_size,
             'modelpy_server': model_py_server,
@@ -2655,10 +2640,8 @@ def genbash(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    gulpy=False,
-    gulpy_random_generator=1,
-    gulmc=False,
-    gulmc_random_generator=1,
+    gulmc=True,
+    gul_random_generator=1,
     gulmc_effective_damageability=False,
     gulmc_vuln_cache_size=200,
     model_py_server=False,
@@ -2736,10 +2719,8 @@ def genbash(
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
-        gulpy=gulpy,
-        gulpy_random_generator=gulpy_random_generator,
         gulmc=gulmc,
-        gulmc_random_generator=gulmc_random_generator,
+        gul_random_generator=gul_random_generator,
         gulmc_effective_damageability=gulmc_effective_damageability,
         gulmc_vuln_cache_size=gulmc_vuln_cache_size,
         model_py_server=model_py_server,
