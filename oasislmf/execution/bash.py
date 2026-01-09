@@ -1851,7 +1851,6 @@ def bash_params(
     join_summary_info=False,
     eltpy=False,
     pltpy=False,
-    aalpy=False,
     peril_filter=[],
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
@@ -1892,7 +1891,6 @@ def bash_params(
     bash_params['join_summary_info'] = join_summary_info if not gul_legacy_stream else False  # join_summary_info doesn't support gul_legacy_stream
     bash_params['eltpy'] = eltpy if not gul_legacy_stream else False  # eltpy doesn't support gul_legacy_stream
     bash_params['pltpy'] = pltpy if not gul_legacy_stream else False  # pltpy doesn't support gul_legacy_stream
-    bash_params['aalpy'] = aalpy if not gul_legacy_stream else False  # aalpy doesn't support gul_legacy_stream
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2593,7 +2591,6 @@ def create_bash_outputs(
     join_summary_info,
     eltpy,
     pltpy,
-    aalpy,
     **kwargs
 ):
 
@@ -2706,7 +2703,6 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-                aalpy=aalpy
             )
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
@@ -2714,17 +2710,16 @@ def create_bash_outputs(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-                aalpy=aalpy
             )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy
+            output_dir, stderr_guard, join_summary_info=join_summary_info
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info, aalpy=aalpy
+            output_dir, stderr_guard, join_summary_info=join_summary_info
         )
 
     if full_correlation:
@@ -2733,19 +2728,16 @@ def create_bash_outputs(
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-                aalpy=aalpy
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-                aalpy=aalpy
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-                aalpy=aalpy
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
@@ -2800,7 +2792,6 @@ def genbash(
     join_summary_info=False,
     eltpy=False,
     pltpy=False,
-    aalpy=False,
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False,
@@ -2885,7 +2876,6 @@ def genbash(
         join_summary_info=join_summary_info,
         eltpy=eltpy,
         pltpy=pltpy,
-        aalpy=aalpy,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint
     )
