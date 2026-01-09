@@ -1399,7 +1399,6 @@ def get_getmodel_cmd(
         max_process_id,
         correlated_output,
         eve_shuffle_flag,
-        modelpy=False,
         modelpy_server=False,
         peril_filter=[],
         gulpy=False,
@@ -1753,7 +1752,6 @@ def bash_params(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
     gulmc=False,
@@ -1783,7 +1781,6 @@ def bash_params(
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
-    bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
     bash_params['gulpy_random_generator'] = gulpy_random_generator
     bash_params['gulmc'] = gulmc
@@ -2011,7 +2008,6 @@ def create_bash_analysis(
     rl_output,
     need_summary_fifo_for_gul,
     analysis_settings,
-    modelpy,
     gulpy,
     gulpy_random_generator,
     gulmc,
@@ -2288,7 +2284,6 @@ def create_bash_analysis(
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
-            'modelpy': modelpy,
             'gulpy': gulpy,
             'gulpy_random_generator': gulpy_random_generator,
             'gulmc': gulmc,
@@ -2660,7 +2655,6 @@ def genbash(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
     gulmc=False,
@@ -2742,7 +2736,6 @@ def genbash(
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
-        modelpy=modelpy,
         gulpy=gulpy,
         gulpy_random_generator=gulpy_random_generator,
         gulmc=gulmc,
