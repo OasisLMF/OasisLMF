@@ -876,7 +876,6 @@ def do_summarycalcs(
     fifo_dir='fifo/',
     stderr_guard=True,
     num_reinsurance_iterations=0,
-    gul_legacy_stream=None,
     gul_full_correlation=False,
     inuring_priority=None,
 ):
@@ -893,12 +892,8 @@ def do_summarycalcs(
     else:
         summarycalc_switch = '-f'
         if runtype == RUNTYPE_GROUNDUP_LOSS:
-            if gul_legacy_stream:
-                # gul coverage stream
-                summarycalc_switch = '-g'
-            else:
-                # Accept item stream only
-                summarycalc_switch = '-i'
+            # Accept item stream only
+            summarycalc_switch = '-i'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
@@ -1316,7 +1311,6 @@ def do_gul(
     pltpy,
     fifo_dir='fifo/',
     work_dir='work/',
-    gul_legacy_stream=None,
     stderr_guard=True,
     process_number=None,
 ):
@@ -1338,7 +1332,6 @@ def do_gul(
             analysis_settings=analysis_settings,
             process_id=process_id,
             filename=filename,
-            gul_legacy_stream=gul_legacy_stream,
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard
         )
@@ -1351,7 +1344,6 @@ def do_gul_full_correlation(
     process_counter,
     fifo_dir='fifo/full_correlation/',
     work_dir='work/full_correlation/',
-    gul_legacy_stream=None,
     stderr_guard=None,
     process_number=None,
 ):
@@ -1754,7 +1746,6 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             max_process_id,
             gul_alloc_rule,
             stderr_guard,
-            gul_legacy_stream=False,
             **kwargs
         ):
             cmd = "{} -e {} {} -a {} -p {}".format(
@@ -1763,8 +1754,6 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if gul_legacy_stream and coverage_output != '':
-                cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
             if stderr_guard:
@@ -1850,7 +1839,6 @@ def bash_params(
     num_gul_per_lb=None,
     num_fm_per_lb=None,
     stderr_guard=True,
-    gul_legacy_stream=False,
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
@@ -1893,7 +1881,6 @@ def bash_params(
     bash_params['process_counter'] = Counter()
     bash_params['num_reinsurance_iterations'] = num_reinsurance_iterations
     bash_params['fifo_tmp_dir'] = fifo_tmp_dir
-    bash_params['gul_legacy_stream'] = gul_legacy_stream
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
@@ -1950,7 +1937,7 @@ def bash_params(
 
     # set dirs
     bash_params['stderr_guard'] = stderr_guard
-    bash_params['gul_item_stream'] = not gul_legacy_stream
+    bash_params['gul_item_stream'] = True
     bash_params['work_dir'] = os.path.join(model_run_dir, work_base_dir)
     bash_params['work_kat_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'kat/'))
     bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, os.path.join(work_base_dir, 'full_correlation/'))
@@ -2144,7 +2131,6 @@ def create_bash_analysis(
     summarypy,
     eltpy,
     pltpy,
-    gul_legacy_stream=False,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
     **kwargs
@@ -2396,7 +2382,6 @@ def create_bash_analysis(
                     'pltpy': pltpy,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
-                    'gul_legacy_stream': gul_legacy_stream,
                     'stderr_guard': stderr_guard,
                     'process_number': process_number
                 }
@@ -2422,7 +2407,6 @@ def create_bash_analysis(
             'gul_threshold': gul_threshold,
             'use_random_number_file': use_random_number_file,
             'gul_alloc_rule': gul_alloc_rule,
-            'gul_legacy_stream': gul_legacy_stream,
             'process_id': gul_id,
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
@@ -2819,7 +2803,6 @@ def genbash(
     num_gul_per_lb=None,
     num_fm_per_lb=None,
     stderr_guard=True,
-    gul_legacy_stream=False,
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
@@ -2907,7 +2890,6 @@ def genbash(
         num_gul_per_lb=num_gul_per_lb,
         num_fm_per_lb=num_fm_per_lb,
         stderr_guard=stderr_guard,
-        gul_legacy_stream=gul_legacy_stream,
         bash_trace=bash_trace,
         filename=filename,
         _get_getmodel_cmd=_get_getmodel_cmd,
