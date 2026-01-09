@@ -271,30 +271,22 @@ def process_range(max_process_id, process_number=None):
         return range(1, max_process_id + 1)
 
 
-def get_modelcmd(modelpy: bool, server=False, peril_filter=[]) -> str:
+def get_modelcmd(server=False, peril_filter=[]) -> str:
     """
     Gets the construct model command line argument for the bash script.
 
     Args:
-        modelpy: (bool) if the getmodel Python setting is True or not
         server: (bool) if set then enable 'TCP' ipc server/client mode
         peril_filter: (list) list of perils to include (all included if empty)
 
-    Returns: C++ getmodel if modelpy is False, Python getmodel if the modelpy if False
     """
     py_cmd = 'modelpy'
-    cpp_cmd = 'getmodel'
+    if server is True:
+        py_cmd = f'{py_cmd} --data-server'
 
-    if modelpy is True:
-        if server is True:
-            py_cmd = f'{py_cmd} --data-server'
-
-        if peril_filter:
-            py_cmd = f"{py_cmd} --peril-filter {' '.join(peril_filter)}"
-
-        return py_cmd
-    else:
-        return cpp_cmd
+    if peril_filter:
+        py_cmd = f"{py_cmd} --peril-filter {' '.join(peril_filter)}"
+    return py_cmd
 
 
 def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
@@ -1485,7 +1477,7 @@ def get_getmodel_itm_cmd(
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
+        modelcmd = get_modelcmd(modelpy_server, peril_filter)
         gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
@@ -1504,7 +1496,6 @@ def get_getmodel_cov_cmd(
         process_id,
         max_process_id,
         eve_shuffle_flag,
-        evepy=False,
         modelpy=False,
         modelpy_server=False,
         peril_filter=[],
@@ -1531,16 +1522,12 @@ def get_getmodel_cov_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type  eve_shuffle_flag: str
-    :param evepy: enable evepy
-    :type evepy: bool
     :param df_engine: The engine to use when loading dataframes
     :type  df_engine: str
     :return: (str) The generated getmodel command
     """
-    if evepy:
-        cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
-    else:
-        cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+
+    cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
@@ -1550,7 +1537,7 @@ def get_getmodel_cov_cmd(
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
     else:
-        modelcmd = get_modelcmd(modelpy, modelpy_server, peril_filter)
+        modelcmd = get_modelcmd(modelpy_server, peril_filter)
         gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
@@ -1880,7 +1867,6 @@ def bash_params(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    evepy=False,
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
@@ -1917,7 +1903,6 @@ def bash_params(
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
-    bash_params['evepy'] = evepy
     bash_params['modelpy'] = modelpy
     bash_params['gulpy'] = gulpy
     bash_params['gulpy_random_generator'] = gulpy_random_generator
@@ -2156,7 +2141,6 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
-    evepy,
     gulpy,
     gulpy_random_generator,
     gulmc,
@@ -2451,7 +2435,6 @@ def create_bash_analysis(
             'process_id': gul_id,
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
-            'evepy': evepy,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
             'gulpy': gulpy,
@@ -2858,7 +2841,6 @@ def genbash(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    evepy=False,
     modelpy=False,
     gulpy=False,
     gulpy_random_generator=1,
@@ -2948,7 +2930,6 @@ def genbash(
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
-        evepy=evepy,
         modelpy=modelpy,
         gulpy=gulpy,
         gulpy_random_generator=gulpy_random_generator,
