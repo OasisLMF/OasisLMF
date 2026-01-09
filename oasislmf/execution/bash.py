@@ -1572,7 +1572,6 @@ def get_getmodel_itm_cmd(
         modelpy=False,
         modelpy_server=False,
         peril_filter=[],
-        evepy=False,
         gulpy=False,
         gulpy_random_generator=1,
         gulmc=False,
@@ -1596,16 +1595,14 @@ def get_getmodel_itm_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type eve_shuffle_flag: str
-    :param evepy: enable evepy
-    :type evepy: bool
     :param model_df_engine: The engine to use when loading dataframes
     :type  model_df_engine: str
     :return: The generated getmodel command
     """
-    if evepy:
-        cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
-    else:
-        cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | '
+    # events 
+    cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
+
+    # ground up 
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
@@ -1619,22 +1616,8 @@ def get_getmodel_itm_cmd(
         gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
         cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
-    if use_random_number_file:
-        if not gulpy and not gulmc:
-            # append this arg only if gulcalc is used
-            cmd = '{} -r'.format(cmd)
-    if correlated_output != '':
-        if not gulpy and not gulmc:
-            # append this arg only if gulcalc is used
-            cmd = '{} -j {}'.format(cmd, correlated_output)
-
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
-
-    if not gulpy and not gulmc:
-        # append this arg only if gulcalc is used
-        cmd = '{} -i {}'.format(cmd, item_output)
-    else:
-        cmd = '{} {}'.format(cmd, item_output)
+    cmd = '{} {}'.format(cmd, item_output)
 
     return cmd
 
