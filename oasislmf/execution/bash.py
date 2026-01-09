@@ -1389,7 +1389,7 @@ def do_kwaits(filename, process_counter):
     do_waits('kpid', process_counter['kpid_monitor_count'], filename)
 
 
-def get_getmodel_itm_cmd(
+def get_getmodel_cmd(
         number_of_samples,
         gul_threshold,
         use_random_number_file,
@@ -1448,78 +1448,6 @@ def get_getmodel_itm_cmd(
 
     cmd = '{} -a{}'.format(cmd, gul_alloc_rule)
     cmd = '{} {}'.format(cmd, item_output)
-
-    return cmd
-
-
-def get_getmodel_cov_cmd(
-        number_of_samples,
-        gul_threshold,
-        use_random_number_file,
-        coverage_output,
-        item_output,
-        process_id,
-        max_process_id,
-        eve_shuffle_flag,
-        modelpy=False,
-        modelpy_server=False,
-        peril_filter=[],
-        gulpy=False,
-        gulpy_random_generator=1,
-        gulmc=False,
-        gulmc_random_generator=1,
-        gulmc_effective_damageability=False,
-        gulmc_vuln_cache_size=200,
-        model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
-        dynamic_footprint=False,
-        **kwargs) -> str:
-    """
-    Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
-    :param number_of_samples: The number of samples to run
-    :type number_of_samples: int
-    :param gul_threshold: The GUL threshold to use
-    :type gul_threshold: float
-    :param use_random_number_file: flag to use the random number file
-    :type use_random_number_file: bool
-    :param coverage_output: The coverage output
-    :type coverage_output: str
-    :param item_output: The item output
-    :type item_output: str
-    :param eve_shuffle_flag: The event shuffling rule
-    :type  eve_shuffle_flag: str
-    :param df_engine: The engine to use when loading dataframes
-    :type  df_engine: str
-    :return: (str) The generated getmodel command
-    """
-
-    cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
-    if gulmc is True:
-        gulcmd = get_gulcmd(
-            gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gulmc_effective_damageability,
-            gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
-            dynamic_footprint=dynamic_footprint
-        )
-        cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
-
-    else:
-        modelcmd = get_modelcmd(modelpy_server, peril_filter)
-        gulcmd = get_gulcmd(gulpy, gulpy_random_generator, False, 0, False, 0, False, [], model_df_engine=model_df_engine)
-        cmd += f'{modelcmd} | {gulcmd} -S{number_of_samples} -L{gul_threshold}'
-
-    if use_random_number_file:
-        if not gulpy and not gulmc:
-            # append this arg only if gulcalc is used
-            cmd = '{} -r'.format(cmd)
-    if coverage_output != '':
-        if not gulpy and not gulmc:
-            # append this arg only if gulcalc is used
-            cmd = '{} -c {}'.format(cmd, coverage_output)
-    if not gulpy and not gulmc:
-        # append this arg only if gulcalc is used
-        if item_output != '':
-            cmd = '{} -i {}'.format(cmd, item_output)
-    else:
-        cmd = '{} {}'.format(cmd, item_output)
 
     return cmd
 
@@ -2380,30 +2308,18 @@ def create_bash_analysis(
             os.path.join(os.getcwd(), 'input/amplifications.bin')
         )
 
-        # GUL coverage & item stream (Older)
+        # GUL coverage
         gul_fifo_name = get_fifo_name(fifo_queue_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
-        if gul_item_stream:
-            getmodel_args['coverage_output'] = ''
-            getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
-            getmodel_args['item_output'] = getmodel_args['item_output'] + get_pla_cmd(
-                analysis_settings.get('pla', False),
-                analysis_settings.get('pla_secondary_factor', 1),
-                analysis_settings.get('pla_uniform_factor', 0)
-            )
-            if need_summary_fifo_for_gul:
-                getmodel_args['item_output'] = '{} | tee {}'.format(getmodel_args['item_output'], gul_fifo_name)
-            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
-        else:
-            if need_summary_fifo_for_gul:
-                getmodel_args['coverage_output'] = f'{gul_fifo_name}'
-                getmodel_args['item_output'] = '-'
-            elif gul_output:  # only gul direct stdout to summary
-                getmodel_args['coverage_output'] = '-'
-                getmodel_args['item_output'] = ''
-            else:  # direct stdout to il
-                getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
-            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
+        getmodel_args['coverage_output'] = ''
+        getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
+        getmodel_args['item_output'] = getmodel_args['item_output'] + get_pla_cmd(
+            analysis_settings.get('pla', False),
+            analysis_settings.get('pla_secondary_factor', 1),
+            analysis_settings.get('pla_uniform_factor', 0)
+        )
+        if need_summary_fifo_for_gul:
+            getmodel_args['item_output'] = '{} | tee {}'.format(getmodel_args['item_output'], gul_fifo_name)
+        _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cmd)
 
         # gulcalc output file for fully correlated output
         if full_correlation:
