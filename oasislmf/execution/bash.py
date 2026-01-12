@@ -146,7 +146,7 @@ EVE_SHUFFLE_OPTIONS = {
     EVE_STD_SHUFFLE: {'eve': '-R ', 'kat_sorting': False}
 }
 
-SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
+#SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
 
 
 TRAP_FUNC = """
@@ -436,24 +436,24 @@ def do_post_wait_processing(
             summary_set = summary['id']
 
 
-            # ktools ORIG - aalcalc
-            if summary.get('aalcalc'):
-                cmd = 'aalcalc -K{}{}_{}S{}_summaryaalcalc'.format(
-                    work_sub_dir,
-                    runtype,
-                    inuring_priority,
-                    summary_set
-                )
+            ## ktools ORIG - aalcalc
+            #if summary.get('aalcalc'):
+            #    cmd = 'aalcalc -K{}{}_{}S{}_summaryaalcalc'.format(
+            #        work_sub_dir,
+            #        runtype,
+            #        inuring_priority,
+            #        summary_set
+            #    )
 
-                process_counter['lpid_monitor_count'] += 1
-                cmd = '{} > {}{}_{}S{}_aalcalc.csv'.format(
-                    cmd, output_dir, runtype, inuring_priority, summary_set
-                )
-                if stderr_guard:
-                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                else:
-                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                print_command(filename, cmd)
+            #    process_counter['lpid_monitor_count'] += 1
+            #    cmd = '{} > {}{}_{}S{}_aalcalc.csv'.format(
+            #        cmd, output_dir, runtype, inuring_priority, summary_set
+            #    )
+            #    if stderr_guard:
+            #        cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+            #    else:
+            #        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+            #    print_command(filename, cmd)
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
@@ -496,21 +496,21 @@ def do_post_wait_processing(
                         cmd = f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext}'
                         print_command(filename, cmd)
 
-            # ktools ORIG - aalcalcmeanonly
-            if summary.get('aalcalcmeanonly'):
-                cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summaryaalcalcmeanonly'.format(
-                    work_sub_dir, runtype, inuring_priority, summary_set
-                )
+            ## ktools ORIG - aalcalcmeanonly
+            #if summary.get('aalcalcmeanonly'):
+            #    cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summaryaalcalcmeanonly'.format(
+            #        work_sub_dir, runtype, inuring_priority, summary_set
+            #    )
 
-                process_counter['lpid_monitor_count'] += 1
-                cmd = '{} > {}{}_{}S{}_aalcalcmeanonly.csv'.format(
-                    cmd, output_dir, runtype, inuring_priority, summary_set
-                )
-                if stderr_guard:
-                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                else:
-                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                print_command(filename, cmd)
+            #    process_counter['lpid_monitor_count'] += 1
+            #    cmd = '{} > {}{}_{}S{}_aalcalcmeanonly.csv'.format(
+            #        cmd, output_dir, runtype, inuring_priority, summary_set
+            #    )
+            #    if stderr_guard:
+            #        cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+            #    else:
+            #        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+            #    print_command(filename, cmd)
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
@@ -605,35 +605,35 @@ def do_post_wait_processing(
                     cmd = f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename}'
                     print_command(filename, cmd)
 
-            # ktools ORIG - Leccalc
-            if leccalc_enabled(summary):
-                leccalc = summary.get('leccalc', {})
-                cmd = 'leccalc {} -K{}{}_{}S{}_summaryleccalc'.format(
-                    '-r' if leccalc.get('return_period_file') else '',
-                    work_sub_dir,
-                    runtype,
-                    inuring_priority,
-                    summary_set
-                )
+            ## ktools ORIG - Leccalc
+            #if leccalc_enabled(summary):
+            #    leccalc = summary.get('leccalc', {})
+            #    cmd = 'leccalc {} -K{}{}_{}S{}_summaryleccalc'.format(
+            #        '-r' if leccalc.get('return_period_file') else '',
+            #        work_sub_dir,
+            #        runtype,
+            #        inuring_priority,
+            #        summary_set
+            #    )
 
-                # Note: Backwards compatibility of "outputs" in lec_options
-                if "outputs" in leccalc:
-                    leccalc = leccalc["outputs"]
+            #    # Note: Backwards compatibility of "outputs" in lec_options
+            #    if "outputs" in leccalc:
+            #        leccalc = leccalc["outputs"]
 
-                process_counter['lpid_monitor_count'] += 1
-                for option, active in sorted(leccalc.items()):
-                    if active and option in WAIT_PROCESSING_SWITCHES:
-                        switch = WAIT_PROCESSING_SWITCHES.get(option, '')
-                        cmd = '{} {} {}{}_{}S{}_leccalc_{}.csv'.format(
-                            cmd, switch, output_dir, runtype,
-                            inuring_priority, summary_set, option
-                        )
+            #    process_counter['lpid_monitor_count'] += 1
+            #    for option, active in sorted(leccalc.items()):
+            #        if active and option in WAIT_PROCESSING_SWITCHES:
+            #            switch = WAIT_PROCESSING_SWITCHES.get(option, '')
+            #            cmd = '{} {} {}{}_{}S{}_leccalc_{}.csv'.format(
+            #                cmd, switch, output_dir, runtype,
+            #                inuring_priority, summary_set, option
+            #            )
 
-                if stderr_guard:
-                    cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                else:
-                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                print_command(filename, cmd)
+            #    if stderr_guard:
+            #        cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+            #    else:
+            #        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+            #    print_command(filename, cmd)
 
 
 def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
@@ -687,9 +687,9 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
                     idx_fifo += '.idx'
                     print_command(filename, f'mkfifo {idx_fifo}')
 
-                for summary_type in SUMMARY_TYPES:
-                    if summary.get(summary_type):
-                        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{summary_type}')
+                #for summary_type in SUMMARY_TYPES:
+                #    if summary.get(summary_type):
+                #        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{summary_type}')
 
                 for ord_type, output_switch in OUTPUT_SWITCHES.items():
                     for ord_table in output_switch.keys():
@@ -777,57 +777,57 @@ def do_kats(
         if 'id' in summary:
             summary_set = summary['id']
 
-            if summary.get('eltcalc'):
-                anykats = True
+            #if summary.get('eltcalc'):
+            #    anykats = True
 
-                cmd = 'kat' if sort_by_event else 'kat -u'
-                for process_id in process_range(max_process_id, process_number):
+            #    cmd = 'kat' if sort_by_event else 'kat -u'
+            #    for process_id in process_range(max_process_id, process_number):
 
-                    cmd = '{} {}{}_{}S{}_eltcalc_P{}'.format(
-                        cmd, work_dir, runtype, inuring_priority,
-                        summary_set, process_id
-                    )
+            #        cmd = '{} {}{}_{}S{}_eltcalc_P{}'.format(
+            #            cmd, work_dir, runtype, inuring_priority,
+            #            summary_set, process_id
+            #        )
 
-                process_counter['kpid_monitor_count'] += 1
-                cmd = '{} > {}{}_{}S{}_eltcalc.csv & kpid{}=$!'.format(
-                    cmd, output_dir, runtype, inuring_priority, summary_set,
-                    process_counter['kpid_monitor_count']
-                )
-                print_command(filename, cmd)
+            #    process_counter['kpid_monitor_count'] += 1
+            #    cmd = '{} > {}{}_{}S{}_eltcalc.csv & kpid{}=$!'.format(
+            #        cmd, output_dir, runtype, inuring_priority, summary_set,
+            #        process_counter['kpid_monitor_count']
+            #    )
+            #    print_command(filename, cmd)
 
-            if summary.get('pltcalc'):
-                anykats = True
+            #if summary.get('pltcalc'):
+            #    anykats = True
 
-                cmd = 'kat' if sort_by_event else 'kat -u'
-                for process_id in process_range(max_process_id, process_number):
-                    cmd = '{} {}{}_{}S{}_pltcalc_P{}'.format(
-                        cmd, work_dir, runtype, inuring_priority,
-                        summary_set, process_id
-                    )
+            #    cmd = 'kat' if sort_by_event else 'kat -u'
+            #    for process_id in process_range(max_process_id, process_number):
+            #        cmd = '{} {}{}_{}S{}_pltcalc_P{}'.format(
+            #            cmd, work_dir, runtype, inuring_priority,
+            #            summary_set, process_id
+            #        )
 
-                process_counter['kpid_monitor_count'] += 1
-                cmd = '{} > {}{}_{}S{}_pltcalc.csv & kpid{}=$!'.format(
-                    cmd, output_dir, runtype, inuring_priority, summary_set,
-                    process_counter['kpid_monitor_count']
-                )
-                print_command(filename, cmd)
+            #    process_counter['kpid_monitor_count'] += 1
+            #    cmd = '{} > {}{}_{}S{}_pltcalc.csv & kpid{}=$!'.format(
+            #        cmd, output_dir, runtype, inuring_priority, summary_set,
+            #        process_counter['kpid_monitor_count']
+            #    )
+            #    print_command(filename, cmd)
 
-            if summary.get("summarycalc"):
-                anykats = True
+            #if summary.get("summarycalc"):
+            #    anykats = True
 
-                cmd = 'kat' if sort_by_event else 'kat -u'
-                for process_id in process_range(max_process_id, process_number):
-                    cmd = '{} {}{}_{}S{}_summarycalc_P{}'.format(
-                        cmd, work_dir, runtype, inuring_priority,
-                        summary_set, process_id
-                    )
+            #    cmd = 'kat' if sort_by_event else 'kat -u'
+            #    for process_id in process_range(max_process_id, process_number):
+            #        cmd = '{} {}{}_{}S{}_summarycalc_P{}'.format(
+            #            cmd, work_dir, runtype, inuring_priority,
+            #            summary_set, process_id
+            #        )
 
-                process_counter['kpid_monitor_count'] += 1
-                cmd = '{} > {}{}_{}S{}_summarycalc.csv & kpid{}=$!'.format(
-                    cmd, output_dir, runtype, inuring_priority, summary_set,
-                    process_counter['kpid_monitor_count']
-                )
-                print_command(filename, cmd)
+            #    process_counter['kpid_monitor_count'] += 1
+            #    cmd = '{} > {}{}_{}S{}_summarycalc.csv & kpid{}=$!'.format(
+            #        cmd, output_dir, runtype, inuring_priority, summary_set,
+            #        process_counter['kpid_monitor_count']
+            #    )
+            #    print_command(filename, cmd)
 
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table, v in output_switch.items():
@@ -943,9 +943,9 @@ def do_tees(
             if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd_idx = cmd + '.idx'
 
-            for summary_type in SUMMARY_TYPES:
-                if summary.get(summary_type):
-                    cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{summary_type}")}'
+            #for summary_type in SUMMARY_TYPES:
+            #    if summary.get(summary_type):
+            #        cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{summary_type}")}'
 
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table in output_switch.keys():
@@ -953,19 +953,19 @@ def do_tees(
                         cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{ord_type}")}'
                         break
 
-            if summary.get('aalcalc'):
-                aalcalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalc/P{process_id}'
-                cmd = f'{cmd} {aalcalc_out}.bin'
-                cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
+            #if summary.get('aalcalc'):
+            #    aalcalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalc/P{process_id}'
+            #    cmd = f'{cmd} {aalcalc_out}.bin'
+            #    cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
 
             if summary.get('ord_output', {}).get('alt_period'):
                 aalcalc_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
 
-            if summary.get('aalcalcmeanonly'):
-                aalcalcmeanonly_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalcmeanonly/P{process_id}'
-                cmd = f'{cmd} {aalcalcmeanonly_out}.bin'
+            #if summary.get('aalcalcmeanonly'):
+            #    aalcalcmeanonly_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalcmeanonly/P{process_id}'
+            #    cmd = f'{cmd} {aalcalcmeanonly_out}.bin'
 
             if summary.get('ord_output', {}).get('alt_meanonly'):
                 aalcalcmeanonly_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly/P{process_id}'
@@ -1106,32 +1106,32 @@ def do_any(
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            for summary_type in SUMMARY_TYPES:
-                if summary.get(summary_type):
-                    # cmd exception for summarycalc
-                    if summary_type == 'summarycalc':
-                        cmd = 'summarycalctocsv'
-                    else:
-                        cmd = summary_type
+            #for summary_type in SUMMARY_TYPES:
+            #    if summary.get(summary_type):
+            #        # cmd exception for summarycalc
+            #        if summary_type == 'summarycalc':
+            #            cmd = 'summarycalctocsv'
+            #        else:
+            #            cmd = summary_type
 
-                    if process_id != 1:
-                        if summary_type == 'pltcalc':
-                            cmd += ' -H'
-                        else:
-                            cmd += ' -s'
+            #        if process_id != 1:
+            #            if summary_type == 'pltcalc':
+            #                cmd += ' -H'
+            #            else:
+            #                cmd += ' -s'
 
-                    process_counter['pid_monitor_count'] += 1
+            #        process_counter['pid_monitor_count'] += 1
 
-                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
-                    fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
-                    cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
+            #        fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
+            #        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
+            #        cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
 
-                    if stderr_guard:
-                        cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
-                    else:
-                        cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+            #        if stderr_guard:
+            #            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+            #        else:
+            #            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
 
-                    print_command(filename, cmd)
+            #        print_command(filename, cmd)
 
 
 def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
