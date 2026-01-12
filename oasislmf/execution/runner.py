@@ -23,7 +23,6 @@ def run(analysis_settings,
         custom_gulcalc_log_finish=None,
         custom_get_getmodel_cmd=None,
         filename='run_ktools.sh',
-        gul_legacy_stream=False,
         df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
         dynamic_footprint=False,
@@ -60,7 +59,6 @@ def run(analysis_settings,
             def custom_get_getmodel_cmd(
                 number_of_samples,
                 gul_threshold,
-                gul_legacy_stream,
                 use_random_number_file,
                 coverage_output,
                 item_output,
@@ -77,8 +75,6 @@ def run(analysis_settings,
                     max_process_id,
                     os.path.abspath("analysis_settings.json"),
                     "input")
-                if gul_legacy_stream and coverage_output != '':
-                    cmd = '{} -c {}'.format(cmd, coverage_output)
                 if item_output != '':
                     cmd = '{} -i {}'.format(cmd, item_output)
                 if stderr_guard:
@@ -97,7 +93,6 @@ def run(analysis_settings,
         gul_alloc_rule=set_alloc_rule_gul,
         il_alloc_rule=set_alloc_rule_il,
         ri_alloc_rule=set_alloc_rule_ri,
-        gul_legacy_stream=gul_legacy_stream,
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,

@@ -579,7 +579,7 @@ def get_summary_xref_df(
 @oasis_log
 def generate_summaryxref_files(
     location_df, account_df, model_run_fp, analysis_settings, il=False,
-    ri=False, rl=False, gul_item_stream=False, fmpy=False
+    ri=False, rl=False, fmpy=False
 ):
     """
     Top level function for creating the summaryxref files from the manager.py
@@ -665,7 +665,7 @@ def generate_summaryxref_files(
 
     if gul_summaries:
         # Load GUL summary map
-        id_set_index = 'item_id' if gul_item_stream else 'coverage_id'
+        id_set_index = 'item_id'
         gul_summaryxref_df, gul_summary_desc = get_summary_xref_df(
             gul_map_df,
             location_df,

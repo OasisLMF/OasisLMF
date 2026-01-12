@@ -1636,7 +1636,6 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
             number_of_samples,
             gul_threshold,
             use_random_number_file,
-            coverage_output,
             item_output,
             process_id,
             max_process_id,
@@ -1790,7 +1789,7 @@ def bash_params(
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
 
     bash_params["model_py_server"] = model_py_server
-    bash_params['join_summary_info'] = join_summary_info if not gul_legacy_stream else False  # join_summary_info doesn't support gul_legacy_stream
+    bash_params['join_summary_info'] = join_summary_info
     bash_params["peril_filter"] = peril_filter
 
     # set complex model gulcalc command
@@ -2288,7 +2287,6 @@ def create_bash_analysis(
 
         # GUL coverage
         gul_fifo_name = get_fifo_name(fifo_queue_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
-        getmodel_args['coverage_output'] = ''
         getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
         getmodel_args['item_output'] = getmodel_args['item_output'] + get_pla_cmd(
             analysis_settings.get('pla', False),

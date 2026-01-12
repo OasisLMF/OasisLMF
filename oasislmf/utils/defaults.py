@@ -19,7 +19,6 @@ __all__ = [
     'KTOOLS_DEBUG',
     'KTOOLS_DISABLE_ERR_GUARD',
     'KTOOLS_NUM_PROCESSES',
-    'KTOOLS_GUL_LEGACY_STREAM',
     'OASIS_FILES_PREFIXES',
     'SUMMARY_MAPPING',
     'SUMMARY_OUTPUT',
@@ -261,7 +260,6 @@ def get_default_deterministic_analysis_settings(path=False):
 KTOOLS_NUM_PROCESSES = -1
 KTOOLS_FIFO_RELATIVE = False
 KTOOLS_DISABLE_ERR_GUARD = False
-KTOOLS_GUL_LEGACY_STREAM = False
 # ktools gul alloc rules:
 # 3 = total loss using multiplicative method
 # 2 = total loss is maximum subperil loss
