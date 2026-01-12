@@ -205,8 +205,6 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
-            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'check_missing_inputs', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
 
@@ -251,21 +249,6 @@ class GenerateLossesDir(GenerateLossesBase):
                         )
                     return  # Only need to find a single request
 
-    def __check_summary_group_support(self, analysis_settings, runtypes):
-        """
-        Private method to check the max number of summary groups selected.
-        If that value is greater than 9 then ktools 'summarycalc' will crash.
-
-        Stop execution if the summarypy flag is not set as True.
-        """
-        for runtype in runtypes:
-            summary_num = len(analysis_settings.get(f'{runtype}_summaries', []))
-            if summary_num > 9 and not self.summarypy:
-                raise OasisException(
-                    'More than 9 summaries groups are not supported in summarycalc.'
-                    f'\nEither enable summarypy or reduce the number of groups set in "{runtype}_summaries".'
-                    '\nThis can be set using the flag "--summarypy True", or by setting `"summarypy": True` in the oasislmf.json file.'
-                )
 
     def run(self):
         # need to load from exposure data info or recreate it
@@ -305,7 +288,6 @@ class GenerateLossesDir(GenerateLossesBase):
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
         self.__check_for_parquet_output(self.settings, runtypes)
-        self.__check_summary_group_support(self.settings, runtypes)
 
         prepare_run_directory(
             model_run_fp,
@@ -392,19 +374,18 @@ class GenerateLossesDir(GenerateLossesBase):
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
                 create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
 
-        if self.summarypy:
-            for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
-                if self.settings.get(f'{runtype}_output'):
-                    summaries = self.settings.get('{}_summaries'.format(runtype), [])
-                    summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
-                    if summary_sets_id.shape[0]:
-                        if runtype == RUNTYPE_REINSURANCE_LOSS:
-                            summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
-                        else:
-                            summary_dirs = [os.path.join(self.model_run_dir, 'input')]
-                        for summary_dir in summary_dirs:
-                            self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
-                            create_summary_object_file(summary_dir, runtype)
+        for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
+            if self.settings.get(f'{runtype}_output'):
+                summaries = self.settings.get('{}_summaries'.format(runtype), [])
+                summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
+                if summary_sets_id.shape[0]:
+                    if runtype == RUNTYPE_REINSURANCE_LOSS:
+                        summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
+                    else:
+                        summary_dirs = [os.path.join(self.model_run_dir, 'input')]
+                    for summary_dir in summary_dirs:
+                        self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
+                        create_summary_object_file(summary_dir, runtype)
 
         self._store_run_settings(self.settings, os.path.join(model_run_fp, 'output'))
 
@@ -443,8 +424,6 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
-        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
-            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
         {'name': 'eltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
@@ -513,7 +492,6 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
             peril_filter=self._get_peril_filter(self.settings),
-            summarypy=self.summarypy,
             join_summary_info=self.join_summary_info,
             eltpy=self.eltpy,
             pltpy=self.pltpy,
@@ -670,8 +648,6 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
-        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
-            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
         {'name': 'eltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
@@ -745,7 +721,6 @@ class GenerateLosses(GenerateLossesDir):
                         event_shuffle=self.ktools_event_shuffle,
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(self.settings),
-                        summarypy=self.summarypy,
                         join_summary_info=self.join_summary_info,
                         eltpy=self.eltpy,
                         pltpy=self.pltpy,
