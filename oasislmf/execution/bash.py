@@ -2287,7 +2287,7 @@ def create_bash_analysis(
 
         # GUL coverage
         gul_fifo_name = get_fifo_name(fifo_queue_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
-        getmodel_args['item_output'] = '-' * (not gulpy and not gulmc)
+        getmodel_args['item_output'] = ''
         getmodel_args['item_output'] = getmodel_args['item_output'] + get_pla_cmd(
             analysis_settings.get('pla', False),
             analysis_settings.get('pla_secondary_factor', 1),
