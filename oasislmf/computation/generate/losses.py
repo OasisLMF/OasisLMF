@@ -43,7 +43,7 @@ from ...utils.data import (get_dataframe, get_exposure_data, get_json,
 from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
                                KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
                                KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
-                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG, KTOOLS_GUL_LEGACY_STREAM,
+                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG,
                                KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_NUM_PROCESSES,
                                KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
@@ -201,8 +201,6 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'copy_model_data', 'default': False, 'type': str2bool, 'help': 'Copy model data instead of creating symbolic links to it.'},
         {'name': 'model_run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir', 'flag': '-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
-        {'name': 'ktools_legacy_stream', 'type': str2bool, 'const': True, 'nargs': '?', 'default': KTOOLS_GUL_LEGACY_STREAM,
-         'help': 'Run Ground up losses using the older stream type (Compatibility option)'},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
@@ -302,7 +300,6 @@ class GenerateLossesDir(GenerateLossesBase):
             else:
                 self.logger.warning(missing_input_files)
 
-        gul_item_stream = (not self.ktools_legacy_stream)
         ri = self.settings.get('ri_output', False) and ril
         rl = self.settings.get('rl_output', False) and ril
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
@@ -330,7 +327,6 @@ class GenerateLossesDir(GenerateLossesBase):
             account_df,
             model_run_fp,
             self.settings,
-            gul_item_stream=gul_item_stream,
             il=il,
             ri=ri,
             rl=rl,
@@ -516,7 +512,6 @@ class GenerateLossesPartial(GenerateLossesDir):
             num_fm_per_lb=self.ktools_num_fm_per_lb,
             bash_trace=self.verbose,
             stderr_guard=not self.ktools_disable_guard,
-            gul_legacy_stream=self.ktools_legacy_stream,
             fifo_tmp_dir=not self.ktools_fifo_relative,
             custom_gulcalc_cmd=self.model_custom_gulcalc,
             gulpy=(self.gulpy and not self.model_custom_gulcalc),
@@ -762,7 +757,6 @@ class GenerateLosses(GenerateLossesDir):
                         num_fm_per_lb=self.ktools_num_fm_per_lb,
                         run_debug=self.verbose,
                         stderr_guard=not self.ktools_disable_guard,
-                        gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
@@ -806,7 +800,6 @@ class GenerateLosses(GenerateLossesDir):
                         set_alloc_rule_ri=self.ktools_alloc_rule_ri,
                         run_debug=self.verbose,
                         stderr_guard=not self.ktools_disable_guard,
-                        gul_legacy_stream=self.ktools_legacy_stream,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc
                     )
