@@ -201,7 +201,6 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'copy_model_data', 'default': False, 'type': str2bool, 'help': 'Copy model data instead of creating symbolic links to it.'},
         {'name': 'model_run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir', 'flag': '-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
@@ -330,7 +329,6 @@ class GenerateLossesDir(GenerateLossesBase):
             il=il,
             ri=ri,
             rl=rl,
-            fmpy=self.fmpy
         )
 
         if not ri and not rl:
@@ -383,12 +381,12 @@ class GenerateLossesDir(GenerateLossesBase):
                 model_setter(model_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
-        if il and self.fmpy:
+        if il:
             il_target_dir = os.path.join(self.model_run_dir, 'input')
             self.logger.info(f'Creating FMPY structures (IL): {il_target_dir}')
             create_financial_structure(self.ktools_alloc_rule_il, il_target_dir)
 
-        if (ri or rl) and self.fmpy:
+        if (ri or rl):
             for ri_sub_dir in ri_dirs:
                 ri_target_dir = os.path.join(self.model_run_dir, 'input', ri_sub_dir)
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
@@ -444,7 +442,6 @@ class GenerateLossesPartial(GenerateLossesDir):
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -514,7 +511,6 @@ class GenerateLossesPartial(GenerateLossesDir):
             gul_random_generator=self.gul_random_generator,
             gulmc_effective_damageability=self.gulmc_effective_damageability,
             gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
-            fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
             evepy=self.evepy,
@@ -678,7 +674,6 @@ class GenerateLosses(GenerateLossesDir):
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -755,7 +750,6 @@ class GenerateLosses(GenerateLossesDir):
                         gul_random_generator=self.gul_random_generator,
                         gulmc_effective_damageability=self.gulmc_effective_damageability,
                         gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
-                        fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
@@ -832,7 +826,6 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'net_ri', 'default': False},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
-        {'name': 'fmpy', 'default': True},
         {'name': 'fmpy_low_memory', 'default': False},
         {'name': 'fmpy_sort_output', 'default': False},
         {'name': 'il_stream_type', 'default': 2},
@@ -921,12 +914,11 @@ class GenerateLossesDeterministic(ComputationStep):
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
-        if self.fmpy:
-            with setcwd(self.oasis_files_dir):
-                check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
+        with setcwd(self.oasis_files_dir):
+            check_call(f"{get_fmcmd()} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
 
         cmd = '{} -p {} -a {} {} < {} | tee {} > /dev/null'.format(
-            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
+            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
             self.ktools_alloc_rule_il,
             step_flag,
@@ -980,14 +972,13 @@ class GenerateLossesDeterministic(ComputationStep):
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
                         # Create RI fmpy financial structures
-                        if self.fmpy:
-                            with setcwd(self.oasis_files_dir):
-                                check_call(
-                                    f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
-                                    shell=True)
+                        with setcwd(self.oasis_files_dir):
+                            check_call(
+                                f"{get_fmcmd()} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
+                                shell=True)
 
                         _input = '{} -p {} -a {} {} < {} | tee {} |'.format(
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
+                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
                             self.ktools_alloc_rule_il,
                             step_flag,
@@ -1000,7 +991,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         net_flag = "-n" if self.net_ri else ""
                         cmd = '{} {} -p {} {} -a {} {} {} | tee {} > /dev/null'.format(
                             _input,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
+                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
                             net_flag,
                             self.ktools_alloc_rule_ri,

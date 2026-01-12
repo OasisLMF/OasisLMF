@@ -579,7 +579,7 @@ def get_summary_xref_df(
 @oasis_log
 def generate_summaryxref_files(
     location_df, account_df, model_run_fp, analysis_settings, il=False,
-    ri=False, rl=False, fmpy=False
+    ri=False, rl=False,
 ):
     """
     Top level function for creating the summaryxref files from the manager.py
@@ -601,12 +601,6 @@ def generate_summaryxref_files(
     :param rl: Boolean to indicate the RL loss level mode - false if the
                source accounts file path not provided to Oasis files gen.
     :type rl: bool
-
-    :param gul_items: Boolean to gul to use item_id instead of coverage_id
-    :type gul_items: bool
-
-    :param fmpy: Boolean to indicate whether fmpy python version will be used
-    :type fmpy: bool
     """
 
     # Boolean checks for summary generation types (gul / il / ri)
@@ -736,9 +730,7 @@ def generate_summaryxref_files(
         max_layer = max(ri_layers)
         ri_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
         ri_inuring_priorities.add(max_layer)
-        if not fmpy:
-            if len(ri_inuring_priorities) > 1:
-                raise OasisException('Outputs at intermediate inuring priorities not compatible with fmcalc c++ option.')
+
         if not ri_inuring_priorities.issubset(ri_layers):
             ri_missing_layers = ri_inuring_priorities.difference(ri_layers)
             ri_missing_layers = [str(layer) for layer in ri_missing_layers]
