@@ -39,7 +39,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
-from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
+from .bash import ord_enabled, ORD_LECCALC
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
@@ -347,11 +347,11 @@ def _leccalc_selected(analysis_settings):
     ri_section = analysis_settings.get('ri_summaries')
 
     if gul_section:
-        is_in_gul = any(leccalc_enabled(gul_summary) or ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
+        is_in_gul = any(ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
     if il_section:
-        is_in_il = any(leccalc_enabled(il_summary) or ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
+        is_in_il = any(ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
     if ri_section:
-        is_in_ri = any(leccalc_enabled(ri_summary) or ord_enabled(ri_summary, ORD_LECCALC) for ri_summary in ri_section)
+        is_in_ri = any(ord_enabled(ri_summary, ORD_LECCALC) for ri_summary in ri_section)
 
     return any([is_in_gul, is_in_il, is_in_ri])
 
