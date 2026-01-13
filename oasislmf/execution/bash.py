@@ -146,8 +146,6 @@ EVE_SHUFFLE_OPTIONS = {
     EVE_STD_SHUFFLE: {'eve': '-R ', 'kat_sorting': False}
 }
 
-#SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
-
 
 TRAP_FUNC = """
 touch $LOG_DIR/stderror.err
@@ -338,46 +336,6 @@ def print_command(command_file, cmd):
         myfile.writelines(cmd + "\n")
 
 
-def leccalc_enabled(summary_options):
-    """
-    Checks if leccalc is enabled in a summaries section
-
-    :param summary_options: Summaies section from an analysis_settings file
-    :type summary_options: dict
-
-    Example:
-    {
-        "aalcalc": true,
-        "eltcalc": true,
-        "id": 1,
-        "lec_output": true,
-        "leccalc": {
-            "full_uncertainty_aep": true,
-            "full_uncertainty_oep": true,
-            "return_period_file": true
-        }
-    }
-    :return: True is leccalc is enables, False otherwise.
-    """
-
-    lec_options = summary_options.get('leccalc', {})
-    lec_boolean = summary_options.get('lec_output', False)
-
-    # Disabled if leccalc flag is missing or false
-    if not lec_boolean:
-        return False
-
-    # Backwards compatibility for nested "outputs" keys in lec_options
-    if "outputs" in lec_options:
-        lec_options = lec_options["outputs"]
-
-    # Enabled if at least one option is selected
-    for ouput_opt in lec_options:
-        if ouput_opt in WAIT_PROCESSING_SWITCHES and lec_options[ouput_opt]:
-            return True
-    return False
-
-
 def ord_enabled(summary_options, ORD_SWITCHES):
     """
     Checks if ORD leccalc is enabled in a summaries section
@@ -435,26 +393,6 @@ def do_post_wait_processing(
         if "id" in summary:
             summary_set = summary['id']
 
-
-            ## ktools ORIG - aalcalc
-            #if summary.get('aalcalc'):
-            #    cmd = 'aalcalc -K{}{}_{}S{}_summaryaalcalc'.format(
-            #        work_sub_dir,
-            #        runtype,
-            #        inuring_priority,
-            #        summary_set
-            #    )
-
-            #    process_counter['lpid_monitor_count'] += 1
-            #    cmd = '{} > {}{}_{}S{}_aalcalc.csv'.format(
-            #        cmd, output_dir, runtype, inuring_priority, summary_set
-            #    )
-            #    if stderr_guard:
-            #        cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-            #    else:
-            #        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-            #    print_command(filename, cmd)
-
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["executable"]
@@ -495,22 +433,6 @@ def do_post_wait_processing(
                     if summary.get('ord_output', {}).get('alct_convergence'):
                         cmd = f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext}'
                         print_command(filename, cmd)
-
-            ## ktools ORIG - aalcalcmeanonly
-            #if summary.get('aalcalcmeanonly'):
-            #    cmd = 'aalcalcmeanonly -K{}{}_{}S{}_summaryaalcalcmeanonly'.format(
-            #        work_sub_dir, runtype, inuring_priority, summary_set
-            #    )
-
-            #    process_counter['lpid_monitor_count'] += 1
-            #    cmd = '{} > {}{}_{}S{}_aalcalcmeanonly.csv'.format(
-            #        cmd, output_dir, runtype, inuring_priority, summary_set
-            #    )
-            #    if stderr_guard:
-            #        cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-            #    else:
-            #        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-            #    print_command(filename, cmd)
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
@@ -605,36 +527,6 @@ def do_post_wait_processing(
                     cmd = f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename}'
                     print_command(filename, cmd)
 
-            ## ktools ORIG - Leccalc
-            #if leccalc_enabled(summary):
-            #    leccalc = summary.get('leccalc', {})
-            #    cmd = 'leccalc {} -K{}{}_{}S{}_summaryleccalc'.format(
-            #        '-r' if leccalc.get('return_period_file') else '',
-            #        work_sub_dir,
-            #        runtype,
-            #        inuring_priority,
-            #        summary_set
-            #    )
-
-            #    # Note: Backwards compatibility of "outputs" in lec_options
-            #    if "outputs" in leccalc:
-            #        leccalc = leccalc["outputs"]
-
-            #    process_counter['lpid_monitor_count'] += 1
-            #    for option, active in sorted(leccalc.items()):
-            #        if active and option in WAIT_PROCESSING_SWITCHES:
-            #            switch = WAIT_PROCESSING_SWITCHES.get(option, '')
-            #            cmd = '{} {} {}{}_{}S{}_leccalc_{}.csv'.format(
-            #                cmd, switch, output_dir, runtype,
-            #                inuring_priority, summary_set, option
-            #            )
-
-            #    if stderr_guard:
-            #        cmd = '( {} ) 2>> $LOG_DIR/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-            #    else:
-            #        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-            #    print_command(filename, cmd)
-
 
 def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
     """Standard name for FIFO"""
@@ -682,14 +574,10 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
             if 'id' in summary:
                 summary_set = summary['id']
                 do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_summary')
-                if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
+                if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                     idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'{consumer_prefix}S{summary_set}_summary')
                     idx_fifo += '.idx'
                     print_command(filename, f'mkfifo {idx_fifo}')
-
-                #for summary_type in SUMMARY_TYPES:
-                #    if summary.get(summary_type):
-                #        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'{consumer_prefix}S{summary_set}_{summary_type}')
 
                 for ord_type, output_switch in OUTPUT_SWITCHES.items():
                     for ord_table in output_switch.keys():
@@ -721,28 +609,16 @@ def create_workfolders(
 
             # EDIT: leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+            if ord_enabled(summary, ORD_LECCALC):
                 print_command(
                     filename,
                     'mkdir -p {}{}_{}S{}_summaryleccalc'.format(work_dir, runtype, inuring_priority, summary_set)
-                )
-
-            if summary.get('aalcalc'):
-                print_command(
-                    filename,
-                    'mkdir -p {}{}_{}S{}_summaryaalcalc'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
             if summary.get('ord_output', {}).get('alt_period'):
                 print_command(
                     filename,
                     'mkdir -p {}{}_{}S{}_summary_palt'.format(work_dir, runtype, inuring_priority, summary_set)
-                )
-
-            if summary.get('aalcalcmeanonly'):
-                print_command(
-                    filename,
-                    'mkdir -p {}{}_{}S{}_summaryaalcalcmeanonly'.format(work_dir, runtype, inuring_priority, summary_set)
                 )
 
             if summary.get('ord_output', {}).get('alt_meanonly'):
@@ -940,12 +816,8 @@ def do_tees(
             summary_set = summary['id']
 
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_summary")}'
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
+            if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd_idx = cmd + '.idx'
-
-            #for summary_type in SUMMARY_TYPES:
-            #    if summary.get(summary_type):
-            #        cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{summary_type}")}'
 
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table in output_switch.keys():
@@ -953,19 +825,10 @@ def do_tees(
                         cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"{inuring_priority}S{summary_set}_{ord_type}")}'
                         break
 
-            #if summary.get('aalcalc'):
-            #    aalcalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalc/P{process_id}'
-            #    cmd = f'{cmd} {aalcalc_out}.bin'
-            #    cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
-
             if summary.get('ord_output', {}).get('alt_period'):
                 aalcalc_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
-
-            #if summary.get('aalcalcmeanonly'):
-            #    aalcalcmeanonly_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryaalcalcmeanonly/P{process_id}'
-            #    cmd = f'{cmd} {aalcalcmeanonly_out}.bin'
 
             if summary.get('ord_output', {}).get('alt_meanonly'):
                 aalcalcmeanonly_ord_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly/P{process_id}'
@@ -973,14 +836,14 @@ def do_tees(
 
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+            if ord_enabled(summary, ORD_LECCALC):
                 leccalc_out = f'{work_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc/P{process_id}'
                 cmd = f'{cmd} {leccalc_out}.bin'
                 cmd_idx = f'{cmd_idx} {leccalc_out}.idx'
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
+            if ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 process_counter['pid_monitor_count'] += 1
                 cmd_idx = '{} > /dev/null & pid{}=$!'.format(cmd_idx, process_counter['pid_monitor_count'])
                 print_command(filename, cmd_idx)
