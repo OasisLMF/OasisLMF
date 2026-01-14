@@ -26,7 +26,7 @@ def validate_flags(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=f"Concatenate ELT/PLT files")
+    parser = argparse.ArgumentParser(description="Concatenate ELT/PLT files")
     parser.add_argument('-o', '--out', type=str, required=True, help='Output Concatenated file')
     parser.add_argument('-f', '--file_type', type=str, default=None, choices=VALID_EXT,
                         help='Optional input file type if not discernible from input file suffix. (e.g. inputs are pipes)')
