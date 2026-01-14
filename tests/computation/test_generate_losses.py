@@ -309,11 +309,11 @@ class TestGenLosses(ComputationChecker):
         il_alloc=st.sampled_from([None, 99]),
         ri_alloc=st.sampled_from([None, 99]),
         event_shuffle=st.sampled_from([None, 99]),
-        gulpy_random_generator=st.sampled_from([None, 99])
+        gul_random_generator=st.sampled_from([None, 99])
     )
     @patch('oasislmf.execution.runner.run')
-    def test_losses__ktools_alloc_set_invalid(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gulpy_random_generator):
-        if any([gul_alloc, il_alloc, ri_alloc, event_shuffle, gulpy_random_generator]):
+    def test_losses__ktools_alloc_set_invalid(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator):
+        if any([gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator]):
             call_args = {
                 **self.min_args,
                 'analysis_settings_json': ANALYSIS_SETTINGS,
@@ -321,7 +321,7 @@ class TestGenLosses(ComputationChecker):
                 'ktools_alloc_rule_il': il_alloc,
                 'ktools_alloc_rule_ri': ri_alloc,
                 'ktools_event_shuffle': event_shuffle,
-                'gulpy_random_generator': gulpy_random_generator
+                'gul_random_generator': gul_random_generator
             }
             with (self.assertRaises(OasisException) as context,
                   patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10010"})):

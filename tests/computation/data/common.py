@@ -77,7 +77,9 @@ MIN_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -96,7 +98,9 @@ MIN_RUN_CORRELATIONS_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -110,14 +114,18 @@ IL_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -131,28 +139,36 @@ RI_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "ri_output": True,
     "ri_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "rl_output": True,
     "rl_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -167,28 +183,34 @@ RI_AAL_SETTINGS = {
     },
     "gul_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }   
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }   
         }
     ],
     "ri_output": True,
     "ri_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }   
         }
     ]
 }
