@@ -35,10 +35,11 @@ class TestGenKeys(ComputationChecker):
             [a for a in self.default_args.keys() if 'path' in a] +
             [a for a in self.default_args.keys() if 'json' in a]
         )
-
+        self.tmp_files.pop("intermediary_csv")
         self.min_args = {
             'lookup_config_json': LOOKUP_CONFIG,
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
+            'keys_format': "oasis"
         }
         self.min_args_output_set = {
             **self.min_args,
@@ -95,6 +96,7 @@ class TestGenKeys(ComputationChecker):
     def test_keys_deterministic__no_output_files_given(self):
         with self.tmp_dir() as t_dir:
             with setcwd(t_dir):
+                print(self.min_args)
                 keys_fp, _, = self.manager.generate_keys_deterministic(**self.min_args)
                 self.assertTrue(keys_fp.startswith(t_dir))
                 self.assertTrue(keys_fp.endswith('keys.csv'))
@@ -135,7 +137,7 @@ class TestGenKeys(ComputationChecker):
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=call_args['keys_data_csv'],
             errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
@@ -186,7 +188,7 @@ class TestGenKeys(ComputationChecker):
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=call_args['keys_data_csv'],
             errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
@@ -241,7 +243,7 @@ class TestGenKeys(ComputationChecker):
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=call_args['keys_data_csv'],
             errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
@@ -295,7 +297,7 @@ class TestGenKeys(ComputationChecker):
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=call_args['keys_data_csv'],
             errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],

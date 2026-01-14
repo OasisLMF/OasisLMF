@@ -412,6 +412,7 @@ class RunFmTest(ComputationStep):
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
+            keys_format='oasis'
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)

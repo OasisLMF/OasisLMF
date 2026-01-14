@@ -197,7 +197,7 @@ class GenerateFiles(ComputationStep):
 
         if self.reporting_currency:
             exposure_data.reporting_currency = self.reporting_currency
-            exposure_data.save(target_dir, version_name=self.reporting_currency, oed_compression=oed_compression, save_config=True)
+            exposure_data.save(target_dir, version_name=self.reporting_currency, compression=oed_compression, save_config=True)
 
         location_df = exposure_data.get_subject_at_risk_source().dataframe
 
@@ -223,7 +223,6 @@ class GenerateFiles(ComputationStep):
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
         # the keys file.
-        ##### I'm here #####
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_csv:
             gen_key_res = GenerateKeys(**self.kwargs).run()
