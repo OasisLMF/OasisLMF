@@ -226,9 +226,9 @@ class GenerateFiles(ComputationStep):
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_csv:
             gen_key_res = GenerateKeys(**self.kwargs).run()
-            _keys_fp = gen_key_res[0] #  _keys_fp is returned as the third element
+            _keys_fp = gen_key_res[0]  # _keys_fp is returned as the third element
             if len(gen_key_res) == 4:
-                _keys_errors_fp = gen_key_res[2] # if present, keys_errors_fp is returned as the third element
+                _keys_errors_fp = gen_key_res[2]  # if present, keys_errors_fp is returned as the third element
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_csv))
             if self.keys_errors_csv:
