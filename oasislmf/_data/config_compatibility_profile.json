@@ -158,10 +158,5 @@
         "from_ver": "1.17.0",
         "deleted": false,
         "updated_to": "oed_accounts_csv"
-    },
-    "to_do_keys_data_csv":{
-        "from_ver": "2.4.11",
-        "deleted": false,
-        "updated_to": "keys_data_path"
     }
 }

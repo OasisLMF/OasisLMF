@@ -1104,9 +1104,14 @@ def write_exposure_summary(
 
     # get keys success
     if keys_fp:
-        keys_success_df = get_dataframe(src_fp=keys_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID']]
-        keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-        keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
+        try:
+            keys_success_df = get_dataframe(src_fp=keys_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID']]
+        except OasisException:
+            # Assume empty file on read error.
+            keys_success_df = pd.DataFrame(columns=['locid'])
+        else:
+            keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
+            keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
 
     # get keys errors
     if keys_errors_fp:
