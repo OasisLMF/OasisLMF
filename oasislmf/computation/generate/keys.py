@@ -62,7 +62,7 @@ class GenerateKeys(KeyComputationStep):
                        {'name': 'model_settings_json', 'loader': model_settings_loader}]
 
     step_params = [
-        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+        {'name': 'oasis_files_dir', 'is_path': True, 'pre_exist': False,
          'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
@@ -173,7 +173,7 @@ class GenerateKeys(KeyComputationStep):
 
 class GenerateKeysDeterministic(KeyComputationStep):
     step_params = [
-        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+        {'name': 'oasis_files_dir', 'is_path': True, 'pre_exist': False,
          'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
