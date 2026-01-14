@@ -96,7 +96,6 @@ class TestGenKeys(ComputationChecker):
     def test_keys_deterministic__no_output_files_given(self):
         with self.tmp_dir() as t_dir:
             with setcwd(t_dir):
-                print(self.min_args)
                 keys_fp, _, = self.manager.generate_keys_deterministic(**self.min_args)
                 self.assertTrue(keys_fp.startswith(t_dir))
                 self.assertTrue(keys_fp.endswith('keys.csv'))

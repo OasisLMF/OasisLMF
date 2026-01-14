@@ -31,7 +31,7 @@ class TestGenKeys(ComputationChecker):
             [a for a in self.default_args.keys() if 'path' in a] +
             [a for a in self.default_args.keys() if 'json' in a]
         )
-        self.tmp_files.pop("intermediary_csv") # intermediary_csv is not a file
+        self.tmp_files.pop("intermediary_csv")  # intermediary_csv is not a file
 
         self.min_args = {
             'lookup_module_path': FAKE_COMPLEX_LOOKUP_MODULE,
@@ -54,7 +54,7 @@ class TestGenKeys(ComputationChecker):
         keys_return = self.manager.generate_keys(**self.min_args_output_set)
         keys_csv_data = self.read_file(self.min_args_output_set['keys_data_csv'])
         error_csv_data = self.read_file(self.min_args_output_set['keys_errors_csv'])
-        print(self.min_args_output_set)
+
         self.assertEqual(keys_csv_data, EXPECTED_KEYS_COMPLEX)
         self.assertEqual(error_csv_data, EXPECTED_ERROR_COMPLEX)
         self.assertEqual(keys_return, expected_return)
