@@ -722,7 +722,8 @@ class GenerateLosses(GenerateLossesDir):
                         run_debug=self.verbose,
                         stderr_guard=not self.ktools_disable_guard,
                         fifo_tmp_dir=not self.ktools_fifo_relative,
-                        custom_gulcalc_cmd=self.model_custom_gulcalc
+                        custom_gulcalc_cmd=self.model_custom_gulcalc,
+                        gul_legacy_stream=False,
                     )
                     model_runner_module.run(self.settings, **run_args)
 
