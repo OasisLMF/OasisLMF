@@ -34,7 +34,6 @@ class Genbash(TestCase):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = True
         cls.fmpy = False
         cls.get_getmodel_cmd = None
 
@@ -67,7 +66,6 @@ class Genbash(TestCase):
                 il_alloc_rule=None,
                 ri_alloc_rule=None,
                 bash_trace=None,
-                gul_legacy_stream=None,
                 fmpy=None,
                 _get_getmodel_cmd=None,
                 ):
@@ -97,7 +95,6 @@ class Genbash(TestCase):
             num_fm_per_lb=self.num_fm_per_lb,
             event_shuffle=self.event_shuffle,
             bash_trace=(bash_trace or self.bash_trace),
-            gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
             _get_getmodel_cmd=_get_getmodel_cmd,
         )
@@ -111,7 +108,6 @@ class Genbash(TestCase):
                          il_alloc_rule=None,
                          ri_alloc_rule=None,
                          bash_trace=None,
-                         gul_legacy_stream=None,
                          fmpy=None,
                          _get_getmodel_cmd=None,
                          ):
@@ -139,7 +135,6 @@ class Genbash(TestCase):
             num_fm_per_lb=self.num_fm_per_lb,
             event_shuffle=self.event_shuffle,
             bash_trace=(bash_trace or self.bash_trace),
-            gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
             fmpy=(fmpy or self.fmpy),
             _get_getmodel_cmd=_get_getmodel_cmd,
         )
@@ -932,7 +927,6 @@ class Genbash_GulItemStream(Genbash):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -955,7 +949,6 @@ class Genbash_ErrorGuard(Genbash):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = True
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -978,7 +971,6 @@ class Genbash_TempDir(Genbash):
         cls.fifo_tmp_dir = True
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -1001,7 +993,6 @@ class Genbash_FullCorrItemStream(Genbash):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -1024,7 +1015,6 @@ class Genbash_FullCorrErrorGuard(Genbash):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = True
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -1047,7 +1037,6 @@ class Genbash_FullCorrTempDir(Genbash):
         cls.fifo_tmp_dir = True
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -1073,7 +1062,6 @@ class Genbash_LoadBalancerFmpy(Genbash):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = False
         cls.fmpy = True
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
@@ -1101,7 +1089,6 @@ class Genbash_EventShuffle(Genbash):
         cls.fifo_tmp_dir = False
         cls.bash_trace = False
         cls.stderr_guard = False
-        cls.gul_legacy_stream = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
