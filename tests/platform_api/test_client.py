@@ -1650,13 +1650,13 @@ class APIClientTests(unittest.TestCase):
         filetype, path = self.client.get_currency_conversion(CURRENCY_CONVERSION_LIST)
 
         assert filetype == "json"
-        assert str(path) == str(CURRENCY_CONVERSION_LIST)
+        assert pathlib.Path(path).resolve() == CURRENCY_CONVERSION_LIST.resolve()
 
-    def test_get_currency_conversion_relative_csv(self):
+    def test_get_currency_conversion_returns_csv(self):
         filetype, path = self.client.get_currency_conversion(CURRENCY_CONVERSION_JSON)
 
         assert filetype == "csv"
-        assert str(path) == str(CURRENCY_CSV)
+        assert pathlib.Path(path).resolve() == CURRENCY_CSV.resolve()
 
     def test_conversion_upload_file_csv(self):
         self.client.portfolios.currency_conversion_json = MagicMock()
