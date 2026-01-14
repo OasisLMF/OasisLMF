@@ -129,9 +129,11 @@ class FileEndpoint(object):
         file_ext = pathlib.Path(file_path).suffix[1:].lower()
         return content_type_map[file_ext] if file_ext in content_type_map else 'text/csv'
 
-    def upload(self, ID, file_path, content_type=None):
+    def upload(self, ID, file_path, content_type=None, serializer_field_name=None):
         if not content_type:
             content_type = self._set_content_type(file_path)
+        if serializer_field_name:
+            return self.session.upload(self._build_url(ID), file_path, content_type, serializer_field_name=serializer_field_name)
         return self.session.upload(self._build_url(ID), file_path, content_type)
 
     def upload_byte(self, ID, file_bytes, filename, content_type=None):
@@ -297,7 +299,9 @@ class API_portfolios(ApiEndpoint):
         self.location_file = FileEndpoint(self.session, self.url_endpoint, 'location_file/')
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
+        self.currency_conversion_json = FileEndpoint(self.session, self.url_endpoint, 'currency_conversion_json/')
         self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
+        self.reporting_currency = JsonEndpoint(self.session, self.url_endpoint, 'reporting_currency/')
 
     def create(self, name):
         data = {"name": name}
@@ -475,7 +479,7 @@ class APIClient(object):
 
         :param portfolio_file: The name of the portfolio file to update. One of
             the following options `location_file`, `accounts_file`,
-            `reinsurance_info_file` or `reinsurance_scope_file`.
+            `reinsurance_info_file`, `reinsurance_scope_file` or `currency_conversion_json`.
         :type settings: str
 
         :param upload_data: The file to upload through the api. This should be
@@ -491,11 +495,27 @@ class APIClient(object):
                                                                  upload_data['name'])
             self.logger.info("File uploaded: {}".format(upload_data['name']))
         else:
-            getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data)
+            if portfolio_file == "currency_conversion_json":
+                filetype, upload_data = self.get_currency_conversion(upload_data)
+                content_type = "application/json" if filetype == "json" else "text/csv"
+                getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data, content_type=content_type,
+                                                                serializer_field_name=f"{filetype}_file")
+            else:
+                getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data, content_type='')
             self.logger.info("File uploaded: {}".format(upload_data))
 
+    def upload_portfolio_reporting_currency(self, portfolio_id, endpoint, reporting_currency):
+        data = {'reporting_currency': reporting_currency}
+
+        getattr(self.portfolios, endpoint).post(
+            portfolio_id,
+            data
+        )
+
+        self.logger.info("Reporting currency uploaded: %s", reporting_currency)
+
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
-                      location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
+                      location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None, currency_conversion_fp=None, reporting_currency=None):
         if not portfolio_name:
             portfolio_name = time.strftime("Portfolio_%d%m%Y-%H%M%S")
 
@@ -517,9 +537,30 @@ class APIClient(object):
                 self.upload_portfolio_file(portfolio_id, 'reinsurance_info_file', ri_info_fp)
             if ri_scope_fp:
                 self.upload_portfolio_file(portfolio_id, 'reinsurance_scope_file', ri_scope_fp)
+            if currency_conversion_fp:
+                self.upload_portfolio_file(portfolio_id, 'currency_conversion_json', currency_conversion_fp)
+            if reporting_currency:
+                self.upload_portfolio_reporting_currency(portfolio_id, 'reporting_currency', reporting_currency)
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
+
+    def get_currency_conversion(self, filepath):
+        """Gets either the json or csv file referenced in the json and tells the endpoint which is needed
+
+        Args:
+            filepath: path to json file
+
+        Returns:
+            (string, path): either "json" or "csv" and the filepath to it
+        """
+        with open(filepath, "r") as f:
+            currency_conversion = json.load(f)
+        if currency_conversion.get("file_path", False):
+            if os.path.isabs(currency_conversion["file_path"]):
+                return ("csv", currency_conversion["file_path"])
+            return ("csv", os.path.join(os.path.dirname(filepath), currency_conversion["file_path"]))
+        return ("json", filepath)
 
     def upload_settings(self, analyses_id, settings):
         """

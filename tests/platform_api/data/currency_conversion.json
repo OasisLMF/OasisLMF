@@ -1,0 +1,5 @@
+{
+    "currency_conversion_type": "DictBasedCurrencyRates",
+    "source_type": "csv",
+    "file_path": "./currency.csv"
+}

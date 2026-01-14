@@ -4,14 +4,17 @@ import logging
 import re
 import responses
 
-from unittest import mock
-from unittest.mock import patch, Mock, ANY
+from unittest.mock import patch
 
 from ods_tools.oed.common import OdsException
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.path import setcwd
 from oasislmf.manager import OasisManager
-from .data.common import *
+from .data.common import (
+    MIN_MODEL_SETTINGS, MIN_RUN_SETTINGS, MIN_LOC, N2_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR,
+    FAKE_IL_ITEMS_RETURN, GROUP_FIELDS_MODEL_SETTINGS, OLD_GROUP_FIELDS_MODEL_SETTINGS, CORRELATIONS_MODEL_SETTINGS,
+    MIN_RUN_CORRELATIONS_SETTINGS, EXPECTED_CORRELATION_CSV,
+)
 from .test_computation import ComputationChecker
 
 
@@ -378,7 +381,7 @@ class TestGenDummyModelFiles(ComputationChecker):
     def test_gen_model__required_args_misisng__exception_raised(self):
         with self.assertRaises(OasisException) as context:
             self.manager.generate_dummy_model_files()
-        expected_err_msg = f'parameter num_vulnerabilities is required'
+        expected_err_msg = 'parameter num_vulnerabilities is required'
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_gen_model__min_args(self):
