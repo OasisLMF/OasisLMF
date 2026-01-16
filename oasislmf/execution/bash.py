@@ -755,7 +755,10 @@ def do_summarycalcs(
     if process_id == 1:
         print_command(filename, '')
 
-    summarycalc_switch = f'-t {runtype}'
+    if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
+        summarycalc_switch = '-t ri'
+    else:
+        summarycalc_switch = f'-t {runtype}'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
@@ -771,7 +774,7 @@ def do_summarycalcs(
 
     # Use -m flag to create summary index files
     # This is likely to become default in future ktools releases
-    cmd = 'summarypy' 
+    cmd = 'summarypy'
     cmd = f'{cmd} -m {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
@@ -1284,10 +1287,10 @@ def get_getmodel_cmd(
     :type  model_df_engine: str
     :return: The generated getmodel command
     """
-    # events 
+    # events
     cmd = f'evepy {eve_shuffle_flag}{process_id} {max_process_id} | '
 
-    # ground up 
+    # ground up
     if gulmc is True:
         gulcmd = get_gulcmd(
             gulmc, gul_random_generator, gulmc_effective_damageability,
