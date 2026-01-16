@@ -13,6 +13,7 @@ import pytest
 
 from oasislmf.pytools.gulmc.manager import run as run_gulmc
 from oasislmf.pytools.utils import assert_allclose
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 
 # get tests dirs
 TESTS_DIR = Path(__file__).parent.parent.parent
@@ -162,11 +163,8 @@ def test_gulmc(socket_server: str,
                 # if the test fails, convert the binaries to csv, compare them, and print the differences in the `loss` column
 
                 # convert to csv
-                subprocess.run(f"gultocsv < {ref_out_bin_fname.with_suffix('.bin')} > {ref_out_bin_fname.with_suffix('.csv')}",
-                               check=True, capture_output=False, shell=True)
-
-                subprocess.run(f"gultocsv < {file_out} > {test_out_bin_fname.with_suffix('.csv')}",
-                               check=True, capture_output=False, shell=True)
+                bintocsv(ref_out_bin_fname.with_suffix('.bin'), ref_out_bin_fname.with_suffix('.csv'), 'gul')
+                bintocsv(test_out_bin_fname.with_suffix('.bin') ,test_out_bin_fname.with_suffix('.csv'), 'gul')
 
                 df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
                 df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
@@ -337,14 +335,7 @@ def test_adjustments(test_model: Tuple[str, str]):
 
         if file_out.exists():
             # convert to csv
-            try:
-                subprocess.run(f"gultocsv < {file_out} > {file_out.with_suffix('.csv')}",
-                               check=True, capture_output=False, shell=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Command failed: {e}")
-                print(f"stdout: {e.stdout}")
-                print(f"stderr: {e.stderr}")
-                raise
+            bintocsv(file_out, file_out.with_suffix('.csv'), 'gul')
 
             df_test = pd.read_csv(file_out.with_suffix('.csv'))
             df_compare = pd.read_csv(Path(tmp_result_dir).joinpath("expected").joinpath("rng_adj.csv"))
