@@ -380,7 +380,7 @@ def get_gulcmd(gulpy, gulpy_random_generator, gulmc, gulmc_random_generator, gul
     if gulpy:
         cmd = f'gulpy --random-generator={gulpy_random_generator}'
     elif gulmc:
-        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
+        cmd = f"gulmc --random-generator={gulmc_random_generator} {'--data-server' * modelpy_server} --model-df-engine=\'{model_df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
@@ -1013,7 +1013,10 @@ def do_summarycalcs(
         print_command(filename, '')
 
     if summarypy:
-        summarycalc_switch = f'-t {runtype}'
+        if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
+            summarycalc_switch = '-t ri'
+        else:
+            summarycalc_switch = f'-t {runtype}'
     else:
         summarycalc_switch = '-f'
         if runtype == RUNTYPE_GROUNDUP_LOSS:
