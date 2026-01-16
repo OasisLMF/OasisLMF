@@ -1104,14 +1104,24 @@ def write_exposure_summary(
 
     # get keys success
     if keys_fp:
-        keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
-        keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-        keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
+        try:
+            keys_success_df = get_dataframe(src_fp=keys_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID']]
+        except OasisException:
+            # Assume empty file on read error.
+            keys_success_df = pd.DataFrame(columns=['locid'])
+        else:
+            keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
+            keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
 
     # get keys errors
     if keys_errors_fp:
-        keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
-        keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
+        try:
+            keys_errors_df = get_dataframe(src_fp=keys_errors_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
+        except OasisException:
+            # Assume empty file on read error.
+            keys_errors_df = pd.DataFrame(columns=['locid'])
+        else:
+            keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
         if not keys_errors_df.empty:
             write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile)
 
