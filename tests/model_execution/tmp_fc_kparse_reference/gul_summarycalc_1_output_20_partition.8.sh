@@ -12,39 +12,23 @@ rm -R -f $LOG_DIR/*
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir -p output/full_correlation/
 
 find /tmp/%FIFO_DIR%/fifo/ \( -name '*P9[^0-9]*' -o -name '*P9' \) -exec rm -R -f {} +
-mkdir -p /tmp/%FIFO_DIR%/fifo/full_correlation/
 rm -R -f work/*
 mkdir -p work/kat/
-mkdir -p work/full_correlation/
-mkdir -p work/full_correlation/kat/
 
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P9
-
-mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P9
-
-mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P9
-mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P9
 
 
 
 # --- Do ground up loss computes ---
-summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P9 > work/kat/gul_S1_summarycalc_P9 & pid1=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P9 > /dev/null & pid2=$!
-summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9 < /tmp/%FIFO_DIR%/fifo/gul_P9 &
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9 > /dev/null & pid1=$!
+summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9 < /tmp/%FIFO_DIR%/fifo/gul_P9 &
 
-# --- Do ground up loss computes ---
-summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P9 > work/full_correlation/kat/gul_S1_summarycalc_P9 & pid3=$!
-tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P9 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P9 > /dev/null & pid4=$!
-summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P9 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P9 &
+( evepy 9 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P9  ) &  pid2=$!
 
-( eve 9 20 | getmodel | gulcalc -S100 -L100 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P9 -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P9  ) &  pid5=$!
-
-wait $pid1 $pid2 $pid3 $pid4 $pid5
+wait $pid1 $pid2
 

@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oasislmf"
+dynamic = ["version", "dependencies", "optional-dependencies"]
+description = "Core loss modelling framework."
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {text = "BSD 3-Clause"}
+authors = [
+    {name = "Oasis LMF", email = "support@oasislmf.org"}
+]
+keywords = ["oasis", "lmf", "loss", "modeling", "framework"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Unix",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+]
+requires-python = ">=3.10"
+
+[project.urls]
+Homepage = "https://github.com/OasisLMF/oasislmf"
+
+[project.scripts]
+vulnerability_to_parquet = "oasislmf.pytools.getmodel.vulnerability:main"
+footprint_bin_to_parquet = "oasislmf.pytools.data_layer.conversions.footprint:main"
+footprint_compress = "oasislmf.pytools.footprintconv:footprintconvpy"
+dfcompare = "oasislmf.pytools.dfcompare:main"
+fmpy = "oasislmf.pytools.fm.cli:main"
+gulmc = "oasislmf.pytools.gulmc.cli:main"
+gulpy = "oasislmf.pytools.gulpy:main"
+load_balancer = "oasislmf.execution.load_balancer:main"
+modelpy = "oasislmf.pytools.modelpy:main"
+oasislmf = "oasislmf.cli.root:main"
+plapy = "oasislmf.pytools.pla.cli:main"
+servedata = "oasislmf.pytools.data_layer.footprint_layer:main"
+summarypy = "oasislmf.pytools.summary.cli:main"
+vulntoparquet = "oasislmf.pytools.getmodel.vulnerability:main"
+join-summary-info = "oasislmf.pytools.join_summary_info.cli:main"
+katpy = "oasislmf.pytools.kat.cli:main"
+eltpy = "oasislmf.pytools.elt.cli:main"
+pltpy = "oasislmf.pytools.plt.cli:main"
+aalpy = "oasislmf.pytools.aal.cli:main"
+lecpy = "oasislmf.pytools.lec.cli:main"
+bintocsv = "oasislmf.pytools.converters.bintocsv.cli:main"
+csvtobin = "oasislmf.pytools.converters.csvtobin.cli:main"
+bintoparquet = "oasislmf.pytools.converters.bintoparquet.cli:main"
+parquettobin = "oasislmf.pytools.converters.parquettobin.cli:main"
+evepy = "oasislmf.pytools.eve.cli:main"
+socket-server = "oasislmf.utils.socket_server:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+exclude = ["tests", "tests.*", "tests.*.*"]
+
+[tool.setuptools.package-data]
+"*" = ["requirements-package.in", "LICENSE"]
+"oasislmf._data" = ["*"]
+rdls = ["rdls_schema.json"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__", "*.py[co]"]
+
+[tool.setuptools.dynamic]
+version = {attr = "oasislmf.__version__"}
+dependencies = {file = ["requirements-package.in"]}
+
+[tool.setuptools.dynamic.optional-dependencies]
+extra = {file = ["optional-package.in"]}

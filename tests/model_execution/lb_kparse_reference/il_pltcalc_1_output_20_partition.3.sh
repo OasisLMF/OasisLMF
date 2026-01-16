@@ -22,16 +22,14 @@ mkdir -p work/kat/
 mkfifo fifo/il_P4
 
 mkfifo fifo/il_S1_summary_P4
-mkfifo fifo/il_S1_pltcalc_P4
 
 
 
 # --- Do insured loss computes ---
-pltcalc -H < fifo/il_S1_pltcalc_P4 > work/kat/il_S1_pltcalc_P4 & pid1=$!
-tee < fifo/il_S1_summary_P4 fifo/il_S1_pltcalc_P4 > /dev/null & pid2=$!
-summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
+tee < fifo/il_S1_summary_P4 > /dev/null & pid1=$!
+summarypy -m -t il  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
 
-( eve 4 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | fmpy -a2 > fifo/il_P4  ) & pid3=$!
+( evepy 4 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P4  ) & pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

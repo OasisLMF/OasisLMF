@@ -21,16 +21,14 @@ mkdir -p work/kat/
 mkfifo fifo/gul_P17
 
 mkfifo fifo/gul_S1_summary_P17
-mkfifo fifo/gul_S1_summarycalc_P17
 
 
 
 # --- Do ground up loss computes ---
-summarycalctocsv -s < fifo/gul_S1_summarycalc_P17 > work/kat/gul_S1_summarycalc_P17 & pid1=$!
-tee < fifo/gul_S1_summary_P17 fifo/gul_S1_summarycalc_P17 > /dev/null & pid2=$!
-summarycalc -m -i  -1 fifo/gul_S1_summary_P17 < fifo/gul_P17 &
+tee < fifo/gul_S1_summary_P17 > /dev/null & pid1=$!
+summarypy -m -t gul  -1 fifo/gul_S1_summary_P17 < fifo/gul_P17 &
 
-( eve 17 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P17  ) &  pid3=$!
+( evepy 17 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P17  ) &  pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

@@ -66,9 +66,6 @@ check_complete(){
 
 # --- Do insured loss kats ---
 
-kat work/kat/il_S1_pltcalc_P1 > output/il_S1_pltcalc.csv & kpid1=$!
-wait $kpid1
-
 
 rm -R -f work/*
 rm -R -f fifo/*

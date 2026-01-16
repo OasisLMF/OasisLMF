@@ -17,20 +17,19 @@ find fifo/ \( -name '*P18[^0-9]*' -o -name '*P18' \) -exec rm -R -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo fifo/il_P18
 
 mkfifo fifo/il_S1_summary_P18
-mkfifo fifo/il_S1_eltcalc_P18
 
 
 
 # --- Do insured loss computes ---
-eltcalc -s < fifo/il_S1_eltcalc_P18 > work/kat/il_S1_eltcalc_P18 & pid1=$!
-tee < fifo/il_S1_summary_P18 fifo/il_S1_eltcalc_P18 > /dev/null & pid2=$!
-summarycalc -m -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
+tee < fifo/il_S1_summary_P18 > /dev/null & pid1=$!
+summarypy -m -t il  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
 
-( eve 18 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P18  ) & pid3=$!
+( evepy 18 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > fifo/il_P18  ) & pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

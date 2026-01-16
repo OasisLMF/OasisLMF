@@ -684,8 +684,9 @@ class PrepareRunInputs(TestCase):
                 returnperiods_file.flush()
 
                 settings = {"gul_summaries": [{
-                    "lec_output": True,
-                    "leccalc": {"full_uncertainty_aep": True},
+                    "ord_output": {
+                        "ept_full_uncertainty_aep": True,
+                    }
                 }]}
                 prepare_run_inputs(settings, d, model_storage)
 
@@ -717,8 +718,9 @@ class PrepareRunInputs(TestCase):
 
             with self.assertRaises(OasisException):
                 settings = {"gul_summaries": [{
-                    "lec_output": True,
-                    "leccalc": {"full_uncertainty_aep": True},
+                    "ord_output": {
+                        "ept_full_uncertainty_aep": True,
+                    }
                 }]}
                 prepare_run_inputs(settings, d, model_storage)
 
@@ -758,8 +760,9 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.flush()
 
                 settings = {"gul_summaries": [{
-                    "lec_output": True,
-                    "leccalc": {"full_uncertainty_aep": True},
+                    "ord_output": {
+                        "ept_full_uncertainty_aep": True,
+                    }
                 }]}
                 prepare_run_inputs(settings, d, model_storage)
 
@@ -794,8 +797,9 @@ class PrepareRunInputs(TestCase):
 
                 settings = {
                     "gul_summaries": [{
-                        "lec_output": True,
-                        "leccalc": {"full_uncertainty_aep": True},
+                        "ord_output": {
+                            "ept_full_uncertainty_aep": True,
+                        }
                     }],
                     'model_settings': {'event_occurrence_id': 'occurrence id'}
                 }

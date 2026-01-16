@@ -66,46 +66,26 @@ check_complete(){
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir -p output/full_correlation/
 
 find fifo/ \( -name '*P4[^0-9]*' -o -name '*P4' \) -exec rm -R -f {} +
-mkdir -p fifo/full_correlation/
 rm -R -f work/*
 mkdir -p work/kat/
-mkdir -p work/full_correlation/
-mkdir -p work/full_correlation/kat/
 
-mkdir -p work/il_S1_summaryaalcalc
-mkdir -p work/full_correlation/il_S1_summaryaalcalc
-
-mkfifo fifo/full_correlation/gul_fc_P4
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo fifo/il_P4
 
 mkfifo fifo/il_S1_summary_P4
-mkfifo fifo/il_S1_summary_P4.idx
-
-mkfifo fifo/full_correlation/il_P4
-
-mkfifo fifo/full_correlation/il_S1_summary_P4
-mkfifo fifo/full_correlation/il_S1_summary_P4.idx
 
 
 
 # --- Do insured loss computes ---
-tee < fifo/il_S1_summary_P4 work/il_S1_summaryaalcalc/P4.bin > /dev/null & pid1=$!
-tee < fifo/il_S1_summary_P4.idx work/il_S1_summaryaalcalc/P4.idx > /dev/null & pid2=$!
-( summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 ) 2>> $LOG_DIR/stderror.err  &
+tee < fifo/il_S1_summary_P4 > /dev/null & pid1=$!
+( summarypy -m -t il  -1 fifo/il_S1_summary_P4 < fifo/il_P4 ) 2>> $LOG_DIR/stderror.err  &
 
-# --- Do insured loss computes ---
-tee < fifo/full_correlation/il_S1_summary_P4 work/full_correlation/il_S1_summaryaalcalc/P4.bin > /dev/null & pid3=$!
-tee < fifo/full_correlation/il_S1_summary_P4.idx work/full_correlation/il_S1_summaryaalcalc/P4.idx > /dev/null & pid4=$!
-( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P4 < fifo/full_correlation/il_P4 ) 2>> $LOG_DIR/stderror.err  &
+( ( evepy 4 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid2=$!
 
-( ( fmcalc -a2 < fifo/full_correlation/gul_fc_P4 > fifo/full_correlation/il_P4 ) 2>> $LOG_DIR/stderror.err ) & pid5=$!
-( ( eve 4 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P4 -a1 -i - | fmcalc -a2 > fifo/il_P4  ) 2>> $LOG_DIR/stderror.err ) & pid6=$!
-
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
+wait $pid1 $pid2
 
 
 check_complete

@@ -12,39 +12,23 @@ rm -R -f $LOG_DIR/*
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir -p output/full_correlation/
 
 find fifo/ \( -name '*P5[^0-9]*' -o -name '*P5' \) -exec rm -R -f {} +
-mkdir -p fifo/full_correlation/
 rm -R -f work/*
 mkdir -p work/kat/
-mkdir -p work/full_correlation/
-mkdir -p work/full_correlation/kat/
 
 
 mkfifo fifo/gul_P5
 
 mkfifo fifo/gul_S1_summary_P5
-mkfifo fifo/gul_S1_pltcalc_P5
-
-mkfifo fifo/full_correlation/gul_P5
-
-mkfifo fifo/full_correlation/gul_S1_summary_P5
-mkfifo fifo/full_correlation/gul_S1_pltcalc_P5
 
 
 
 # --- Do ground up loss computes ---
-pltcalc -H < fifo/gul_S1_pltcalc_P5 > work/kat/gul_S1_pltcalc_P5 & pid1=$!
-tee < fifo/gul_S1_summary_P5 fifo/gul_S1_pltcalc_P5 > /dev/null & pid2=$!
-summarycalc -m -i  -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
+tee < fifo/gul_S1_summary_P5 > /dev/null & pid1=$!
+summarypy -m -t gul  -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
 
-# --- Do ground up loss computes ---
-pltcalc -H < fifo/full_correlation/gul_S1_pltcalc_P5 > work/full_correlation/kat/gul_S1_pltcalc_P5 & pid3=$!
-tee < fifo/full_correlation/gul_S1_summary_P5 fifo/full_correlation/gul_S1_pltcalc_P5 > /dev/null & pid4=$!
-summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P5 < fifo/full_correlation/gul_P5 &
+( evepy 5 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  > fifo/gul_P5  ) &  pid2=$!
 
-( eve 5 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P5 -a1 -i - > fifo/gul_P5  ) &  pid5=$!
-
-wait $pid1 $pid2 $pid3 $pid4 $pid5
+wait $pid1 $pid2
 

@@ -21,16 +21,14 @@ mkdir -p work/kat/
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P7
 
 
 
 # --- Do ground up loss computes ---
-pltcalc -H < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P7 > work/kat/gul_S1_pltcalc_P7 & pid1=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P7 > /dev/null & pid2=$!
-summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7 < /tmp/%FIFO_DIR%/fifo/gul_P7 &
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7 > /dev/null & pid1=$!
+summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7 < /tmp/%FIFO_DIR%/fifo/gul_P7 &
 
-( eve 7 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P7  ) &  pid3=$!
+( evepy 7 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P7  ) &  pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

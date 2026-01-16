@@ -12,21 +12,9 @@ rm -R -f $LOG_DIR/*
 
 # --- Do insured loss kats ---
 
-kat -u work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
-kat -u work/kat/il_S1_pltcalc_P1 > output/il_S1_pltcalc.csv & kpid2=$!
-kat -u work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid3=$!
 
 # --- Do ground up loss kats ---
 
-kat -u work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid4=$!
-kat -u work/kat/gul_S1_pltcalc_P1 > output/gul_S1_pltcalc.csv & kpid5=$!
-kat -u work/kat/gul_S1_summarycalc_P1 > output/gul_S1_summarycalc.csv & kpid6=$!
-wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
-
-
-aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv & lpid1=$!
-aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid2=$!
-wait $lpid1 $lpid2
 
 rm -R -f work/*
 rm -R -f fifo/*

@@ -21,20 +21,18 @@ mkdir -p work/kat/
 mkfifo fifo/gul_P1
 
 mkfifo fifo/gul_S1_summary_P1
-mkfifo fifo/gul_S1_summarycalc_P1
 
 
 
 # --- Do ground up loss computes ---
 
-summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
 
 
-tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
+tee < fifo/gul_S1_summary_P1 > /dev/null & pid1=$!
 
-summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
-( custom_gulcalc_command > fifo/gul_P1  ) &  pid3=$!
+( custom_gulcalc_command > fifo/gul_P1  ) &  pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

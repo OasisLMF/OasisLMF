@@ -17,21 +17,19 @@ find /tmp/%FIFO_DIR%/fifo/ \( -name '*P7[^0-9]*' -o -name '*P7' \) -exec rm -R -
 rm -R -f work/*
 mkdir -p work/kat/
 
-mkdir -p work/il_S1_summaryaalcalc
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P7
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7.idx
 
 
 
 # --- Do insured loss computes ---
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7 work/il_S1_summaryaalcalc/P7.bin > /dev/null & pid1=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7.idx work/il_S1_summaryaalcalc/P7.idx > /dev/null & pid2=$!
-summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7 < /tmp/%FIFO_DIR%/fifo/il_P7 &
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7 > /dev/null & pid1=$!
+summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P7 < /tmp/%FIFO_DIR%/fifo/il_P7 &
 
-( eve 7 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P7  ) & pid3=$!
+( evepy 7 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P7  ) & pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

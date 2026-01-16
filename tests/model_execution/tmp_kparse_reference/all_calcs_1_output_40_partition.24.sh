@@ -17,46 +17,27 @@ find /tmp/%FIFO_DIR%/fifo/ \( -name '*P25[^0-9]*' -o -name '*P25' \) -exec rm -R
 rm -R -f work/*
 mkdir -p work/kat/
 
-mkdir -p work/gul_S1_summaryleccalc
-mkdir -p work/gul_S1_summaryaalcalc
-mkdir -p work/il_S1_summaryleccalc
-mkdir -p work/il_S1_summaryaalcalc
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P25
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25.idx
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P25
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P25
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P25
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P25
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25.idx
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P25
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P25
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P25
 
 
 
 # --- Do insured loss computes ---
-eltcalc -s < /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P25 > work/kat/il_S1_eltcalc_P25 & pid1=$!
-summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P25 > work/kat/il_S1_summarycalc_P25 & pid2=$!
-pltcalc -H < /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P25 > work/kat/il_S1_pltcalc_P25 & pid3=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P25 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P25 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P25 work/il_S1_summaryaalcalc/P25.bin work/il_S1_summaryleccalc/P25.bin > /dev/null & pid4=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25.idx work/il_S1_summaryaalcalc/P25.idx work/il_S1_summaryleccalc/P25.idx > /dev/null & pid5=$!
-summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25 < /tmp/%FIFO_DIR%/fifo/il_P25 &
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25 > /dev/null & pid1=$!
+summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25 < /tmp/%FIFO_DIR%/fifo/il_P25 &
 
 # --- Do ground up loss computes ---
-eltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P25 > work/kat/gul_S1_eltcalc_P25 & pid6=$!
-summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P25 > work/kat/gul_S1_summarycalc_P25 & pid7=$!
-pltcalc -H < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P25 > work/kat/gul_S1_pltcalc_P25 & pid8=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P25 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P25 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P25 work/gul_S1_summaryaalcalc/P25.bin work/gul_S1_summaryleccalc/P25.bin > /dev/null & pid9=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25.idx work/gul_S1_summaryaalcalc/P25.idx work/gul_S1_summaryleccalc/P25.idx > /dev/null & pid10=$!
-summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25 < /tmp/%FIFO_DIR%/fifo/gul_P25 &
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25 > /dev/null & pid2=$!
+summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25 < /tmp/%FIFO_DIR%/fifo/gul_P25 &
 
-( eve 25 40 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P25 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P25  ) & pid11=$!
+( evepy 25 40 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  | tee /tmp/%FIFO_DIR%/fifo/gul_P25 | fmpy -a2 > /tmp/%FIFO_DIR%/fifo/il_P25  ) & pid3=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11
+wait $pid1 $pid2 $pid3
 
