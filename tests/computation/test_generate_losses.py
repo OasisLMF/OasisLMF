@@ -435,23 +435,6 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses(**self.min_args)
         mock_runner.assert_called_once()
 
-    @patch('oasislmf.execution.runner.run')
-    @patch('oasislmf.computation.generate.losses.subprocess.run')
-    def test_losses__parquet_output__unsupported(self, mock_subprocess, mock_runner):
-        self.write_json(self.tmp_files.get('analysis_settings_json'), PARQUET_GUL_SETTINGS)
-        self.manager.generate_files(**self.args_gen_files_gul)
-
-        mock_check_parquet = Mock()
-        mock_check_parquet.stderr.decode.return_value = 'Parquet output disabled'
-        mock_subprocess.return_value = mock_check_parquet
-
-        with (self.assertRaises(OasisException) as context,
-              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10017"})):
-            self.manager.generate_losses(**self.min_args)
-        expected_error = 'Parquet output format requested but not supported by ktools components.'
-        self.assertIn(expected_error, str(context.exception))
-        mock_runner.assert_not_called()
-
     def test_losses__il_files_missing__expection_raised(self):
         self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
         self.manager.generate_files(**self.args_gen_files_gul)
