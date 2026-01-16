@@ -19,15 +19,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install pip-tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-tools
-
       - name: Build & install oasislmf
         run: |
-          python setup.py bdist_wheel --plat-name Linux_x86_64
-          WHL_LINUX=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl")
+          python -m pip install --upgrade pip
+          pip install --upgrade setuptools wheel build
+          python -m build
+
+          WHL_LINUX=$(find ./dist/ -name "oasislmf-*.whl")
           pip install ${WHL_LINUX}
 
       - name: Create schema
