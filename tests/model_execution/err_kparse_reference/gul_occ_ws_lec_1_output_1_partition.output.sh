@@ -67,9 +67,6 @@ check_complete(){
 # --- Do ground up loss kats ---
 
 
-( leccalc -r -Kgul_S1_summaryleccalc -w output/gul_S1_leccalc_wheatsheaf_oep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-wait $lpid1
-
 rm -R -f work/*
 rm -R -f fifo/*
 

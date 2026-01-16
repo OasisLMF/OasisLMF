@@ -17,21 +17,18 @@ find /tmp/%FIFO_DIR%/fifo/ \( -name '*P11[^0-9]*' -o -name '*P11' \) -exec rm -R
 rm -R -f work/*
 mkdir -p work/kat/
 
-mkdir -p work/gul_S1_summaryaalcalc
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11.idx
 
 
 
 # --- Do ground up loss computes ---
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11 work/gul_S1_summaryaalcalc/P11.bin > /dev/null & pid1=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11.idx work/gul_S1_summaryaalcalc/P11.idx > /dev/null & pid2=$!
-summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11 < /tmp/%FIFO_DIR%/fifo/gul_P11 &
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11 > /dev/null & pid1=$!
+summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11 < /tmp/%FIFO_DIR%/fifo/gul_P11 &
 
-( eve 11 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P11  ) &  pid3=$!
+( evepy 11 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a1  > /tmp/%FIFO_DIR%/fifo/gul_P11  ) &  pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

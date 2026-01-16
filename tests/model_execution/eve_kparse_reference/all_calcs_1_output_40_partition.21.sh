@@ -17,46 +17,27 @@ find fifo/ \( -name '*P22[^0-9]*' -o -name '*P22' \) -exec rm -R -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
-mkdir -p work/gul_S1_summaryleccalc
-mkdir -p work/gul_S1_summaryaalcalc
-mkdir -p work/il_S1_summaryleccalc
-mkdir -p work/il_S1_summaryaalcalc
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo fifo/gul_P22
 
 mkfifo fifo/gul_S1_summary_P22
-mkfifo fifo/gul_S1_summary_P22.idx
-mkfifo fifo/gul_S1_eltcalc_P22
-mkfifo fifo/gul_S1_summarycalc_P22
-mkfifo fifo/gul_S1_pltcalc_P22
 
 mkfifo fifo/il_P22
 
 mkfifo fifo/il_S1_summary_P22
-mkfifo fifo/il_S1_summary_P22.idx
-mkfifo fifo/il_S1_eltcalc_P22
-mkfifo fifo/il_S1_summarycalc_P22
-mkfifo fifo/il_S1_pltcalc_P22
 
 
 
 # --- Do insured loss computes ---
-eltcalc -s < fifo/il_S1_eltcalc_P22 > work/kat/il_S1_eltcalc_P22 & pid1=$!
-summarycalctocsv -s < fifo/il_S1_summarycalc_P22 > work/kat/il_S1_summarycalc_P22 & pid2=$!
-pltcalc -H < fifo/il_S1_pltcalc_P22 > work/kat/il_S1_pltcalc_P22 & pid3=$!
-tee < fifo/il_S1_summary_P22 fifo/il_S1_eltcalc_P22 fifo/il_S1_summarycalc_P22 fifo/il_S1_pltcalc_P22 work/il_S1_summaryaalcalc/P22.bin work/il_S1_summaryleccalc/P22.bin > /dev/null & pid4=$!
-tee < fifo/il_S1_summary_P22.idx work/il_S1_summaryaalcalc/P22.idx work/il_S1_summaryleccalc/P22.idx > /dev/null & pid5=$!
-summarycalc -m -f  -1 fifo/il_S1_summary_P22 < fifo/il_P22 &
+tee < fifo/il_S1_summary_P22 > /dev/null & pid1=$!
+summarypy -m -t il  -1 fifo/il_S1_summary_P22 < fifo/il_P22 &
 
 # --- Do ground up loss computes ---
-eltcalc -s < fifo/gul_S1_eltcalc_P22 > work/kat/gul_S1_eltcalc_P22 & pid6=$!
-summarycalctocsv -s < fifo/gul_S1_summarycalc_P22 > work/kat/gul_S1_summarycalc_P22 & pid7=$!
-pltcalc -H < fifo/gul_S1_pltcalc_P22 > work/kat/gul_S1_pltcalc_P22 & pid8=$!
-tee < fifo/gul_S1_summary_P22 fifo/gul_S1_eltcalc_P22 fifo/gul_S1_summarycalc_P22 fifo/gul_S1_pltcalc_P22 work/gul_S1_summaryaalcalc/P22.bin work/gul_S1_summaryleccalc/P22.bin > /dev/null & pid9=$!
-tee < fifo/gul_S1_summary_P22.idx work/gul_S1_summaryaalcalc/P22.idx work/gul_S1_summaryleccalc/P22.idx > /dev/null & pid10=$!
-summarycalc -m -i  -1 fifo/gul_S1_summary_P22 < fifo/gul_P22 &
+tee < fifo/gul_S1_summary_P22 > /dev/null & pid2=$!
+summarypy -m -t gul  -1 fifo/gul_S1_summary_P22 < fifo/gul_P22 &
 
-( eve -R 22 40 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | tee fifo/gul_P22 | fmcalc -a2 > fifo/il_P22  ) & pid11=$!
+( evepy -R 22 40 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | tee fifo/gul_P22 | fmpy -a2 > fifo/il_P22  ) & pid3=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11
+wait $pid1 $pid2 $pid3
 

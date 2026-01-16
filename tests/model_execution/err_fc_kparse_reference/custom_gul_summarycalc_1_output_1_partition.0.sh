@@ -84,22 +84,20 @@ mkdir -p work/kat/
 mkfifo fifo/gul_P1
 
 mkfifo fifo/gul_S1_summary_P1
-mkfifo fifo/gul_S1_summarycalc_P1
 
 
 
 # --- Do ground up loss computes ---
 
-( summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
 
 
-tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
+tee < fifo/gul_S1_summary_P1 > /dev/null & pid1=$!
 
-( summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( (custom_gulcalc_command) 2>> log/gul_stderror.err > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid3=$!
+( ( (custom_gulcalc_command) 2>> log/gul_stderror.err > fifo/gul_P1  ) 2>> $LOG_DIR/stderror.err ) &  pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 
 
 check_complete

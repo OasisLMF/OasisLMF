@@ -17,21 +17,18 @@ find fifo/ \( -name '*P2[^0-9]*' -o -name '*P2' \) -exec rm -R -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
-mkdir -p work/gul_S1_summaryleccalc
 
 mkfifo fifo/gul_P2
 
 mkfifo fifo/gul_S1_summary_P2
-mkfifo fifo/gul_S1_summary_P2.idx
 
 
 
 # --- Do ground up loss computes ---
-tee < fifo/gul_S1_summary_P2 work/gul_S1_summaryleccalc/P2.bin > /dev/null & pid1=$!
-tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryleccalc/P2.idx > /dev/null & pid2=$!
-summarycalc -m -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
+tee < fifo/gul_S1_summary_P2 > /dev/null & pid1=$!
+summarypy -m -t gul  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
-( eve 2 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P2  ) &  pid3=$!
+( evepy 2 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  > fifo/gul_P2  ) &  pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

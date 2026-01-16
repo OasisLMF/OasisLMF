@@ -67,9 +67,6 @@ check_complete(){
 # --- Do insured loss kats ---
 
 
-( leccalc -r -Kil_S1_summaryleccalc -F output/il_S1_leccalc_full_uncertainty_aep.csv ) 2>> $LOG_DIR/stderror.err & lpid1=$!
-wait $lpid1
-
 rm -R -f work/*
 rm -R -f fifo/*
 

@@ -71,33 +71,25 @@ find fifo/ \( -name '*P1[^0-9]*' -o -name '*P1' \) -exec rm -R -f {} +
 rm -R -f work/*
 mkdir -p work/kat/
 
-mkdir -p work/il_S1_summaryaalcalc
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summary_P1.idx
-mkfifo fifo/il_S1_eltcalc_P1
-mkfifo fifo/il_S1_summarycalc_P1
-mkfifo fifo/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-( eltcalc < fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
-( summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 ) 2>> $LOG_DIR/stderror.err & pid2=$!
-( pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid3=$!
 
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
-tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryaalcalc/P1.idx > /dev/null & pid5=$!
+tee < fifo/il_S1_summary_P1 > /dev/null & pid1=$!
 
-( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarypy -m -t il  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-( ( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid6=$!
+( ( evepy 1 1 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  | fmpy -a2 > fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid2=$!
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6
+wait $pid1 $pid2
 
 
 check_complete

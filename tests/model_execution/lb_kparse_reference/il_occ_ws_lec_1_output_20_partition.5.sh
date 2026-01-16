@@ -18,21 +18,18 @@ rm -R -f work/*
 mkdir -p work/kat/
 
 #fmpy -a2 --create-financial-structure-files
-mkdir -p work/il_S1_summaryleccalc
 
 mkfifo fifo/il_P6
 
 mkfifo fifo/il_S1_summary_P6
-mkfifo fifo/il_S1_summary_P6.idx
 
 
 
 # --- Do insured loss computes ---
-tee < fifo/il_S1_summary_P6 work/il_S1_summaryleccalc/P6.bin > /dev/null & pid1=$!
-tee < fifo/il_S1_summary_P6.idx work/il_S1_summaryleccalc/P6.idx > /dev/null & pid2=$!
-summarycalc -m -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
+tee < fifo/il_S1_summary_P6 > /dev/null & pid1=$!
+summarypy -m -t il  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
 
-( eve 6 20 | getmodel | gulcalc -S100 -L100 -r -a0 -i - | fmpy -a2 > fifo/il_P6  ) & pid3=$!
+( evepy 6 20 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P6  ) & pid2=$!
 
-wait $pid1 $pid2 $pid3
+wait $pid1 $pid2
 

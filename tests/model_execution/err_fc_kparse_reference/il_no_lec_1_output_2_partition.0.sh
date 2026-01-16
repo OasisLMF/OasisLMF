@@ -66,66 +66,30 @@ check_complete(){
 # --- Setup run dirs ---
 
 find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
-mkdir -p output/full_correlation/
 
 find fifo/ \( -name '*P1[^0-9]*' -o -name '*P1' \) -exec rm -R -f {} +
-mkdir -p fifo/full_correlation/
 rm -R -f work/*
 mkdir -p work/kat/
-mkdir -p work/full_correlation/
-mkdir -p work/full_correlation/kat/
 
-mkdir -p work/il_S1_summaryaalcalc
-mkdir -p work/full_correlation/il_S1_summaryaalcalc
-
-mkfifo fifo/full_correlation/gul_fc_P1
+#fmpy -a2 --create-financial-structure-files
 
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summary_P1.idx
-mkfifo fifo/il_S1_eltcalc_P1
-mkfifo fifo/il_S1_summarycalc_P1
-mkfifo fifo/il_S1_pltcalc_P1
-
-mkfifo fifo/full_correlation/il_P1
-
-mkfifo fifo/full_correlation/il_S1_summary_P1
-mkfifo fifo/full_correlation/il_S1_summary_P1.idx
-mkfifo fifo/full_correlation/il_S1_eltcalc_P1
-mkfifo fifo/full_correlation/il_S1_summarycalc_P1
-mkfifo fifo/full_correlation/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-( eltcalc < fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
-( summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 ) 2>> $LOG_DIR/stderror.err & pid2=$!
-( pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid3=$!
 
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
-tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryaalcalc/P1.idx > /dev/null & pid5=$!
+tee < fifo/il_S1_summary_P1 > /dev/null & pid1=$!
 
-( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
+( summarypy -m -t il  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
 
-# --- Do insured loss computes ---
+( ( evepy 1 2 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S0 -L0 -a1  | fmpy -a2 > fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid2=$!
 
-( eltcalc < fifo/full_correlation/il_S1_eltcalc_P1 > work/full_correlation/kat/il_S1_eltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid6=$!
-( summarycalctocsv < fifo/full_correlation/il_S1_summarycalc_P1 > work/full_correlation/kat/il_S1_summarycalc_P1 ) 2>> $LOG_DIR/stderror.err & pid7=$!
-( pltcalc < fifo/full_correlation/il_S1_pltcalc_P1 > work/full_correlation/kat/il_S1_pltcalc_P1 ) 2>> $LOG_DIR/stderror.err & pid8=$!
-
-
-tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_eltcalc_P1 fifo/full_correlation/il_S1_summarycalc_P1 fifo/full_correlation/il_S1_pltcalc_P1 work/full_correlation/il_S1_summaryaalcalc/P1.bin > /dev/null & pid9=$!
-tee < fifo/full_correlation/il_S1_summary_P1.idx work/full_correlation/il_S1_summaryaalcalc/P1.idx > /dev/null & pid10=$!
-
-( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 ) 2>> $LOG_DIR/stderror.err  &
-
-( ( fmcalc -a2 < fifo/full_correlation/gul_fc_P1 > fifo/full_correlation/il_P1 ) 2>> $LOG_DIR/stderror.err ) & pid11=$!
-( ( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> $LOG_DIR/stderror.err ) & pid12=$!
-
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12
+wait $pid1 $pid2
 
 
 check_complete
