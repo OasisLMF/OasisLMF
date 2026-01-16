@@ -15,7 +15,9 @@ keywords = ["oasis", "lmf", "loss", "modeling", "framework"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Unix",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.9",
 ]
