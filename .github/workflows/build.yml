@@ -56,6 +56,7 @@ jobs:
         python -m build
 
     - name: find outputs
+      run: |
         TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
         WHL_LINUX=$(find ./dist/ -name "oasislmf-*.whl")
 
