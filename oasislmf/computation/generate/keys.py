@@ -86,8 +86,6 @@ class GenerateKeys(KeyComputationStep):
          'help': 'Flag to enable/disable conversion to latest compatible OED version. Must be present in model settings.'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
-        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
-         'help': 'if True, intermediary file will be csv instead of more compress format'},
 
         # Manager only options
         {'name': 'verbose', 'default': False},
@@ -186,8 +184,6 @@ class GenerateKeysDeterministic(KeyComputationStep):
          'help': 'List of peril covered by the model'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
-        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
-         'help': 'if True, intermediary file will be csv instead of more compress format'},
     ]
 
     def _get_output_dir(self):
