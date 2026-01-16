@@ -31,7 +31,6 @@ class TestGenKeys(ComputationChecker):
             [a for a in self.default_args.keys() if 'path' in a] +
             [a for a in self.default_args.keys() if 'json' in a]
         )
-        self.tmp_files.pop("intermediary_csv")  # intermediary_csv is not a file
 
         self.min_args = {
             'lookup_module_path': FAKE_COMPLEX_LOOKUP_MODULE,

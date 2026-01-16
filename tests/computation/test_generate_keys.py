@@ -35,7 +35,6 @@ class TestGenKeys(ComputationChecker):
             [a for a in self.default_args.keys() if 'path' in a] +
             [a for a in self.default_args.keys() if 'json' in a]
         )
-        self.tmp_files.pop("intermediary_csv")
         self.min_args = {
             'lookup_config_json': LOOKUP_CONFIG,
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
