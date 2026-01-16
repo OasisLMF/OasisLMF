@@ -11,6 +11,7 @@ import tempfile
 from oasislmf.pytools.getmodel.manager import get_vulns
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
 from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 
 import numpy as np
 import numba as nb
@@ -86,10 +87,16 @@ class TestGetVulns(TestCase):
         df.to_csv(csv_path, index=False)
 
         # create bin + idx file
-        subprocess.run("vulnerabilitytobin -d 3 -i < vulnerability.csv", check=True, capture_output=False, shell=True, cwd=self.temp_dir)
-        # rename vulnerability.bin to vul.bin and vulnerability.idx to vul.idx
-        os.rename(os.path.join(self.temp_dir, 'vulnerability.bin'), os.path.join(self.temp_dir, 'vul.bin'))
-        os.rename(os.path.join(self.temp_dir, 'vulnerability.idx'), os.path.join(self.temp_dir, 'vul.idx'))
+        csvtobin(
+            file_in=os.path.join(self.temp_dir, 'vulnerability.csv'),
+            file_out=os.path.join(self.temp_dir, 'vul.bin'),
+            idx_file_out=os.path.join(self.temp_dir, 'vul.idx'),
+            file_type='vulnerability',
+            max_damage_bin_idx=3,
+            no_validation=False,
+            suppress_int_bin_checks=False,
+            zip_files=False
+        )
 
         # create bin file
         bin_path = os.path.join(self.temp_dir, 'vulnerability.bin')
