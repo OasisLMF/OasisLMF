@@ -26,7 +26,7 @@ on:
       src_pkg_filename:
         description: "Source package filename"
         value: ${{ jobs.oasislmf.outputs.src_pkg_filename }}
-      bin_pkg_filename:
+      linux_pkg_filename:
         description: "Bin package filename"
         value: ${{ jobs.oasislmf.outputs.bin_pkg_filename }}
 
