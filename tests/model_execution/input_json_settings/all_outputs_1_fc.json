@@ -1,0 +1,126 @@
+{
+  "analysis_settings": {
+    "prog_id": 1,
+    "module_supplier_id": "OasisIM",
+    "model_version_id": "1",
+    "number_of_samples": 50,
+    "gul_threshold": 10,
+    "full_correlation": true,
+    "model_settings": {
+      "use_random_number_file": false,
+      "event_occurrence_file_id": 1
+    },
+    "gul_output": true,
+    "gul_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+            "elt_sample": true,
+            "elt_quantile": true,
+            "elt_moment": true,
+            "plt_sample": true,
+            "plt_quantile": true,
+            "plt_moment": true,
+            "alt_period": true,
+            "alt_meanonly": true,
+            "alct_convergence": true,
+            "alct_confidence": 0.95,
+            "ept_full_uncertainty_aep": true,
+            "ept_full_uncertainty_oep": true,
+            "ept_mean_sample_aep": true,
+            "ept_mean_sample_oep": true,
+            "ept_per_sample_mean_aep": true,
+            "ept_per_sample_mean_oep": true,
+            "psept_aep": true,
+            "psept_oep": true,
+            "return_period_file": true,
+            "parquet_format": false
+          }
+      }
+    ],
+    "il_output": true,
+    "il_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+            "elt_sample": true,
+            "elt_quantile": true,
+            "elt_moment": true,
+            "plt_sample": true,
+            "plt_quantile": true,
+            "plt_moment": true,
+            "alt_period": true,
+            "alt_meanonly": true,
+            "alct_convergence": true,
+            "alct_confidence": 0.95,
+            "ept_full_uncertainty_aep": true,
+            "ept_full_uncertainty_oep": true,
+            "ept_mean_sample_aep": true,
+            "ept_mean_sample_oep": true,
+            "ept_per_sample_mean_aep": true,
+            "ept_per_sample_mean_oep": true,
+            "psept_aep": true,
+            "psept_oep": true,
+            "return_period_file": true,
+            "parquet_format": false
+          }
+       }
+    ],
+    "ri_output": true,
+    "ri_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+            "elt_sample": true,
+            "elt_quantile": true,
+            "elt_moment": true,
+            "plt_sample": true,
+            "plt_quantile": true,
+            "plt_moment": true,
+            "alt_period": true,
+            "alt_meanonly": true,
+            "alct_convergence": true,
+            "alct_confidence": 0.95,
+            "ept_full_uncertainty_aep": true,
+            "ept_full_uncertainty_oep": true,
+            "ept_mean_sample_aep": true,
+            "ept_mean_sample_oep": true,
+            "ept_per_sample_mean_aep": true,
+            "ept_per_sample_mean_oep": true,
+            "psept_aep": true,
+            "psept_oep": true,
+            "return_period_file": true,
+            "parquet_format": false
+          }
+       }
+    ],
+    "rl_output": true,
+    "rl_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+            "elt_sample": true,
+            "elt_quantile": true,
+            "elt_moment": true,
+            "plt_sample": true,
+            "plt_quantile": true,
+            "plt_moment": true,
+            "alt_period": true,
+            "alt_meanonly": true,
+            "alct_convergence": true,
+            "alct_confidence": 0.95,
+            "ept_full_uncertainty_aep": true,
+            "ept_full_uncertainty_oep": true,
+            "ept_mean_sample_aep": true,
+            "ept_mean_sample_oep": true,
+            "ept_per_sample_mean_aep": true,
+            "ept_per_sample_mean_oep": true,
+            "psept_aep": true,
+            "psept_oep": true,
+            "return_period_file": true,
+            "parquet_format": false
+          }
+       }
+    ]
+  }
+}
