@@ -481,18 +481,18 @@ def run(
     concatenate_qplt=False,
     unsorted=False,
 ):
-    """Concatenate CSV files (optionally sorted)
+    """Concatenate output files (optionally sorted)
     Args:
-        out_file (str | os.PathLike): Output Concatenated CSV file.
+        out_file (str | os.PathLike): Output Concatenated file.
         file_type (str, optional): Input file type suffix, if not discernible from input files. Defaults to None.
-        files_in (List[str | os.PathLike], optional): Individual CSV file paths to concatenate. Defaults to None.
+        files_in (List[str | os.PathLike], optional): Individual file paths to concatenate. Defaults to None.
         dir_in (str | os.PathLike, optional): Path to the directory containing files for concatenation. Defaults to None.
-        concatenate_selt (bool, optional): Concatenate SELT CSV file. Defaults to False.
-        concatenate_melt (bool, optional): Concatenate MELT CSV file. Defaults to False.
-        concatenate_qelt (bool, optional): Concatenate QELT CSV file. Defaults to False.
-        concatenate_splt (bool, optional): Concatenate SPLT CSV file. Defaults to False.
-        concatenate_mplt (bool, optional): Concatenate MPLT CSV file. Defaults to False.
-        concatenate_qplt (bool, optional): Concatenate QPLT CSV file. Defaults to False.
+        concatenate_selt (bool, optional): Concatenate SELT file. Defaults to False.
+        concatenate_melt (bool, optional): Concatenate MELT file. Defaults to False.
+        concatenate_qelt (bool, optional): Concatenate QELT file. Defaults to False.
+        concatenate_splt (bool, optional): Concatenate SPLT file. Defaults to False.
+        concatenate_mplt (bool, optional): Concatenate MPLT file. Defaults to False.
+        concatenate_qplt (bool, optional): Concatenate QPLT file. Defaults to False.
         unsorted (bool, optional): Do not sort by event/period ID. Defaults to False.
     """
     input_files = []
