@@ -1649,13 +1649,13 @@ class APIClientTests(unittest.TestCase):
     def test_get_currency_conversion_returns_json(self):
         filetype, path = self.client.get_currency_conversion(CURRENCY_CONVERSION_LIST)
 
-        assert filetype == "json"
+        assert filetype == "application/json"
         assert pathlib.Path(path).resolve() == CURRENCY_CONVERSION_LIST.resolve()
 
     def test_get_currency_conversion_returns_csv(self):
         filetype, path = self.client.get_currency_conversion(CURRENCY_CONVERSION_JSON)
 
-        assert filetype == "csv"
+        assert filetype == "text/csv"
         assert pathlib.Path(path).resolve() == CURRENCY_CSV.resolve()
 
     def test_conversion_upload_file_csv(self):
@@ -1666,7 +1666,7 @@ class APIClientTests(unittest.TestCase):
         assert args[0] == 38
         assert pathlib.Path(args[1]).resolve() == CURRENCY_CSV.resolve()
         assert len(args) == 2
-        assert kwargs == {'content_type': "text/csv", 'serializer_field_name': "csv_file"}
+        assert kwargs == {'content_type': "text/csv"}
 
     def test_conversion_upload_file_json(self):
         self.client.portfolios.currency_conversion_json = MagicMock()
@@ -1676,4 +1676,4 @@ class APIClientTests(unittest.TestCase):
         assert args[0] == 180
         assert pathlib.Path(args[1]).resolve() == CURRENCY_CONVERSION_LIST.resolve()
         assert len(args) == 2
-        assert kwargs == {'content_type': "application/json", 'serializer_field_name': "json_file"}
+        assert kwargs == {'content_type': "application/json"}

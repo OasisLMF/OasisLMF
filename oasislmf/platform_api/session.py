@@ -161,13 +161,12 @@ class APISession(Session):
             raise OasisException(err_msg, e)
 
     def upload(self, url, filepath, content_type, **kwargs):
-        serializer_field_name = kwargs.pop("serializer_field_name", "file")
         counter = 0
         while True:
             counter += 1
             try:
                 abs_fp = os.path.realpath(os.path.expanduser(filepath))
-                m = MultipartEncoder(fields={serializer_field_name: (os.path.basename(filepath), open(abs_fp, 'rb'), content_type)})
+                m = MultipartEncoder(fields={'file': (os.path.basename(filepath), open(abs_fp, 'rb'), content_type)})
                 r = super(APISession, self).post(url, data=m, headers={'Content-Type': m.content_type}, timeout=self.timeout, **kwargs)
                 r.raise_for_status()
                 time.sleep(self.request_interval)

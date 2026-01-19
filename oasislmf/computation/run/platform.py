@@ -250,7 +250,7 @@ class PlatformRunInputs(PlatformBase):
         {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
         {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
-        {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
+        {'name': 'reporting_currency', 'type': str, 'help': 'currency to use in the results reported'},
     ]
 
     def run(self):
