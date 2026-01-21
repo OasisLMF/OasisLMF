@@ -53,6 +53,7 @@ CONTENT_MAP = {
     'gz': 'application/gzip',
     'zip': 'application/zip',
     'bz2': 'application/x-bzip2',
+    'json': 'application/json'
 }
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
@@ -1647,26 +1648,22 @@ class APIClientTests(unittest.TestCase):
                 self.client.download_output(ID)
 
     def test_get_currency_conversion_returns_json(self):
-        filetype, path = self.client.get_currency_conversion(CURRENCY_CONVERSION_LIST)
-
-        assert filetype == "application/json"
+        path = self.client.get_currency_conversion(CURRENCY_CONVERSION_LIST)
         assert pathlib.Path(path).resolve() == CURRENCY_CONVERSION_LIST.resolve()
 
     def test_get_currency_conversion_returns_csv(self):
-        filetype, path = self.client.get_currency_conversion(CURRENCY_CONVERSION_JSON)
-
-        assert filetype == "text/csv"
+        path = self.client.get_currency_conversion(CURRENCY_CONVERSION_JSON)
         assert pathlib.Path(path).resolve() == CURRENCY_CSV.resolve()
 
     def test_conversion_upload_file_csv(self):
         self.client.portfolios.currency_conversion_json = MagicMock()
-        self.client.upload_portfolio_file(38, "currency_conversion_json", CURRENCY_CONVERSION_JSON)
+        self.client.upload_portfolio_file(38, "currency_conversion_json", CURRENCY_CSV)
         self.client.portfolios.currency_conversion_json.upload.assert_called_once()
         args, kwargs = self.client.portfolios.currency_conversion_json.upload.call_args
         assert args[0] == 38
         assert pathlib.Path(args[1]).resolve() == CURRENCY_CSV.resolve()
         assert len(args) == 2
-        assert kwargs == {'content_type': "text/csv"}
+        assert kwargs == {'content_type': ""}
 
     def test_conversion_upload_file_json(self):
         self.client.portfolios.currency_conversion_json = MagicMock()
@@ -1676,4 +1673,4 @@ class APIClientTests(unittest.TestCase):
         assert args[0] == 180
         assert pathlib.Path(args[1]).resolve() == CURRENCY_CONVERSION_LIST.resolve()
         assert len(args) == 2
-        assert kwargs == {'content_type': "application/json"}
+        assert kwargs == {'content_type': ""}
