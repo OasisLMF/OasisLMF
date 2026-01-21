@@ -494,9 +494,6 @@ class APIClient(object):
                                                                  upload_data['name'])
             self.logger.info("File uploaded: {}".format(upload_data['name']))
         else:
-            if portfolio_file == "currency_conversion_json":
-                upload_data = self.get_currency_conversion(upload_data)
-
             getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data, content_type='')
             self.logger.info("File uploaded: {}".format(upload_data))
 
@@ -534,7 +531,8 @@ class APIClient(object):
             if ri_scope_fp:
                 self.upload_portfolio_file(portfolio_id, 'reinsurance_scope_file', ri_scope_fp)
             if currency_conversion_fp:
-                self.upload_portfolio_file(portfolio_id, 'currency_conversion_json', currency_conversion_fp)
+                self.upload_portfolio_file(portfolio_id, 'currency_conversion_json',
+                                           self.get_currency_conversion(currency_conversion_fp))
             if reporting_currency:
                 self.upload_portfolio_reporting_currency(portfolio_id, reporting_currency)
             return portfolio.json()
