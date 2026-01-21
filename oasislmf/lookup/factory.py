@@ -503,11 +503,11 @@ class BasicKeyServer:
                     if successes_count == 0:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                         successes_batch = pa.RecordBatch.from_pandas(
-                            success_df[success_heading_row.keys()].rename(columns=success_heading_row))
+                            success_df[success_heading_row.keys()].rename(columns=success_heading_row), preserve_index=False)
                         successes_writer = stack.enter_context(pq.ParquetWriter(successes_fp, schema=successes_batch.schema))
                     else:
                         successes_batch = pa.RecordBatch.from_pandas(
-                            success_df[success_heading_row.keys()].rename(columns=success_heading_row))
+                            success_df[success_heading_row.keys()].rename(columns=success_heading_row), preserve_index=False)
                     successes_writer.write_batch(successes_batch)
                     successes_count += success_df.shape[0]
                 if errors_fp:
@@ -515,7 +515,7 @@ class BasicKeyServer:
                     if 'message' not in errors_df.columns:
                         errors_df['message'] = ""  # If no error message column, fill with blank to prevent KeyError
                     errors_batch = pa.RecordBatch.from_pandas(
-                        errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row))
+                        errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row), preserve_index=False)
                     if error_count == 0:
                         errors_writer = stack.enter_context(pq.ParquetWriter(errors_fp, schema=errors_batch.schema))
                     errors_writer.write_batch(errors_batch)
