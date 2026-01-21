@@ -122,6 +122,7 @@ class FileEndpoint(object):
             'parquet': 'application/octet-stream',
             'pq': 'application/octet-stream',
             'csv': 'text/csv',
+            'json': 'application/json',
             'gz': 'application/gzip',
             'zip': 'application/zip',
             'bz2': 'application/x-bzip2',
@@ -494,16 +495,15 @@ class APIClient(object):
             self.logger.info("File uploaded: {}".format(upload_data['name']))
         else:
             if portfolio_file == "currency_conversion_json":
-                content_type, upload_data = self.get_currency_conversion(upload_data)
-                getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data, content_type=content_type)
-            else:
-                getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data, content_type='')
+                upload_data = self.get_currency_conversion(upload_data)
+
+            getattr(self.portfolios, portfolio_file).upload(portfolio_id, upload_data, content_type='')
             self.logger.info("File uploaded: {}".format(upload_data))
 
-    def upload_portfolio_reporting_currency(self, portfolio_id, endpoint, reporting_currency):
+    def upload_portfolio_reporting_currency(self, portfolio_id, reporting_currency):
         data = {'reporting_currency': reporting_currency}
 
-        getattr(self.portfolios, endpoint).post(
+        getattr(self.portfolios, 'reporting_currency').post(
             portfolio_id,
             data
         )
@@ -536,7 +536,7 @@ class APIClient(object):
             if currency_conversion_fp:
                 self.upload_portfolio_file(portfolio_id, 'currency_conversion_json', currency_conversion_fp)
             if reporting_currency:
-                self.upload_portfolio_reporting_currency(portfolio_id, 'reporting_currency', reporting_currency)
+                self.upload_portfolio_reporting_currency(portfolio_id, reporting_currency)
             return portfolio.json()
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
@@ -545,18 +545,18 @@ class APIClient(object):
         """Gets either the json or csv file referenced in the json and tells the endpoint which is needed
 
         Args:
-            path: path to json file
+            filepath (string): path to json file
 
         Returns:
-            string, path: content_type path to either same json file or csv file referenced by json file
+            string: path to either same json file or csv file referenced by json file
         """
         with open(filepath, "r") as f:
             currency_conversion = json.load(f)
         if currency_conversion.get("file_path", False):
             if os.path.isabs(currency_conversion["file_path"]):
-                return ("text/csv", currency_conversion["file_path"])
-            return ("text/csv", os.path.join(os.path.dirname(filepath), currency_conversion["file_path"]))
-        return ("application/json", filepath)
+                return currency_conversion["file_path"]
+            return os.path.join(os.path.dirname(filepath), currency_conversion["file_path"])
+        return filepath
 
     def upload_settings(self, analyses_id, settings):
         """
