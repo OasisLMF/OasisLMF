@@ -237,7 +237,7 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        locations['peril_group_id'] = locations[peril_covered_column].str.split(';')
+        locations['peril_group_id'] = locations[peril_covered_column].astype(str).str.split(';')
         keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
         locations.drop(columns='peril_group_id')
 
@@ -584,7 +584,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            locations['peril_group_id'] = locations[perils_covered_column].str.split(';')
+            locations['peril_group_id'] = locations[perils_covered_column].astype(str).str.split(';')
             peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
             locations.drop(columns='peril_group_id')
 
