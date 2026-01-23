@@ -259,8 +259,7 @@ def _create_events_bin(run_dir, event_ids):
                                           ).to_csv(csv_fp, index=False)
 
     try:
-        cmd_str = "evetobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
-        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+        csvtobin(csv_fp, bin_fp, "eve")
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
 
