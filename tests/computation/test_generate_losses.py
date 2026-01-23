@@ -241,7 +241,6 @@ class TestGenLosses(ComputationChecker):
             bash_script_path = sub_process_run.call_args.args[0][1]
             result_script = self.read_file(bash_script_path).decode()
             expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
-            import ipdb; ipdb.set_trace()
             self.assertEqual(expected_script, result_script)
 
     def test_losses__chucked_workflow(self):
