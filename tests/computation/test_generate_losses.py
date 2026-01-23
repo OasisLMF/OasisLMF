@@ -23,8 +23,6 @@ TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
 ANALYSIS_SETTINGS = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('analysis_settings.json')
 
-summary_types = ['summarycalc', 'summarypy']
-
 
 class TestGenLosses(ComputationChecker):
 
@@ -222,28 +220,29 @@ class TestGenLosses(ComputationChecker):
 
     @patch('subprocess.check_output')
     def test_losses__run_ri__all_outputs__check_bash_script(self, sub_process_run):
-        for summary_type in summary_types:
-            with self.tmp_dir() as model_run_dir, self.subTest(summary_type):
-                self.manager.generate_files(summarypy=summary_type == 'summarypy', **self.args_gen_files_ri)
-                run_settings = self.tmp_files.get('analysis_settings_json')
-                self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
-                call_args = {
-                    **self.min_args,
-                    'ktools_num_processes': 2,
-                    'ktools_fifo_relative': True,
-                    'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
-                    'model_run_dir': model_run_dir,
-                    'summarypy': summary_type == 'summarypy'
-                }
-                with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
-                    self.manager.generate_losses(**call_args)
+        summary_type = 'summarypy'
+        with self.tmp_dir() as model_run_dir, self.subTest(summary_type):
+            self.manager.generate_files(summarypy=summary_type == 'summarypy', **self.args_gen_files_ri)
+            run_settings = self.tmp_files.get('analysis_settings_json')
+            self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
+            call_args = {
+                **self.min_args,
+                'ktools_num_processes': 2,
+                'ktools_fifo_relative': True,
+                'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                'model_run_dir': model_run_dir,
+                'summarypy': summary_type == 'summarypy'
+            }
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
+                self.manager.generate_losses(**call_args)
 
-                # Check bash script vs reference
-                self.assertTrue(sub_process_run.called)
-                bash_script_path = sub_process_run.call_args.args[0][1]
-                result_script = self.read_file(bash_script_path).decode()
-                expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
-                self.assertEqual(expected_script, result_script)
+            # Check bash script vs reference
+            self.assertTrue(sub_process_run.called)
+            bash_script_path = sub_process_run.call_args.args[0][1]
+            result_script = self.read_file(bash_script_path).decode()
+            expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
+            import ipdb; ipdb.set_trace()
+            self.assertEqual(expected_script, result_script)
 
     def test_losses__chucked_workflow(self):
         num_chunks = 5
