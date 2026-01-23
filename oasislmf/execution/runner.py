@@ -118,7 +118,7 @@ def rerun():
 
     env = os.environ.copy()
     env['NUMBA_DISABLE_JIT'] = "1"
-    eve_cmd = f"printf 'event_id\n {event_error}\n' | evetobin"
+    eve_cmd = f"printf 'event_id\n {event_error}\n' | csvtobin eve"
     ktools_pipeline = ''
 
     with open("run_ktools.sh", "r") as bash_script:
