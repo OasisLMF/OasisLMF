@@ -39,7 +39,7 @@ class GenerateOasisFiles(ComputationStep):
             'account': self.oed_accounts_csv,
             'ri_info': self.oed_info_csv,
             'ri_scope': self.oed_scope_csv,
-            'oed_schema_info': self.oed_schema_info,
+            'oed_schema_info': self.oed_schema_info if self.oed_schema_info is not None else self.settings.get('oed_version', None),
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
             'use_field': True,

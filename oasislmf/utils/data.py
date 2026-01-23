@@ -880,9 +880,14 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 exposure_data = OedExposure(**data_config)
             else:
                 logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
+                # Set OED schema info/version priority based on CLI/config json first, then analysis_settings version
+                cli_oed_schema_info = getattr(computation_step, 'oed_schema_info', None)
+                analysis_settings_oed_version = getattr(computation_step, 'settings', {}).get('oed_version', None)
+                oed_schema_info = cli_oed_schema_info if cli_oed_schema_info is not None else analysis_settings_oed_version
+
                 exposure_data = OedExposure.from_dir(
                     computation_step.oasis_files_dir,
-                    oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
+                    oed_schema_info=oed_schema_info,
                     currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
                     reporting_currency=getattr(computation_step, 'reporting_currency', None),
                     check_oed=computation_step.check_oed,
