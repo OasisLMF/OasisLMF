@@ -297,7 +297,7 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
         str: the ground-up loss calculation command
     """
     if gulmc:
-        cmd = f"gulmc --random-generator={gul_random_generator} {'--data-server'*modelpy_server} --model-df-engine=\'{model_df_engine}\'"
+        cmd = f"gulmc --random-generator={gul_random_generator} {'--data-server' * modelpy_server} --model-df-engine=\'{model_df_engine}\'"
 
         if peril_filter:
             cmd += f" --peril-filter {' '.join(peril_filter)}"
@@ -653,7 +653,7 @@ def do_kats(
         if 'id' in summary:
             summary_set = summary['id']
 
-            #if summary.get('eltcalc'):
+            # if summary.get('eltcalc'):
             #    anykats = True
 
             #    cmd = 'kat' if sort_by_event else 'kat -u'
@@ -671,7 +671,7 @@ def do_kats(
             #    )
             #    print_command(filename, cmd)
 
-            #if summary.get('pltcalc'):
+            # if summary.get('pltcalc'):
             #    anykats = True
 
             #    cmd = 'kat' if sort_by_event else 'kat -u'
@@ -688,7 +688,7 @@ def do_kats(
             #    )
             #    print_command(filename, cmd)
 
-            #if summary.get("summarycalc"):
+            # if summary.get("summarycalc"):
             #    anykats = True
 
             #    cmd = 'kat' if sort_by_event else 'kat -u'
@@ -972,7 +972,7 @@ def do_any(
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            #for summary_type in SUMMARY_TYPES:
+            # for summary_type in SUMMARY_TYPES:
             #    if summary.get(summary_type):
             #        # cmd exception for summarycalc
             #        if summary_type == 'summarycalc':

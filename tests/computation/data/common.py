@@ -188,7 +188,7 @@ RI_AAL_SETTINGS = {
                 "elt_sample": True,
                 "alt_period": True,
                 "ept_mean_sample_oep": False,
-            }   
+            }
         }
     ],
     "il_output": True,
@@ -199,7 +199,7 @@ RI_AAL_SETTINGS = {
                 "elt_sample": True,
                 "alt_period": True,
                 "ept_mean_sample_oep": False,
-            }   
+            }
         }
     ],
     "ri_output": True,
@@ -210,7 +210,7 @@ RI_AAL_SETTINGS = {
                 "elt_sample": True,
                 "alt_period": True,
                 "ept_mean_sample_oep": False,
-            }   
+            }
         }
     ]
 }
