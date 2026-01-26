@@ -129,7 +129,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P8.idx
 # --- Do ground up loss computes ---
 
 
-
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S2_summary_P1 work/gul_S2_summaryleccalc/P1.bin > /dev/null & pid3=$!

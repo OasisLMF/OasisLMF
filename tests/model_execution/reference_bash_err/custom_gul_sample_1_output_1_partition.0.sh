@@ -90,7 +90,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P1
 
 # --- Do ground up loss computes ---
 
-
 ( eltpy -E bin  -s work/kat/gul_S1_elt_sample_P1 < /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
 
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P1 > /dev/null & pid2=$!

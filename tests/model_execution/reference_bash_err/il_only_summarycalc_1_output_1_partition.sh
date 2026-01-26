@@ -83,7 +83,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
 # --- Do insured loss computes ---
 
 
-
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 > /dev/null & pid1=$!
 
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &

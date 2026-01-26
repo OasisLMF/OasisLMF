@@ -49,7 +49,6 @@ mkfifo fifo/il_S1_summary_P8
 # --- Do insured loss computes ---
 
 
-
 tee < fifo/il_S1_summary_P1 > /dev/null & pid1=$!
 tee < fifo/il_S1_summary_P2 > /dev/null & pid2=$!
 tee < fifo/il_S1_summary_P3 > /dev/null & pid3=$!

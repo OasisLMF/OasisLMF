@@ -50,7 +50,6 @@ mkfifo fifo/lb_il_P2
 
 # --- Do insured loss computes ---
 
-
 eltpy -E bin  -q work/kat/il_S1_elt_quantile_P1 -m work/kat/il_S1_elt_moment_P1 < fifo/il_S1_elt_ord_P1 & pid1=$!
 eltpy -E bin  -s work/kat/il_S1_elt_sample_P1 < fifo/il_S1_selt_ord_P1 & pid2=$!
 pltpy -E bin  -s work/kat/il_S2_plt_sample_P1 -q work/kat/il_S2_plt_quantile_P1 -m work/kat/il_S2_plt_moment_P1 < fifo/il_S2_plt_ord_P1 & pid3=$!

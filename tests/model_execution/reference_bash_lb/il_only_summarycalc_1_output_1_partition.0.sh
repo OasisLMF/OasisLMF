@@ -28,7 +28,6 @@ mkfifo fifo/il_S1_summary_P1
 # --- Do insured loss computes ---
 
 
-
 tee < fifo/il_S1_summary_P1 > /dev/null & pid1=$!
 
 summarypy -m -t il  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
