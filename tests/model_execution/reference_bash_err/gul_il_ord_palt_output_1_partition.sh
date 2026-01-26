@@ -100,7 +100,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1.idx
 # --- Do insured loss computes ---
 
 
-
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1 work/il_S2_summary_palt/P1.bin work/il_S2_summaryleccalc/P1.bin > /dev/null & pid3=$!
@@ -109,7 +108,6 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1.idx work/il_S2_summary_palt/P1.idx w
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 -2 /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do ground up loss computes ---
-
 
 
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 work/gul_S1_summary_palt/P1.bin work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid5=$!

@@ -198,7 +198,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_selt_ord_P8
 
 # --- Do insured loss computes ---
 
-
 ( pltpy -E bin  -s work/kat/il_S1_plt_sample_P1 -q work/kat/il_S1_plt_quantile_P1 -m work/kat/il_S1_plt_moment_P1 < /tmp/%FIFO_DIR%/fifo/il_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
 ( eltpy -E bin  -q work/kat/il_S1_elt_quantile_P1 -m work/kat/il_S1_elt_moment_P1 < /tmp/%FIFO_DIR%/fifo/il_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid2=$!
 ( eltpy -E bin  -s work/kat/il_S1_elt_sample_P1 < /tmp/%FIFO_DIR%/fifo/il_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid3=$!
@@ -251,7 +250,6 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8.idx work/il_S1_summary_palt/P8.idx w
 ( summarypy -m -t il  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P8 < /tmp/%FIFO_DIR%/fifo/il_P8 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do ground up loss computes ---
-
 
 ( pltpy -E bin  -s work/kat/gul_S1_plt_sample_P1 -q work/kat/gul_S1_plt_quantile_P1 -m work/kat/gul_S1_plt_moment_P1 < /tmp/%FIFO_DIR%/fifo/gul_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid41=$!
 ( eltpy -E bin  -q work/kat/gul_S1_elt_quantile_P1 -m work/kat/gul_S1_elt_moment_P1 < /tmp/%FIFO_DIR%/fifo/gul_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid42=$!

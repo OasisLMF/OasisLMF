@@ -91,7 +91,6 @@ mkfifo fifo/lb_il_P4
 # --- Do insured loss computes ---
 
 
-
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 tee < fifo/il_S2_summary_P1 work/il_S2_summary_palt/P1.bin work/il_S2_summaryleccalc/P1.bin > /dev/null & pid3=$!
@@ -115,7 +114,6 @@ summarypy -m -t il  -1 fifo/il_S1_summary_P3 -2 fifo/il_S2_summary_P3 < fifo/il_
 summarypy -m -t il  -1 fifo/il_S1_summary_P4 -2 fifo/il_S2_summary_P4 < fifo/il_P4 &
 
 # --- Do ground up loss computes ---
-
 
 
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summary_palt/P1.bin work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid17=$!

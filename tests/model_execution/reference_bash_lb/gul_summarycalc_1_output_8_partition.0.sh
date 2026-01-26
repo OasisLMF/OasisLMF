@@ -27,7 +27,6 @@ mkfifo fifo/gul_S1_summary_P1
 # --- Do ground up loss computes ---
 
 
-
 tee < fifo/gul_S1_summary_P1 > /dev/null & pid1=$!
 
 summarypy -m -t gul  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &

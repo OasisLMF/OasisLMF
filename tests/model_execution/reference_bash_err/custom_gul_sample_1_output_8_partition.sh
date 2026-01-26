@@ -119,7 +119,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P8
 
 # --- Do ground up loss computes ---
 
-
 ( eltpy -E bin  -s work/kat/gul_S1_elt_sample_P1 < /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
 ( eltpy -E bin  -H -s work/kat/gul_S1_elt_sample_P2 < /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P2 ) 2>> $LOG_DIR/stderror.err & pid2=$!
 ( eltpy -E bin  -H -s work/kat/gul_S1_elt_sample_P3 < /tmp/%FIFO_DIR%/fifo/gul_S1_selt_ord_P3 ) 2>> $LOG_DIR/stderror.err & pid3=$!

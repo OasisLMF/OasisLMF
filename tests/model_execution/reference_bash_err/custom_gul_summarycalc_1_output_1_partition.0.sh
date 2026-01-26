@@ -90,7 +90,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 # --- Do ground up loss computes ---
 
 
-
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 > /dev/null & pid1=$!
 
 ( summarypy -m -t gul  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 ) 2>> $LOG_DIR/stderror.err  &

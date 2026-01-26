@@ -55,7 +55,6 @@ mkfifo fifo/gul_S1_selt_ord_P8
 
 # --- Do ground up loss computes ---
 
-
 eltpy -E bin  -s work/kat/gul_S1_elt_sample_P1 < fifo/gul_S1_selt_ord_P1 & pid1=$!
 eltpy -E bin  -H -s work/kat/gul_S1_elt_sample_P2 < fifo/gul_S1_selt_ord_P2 & pid2=$!
 eltpy -E bin  -H -s work/kat/gul_S1_elt_sample_P3 < fifo/gul_S1_selt_ord_P3 & pid3=$!
