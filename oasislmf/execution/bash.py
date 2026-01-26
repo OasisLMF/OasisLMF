@@ -652,59 +652,6 @@ def do_kats(
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-
-            # if summary.get('eltcalc'):
-            #    anykats = True
-
-            #    cmd = 'kat' if sort_by_event else 'kat -u'
-            #    for process_id in process_range(max_process_id, process_number):
-
-            #        cmd = '{} {}{}_{}S{}_eltcalc_P{}'.format(
-            #            cmd, work_dir, runtype, inuring_priority,
-            #            summary_set, process_id
-            #        )
-
-            #    process_counter['kpid_monitor_count'] += 1
-            #    cmd = '{} > {}{}_{}S{}_eltcalc.csv & kpid{}=$!'.format(
-            #        cmd, output_dir, runtype, inuring_priority, summary_set,
-            #        process_counter['kpid_monitor_count']
-            #    )
-            #    print_command(filename, cmd)
-
-            # if summary.get('pltcalc'):
-            #    anykats = True
-
-            #    cmd = 'kat' if sort_by_event else 'kat -u'
-            #    for process_id in process_range(max_process_id, process_number):
-            #        cmd = '{} {}{}_{}S{}_pltcalc_P{}'.format(
-            #            cmd, work_dir, runtype, inuring_priority,
-            #            summary_set, process_id
-            #        )
-
-            #    process_counter['kpid_monitor_count'] += 1
-            #    cmd = '{} > {}{}_{}S{}_pltcalc.csv & kpid{}=$!'.format(
-            #        cmd, output_dir, runtype, inuring_priority, summary_set,
-            #        process_counter['kpid_monitor_count']
-            #    )
-            #    print_command(filename, cmd)
-
-            # if summary.get("summarycalc"):
-            #    anykats = True
-
-            #    cmd = 'kat' if sort_by_event else 'kat -u'
-            #    for process_id in process_range(max_process_id, process_number):
-            #        cmd = '{} {}{}_{}S{}_summarycalc_P{}'.format(
-            #            cmd, work_dir, runtype, inuring_priority,
-            #            summary_set, process_id
-            #        )
-
-            #    process_counter['kpid_monitor_count'] += 1
-            #    cmd = '{} > {}{}_{}S{}_summarycalc.csv & kpid{}=$!'.format(
-            #        cmd, output_dir, runtype, inuring_priority, summary_set,
-            #        process_counter['kpid_monitor_count']
-            #    )
-            #    print_command(filename, cmd)
-
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 for ord_table, v in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
@@ -947,57 +894,57 @@ def do_ord(
                     print_command(filename, cmd)
 
 
-def do_any(
-    runtype,
-    analysis_settings,
-    process_id,
-    filename,
-    process_counter,
-    fifo_dir='fifo/',
-    work_dir='work/',
-    stderr_guard=True,
-    inuring_priority=None
-):
-
-    summaries = analysis_settings.get('{}_summaries'.format(runtype))
-    if not summaries:
-        return
-
-    if not inuring_priority:
-        inuring_priority = ''
-
-    if process_id == 1:
-        print_command(filename, '')
-
-    for summary in summaries:
-        if 'id' in summary:
-            summary_set = summary['id']
-            # for summary_type in SUMMARY_TYPES:
-            #    if summary.get(summary_type):
-            #        # cmd exception for summarycalc
-            #        if summary_type == 'summarycalc':
-            #            cmd = 'summarycalctocsv'
-            #        else:
-            #            cmd = summary_type
-
-            #        if process_id != 1:
-            #            if summary_type == 'pltcalc':
-            #                cmd += ' -H'
-            #            else:
-            #                cmd += ' -s'
-
-            #        process_counter['pid_monitor_count'] += 1
-
-            #        fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
-            #        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
-            #        cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
-
-            #        if stderr_guard:
-            #            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
-            #        else:
-            #            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
-
-            #        print_command(filename, cmd)
+# def do_any(
+#     runtype,
+#     analysis_settings,
+#     process_id,
+#     filename,
+#     process_counter,
+#     fifo_dir='fifo/',
+#     work_dir='work/',
+#     stderr_guard=True,
+#     inuring_priority=None
+# ):
+#
+#     summaries = analysis_settings.get('{}_summaries'.format(runtype))
+#     if not summaries:
+#         return
+#
+#     if not inuring_priority:
+#         inuring_priority = ''
+#
+#     if process_id == 1:
+#         print_command(filename, '')
+#
+#     for summary in summaries:
+#         if 'id' in summary:
+#             summary_set = summary['id']
+#             # for summary_type in SUMMARY_TYPES:
+#             #    if summary.get(summary_type):
+#             #        # cmd exception for summarycalc
+#             #        if summary_type == 'summarycalc':
+#             #            cmd = 'summarycalctocsv'
+#             #        else:
+#             #            cmd = summary_type
+#
+#             #        if process_id != 1:
+#             #            if summary_type == 'pltcalc':
+#             #                cmd += ' -H'
+#             #            else:
+#             #                cmd += ' -s'
+#
+#             #        process_counter['pid_monitor_count'] += 1
+#
+#             #        fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
+#             #        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
+#             #        cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
+#
+#             #        if stderr_guard:
+#             #            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+#             #        else:
+#             #            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+#
+#             #        print_command(filename, cmd)
 
 
 def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
@@ -1037,12 +984,12 @@ def rl(
 ):
 
     for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
-        for process_id in process_range(max_process_id, process_number):
-            do_any(
-                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
-                filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
-            )
+        # for process_id in process_range(max_process_id, process_number):
+        #     do_any(
+        #         RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
+        #         filename, process_counter, fifo_dir, work_dir, stderr_guard,
+        #         inuring_priority=inuring_priority['text']
+        #     )
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1084,12 +1031,12 @@ def ri(
 ):
 
     for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-        for process_id in process_range(max_process_id, process_number):
-            do_any(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
-                filename, process_counter, fifo_dir, work_dir, stderr_guard,
-                inuring_priority=inuring_priority['text']
-            )
+        # for process_id in process_range(max_process_id, process_number):
+        #     do_any(
+        #         RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
+        #         filename, process_counter, fifo_dir, work_dir, stderr_guard,
+        #         inuring_priority=inuring_priority['text']
+        #     )
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1121,8 +1068,8 @@ def ri(
 
 
 def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
-    for process_id in process_range(max_process_id, process_number):
-        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+    # for process_id in process_range(max_process_id, process_number):
+    #     do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
@@ -1153,8 +1100,8 @@ def do_gul(
     process_number=None,
 ):
 
-    for process_id in process_range(max_process_id, process_number):
-        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+    # for process_id in process_range(max_process_id, process_number):
+    #     do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
@@ -1185,11 +1132,11 @@ def do_gul_full_correlation(
     process_number=None,
 ):
 
-    for process_id in process_range(max_process_id, process_number):
-        do_any(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
-            process_counter, fifo_dir, work_dir
-        )
+    # for process_id in process_range(max_process_id, process_number):
+    #     do_any(
+    #         RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
+    #         process_counter, fifo_dir, work_dir
+    #     )
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(
