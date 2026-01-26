@@ -894,59 +894,6 @@ def do_ord(
                     print_command(filename, cmd)
 
 
-# def do_any(
-#     runtype,
-#     analysis_settings,
-#     process_id,
-#     filename,
-#     process_counter,
-#     fifo_dir='fifo/',
-#     work_dir='work/',
-#     stderr_guard=True,
-#     inuring_priority=None
-# ):
-#
-#     summaries = analysis_settings.get('{}_summaries'.format(runtype))
-#     if not summaries:
-#         return
-#
-#     if not inuring_priority:
-#         inuring_priority = ''
-#
-#     if process_id == 1:
-#         print_command(filename, '')
-#
-#     for summary in summaries:
-#         if 'id' in summary:
-#             summary_set = summary['id']
-#             # for summary_type in SUMMARY_TYPES:
-#             #    if summary.get(summary_type):
-#             #        # cmd exception for summarycalc
-#             #        if summary_type == 'summarycalc':
-#             #            cmd = 'summarycalctocsv'
-#             #        else:
-#             #            cmd = summary_type
-#
-#             #        if process_id != 1:
-#             #            if summary_type == 'pltcalc':
-#             #                cmd += ' -H'
-#             #            else:
-#             #                cmd += ' -s'
-#
-#             #        process_counter['pid_monitor_count'] += 1
-#
-#             #        fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
-#             #        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'{inuring_priority}S{summary_set}_{summary_type}')
-#             #        cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
-#
-#             #        if stderr_guard:
-#             #            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
-#             #        else:
-#             #            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
-#
-#             #        print_command(filename, cmd)
-
-
 def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
     intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
     ri_inuring_priorities = [
@@ -984,13 +931,6 @@ def rl(
 ):
 
     for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
-        # for process_id in process_range(max_process_id, process_number):
-        #     do_any(
-        #         RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
-        #         filename, process_counter, fifo_dir, work_dir, stderr_guard,
-        #         inuring_priority=inuring_priority['text']
-        #     )
-
         for process_id in process_range(max_process_id, process_number):
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
@@ -1031,12 +971,6 @@ def ri(
 ):
 
     for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-        # for process_id in process_range(max_process_id, process_number):
-        #     do_any(
-        #         RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id,
-        #         filename, process_counter, fifo_dir, work_dir, stderr_guard,
-        #         inuring_priority=inuring_priority['text']
-        #     )
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1068,9 +1002,6 @@ def ri(
 
 
 def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
-    # for process_id in process_range(max_process_id, process_number):
-    #     do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
-
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
                process_counter, fifo_dir, work_dir, stderr_guard)
@@ -1100,9 +1031,6 @@ def do_gul(
     process_number=None,
 ):
 
-    # for process_id in process_range(max_process_id, process_number):
-    #     do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
-
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
                process_counter, fifo_dir, work_dir, stderr_guard)
@@ -1131,12 +1059,6 @@ def do_gul_full_correlation(
     stderr_guard=None,
     process_number=None,
 ):
-
-    # for process_id in process_range(max_process_id, process_number):
-    #     do_any(
-    #         RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
-    #         process_counter, fifo_dir, work_dir
-    #     )
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(

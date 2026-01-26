@@ -132,7 +132,6 @@ mkfifo fifo/ri_S1_selt_ord_P2
 
 # --- Do reinsurance loss computes ---
 
-
 ( pltpy -E bin  -s work/kat/ri_S1_plt_sample_P1 -q work/kat/ri_S1_plt_quantile_P1 -m work/kat/ri_S1_plt_moment_P1 < fifo/ri_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid1=$!
 ( eltpy -E bin  -q work/kat/ri_S1_elt_quantile_P1 -m work/kat/ri_S1_elt_moment_P1 < fifo/ri_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid2=$!
 ( eltpy -E bin  -s work/kat/ri_S1_elt_sample_P1 < fifo/ri_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid3=$!
@@ -150,7 +149,6 @@ tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summary_palt/P2.idx work/ri_S1_summar
 
 # --- Do insured loss computes ---
 
-
 ( pltpy -E bin  -s work/kat/il_S1_plt_sample_P1 -q work/kat/il_S1_plt_quantile_P1 -m work/kat/il_S1_plt_moment_P1 < fifo/il_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid11=$!
 ( eltpy -E bin  -q work/kat/il_S1_elt_quantile_P1 -m work/kat/il_S1_elt_moment_P1 < fifo/il_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid12=$!
 ( eltpy -E bin  -s work/kat/il_S1_elt_sample_P1 < fifo/il_S1_selt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid13=$!
@@ -167,7 +165,6 @@ tee < fifo/il_S1_summary_P2.idx work/il_S1_summary_palt/P2.idx work/il_S1_summar
 ( summarypy -m -t il  -1 fifo/il_S1_summary_P2 < fifo/il_P2 ) 2>> $LOG_DIR/stderror.err  &
 
 # --- Do ground up loss computes ---
-
 
 ( pltpy -E bin  -s work/kat/gul_S1_plt_sample_P1 -q work/kat/gul_S1_plt_quantile_P1 -m work/kat/gul_S1_plt_moment_P1 < fifo/gul_S1_plt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid21=$!
 ( eltpy -E bin  -q work/kat/gul_S1_elt_quantile_P1 -m work/kat/gul_S1_elt_moment_P1 < fifo/gul_S1_elt_ord_P1 ) 2>> $LOG_DIR/stderror.err & pid22=$!
