@@ -228,7 +228,6 @@ class GenerateLossesDir(GenerateLossesBase):
 
         return model_storage
 
-
     def run(self):
         # need to load from exposure data info or recreate it
         model_run_fp = self._get_output_dir()

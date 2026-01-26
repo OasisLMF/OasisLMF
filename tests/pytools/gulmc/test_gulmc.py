@@ -164,7 +164,7 @@ def test_gulmc(socket_server: str,
 
                 # convert to csv
                 bintocsv(ref_out_bin_fname.with_suffix('.bin'), ref_out_bin_fname.with_suffix('.csv'), 'gul')
-                bintocsv(test_out_bin_fname.with_suffix('.bin') ,test_out_bin_fname.with_suffix('.csv'), 'gul')
+                bintocsv(test_out_bin_fname.with_suffix('.bin'), test_out_bin_fname.with_suffix('.csv'), 'gul')
 
                 df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
                 df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))
