@@ -295,6 +295,10 @@ class Genbash_CustomGulcalc(GenbashBase):
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_csm")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_csm")
 
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
     @staticmethod
     def _get_getmodel_cmd(**kwargs):
         error_guard = kwargs.get('stderr_guard')
