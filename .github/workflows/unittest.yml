@@ -1,9 +1,4 @@
 # Workflow to run the package unit tests on multiple python versions (CI)
-#
-#  inputs:
-#    ktools_branch: If set, build ktools from scratch and use output to build package
-#                   These new ktools binaries, will be used when testing the oasislmf
-#                   instead of the pinned ktools version
 
 name: Oasislmf Testing
 
@@ -15,10 +10,6 @@ on:
       - stable**
   workflow_dispatch:
     inputs:
-      ktools_branch:
-        description: "Build Ktools before tests: [git ref]"
-        required: false
-
       ods_branch:
         description: "Git install ods_tools branch before tests: [git ref]"
         required: false
@@ -27,8 +18,6 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
-    with:
-      ktools_branch: ${{ inputs.ktools_branch }}
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
@@ -44,10 +33,10 @@ jobs:
     strategy:
       matrix:
         cfg:
-          - { python-version: "3.9", pkg-version: "", upload-cov: false }
           - { python-version: "3.10", pkg-version: "", upload-cov: false }
-          - { python-version: "3.11", pkg-version: "", upload-cov: true }
-          - { python-version: "3.12", pkg-version: "", upload-cov: false }
+          - { python-version: "3.11", pkg-version: "", upload-cov: false }
+          - { python-version: "3.12", pkg-version: "", upload-cov: true }
+          - { python-version: "3.13", pkg-version: "", upload-cov: false }
 
     steps:
       - uses: actions/checkout@v3

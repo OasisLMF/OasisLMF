@@ -896,7 +896,7 @@ def get_il_input_items(
 
                 # reset gul_inputs_df level columns
                 gul_inputs_df = reset_gul_inputs(gul_inputs_df)
-                logger.info(f"level {cur_level_id} {level_info} took {time.time()-t0}")
+                logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                 t0 = time.time()
 
         gul_inputs_df = gul_inputs_df.sort_values(['gul_input_id', 'layer_id'], kind='stable')

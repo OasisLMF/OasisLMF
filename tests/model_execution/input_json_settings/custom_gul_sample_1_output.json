@@ -1,0 +1,36 @@
+{
+  "analysis_settings": {
+    "prog_id": 1,
+    "module_supplier_id": "OasisIM",
+    "model_version_id": "1",
+    "number_of_samples": 100,
+    "gul_threshold": 100,
+    "model_custom_gulcalc": "custom_gulcalc_command",
+    "model_custom_gulcalc_log_start": "Starting custom gulcalc command",
+    "model_custom_gulcalc_log_finish": "Custom gulcalc command finished",
+    "model_settings": {
+      "use_random_number_file": true,
+      "event_occurrence_file_id": 1
+    },
+    "gul_output": true,
+    "gul_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+          "elt_sample": true,
+          "parquet_format": false
+        }
+      }
+    ],
+    "il_output": false,
+    "il_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+          "elt_sample": true,
+          "parquet_format": false
+        } 
+      }
+    ]
+  }
+}

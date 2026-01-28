@@ -15,6 +15,14 @@ handler.name = 'oasislmf'
 logger.addHandler(handler)
 
 
+if sys.platform == 'win32':
+    warnings.warn(
+        "oasislmf is not supported on Windows and may not function correctly.",
+        RuntimeWarning,
+        stacklevel=2
+    )
+
+
 class MyLoader(Loader):
 
     def __init__(self, sub_module):

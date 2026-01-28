@@ -110,5 +110,5 @@ def test_wrong_class():
         write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
 
         with pytest.raises(OasisException, match=f"class {kwargs['exposure_pre_analysis_class_name']} "
-                                                 f"is not defined in module {kwargs['exposure_pre_analysis_module']}"):
+                           f"is not defined in module {kwargs['exposure_pre_analysis_module']}"):
             OasisManager().exposure_pre_analysis(**kwargs)

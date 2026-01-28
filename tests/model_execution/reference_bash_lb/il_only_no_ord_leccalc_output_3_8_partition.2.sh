@@ -1,0 +1,49 @@
+#!/bin/bash
+SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
+
+# --- Script Init ---
+set -euET -o pipefail
+shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."
+
+LOG_DIR=log
+mkdir -p $LOG_DIR
+rm -R -f $LOG_DIR/*
+
+# --- Setup run dirs ---
+
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
+
+find fifo/ \( -name '*P3[^0-9]*' -o -name '*P3' \) -exec rm -R -f {} +
+rm -R -f work/*
+mkdir -p work/kat/
+
+#fmpy -a2 --create-financial-structure-files
+mkdir -p work/il_S3_summary_palt
+mkdir -p work/il_S3_summary_altmeanonly
+
+mkfifo fifo/il_P3
+
+mkfifo fifo/il_S1_summary_P3
+mkfifo fifo/il_S1_elt_ord_P3
+mkfifo fifo/il_S1_selt_ord_P3
+mkfifo fifo/il_S2_summary_P3
+mkfifo fifo/il_S2_plt_ord_P3
+mkfifo fifo/il_S3_summary_P3
+mkfifo fifo/il_S3_summary_P3.idx
+
+
+
+# --- Do insured loss computes ---
+eltpy -E bin  -H -q work/kat/il_S1_elt_quantile_P3 -m work/kat/il_S1_elt_moment_P3 < fifo/il_S1_elt_ord_P3 & pid1=$!
+eltpy -E bin  -H -s work/kat/il_S1_elt_sample_P3 < fifo/il_S1_selt_ord_P3 & pid2=$!
+pltpy -E bin  -H -s work/kat/il_S2_plt_sample_P3 -q work/kat/il_S2_plt_quantile_P3 -m work/kat/il_S2_plt_moment_P3 < fifo/il_S2_plt_ord_P3 & pid3=$!
+tee < fifo/il_S1_summary_P3 fifo/il_S1_elt_ord_P3 fifo/il_S1_selt_ord_P3 > /dev/null & pid4=$!
+tee < fifo/il_S2_summary_P3 fifo/il_S2_plt_ord_P3 > /dev/null & pid5=$!
+tee < fifo/il_S3_summary_P3 work/il_S3_summary_palt/P3.bin work/il_S3_summary_altmeanonly/P3.bin > /dev/null & pid6=$!
+tee < fifo/il_S3_summary_P3.idx work/il_S3_summary_palt/P3.idx > /dev/null & pid7=$!
+summarypy -m -t il  -1 fifo/il_S1_summary_P3 -2 fifo/il_S2_summary_P3 -3 fifo/il_S3_summary_P3 < fifo/il_P3 &
+
+( evepy 3 8 | gulmc --socket-server='False' --random-generator=1  --model-df-engine='oasis_data_manager.df_reader.reader.OasisPandasReader' --vuln-cache-size 200 -S100 -L100 -a0  | fmpy -a2 > fifo/il_P3  ) & pid8=$!
+
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
+

@@ -1,0 +1,46 @@
+{
+  "analysis_settings": {
+    "prog_id": 1,
+    "module_supplier_id": "OasisIM",
+    "model_version_id": "1",
+    "number_of_samples": 100,
+    "gul_threshold": 100,
+    "model_settings": {
+      "use_random_number_file": true,
+      "event_occurrence_file_id": 1
+    },
+    "gul_output": false,
+    "gul_summaries": [],
+    "il_output": true,
+    "il_summaries": [
+         {
+           "id": 1,
+           "oed_fields": ["LocNumber"],
+           "ord_output": {
+               "elt_sample": true,
+               "elt_quantile": true,
+               "elt_moment": true
+             }
+          },
+          {
+           "id": 2,
+           "oed_fields": ["AccNumber"],
+            "ord_output": {
+                   "plt_sample": true,
+                   "plt_quantile": true,
+                   "plt_moment": true
+               }
+           },
+           {
+           "id": 3,
+           "oed_fields": ["PortNumber"],
+           "ord_output": {
+                   "alt_period": true,
+                   "alt_meanonly": true,
+                   "alct_convergence": true,
+                   "alct_confidence": 0.95
+               }
+           }
+         ]
+  }
+}

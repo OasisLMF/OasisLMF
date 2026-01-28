@@ -14,67 +14,28 @@
 #    src_pkg_filename:  source package filename, used for downloading the stored
 #                       artifact in other related Jobs
 #
-#    linux_pkg_filename: Linux wheel package filename
-#
-#    osx_pkg_filename:  OSX wheel package filename
-#
+#    bin_pkg_filename: wheel package filename
 
 name: Oasislmf Build
 
 on:
   workflow_dispatch:
-    inputs:
-      ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [Branch, commit]'
-        required: false
-        default: ""
-      build_osx:
-        description: 'If set, build ktools from scratch and use output to build package: [true, false]'
-        required: false
-        default: "false"
-
   workflow_call:
-    inputs:
-      ktools_branch:
-        description: 'If set, build ktools from scratch and use output to build package: [Branch, commit]'
-        required: false
-        default: ""
-        type: string
-      build_osx:
-        description: 'If set, build ktools from scratch and use output to build package: [true, false]'
-        required: false
-        default: "false"
-        type: string
 
     outputs:
       src_pkg_filename:
         description: "Source package filename"
         value: ${{ jobs.oasislmf.outputs.src_pkg_filename }}
       linux_pkg_filename:
-        description: "Linux package filename"
-        value: ${{ jobs.oasislmf.outputs.linux_pkg_filename }}
-      osx_pkg_filename:
-        description: "OSX package filename"
-        value: ${{ jobs.oasislmf.outputs.osx_pkg_filename }}
+        description: "Bin package filename"
+        value: ${{ jobs.oasislmf.outputs.bin_pkg_filename }}
 
 jobs:
-  ktools:
-    if: inputs.ktools_branch != ''
-    uses:  OasisLMF/ktools/.github/workflows/build.yml@master
-    secrets: inherit
-    with:
-      create_ktools_builder: 'false'
-      skip_cmake: 'true'
-      ktools_branch: ${{ inputs.ktools_branch }}
-
   oasislmf:
-    if: ${{ ! failure() || ! cancelled() }}
-    needs: [ktools]
     runs-on: ubuntu-latest
     outputs:
       src_pkg_filename: ${{ steps.package_src.outputs.filename }}
-      linux_pkg_filename: ${{ steps.linux_whl.outputs.filename }}
-      osx_pkg_filename: ${{ steps.darwin_whl.outputs.filename }}
+      bin_pkg_filename: ${{ steps.bin_whl.outputs.filename }}
     steps:
     - name: Dump github context
       run:   echo "$GITHUB_CONTEXT"
@@ -86,41 +47,21 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.9
-    - run: pip install pip-tools
-
-
-    # --- Ktools setup and download --- #
-
-    # With this option set the package build will install local ktools binary tarballs
-    # stored in `KTOOLS_TAR_FILE_DIR`, rather than trying to pull a release using
-    # the pinned version tag in setup.py
-    - name: Set local ktools tar dir
-      if: inputs.ktools_branch != ''
-      run: |
-        echo "KTOOLS_TAR_FILE_DIR=${{ github.workspace }}" >> $GITHUB_ENV
-
-    - name: Download ktools build (Linux)
-      if: inputs.ktools_branch != ''
-      uses: actions/download-artifact@v4
-      with:
-        name: Linux_x86_64
-        path: ${{ github.workspace }}/
-
-    - name: Download ktools build (Darwin)
-      if: inputs.ktools_branch != ''
-      uses: actions/download-artifact@v4
-      with:
-        name: Darwin_x86_64
-        path: ${{ github.workspace }}/
-
+        python-version: 3.12
 
     # --- Source Distribution --- #
-    - name: Build - source distribution
+    - name: Build
       run: |
-        python setup.py sdist
+        pip install --upgrade setuptools wheel build
+        python -m build
+
+    - name: find outputs
+      run: |
         TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
+        WHL_LINUX=$(find ./dist/ -name "oasislmf-*.whl")
+
         echo "PKG_SRC_PATH=${TAR_PKG}" >> $GITHUB_ENV
+        echo "PKG_BIN_PATH=${WHL_LINUX}" >> $GITHUB_ENV
 
     - name: Store - source distribution
       uses: actions/upload-artifact@v4
@@ -136,46 +77,15 @@ jobs:
         echo "filename=$FILENAME" >> $GITHUB_OUTPUT
 
 
-    # --- Linux Distribution --- #
-    - name: Build - binary distribution (Linux)
-      run: |
-        python setup.py bdist_wheel --plat-name Linux_x86_64
-        WHL_LINUX=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl")
-        echo "PKG_LINUX_PATH=${WHL_LINUX}" >> $GITHUB_ENV
-
-    - name: Store - binary distribution (Linux)
+    - name: Store - binary distribution
       uses: actions/upload-artifact@v4
       with:
         name: oasislmf-bin-pkg_linux
-        path: ${{ env.PKG_LINUX_PATH }}
+        path: ${{ env.PKG_BIN_PATH }}
         retention-days: 5
 
-    - name: Filename - binary distribution (Linux)
-      id: linux_whl
+    - name: Filename - binary distribution
+      id: bin_whl
       run: |
-        FILENAME=$(find ./dist/ -name "oasislmf-*manylinux1_x86_64.whl" -exec basename {} \;)
+        FILENAME=$(find ./dist/ -name "oasislmf-*.whl" -exec basename {} \;)
         echo "filename=$FILENAME" >> $GITHUB_OUTPUT
-
-
-    ## --- Darwin Distribution --- #
-    - name:  Build - binary distribution (Darwin)
-      if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
-      run: |
-        python setup.py bdist_wheel --plat-name Darwin_x86_64
-        WHL_OSX=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl")
-        echo "PKG_DARWIN_PATH=${WHL_OSX}" >> $GITHUB_ENV
-
-    - name: Store - binary distribution (Darwin)
-      if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
-      uses: actions/upload-artifact@v4
-      with:
-        name: oasislmf-bin-pkg_darwin
-        path: ${{ env.PKG_DARWIN_PATH }}
-        retention-days: 5
-
-    - name: Filename - binary distribution (Darwin)
-      if: inputs.build_osx == 'true' || inputs.ktools_branch != ''
-      id: darwin_whl
-      run: |
-        FILENAME=$(find ./dist/ -name "oasislmf-*macosx_10_6_intel.whl" -exec basename {} \;)
-        echo "osx_pkg=$FILENAME" >> $GITHUB_OUTPUT
