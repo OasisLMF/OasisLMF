@@ -786,7 +786,7 @@ def compute_event_losses(compute_info,
     Returns:
         True if processing is done else false
     """
-    haz_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
+    haz_cdf_empty = np.empty(vuln_array.shape[2], dtype=oasis_float)
     vuln_pdf_empty = np.empty((vuln_array.shape[2], compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
     eff_damage_cdf_empty = np.empty(compute_info['Ndamage_bins_max'], dtype=oasis_float)
     haz_i_to_Ndamage_bins_empty = np.empty(vuln_array.shape[2], dtype=oasis_int)
