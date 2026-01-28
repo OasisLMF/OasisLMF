@@ -37,7 +37,7 @@ class TestGenKeys(ComputationChecker):
             'lookup_data_dir': self.tmp_dirs['lookup_data_dir'].name,
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
             'model_version_csv': self.tmp_files['model_version_csv'].name,
-
+            'keys_format': 'oasis',
         }
         self.min_args_output_set = {
             **self.min_args,
@@ -131,7 +131,7 @@ class TestGenKeys(ComputationChecker):
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=call_args['keys_data_csv'],
             errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
