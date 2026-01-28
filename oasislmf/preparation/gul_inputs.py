@@ -327,7 +327,7 @@ def get_gul_input_items(
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
         pd.concat(gul_inputs_reformatted_chunks)
-        .sort_index()
+        .sort_index(kind='mergesort')
         .reset_index(drop=True)
     )
 
