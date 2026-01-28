@@ -976,18 +976,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         Serialises specified columns from the OED file into a model_data dict
         """
-        lst_model_data = []
-
         def model_data(locations):
-            # could improve with apply lambda
-            for index, i in locations.iterrows():
-                tmp_dict = {}
-                for col in columns:
-                    tmp_dict[col] = i[col]
-                lst_model_data.append(tmp_dict)
-
-            locations['model_data'] = lst_model_data
-
+            locations['model_data'] = locations[columns].to_dict('records')
             return locations
 
         return model_data
@@ -998,18 +988,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         Converts specified columns from the OED file into intensity adjustments and
         return period protection.
         """
-        lst_intensity_adjustment = []
-        lst_return_period = []
-
         def adjustments(locations):
-            for index, row in locations.iterrows():
-                intensity_adjustment = row[intensity_adjustment_col]
-                return_period = row[return_period_col]
-                lst_intensity_adjustment.append(intensity_adjustment)
-                lst_return_period.append(return_period)
-
-            locations['intensity_adjustment'] = lst_intensity_adjustment
-            locations['return_period'] = lst_return_period
+            locations['intensity_adjustment'] = locations[intensity_adjustment_col].values
+            locations['return_period'] = locations[return_period_col].values
             return locations
 
         return adjustments
