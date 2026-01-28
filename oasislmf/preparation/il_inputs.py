@@ -511,7 +511,7 @@ def get_il_input_items(
                 if field_type['field_col'] not in locations_df.columns:
                     continue
                 else:
-                    locations_df[field_type['field_col']].fillna(0.) # set default to 0 to ignore term if empty
+                    locations_df[field_type['field_col']].fillna(0.)  # set default to 0 to ignore term if empty
                 if field_type['type_col'] not in locations_df.columns:
                     locations_df[field_type['type_col']] = field_type['type_value']
                 else:
@@ -917,7 +917,7 @@ def get_il_input_items(
 
                 # reset gul_inputs_df level columns
                 gul_inputs_df = reset_gul_inputs(gul_inputs_df)
-                logger.info(f"level {cur_level_id} {level_info} took {time.time()-t0}")
+                logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                 t0 = time.time()
 
         gul_inputs_df = gul_inputs_df.sort_values(['gul_input_id', 'layer_id'], kind='stable')
