@@ -374,8 +374,7 @@ def get_gul_input_items(
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
         pd.concat(gul_inputs_reformatted_chunks)
-        .fillna(value={c: 0 for c in terms_found})
-        .sort_index()
+        .sort_index(kind='mergesort')
         .reset_index(drop=True)
         .fillna(value={c: 0 for c in set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints))})
     )
