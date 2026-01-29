@@ -16,58 +16,10 @@ import tempfile
 
 from oasislmf.pytools.common.data import DEFAULT_BUFFER_SIZE, write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.utils.nb_heapq import heap_pop, heap_push, init_heap
-from oasislmf.pytools.elt.data import MELT_dtype, MELT_fmt, MELT_headers, QELT_dtype, QELT_fmt, QELT_headers, SELT_dtype, SELT_fmt, SELT_headers
-from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
+from oasislmf.pytools.kat.data import KAT_MAP, KAT_QELT, KAT_QPLT, KAT_SELT, KAT_SPLT
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
-
-
-KAT_SELT = 0
-KAT_MELT = 1
-KAT_QELT = 2
-KAT_SPLT = 3
-KAT_MPLT = 4
-KAT_QPLT = 5
-
-KAT_MAP = {
-    KAT_SELT: {
-        "name": "SELT",
-        "headers": SELT_headers,
-        "dtype": SELT_dtype,
-        "fmt": SELT_fmt,
-    },
-    KAT_MELT: {
-        "name": "MELT",
-        "headers": MELT_headers,
-        "dtype": MELT_dtype,
-        "fmt": MELT_fmt,
-    },
-    KAT_QELT: {
-        "name": "QELT",
-        "headers": QELT_headers,
-        "dtype": QELT_dtype,
-        "fmt": QELT_fmt,
-    },
-    KAT_SPLT: {
-        "name": "SPLT",
-        "headers": SPLT_headers,
-        "dtype": SPLT_dtype,
-        "fmt": SPLT_fmt,
-    },
-    KAT_MPLT: {
-        "name": "MPLT",
-        "headers": MPLT_headers,
-        "dtype": MPLT_dtype,
-        "fmt": MPLT_fmt,
-    },
-    KAT_QPLT: {
-        "name": "QPLT",
-        "headers": QPLT_headers,
-        "dtype": QPLT_dtype,
-        "fmt": QPLT_fmt,
-    },
-}
 
 
 def check_file_extensions(file_paths):
@@ -529,18 +481,18 @@ def run(
     concatenate_qplt=False,
     unsorted=False,
 ):
-    """Concatenate CSV files (optionally sorted)
+    """Concatenate output files (optionally sorted)
     Args:
-        out_file (str | os.PathLike): Output Concatenated CSV file.
+        out_file (str | os.PathLike): Output Concatenated file.
         file_type (str, optional): Input file type suffix, if not discernible from input files. Defaults to None.
-        files_in (List[str | os.PathLike], optional): Individual CSV file paths to concatenate. Defaults to None.
+        files_in (List[str | os.PathLike], optional): Individual file paths to concatenate. Defaults to None.
         dir_in (str | os.PathLike, optional): Path to the directory containing files for concatenation. Defaults to None.
-        concatenate_selt (bool, optional): Concatenate SELT CSV file. Defaults to False.
-        concatenate_melt (bool, optional): Concatenate MELT CSV file. Defaults to False.
-        concatenate_qelt (bool, optional): Concatenate QELT CSV file. Defaults to False.
-        concatenate_splt (bool, optional): Concatenate SPLT CSV file. Defaults to False.
-        concatenate_mplt (bool, optional): Concatenate MPLT CSV file. Defaults to False.
-        concatenate_qplt (bool, optional): Concatenate QPLT CSV file. Defaults to False.
+        concatenate_selt (bool, optional): Concatenate SELT file. Defaults to False.
+        concatenate_melt (bool, optional): Concatenate MELT file. Defaults to False.
+        concatenate_qelt (bool, optional): Concatenate QELT file. Defaults to False.
+        concatenate_splt (bool, optional): Concatenate SPLT file. Defaults to False.
+        concatenate_mplt (bool, optional): Concatenate MPLT file. Defaults to False.
+        concatenate_qplt (bool, optional): Concatenate QPLT file. Defaults to False.
         unsorted (bool, optional): Do not sort by event/period ID. Defaults to False.
     """
     input_files = []
