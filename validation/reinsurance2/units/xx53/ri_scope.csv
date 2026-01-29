@@ -1,7 +1,7 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
 184,xx53,xx53_1,1_1,,,,,,,,,latest version
 185,xx53,xx53_7,7_1,,,,,,,,,latest version
-186,xx53,xx53_9,,,11.0,,,,,,,latest version
-186,xx53,xx53_9,,,12.0,,,,,,,latest version
+186,xx53,xx53_9,,,11,,,,,,,latest version
+186,xx53,xx53_9,,,12,,,,,,,latest version
 187,xx53,,,,,,,,,,,latest version
 188,xx53,,,,,,,,,,,latest version

@@ -100,4 +100,4 @@ TestStepPolicies,PPT6_T2,PPT6_T2,Step condition in non-life clients Flood portfo
 TestStepPolicies,PPT6_T3,PPT6_T3,Step condition in non-life clients Flood portfolios,JP,AA1,10000000.0,15000000.0,20000000.0,25000000.0,JPY,,0,0.0,0,0.0,0,0.0,0,0.0,0,0.0,latest version,AA1,fm58,99,98
 TestStepPolicies,PPT6_T5,PPT6_T5,Step condition in non-life clients Flood portfolios,JP,AA1,10000000.0,15000000.0,20000000.0,25000000.0,JPY,,0,0.0,0,0.0,0,0.0,0,0.0,0,0.0,latest version,AA1,fm58,100,99
 fm64,B1,B1,Flood Policy product B1,JP,AA1,100000.0,200000.0,300000.0,400000.0,JPY,,0,0.0,0,0.0,0,0.0,0,0.0,0,0.0,latest version,AA1,fm64,101,100
-fm64,B2,B2,No terms,JP,AA1,500000.0,600000.0,700000.0,800000.0,JPY,1.0,2,0.01,2,0.01,2,0.01,2,0.02,2,0.03,latest version,AA1,fm64,102,101
+fm64,B2,B2,No terms,JP,AA1,500000.0,600000.0,700000.0,800000.0,JPY,1,2,0.01,2,0.01,2,0.01,2,0.02,2,0.03,latest version,AA1,fm64,102,101

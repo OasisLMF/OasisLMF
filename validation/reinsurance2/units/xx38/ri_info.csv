@@ -1,5 +1,5 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
 168,AA1,CAD,,100000000,0,0,0,0.8,1,FAC,xx38_FAC_1,POL,latest version
-169,AA1,CAD,,2000,1000,6000,0,1.0,1,PR,xx38_PR_1,POL,latest version
-170,AA1,CAD,,4000,3000,8000,0,1.0,2,PR,xx38_PR_2,POL,latest version
-171,AA1,CAD,,4000,7000,8000,0,1.0,3,PR,xx38_PR_3,POL,latest version
+169,AA1,CAD,,2000,1000,6000,0,1,1,PR,xx38_PR_1,POL,latest version
+170,AA1,CAD,,4000,3000,8000,0,1,2,PR,xx38_PR_2,POL,latest version
+171,AA1,CAD,,4000,7000,8000,0,1,3,PR,xx38_PR_3,POL,latest version
