@@ -23,8 +23,8 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
                                           fm_profile_headers, fm_profile_dtype,
                                           fm_profile_step_headers, fm_profile_step_dtype,
                                           fm_programme_headers, fm_programme_dtype,
-                                          fm_xref_headers, fm_xref_dtype
-                                          )
+                                          fm_xref_headers, fm_xref_dtype,
+                                          DTYPE_IDX, calcrule_id, profile_id, layer_id)
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import factorize_ndarray, get_ids, DEFAULT_LOC_FIELD_TYPES
@@ -882,9 +882,9 @@ def get_il_input_items(
 
                 gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
 
-                gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype('i4')
+                gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
                 gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
-                gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype('i4')
+                gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
 
                 # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
                 need_root_start_df = gul_inputs_df.groupby("agg_id_prev", observed=True)["agg_id"].nunique()
@@ -998,7 +998,7 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
     :return: FM profile file path
     :rtype: str
     """
-    level_df = level_df.astype({'calcrule_id': 'i4', 'profile_id': 'i4'})
+    level_df = level_df.astype({'calcrule_id': calcrule_id[DTYPE_IDX], 'profile_id': profile_id[DTYPE_IDX]})
     # Step policies exist
     if step_policies_present:
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(fm_profile_step_headers + ['steptriggertype'])))].copy()
