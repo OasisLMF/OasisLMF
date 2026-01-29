@@ -1,4 +1,4 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-100,OEDTest,CX30_08,,,CX30_08_1,,,,,,,2.0.0
-100,OEDTest,CX30_08,,,CX30_08_2,,,,,,,2.0.0
-100,OEDTest,CX30_09,,,,,,,,,,2.0.0
+100,OEDTest,CX30_08,,,CX30_08_1,,,,,,,latest version
+100,OEDTest,CX30_08,,,CX30_08_2,,,,,,,latest version
+100,OEDTest,CX30_09,,,,,,,,,,latest version

@@ -1,5 +1,5 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-5,724,CX30_01,,,CX30_01_1,,,,,,,2.0.0
-5,724,CX30_02,,,CX30_02_2,,,,,,,2.0.0
-6,724,FA37_01,,,FA37_01_1,,,,,,,2.0.0
-6,724,FA37_02,,,FA37_02_2,,,,,,,2.0.0
+5,724,CX30_01,,,CX30_01_1,,,,,,,latest version
+5,724,CX30_02,,,CX30_02_2,,,,,,,latest version
+6,724,FA37_01,,,FA37_01_1,,,,,,,latest version
+6,724,FA37_02,,,FA37_02_2,,,,,,,latest version

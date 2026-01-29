@@ -1,6 +1,6 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-164,xx32,xx32_1,,,1,,,,,,,2.0.0
-164,xx32,xx32_1,,,2,,,,,,,2.0.0
-165,xx32,,,,,,,,,,,2.0.0
-166,xx32,,,,,,,,,,,2.0.0
-167,xx32,,,,,,,,,,,2.0.0
+164,xx32,xx32_1,,,1.0,,,,,,,latest version
+164,xx32,xx32_1,,,2.0,,,,,,,latest version
+165,xx32,,,,,,,,,,,latest version
+166,xx32,,,,,,,,,,,latest version
+167,xx32,,,,,,,,,,,latest version

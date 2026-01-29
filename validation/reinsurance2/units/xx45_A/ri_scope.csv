@@ -1,11 +1,11 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-151,xx45_A,xx45_05,,,,,,,,,,2.0.0
-151,xx45_A,xx45_06,,,,,,,,,,2.0.0
-154,xx45_A,xx45_05,,,,,,,,,,2.0.0
-154,xx45_A,xx45_06,,,,,,,,,,2.0.0
-157,xx45_A,xx45_05,,,,,,,,,,2.0.0
-157,xx45_A,xx45_06,,,,,,,,,,2.0.0
-160,xx45_A,xx45_05,,,,,,,,,,2.0.0
-160,xx45_A,xx45_06,,,,,,,,,,2.0.0
-163,xx45_A,xx45_05,,,,,,,,,,2.0.0
-163,xx45_A,xx45_06,,,,,,,,,,2.0.0
+151,xx45_A,xx45_05,,,,,,,,,,latest version
+151,xx45_A,xx45_06,,,,,,,,,,latest version
+154,xx45_A,xx45_05,,,,,,,,,,latest version
+154,xx45_A,xx45_06,,,,,,,,,,latest version
+157,xx45_A,xx45_05,,,,,,,,,,latest version
+157,xx45_A,xx45_06,,,,,,,,,,latest version
+160,xx45_A,xx45_05,,,,,,,,,,latest version
+160,xx45_A,xx45_06,,,,,,,,,,latest version
+163,xx45_A,xx45_05,,,,,,,,,,latest version
+163,xx45_A,xx45_06,,,,,,,,,,latest version

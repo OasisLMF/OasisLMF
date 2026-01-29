@@ -1,11 +1,11 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-150,xx45_P,xx45_03,xx45_03_1,,,,,,,,,2.0.0
-150,xx45_P,xx45_07,xx45_07_1,,,,,,,,,2.0.0
-153,xx45_P,xx45_03,xx45_03_1,,,,,,,,,2.0.0
-153,xx45_P,xx45_07,xx45_07_1,,,,,,,,,2.0.0
-156,xx45_P,xx45_03,xx45_03_1,,,,,,,,,2.0.0
-156,xx45_P,xx45_07,xx45_07_1,,,,,,,,,2.0.0
-159,xx45_P,xx45_03,xx45_03_1,,,,,,,,,2.0.0
-159,xx45_P,xx45_07,xx45_07_1,,,,,,,,,2.0.0
-162,xx45_P,xx45_03,xx45_03_1,,,,,,,,,2.0.0
-162,xx45_P,xx45_07,xx45_07_1,,,,,,,,,2.0.0
+150,xx45_P,xx45_03,xx45_03_1,,,,,,,,,latest version
+150,xx45_P,xx45_07,xx45_07_1,,,,,,,,,latest version
+153,xx45_P,xx45_03,xx45_03_1,,,,,,,,,latest version
+153,xx45_P,xx45_07,xx45_07_1,,,,,,,,,latest version
+156,xx45_P,xx45_03,xx45_03_1,,,,,,,,,latest version
+156,xx45_P,xx45_07,xx45_07_1,,,,,,,,,latest version
+159,xx45_P,xx45_03,xx45_03_1,,,,,,,,,latest version
+159,xx45_P,xx45_07,xx45_07_1,,,,,,,,,latest version
+162,xx45_P,xx45_03,xx45_03_1,,,,,,,,,latest version
+162,xx45_P,xx45_07,xx45_07_1,,,,,,,,,latest version

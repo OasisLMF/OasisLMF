@@ -1,7 +1,7 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion,TreatyShare
-5,AA1,CAD,0.2,0.0,0.0,0.0,1000000.0,1.0,1,CXL,T30 CX Loc,LOC,2.0.0,1.0
-6,AA1,CAD,0.2,0.0,0.0,0.0,0.0,1.0,1,FAC,T37 FA Loc,LOC,2.0.0,1.0
-2,AA1,CAD,1.0,4076500.0,60000000.0,0.0,0.0,1.0,1,FAC,xxAcc1_FAC_1,LOC,2.0.0,1.0
-3,AA1,CAD,1.0,100000000.0,0.0,0.0,0.0,0.8,1,FAC,xx32_FAC_1,LOC,2.0.0,1.0
-4,AA1,CAD,1.0,2000.0,1000.0,6000.0,0.0,1.0,1,PR,xx32_PR_1,LOC,2.0.0,1.0
-1,AA1,CAD,1.0,0.0,0.0,1000000.0,1000.0,0.6,1,FAC,FAC,LOC,2.0.0,1.0
+5,AA1,CAD,0.2,0.0,0.0,0.0,1000000.0,1.0,1,CXL,T30 CX Loc,LOC,latest version,1.0
+6,AA1,CAD,0.2,0.0,0.0,0.0,0.0,1.0,1,FAC,T37 FA Loc,LOC,latest version,1.0
+2,AA1,CAD,1.0,4076500.0,60000000.0,0.0,0.0,1.0,1,FAC,xxAcc1_FAC_1,LOC,latest version,1.0
+3,AA1,CAD,1.0,100000000.0,0.0,0.0,0.0,0.8,1,FAC,xx32_FAC_1,LOC,latest version,1.0
+4,AA1,CAD,1.0,2000.0,1000.0,6000.0,0.0,1.0,1,PR,xx32_PR_1,LOC,latest version,1.0
+1,AA1,CAD,1.0,0.0,0.0,1000000.0,1000.0,0.6,1,FAC,FAC,LOC,latest version,1.0

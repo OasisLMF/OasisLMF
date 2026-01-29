@@ -1,5 +1,5 @@
 PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,StepFunctionName,StepTriggerType,StepNumber,TriggerBuildingStart,TriggerBuildingEnd,DeductibleBuilding,PayOutBuildingStart,PayOutBuildingEnd,PayOutLimitBuilding,TriggerContentsStart,TriggerContentsEnd,DeductibleContents,PayOutContentsStart,PayOutContentsEnd,PayOutLimitContents,TriggerBuildingContentsStart,TriggerBuildingContentsEnd,DeductibleBuildingContents,PayOutBuildingContentsStart,PayOutBuildingContentsEnd,PayOutLimitBuildingContents,MinimumTIV,ScaleFactor,IsLimitAtDamage,ExtraExpenseFactor,ExtraExpenseLimit,DebrisRemovalFactor,PayOutType,TriggerType,PolLimit6All,PolLimitType6All,PolDed6All,PolDedType6All,LayerAttachment,LayerLimit,LayerParticipation,OEDVersion,CondPriority,CondPeril,PolPeril
-MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,27,1,1,0,0.15,,0.05,,1000000,,,,,,,,,,,,,,,,,,,2,2,,,,,,,,2.0.0,,,OO1;WSS
-MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,27,1,2,0.15,0.3,,0.15,,3000000,,,,,,,,,,,,,,,,,,,2,2,,,,,,,,2.0.0,,,OO1;WSS
-MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,28,1,3,0.3,1,,1,,,,,,,,,,,,,,,,,,0.15,600000,,1,2,,,,,,,,2.0.0,,,OO1;WSS
-MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,3000000,0,10000,0,,,,2.0.0,,,WTC
+MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,27.0,1.0,1.0,0.0,0.15,,0.05,,1000000.0,,,,,,,,,,,,,,,,,,,2.0,2.0,,,,,,,,latest version,,,OO1;WSS
+MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,27.0,1.0,2.0,0.15,0.3,,0.15,,3000000.0,,,,,,,,,,,,,,,,,,,2.0,2.0,,,,,,,,latest version,,,OO1;WSS
+MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,28.0,1.0,3.0,0.3,1.0,,1.0,,,,,,,,,,,,,,,,,,0.15,600000.0,,1.0,2.0,,,,,,,,latest version,,,OO1;WSS
+MultiPerilStep6,B1,JPY,B1,OO1;WSS;WTC,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,3000000.0,0.0,10000.0,0.0,,,,latest version,,,WTC

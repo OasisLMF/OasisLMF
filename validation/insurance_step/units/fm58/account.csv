@@ -1,25 +1,25 @@
 PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,StepFunctionName,StepTriggerType,StepNumber,TriggerBuildingStart,TriggerBuildingEnd,DeductibleBuilding,PayOutBuildingStart,PayOutBuildingEnd,PayOutLimitBuilding,TriggerContentsStart,TriggerContentsEnd,DeductibleContents,PayOutContentsStart,PayOutContentsEnd,PayOutLimitContents,TriggerBuildingContentsStart,TriggerBuildingContentsEnd,DeductibleBuildingContents,PayOutBuildingContentsStart,PayOutBuildingContentsEnd,PayOutLimitBuildingContents,MinimumTIV,ScaleFactor,IsLimitAtDamage,ExtraExpenseFactor,ExtraExpenseLimit,DebrisRemovalFactor,PayOutType,TriggerType,CondTag,CondNumber,CondDed6All,CondDedType6All,PolDed6All,PolDedType6All,LayerAttachment,LayerLimit,LayerParticipation,OEDVersion,CondPriority,CondPeril,PolPeril
-TestStepPolicies,PPT3_T1,JPY,PPT3_T1,AA1,30,1,1,0.2,1,,0.05,,5000000,,,,,,,,,,,,,,,,,,,3,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT3_T2,JPY,PPT3_T2,AA1,30,2,1,,,,,,,0.2,1,,0.05,,5000000,,,,,,,,,,,,,3,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT3_T3,JPY,PPT3_T3,AA1,30,3,1,,,,,,,,,,,,,0.2,1,,0.05,,5000000,,,,,,,3,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT3_T5,JPY,PPT3_T5,AA1,30,5,1,0.2,1,,0.05,,5000000,0.2,1,,0.05,,5000000,,,,,,,,,,,,,3,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT4_T1,JPY,PPT4_T1,AA1,31,1,1,0.1,1,,100,,,,,,,,,,,,,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT4_T2,JPY,PPT4_T2,AA1,31,2,1,,,,,,,0.1,1,,100,,,,,,,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT4_T3,JPY,PPT4_T3,AA1,31,3,1,,,,,,,,,,,,,0.1,1,,100,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT4_T5,JPY,PPT4_T5,AA1,31,5,1,0.1,1,,100,,,0.1,1,,100,,,,,,,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT5_T1,JPY,PPT5_T1,AA1,31,1,1,0.1,1,,200000,,,,,,,,,,,,,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT5_T2,JPY,PPT5_T2,AA1,31,2,1,,,,,,,0.1,1,,200000,,,,,,,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT5_T3,JPY,PPT5_T3,AA1,31,3,1,,,,,,,,,,,,,0.1,1,,200000,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT5_T5,JPY,PPT5_T5,AA1,31,5,1,0.1,1,,200000,,,0.1,1,,200000,,,,,,,,,,,,,,,0,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T1,JPY,PPT6_T1,AA1,27,1,1,0.005,0.15,,0.05,,1000000,,,,,,,,,,,,,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T1,JPY,PPT6_T1,AA1,27,1,2,0.15,0.3,,0.15,,3000000,,,,,,,,,,,,,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T1,JPY,PPT6_T1,AA1,28,1,3,0.3,1,,1,,,,,,,,,,,,,,,,,,,,,1,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T2,JPY,PPT6_T2,AA1,27,2,1,,,,,,,0.005,0.15,,0.05,,1000000,,,,,,,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T2,JPY,PPT6_T2,AA1,27,2,2,,,,,,,0.15,0.3,,0.15,,3000000,,,,,,,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T2,JPY,PPT6_T2,AA1,28,2,3,,,,,,,0.3,1,,1,,,,,,,,,,,,,,,1,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T3,JPY,PPT6_T3,AA1,27,3,1,,,,,,,,,,,,,0.005,0.15,,0.05,,1000000,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T3,JPY,PPT6_T3,AA1,27,3,2,,,,,,,,,,,,,0.15,0.3,,0.15,,3000000,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T3,JPY,PPT6_T3,AA1,28,3,3,,,,,,,,,,,,,0.3,1,,1,,,,,,,,,1,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T5,JPY,PPT6_T5,AA1,27,5,1,0.005,0.15,,0.05,,1000000,0.005,0.15,,0.05,,1000000,,,,,,,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T5,JPY,PPT6_T5,AA1,27,5,2,0.15,0.3,,0.15,,3000000,0.15,0.3,,0.15,,3000000,,,,,,,,,,,,,2,2,,,,,,,,,,2.0.0,,AA1,AA1
-TestStepPolicies,PPT6_T5,JPY,PPT6_T5,AA1,28,5,3,0.3,1,,1,,,0.3,1,,1,,,,,,,,,,,,,,,1,2,,,,,,,,,,2.0.0,,AA1,AA1
+TestStepPolicies,PPT3_T1,JPY,PPT3_T1,AA1,30,1,1,0.2,1.0,,0.05,,5000000.0,,,,,,,,,,,,,,,,,,,3,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT3_T2,JPY,PPT3_T2,AA1,30,2,1,,,,,,,0.2,1.0,,0.05,,5000000.0,,,,,,,,,,,,,3,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT3_T3,JPY,PPT3_T3,AA1,30,3,1,,,,,,,,,,,,,0.2,1.0,,0.05,,5000000.0,,,,,,,3,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT3_T5,JPY,PPT3_T5,AA1,30,5,1,0.2,1.0,,0.05,,5000000.0,0.2,1.0,,0.05,,5000000.0,,,,,,,,,,,,,3,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT4_T1,JPY,PPT4_T1,AA1,31,1,1,0.1,1.0,,100.0,,,,,,,,,,,,,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT4_T2,JPY,PPT4_T2,AA1,31,2,1,,,,,,,0.1,1.0,,100.0,,,,,,,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT4_T3,JPY,PPT4_T3,AA1,31,3,1,,,,,,,,,,,,,0.1,1.0,,100.0,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT4_T5,JPY,PPT4_T5,AA1,31,5,1,0.1,1.0,,100.0,,,0.1,1.0,,100.0,,,,,,,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT5_T1,JPY,PPT5_T1,AA1,31,1,1,0.1,1.0,,200000.0,,,,,,,,,,,,,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT5_T2,JPY,PPT5_T2,AA1,31,2,1,,,,,,,0.1,1.0,,200000.0,,,,,,,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT5_T3,JPY,PPT5_T3,AA1,31,3,1,,,,,,,,,,,,,0.1,1.0,,200000.0,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT5_T5,JPY,PPT5_T5,AA1,31,5,1,0.1,1.0,,200000.0,,,0.1,1.0,,200000.0,,,,,,,,,,,,,,,0,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T1,JPY,PPT6_T1,AA1,27,1,1,0.005,0.15,,0.05,,1000000.0,,,,,,,,,,,,,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T1,JPY,PPT6_T1,AA1,27,1,2,0.15,0.3,,0.15,,3000000.0,,,,,,,,,,,,,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T1,JPY,PPT6_T1,AA1,28,1,3,0.3,1.0,,1.0,,,,,,,,,,,,,,,,,,,,,1,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T2,JPY,PPT6_T2,AA1,27,2,1,,,,,,,0.005,0.15,,0.05,,1000000.0,,,,,,,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T2,JPY,PPT6_T2,AA1,27,2,2,,,,,,,0.15,0.3,,0.15,,3000000.0,,,,,,,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T2,JPY,PPT6_T2,AA1,28,2,3,,,,,,,0.3,1.0,,1.0,,,,,,,,,,,,,,,1,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T3,JPY,PPT6_T3,AA1,27,3,1,,,,,,,,,,,,,0.005,0.15,,0.05,,1000000.0,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T3,JPY,PPT6_T3,AA1,27,3,2,,,,,,,,,,,,,0.15,0.3,,0.15,,3000000.0,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T3,JPY,PPT6_T3,AA1,28,3,3,,,,,,,,,,,,,0.3,1.0,,1.0,,,,,,,,,1,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T5,JPY,PPT6_T5,AA1,27,5,1,0.005,0.15,,0.05,,1000000.0,0.005,0.15,,0.05,,1000000.0,,,,,,,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T5,JPY,PPT6_T5,AA1,27,5,2,0.15,0.3,,0.15,,3000000.0,0.15,0.3,,0.15,,3000000.0,,,,,,,,,,,,,2,2,,,,,,,,,,latest version,,AA1,AA1
+TestStepPolicies,PPT6_T5,JPY,PPT6_T5,AA1,28,5,3,0.3,1.0,,1.0,,,0.3,1.0,,1.0,,,,,,,,,,,,,,,1,2,,,,,,,,,,latest version,,AA1,AA1
