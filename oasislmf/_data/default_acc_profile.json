@@ -857,19 +857,18 @@
     },
     "PolDedCYB": {
         "ProfileElementName": "PolDedCYB",
-        "DeductibleType": "B",
-        "CoverageTypeID": 16,
-        "FMLevelName": "PolCoverage",
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 16,
+        "FMLevelName": "PolAll",
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 2,
+        "CoverageTypeID": [7,8,9,10,11,12,13,14,15],
         "ProfileType": "Acc"
     },
     "PolLimitCYB": {
         "ProfileElementName": "PolLimitCYB",
-        "CoverageTypeID": 16,
-        "FMLevelName": "PolCoverage",
+        "FMLevelName": "PolAll",
         "FMTermType": "Limit",
-        "FMTermGroupID": 16,
+        "FMTermGroupID": 2,
+        "CoverageTypeID": [7,8,9,10,11,12,13,14,15],
         "ProfileType": "Acc"
     },
     "PolDed5PD": {
