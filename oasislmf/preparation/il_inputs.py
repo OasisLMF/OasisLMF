@@ -639,6 +639,7 @@ def get_il_input_items(
                 level_id = level_info['id']
                 is_policy_layer_level = level_id == SUPPORTED_FM_LEVELS['policy layer']['id']
                 step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
+                fm_peril_field = fm_peril_field if fm_peril_field in term_df_source.columns else None
                 level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(
                     term_df_source, level_column_mapper, level_id, step_level, fm_peril_field, oed_schema)
                 agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
