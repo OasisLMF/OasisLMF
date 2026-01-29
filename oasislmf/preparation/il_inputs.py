@@ -27,7 +27,7 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
                                           )
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import factorize_ndarray, get_ids
+from oasislmf.utils.data import factorize_ndarray, get_ids, DEFAULT_LOC_FIELD_TYPES
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
@@ -72,6 +72,9 @@ risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'a
 
 fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
+BITYPE_columns = {"BIWaitingPeriodType", "BIPOIType"}
+BIPOI_default_exeption = "BIPOI"
+
 
 def prepare_ded_and_limit(level_df):
     simplify_no_terms = {
@@ -105,7 +108,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     """
     il_inputs_calc_rules_df = il_inputs_calc_rules_df.copy()
     calc_rules_df, calc_rule_term_info = get_calc_rules(calc_rule_type)
-    calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], axis=1, errors='ignore')
+    calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], errors='ignore')
 
     terms = []
     terms_indicators = []
@@ -334,14 +337,18 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if term_info.get("FMTermType") == "tiv":
             continue
-        default_value = oed_schema.get_default(ProfileElementName)
+        if ProfileElementName == BIPOI_default_exeption:
+            default_value = 0.
+        else:
+            default_value = oed_schema.get_default(ProfileElementName)
+
         if ProfileElementName not in term_df_source.columns:
             if default_value == 0 or default_value in BLANK_VALUES:
                 continue
             else:
                 non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
                 continue
-        else:
+        elif ProfileElementName not in BITYPE_columns:
             fill_empty(term_df_source, ProfileElementName, default_value)
 
         if pd.isna(default_value):
@@ -498,6 +505,18 @@ def get_il_input_items(
             locations_df = locations_df.merge(acc_id_map, how='left')
             locations_df = locations_df.drop(columns=['PortNumber', 'AccNumber', 'LocNumber'])
             accounts_df = accounts_df[accounts_df['acc_id'].isin(locations_df['acc_id'].unique())].drop(columns=['PortNumber', 'AccNumber'])
+
+            # fill default types
+            for field_type in DEFAULT_LOC_FIELD_TYPES:
+                if field_type['field_col'] not in locations_df.columns:
+                    continue
+                else:
+                    locations_df[field_type['field_col']].fillna(0.)  # set default to 0 to ignore term if empty
+                if field_type['type_col'] not in locations_df.columns:
+                    locations_df[field_type['type_col']] = field_type['type_value']
+                else:
+                    locations_df[field_type['type_col']] = locations_df[field_type['type_col']].fillna(
+                        field_type['type_value'])
 
         else:  # no location, case for cyber, marine ...
             locations_df = None
@@ -660,6 +679,9 @@ def get_il_input_items(
                         if pd.isna(oed_schema.get_default(term)):
                             term_filter |= ~group_df[term].isna()
                             valid_term_default[terms[term]] = 0
+                        elif term == BIPOI_default_exeption:
+                            term_filter |= (group_df[term] != 0.)
+                            valid_term_default[terms[term]] = 0
                         else:
                             term_filter |= (group_df[term] != oed_schema.get_default(term))
                             valid_term_default[terms[term]] = oed_schema.get_default(term)
@@ -723,7 +745,6 @@ def get_il_input_items(
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
                     continue
-
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
@@ -896,7 +917,7 @@ def get_il_input_items(
 
                 # reset gul_inputs_df level columns
                 gul_inputs_df = reset_gul_inputs(gul_inputs_df)
-                logger.info(f"level {cur_level_id} {level_info} took {time.time()-t0}")
+                logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                 t0 = time.time()
 
         gul_inputs_df = gul_inputs_df.sort_values(['gul_input_id', 'layer_id'], kind='stable')
