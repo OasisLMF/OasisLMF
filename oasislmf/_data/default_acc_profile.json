@@ -804,8 +804,8 @@
         "FMTermGroupID": 12,
         "ProfileType": "Acc"
     },
-    "PolDedLIA": {
-        "ProfileElementName": "PolDedLIA",
+    "PolDedLIAB": {
+        "ProfileElementName": "PolDedLIAB",
         "DeductibleType": "B",
         "CoverageTypeID": 13,
         "FMLevelName": "PolCoverage",
@@ -813,8 +813,8 @@
         "FMTermGroupID": 13,
         "ProfileType": "Acc"
     },
-    "PolLimitLIA": {
-        "ProfileElementName": "PolLimitLIA",
+    "PolLimitLIAB": {
+        "ProfileElementName": "PolLimitLIAB",
         "CoverageTypeID": 13,
         "FMLevelName": "PolCoverage",
         "FMTermType": "Limit",
