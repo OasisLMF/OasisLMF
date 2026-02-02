@@ -29,7 +29,8 @@ class PlatformBase(ComputationStep):
     Base platform class to handle opening a client connection
     """
     step_params = [
-        {'name': 'server_login_json', 'is_path': True, 'pre_exist': False, 'help': 'Source location CSV file path'},
+        {'name': 'server_login_json', 'required': False, 'default': None, 'is_path': True,
+            'pre_exist': False, 'help': 'Server login credentials json string'},
         {'name': 'server_url', 'default': 'http://localhost:8000', 'help': 'URL to Oasis Platform server, default is localhost'},
         {'name': 'server_version', 'default': 'v2', 'help': "Version prefix for OasisPlatform server, 'v1' = single server run, 'v2' = distributed on cluster"},
     ]
@@ -83,11 +84,12 @@ class PlatformBase(ComputationStep):
                 raise e
             orig_excep = e.original_exception
             if (isinstance(orig_excep, HTTPError) and orig_excep.response.status_code == 401):
-                self.logger.debug("Unauthorized (401) for credentials: %s", list(kwargs.keys()))
+                self.logger.debug("Login attempt failed, reason: Unauthorized (401) for credentials: %s", list(kwargs.keys()))
                 return None
             elif isinstance(orig_excep, HTTPError) and orig_excep.response.status_code == 400 and "flow is disabled" in orig_excep.response.text.lower():
                 self.logger.debug(
-                    "Validation Error (400) for credentials, invalid flow used, must be one of username/password or client_id/client_secret: %s", list(kwargs.keys())
+                    "Login attempt failed, reason: Validation Error (400) for credentials, invalid flow used, must be one of username/password or client_id/client_secret: %s", list(
+                        kwargs.keys())
                 )
                 return None
             else:
@@ -100,25 +102,26 @@ class PlatformBase(ComputationStep):
         2. API_EXAMPLE_AUTH client_id/client_secret
         3. Prompt or load credentials
         """
-        # 1. Try example username/password
-        if 'username' in API_EXAMPLE_AUTH and 'password' in API_EXAMPLE_AUTH:
-            conn = self.try_connection(
-                auth_type="simple",
-                username=API_EXAMPLE_AUTH['username'],
-                password=API_EXAMPLE_AUTH['password']
-            )
-            if conn:
-                return conn
+        if not isinstance(self.server_login_json, str):
+            # 1. Try example username/password
+            if 'username' in API_EXAMPLE_AUTH and 'password' in API_EXAMPLE_AUTH:
+                conn = self.try_connection(
+                    auth_type="simple",
+                    username=API_EXAMPLE_AUTH['username'],
+                    password=API_EXAMPLE_AUTH['password']
+                )
+                if conn:
+                    return conn
 
-        # 2. Try example client_id/client_secret
-        if 'client_id' in API_EXAMPLE_AUTH and 'client_secret' in API_EXAMPLE_AUTH:
-            conn = self.try_connection(
-                auth_type="oidc",
-                client_id=API_EXAMPLE_AUTH['client_id'],
-                client_secret=API_EXAMPLE_AUTH['client_secret']
-            )
-            if conn:
-                return conn
+            # 2. Try example client_id/client_secret
+            if 'client_id' in API_EXAMPLE_AUTH and 'client_secret' in API_EXAMPLE_AUTH:
+                conn = self.try_connection(
+                    auth_type="oidc",
+                    client_id=API_EXAMPLE_AUTH['client_id'],
+                    client_secret=API_EXAMPLE_AUTH['client_secret']
+                )
+                if conn:
+                    return conn
 
         # 3. Load credentials (file or prompt)
         self.logger.info("-- Authentication Required --")
@@ -131,13 +134,16 @@ class PlatformBase(ComputationStep):
                 username=credentials['username'],
                 password=credentials['password']
             )
-        else:
+        if 'client_id' in credentials and 'client_secret' in credentials:
             return self.try_connection(
                 fail_safe=False,
                 auth_type="oidc",
                 client_id=credentials['client_id'],
                 client_secret=credentials['client_secret']
             )
+        raise OasisException(
+            f"Error: No valid credentials provided for platform, current credential keys [{credentials.keys()}], must be one of username/password or client_id/client_secret"
+        )
 
     def tabulate_json(self, json_data, items):
         table_data = dict()
