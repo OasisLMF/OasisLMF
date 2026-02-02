@@ -53,8 +53,13 @@ CONTENT_MAP = {
     'gz': 'application/gzip',
     'zip': 'application/zip',
     'bz2': 'application/x-bzip2',
+    'json': 'application/json'
 }
 
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+CURRENCY_CONVERSION_JSON = BASE_DIR / "data" / "currency_conversion.json"
+CURRENCY_CONVERSION_LIST = BASE_DIR / "data" / "currency_conversion_list.json"
+CURRENCY_CSV = BASE_DIR / "data" / "currency.csv"
 
 responses_ver = get_version("responses")
 DISABLE_DATA_CHECKS = version.parse(responses_ver) >= version.parse("0.25.3")
@@ -1641,3 +1646,31 @@ class APIClientTests(unittest.TestCase):
             rsps.get(expected_url_get, json={'Error': 'Analysis not found'}, status=404)
             with self.assertRaises(OasisException):
                 self.client.download_output(ID)
+
+    def test_get_currency_conversion_returns_json(self):
+        path = self.client.get_currency_conversion(CURRENCY_CONVERSION_LIST)
+        assert pathlib.Path(path).resolve() == CURRENCY_CONVERSION_LIST.resolve()
+
+    def test_get_currency_conversion_returns_csv(self):
+        path = self.client.get_currency_conversion(CURRENCY_CONVERSION_JSON)
+        assert pathlib.Path(path).resolve() == CURRENCY_CSV.resolve()
+
+    def test_conversion_upload_file_csv(self):
+        self.client.portfolios.currency_conversion_json = MagicMock()
+        self.client.upload_portfolio_file(38, "currency_conversion_json", CURRENCY_CSV)
+        self.client.portfolios.currency_conversion_json.upload.assert_called_once()
+        args, kwargs = self.client.portfolios.currency_conversion_json.upload.call_args
+        assert args[0] == 38
+        assert pathlib.Path(args[1]).resolve() == CURRENCY_CSV.resolve()
+        assert len(args) == 2
+        assert kwargs == {'content_type': ""}
+
+    def test_conversion_upload_file_json(self):
+        self.client.portfolios.currency_conversion_json = MagicMock()
+        self.client.upload_portfolio_file(180, "currency_conversion_json", CURRENCY_CONVERSION_LIST)
+        self.client.portfolios.currency_conversion_json.upload.assert_called_once()
+        args, kwargs = self.client.portfolios.currency_conversion_json.upload.call_args
+        assert args[0] == 180
+        assert pathlib.Path(args[1]).resolve() == CURRENCY_CONVERSION_LIST.resolve()
+        assert len(args) == 2
+        assert kwargs == {'content_type': ""}
