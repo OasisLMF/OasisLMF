@@ -172,6 +172,11 @@ class RunExposure(ComputationStep):
         loc_num = oed_hierarchy['locnum']['ProfileElementName']
         policy_num = oed_hierarchy['polnum']['ProfileElementName']
 
+        if loc_num in guls_df.columns:
+            lowest_id_cols = [portfolio_num, acc_num, loc_num]
+        else:  # no location file (ex: cyber, marine)
+            lowest_id_cols = [portfolio_num, acc_num]
+
         if self.output_level == 'port':
             summary_cols = [portfolio_num]
         elif self.output_level == 'acc':
@@ -179,15 +184,11 @@ class RunExposure(ComputationStep):
         elif self.output_level == 'pol':
             summary_cols = [portfolio_num, acc_num, policy_num]
         elif self.output_level == 'loc':
-            summary_cols = [portfolio_num, acc_num, loc_num]
+            summary_cols = list(lowest_id_cols)
         elif self.output_level == 'item':
-            summary_cols = [
-                'output_id', portfolio_num, acc_num, loc_num, policy_num,
-                'coverage_type_id']
+            summary_cols = ['output_id'] + lowest_id_cols + [policy_num, 'coverage_type_id']
         elif self.output_level == 'peril_item':
-            summary_cols = [
-                'output_id', portfolio_num, acc_num, loc_num, policy_num,
-                'coverage_type_id', 'peril_id']
+            summary_cols = ['output_id'] + lowest_id_cols + [policy_num, 'coverage_type_id', 'peril_id']
 
         summary_cols += self.extra_summary_cols
         for col in self.extra_summary_cols:
