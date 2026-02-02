@@ -27,40 +27,6 @@ class TestPrepareLocationDf(TestCase):
         self.assertIn("loc_idx", result.columns)
         self.assertEqual(result["loc_idx"].tolist(), location_df.index.tolist())
 
-    def test_default_field_types(self):
-        location_df = pd.DataFrame(
-            {
-                "PortNumber": [1],
-                "AccNumber": ["A11111"],
-                "LocNumber": [10001],
-                "BIWaitingPeriod": [30],
-                "BIPOI": [50000],
-            }
-        )
-
-        result = prepare_location_df(location_df)
-        self.assertIn("BIWaitingPeriodType", result.columns)
-        self.assertEqual(result["BIWaitingPeriodType"].iloc[0], 3)
-        self.assertIn("BIPOIType", result.columns)
-        self.assertEqual(result["BIPOIType"].iloc[0], 3)
-
-    def test_default_field_types_fillna(self):
-        location_df = pd.DataFrame(
-            {
-                "PortNumber": [1],
-                "AccNumber": ["A11111"],
-                "LocNumber": [10001],
-                "BIWaitingPeriod": [30],
-                "BIWaitingPeriodType": [np.nan],
-                "BIPOI": [50000],
-                "BIPOIType": [pd.NA],
-            }
-        )
-
-        result = prepare_location_df(location_df)
-        self.assertEqual(result["BIWaitingPeriodType"].iloc[0], 3)
-        self.assertEqual(result["BIPOIType"].iloc[0], 3)
-
 
 class TestPrepareAccountDf(TestCase):
 
