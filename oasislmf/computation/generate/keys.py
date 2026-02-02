@@ -18,7 +18,7 @@ class KeyComputationStep(ComputationStep):
     def get_exposure_data_config(self):
         return {
             'location': self.oed_location_csv,
-            'oed_schema_info': self.oed_schema_info,
+            'oed_schema_info': self.oed_schema_info if self.oed_schema_info is not None else self.settings.get('oed_version', None),
             'check_oed': self.check_oed,
             'use_field': True,
             'backend_dtype': self.oed_backend_dtype,

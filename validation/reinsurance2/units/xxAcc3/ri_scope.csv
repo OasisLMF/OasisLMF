@@ -1,8 +1,8 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-203,xxAcc3,11611,,,33679,,,,,,,2.0.0
-204,xxAcc3,11611,,,33679,,,,,,0.24,2.0.0
-205,xxAcc3,11611,,,33679,,,,,,0.53,2.0.0
-206,xxAcc3,,,,,,,,,,,2.0.0
-207,xxAcc3,,,,,,,,,,,2.0.0
-208,xxAcc3,,,,,,,,,,,2.0.0
-209,xxAcc3,,,,,,,,,,,2.0.0
+203,xxAcc3,11611,,,33679,,,,,,,latest version
+204,xxAcc3,11611,,,33679,,,,,,0.24,latest version
+205,xxAcc3,11611,,,33679,,,,,,0.53,latest version
+206,xxAcc3,,,,,,,,,,,latest version
+207,xxAcc3,,,,,,,,,,,latest version
+208,xxAcc3,,,,,,,,,,,latest version
+209,xxAcc3,,,,,,,,,,,latest version

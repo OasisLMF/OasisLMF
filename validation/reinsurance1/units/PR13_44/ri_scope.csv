@@ -1,4 +1,4 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-44,OEDTest,PR13_08,,,PR13_08_1,,,,,,,2.0.0
-44,OEDTest,PR13_08,,,PR13_08_2,,,,,,,2.0.0
-44,OEDTest,PR13_09,,,,,,,,,,2.0.0
+44,OEDTest,PR13_08,,,PR13_08_1,,,,,,,latest version
+44,OEDTest,PR13_08,,,PR13_08_2,,,,,,,latest version
+44,OEDTest,PR13_09,,,,,,,,,,latest version
