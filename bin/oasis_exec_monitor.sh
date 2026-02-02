@@ -9,10 +9,6 @@ POLL_RATE=2
 
 run_ktools_kill(){
      set -e
-     FMCALC=`ps -C fmcalc -o pmem | grep -v MEM | sort -n -r | head -1`
-     GULCALC=`ps -C gulcalc -o pmem | grep -v MEM | sort -n -r | head -1`
-     GETMODEL=`ps -C getmodel -o pmem | grep -v MEM | sort -n -r | head -1`
-     echo "TOTALS:  $FMCALC $GULCALC $GETMODEL" >> $LOG_DIR/mem-free
      free -h >> $LOG_DIR/mem-free
      if ! kill $1 > /dev/null 2>&1; then
          kill $1
