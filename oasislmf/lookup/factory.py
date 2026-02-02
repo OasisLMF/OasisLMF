@@ -503,23 +503,49 @@ class BasicKeyServer:
                     if successes_count == 0:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                         successes_batch = pa.RecordBatch.from_pandas(
-                            success_df[success_heading_row.keys()].rename(columns=success_heading_row), preserve_index=False)
-                        successes_writer = stack.enter_context(pq.ParquetWriter(successes_fp, schema=successes_batch.schema))
+                            success_df[success_heading_row.keys()].rename(columns=success_heading_row),
+                            preserve_index=False)
+                        successes_writer = stack.enter_context(
+                            pq.ParquetWriter(successes_fp, schema=successes_batch.schema))
+                        successes_writer.write_batch(successes_batch)
+                        successes_count += success_df.shape[0]
                     else:
-                        successes_batch = pa.RecordBatch.from_pandas(
-                            success_df[success_heading_row.keys()].rename(columns=success_heading_row), preserve_index=False)
-                    successes_writer.write_batch(successes_batch)
-                    successes_count += success_df.shape[0]
+                        # Use the established schema to create the batch
+                        selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
+                        successes_batch = pa.RecordBatch.from_pandas(selected_df, preserve_index=False)
+                        # Only write if schema matches, otherwise skip this batch
+                        if successes_batch.schema.equals(successes_writer.schema):
+                            successes_writer.write_batch(successes_batch)
+                            successes_count += success_df.shape[0]
+                        else:
+                            # Cast to match schema
+                            table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                            table = table.cast(successes_writer.schema)
+                            successes_writer.write_table(table)
+                            successes_count += success_df.shape[0]
+
                 if errors_fp:
                     errors_df = result[~success]
-                    if 'message' not in errors_df.columns:
-                        errors_df['message'] = ""  # If no error message column, fill with blank to prevent KeyError
-                    errors_batch = pa.RecordBatch.from_pandas(
-                        errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row), preserve_index=False)
-                    if error_count == 0:
-                        errors_writer = stack.enter_context(pq.ParquetWriter(errors_fp, schema=errors_batch.schema))
-                    errors_writer.write_batch(errors_batch)
-                    error_count += errors_batch.shape[0]
+                    if not errors_df.empty:  # <-- ADD THIS CHECK
+                        if 'message' not in errors_df.columns:
+                            errors_df['message'] = ""
+                        errors_batch = pa.RecordBatch.from_pandas(
+                            errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row),
+                            preserve_index=False)
+                        if error_count == 0:
+                            errors_writer = stack.enter_context(pq.ParquetWriter(errors_fp, schema=errors_batch.schema))
+                        else:
+                            # Cast to match schema if needed
+                            if not errors_batch.schema.equals(errors_writer.schema):
+                                table = pa.Table.from_pandas(
+                                    errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row),
+                                    preserve_index=False)
+                                table = table.cast(errors_writer.schema)
+                                errors_writer.write_table(table)
+                                error_count += errors_df.shape[0]
+                                continue
+                        errors_writer.write_batch(errors_batch)
+                        error_count += errors_batch.shape[0]
             return successes_count, error_count
 
     def write_keys_file(self, results, successes_fp, errors_fp, output_format, keys_success_msg):
