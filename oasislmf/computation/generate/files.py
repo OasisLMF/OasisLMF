@@ -293,14 +293,14 @@ class GenerateFiles(ComputationStep):
             damage_group_id_cols = model_damage_group_fields
         # otherwise load group cols from args
         else:
-            damage_group_id_cols = self.damage_group_id_cols
+            damage_group_id_cols = list(self.damage_group_id_cols)
 
         # load hazard group columns from model_settings.json if not set in kwargs (CLI)
         if model_hazard_group_fields and not self.kwargs.get('hazard_group_id_cols'):
             hazard_group_id_cols = model_hazard_group_fields
         # otherwise load group cols from args
         else:
-            hazard_group_id_cols = self.hazard_group_id_cols
+            hazard_group_id_cols = list(self.hazard_group_id_cols)
 
         damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
                                                                 exposure_df_columns=location_df,
