@@ -62,7 +62,7 @@ def prepare_run_directory(
 ):
     """
     Ensures that the model run directory has the correct folder structure in
-    order for the model run script (ktools) to be executed. Without the RI
+    order for the model run script (kernel) to be executed. Without the RI
     flag the model run directory will have the following structure
 
     ::
@@ -75,7 +75,7 @@ def prepare_run_directory(
         |-- static/
         |-- work/
         |-- analysis_settings.json
-        `-- run_ktools.sh
+        `-- run_kernel.sh
 
 
     where the direct GUL and/or FM input files exist in the ``input/csv``
@@ -95,7 +95,7 @@ def prepare_run_directory(
         |-- static
         |-- work
         |-- analysis_settings.json
-        `-- run_ktools.sh
+        `-- run_kernel.sh
 
     where the direct GUL and/or FM input files, and the corresponding binaries
     exist in the ``input`` subfolder, and the RI layer input files and binaries
@@ -261,7 +261,7 @@ def _create_events_bin(run_dir, event_ids):
     try:
         csvtobin(csv_fp, bin_fp, "eve")
     except subprocess.CalledProcessError as e:
-        raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
+        raise OasisException("Error while converting events.csv to kernel binary format: {}".format(e))
 
 
 def _create_quantile_bin(run_dir, quantiles):
@@ -313,7 +313,7 @@ def _calc_selected(analysis_settings, calc_type_list):
     """
     Return True, if any options in "calc_type_list" are set in the analysis settings file
 
-    :param calc_type_list: List of string values or ktools outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
+    :param calc_type_list: List of string values or kernel outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     :type  calc_type_list: list
     """
     gul_section = analysis_settings.get('gul_summaries')

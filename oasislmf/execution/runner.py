@@ -22,7 +22,7 @@ def run(analysis_settings,
         custom_gulcalc_log_start=None,
         custom_gulcalc_log_finish=None,
         custom_get_getmodel_cmd=None,
-        filename='run_ktools.sh',
+        filename='run_kernel.sh',
         df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
         dynamic_footprint=False,
@@ -119,16 +119,16 @@ def rerun():
     env = os.environ.copy()
     env['NUMBA_DISABLE_JIT'] = "1"
     eve_cmd = f"printf 'event_id\n {event_error}\n' | csvtobin eve"
-    ktools_pipeline = ''
+    kernel_pipeline = ''
 
-    with open("run_ktools.sh", "r") as bash_script:
+    with open("run_kernel.sh", "r") as bash_script:
         for line in bash_script:
             if "( ( eve" in line:
-                ktools_pipeline = re.split(r'\||\)', line)
+                kernel_pipeline = re.split(r'\||\)', line)
                 break
 
-    gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)
-    fm_cmds = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))]
+    gul_cmd = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('gul'))].pop(0)
+    fm_cmds = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('fm'))]
 
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"

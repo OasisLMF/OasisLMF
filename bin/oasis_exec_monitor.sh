@@ -7,7 +7,7 @@ ERR_FILE=$LOG_DIR'/stderror.err'
 STATUS_LINES=15
 POLL_RATE=2
 
-run_ktools_kill(){
+run_kernel_kill(){
      set -e
      free -h >> $LOG_DIR/mem-free
      if ! kill $1 > /dev/null 2>&1; then
@@ -28,6 +28,6 @@ do
         exit 0
     fi
     if [ -s $ERR_FILE ]; then
-        run_ktools_kill $SCRIPT_PID
+        run_kernel_kill $SCRIPT_PID
     fi
 done

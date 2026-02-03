@@ -227,8 +227,8 @@ class TestGenLosses(ComputationChecker):
             self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
             call_args = {
                 **self.min_args,
-                'ktools_num_processes': 2,
-                'ktools_fifo_relative': True,
+                'kernel_num_processes': 2,
+                'kernel_fifo_relative': True,
                 'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
                 'model_run_dir': model_run_dir,
                 'summarypy': summary_type == 'summarypy'
@@ -310,15 +310,15 @@ class TestGenLosses(ComputationChecker):
         gul_random_generator=st.sampled_from([None, 99])
     )
     @patch('oasislmf.execution.runner.run')
-    def test_losses__ktools_alloc_set_invalid(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator):
+    def test_losses__kernel_alloc_set_invalid(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator):
         if any([gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator]):
             call_args = {
                 **self.min_args,
                 'analysis_settings_json': ANALYSIS_SETTINGS,
-                'ktools_alloc_rule_gul': gul_alloc,
-                'ktools_alloc_rule_il': il_alloc,
-                'ktools_alloc_rule_ri': ri_alloc,
-                'ktools_event_shuffle': event_shuffle,
+                'kernel_alloc_rule_gul': gul_alloc,
+                'kernel_alloc_rule_il': il_alloc,
+                'kernel_alloc_rule_ri': ri_alloc,
+                'kernel_event_shuffle': event_shuffle,
                 'gul_random_generator': gul_random_generator
             }
             with (self.assertRaises(OasisException) as context,
