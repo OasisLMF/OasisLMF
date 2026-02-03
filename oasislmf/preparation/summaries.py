@@ -486,22 +486,9 @@ def get_summary_xref_df(
     :type summaries_info_dict:  list
 
     [{
-        "summarycalc": true,
-        "eltcalc": true,
-        "aalcalc": true,
-        "pltcalc": true,
         "id": 1,
         "oed_fields": [],
-        "lec_output": true,
-        "leccalc": {
-          "return_period_file": true,
-          "outputs": {
-            "full_uncertainty_aep": true,
-            "full_uncertainty_oep": true,
-            "wheatsheaf_aep": true,
-            "wheatsheaf_oep": true
-          }
-        }
+          ...
       },
 
       ...
