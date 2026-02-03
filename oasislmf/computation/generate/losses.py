@@ -155,7 +155,7 @@ class GenerateLossesBase(ComputationStep):
         stderror_fp = os.path.join(run_log_fp, 'stderror.err')
         if os.path.isfile(stderror_fp):
             with io.open(stderror_fp, 'r', encoding='utf-8') as f:
-                self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
+                self.logger.info('\nKERNEL_STDERR:\n' + "".join(f.readlines()))
 
         gul_stderror_fp = os.path.join(run_log_fp, 'gul_stderror.err')
         if os.path.isfile(gul_stderror_fp):
@@ -164,7 +164,7 @@ class GenerateLossesBase(ComputationStep):
 
         self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
         raise OasisException(
-            'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+            'Kernel execution error: non-zero exit code or error/warning messages detected in STDERR output.\n'
             'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
             'Logs stored in: {}'.format(run_log_fp)
         )
@@ -713,7 +713,7 @@ class GenerateLosses(GenerateLossesDir):
                 stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
                 if os.path.isfile(stderror_fp):
                     with io.open(stderror_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
+                        self.logger.info('\nKERNEL_STDERR:\n' + "".join(f.readlines()))
 
                 gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
                 if os.path.isfile(gul_stderror_fp):
@@ -726,7 +726,7 @@ class GenerateLosses(GenerateLossesDir):
                     model_runner_module.rerun()
 
                 raise OasisException(
-                    'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+                    'kernel execution Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
                     'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
