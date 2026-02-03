@@ -836,10 +836,11 @@ class PrepareRunInputs(TestCase):
 
             with self.assertRaises(OasisException):
                 settings = {"gul_summaries": [{
-                    "eltcalc": True,
-                    "aalcalc": True,
-                    "pltcalc": True,
-                    "lec_output": True,
+                    "ord_output": {
+                        "elt_sample": True,
+                        "alt_period": True,
+                        "plt_sample": True,
+                    },
                 }]}
                 prepare_run_inputs(settings, d, model_storage)
 
@@ -853,10 +854,11 @@ class PrepareRunInputs(TestCase):
                 periods_file.flush()
 
                 settings = {"gul_summaries": [{
-                    "eltcalc": True,
-                    "aalcalc": True,
-                    "pltcalc": True,
-                    "lec_output": True,
+                    "ord_output": {
+                        "elt_sample": True,
+                        "alt_period": True,
+                        "plt_sample": True,
+                    },
                 }]}
                 prepare_run_inputs(settings, d, model_storage)
 

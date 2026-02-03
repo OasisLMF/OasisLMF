@@ -726,7 +726,7 @@ class GenerateLosses(GenerateLossesDir):
                     model_runner_module.rerun()
 
                 raise OasisException(
-                    'kernel execution Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+                    'Kernel execution error: non-zero exit code or error/warning messages detected in STDERR output.\n'
                     'Killing all processes. To disable this automated check run with `--kernel-disable-guard`.\n'
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
