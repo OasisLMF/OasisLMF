@@ -1,4 +1,49 @@
 {
+    "ktools_num_processes": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_num_processes"
+    },    
+    "ktools_alloc_rule_gul": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_alloc_rule_gul"
+    },    
+    "ktools_alloc_rule_il": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_alloc_rule_il"
+    },    
+    "ktools_alloc_rule_ri": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_alloc_rule_ri"
+    },    
+    "ktools_event_shuffle": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel"
+    },    
+    "ktools_num_gul_per_lb": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_num_gul_per_lb"
+    },    
+    "ktools_num_fm_per_lb": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_num_fm_per_lb"
+    },    
+    "ktools_disable_guard": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_disable_guard"
+    },    
+    "ktools_fifo_relative": {
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "kernel_fifo_relative"
+    },    
     "complex_lookup_config_file_path":{
         "from_ver": "1.4.1",
         "deleted": false,
