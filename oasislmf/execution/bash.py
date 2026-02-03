@@ -14,9 +14,9 @@ import pandas as pd
 
 from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
                               EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,
-                              KTOOL_N_FM_PER_LB, KTOOL_N_GUL_PER_LB,
-                              KTOOLS_ALLOC_GUL_DEFAULT,
-                              KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT)
+                              KERNEL_N_FM_PER_LB, KERNEL_N_GUL_PER_LB,
+                              KERNEL_ALLOC_GUL_DEFAULT,
+                              KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT)
 from ..utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -1560,11 +1560,11 @@ def bash_params(
     bash_params['fifo_full_correlation_dir'] = os.path.join(bash_params['fifo_queue_dir'], 'full_correlation/')
 
     # Set default alloc/shuffle rules if missing
-    bash_params['gul_alloc_rule'] = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KTOOLS_ALLOC_GUL_DEFAULT
-    bash_params['il_alloc_rule'] = il_alloc_rule if isinstance(il_alloc_rule, int) else KTOOLS_ALLOC_IL_DEFAULT
-    bash_params['ri_alloc_rule'] = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KTOOLS_ALLOC_RI_DEFAULT
-    bash_params['num_gul_per_lb'] = num_gul_per_lb if isinstance(num_gul_per_lb, int) else KTOOL_N_GUL_PER_LB
-    bash_params['num_fm_per_lb'] = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
+    bash_params['gul_alloc_rule'] = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KERNEL_ALLOC_GUL_DEFAULT
+    bash_params['il_alloc_rule'] = il_alloc_rule if isinstance(il_alloc_rule, int) else KERNEL_ALLOC_IL_DEFAULT
+    bash_params['ri_alloc_rule'] = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KERNEL_ALLOC_RI_DEFAULT
+    bash_params['num_gul_per_lb'] = num_gul_per_lb if isinstance(num_gul_per_lb, int) else KERNEL_N_GUL_PER_LB
+    bash_params['num_fm_per_lb'] = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KERNEL_N_FM_PER_LB
 
     # Get event shuffle flags
     event_shuffle_rule = event_shuffle if isinstance(event_shuffle, int) else EVE_DEFAULT_SHUFFLE

@@ -181,9 +181,9 @@ class GenbashBase(TestCase):
         # Create temp reference with placeholder replaced
         ref_tmp_file = NamedTemporaryFile("w+", delete=False, prefix='bash')
         with open(ref_template, 'r') as f:
-            ktools_script = f.read()
-        ktools_script = ktools_script.replace('%FIFO_DIR%', tmp_fifo_dir)
-        ref_tmp_file.write(ktools_script)
+            kernel_script = f.read()
+        kernel_script = kernel_script.replace('%FIFO_DIR%', tmp_fifo_dir)
+        ref_tmp_file.write(kernel_script)
         ref_tmp_file.close()
 
         self.temp_reference_file = ref_tmp_file

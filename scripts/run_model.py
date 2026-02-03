@@ -192,7 +192,7 @@ def model_run_ok(model_run_dir, model_run_mode):
     assert (_is_non_empty_file(os.path.join(model_run_dir, 'output'), is_dir=True))
     assert (_is_non_empty_file(os.path.join(model_run_dir, 'static'), is_dir=True))
     assert (_is_non_empty_file(os.path.join(model_run_dir, 'work'), is_dir=True))
-    assert (_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
+    assert (_is_non_empty_file(os.path.join(model_run_dir, 'run_kernel.sh')))
 
     direct_csv_inputs_fp = os.path.join(model_run_dir, 'input', 'csv') if not ri else os.path.join(model_run_dir, 'input')
 

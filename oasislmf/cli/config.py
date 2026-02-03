@@ -78,10 +78,10 @@ class ConfigCmd(OasisBaseCommand):
     :profile_location_csv: Source OED exposure (JSON) profile describing the financial terms contained in the source exposure file (optional)
     :profile_accounts_json: Source OED accouns (JSON) profile describing the financial terms contained in the source accounts file (optional)
     :summarise_exposure: Generates an exposure summary report in JSON
-    :ktools_num_processes: The number of concurrent processes used by ktools during model execution - default is ``2``
-    :ktools_fifo_relative: Whether to create ktools FIFO queues under the ``./fifo`` subfolder (in the model run directory)
-    :ktools_alloc_rule_gul: Override the allocation used in ``fmcalc`` - default is ``1``
-    :ktools_alloc_rule_il: Override the allocation used in ``fmcalc`` - default is ``2``
+    :kernel_num_processes: The number of concurrent processes used by ktools during model execution - default is ``2``
+    :kernel_fifo_relative: Whether to create ktools FIFO queues under the ``./fifo`` subfolder (in the model run directory)
+    :kernel_alloc_rule_gul: Override the allocation used in ``fmcalc`` - default is ``1``
+    :kernel_alloc_rule_il: Override the allocation used in ``fmcalc`` - default is ``2``
     """
     formatter_class = RawDescriptionHelpFormatter
 
