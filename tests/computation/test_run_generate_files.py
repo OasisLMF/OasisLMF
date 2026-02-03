@@ -28,7 +28,8 @@ class TestGenerateFiles(ComputationChecker):
         self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
         self.tmp_files = self.create_tmp_files(
             [a for a in self.default_args.keys() if 'csv' in a] +
-            [a for a in self.default_args.keys() if 'json' in a]
+            [a for a in self.default_args.keys() if 'json' in a] +
+            [a for a in self.default_args.keys() if 'path' in a]
         )
         self.min_args = {
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
