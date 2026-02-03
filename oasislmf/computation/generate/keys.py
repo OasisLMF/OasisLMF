@@ -197,7 +197,8 @@ class GenerateKeysDeterministic(KeyComputationStep):
 
     def run(self):
         self.oasis_files_dir = self._get_output_dir()
-        keys_fp = self.keys_data_csv or os.path.join(self.oasis_files_dir, 'keys.csv')
+        output_type = 'csv' if self.keys_format.lower() == 'oasis' else self.keys_format.lower()
+        keys_fp = self.keys_data_csv or os.path.join(self.oasis_files_dir, f'keys.{output_type}')
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)

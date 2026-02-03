@@ -510,7 +510,8 @@ def get_il_input_items(
                 if field_type['field_col'] not in locations_df.columns:
                     continue
                 else:
-                    locations_df[field_type['field_col']] = locations_df[field_type['field_col']].fillna(0.)  # set default to 0 to ignore term if empty
+                    locations_df[field_type['field_col']] = locations_df[field_type['field_col']].fillna(
+                        0.)  # set default to 0 to ignore term if empty
                 if field_type['type_col'] not in locations_df.columns:
                     locations_df[field_type['type_col']] = field_type['type_value']
                 else:
