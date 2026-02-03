@@ -11,7 +11,7 @@ rm -R -f $LOG_DIR/*
 
 
 touch $LOG_DIR/stderror.err
-ktools_monitor.sh $$ $LOG_DIR & pid0=$!
+oasis_exec_monitor.sh $$ $LOG_DIR & pid0=$!
 
 exit_handler(){
    exit_code=$?
@@ -22,7 +22,7 @@ exit_handler(){
    kill -9 $pid0 2> /dev/null
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
-       echo 'Ktools Run Error - exitcode='$exit_code
+       echo 'Kernel execution error - exitcode='$exit_code
 
        set +x
        group_pid=$(ps -p $$ -o pgid --no-headers)
@@ -45,7 +45,7 @@ trap exit_handler QUIT HUP INT KILL TERM ERR EXIT
 
 check_complete(){
     set +e
-    proc_list="eve evepy getmodel gulcalc fmcalc summarycalc eltcalc aalcalc aalcalcmeanonly leccalc pltcalc ordleccalc modelpy gulpy fmpy gulmc summarypy eltpy pltpy aalpy lecpy"
+    proc_list="evepy modelpy gulpy fmpy gulmc summarypy plapy katpy eltpy pltpy aalpy lecpy"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "${p}_[0-9]*.log" | wc -l)
