@@ -533,6 +533,20 @@ class BasicKeyServer:
                                 errors_table = errors_table.cast(errors_writer.schema)
                         errors_writer.write_table(errors_table)
                         error_count += len(errors_table)
+
+            # Create empty files if no data was written
+            if successes_count == 0:
+                if success_heading_row is None:
+                    success_heading_row = self.key_success_heading_row
+                empty_df = pd.DataFrame(columns=success_heading_row.values())
+                empty_table = pa.Table.from_pandas(empty_df, preserve_index=False)
+                pq.write_table(empty_table, successes_fp)
+
+            if errors_fp and error_count == 0:
+                empty_errors_df = pd.DataFrame(columns=self.error_heading_row.values())
+                empty_errors_table = pa.Table.from_pandas(empty_errors_df, preserve_index=False)
+                pq.write_table(empty_errors_table, errors_fp)
+
             return successes_count, error_count
 
     def write_keys_file(self, results, successes_fp, errors_fp, output_format, keys_success_msg):
