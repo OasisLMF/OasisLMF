@@ -60,8 +60,8 @@ class TestGenLosses(ComputationChecker):
         self.write_str(self.tmp_oasis_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MIN_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MIN_SCP)
-        self.write_str(self.tmp_oasis_files.get('keys_data_csv'), MIN_KEYS)
-        self.write_str(self.tmp_oasis_files.get('keys_errors_csv'), MIN_KEYS_ERR)
+        self.write_str(self.tmp_oasis_files.get('keys_data_path'), MIN_KEYS)
+        self.write_str(self.tmp_oasis_files.get('keys_errors_path'), MIN_KEYS_ERR)
 
         # Args for generating sample data
         self.args_gen_files_gul = {

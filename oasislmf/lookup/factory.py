@@ -17,6 +17,8 @@ from contextlib import ExitStack
 import math
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from ..utils.data import get_json
 from ..utils.exceptions import OasisException
@@ -232,7 +234,7 @@ class BasicKeyServer:
     """
     interface_version = "1"
 
-    valid_format = ['oasis', 'json']
+    valid_format = ['oasis', 'json', 'parquet']
 
     error_heading_row = OrderedDict([
         ('loc_id', 'LocID'),
@@ -488,10 +490,68 @@ class BasicKeyServer:
                     error_count += errors_df.shape[0]
             return successes_count, error_count
 
+    def write_parquet_keys_file(self, results, keys_success_msg, successes_fp, errors_fp):
+        with ExitStack() as stack:
+            successes_writer = errors_writer = None
+            success_heading_row = None
+            successes_count = 0
+            error_count = 0
+            for i, result in enumerate(results):
+                success = result['status'] == OASIS_KEYS_STATUS['success']['id']
+                success_df = result[success]
+                if not success_df.empty:
+                    if successes_count == 0:
+                        success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
+                        selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
+                        successes_table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                        successes_writer = stack.enter_context(
+                            pq.ParquetWriter(successes_fp, schema=successes_table.schema))
+                        successes_writer.write_table(successes_table)
+                        successes_count += success_df.shape[0]
+                    else:
+                        selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
+                        successes_table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                        # Cast to match schema if needed
+                        if not successes_table.schema.equals(successes_writer.schema):
+                            successes_table = successes_table.cast(successes_writer.schema)
+                        successes_writer.write_table(successes_table)
+                        successes_count += success_df.shape[0]
+
+                if errors_fp:
+                    errors_df = result[~success]
+                    if not errors_df.empty:
+                        if 'message' not in errors_df.columns:
+                            errors_df['message'] = ""
+                        errors_table = pa.Table.from_pandas(
+                            errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row),
+                            preserve_index=False)
+                        if error_count == 0:
+                            errors_writer = stack.enter_context(pq.ParquetWriter(errors_fp, schema=errors_table.schema))
+                        else:
+                            # Cast to match schema if needed
+                            if not errors_table.schema.equals(errors_writer.schema):
+                                errors_table = errors_table.cast(errors_writer.schema)
+                        errors_writer.write_table(errors_table)
+                        error_count += len(errors_table)
+
+            # Create empty files if no data was written
+            if successes_count == 0:
+                if success_heading_row is None:
+                    success_heading_row = self.key_success_heading_row
+                empty_df = pd.DataFrame(columns=success_heading_row.values())
+                empty_table = pa.Table.from_pandas(empty_df, preserve_index=False)
+                pq.write_table(empty_table, successes_fp)
+
+            if errors_fp and error_count == 0:
+                empty_errors_df = pd.DataFrame(columns=self.error_heading_row.values())
+                empty_errors_table = pa.Table.from_pandas(empty_errors_df, preserve_index=False)
+                pq.write_table(empty_errors_table, errors_fp)
+
+            return successes_count, error_count
+
     def write_keys_file(self, results, successes_fp, errors_fp, output_format, keys_success_msg):
         if output_format not in self.valid_format:
             raise OasisException(f"Unrecognised lookup file output format {output_format} - valid formats are {self.valid_format}")
-
         write = getattr(self, f'write_{output_format}_keys_file')
         successes_count, error_count = write(results, keys_success_msg, successes_fp, errors_fp)
 

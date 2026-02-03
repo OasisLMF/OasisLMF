@@ -80,7 +80,6 @@ class TestSummaries(TestCase):
             'ContentsTIV': 'contents',
             'OtherTIV': 'other'
         }
-
         # Check each returned peril
         for peril in perils_expected:
             peril_summary = exp_summary['peril_id'][peril]

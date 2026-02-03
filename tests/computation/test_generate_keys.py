@@ -35,24 +35,24 @@ class TestGenKeys(ComputationChecker):
             [a for a in self.default_args.keys() if 'path' in a] +
             [a for a in self.default_args.keys() if 'json' in a]
         )
-
         self.min_args = {
             'lookup_config_json': LOOKUP_CONFIG,
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
+            'keys_format': "oasis"
         }
         self.min_args_output_set = {
             **self.min_args,
-            'keys_data_csv': self.tmp_files['keys_data_csv'].name,
-            'keys_errors_csv': self.tmp_files['keys_errors_csv'].name,
+            'keys_data_path': self.tmp_files['keys_data_path'].name,
+            'keys_errors_path': self.tmp_files['keys_errors_path'].name,
         }
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_json(self.tmp_files.get('lookup_complex_config_json'), MIN_RUN_SETTINGS)
 
     def test_keys__check_return(self):
-        expected_return = (self.min_args_output_set['keys_data_csv'], 4, self.min_args_output_set['keys_errors_csv'], 0)
+        expected_return = (self.min_args_output_set['keys_data_path'], 4, self.min_args_output_set['keys_errors_path'], 0)
         keys_return = self.manager.generate_keys(**self.min_args_output_set)
-        keys_csv_data = self.read_file(self.min_args_output_set['keys_data_csv'])
-        error_csv_data = self.read_file(self.min_args_output_set['keys_errors_csv'])
+        keys_csv_data = self.read_file(self.min_args_output_set['keys_data_path'])
+        error_csv_data = self.read_file(self.min_args_output_set['keys_errors_path'])
 
         self.assertEqual(keys_csv_data, EXPECTED_KEYS)
         self.assertEqual(error_csv_data, EXPECTED_ERROR)
@@ -104,8 +104,8 @@ class TestGenKeys(ComputationChecker):
     def test_args__passed_correctly(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
-            self.min_args_output_set['keys_data_csv'], 4,
-            self.min_args_output_set['keys_errors_csv'], 2)
+            self.min_args_output_set['keys_data_path'], 4,
+            self.min_args_output_set['keys_errors_path'], 2)
 
         mock_keys_factory.return_value = ('model_info', key_server_mock)
         exposure_data = Mock()
@@ -128,14 +128,14 @@ class TestGenKeys(ComputationChecker):
             lookup_module_path=call_args['lookup_module_path'],
             complex_lookup_config_fp=call_args['lookup_complex_config_json'],
             user_data_dir=call_args['user_data_dir'],
-            output_directory=os.path.dirname(call_args['keys_data_csv'])
+            output_directory=os.path.dirname(call_args['keys_data_path'])
         )
 
         key_server_mock.generate_key_files.assert_called_once_with(
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
-            successes_fp=call_args['keys_data_csv'],
-            errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            successes_fp=call_args['keys_data_path'],
+            errors_fp=call_args['keys_errors_path'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
@@ -147,8 +147,8 @@ class TestGenKeys(ComputationChecker):
     def test_args__passed_correctly_withversion(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
-            self.min_args_output_set['keys_data_csv'], 4,
-            self.min_args_output_set['keys_errors_csv'], 2)
+            self.min_args_output_set['keys_data_path'], 4,
+            self.min_args_output_set['keys_errors_path'], 2)
 
         mock_keys_factory.return_value = ('model_info', key_server_mock)
         exposure_data = Mock()
@@ -179,14 +179,14 @@ class TestGenKeys(ComputationChecker):
             lookup_module_path=call_args['lookup_module_path'],
             complex_lookup_config_fp=call_args['lookup_complex_config_json'],
             user_data_dir=call_args['user_data_dir'],
-            output_directory=os.path.dirname(call_args['keys_data_csv'])
+            output_directory=os.path.dirname(call_args['keys_data_path'])
         )
 
         key_server_mock.generate_key_files.assert_called_once_with(
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
-            successes_fp=call_args['keys_data_csv'],
-            errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            successes_fp=call_args['keys_data_path'],
+            errors_fp=call_args['keys_errors_path'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
@@ -201,8 +201,8 @@ class TestGenKeys(ComputationChecker):
     def test_args__passed_correctly_withversion_disabled(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
-            self.min_args_output_set['keys_data_csv'], 4,
-            self.min_args_output_set['keys_errors_csv'], 2)
+            self.min_args_output_set['keys_data_path'], 4,
+            self.min_args_output_set['keys_errors_path'], 2)
 
         mock_keys_factory.return_value = ('model_info', key_server_mock)
         exposure_data = Mock()
@@ -234,14 +234,14 @@ class TestGenKeys(ComputationChecker):
             lookup_module_path=call_args['lookup_module_path'],
             complex_lookup_config_fp=call_args['lookup_complex_config_json'],
             user_data_dir=call_args['user_data_dir'],
-            output_directory=os.path.dirname(call_args['keys_data_csv'])
+            output_directory=os.path.dirname(call_args['keys_data_path'])
         )
 
         key_server_mock.generate_key_files.assert_called_once_with(
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
-            successes_fp=call_args['keys_data_csv'],
-            errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            successes_fp=call_args['keys_data_path'],
+            errors_fp=call_args['keys_errors_path'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],
@@ -256,8 +256,8 @@ class TestGenKeys(ComputationChecker):
     def test_args__passed_correctly_withversion_nosettings(self, mock_get_exposure, mock_keys_factory):
         key_server_mock = Mock()
         key_server_mock.generate_key_files.return_value = (
-            self.min_args_output_set['keys_data_csv'], 4,
-            self.min_args_output_set['keys_errors_csv'], 2)
+            self.min_args_output_set['keys_data_path'], 4,
+            self.min_args_output_set['keys_errors_path'], 2)
 
         mock_keys_factory.return_value = ('model_info', key_server_mock)
         exposure_data = Mock()
@@ -288,14 +288,14 @@ class TestGenKeys(ComputationChecker):
             lookup_module_path=call_args['lookup_module_path'],
             complex_lookup_config_fp=call_args['lookup_complex_config_json'],
             user_data_dir=call_args['user_data_dir'],
-            output_directory=os.path.dirname(call_args['keys_data_csv'])
+            output_directory=os.path.dirname(call_args['keys_data_path'])
         )
 
         key_server_mock.generate_key_files.assert_called_once_with(
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
-            successes_fp=call_args['keys_data_csv'],
-            errors_fp=call_args['keys_errors_csv'],
-            format=call_args['keys_format'],
+            successes_fp=call_args['keys_data_path'],
+            errors_fp=call_args['keys_errors_path'],
+            output_format=call_args['keys_format'],
             keys_success_msg=True,
             multiproc_enabled=call_args['lookup_multiprocessing'],
             multiproc_num_cores=call_args['lookup_num_processes'],

@@ -62,12 +62,14 @@ class GenerateKeys(KeyComputationStep):
                        {'name': 'model_settings_json', 'loader': model_settings_loader}]
 
     step_params = [
+        {'name': 'oasis_files_dir', 'is_path': True, 'pre_exist': False,
+         'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
-        {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
-        {'name': 'keys_errors_csv', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
-        {'name': 'keys_format', 'flag': '-f', 'help': 'Keys files output format', 'choices': ['oasis', 'json'], 'default': 'oasis'},
+        {'name': 'keys_data_path', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
+        {'name': 'keys_errors_path', 'flag': '-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
+        {'name': 'keys_format', 'help': 'Keys files output format', 'choices': ['oasis', 'json', 'parquet'], 'default': 'parquet'},
         {'name': 'lookup_config_json', 'flag': '-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
         {'name': 'lookup_data_dir', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path', 'flag': '-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
@@ -90,10 +92,13 @@ class GenerateKeys(KeyComputationStep):
     ]
 
     def _get_output_dir(self):
-        if self.keys_data_csv:
-            return os.path.dirname(self.keys_data_csv)
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        return os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
+        if self.keys_data_path:
+            return os.path.dirname(self.keys_data_path)
+        elif self.oasis_files_dir:
+            return self.oasis_files_dir
+        else:
+            utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+            return os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
 
     def run(self):
         if not (self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
@@ -105,9 +110,8 @@ class GenerateKeys(KeyComputationStep):
                 'be provided, or for custom lookups the keys data path + model '
                 'version file path + lookup package path must be provided'
             )
-
-        output_dir = self._get_output_dir()
-        output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
+        self.oasis_files_dir = self._get_output_dir()
+        output_type = 'csv' if self.keys_format.lower() == 'oasis' else self.keys_format.lower()
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
@@ -130,8 +134,8 @@ class GenerateKeys(KeyComputationStep):
                 # If 'supported_oed_versions' is missing or empty
                 self.logger.debug("No OED version information in model settings.")
 
-        keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
-        keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
+        keys_fp = self.keys_data_path or os.path.join(self.oasis_files_dir, f'keys.{output_type}')
+        keys_errors_fp = self.keys_errors_path or os.path.join(self.oasis_files_dir, f'keys-errors.{output_type}')
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
         os.makedirs(os.path.dirname(keys_errors_fp), exist_ok=True)
 
@@ -144,14 +148,14 @@ class GenerateKeys(KeyComputationStep):
             lookup_module_path=self.lookup_module_path,
             complex_lookup_config_fp=self.lookup_complex_config_json,
             user_data_dir=self.user_data_dir,
-            output_directory=output_dir
+            output_directory=self.oasis_files_dir
         )
 
         res = key_server.generate_key_files(
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
-            format=self.keys_format,
+            output_format=self.keys_format,
             keys_success_msg=keys_success_msg,
             multiproc_enabled=self.lookup_multiprocessing,
             multiproc_num_cores=self.lookup_num_processes,
@@ -167,10 +171,14 @@ class GenerateKeys(KeyComputationStep):
 
 class GenerateKeysDeterministic(KeyComputationStep):
     step_params = [
+        {'name': 'oasis_files_dir', 'is_path': True, 'pre_exist': False,
+         'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'oed_location_csv', 'flag': '-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path'},
         {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
-        {'name': 'keys_data_csv', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
+        {'name': 'keys_data_path', 'flag': '-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
+        {'name': 'keys_format', 'help': 'Keys files output format',
+         'choices': ['oasis', 'json', 'parquet'], 'default': 'parquet'},
         {'name': 'supported_oed_coverage_types', 'type': int, 'nargs': '+', 'help': 'Select List of supported coverage_types [1, .. ,15]'},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
          'help': 'List of peril covered by the model'},
@@ -179,14 +187,18 @@ class GenerateKeysDeterministic(KeyComputationStep):
     ]
 
     def _get_output_dir(self):
-        if self.keys_data_csv:
-            return os.path.basename(self.keys_data_csv)
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        return os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
+        if self.keys_data_path:
+            return os.path.dirname(self.keys_data_path)
+        elif self.oasis_files_dir:
+            return self.oasis_files_dir
+        else:
+            utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+            return os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
 
     def run(self):
-        output_dir = self._get_output_dir()
-        keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
+        self.oasis_files_dir = self._get_output_dir()
+        output_type = 'csv' if self.keys_format.lower() == 'oasis' else self.keys_format.lower()
+        keys_fp = self.keys_data_path or os.path.join(self.oasis_files_dir, f'keys.{output_type}')
         os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
@@ -208,11 +220,11 @@ class GenerateKeysDeterministic(KeyComputationStep):
 
         model_info, lookup = KeyServerFactory.create(
             lookup_config=config,
-            output_directory=output_dir
+            output_directory=self.oasis_files_dir
         )
 
         return lookup.generate_key_files(
             location_df=exposure_data.get_subject_at_risk_source().dataframe,
             successes_fp=keys_fp,
-            format='oasis',
+            output_format=self.keys_format,
         )

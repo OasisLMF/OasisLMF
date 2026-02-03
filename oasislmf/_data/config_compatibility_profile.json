@@ -82,17 +82,22 @@
     "keys_file_path":{
         "from_ver": "1.4.1",
         "deleted": false,
-        "updated_to": "keys_data_csv"
+        "updated_to": "keys_data_path"
     },
     "keys_errors_file_path":{
         "from_ver": "1.4.1",
         "deleted": false,
-        "updated_to": "keys_errors_csv"
+        "updated_to": "keys_errors_path"
     },
-    "keys_data_path":{
-        "from_ver": "1.4.1",
+    "keys_data_csv": {
+        "from_ver": "2.5.0",
         "deleted": false,
-        "updated_to": "lookup_data_dir"
+        "updated_to": "keys_data_path"
+    },
+    "keys_errors_csv":{
+        "from_ver": "2.5.0",
+        "deleted": false,
+        "updated_to": "keys_errors_path"
     },
     "bash_conf_filepath":{
         "from_ver": "1.4.1",

@@ -75,6 +75,9 @@ fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 BITYPE_columns = {"BIWaitingPeriodType", "BIPOIType"}
 BIPOI_default_exeption = "BIPOI"
 
+# Calcrule ID for passthrough (no financial terms applied)
+PASSTHROUGH_CALCRULE_ID = 100
+
 
 def prepare_ded_and_limit(level_df):
     simplify_no_terms = {
@@ -97,14 +100,14 @@ def prepare_ded_and_limit(level_df):
 
 def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     """
-    merge selected il_inputs with the correct calc_rule table and  return a pandas Series of calc. rule IDs
+    Merges IL inputs with the correct calc_rule table and returns calc rule IDs.
 
     Args:
-     il_inputs_calc_rules_df (DataFrame):  IL input items dataframe
-     calc_rule_type (str): type of calc_rule to look for
+        il_inputs_calc_rules_df (pandas.DataFrame): IL input items dataframe.
+        calc_rule_type (str): Type of calc_rule to look for.
 
     Returns:
-        pandas Series of calc. rule IDs
+        pandas.Series: Series of calculation rule IDs.
     """
     il_inputs_calc_rules_df = il_inputs_calc_rules_df.copy()
     calc_rules_df, calc_rule_term_info = get_calc_rules(calc_rule_type)
@@ -148,7 +151,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
             .merge(calc_rules_df[merge_col + ['calcrule_id']].drop_duplicates(), how='left', on=merge_col)
         ).set_index('index')['calcrule_id'].fillna(0)
     else:
-        return 100  # no term we return pass through
+        return PASSTHROUGH_CALCRULE_ID  # no term we return pass through
     if 0 in calcrule_ids.unique():
         _cols = list(set(['PortNumber', 'AccNumber', 'LocNumber'] + merge_col).intersection(il_inputs_calc_rules_df.columns))
         no_match_keys = il_inputs_calc_rules_df.loc[calcrule_ids == 0, _cols].drop_duplicates()
@@ -159,13 +162,13 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
 
 def get_profile_ids(il_inputs_df):
     """
-    Returns a Numpy array of policy TC IDs from a table of IL input items
+    Returns a Numpy array of policy TC IDs from a table of IL input items.
 
-    :param il_inputs_df: IL input items dataframe
-    :type il_inputs_df: pandas.DataFrame
+    Args:
+        il_inputs_df (pandas.DataFrame): IL input items dataframe.
 
-    :return: Numpy array of policy TC IDs
-    :rtype: numpy.ndarray
+    Returns:
+        numpy.ndarray: Numpy array of policy TC IDs.
     """
     factor_col = list(set(il_inputs_df.columns).intersection(policytc_cols).difference({'profile_id', }))
     return factorize_ndarray(il_inputs_df.loc[:, factor_col].values, col_idxs=range(len(factor_col)))[0]
@@ -173,11 +176,12 @@ def get_profile_ids(il_inputs_df):
 
 def __split_fm_terms_by_risk(df):
     """
-    adjust the financial term to the number of risks
-    for example deductible is split into each individul building risk
+    Adjusts financial terms by the number of risks.
+
+    For example, deductible is split into each individual building risk.
 
     Args:
-         df (DataFrame): the DataFrame an FM level
+        df (pandas.DataFrame): The dataframe for an FM level.
     """
     for term in risk_disaggregation_term.intersection(set(df.columns)):
         if f'{term[:3]}_type' in df.columns:
@@ -423,16 +427,19 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
 
 def associate_items_peril_to_policy_peril(item_perils, policy_df, fm_peril_col, oed_schema):
     """
-    for each peril_id in item_peril_list we map it to each string representing policy perils
-    we then merge this mapping to the initial policies so that each line will have a peril_id
-    that can be use directly as key when merging with the gul_input_df
-    Args:
-        item_perils: all peril id from gul_input_df
-        policy_df: the df with the policies
-        fm_peril_col: the name of the column to use that define the policy peril filter
-        oed_schema: the schema object we use to map peril and subperils
-    Returns:
+    Maps item perils to policy perils and merges the mapping with policies.
 
+    For each peril_id in item_perils, maps it to policy perils so that each line
+    will have a peril_id that can be used directly as a key when merging with gul_input_df.
+
+    Args:
+        item_perils (pandas.DataFrame): All peril IDs from gul_input_df.
+        policy_df (pandas.DataFrame): The dataframe with the policies.
+        fm_peril_col (str): The name of the column that defines the policy peril filter.
+        oed_schema: The schema object used to map perils and subperils.
+
+    Returns:
+        pandas.DataFrame: Policy dataframe merged with peril mapping.
     """
     fm_perils = policy_df[[fm_peril_col]].drop_duplicates()
     peril_map_df = pd.merge(fm_perils, item_perils, how='cross')
@@ -456,32 +463,24 @@ def get_il_input_items(
     """
     Generates and returns a Pandas dataframe of IL input items.
 
-    :param gul_inputs_df: GUL input items
-    :type gul_inputs_df: pandas.DataFrame
+    Also writes FM files (fm_policytc, fm_profile, fm_programme, fm_xref) to target_dir.
 
-    :param exposure_data: object containing all information about the insurance policies
+    Args:
+        gul_inputs_df (pandas.DataFrame): GUL input items.
+        exposure_data: Object containing all information about the insurance policies.
+        target_dir (str): Path to the directory used to write the FM files.
+        logger: Logger object to trace progress.
+        exposure_profile (dict, optional): Source exposure profile.
+        accounts_profile (dict, optional): Source accounts profile.
+        fm_aggregation_profile (dict, optional): FM aggregation profile.
+        do_disaggregation (bool, optional): Whether to split terms and conditions
+            for aggregate exposure.
+        oasis_files_prefixes (dict, optional): Dictionary of file prefixes for FM output files.
+        chunksize (int, optional): Number of rows to write per chunk when writing CSV files.
 
-    :param target_dir: path to the directory used to write the fm files
-
-    :param logger: logger object to trace progress
-
-    :param exposure_profile: Source exposure profile (optional)
-    :type exposure_profile: dict
-
-    :param accounts_profile: Source accounts profile (optional)
-    :type accounts_profile: dict
-
-    :param fm_aggregation_profile: FM aggregation profile (optional)
-    :param fm_aggregation_profile: dict
-
-    :param do_disaggregation: whether to split terms and conditions for aggregate exposure (optional)
-    :param do_disaggregation: bool
-
-    :return: IL inputs dataframe
-    :rtype: pandas.DataFrame
-
-    :return Accounts dataframe
-    :rtype: pandas.DataFrame
+    Returns:
+        pandas.DataFrame: IL inputs dataframe with output_id, layer_id, and other
+            FM-related columns.
     """
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
     with contextlib.ExitStack() as stack:
@@ -511,7 +510,8 @@ def get_il_input_items(
                 if field_type['field_col'] not in locations_df.columns:
                     continue
                 else:
-                    locations_df[field_type['field_col']].fillna(0.)  # set default to 0 to ignore term if empty
+                    locations_df[field_type['field_col']] = locations_df[field_type['field_col']].fillna(
+                        0.)  # set default to 0 to ignore term if empty
                 if field_type['type_col'] not in locations_df.columns:
                     locations_df[field_type['type_col']] = field_type['type_value']
                 else:
@@ -583,7 +583,6 @@ def get_il_input_items(
         gul_inputs_df['agg_id_prev'] = gul_inputs_df['gul_input_id']
         gul_inputs_df['layer_id'] = 1
         gul_inputs_df['PolNumber'] = pd.NA
-        gul_inputs_df = gul_inputs_df.rename(columns={})
         item_perils = gul_inputs_df[['peril_id']].drop_duplicates()
 
         # Determine whether step policies are listed, are not full of nans and step
@@ -625,7 +624,7 @@ def get_il_input_items(
         fm_profile_file.write(f"{','.join(fm_profile_cols)}{os.linesep}")
         pass_through_profile = pd.DataFrame({col: [0] for col in fm_profile_cols})
         pass_through_profile['profile_id'] = 1
-        pass_through_profile['calcrule_id'] = 100
+        pass_through_profile['calcrule_id'] = PASSTHROUGH_CALCRULE_ID
         write_fm_profile_level(pass_through_profile, fm_profile_file, step_policies_present, chunksize)
 
         profile_id_offset = 1  # profile_id 1 is the passthrough policy 100
@@ -984,20 +983,14 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
     """
     Writes an FM profile file.
 
-    :param level_df: level_df (fm terms) dataframe
-    :type level_df: pandas.DataFrame
+    Args:
+        level_df (pandas.DataFrame): FM terms dataframe.
+        fm_profile_file (file): Open file object to write to.
+        step_policies_present (bool): Flag to determine which type of file to write.
+        chunksize (int, optional): Number of rows to write per chunk.
 
-    :param fm_profile_file: open file to write to
-    :type fm_profile_file: fileObj
-
-    :param step_policies_present: flag to know which type of file to write
-    :type step_policies_present: bool
-
-    :param chunksize: chunksize
-    :type chunksize: int
-
-    :return: FM profile file path
-    :rtype: str
+    Raises:
+        OasisException: If writing to the file fails.
     """
     level_df = level_df.astype({'calcrule_id': calcrule_id[DTYPE_IDX], 'profile_id': profile_id[DTYPE_IDX]})
     # Step policies exist

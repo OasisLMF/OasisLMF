@@ -100,13 +100,13 @@ class RunExposure(ComputationStep):
 
         # 1. Create Deterministic keys file
         keys_fp = os.path.join(run_dir, 'keys.csv')
-        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_csv": keys_fp, "exposure_data": exposure_data}}).run()
+        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_path": keys_fp, "exposure_data": exposure_data}}).run()
 
         # 2. Start Oasis files generation
         GenerateFiles(
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
-            keys_data_csv=keys_fp,
+            keys_data_path=keys_fp,
             do_disaggregation=self.do_disaggregation,
         ).run()
 
@@ -412,6 +412,7 @@ class RunFmTest(ComputationStep):
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
+            keys_format='oasis'
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
