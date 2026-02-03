@@ -160,7 +160,7 @@ exit_handler(){
    kill -9 $pid0 2> /dev/null
    if [ "$exit_code" -gt 0 ]; then
        # Error - run process clean up
-       echo 'Ktools Run Error - exitcode='$exit_code
+       echo 'Kernel execution error - exitcode='$exit_code
 
        set +x
        group_pid=$(ps -p $$ -o pgid --no-headers)

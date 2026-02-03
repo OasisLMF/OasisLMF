@@ -363,10 +363,10 @@ class TestGenLosses(ComputationChecker):
             with (self.assertRaises(OasisException) as context,
                   patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10013"})):
                 self.manager.generate_losses(**call_args)
-            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+            expected_error = 'Kernel execution error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
         self.assertIn('BASH_TRACE:', self._caplog.text)
-        self.assertIn('KTOOLS_STDERR:', self._caplog.text)
+        self.assertIn('KERNEL_STDERR:', self._caplog.text)
         self.assertIn('GUL_STDERR', self._caplog.text)
         self.assertIn('STDOUT:', self._caplog.text)
 
@@ -386,10 +386,10 @@ class TestGenLosses(ComputationChecker):
             with (self.assertRaises(OasisException) as context,
                   patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10014"})):
                 self.manager.generate_losses_partial(**call_args)
-            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+            expected_error = 'Kernel execution error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
         self.assertIn('BASH_TRACE:', self._caplog.text)
-        self.assertIn('KTOOLS_STDERR:', self._caplog.text)
+        self.assertIn('KERNEL_STDERR:', self._caplog.text)
         self.assertIn('GUL_STDERR', self._caplog.text)
         self.assertIn('STDOUT:', self._caplog.text)
 
@@ -416,7 +416,7 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses_partial(**chunk_args)
         with self.assertRaises(OasisException) as context:
             self.manager.generate_losses_output(**call_args)
-        expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+        expected_error = 'Kernel execution error: non-zero exit code or error/warning messages detected'
         self.assertIn(expected_error, str(context.exception))
 
     @patch('oasislmf.execution.runner.run')
