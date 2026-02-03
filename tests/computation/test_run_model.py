@@ -39,14 +39,14 @@ class TestRunModel(ComputationChecker):
         self.min_args = {
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
             'analysis_settings_json': self.tmp_files['analysis_settings_json'].name,
-            'keys_data_csv': self.tmp_files['keys_data_csv'].name,
+            'keys_data_path': self.tmp_files['keys_data_path'].name,
             'model_data_dir': self.tmp_dirs['model_data_dir'].name
         }
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
-        self.write_str(self.tmp_files.get('keys_data_csv'), MIN_KEYS)
+        self.write_str(self.tmp_files.get('keys_data_path'), MIN_KEYS)
 
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([

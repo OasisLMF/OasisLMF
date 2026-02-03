@@ -56,7 +56,7 @@ SOURCE_FILENAMES = OrderedDict({
     'oed_scope_csv': 'ri_scope.csv',
     'lookup_config_json': 'lookup.json',
     'profile_loc_json': 'profile_location.json',
-    'keys_data_csv': 'keys.csv',
+    'keys_data_path': 'keys.csv',
     'model_version_csv': 'model_version.csv',
     'lookup_complex_config_json': 'lookup_complex.json',
     'profile_acc_json': 'profile_account.json',

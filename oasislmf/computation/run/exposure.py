@@ -100,13 +100,13 @@ class RunExposure(ComputationStep):
 
         # 1. Create Deterministic keys file
         keys_fp = os.path.join(run_dir, 'keys.csv')
-        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_csv": keys_fp, "exposure_data": exposure_data}}).run()
+        GenerateKeysDeterministic(**{**self.kwargs, **{"keys_data_path": keys_fp, "exposure_data": exposure_data}}).run()
 
         # 2. Start Oasis files generation
         GenerateFiles(
             oasis_files_dir=run_dir,
             exposure_data=exposure_data,
-            keys_data_csv=keys_fp,
+            keys_data_path=keys_fp,
             do_disaggregation=self.do_disaggregation,
         ).run()
 

@@ -324,7 +324,7 @@ class GenerateKeysWithBuiltinLookup(TestCase):
             generate_keys = GenerateKeys(
                 oed_location_csv=pathlib.Path(META_DATA_PATH, 'location.csv'),
                 lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config.json'),
-                keys_data_csv=str(pathlib.Path(d, 'keys.csv')),
+                keys_data_path=str(pathlib.Path(d, 'keys.csv')),
                 keys_format="oasis"
             )
             generate_keys.run()
@@ -336,7 +336,7 @@ class GenerateKeysWithBuiltinLookup(TestCase):
             generate_keys = GenerateKeys(
                 oed_location_csv=pathlib.Path(META_DATA_PATH, 'location-geo_grid.csv'),
                 lookup_config_json=pathlib.Path(META_DATA_PATH, 'lookup_config-geo_grid.json'),
-                keys_data_csv=str(pathlib.Path(d, 'keys-geo_grid.csv')),
+                keys_data_path=str(pathlib.Path(d, 'keys-geo_grid.csv')),
                 keys_format="oasis"
             )
             generate_keys.run()
