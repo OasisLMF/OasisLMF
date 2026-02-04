@@ -56,7 +56,7 @@ jobs:
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: 'update-mdk-checks-2.5.0'
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'update-mdk-checks-2.5.0' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
@@ -71,7 +71,7 @@ jobs:
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: 'update-mdk-checks-2.5.0'
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'update-mdk-checks-2.5.0' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
