@@ -52,11 +52,11 @@ jobs:
 
   platform1:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@update-mdk-checks-2.5.0
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'update-mdk-checks-2.5.0' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
@@ -67,11 +67,11 @@ jobs:
 
   platform2:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@update-mdk-checks-2.5.0
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
     secrets: inherit
     needs: [build, ods_tools]
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'update-mdk-checks-2.5.0' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
       oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
       oasislmf_branch: ''
       ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
