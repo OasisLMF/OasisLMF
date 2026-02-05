@@ -910,7 +910,6 @@ def get_il_input_items(
                     level_df.loc[final_step_filter, 'calcrule_id'] = get_calc_rule_ids(level_df[final_step_filter], calc_rule_type='step')
                     has_step = final_step_filter & (~level_df["step_id"].isna())
 
-
                     level_df.loc[has_step, 'profile_id'] = level_df.loc[has_step, ['layer_id'] + factorize_key].groupby(['layer_id'] + factorize_key, sort=False, observed=True, dropna=False).ngroup().astype(
                         'int32') + profile_id_offset + 1
                     profile_id_offset = level_df.loc[has_step, 'profile_id'].max() if has_step.any() else profile_id_offset
