@@ -10,6 +10,7 @@ import contextlib
 import copy
 import itertools
 import os
+import sys
 import time
 import warnings
 
@@ -171,7 +172,7 @@ def get_profile_ids(il_inputs_df):
         numpy.ndarray: Numpy array of policy TC IDs.
     """
     factor_col = list(set(il_inputs_df.columns).intersection(policytc_cols).difference({'profile_id', }))
-    return factorize_ndarray(il_inputs_df.loc[:, factor_col].values, col_idxs=range(len(factor_col)))[0]
+    return il_inputs_df.groupby(factor_col, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1
 
 
 def __split_fm_terms_by_risk(df):
@@ -461,27 +462,85 @@ def get_il_input_items(
         chunksize=(2 * 10 ** 5),
 ):
     """
-    Generates and returns a Pandas dataframe of IL input items.
+    Generates IL (Insured Loss) input items by applying financial terms to GUL items.
 
-    Also writes FM files (fm_policytc, fm_profile, fm_programme, fm_xref) to target_dir.
+    This function builds the Financial Module (FM) structure by processing insurance
+    policy terms across multiple hierarchical levels. It takes GUL (Ground-Up Loss)
+    items and enriches them with policy terms (deductibles, limits, shares) from
+    location and account data.
+
+    Overview of Processing Flow:
+    ===========================
+    1. SETUP: Prepare data structures, merge account IDs, handle step policies
+    2. LEVEL PROCESSING: For each FM level (site coverage -> policy layer):
+       a. Extract terms from location/account data for this level
+       b. Compute aggregation IDs (agg_id) based on aggregation keys
+       c. Calculate TIV (Total Insured Value) for percentage-based terms
+       d. Assign calculation rules and profile IDs
+       e. Merge terms back to gul_inputs_df (handling layered/non-layered separately)
+       f. Write level data to FM output files
+    3. FINALIZE: Assign output IDs, fill missing PolNumbers, write fm_xref
+
+    Key Data Structures:
+    ===================
+    - gul_inputs_df: Main working DataFrame, starts with GUL items and accumulates
+      FM columns (agg_id, layer_id, profile_id, level_id) as levels are processed.
+      Each row represents an item that will flow through the FM calculation.
+
+    - level_df: Terms extracted from location/account data for the current level.
+      Contains financial terms (deductible, limit, share) and is merged into
+      gul_inputs_df after profile IDs are assigned.
+
+    - agg_id: Aggregation ID - groups items that share the same financial terms
+      at each level. Computed using groupby().ngroup() on aggregation keys.
+
+    - layer_id: Distinguishes policy layers (1 = base, 2+ = excess layers).
+      Rows start with layer_id=0 (unassigned) and get layer_id from level_df merge.
+
+    Layered vs Non-Layered Processing:
+    ==================================
+    When merging level_df terms into gul_inputs_df, rows are handled differently:
+
+    - Non-layered rows (layer_id == 0): Have not yet been assigned to a layer.
+      Must NOT merge on layer_id column, as they need to pick up layer info from
+      level_df. After merge, they may expand into multiple rows (one per layer).
+
+    - Layered rows (layer_id > 0): Already assigned to a specific layer from a
+      previous level. Must merge on layer_id to preserve their layer assignment.
+
+    After merging, "premature layering" is removed: if rows differ only by layer_id
+    but have identical financial terms (same profile_id), duplicates are dropped.
+    This prevents unnecessary row multiplication when layers don't differ.
+
+    Output Files Written:
+    ====================
+    - fm_policytc.csv: Maps (level_id, agg_id, layer_id) -> profile_id
+    - fm_profile.csv: Profile definitions with calculation rules and term values
+    - fm_programme.csv: Hierarchical structure linking levels (from_agg_id -> to_agg_id)
+    - fm_xref.csv: Maps GUL item IDs to FM output IDs
 
     Args:
-        gul_inputs_df (pandas.DataFrame): GUL input items.
-        exposure_data: Object containing all information about the insurance policies.
-        target_dir (str): Path to the directory used to write the FM files.
-        logger: Logger object to trace progress.
-        exposure_profile (dict, optional): Source exposure profile.
-        accounts_profile (dict, optional): Source accounts profile.
-        fm_aggregation_profile (dict, optional): FM aggregation profile.
-        do_disaggregation (bool, optional): Whether to split terms and conditions
-            for aggregate exposure.
-        oasis_files_prefixes (dict, optional): Dictionary of file prefixes for FM output files.
-        chunksize (int, optional): Number of rows to write per chunk when writing CSV files.
+        gul_inputs_df (pandas.DataFrame): GUL input items with columns including
+            item_id, loc_id, coverage_type_id, tiv, peril_id, building_id, etc.
+        exposure_data: OedExposure object containing location and account DataFrames
+            with policy terms (deductibles, limits, shares, layers).
+        target_dir (str): Directory path where FM output files will be written.
+        logger: Logger object for progress messages.
+        exposure_profile (dict, optional): Maps OED fields to FM term types for locations.
+        accounts_profile (dict, optional): Maps OED fields to FM term types for accounts.
+        fm_aggregation_profile (dict, optional): Defines aggregation keys for each FM level.
+        do_disaggregation (bool, optional): If True, split aggregate exposure terms
+            by NumberOfRisks. Default True.
+        oasis_files_prefixes (dict, optional): File name prefixes for output files.
+        chunksize (int, optional): Rows per chunk when writing CSVs. Default 200,000.
 
     Returns:
-        pandas.DataFrame: IL inputs dataframe with output_id, layer_id, and other
-            FM-related columns.
+        pandas.DataFrame: IL inputs with columns including output_id, layer_id,
+            gul_input_id, agg_id, PolNumber, acc_idx, and summary columns.
     """
+    # =========================================================================
+    # SETUP PHASE: Open output files and prepare input data
+    # =========================================================================
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
     with contextlib.ExitStack() as stack:
         fm_policytc_file = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_policytc']}.csv"), 'w'))
@@ -627,8 +686,17 @@ def get_il_input_items(
         pass_through_profile['calcrule_id'] = PASSTHROUGH_CALCRULE_ID
         write_fm_profile_level(pass_through_profile, fm_profile_file, step_policies_present, chunksize)
 
-        profile_id_offset = 1  # profile_id 1 is the passthrough policy 100
+        profile_id_offset = 1  # profile_id 1 is the passthrough policy (calcrule 100)
         cur_level_id = 0
+
+        # =========================================================================
+        # LEVEL PROCESSING LOOP: Process each FM level from bottom to top
+        # =========================================================================
+        # get_levels() yields (term_df_source, levels, fm_peril_field, CondTag_merger):
+        #   - term_df_source: DataFrame containing terms (locations_df or accounts_df)
+        #   - levels: Iterator of (level_name, level_info) for levels using this source
+        #   - fm_peril_field: Field name for FM peril filtering (if applicable)
+        #   - CondTag_merger: DataFrame for conditional tag merging (accounts only)
         for term_df_source, levels, fm_peril_field, CondTag_merger in get_levels(locations_df, accounts_df):
             t0 = time.time()
             if CondTag_merger is not None:
@@ -755,9 +823,16 @@ def get_il_input_items(
                 else:
                     gul_inputs_df["FMTermGroupID"] = gul_inputs_df["FMTermGroupID"].mask(
                         gul_inputs_df["need_tiv"].isna(), -gul_inputs_df["agg_id_prev"]).astype('i4')
-                gul_inputs_df["agg_id"] = factorize_ndarray(gul_inputs_df.loc[:, factorize_key].values, col_idxs=range(len(factorize_key)))[0]
 
-                # merge Tiv in level_df when needed
+                # Assign agg_id: items with identical factorize_key values get the same agg_id
+                # This groups items that will share the same financial terms at this level
+                gul_inputs_df["agg_id"] = gul_inputs_df.groupby(factorize_key, sort=False, observed=True, dropna=False).ngroup().astype('int32') + 1
+
+                # =====================================================================
+                # TIV PROCESSING: Calculate aggregate TIV for percentage-based terms
+                # =====================================================================
+                # Some terms (ded_type=2, lim_type=2) are specified as % of TIV
+                # We need the aggregate TIV for each agg_id to convert to absolute values
                 # make sure correct tiv sum exist
                 tiv_df_list = []
                 for FMTermGroupID, coverage_type_ids in fm_group_tiv.items():
@@ -834,8 +909,10 @@ def get_il_input_items(
                     # step part
                     level_df.loc[final_step_filter, 'calcrule_id'] = get_calc_rule_ids(level_df[final_step_filter], calc_rule_type='step')
                     has_step = final_step_filter & (~level_df["step_id"].isna())
-                    level_df.loc[has_step, 'profile_id'] = factorize_ndarray(level_df.loc[has_step, ['layer_id'] + factorize_key].values,
-                                                                             col_idxs=range(len(['layer_id'] + factorize_key)))[0] + profile_id_offset
+
+
+                    level_df.loc[has_step, 'profile_id'] = level_df.loc[has_step, ['layer_id'] + factorize_key].groupby(['layer_id'] + factorize_key, sort=False, observed=True, dropna=False).ngroup().astype(
+                        'int32') + profile_id_offset + 1
                     profile_id_offset = level_df.loc[has_step, 'profile_id'].max() if has_step.any() else profile_id_offset
 
                     # non step part
@@ -849,41 +926,85 @@ def get_il_input_items(
 
                 write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chunksize=chunksize)
 
-                # =============================================================
-                # we have prepared FMTermGroupID on gul or level df (depending on  step_level) now we can merge the terms for this level to gul
+                # =====================================================================
+                # MERGE LEVEL TERMS INTO GUL_INPUTS_DF
+                # =====================================================================
+                # At this point:
+                # - level_df contains financial terms with profile_id assigned
+                # - gul_inputs_df has agg_id assigned but needs profile_id from level_df
+                #
+                # The merge must handle layered vs non-layered rows differently:
+                # - Non-layered (layer_id=0): Don't merge on layer_id, let merge bring in layer info
+                # - Layered (layer_id>0): Must merge on layer_id to preserve layer assignment
                 merge_col = list(set(level_df.columns).intersection(set(gul_inputs_df)))
                 level_df = level_df[merge_col + ['profile_id']].drop_duplicates()
-                # gul_inputs that don't have layer yet must not be merge using layer_id
-                non_layered_inputs_df = (
-                    gul_inputs_df[gul_inputs_df['layer_id'] == 0]
-                    .drop(columns=['layer_id'])
-                    .rename(columns={'PolNumber': 'PolNumber_temp'})
-                    .merge(level_df, how='left')
-                )
-                if 'PolNumber' in level_df.columns:
-                    # gul_inputs['PolNumber'] is set to level_df['PolNumber'] if empty or if this is the first time layer appear
-                    new_layered_gul_input_id = non_layered_inputs_df[non_layered_inputs_df['layer_id'] > 1]['gul_input_id'].unique()
-                    non_layered_inputs_df['PolNumber'] = non_layered_inputs_df['PolNumber'].where(
-                        (non_layered_inputs_df['gul_input_id'].isin(new_layered_gul_input_id)) | (non_layered_inputs_df['PolNumber_temp'].isna()),
-                        non_layered_inputs_df['PolNumber_temp']
+
+                # Check if there are any layered inputs (rows that already have a layer assigned)
+                layered_mask = gul_inputs_df['layer_id'] > 0
+                has_layered = layered_mask.any()
+
+                if has_layered:
+                    # Original path: separate merges for layered and non-layered
+                    # gul_inputs that don't have layer yet must not be merge using layer_id
+                    non_layered_inputs_df = (
+                        gul_inputs_df[~layered_mask]
+                        .drop(columns=['layer_id'])
+                        .rename(columns={'PolNumber': 'PolNumber_temp'})
+                        .merge(level_df, how='left')
                     )
-                    non_layered_inputs_df = non_layered_inputs_df.drop(columns=['PolNumber_temp'])
+                    if 'PolNumber' in level_df.columns:
+                        # gul_inputs['PolNumber'] is set to level_df['PolNumber'] if empty or if this is the first time layer appear
+                        new_layered_gul_input_id = non_layered_inputs_df[non_layered_inputs_df['layer_id'] > 1]['gul_input_id'].unique()
+                        non_layered_inputs_df['PolNumber'] = non_layered_inputs_df['PolNumber'].where(
+                            (non_layered_inputs_df['gul_input_id'].isin(new_layered_gul_input_id)) | (non_layered_inputs_df['PolNumber_temp'].isna()),
+                            non_layered_inputs_df['PolNumber_temp']
+                        )
+                        non_layered_inputs_df = non_layered_inputs_df.drop(columns=['PolNumber_temp'])
+                    else:
+                        non_layered_inputs_df = non_layered_inputs_df.rename(columns={'PolNumber_temp': 'PolNumber'})
+
+                    layered_inputs_df = gul_inputs_df[layered_mask].merge(level_df, how='left')
+
+                    # PREMATURE LAYERING REMOVAL:
+                    # After merge, non-layered rows may have expanded into multiple rows
+                    # (one per layer from level_df). If these layers have identical terms
+                    # (same profile_id), we should keep only one to avoid unnecessary duplication.
+                    # The 'layered_id' trick: set to layer_id only if agg_id exists in layered
+                    # inputs (meaning there's a reason to keep layers separate), else set to 0.
+                    # Then dedup on (gul_input_id, agg_id, profile_id, layered_id).
+                    if not is_policy_layer_level and level_id not in cross_layer_level:
+                        non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
+                                                               .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
+                        non_layered_inputs_df = (non_layered_inputs_df
+                                                 .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
+                                                 .drop(columns=['layered_id']))
+
+                    gul_inputs_df = pd.concat([layered_inputs_df, non_layered_inputs_df], ignore_index=True)
                 else:
-                    non_layered_inputs_df = non_layered_inputs_df.rename(columns={'PolNumber_temp': 'PolNumber'})
+                    # Optimized path: all rows have layer_id == 0
+                    # No need for separate layered/non-layered split and concat
+                    gul_inputs_df = (gul_inputs_df
+                                     .drop(columns=['layer_id'])
+                                     .rename(columns={'PolNumber': 'PolNumber_temp'})
+                                     .merge(level_df, how='left'))
 
-                layered_inputs_df = gul_inputs_df[gul_inputs_df['layer_id'] > 0].merge(level_df, how='left')
-                # drop premature layering (no difference of policy between layers)
-                if not is_policy_layer_level and level_id not in cross_layer_level:
-                    non_layered_inputs_df['layered_id'] = (non_layered_inputs_df['layer_id']
-                                                           .where(non_layered_inputs_df['agg_id'].isin(layered_inputs_df['agg_id']), 0))
-                    non_layered_inputs_df = (non_layered_inputs_df
-                                             .drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id', 'layered_id'])
-                                             .drop(columns=['layered_id']))
+                    # Handle PolNumber (same as original)
+                    if 'PolNumber' in level_df.columns:
+                        new_layered_gul_input_id = gul_inputs_df[gul_inputs_df['layer_id'] > 1]['gul_input_id'].unique()
+                        gul_inputs_df['PolNumber'] = gul_inputs_df['PolNumber'].where(
+                            (gul_inputs_df['gul_input_id'].isin(new_layered_gul_input_id)) | (gul_inputs_df['PolNumber_temp'].isna()),
+                            gul_inputs_df['PolNumber_temp']
+                        )
+                        gul_inputs_df = gul_inputs_df.drop(columns=['PolNumber_temp'])
+                    else:
+                        gul_inputs_df = gul_inputs_df.rename(columns={'PolNumber_temp': 'PolNumber'})
 
-                gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
+                    # Drop premature layering (no difference of policy between layers)
+                    # Since no initial layered rows, layered_id would be 0 for all, so dedup on base columns
+                    if not is_policy_layer_level and level_id not in cross_layer_level:
+                        gul_inputs_df = gul_inputs_df.drop_duplicates(subset=['gul_input_id', 'agg_id', 'profile_id'])
 
                 gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
-                gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
                 gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
 
                 # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
@@ -898,7 +1019,12 @@ def get_il_input_items(
 
                 cur_level_id += 1
                 gul_inputs_df['level_id'] = cur_level_id
-                # write fm_policytc
+
+                # =====================================================================
+                # WRITE FM OUTPUT FILES FOR THIS LEVEL
+                # =====================================================================
+                # fm_policytc: Maps (level_id, agg_id, layer_id) -> profile_id
+                # For cross_layer levels, only write layer_id=1 (terms apply across all layers)
                 if level_id in cross_layer_level:
                     fm_policytc_df = gul_inputs_df.loc[gul_inputs_df['layer_id'] == 1, fm_policytc_headers]
                 else:
@@ -906,7 +1032,9 @@ def get_il_input_items(
                 fm_policytc_df.drop_duplicates().astype(fm_policytc_dtype).to_csv(fm_policytc_file, index=False,
                                                                                   header=False, chunksize=chunksize)
 
-                # write programe
+                # fm_programme: Defines hierarchical links between levels
+                # from_agg_id (previous level) -> to_agg_id (current level)
+                # When root_start is True, use negative gul_input_id to indicate starting point
                 fm_programe_df = gul_inputs_df[['level_id', 'agg_id']].rename(columns={'agg_id': 'to_agg_id'})
                 if "root_start" in gul_inputs_df:
                     fm_programe_df['from_agg_id'] = gul_inputs_df['agg_id_prev'].where(~gul_inputs_df["root_start"], -gul_inputs_df['gul_input_id'])
@@ -920,9 +1048,14 @@ def get_il_input_items(
                 logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                 t0 = time.time()
 
+        # =========================================================================
+        # FINALIZATION: Assign output IDs and write fm_xref
+        # =========================================================================
+        # Sort by gul_input_id and layer_id for consistent output ordering
         gul_inputs_df = gul_inputs_df.sort_values(['gul_input_id', 'layer_id'], kind='stable')
         gul_inputs_df['output_id'] = gul_inputs_df.reset_index().index + 1
 
+        # Fill missing PolNumber values from accounts_df using policy layer agg keys
         default_pol_agg_key = [v['field'] for v in fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey'].values()]
         no_polnumber_df = gul_inputs_df.loc[gul_inputs_df['PolNumber'].isna(), default_pol_agg_key + ['output_id']]
         if not no_polnumber_df.empty:  # empty polnumber, we use accounts_df to set PolNumber based on policy layer agg_key
@@ -930,7 +1063,8 @@ def get_il_input_items(
                 accounts_df[default_pol_agg_key + ['PolNumber']].drop_duplicates(subset=default_pol_agg_key)
             ).set_index(no_polnumber_df['output_id'] - 1)['PolNumber']
 
-        # write fm_xref
+        # fm_xref: Maps GUL item IDs (agg_id) to FM output IDs
+        # This is the final cross-reference between GUL and IL outputs
         (gul_inputs_df
          .rename(columns={'gul_input_id': 'agg_id', 'output_id': 'output'})[fm_xref_headers]
          .astype(fm_xref_dtype)
@@ -967,7 +1101,7 @@ def reset_gul_inputs(gul_inputs_df):
 
 
 def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file, fm_programme_file, chunksize):
-    gul_inputs_df["agg_id"] = factorize_ndarray(gul_inputs_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
+    gul_inputs_df["agg_id"] = gul_inputs_df.groupby(agg_key, sort=False, observed=True).ngroup().astype('int32') + 1
     gul_inputs_df["profile_id"] = 1
     gul_inputs_df["level_id"] = cur_level_id
     fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]
