@@ -182,8 +182,8 @@ def __split_fm_terms_by_risk(df):
          df (DataFrame): the DataFrame an FM level
     """
     for term in risk_disaggregation_term.intersection(set(df.columns)):
-        if f'{term[:3]}_code' in df.columns:
-            code_filter = df[f'{term[:3]}_code'] == 0
+        if f'{term[:3]}_type' in df.columns:
+            code_filter = df[f'{term[:3]}_type'] == 0
             df.loc[code_filter, term] /= df.loc[code_filter, 'NumberOfRisks']
         else:
             df[term] /= df['NumberOfRisks']
