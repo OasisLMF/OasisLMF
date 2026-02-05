@@ -274,10 +274,10 @@ def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_
         if last_sidx == 0:
             if cursor < PIPE_CAPACITY - SUMMARY_HEADER_SIZE:
                 cursor = mv_write_summary_header(byte_mv, cursor, event_id, summary_id, losses[TIV_IDX])
-                cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, losses[MEAN_IDX])
+                cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, losses[MAX_LOSS_IDX])
                 if has_affected_risk is not None:
                     cursor = mv_write_sidx_loss(byte_mv, cursor, NUMBER_OF_AFFECTED_RISK_IDX, losses[NUMBER_OF_AFFECTED_RISK_IDX])
-                cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, losses[MAX_LOSS_IDX])
+                cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, losses[MEAN_IDX])
                 last_sidx = 1
             else:
                 return cursor, loss_summary_index, last_sidx, summary_index_cursor
