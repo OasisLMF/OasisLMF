@@ -371,13 +371,13 @@ def get_gul_input_items(
 
         gul_inputs_reformatted_chunks.append(disagg_df_chunk)
 
-    # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
+    # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code/
     gul_inputs_df = (
         pd.concat(gul_inputs_reformatted_chunks)
         .sort_index(kind='mergesort')
         .reset_index(drop=True)
-        .fillna(value={c: 0 for c in set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints))})
     )
+    gul_inputs_df = gul_inputs_df.fillna(value={c: 0 for c in set(gul_inputs_df.columns).intersection(set(term_cols_ints + terms_ints))})
     # set default values and data types for BI coverage boolean, TIV, deductibles and limit
     dtypes = {
         **{t: 'uint8' for t in term_cols_ints + terms_ints},
