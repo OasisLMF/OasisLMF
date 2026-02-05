@@ -14,8 +14,7 @@ from oasislmf.pytools.common.data import (correlations_headers, correlations_dty
                                           coverages_dtype, item_adjustment_dtype,
                                           item_id, coverage_id, group_id, section_id,
                                           DTYPE_IDX)
-from oasislmf.utils.data import (merge_dataframes,
-                                 set_dataframe_column_dtypes)
+from oasislmf.utils.data import merge_dataframes
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,

@@ -10,7 +10,6 @@ import contextlib
 import copy
 import itertools
 import os
-import sys
 import time
 import warnings
 
@@ -28,7 +27,7 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
                                           DTYPE_IDX, calcrule_id, profile_id, layer_id)
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import factorize_ndarray, get_ids, DEFAULT_LOC_FIELD_TYPES
+from oasislmf.utils.data import get_ids, DEFAULT_LOC_FIELD_TYPES
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
