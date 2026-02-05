@@ -393,6 +393,8 @@ def read_buffer(
                 if state["compute_mplt"]:
                     if event_id in occ_map:
                         for record in occ_map[event_id]:
+                            if loss <= 0:
+                                continue
                             _update_mplt_data(
                                 mplt_data, mi, period_weights, granular_date,
                                 record=record,
