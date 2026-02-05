@@ -5,7 +5,7 @@ import os
 from unittest import TestCase, main
 
 from oasislmf.preparation.correlations import map_data
-from ods_tools.oed import ModelSettingHandler 
+from ods_tools.oed import ModelSettingHandler
 
 META_PATH = os.path.realpath(__file__).replace("test_correlations.py", "meta_data/")
 
