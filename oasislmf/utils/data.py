@@ -64,7 +64,7 @@ from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
-analysis_settings_loader = AnalysisSettingHandler.make().load
+analysis_settings_loader = AnalysisSettingHandler.make(raise_warnings=True).load
 model_settings_loader = ModelSettingHandler.make().load
 
 
