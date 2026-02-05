@@ -5,7 +5,7 @@ import os
 from unittest import TestCase, main
 
 from oasislmf.preparation.correlations import map_data
-from ods_tools.oed.setting_schema import ModelSettingSchema
+from ods_tools.oed import ModelSettingHandler
 
 META_PATH = os.path.realpath(__file__).replace("test_correlations.py", "meta_data/")
 
@@ -14,7 +14,7 @@ class TestMapData(TestCase):
 
     def setUp(self) -> None:
         settings_path = META_PATH + "model_settings.json"
-        self.model_settings = ModelSettingSchema().get(settings_path)
+        self.model_settings = ModelSettingHandler.make().load(settings_path)
 
     def tearDown(self) -> None:
         pass
