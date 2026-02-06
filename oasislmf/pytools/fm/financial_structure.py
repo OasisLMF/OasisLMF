@@ -428,7 +428,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         if level_node_len[programme['level_id']] < programme['to_agg_id']:
             level_node_len[programme['level_id']] = programme['to_agg_id']
 
-
     ##### fm_policytc (level_id agg_id layer_id => profile_id) #####
     # Pre-pass: Count TIV profile duplicates needed (first occurrence uses original, subsequent need copies)
     # tiv_first_seen[profile_id] = 1 after first occurrence
