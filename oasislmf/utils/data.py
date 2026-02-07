@@ -64,7 +64,13 @@ from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
-analysis_settings_loader = AnalysisSettingHandler.make(raise_warnings=True).load
+try:
+    analysis_settings_loader = AnalysisSettingHandler.make(raise_warnings=True).load
+except TypeError as e:
+    if 'raise_warnings' in str(e):
+        # ods-tools 4.0.x or older
+        analysis_settings_loader = AnalysisSettingHandler.make().load
+
 model_settings_loader = ModelSettingHandler.make().load
 
 
