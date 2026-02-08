@@ -5,15 +5,19 @@
     "gul_output": true,
     "gul_summaries": [
         {
-            "eltcalc": true,
-            "id": 1
+            "id": 1,
+            "ord_output": {
+                "elt_sample": true
+            }
         }
     ],
     "il_output": true,
     "il_summaries": [
         {
-            "eltcalc": true,
-            "id": 1
+            "id": 1,
+            "ord_output": {
+                "elt_sample": true
+            }
         }
     ],
     "number_of_samples": 10

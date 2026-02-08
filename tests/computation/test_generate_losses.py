@@ -161,7 +161,6 @@ class TestGenLosses(ComputationChecker):
             **OED_SETTINGS['gul_summaries'][0],
             'oed_fields': ['LocNumber', 'AccNumber', 'PolNumber', 'AccCurrency']
         }
-        gul_summary['eltcalc'] = False
         OED_SETTINGS['gul_summaries'] = [gul_summary]
         gen_args = {
             **self.args_gen_files_gul,
