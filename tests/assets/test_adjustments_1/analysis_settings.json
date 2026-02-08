@@ -18,13 +18,13 @@
     },
     "gul_summaries": [
         {
-            "aalcalc": true,
-            "eltcalc": true,
+
             "id": 1,
-            "lec_output": true,
-            "leccalc": {
-                "full_uncertainty_aep": true,
-                "full_uncertainty_oep": true,
+            "ord_output": {
+                "alt_period": true,
+                "elt_sample": true,
+                "ept_full_uncertainty_aep": true,
+                "ept_full_uncertainty_oep": true,
                 "return_period_file": true
             }
         }
@@ -32,13 +32,12 @@
     "il_output": true,
     "il_summaries": [
         {
-            "aalcalc": true,
-            "eltcalc": true,
             "id": 1,
-            "lec_output": true,
-            "leccalc": {
-                "full_uncertainty_aep": true,
-                "full_uncertainty_oep": true,
+            "ord_output": {
+                "alt_period": true,
+                "elt_sample": true,
+                "ept_full_uncertainty_aep": true,
+                "ept_full_uncertainty_oep": true,
                 "return_period_file": true
             }
         }
@@ -46,13 +45,12 @@
     "ri_output": true,
     "ri_summaries": [
         {
-            "aalcalc": true,
-            "eltcalc": true,
             "id": 1,
-            "lec_output": true,
-            "leccalc": {
-                "full_uncertainty_aep": true,
-                "full_uncertainty_oep": true,
+            "ord_output": {
+                "alt_period": true,
+                "elt_sample": true,
+                "ept_full_uncertainty_aep": true,
+                "ept_full_uncertainty_oep": true,
                 "return_period_file": true
             }
         }
