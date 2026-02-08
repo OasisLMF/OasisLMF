@@ -62,7 +62,9 @@ INVALID_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -77,7 +79,9 @@ MIN_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -96,7 +100,9 @@ MIN_RUN_CORRELATIONS_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -110,14 +116,18 @@ IL_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -131,28 +141,36 @@ RI_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "ri_output": True,
     "ri_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "rl_output": True,
     "rl_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -167,28 +185,34 @@ RI_AAL_SETTINGS = {
     },
     "gul_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }
         }
     ],
     "ri_output": True,
     "ri_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }
         }
     ]
 }
@@ -226,23 +250,6 @@ RI_ALL_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-            },
-            "summarycalc": True,
-            "eltcalc": True,
-            "aalcalc": True,
-            "aalcalcmeanonly": True,
-            "pltcalc": True,
-            "lec_output": True,
-            "leccalc": {
-                "return_period_file": True,
-                "full_uncertainty_aep": True,
-                "full_uncertainty_oep": True,
-                "wheatsheaf_aep": True,
-                "wheatsheaf_oep": True,
-                "wheatsheaf_mean_aep": True,
-                "wheatsheaf_mean_oep": True,
-                "sample_mean_aep": True,
-                "sample_mean_oep": True
             }
         }
     ],
@@ -268,23 +275,6 @@ RI_ALL_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-            },
-            "summarycalc": True,
-            "eltcalc": True,
-            "aalcalc": True,
-            "aalcalcmeanonly": True,
-            "pltcalc": True,
-            "lec_output": True,
-            "leccalc": {
-                "return_period_file": True,
-                "full_uncertainty_aep": True,
-                "full_uncertainty_oep": True,
-                "wheatsheaf_aep": True,
-                "wheatsheaf_oep": True,
-                "wheatsheaf_mean_aep": True,
-                "wheatsheaf_mean_oep": True,
-                "sample_mean_aep": True,
-                "sample_mean_oep": True
             }
         }
     ],
@@ -310,23 +300,6 @@ RI_ALL_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-            },
-            "summarycalc": True,
-            "eltcalc": True,
-            "aalcalc": True,
-            "aalcalcmeanonly": True,
-            "pltcalc": True,
-            "lec_output": True,
-            "leccalc": {
-                "return_period_file": True,
-                "full_uncertainty_aep": True,
-                "full_uncertainty_oep": True,
-                "wheatsheaf_aep": True,
-                "wheatsheaf_oep": True,
-                "wheatsheaf_mean_aep": True,
-                "wheatsheaf_mean_oep": True,
-                "sample_mean_aep": True,
-                "sample_mean_oep": True
             }
         }
     ]

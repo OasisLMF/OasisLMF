@@ -32,9 +32,6 @@ on:
       piwind_branch:
         description: 'Branch to run PiWind from [git ref]'
         required: true
-      ktools_branch:
-        description: 'Build ktools [git ref]'
-        required: false
       ods_branch:
         description: 'Build ods_tools package before test [git ref]'
         required: false
@@ -45,8 +42,6 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
-    with:
-      ktools_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ktools_branch }}
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}

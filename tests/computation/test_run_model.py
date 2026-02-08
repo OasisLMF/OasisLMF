@@ -95,7 +95,7 @@ class TestRunModel(ComputationChecker):
         losses_mock._get_output_dir.return_value = run_dir
 
         call_args = self.combine_args([self.min_args, {
-            'gulpy': "False",
+            'gulmc': "False",
         }])
 
         with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
@@ -111,7 +111,7 @@ class TestRunModel(ComputationChecker):
         losses_mock._get_output_dir.return_value = run_dir
 
         call_args = self.combine_args([self.min_args, {
-            'gulpy': "invalid-string",
+            'gulmc': "invalid-string",
         }])
 
         with self.assertRaises(OasisException) as context:
@@ -119,7 +119,7 @@ class TestRunModel(ComputationChecker):
                     patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
                 self.manager.run_model(**call_args)
 
-        expected_err_msg = "The parameter 'gulpy' has an invalid value 'invalid-string' for boolean."
+        expected_err_msg = "The parameter 'gulmc' has an invalid value 'invalid-string' for boolean."
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_model_run__with_pre_analysis(self):

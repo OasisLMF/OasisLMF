@@ -22,8 +22,7 @@ def run(analysis_settings,
         custom_gulcalc_log_start=None,
         custom_gulcalc_log_finish=None,
         custom_get_getmodel_cmd=None,
-        filename='run_ktools.sh',
-        gul_legacy_stream=False,
+        filename='run_kernel.sh',
         df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
         dynamic_footprint=False,
@@ -60,9 +59,7 @@ def run(analysis_settings,
             def custom_get_getmodel_cmd(
                 number_of_samples,
                 gul_threshold,
-                gul_legacy_stream,
                 use_random_number_file,
-                coverage_output,
                 item_output,
                 process_id,
                 max_process_id,
@@ -77,8 +74,6 @@ def run(analysis_settings,
                     max_process_id,
                     os.path.abspath("analysis_settings.json"),
                     "input")
-                if gul_legacy_stream and coverage_output != '':
-                    cmd = '{} -c {}'.format(cmd, coverage_output)
                 if item_output != '':
                     cmd = '{} -i {}'.format(cmd, item_output)
                 if stderr_guard:
@@ -97,7 +92,6 @@ def run(analysis_settings,
         gul_alloc_rule=set_alloc_rule_gul,
         il_alloc_rule=set_alloc_rule_il,
         ri_alloc_rule=set_alloc_rule_ri,
-        gul_legacy_stream=gul_legacy_stream,
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
@@ -124,17 +118,17 @@ def rerun():
 
     env = os.environ.copy()
     env['NUMBA_DISABLE_JIT'] = "1"
-    eve_cmd = f"printf 'event_id\n {event_error}\n' | evetobin"
-    ktools_pipeline = ''
+    eve_cmd = f"printf 'event_id\n {event_error}\n' | csvtobin eve"
+    kernel_pipeline = ''
 
-    with open("run_ktools.sh", "r") as bash_script:
+    with open("run_kernel.sh", "r") as bash_script:
         for line in bash_script:
             if "( ( eve" in line:
-                ktools_pipeline = re.split(r'\||\)', line)
+                kernel_pipeline = re.split(r'\||\)', line)
                 break
 
-    gul_cmd = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('gul'))].pop(0)
-    fm_cmds = [cmd.strip() for cmd in ktools_pipeline if cmd.strip().startswith(('fm'))]
+    gul_cmd = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('gul'))].pop(0)
+    fm_cmds = [cmd.strip() for cmd in kernel_pipeline if cmd.strip().startswith(('fm'))]
 
     pipe_output = "/tmp/il_P1"
     summary_output = "/tmp/il_S1_summary_P1"
@@ -146,8 +140,8 @@ def rerun():
 
     fm_input = gul_output
     for i in range(len(fm_cmds)):
-        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i+1}.bin", fm_cmds[i])
-        fm_output = f"{event_error}_fm{i+1}.bin"
+        fm_cmd = re.sub(r"-\s*>\s*\S+", f"-o 64_ri{i + 1}.bin", fm_cmds[i])
+        fm_output = f"{event_error}_fm{i + 1}.bin"
         fm_pipe = f"{fm_cmd} -o {fm_output} -i {fm_input}"
         with open("fm_errors.log", "a") as error_log:
             subprocess.run(fm_pipe, shell=True, env=env, stderr=error_log)

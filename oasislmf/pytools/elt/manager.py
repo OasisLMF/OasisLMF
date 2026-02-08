@@ -232,7 +232,7 @@ def read_buffer(
                 cursor += oasis_float_size  # Read extra 0 for end of record
                 if state["compute_melt"]:
                     # Compute MELT statistics and store them
-                    if state["non_zero_samples"] > 0:
+                    if state["impacted_exposure"] > 0:
                         meanloss, sdloss = _get_mean_and_sd_loss()
                         chance_of_loss = state["non_zero_samples"] / state["len_sample"]
                         mean_imp_exp = state["impacted_exposure"] * chance_of_loss
@@ -276,7 +276,7 @@ def read_buffer(
                             maxloss=state["max_loss"],
                             footprint_exposure=state["impacted_exposure"],
                             mean_impacted_exposure=mean_imp_exp,
-                            max_impacted_exposure=state["impacted_exposure"]
+                            max_impacted_exposure=state["impacted_exposure"] if state["non_zero_samples"] > 0 else 0
                         )
                         mi += 1
 
@@ -287,30 +287,31 @@ def read_buffer(
 
                 # Update QELT data
                 if state["compute_qelt"]:
-                    state["losses_vec"].sort()
+                    if state["impacted_exposure"] > 0:
+                        state["losses_vec"].sort()
 
-                    # Calculate loss for per quantile interval
-                    for i in range(len(intervals)):
-                        q = intervals[i]["quantile"]
-                        ipart = intervals[i]["integer_part"]
-                        fpart = intervals[i]["fractional_part"]
-                        if ipart == len(state["losses_vec"]):
-                            loss = state["losses_vec"][ipart - 1]
-                        else:
-                            loss = (state["losses_vec"][ipart] - state["losses_vec"][ipart - 1]) * fpart + state["losses_vec"][ipart - 1]
+                        # Calculate loss for per quantile interval
+                        for i in range(len(intervals)):
+                            q = intervals[i]["quantile"]
+                            ipart = intervals[i]["integer_part"]
+                            fpart = intervals[i]["fractional_part"]
+                            if ipart == len(state["losses_vec"]):
+                                loss = state["losses_vec"][ipart - 1]
+                            else:
+                                loss = (state["losses_vec"][ipart] - state["losses_vec"][ipart - 1]) * fpart + state["losses_vec"][ipart - 1]
 
-                        _update_qelt_data(
-                            qelt_data, qi,
-                            event_id=event_id,
-                            summary_id=state['summary_id'],
-                            quantile=q,
-                            loss=loss
-                        )
-                        qi += 1
-                        if qi >= qelt_data.shape[0]:
-                            # Output array is full
-                            _update_idxs()
-                            return cursor, event_id, item_id, 1
+                            _update_qelt_data(
+                                qelt_data, qi,
+                                event_id=event_id,
+                                summary_id=state['summary_id'],
+                                quantile=q,
+                                loss=loss
+                            )
+                            qi += 1
+                            if qi >= qelt_data.shape[0]:
+                                # Output array is full
+                                _update_idxs()
+                                return cursor, event_id, item_id, 1
 
                 # Reset variables
                 _reset_state()
@@ -329,7 +330,7 @@ def read_buffer(
                         summary_id=state["summary_id"],
                         sample_id=sidx,
                         loss=loss,
-                        impacted_exposure=state["impacted_exposure"]
+                        impacted_exposure=state["impacted_exposure"] if loss != 0 else 0
                     )
                     si += 1
                     if si >= selt_data.shape[0]:

@@ -39,7 +39,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import STATIC_DATA_FP
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
-from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
+from .bash import ord_enabled, ORD_LECCALC
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 from oasislmf.pytools.getmodel.footprint import Footprint
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
@@ -62,7 +62,7 @@ def prepare_run_directory(
 ):
     """
     Ensures that the model run directory has the correct folder structure in
-    order for the model run script (ktools) to be executed. Without the RI
+    order for the model run script (kernel) to be executed. Without the RI
     flag the model run directory will have the following structure
 
     ::
@@ -75,7 +75,7 @@ def prepare_run_directory(
         |-- static/
         |-- work/
         |-- analysis_settings.json
-        `-- run_ktools.sh
+        `-- run_kernel.sh
 
 
     where the direct GUL and/or FM input files exist in the ``input/csv``
@@ -95,7 +95,7 @@ def prepare_run_directory(
         |-- static
         |-- work
         |-- analysis_settings.json
-        `-- run_ktools.sh
+        `-- run_kernel.sh
 
     where the direct GUL and/or FM input files, and the corresponding binaries
     exist in the ``input`` subfolder, and the RI layer input files and binaries
@@ -259,10 +259,9 @@ def _create_events_bin(run_dir, event_ids):
                                           ).to_csv(csv_fp, index=False)
 
     try:
-        cmd_str = "evetobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
-        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+        csvtobin(csv_fp, bin_fp, "eve")
     except subprocess.CalledProcessError as e:
-        raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
+        raise OasisException("Error while converting events.csv to kernel binary format: {}".format(e))
 
 
 def _create_quantile_bin(run_dir, quantiles):
@@ -314,7 +313,7 @@ def _calc_selected(analysis_settings, calc_type_list):
     """
     Return True, if any options in "calc_type_list" are set in the analysis settings file
 
-    :param calc_type_list: List of string values or ktools outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
+    :param calc_type_list: List of string values or kernel outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     :type  calc_type_list: list
     """
     gul_section = analysis_settings.get('gul_summaries')
@@ -347,11 +346,11 @@ def _leccalc_selected(analysis_settings):
     ri_section = analysis_settings.get('ri_summaries')
 
     if gul_section:
-        is_in_gul = any(leccalc_enabled(gul_summary) or ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
+        is_in_gul = any(ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
     if il_section:
-        is_in_il = any(leccalc_enabled(il_summary) or ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
+        is_in_il = any(ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
     if ri_section:
-        is_in_ri = any(leccalc_enabled(ri_summary) or ord_enabled(ri_summary, ORD_LECCALC) for ri_summary in ri_section)
+        is_in_ri = any(ord_enabled(ri_summary, ORD_LECCALC) for ri_summary in ri_section)
 
     return any([is_in_gul, is_in_il, is_in_ri])
 
@@ -434,7 +433,7 @@ def prepare_run_inputs(analysis_settings, run_dir, model_storage: BaseStorage, r
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)
         elif _calc_selected(analysis_settings, [
-            'pltcalc', 'aalcalc', 'aalcalcmeanonly', 'alt_period', 'alt_meanonly', 'elt_moment', 'elt_quantile',
+            'alt_period', 'alt_meanonly', 'elt_moment', 'elt_quantile',
             'elt_sample', 'plt_moment', 'plt_quantile', 'plt_sample'
         ]):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, model_storage, setting_key='event_occurrence_id', ri=ri)

@@ -19,9 +19,9 @@ from oasislmf.preparation.il_inputs import get_oed_hierarchy
 from oasislmf.preparation.summaries import calculated_summary_cols
 from oasislmf.utils.data import (get_dataframe, get_exposure_data,
                                  print_dataframe)
-from oasislmf.utils.defaults import (KTOOLS_ALLOC_FM_MAX,
-                                     KTOOLS_ALLOC_IL_DEFAULT,
-                                     KTOOLS_ALLOC_RI_DEFAULT,
+from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
+                                     KERNEL_ALLOC_IL_DEFAULT,
+                                     KERNEL_ALLOC_RI_DEFAULT,
                                      OASIS_FILES_PREFIXES)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
@@ -41,14 +41,13 @@ class RunExposure(ComputationStep):
         {'name': 'oed_schema_info', 'help': 'Takes a version of OED schema to use in the form "v1.2.3" or a path to an OED schema json'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'help': 'currency to use in the results reported'},
-        {'name': 'ktools_alloc_rule_il', 'flag': '-a', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_il', 'flag': '-a', 'default': KERNEL_ALLOC_IL_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'ktools_alloc_rule_ri', 'flag': '-A', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_ri', 'flag': '-A', 'default': KERNEL_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'output_level', 'flag': '-o', 'help': 'Keys files output format', 'choices': ['item', 'loc', 'pol', 'acc', 'port'],
          'default': 'item'},
         {'name': 'extra_summary_cols', 'nargs': '+', 'help': 'extra column to include in the summary', 'default': []},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -66,8 +65,8 @@ class RunExposure(ComputationStep):
 
     def _check_alloc_rules(self):
         alloc_ranges = {
-            'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
-            'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX}
+            'kernel_alloc_rule_il': KERNEL_ALLOC_FM_MAX,
+            'kernel_alloc_rule_ri': KERNEL_ALLOC_FM_MAX}
         for rule in alloc_ranges:
             alloc_val = getattr(self, rule)
             if (alloc_val < 0) or (alloc_val > alloc_ranges[rule]):
@@ -117,9 +116,8 @@ class RunExposure(ComputationStep):
             include_loss_factor=include_loss_factor,
             loss_factor=self.loss_factor,
             net_ri=self.net_ri,
-            ktools_alloc_rule_il=self.ktools_alloc_rule_il,
-            ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
-            fmpy=self.fmpy,
+            kernel_alloc_rule_il=self.kernel_alloc_rule_il,
+            kernel_alloc_rule_ri=self.kernel_alloc_rule_ri,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
             il_stream_type=self.stream_type,
@@ -309,7 +307,6 @@ class RunFmTest(ComputationStep):
          'default': 1e-4},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'],
          'help': 'List of peril covered by the model'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
@@ -408,7 +405,6 @@ class RunFmTest(ComputationStep):
             model_perils_covered=self.model_perils_covered,
             output_file=output_file,
             include_loss_factor=include_loss_factor,
-            fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
             keys_format='oasis'
