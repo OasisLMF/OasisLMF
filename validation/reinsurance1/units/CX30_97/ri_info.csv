@@ -1,2 +1,2 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
-97,AA1,CAD,0.2,0,0,0,1000000,1,1,CXL,T30 CX Loc,LOC,2.0.0
+97,AA1,CAD,0.2,0,0,0,1000000,1,1,CXL,T30 CX Loc,LOC,latest version

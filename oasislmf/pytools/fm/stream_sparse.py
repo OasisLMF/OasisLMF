@@ -13,15 +13,6 @@ from oasislmf.pytools.common.data import oasis_int, oasis_int_size, oasis_float,
 logger = logging.getLogger(__name__)
 
 
-remove_empty = False
-
-
-# buff_size = 65536
-# event_agg_dtype = np.dtype([('event_id', 'i4'), ('agg_id', 'i4')])
-# sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
-# number_size = 8
-# nb_number = buff_size // number_size
-
 SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
 ITEM_HEADER_SIZE = 2 * oasis_int_size + SPECIAL_SIDX_COUNT * (oasis_int_size + oasis_float_size)
 SIDX_LOSS_WRITE_SIZE = oasis_int_size + oasis_float_size
@@ -29,16 +20,10 @@ SIDX_LOSS_WRITE_SIZE = oasis_int_size + oasis_float_size
 
 @nb.jit(cache=True, nopython=True)
 def reset_empty_items(compute_idx, sidx_indptr, sidx_val, loss_val, computes):
-    if remove_empty:
-        if sidx_indptr[compute_idx['next_compute_i']] == sidx_indptr[compute_idx['next_compute_i'] - 1]:
-
-            computes[compute_idx['next_compute_i']] = 0
-            compute_idx['next_compute_i'] -= 1
-    else:
-        if sidx_indptr[compute_idx['next_compute_i']] == sidx_indptr[compute_idx['next_compute_i'] - 1]:
-            sidx_val[sidx_indptr[compute_idx['next_compute_i']]] = -3
-            loss_val[sidx_indptr[compute_idx['next_compute_i']]] = 0
-            sidx_indptr[compute_idx['next_compute_i']] += 1
+    if sidx_indptr[compute_idx['next_compute_i']] == sidx_indptr[compute_idx['next_compute_i'] - 1]:
+        sidx_val[sidx_indptr[compute_idx['next_compute_i']]] = -3
+        loss_val[sidx_indptr[compute_idx['next_compute_i']]] = 0
+        sidx_indptr[compute_idx['next_compute_i']] += 1
 
 
 @nb.jit(cache=True, nopython=True)
@@ -175,6 +160,8 @@ def load_event(byte_mv, event_id, nodes_array,
             output_id = output_array[node['output_ids'] + layer]
             node_loss_start = loss_indptr[node['loss'] + layer]
 
+            assert node_loss_start + node_val_len < loss_val.shape[0], "loss index is out of range, this must not happen"
+
             # print('output_id', output_id)
             # print('    ', sidx_val[node_sidx_start: node_sidx_end])
             # print('    ', loss_val[node_loss_start: node_loss_start + node_val_len])
@@ -184,6 +171,7 @@ def load_event(byte_mv, event_id, nodes_array,
                         cursor = mv_write_item_header(byte_mv, cursor, event_id, output_id)
                         i_index += 1
 
+                        # write MAX_LOSS_IDX == -5 sidx
                         if sidx_val[node_sidx_start + i_index] == MAX_LOSS_IDX:
                             cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, loss_val[node_loss_start + i_index])
                             i_index += 1
@@ -195,7 +183,7 @@ def load_event(byte_mv, event_id, nodes_array,
                             cursor = mv_write_sidx_loss(byte_mv, cursor, CHANCE_OF_LOSS_IDX, pass_through_loss)
 
                         # write TIV_IDX == -3 sidx
-                        if sidx_val[node_sidx_start + i_index] == TIV_IDX:
+                        if sidx_val[node_sidx_start + i_index] == TIV_IDX and i_index < node_val_len:
                             cursor = mv_write_sidx_loss(byte_mv, cursor, TIV_IDX, loss_val[node_loss_start + i_index])
                             i_index += 1
                         else:

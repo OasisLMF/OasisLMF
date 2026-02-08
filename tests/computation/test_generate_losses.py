@@ -23,8 +23,6 @@ TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
 ANALYSIS_SETTINGS = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('analysis_settings.json')
 
-summary_types = ['summarycalc', 'summarypy']
-
 
 class TestGenLosses(ComputationChecker):
 
@@ -60,8 +58,8 @@ class TestGenLosses(ComputationChecker):
         self.write_str(self.tmp_oasis_files.get('oed_accounts_csv'), MIN_ACC)
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MIN_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MIN_SCP)
-        self.write_str(self.tmp_oasis_files.get('keys_data_csv'), MIN_KEYS)
-        self.write_str(self.tmp_oasis_files.get('keys_errors_csv'), MIN_KEYS_ERR)
+        self.write_str(self.tmp_oasis_files.get('keys_data_path'), MIN_KEYS)
+        self.write_str(self.tmp_oasis_files.get('keys_errors_path'), MIN_KEYS_ERR)
 
         # Args for generating sample data
         self.args_gen_files_gul = {
@@ -163,7 +161,6 @@ class TestGenLosses(ComputationChecker):
             **OED_SETTINGS['gul_summaries'][0],
             'oed_fields': ['LocNumber', 'AccNumber', 'PolNumber', 'AccCurrency']
         }
-        gul_summary['eltcalc'] = False
         OED_SETTINGS['gul_summaries'] = [gul_summary]
         gen_args = {
             **self.args_gen_files_gul,
@@ -222,28 +219,28 @@ class TestGenLosses(ComputationChecker):
 
     @patch('subprocess.check_output')
     def test_losses__run_ri__all_outputs__check_bash_script(self, sub_process_run):
-        for summary_type in summary_types:
-            with self.tmp_dir() as model_run_dir, self.subTest(summary_type):
-                self.manager.generate_files(summarypy=summary_type == 'summarypy', **self.args_gen_files_ri)
-                run_settings = self.tmp_files.get('analysis_settings_json')
-                self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
-                call_args = {
-                    **self.min_args,
-                    'ktools_num_processes': 2,
-                    'ktools_fifo_relative': True,
-                    'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
-                    'model_run_dir': model_run_dir,
-                    'summarypy': summary_type == 'summarypy'
-                }
-                with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
-                    self.manager.generate_losses(**call_args)
+        summary_type = 'summarypy'
+        with self.tmp_dir() as model_run_dir, self.subTest(summary_type):
+            self.manager.generate_files(summarypy=summary_type == 'summarypy', **self.args_gen_files_ri)
+            run_settings = self.tmp_files.get('analysis_settings_json')
+            self.write_json(run_settings, RI_ALL_OUTPUT_SETTINGS)
+            call_args = {
+                **self.min_args,
+                'kernel_num_processes': 2,
+                'kernel_fifo_relative': True,
+                'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                'model_run_dir': model_run_dir,
+                'summarypy': summary_type == 'summarypy'
+            }
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10006"}):
+                self.manager.generate_losses(**call_args)
 
-                # Check bash script vs reference
-                self.assertTrue(sub_process_run.called)
-                bash_script_path = sub_process_run.call_args.args[0][1]
-                result_script = self.read_file(bash_script_path).decode()
-                expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
-                self.assertEqual(expected_script, result_script)
+            # Check bash script vs reference
+            self.assertTrue(sub_process_run.called)
+            bash_script_path = sub_process_run.call_args.args[0][1]
+            result_script = self.read_file(bash_script_path).decode()
+            expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
+            self.assertEqual(expected_script, result_script)
 
     def test_losses__chucked_workflow(self):
         num_chunks = 5
@@ -309,19 +306,19 @@ class TestGenLosses(ComputationChecker):
         il_alloc=st.sampled_from([None, 99]),
         ri_alloc=st.sampled_from([None, 99]),
         event_shuffle=st.sampled_from([None, 99]),
-        gulpy_random_generator=st.sampled_from([None, 99])
+        gul_random_generator=st.sampled_from([None, 99])
     )
     @patch('oasislmf.execution.runner.run')
-    def test_losses__ktools_alloc_set_invalid(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gulpy_random_generator):
-        if any([gul_alloc, il_alloc, ri_alloc, event_shuffle, gulpy_random_generator]):
+    def test_losses__kernel_alloc_set_invalid(self, mock_run_func, gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator):
+        if any([gul_alloc, il_alloc, ri_alloc, event_shuffle, gul_random_generator]):
             call_args = {
                 **self.min_args,
                 'analysis_settings_json': ANALYSIS_SETTINGS,
-                'ktools_alloc_rule_gul': gul_alloc,
-                'ktools_alloc_rule_il': il_alloc,
-                'ktools_alloc_rule_ri': ri_alloc,
-                'ktools_event_shuffle': event_shuffle,
-                'gulpy_random_generator': gulpy_random_generator
+                'kernel_alloc_rule_gul': gul_alloc,
+                'kernel_alloc_rule_il': il_alloc,
+                'kernel_alloc_rule_ri': ri_alloc,
+                'kernel_event_shuffle': event_shuffle,
+                'gul_random_generator': gul_random_generator
             }
             with (self.assertRaises(OasisException) as context,
                   patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10010"})):
@@ -365,10 +362,10 @@ class TestGenLosses(ComputationChecker):
             with (self.assertRaises(OasisException) as context,
                   patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10013"})):
                 self.manager.generate_losses(**call_args)
-            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+            expected_error = 'Kernel execution error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
         self.assertIn('BASH_TRACE:', self._caplog.text)
-        self.assertIn('KTOOLS_STDERR:', self._caplog.text)
+        self.assertIn('KERNEL_STDERR:', self._caplog.text)
         self.assertIn('GUL_STDERR', self._caplog.text)
         self.assertIn('STDOUT:', self._caplog.text)
 
@@ -388,10 +385,10 @@ class TestGenLosses(ComputationChecker):
             with (self.assertRaises(OasisException) as context,
                   patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10014"})):
                 self.manager.generate_losses_partial(**call_args)
-            expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+            expected_error = 'Kernel execution error: non-zero exit code or error/warning messages detected'
             self.assertIn(expected_error, str(context.exception))
         self.assertIn('BASH_TRACE:', self._caplog.text)
-        self.assertIn('KTOOLS_STDERR:', self._caplog.text)
+        self.assertIn('KERNEL_STDERR:', self._caplog.text)
         self.assertIn('GUL_STDERR', self._caplog.text)
         self.assertIn('STDOUT:', self._caplog.text)
 
@@ -418,7 +415,7 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses_partial(**chunk_args)
         with self.assertRaises(OasisException) as context:
             self.manager.generate_losses_output(**call_args)
-        expected_error = 'Ktools run Error: non-zero exit code or error/warning messages detected'
+        expected_error = 'Kernel execution error: non-zero exit code or error/warning messages detected'
         self.assertIn(expected_error, str(context.exception))
 
     @patch('oasislmf.execution.runner.run')
@@ -434,23 +431,6 @@ class TestGenLosses(ComputationChecker):
         with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10016"}):
             self.manager.generate_losses(**self.min_args)
         mock_runner.assert_called_once()
-
-    @patch('oasislmf.execution.runner.run')
-    @patch('oasislmf.computation.generate.losses.subprocess.run')
-    def test_losses__parquet_output__unsupported(self, mock_subprocess, mock_runner):
-        self.write_json(self.tmp_files.get('analysis_settings_json'), PARQUET_GUL_SETTINGS)
-        self.manager.generate_files(**self.args_gen_files_gul)
-
-        mock_check_parquet = Mock()
-        mock_check_parquet.stderr.decode.return_value = 'Parquet output disabled'
-        mock_subprocess.return_value = mock_check_parquet
-
-        with (self.assertRaises(OasisException) as context,
-              patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10017"})):
-            self.manager.generate_losses(**self.min_args)
-        expected_error = 'Parquet output format requested but not supported by ktools components.'
-        self.assertIn(expected_error, str(context.exception))
-        mock_runner.assert_not_called()
 
     def test_losses__il_files_missing__expection_raised(self):
         self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)

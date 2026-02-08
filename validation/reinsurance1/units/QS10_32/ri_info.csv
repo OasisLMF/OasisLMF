@@ -1,2 +1,2 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
-32,AA1,CAD,1,1000000,0,0,0,0.2,1,QS,T10 QS Pol,POL,2.0.0
+32,AA1,CAD,1,1000000,0,0,0,0.2,1,QS,T10 QS Pol,POL,latest version

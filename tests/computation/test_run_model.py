@@ -33,20 +33,21 @@ class TestRunModel(ComputationChecker):
         self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
         self.tmp_files = self.create_tmp_files(
             [a for a in self.default_args.keys() if 'csv' in a] +
-            [a for a in self.default_args.keys() if 'json' in a]
+            [a for a in self.default_args.keys() if 'json' in a] +
+            [a for a in self.default_args.keys() if 'path' in a]
         )
 
         self.min_args = {
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
             'analysis_settings_json': self.tmp_files['analysis_settings_json'].name,
-            'keys_data_csv': self.tmp_files['keys_data_csv'].name,
+            'keys_data_path': self.tmp_files['keys_data_path'].name,
             'model_data_dir': self.tmp_dirs['model_data_dir'].name
         }
         self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
-        self.write_str(self.tmp_files.get('keys_data_csv'), MIN_KEYS)
+        self.write_str(self.tmp_files.get('keys_data_path'), MIN_KEYS)
 
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([
@@ -94,7 +95,7 @@ class TestRunModel(ComputationChecker):
         losses_mock._get_output_dir.return_value = run_dir
 
         call_args = self.combine_args([self.min_args, {
-            'gulpy': "False",
+            'gulmc': "False",
         }])
 
         with patch.object(oasislmf.computation.run.model, 'GenerateFiles', files_mock), \
@@ -110,7 +111,7 @@ class TestRunModel(ComputationChecker):
         losses_mock._get_output_dir.return_value = run_dir
 
         call_args = self.combine_args([self.min_args, {
-            'gulpy': "invalid-string",
+            'gulmc': "invalid-string",
         }])
 
         with self.assertRaises(OasisException) as context:
@@ -118,7 +119,7 @@ class TestRunModel(ComputationChecker):
                     patch.object(oasislmf.computation.run.model, 'GenerateLosses', losses_mock):
                 self.manager.run_model(**call_args)
 
-        expected_err_msg = "The parameter 'gulpy' has an invalid value 'invalid-string' for boolean."
+        expected_err_msg = "The parameter 'gulmc' has an invalid value 'invalid-string' for boolean."
         self.assertIn(expected_err_msg, str(context.exception))
 
     def test_model_run__with_pre_analysis(self):

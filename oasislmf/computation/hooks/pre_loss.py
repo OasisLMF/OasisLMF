@@ -60,7 +60,7 @@ class PreLoss(ComputationStep):
             'account': self.oed_accounts_csv,
             'ri_info': self.oed_info_csv,
             'ri_scope': self.oed_scope_csv,
-            'oed_schema_info': self.oed_schema_info,
+            'oed_schema_info': self.oed_schema_info if self.oed_schema_info is not None else self.settings.get('oed_version', None),
             'check_oed': self.check_oed,
             'use_field': True,
             'location_numbers': self.location,

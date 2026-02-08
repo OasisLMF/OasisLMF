@@ -80,7 +80,6 @@ class TestSummaries(TestCase):
             'ContentsTIV': 'contents',
             'OtherTIV': 'other'
         }
-
         # Check each returned peril
         for peril in perils_expected:
             peril_summary = exp_summary['peril_id'][peril]
@@ -102,10 +101,11 @@ class TestSummaries(TestCase):
             field_name = convert_col_name(field)
 
             for field_value in fields_expected:
-                field_summary = exp_summary[field_name][field_value]
-                field_expected = gul_inputs[gul_inputs[field] == field_value]
+                if field_value in exp_summary[field_name]:  # field_value may have not been drawn
+                    field_summary = exp_summary[field_name][field_value]
+                    field_expected = gul_inputs[gul_inputs[field] == field_value]
 
-                self.assertStatusAlmostEqual(field_expected, field_summary)
+                    self.assertStatusAlmostEqual(field_expected, field_summary)
 
     @given(st.data())
     @settings(max_examples=20, deadline=None)

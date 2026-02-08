@@ -1,8 +1,8 @@
 PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,OEDVersion,FlexiAccUnit
-1,1,AA1,AA1,GBP,2.0.0,PC1
-1,2,OO1,AA1,GBP,2.0.0,PC2
-1,3,ORF;OSF,AA1,GBP,2.0.0,PC3
-1,4,QQ1,AA1,GBP,2.0.0,PC4
-1,5,QEQ,AA1,GBP,2.0.0,PC5
-1,6,QEQ;QFF;QTS,AA1,GBP,2.0.0,PC6
-1,7,OO1;QQ1,AA1,GBP,2.0.0,PC7
+1,1,AA1,AA1,GBP,latest version,PC1
+1,2,OO1,AA1,GBP,latest version,PC2
+1,3,ORF;OSF,AA1,GBP,latest version,PC3
+1,4,QQ1,AA1,GBP,latest version,PC4
+1,5,QEQ,AA1,GBP,latest version,PC5
+1,6,QEQ;QFF;QTS,AA1,GBP,latest version,PC6
+1,7,OO1;QQ1,AA1,GBP,latest version,PC7

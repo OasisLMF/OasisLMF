@@ -62,7 +62,9 @@ INVALID_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -77,7 +79,9 @@ MIN_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -96,7 +100,9 @@ MIN_RUN_CORRELATIONS_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -110,14 +116,18 @@ IL_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -131,28 +141,36 @@ RI_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "ri_output": True,
     "ri_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ],
     "rl_output": True,
     "rl_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
@@ -167,28 +185,34 @@ RI_AAL_SETTINGS = {
     },
     "gul_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }
         }
     ],
     "il_output": True,
     "il_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }
         }
     ],
     "ri_output": True,
     "ri_summaries": [
         {
-            "aalcalc": True,
-            "eltcalc": True,
             "id": 1,
-            "lec_output": False
+            "ord_output": {
+                "elt_sample": True,
+                "alt_period": True,
+                "ept_mean_sample_oep": False,
+            }
         }
     ]
 }
@@ -226,23 +250,6 @@ RI_ALL_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-            },
-            "summarycalc": True,
-            "eltcalc": True,
-            "aalcalc": True,
-            "aalcalcmeanonly": True,
-            "pltcalc": True,
-            "lec_output": True,
-            "leccalc": {
-                "return_period_file": True,
-                "full_uncertainty_aep": True,
-                "full_uncertainty_oep": True,
-                "wheatsheaf_aep": True,
-                "wheatsheaf_oep": True,
-                "wheatsheaf_mean_aep": True,
-                "wheatsheaf_mean_oep": True,
-                "sample_mean_aep": True,
-                "sample_mean_oep": True
             }
         }
     ],
@@ -268,23 +275,6 @@ RI_ALL_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-            },
-            "summarycalc": True,
-            "eltcalc": True,
-            "aalcalc": True,
-            "aalcalcmeanonly": True,
-            "pltcalc": True,
-            "lec_output": True,
-            "leccalc": {
-                "return_period_file": True,
-                "full_uncertainty_aep": True,
-                "full_uncertainty_oep": True,
-                "wheatsheaf_aep": True,
-                "wheatsheaf_oep": True,
-                "wheatsheaf_mean_aep": True,
-                "wheatsheaf_mean_oep": True,
-                "sample_mean_aep": True,
-                "sample_mean_oep": True
             }
         }
     ],
@@ -310,23 +300,6 @@ RI_ALL_OUTPUT_SETTINGS = {
                 "psept_aep": True,
                 "psept_oep": True,
                 "parquet_format": True,
-            },
-            "summarycalc": True,
-            "eltcalc": True,
-            "aalcalc": True,
-            "aalcalcmeanonly": True,
-            "pltcalc": True,
-            "lec_output": True,
-            "leccalc": {
-                "return_period_file": True,
-                "full_uncertainty_aep": True,
-                "full_uncertainty_oep": True,
-                "wheatsheaf_aep": True,
-                "wheatsheaf_oep": True,
-                "wheatsheaf_mean_aep": True,
-                "wheatsheaf_mean_oep": True,
-                "sample_mean_aep": True,
-                "sample_mean_oep": True
             }
         }
     ]
@@ -407,21 +380,21 @@ MIN_KEYS_ERR = """LocID,PerilID,CoverageTypeID,Status,Message
 """
 
 MIN_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latitude,Longitude,StreetAddress,PostalCode,OccupancyCode,ConstructionCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
-1,A11111,10002082046,1,1,GB,52.76698052,-0.895469856,1 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,220000,0,0,0,GBP,2.0.0
+1,A11111,10002082046,1,1,GB,52.76698052,-0.895469856,1 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,220000,0,0,0,GBP,latest version
 """
 MIN_ACC = """PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,PolPeril,PolInceptionDate,PolExpiryDate,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,OEDVersion
-1,A11111,GBP,Layer1,WW1,WW1,2018-01-01,2018-12-31,1,0.3,5000000,500000,2.0.0
+1,A11111,GBP,Layer1,WW1,WW1,2018-01-01,2018-12-31,1,0.3,5000000,500000,latest version
 """
 MIN_INF = """ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,ReinsCurrency,InuringPriority,ReinsType,RiskLevel,UseReinsDates,OEDVersion
-1,1,ABC QS,WW1,2018-01-01,2018-12-31,1,0,0,0,0,1,GBP,1,SS,LOC,N,2.0.0
+1,1,ABC QS,WW1,2018-01-01,2018-12-31,1,0,0,0,0,1,GBP,1,SS,LOC,N,latest version
 """
 MIN_SCP = """ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
-1,1,A11111,,,10002082047,,,,,,0.1,2.0.0
+1,1,A11111,,,10002082047,,,,,,0.1,latest version
 """
 
 N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latitude,Longitude,StreetAddress,PostalCode,OccupancyCode,ConstructionCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
-1,A11111,10002082046,1,1,GB,52.76698052,-0.895469856,1 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,220000,0,0,0,GBP,2.0.0
-1,A11111,10002082047,1,1,GB,52.76697956,-0.89536613,2 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,790000,0,0,0,GBP,2.0.0
+1,A11111,10002082046,1,1,GB,52.76698052,-0.895469856,1 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,220000,0,0,0,GBP,latest version
+1,A11111,10002082047,1,1,GB,52.76697956,-0.89536613,2 ABINGDON ROAD,LE13 0HL,1050,5000,WW1,790000,0,0,0,GBP,latest version
 """
 
 EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID,AmplificationID\n1,WSS,1,1000,8,2\n1,WTC,1,500,2,1\n1,WSS,3,1000,11,2\n1,WTC,3,500,5,1\n'

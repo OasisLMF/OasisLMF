@@ -486,22 +486,9 @@ def get_summary_xref_df(
     :type summaries_info_dict:  list
 
     [{
-        "summarycalc": true,
-        "eltcalc": true,
-        "aalcalc": true,
-        "pltcalc": true,
         "id": 1,
         "oed_fields": [],
-        "lec_output": true,
-        "leccalc": {
-          "return_period_file": true,
-          "outputs": {
-            "full_uncertainty_aep": true,
-            "full_uncertainty_oep": true,
-            "wheatsheaf_aep": true,
-            "wheatsheaf_oep": true
-          }
-        }
+          ...
       },
 
       ...
@@ -579,7 +566,7 @@ def get_summary_xref_df(
 @oasis_log
 def generate_summaryxref_files(
     location_df, account_df, model_run_fp, analysis_settings, il=False,
-    ri=False, rl=False, gul_item_stream=False, fmpy=False
+    ri=False, rl=False,
 ):
     """
     Top level function for creating the summaryxref files from the manager.py
@@ -601,12 +588,6 @@ def generate_summaryxref_files(
     :param rl: Boolean to indicate the RL loss level mode - false if the
                source accounts file path not provided to Oasis files gen.
     :type rl: bool
-
-    :param gul_items: Boolean to gul to use item_id instead of coverage_id
-    :type gul_items: bool
-
-    :param fmpy: Boolean to indicate whether fmpy python version will be used
-    :type fmpy: bool
     """
 
     # Boolean checks for summary generation types (gul / il / ri)
@@ -665,7 +646,7 @@ def generate_summaryxref_files(
 
     if gul_summaries:
         # Load GUL summary map
-        id_set_index = 'item_id' if gul_item_stream else 'coverage_id'
+        id_set_index = 'item_id'
         gul_summaryxref_df, gul_summary_desc = get_summary_xref_df(
             gul_map_df,
             location_df,
@@ -736,9 +717,7 @@ def generate_summaryxref_files(
         max_layer = max(ri_layers)
         ri_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
         ri_inuring_priorities.add(max_layer)
-        if not fmpy:
-            if len(ri_inuring_priorities) > 1:
-                raise OasisException('Outputs at intermediate inuring priorities not compatible with fmcalc c++ option.')
+
         if not ri_inuring_priorities.issubset(ri_layers):
             ri_missing_layers = ri_inuring_priorities.difference(ri_layers)
             ri_missing_layers = [str(layer) for layer in ri_missing_layers]
@@ -1104,14 +1083,24 @@ def write_exposure_summary(
 
     # get keys success
     if keys_fp:
-        keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
-        keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-        keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
+        try:
+            keys_success_df = get_dataframe(src_fp=keys_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID']]
+        except OasisException:
+            # Assume empty file on read error.
+            keys_success_df = pd.DataFrame(columns=['locid'])
+        else:
+            keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
+            keys_success_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status']
 
     # get keys errors
     if keys_errors_fp:
-        keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
-        keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
+        try:
+            keys_errors_df = get_dataframe(src_fp=keys_errors_fp, lowercase_cols=False)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
+        except OasisException:
+            # Assume empty file on read error.
+            keys_errors_df = pd.DataFrame(columns=['locid'])
+        else:
+            keys_errors_df.columns = ['loc_id', 'peril_id', 'coverage_type_id', 'status', 'message']
         if not keys_errors_df.empty:
             write_gul_errors_map(target_dir, exposure_df, keys_errors_df, exposure_profile)
 

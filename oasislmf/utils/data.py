@@ -64,7 +64,13 @@ from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
-analysis_settings_loader = AnalysisSettingHandler.make().load
+try:
+    analysis_settings_loader = AnalysisSettingHandler.make(raise_warnings=True).load
+except TypeError as e:
+    if 'raise_warnings' in str(e):
+        # ods-tools 4.0.x or older
+        analysis_settings_loader = AnalysisSettingHandler.make().load
+
 model_settings_loader = ModelSettingHandler.make().load
 
 
@@ -162,12 +168,14 @@ DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
 
 DEFAULT_ADDITIONAL_FIELDS = {
     'Loc': {
+        'acc_id': {'pd_dtype': 'Int64'},
         'loc_id': {'pd_dtype': 'Int64'},
         'loc_idx': {'pd_dtype': 'Int64'},
         'BIWaitingPeriodType': {'pd_dtype': 'Int8'},
         'BIPOIType': {'pd_dtype': 'Int8'}
     },
     'Acc': {
+        'acc_id': {'pd_dtype': 'Int64'},
         'acc_idx': {'pd_dtype': 'Int64'},
         'layer_id': {'pd_dtype': 'Int64'}
     },
@@ -190,7 +198,7 @@ def factorize_array(arr, sort_opt=False):
     :return: A 2-tuple consisting of the enumeration and the value groups
     :rtype: tuple
     """
-    enum, groups = pd.factorize(arr, sort=sort_opt)
+    enum, groups = pd.factorize(pd.Series(arr), sort=sort_opt)
     return enum + 1, groups
 
 
@@ -792,26 +800,13 @@ def prepare_oed_exposure(exposure_data):
 
 def prepare_location_df(location_df):
     # Add file Index column to extract OED columns for summary grouping
-    location_df[SOURCE_IDX['loc']] = location_df.index
-
-    # fill default types
-    for field_type in DEFAULT_LOC_FIELD_TYPES:
-        if field_type['field_col'] not in location_df.columns:
-            continue
-
-        if field_type['type_col'] not in location_df.columns:
-            location_df[field_type['type_col']] = field_type['type_value']
-        else:
-            location_df[field_type['type_col']] = location_df[field_type['type_col']].fillna(field_type['type_value'])
+    location_df[SOURCE_IDX['loc']] = location_df.index.astype(DEFAULT_ADDITIONAL_FIELDS['Loc'][SOURCE_IDX['loc']]['pd_dtype'])
 
     return location_df
 
 
 def prepare_account_df(accounts_df):
-    if SOURCE_IDX['acc'] not in accounts_df.columns:
-        accounts_df[SOURCE_IDX['acc']] = accounts_df.index
-    else:
-        accounts_df[SOURCE_IDX['acc']] = accounts_df[SOURCE_IDX['acc']].astype(int)
+    accounts_df[SOURCE_IDX['acc']] = accounts_df.index.astype(DEFAULT_ADDITIONAL_FIELDS['Acc'][SOURCE_IDX['acc']]['pd_dtype'])
     if 'LayerNumber' not in accounts_df:
         accounts_df['LayerNumber'] = 1
     accounts_df['LayerNumber'] = accounts_df['LayerNumber'].fillna(1)
@@ -881,9 +876,14 @@ def get_exposure_data(computation_step, add_internal_col=False):
                 exposure_data = OedExposure(**data_config)
             else:
                 logger.debug("ExposureData info was not created, oed input file must have default name (location, account, ...)")
+                # Set OED schema info/version priority based on CLI/config json first, then analysis_settings version
+                cli_oed_schema_info = getattr(computation_step, 'oed_schema_info', None)
+                analysis_settings_oed_version = getattr(computation_step, 'settings', {}).get('oed_version', None)
+                oed_schema_info = cli_oed_schema_info if cli_oed_schema_info is not None else analysis_settings_oed_version
+
                 exposure_data = OedExposure.from_dir(
                     computation_step.oasis_files_dir,
-                    oed_schema_info=getattr(computation_step, 'oed_schema_info', None),
+                    oed_schema_info=oed_schema_info,
                     currency_conversion=getattr(computation_step, 'currency_conversion_json', None),
                     reporting_currency=getattr(computation_step, 'reporting_currency', None),
                     check_oed=computation_step.check_oed,

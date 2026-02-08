@@ -40,12 +40,12 @@ from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes,
                            analysis_settings_loader, model_settings_loader)
-from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KTOOL_N_FM_PER_LB,
-                               KTOOL_N_GUL_PER_LB, KTOOLS_ALLOC_FM_MAX, KTOOLS_ALLOC_GUL_DEFAULT,
-                               KTOOLS_ALLOC_GUL_MAX, KTOOLS_ALLOC_IL_DEFAULT,
-                               KTOOLS_ALLOC_RI_DEFAULT, KTOOLS_DEBUG, KTOOLS_GUL_LEGACY_STREAM,
-                               KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_NUM_PROCESSES,
-                               KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX)
+from ...utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_STD_SHUFFLE, KERNEL_N_FM_PER_LB,
+                               KERNEL_N_GUL_PER_LB, KERNEL_ALLOC_FM_MAX, KERNEL_ALLOC_GUL_DEFAULT,
+                               KERNEL_ALLOC_GUL_MAX, KERNEL_ALLOC_IL_DEFAULT,
+                               KERNEL_ALLOC_RI_DEFAULT, KERNEL_DEBUG,
+                               KERNEL_MEAN_SAMPLE_IDX, KERNEL_NUM_PROCESSES,
+                               KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX)
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
 from ...utils.path import setcwd
@@ -99,11 +99,11 @@ class GenerateLossesBase(ComputationStep):
         Raises an `OasisException` if a rules is invalid
         """
         rule_ranges = {
-            'ktools_alloc_rule_gul': KTOOLS_ALLOC_GUL_MAX,
-            'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
-            'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX,
-            'ktools_event_shuffle': EVE_STD_SHUFFLE,
-            'gulpy_random_generator': 1}
+            'kernel_alloc_rule_gul': KERNEL_ALLOC_GUL_MAX,
+            'kernel_alloc_rule_il': KERNEL_ALLOC_FM_MAX,
+            'kernel_alloc_rule_ri': KERNEL_ALLOC_FM_MAX,
+            'kernel_event_shuffle': EVE_STD_SHUFFLE,
+            'gul_random_generator': 1}
 
         for rule in rule_ranges:
             rule_val = int(getattr(self, rule))
@@ -155,7 +155,7 @@ class GenerateLossesBase(ComputationStep):
         stderror_fp = os.path.join(run_log_fp, 'stderror.err')
         if os.path.isfile(stderror_fp):
             with io.open(stderror_fp, 'r', encoding='utf-8') as f:
-                self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
+                self.logger.info('\nKERNEL_STDERR:\n' + "".join(f.readlines()))
 
         gul_stderror_fp = os.path.join(run_log_fp, 'gul_stderror.err')
         if os.path.isfile(gul_stderror_fp):
@@ -164,8 +164,8 @@ class GenerateLossesBase(ComputationStep):
 
         self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
         raise OasisException(
-            'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
-            'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
+            'Kernel execution error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+            'Killing all processes. To disable this automated check run with `--kernel-disable-guard`.\n'
             'Logs stored in: {}'.format(run_log_fp)
         )
 
@@ -174,7 +174,7 @@ class GenerateLossesDir(GenerateLossesBase):
     """
     Prepare the loss generation directory
 
-    * converts input `csv` files to ktools binary types
+    * converts input `csv` files to kernel binary types
     * links model data to the static directory to the run locations
     * Validates and updates the `analysis_settings.json`
     * Stores the analysis_settings.json in the output directory
@@ -201,20 +201,15 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'copy_model_data', 'default': False, 'type': str2bool, 'help': 'Copy model data instead of creating symbolic links to it.'},
         {'name': 'model_run_dir', 'flag': '-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir', 'flag': '-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
-        {'name': 'ktools_legacy_stream', 'type': str2bool, 'const': True, 'nargs': '?', 'default': KTOOLS_GUL_LEGACY_STREAM,
-         'help': 'Run Ground up losses using the older stream type (Compatibility option)'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
-        {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_il', 'default': KERNEL_ALLOC_IL_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_ri', 'default': KERNEL_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
-            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'check_missing_inputs', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
 
         # Manager only options (pass data directy instead of filepaths)
-        {'name': 'verbose', 'default': KTOOLS_DEBUG},
+        {'name': 'verbose', 'default': KERNEL_DEBUG},
 
     ]
 
@@ -232,43 +227,6 @@ class GenerateLossesDir(GenerateLossesBase):
                 raise OasisException('Error: Storage Manager connection issue', e)
 
         return model_storage
-
-    def __check_for_parquet_output(self, analysis_settings, runtypes):
-        """
-        Private method to check whether ktools components were linked to third
-        party parquet libraries during compilation if user requests parquet
-        output.
-        """
-        for runtype in runtypes:
-            for summary in analysis_settings.get(f'{runtype}_summaries', {}):
-                if summary.get('ord_output', {}).get('parquet_format'):
-                    katparquet_output = subprocess.run(
-                        ['katparquet', '-v'],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE
-                    )
-                    if 'Parquet output enabled' not in katparquet_output.stderr.decode():
-                        raise OasisException(
-                            'Parquet output format requested but not supported by ktools components. '
-                            'Please set "parquet_format" to false in analysis settings file.'
-                        )
-                    return  # Only need to find a single request
-
-    def __check_summary_group_support(self, analysis_settings, runtypes):
-        """
-        Private method to check the max number of summary groups selected.
-        If that value is greater than 9 then ktools 'summarycalc' will crash.
-
-        Stop execution if the summarypy flag is not set as True.
-        """
-        for runtype in runtypes:
-            summary_num = len(analysis_settings.get(f'{runtype}_summaries', []))
-            if summary_num > 9 and not self.summarypy:
-                raise OasisException(
-                    'More than 9 summaries groups are not supported in summarycalc.'
-                    f'\nEither enable summarypy or reduce the number of groups set in "{runtype}_summaries".'
-                    '\nThis can be set using the flag "--summarypy True", or by setting `"summarypy": True` in the oasislmf.json file.'
-                )
 
     def run(self):
         # need to load from exposure data info or recreate it
@@ -302,14 +260,11 @@ class GenerateLossesDir(GenerateLossesBase):
             else:
                 self.logger.warning(missing_input_files)
 
-        gul_item_stream = (not self.ktools_legacy_stream)
         ri = self.settings.get('ri_output', False) and ril
         rl = self.settings.get('rl_output', False) and ril
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RI={}, RL={})'.format(il, ri, rl))
 
         runtypes = ['gul'] + ['il'] * il + ['ri'] * ri + ['rl'] * rl
-        self.__check_for_parquet_output(self.settings, runtypes)
-        self.__check_summary_group_support(self.settings, runtypes)
 
         prepare_run_directory(
             model_run_fp,
@@ -330,11 +285,9 @@ class GenerateLossesDir(GenerateLossesBase):
             account_df,
             model_run_fp,
             self.settings,
-            gul_item_stream=gul_item_stream,
             il=il,
             ri=ri,
             rl=rl,
-            fmpy=self.fmpy
         )
 
         if not ri and not rl:
@@ -387,30 +340,29 @@ class GenerateLossesDir(GenerateLossesBase):
                 model_setter(model_set_val, model_run_fp)
 
         # Test call to create fmpy files in GenerateLossesDir
-        if il and self.fmpy:
+        if il:
             il_target_dir = os.path.join(self.model_run_dir, 'input')
             self.logger.info(f'Creating FMPY structures (IL): {il_target_dir}')
-            create_financial_structure(self.ktools_alloc_rule_il, il_target_dir)
+            create_financial_structure(self.kernel_alloc_rule_il, il_target_dir)
 
-        if (ri or rl) and self.fmpy:
+        if (ri or rl):
             for ri_sub_dir in ri_dirs:
                 ri_target_dir = os.path.join(self.model_run_dir, 'input', ri_sub_dir)
                 self.logger.info(f'Creating FMPY structures (RI): {ri_target_dir}')
-                create_financial_structure(self.ktools_alloc_rule_ri, ri_target_dir)
+                create_financial_structure(self.kernel_alloc_rule_ri, ri_target_dir)
 
-        if self.summarypy:
-            for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
-                if self.settings.get(f'{runtype}_output'):
-                    summaries = self.settings.get('{}_summaries'.format(runtype), [])
-                    summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
-                    if summary_sets_id.shape[0]:
-                        if runtype == RUNTYPE_REINSURANCE_LOSS:
-                            summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
-                        else:
-                            summary_dirs = [os.path.join(self.model_run_dir, 'input')]
-                        for summary_dir in summary_dirs:
-                            self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
-                            create_summary_object_file(summary_dir, runtype)
+        for runtype in [RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS]:
+            if self.settings.get(f'{runtype}_output'):
+                summaries = self.settings.get('{}_summaries'.format(runtype), [])
+                summary_sets_id = np.sort([summary['id'] for summary in summaries if 'id' in summary])
+                if summary_sets_id.shape[0]:
+                    if runtype == RUNTYPE_REINSURANCE_LOSS:
+                        summary_dirs = [os.path.join(self.model_run_dir, 'input', ri_sub_dir) for ri_sub_dir in ri_dirs]
+                    else:
+                        summary_dirs = [os.path.join(self.model_run_dir, 'input')]
+                    for summary_dir in summary_dirs:
+                        self.logger.info(f'Creating summarypy structures {runtype}: {summary_dir}')
+                        create_summary_object_file(summary_dir, runtype)
 
         self._store_run_settings(self.settings, os.path.join(model_run_fp, 'output'))
 
@@ -420,56 +372,37 @@ class GenerateLossesPartial(GenerateLossesDir):
     Runs a single analysis event chunk
     """
     step_params = GenerateLossesDir.step_params + [
-        {'name': 'ktools_num_processes', 'flag': '-n', 'type': int, 'default': KTOOLS_NUM_PROCESSES,
-         'help': 'Number of ktools calculation processes to use'},
-        {'name': 'ktools_event_shuffle', 'default': EVE_DEFAULT_SHUFFLE, 'type': int,
+        {'name': 'kernel_num_processes', 'flag': '-n', 'type': int, 'default': KERNEL_NUM_PROCESSES,
+         'help': 'Number of kernel calculation processes to use'},
+        {'name': 'kernel_event_shuffle', 'default': EVE_DEFAULT_SHUFFLE, 'type': int,
          'help': 'Set rule for event shuffling between eve partions, 0 - No shuffle, 1 - round robin (output elts sorted), 2 - Fisher-Yates shuffle, 3 - std::shuffle (previous default in oasislmf<1.14.0) '},
-        {'name': 'ktools_alloc_rule_gul', 'default': KTOOLS_ALLOC_GUL_DEFAULT, 'type': int, 'help': 'Set the allocation used in gulcalc'},
-        {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_gul', 'default': KERNEL_ALLOC_GUL_DEFAULT, 'type': int, 'help': 'Set the allocation used in gulcalc'},
+        {'name': 'kernel_alloc_rule_il', 'default': KERNEL_ALLOC_IL_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_ri', 'default': KERNEL_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'ktools_num_gul_per_lb', 'default': KTOOL_N_GUL_PER_LB, 'type': int,
+        {'name': 'kernel_num_gul_per_lb', 'default': KERNEL_N_GUL_PER_LB, 'type': int,
          'help': 'Number of gul per load balancer (0 means no load balancer)'},
-        {'name': 'ktools_num_fm_per_lb', 'default': KTOOL_N_FM_PER_LB, 'type': int,
+        {'name': 'kernel_num_fm_per_lb', 'default': KERNEL_N_FM_PER_LB, 'type': int,
          'help': 'Number of fm per load balancer (0 means no load balancer)'},
-        {'name': 'ktools_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'ktools_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
-         'nargs': '?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
-        {'name': 'evepy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'use eve python version instead of c++ version'},
-        {'name': 'modelpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'use getmodel python version instead of c++ version'},
-        {'name': 'gulpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'use gulcalc python version instead of c++ version'},
-        {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
+         'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
-        {'name': 'gulmc_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulmc (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gul_random_generator', 'default': 1, 'type': int,
+         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
         {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
-        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
-            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
-        {'name': 'eltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use eltpy python version instead of eltcalc c++ version'},
-        {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use pltpy python version instead of pltcalc c++ version'},
-        {'name': 'aalpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use aalpy python version instead of aalcalc c++ version'},
-        {'name': 'lecpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use lecpy python version instead of ordleccalc c++ version'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
         {'name': 'exposure_df_engine', 'default': None,
             'help': 'The engine to use when loading dataframes exposure data (default: same as --base-df-engine)'},
@@ -482,8 +415,8 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'analysis_settings', 'default': None},
         {'name': 'script_fp', 'default': None},
         {'name': 'process_number', 'default': None, 'type': int, 'help': 'Partition number to run, if not set then run all in a single script'},
-        {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
-        {'name': 'ktools_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
+        {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
+        {'name': 'kernel_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
     ]
 
     def run(self):
@@ -506,47 +439,36 @@ class GenerateLossesPartial(GenerateLossesDir):
 
         bash_params = bash.bash_params(
             self.settings,
-            number_of_processes=self.ktools_num_processes,
+            number_of_processes=self.kernel_num_processes,
             filename=self.script_fp,
             num_reinsurance_iterations=ri_layers,
-            gul_alloc_rule=self.ktools_alloc_rule_gul,
-            il_alloc_rule=self.ktools_alloc_rule_il,
-            ri_alloc_rule=self.ktools_alloc_rule_ri,
-            num_gul_per_lb=self.ktools_num_gul_per_lb,
-            num_fm_per_lb=self.ktools_num_fm_per_lb,
+            gul_alloc_rule=self.kernel_alloc_rule_gul,
+            il_alloc_rule=self.kernel_alloc_rule_il,
+            ri_alloc_rule=self.kernel_alloc_rule_ri,
+            num_gul_per_lb=self.kernel_num_gul_per_lb,
+            num_fm_per_lb=self.kernel_num_fm_per_lb,
             bash_trace=self.verbose,
-            stderr_guard=not self.ktools_disable_guard,
-            gul_legacy_stream=self.ktools_legacy_stream,
-            fifo_tmp_dir=not self.ktools_fifo_relative,
+            stderr_guard=not self.kernel_disable_guard,
+            fifo_tmp_dir=not self.kernel_fifo_relative,
             custom_gulcalc_cmd=self.model_custom_gulcalc,
-            gulpy=(self.gulpy and not self.model_custom_gulcalc),
-            gulpy_random_generator=self.gulpy_random_generator,
-            gulmc=(self.gulmc and not self.model_custom_gulcalc and not self.gulpy),
-            gulmc_random_generator=self.gulmc_random_generator,
+            gulmc=(self.gulmc and not self.model_custom_gulcalc),
+            gul_random_generator=self.gul_random_generator,
             gulmc_effective_damageability=self.gulmc_effective_damageability,
             gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
-            fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
-            evepy=self.evepy,
-            event_shuffle=self.ktools_event_shuffle,
+            event_shuffle=self.kernel_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            modelpy=self.modelpy,
             peril_filter=self._get_peril_filter(self.settings),
-            summarypy=self.summarypy,
             join_summary_info=self.join_summary_info,
-            eltpy=self.eltpy,
-            pltpy=self.pltpy,
-            aalpy=self.aalpy,
-            lecpy=self.lecpy,
             exposure_df_engine=self.exposure_df_engine or self.base_df_engine,
             model_df_engine=self.model_df_engine or self.base_df_engine,
             dynamic_footprint=self.dynamic_footprint,
         )
         # Workaround test -- needs adding into bash_params
-        if self.ktools_fifo_queue_dir:
-            bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
+        if self.kernel_fifo_queue_dir:
+            bash_params['fifo_queue_dir'] = self.kernel_fifo_queue_dir
         if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']):
             bash_params['socket_server'] = True
         else:
@@ -579,18 +501,18 @@ class GenerateLossesOutput(GenerateLossesDir):
     step_params = GenerateLossesDir.step_params + [
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': True,
          'help': 'Analysis settings JSON file path'},
-        {'name': 'ktools_num_processes', 'flag': '-n', 'type': int, 'default': KTOOLS_NUM_PROCESSES,
-         'help': 'Number of ktools calculation processes to use'},
-        {'name': 'ktools_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'ktools_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
-         'nargs': '?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
+        {'name': 'kernel_num_processes', 'flag': '-n', 'type': int, 'default': KERNEL_NUM_PROCESSES,
+         'help': 'Number of kernel calculation processes to use'},
+        {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
+         'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
 
         # New vars for chunked loss generation
         {'name': 'analysis_settings', 'default': None},
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
-        {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
+        {'name': 'max_process_id', 'default': -1, 'type': int, 'help': 'Max number of loss chunks, defaults to `kernel_num_processes` if not set'},
     ]
 
     def run(self):
@@ -609,12 +531,12 @@ class GenerateLossesOutput(GenerateLossesDir):
 
         bash_params = bash.bash_params(
             self.settings,
-            number_of_processes=self.ktools_num_processes,
+            number_of_processes=self.kernel_num_processes,
             num_reinsurance_iterations=ri_layers,
             filename=self.script_fp,
             bash_trace=self.verbose,
-            stderr_guard=not self.ktools_disable_guard,
-            fifo_tmp_dir=not self.ktools_fifo_relative,
+            stderr_guard=not self.kernel_disable_guard,
+            fifo_tmp_dir=not self.kernel_fifo_relative,
             remove_working_file=self.remove_working_file,
             max_process_id=self.max_process_id,
         )
@@ -632,7 +554,7 @@ class GenerateLosses(GenerateLossesDir):
     """
     Runs the GenerateLosses workflow as a single bash script (Default for the MDK)
 
-    Generates losses using the installed ktools framework given Oasis files,
+    Generates losses using the installed kernel framework given Oasis files,
     model analysis settings JSON file, model data and model package data.
 
     The command line arguments can be supplied in the configuration file
@@ -651,7 +573,7 @@ class GenerateLosses(GenerateLossesDir):
             |-- RI_1
         |-- output
         |-- ri_layers.json
-        |-- run_ktools.sh
+        |-- run_kernel.sh
         |-- static
         `-- work
 
@@ -661,57 +583,38 @@ class GenerateLosses(GenerateLossesDir):
     files in the ``output`` subfolder.
     """
     step_params = GenerateLossesDir.step_params + [
-        {'name': 'ktools_num_processes', 'flag': '-n', 'type': int, 'default': KTOOLS_NUM_PROCESSES,
-         'help': 'Number of ktools calculation processes to use'},
-        {'name': 'ktools_event_shuffle', 'default': EVE_DEFAULT_SHUFFLE, 'type': int,
+        {'name': 'kernel_num_processes', 'flag': '-n', 'type': int, 'default': KERNEL_NUM_PROCESSES,
+         'help': 'Number of kernel calculation processes to use'},
+        {'name': 'kernel_event_shuffle', 'default': EVE_DEFAULT_SHUFFLE, 'type': int,
          'help': 'Set rule for event shuffling between eve partions, 0 - No shuffle, 1 - round robin (output elts sorted), 2 - Fisher-Yates shuffle, 3 - std::shuffle (previous default in oasislmf<1.14.0) '},
-        {'name': 'ktools_alloc_rule_gul', 'default': KTOOLS_ALLOC_GUL_DEFAULT, 'type': int, 'help': 'Set the allocation used in gulcalc'},
-        {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_gul', 'default': KERNEL_ALLOC_GUL_DEFAULT, 'type': int, 'help': 'Set the allocation used in gulcalc'},
+        {'name': 'kernel_alloc_rule_il', 'default': KERNEL_ALLOC_IL_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT, 'type': int,
+        {'name': 'kernel_alloc_rule_ri', 'default': KERNEL_ALLOC_RI_DEFAULT, 'type': int,
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
-        {'name': 'ktools_num_gul_per_lb', 'default': KTOOL_N_GUL_PER_LB, 'type': int,
+        {'name': 'kernel_num_gul_per_lb', 'default': KERNEL_N_GUL_PER_LB, 'type': int,
          'help': 'Number of gul per load balancer (0 means no load balancer)'},
-        {'name': 'ktools_num_fm_per_lb', 'default': KTOOL_N_FM_PER_LB, 'type': int,
+        {'name': 'kernel_num_fm_per_lb', 'default': KERNEL_N_FM_PER_LB, 'type': int,
          'help': 'Number of fm per load balancer (0 means no load balancer)'},
-        {'name': 'ktools_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'ktools_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
-         'nargs': '?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
-        {'name': 'modelpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'use getmodel python version instead of c++ version'},
-        {'name': 'evepy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'use eve python version instead of c++ version'},
-        {'name': 'gulpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-         'help': 'use gulcalc python version instead of c++ version'},
-        {'name': 'gulpy_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'kernel_disable_guard', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
+         'help': 'Disables error handling in the kernel run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'kernel_fifo_relative', 'default': False, 'type': str2bool, 'const': True,
+         'nargs': '?', 'help': 'Create kernel fifo queues under the ./fifo dir'},
         {'name': 'gulmc', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use full Monte Carlo gulcalc python version'},
-        {'name': 'gulmc_random_generator', 'default': 1, 'type': int,
-         'help': 'set the random number generator in gulmc (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
+        {'name': 'gul_random_generator', 'default': 1, 'type': int,
+         'help': 'set the random number generator in gulmc or gulpy (0: Mersenne-Twister, 1: Latin Hypercube. Default: 1).'},
         {'name': 'gulmc_effective_damageability', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use the effective damageability to draw loss samples instead of the full Monte Carlo method. Default: False'},
         {'name': 'gulmc_vuln_cache_size', 'default': 200, 'type': int,
          'help': 'Size in MB of the cache for the vulnerability calculations. Default: 200'},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc', 'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
         {'name': 'model_py_server', 'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
         {'name': 'peril_filter', 'default': [], 'nargs': '+', 'help': 'Peril specific run'},
-        {'name': 'summarypy', 'default': False, 'type': str2bool, 'const': True,
-            'nargs': '?', 'help': 'use summarycalc python version instead of c++ version'},
         {'name': 'join_summary_info', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
             'help': 'join summary id information to outputcalc csvs'},
-        {'name': 'eltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use eltpy python version instead of eltcalc c++ version'},
-        {'name': 'pltpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use pltpy python version instead of pltcalc c++ version'},
-        {'name': 'aalpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use aalpy python version instead of aalcalc c++ version'},
-        {'name': 'lecpy', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
-            'help': 'use lecpy python version instead of ordleccalc c++ version'},
         {'name': 'model_custom_gulcalc_log_start', 'default': None, 'help': 'Log message produced when custom gulcalc binary process starts'},
         {'name': 'model_custom_gulcalc_log_finish', 'default': None, 'help': 'Log message produced when custom gulcalc binary process ends'},
         {'name': 'base_df_engine', 'default': "oasis_data_manager.df_reader.reader.OasisPandasReader", 'help': 'The engine to use when loading dataframes'},
@@ -730,7 +633,7 @@ class GenerateLosses(GenerateLossesDir):
         GenerateLossesDir._check_ktool_rules(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
         GenerateLossesDir.run(self)
-        script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
+        script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_kernel.sh')
         ri_layers = self._get_num_ri_layers(self.settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
         if self.kwargs.get("socket_server_ip"):
@@ -752,41 +655,30 @@ class GenerateLosses(GenerateLossesDir):
             try:
                 try:
                     run_args = dict(
-                        number_of_processes=self.ktools_num_processes,
+                        number_of_processes=self.kernel_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
-                        set_alloc_rule_gul=self.ktools_alloc_rule_gul,
-                        set_alloc_rule_il=self.ktools_alloc_rule_il,
-                        set_alloc_rule_ri=self.ktools_alloc_rule_ri,
-                        num_gul_per_lb=self.ktools_num_gul_per_lb,
-                        num_fm_per_lb=self.ktools_num_fm_per_lb,
+                        set_alloc_rule_gul=self.kernel_alloc_rule_gul,
+                        set_alloc_rule_il=self.kernel_alloc_rule_il,
+                        set_alloc_rule_ri=self.kernel_alloc_rule_ri,
+                        num_gul_per_lb=self.kernel_num_gul_per_lb,
+                        num_fm_per_lb=self.kernel_num_fm_per_lb,
                         run_debug=self.verbose,
-                        stderr_guard=not self.ktools_disable_guard,
-                        gul_legacy_stream=self.ktools_legacy_stream,
-                        fifo_tmp_dir=not self.ktools_fifo_relative,
+                        stderr_guard=not self.kernel_disable_guard,
+                        fifo_tmp_dir=not self.kernel_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         custom_gulcalc_log_start=self.model_custom_gulcalc_log_start,
                         custom_gulcalc_log_finish=self.model_custom_gulcalc_log_finish,
-                        gulpy=(self.gulpy and not self.model_custom_gulcalc),
-                        gulpy_random_generator=self.gulpy_random_generator,
-                        gulmc=(self.gulmc and not self.model_custom_gulcalc and not self.gulpy),
-                        gulmc_random_generator=self.gulmc_random_generator,
+                        gulmc=(self.gulmc and not self.model_custom_gulcalc),
+                        gul_random_generator=self.gul_random_generator,
                         gulmc_effective_damageability=self.gulmc_effective_damageability,
                         gulmc_vuln_cache_size=self.gulmc_vuln_cache_size,
-                        fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
-                        event_shuffle=self.ktools_event_shuffle,
-                        evepy=self.evepy,
-                        modelpy=self.modelpy,
+                        event_shuffle=self.kernel_event_shuffle,
                         model_py_server=self.model_py_server,
                         peril_filter=self._get_peril_filter(self.settings),
-                        summarypy=self.summarypy,
                         join_summary_info=self.join_summary_info,
-                        eltpy=self.eltpy,
-                        pltpy=self.pltpy,
-                        aalpy=self.aalpy,
-                        lecpy=self.lecpy,
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
                         analysis_pk=self.kwargs.get('analysis_pk', None),
@@ -798,17 +690,17 @@ class GenerateLosses(GenerateLossesDir):
                     warnings.warn(
                         f"{package_name}.supplier_model_runner doesn't accept new runner arguments, please add **kwargs to the run function signature")
                     run_args = dict(
-                        number_of_processes=self.ktools_num_processes,
+                        number_of_processes=self.kernel_num_processes,
                         filename=script_fp,
                         num_reinsurance_iterations=ri_layers,
-                        set_alloc_rule_gul=self.ktools_alloc_rule_gul,
-                        set_alloc_rule_il=self.ktools_alloc_rule_il,
-                        set_alloc_rule_ri=self.ktools_alloc_rule_ri,
+                        set_alloc_rule_gul=self.kernel_alloc_rule_gul,
+                        set_alloc_rule_il=self.kernel_alloc_rule_il,
+                        set_alloc_rule_ri=self.kernel_alloc_rule_ri,
                         run_debug=self.verbose,
-                        stderr_guard=not self.ktools_disable_guard,
-                        gul_legacy_stream=self.ktools_legacy_stream,
-                        fifo_tmp_dir=not self.ktools_fifo_relative,
-                        custom_gulcalc_cmd=self.model_custom_gulcalc
+                        stderr_guard=not self.kernel_disable_guard,
+                        fifo_tmp_dir=not self.kernel_fifo_relative,
+                        custom_gulcalc_cmd=self.model_custom_gulcalc,
+                        gul_legacy_stream=False,
                     )
                     model_runner_module.run(self.settings, **run_args)
 
@@ -821,7 +713,7 @@ class GenerateLosses(GenerateLossesDir):
                 stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
                 if os.path.isfile(stderror_fp):
                     with io.open(stderror_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
+                        self.logger.info('\nKERNEL_STDERR:\n' + "".join(f.readlines()))
 
                 gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
                 if os.path.isfile(gul_stderror_fp):
@@ -834,8 +726,8 @@ class GenerateLosses(GenerateLossesDir):
                     model_runner_module.rerun()
 
                 raise OasisException(
-                    'Ktools run Error: non-zero exit code or error/warning messages detected in STDERR output.\n'
-                    'Killing all processes. To disable this automated check run with `--ktools-disable-guard`.\n'
+                    'Kernel execution error: non-zero exit code or error/warning messages detected in STDERR output.\n'
+                    'Killing all processes. To disable this automated check run with `--kernel-disable-guard`.\n'
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
         self.logger.info('Losses generated in {}'.format(model_run_fp))
@@ -849,9 +741,8 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'loss_factor', 'default': [1.0]},
         {'name': 'net_ri', 'default': False},
-        {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
-        {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
-        {'name': 'fmpy', 'default': True},
+        {'name': 'kernel_alloc_rule_il', 'default': KERNEL_ALLOC_IL_DEFAULT},
+        {'name': 'kernel_alloc_rule_ri', 'default': KERNEL_ALLOC_RI_DEFAULT},
         {'name': 'fmpy_low_memory', 'default': False},
         {'name': 'fmpy_sort_output', 'default': False},
         {'name': 'il_stream_type', 'default': 2},
@@ -904,11 +795,11 @@ class GenerateLossesDeterministic(ComputationStep):
         #     1,1,1,10000
         if self.il_stream_type == 2:
             gulcalc_sidxs = \
-                [KTOOLS_TIV_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_MEAN_SAMPLE_IDX] + \
+                [KERNEL_TIV_SAMPLE_IDX, KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_MEAN_SAMPLE_IDX] + \
                 list(range(1, len(self.loss_factor) + 1))
         elif self.il_stream_type == 1:
             gulcalc_sidxs = \
-                [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
+                [KERNEL_MEAN_SAMPLE_IDX, KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX] + \
                 list(range(1, len(self.loss_factor) + 1))
         else:
             OasisException("Unknown il stream type: {}".format(self.il_stream_type))
@@ -917,9 +808,9 @@ class GenerateLossesDeterministic(ComputationStep):
         # We don't care about mean and std_dev, but
         # TIV needs to be set correctly.
         special_loss_factors = {
-            KTOOLS_MEAN_SAMPLE_IDX: 0.,
-            KTOOLS_STD_DEV_SAMPLE_IDX: 0.,
-            KTOOLS_TIV_SAMPLE_IDX: 1.
+            KERNEL_MEAN_SAMPLE_IDX: 0.,
+            KERNEL_STD_DEV_SAMPLE_IDX: 0.,
+            KERNEL_TIV_SAMPLE_IDX: 1.
         }
 
         loss_factor_map = {**special_loss_factors, **{i + 1: val for i, val in enumerate(self.loss_factor)}}
@@ -940,14 +831,13 @@ class GenerateLossesDeterministic(ComputationStep):
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
-        if self.fmpy:
-            with setcwd(self.oasis_files_dir):
-                check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
+        with setcwd(self.oasis_files_dir):
+            check_call(f"{get_fmcmd()} -a {self.kernel_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
 
         cmd = '{} -p {} -a {} {} < {} | tee {} > /dev/null'.format(
-            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
+            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
-            self.ktools_alloc_rule_il,
+            self.kernel_alloc_rule_il,
             step_flag,
             guls_bin_fp,
             ils_bin_fp
@@ -999,16 +889,15 @@ class GenerateLossesDeterministic(ComputationStep):
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
                         # Create RI fmpy financial structures
-                        if self.fmpy:
-                            with setcwd(self.oasis_files_dir):
-                                check_call(
-                                    f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
-                                    shell=True)
+                        with setcwd(self.oasis_files_dir):
+                            check_call(
+                                f"{get_fmcmd()} -a {self.kernel_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
+                                shell=True)
 
                         _input = '{} -p {} -a {} {} < {} | tee {} |'.format(
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
+                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
-                            self.ktools_alloc_rule_il,
+                            self.kernel_alloc_rule_il,
                             step_flag,
                             guls_bin_fp,
                             ils_bin_fp,
@@ -1019,10 +908,10 @@ class GenerateLossesDeterministic(ComputationStep):
                         net_flag = "-n" if self.net_ri else ""
                         cmd = '{} {} -p {} {} -a {} {} {} | tee {} > /dev/null'.format(
                             _input,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
+                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
                             net_flag,
-                            self.ktools_alloc_rule_ri,
+                            self.kernel_alloc_rule_ri,
                             pipe_in_previous_layer,
                             step_flag,
                             ri_layer_bin_fp,
@@ -1060,11 +949,11 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
     step_params = [
         {'name': 'analysis_settings_json', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'required': True,
          'help': 'Analysis settings JSON file path'},
-        {'name': 'ktools_num_processes', 'flag': '-n', 'type': int, 'default': KTOOLS_NUM_PROCESSES,
-         'required': False, 'help': 'Number of ktools calculation processes to use'},
-        {'name': 'ktools_alloc_rule_gul', 'type': int, 'default': KTOOLS_ALLOC_GUL_DEFAULT,
+        {'name': 'kernel_num_processes', 'flag': '-n', 'type': int, 'default': KERNEL_NUM_PROCESSES,
+         'required': False, 'help': 'Number of kernel calculation processes to use'},
+        {'name': 'kernel_alloc_rule_gul', 'type': int, 'default': KERNEL_ALLOC_GUL_DEFAULT,
          'required': False, 'help': 'Set the allocation rule used in gulcalc'},
-        {'name': 'ktools_alloc_rule_il', 'type': int, 'default': KTOOLS_ALLOC_IL_DEFAULT,
+        {'name': 'kernel_alloc_rule_il', 'type': int, 'default': KERNEL_ALLOC_IL_DEFAULT,
          'required': False, 'help': 'Set the fmcalc allocation rule used in direct insured loss'}
     ]
     chained_commands = [GenerateDummyModelFiles, GenerateDummyOasisFiles]
@@ -1072,8 +961,8 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
     def _validate_input_arguments(self):
         super()._validate_input_arguments()
         alloc_ranges = {
-            'ktools_alloc_rule_gul': KTOOLS_ALLOC_GUL_MAX,
-            'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX
+            'kernel_alloc_rule_gul': KERNEL_ALLOC_GUL_MAX,
+            'kernel_alloc_rule_il': KERNEL_ALLOC_FM_MAX
         }
         for rule in alloc_ranges:
             alloc_val = getattr(self, rule)
@@ -1192,14 +1081,14 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         self.logger.info(f'\nGenerating losses (GUL=True, IL={self.il})')
 
         self._write_summary_info_files()
-        if self.ktools_num_processes == KTOOLS_NUM_PROCESSES:
-            self.ktools_num_processes = multiprocessing.cpu_count()
-        script_fp = os.path.join(self.target_dir, 'run_ktools.sh')
+        if self.kernel_num_processes == KERNEL_NUM_PROCESSES:
+            self.kernel_num_processes = multiprocessing.cpu_count()
+        script_fp = os.path.join(self.target_dir, 'run_kernel.sh')
         bash.genbash(
-            max_process_id=self.ktools_num_processes,
+            max_process_id=self.kernel_num_processes,
             analysis_settings=self.settings,
-            gul_alloc_rule=self.ktools_alloc_rule_gul,
-            il_alloc_rule=self.ktools_alloc_rule_il,
+            gul_alloc_rule=self.kernel_alloc_rule_gul,
+            il_alloc_rule=self.kernel_alloc_rule_il,
             filename=script_fp
         )
         bash_trace = subprocess.check_output(['bash', script_fp])

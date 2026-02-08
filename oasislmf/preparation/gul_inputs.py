@@ -1,22 +1,19 @@
 __all__ = [
     'get_gul_input_items',
-    'write_amplifications_file',
-    'write_coverages_file',
     'write_gul_input_files',
-    'write_items_file',
-    'write_complex_items_file',
-    'write_sections_file'
 ]
 import copy
 import os
-import sys
 import warnings
 from collections import OrderedDict
 
 import pandas as pd
 import numpy as np
 
-from oasislmf.pytools.common.data import correlations_headers, correlations_dtype
+from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
+                                          coverages_dtype, item_adjustment_dtype,
+                                          item_id, coverage_id, group_id, section_id,
+                                          DTYPE_IDX)
 from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
                                  set_dataframe_column_dtypes)
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
@@ -44,6 +41,29 @@ VALID_OASIS_GROUP_COLS = [
 ]
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
+
+files_dtype = {
+    'complex_items': {'item_id': item_id[DTYPE_IDX], 'coverage_id': coverage_id[DTYPE_IDX], 'model_data': str,
+                      'group_id': group_id[DTYPE_IDX]},
+    'items': {col: dtype for col, (dtype, _) in items_dtype.fields.items()},
+    'coverages': {col: dtype for col, (dtype, _) in coverages_dtype.fields.items()},
+    'amplifications': {col: dtype for col, (dtype, _) in amplifications_dtype.fields.items()},
+    'sections': {'section_id': section_id[DTYPE_IDX]},
+    'item_adjustments': {col: dtype for col, (dtype, _) in item_adjustment_dtype.fields.items()}
+}
+
+
+def prepare_sections_df(gul_inputs_df):
+    sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
+    sections['section_id'] = sections['section_id'].astype(str).str.split(';')
+    sections = sections.explode('section_id').drop_duplicates()
+    sections['section_id'] = sections['section_id'].astype(section_id[DTYPE_IDX])
+    return sections
+
+
+file_prepare = {
+    'sections': prepare_sections_df
+}
 
 
 def process_group_id_cols(group_id_cols, exposure_df_columns, has_correlation_groups):
@@ -307,7 +327,7 @@ def get_gul_input_items(
     # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
     gul_inputs_df = (
         pd.concat(gul_inputs_reformatted_chunks)
-        .sort_index()
+        .sort_index(kind='mergesort')
         .reset_index(drop=True)
     )
 
@@ -382,165 +402,19 @@ def get_gul_input_items(
 
 
 @oasis_log
-def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
-    """
-    Writes a complex model items file.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param complex_items_fp: Complex/custom model items file path
-    :type complex_items_fp: str
-
-    :return: Complex/custom model items file path
-    :rtype: str
-    """
+def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
     try:
-        gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'model_data', 'group_id']].drop_duplicates().to_csv(
-            path_or_buf=complex_items_fp,
+        gul_inputs_df[file_dtype.keys()].astype(file_dtype).drop_duplicates().to_csv(
+            path_or_buf=file_path,
             encoding='utf-8',
-            mode=('w' if os.path.exists(complex_items_fp) else 'a'),
+            mode=('w' if os.path.exists(file_path) else 'a'),
             chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_complex_items_file'", e)
+        raise OasisException(f"Exception raised while writing {file_path} {file_dtype}", e)
 
-
-@oasis_log
-def write_sections_file(gul_inputs_df, sections_fp, chunksize=100000):
-    """
-    Writes a section id file based on the input location area perils.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param dynamic_events_fp: events file path to output
-    :type sections_fp: str
-    """
-    try:
-        sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
-        sections['section_id'] = sections['section_id'].astype(str)
-        sections['section_id'] = sections['section_id'].str.split(';')
-        sections = sections.explode('section_id').drop_duplicates()
-        sections['section_id'] = sections['section_id'].astype(int)
-        sections.to_csv(
-            path_or_buf=sections_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(sections_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_sections_file'", e)
-
-
-@oasis_log
-def write_item_adjustments_file(gul_inputs_df, item_adjustments_fp, chunksize=100000):
-    """
-    Writes a item_adjustments id file based on the gul inputs.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param item_adjustments_fp: item_adjustments file path to output
-    :type sections_fp: str
-    """
-    try:
-        gul_inputs_df.loc[:, ['item_id', 'intensity_adjustment', 'return_period']].drop_duplicates().to_csv(
-            path_or_buf=item_adjustments_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(item_adjustments_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_item_adjustments_file'", e)
-
-
-@oasis_log
-def write_amplifications_file(gul_inputs_df, amplifications_fp, chunksize=100000):
-    """
-    Writes an amplifications file. This is the mapping between item IDs and
-    amplifications IDs.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param amplifications_fp: amplifications file path
-    :type amplifications_fp: str
-
-    :return: amplifications file path
-    :rtype: str
-    """
-    try:
-        gul_inputs_df.loc[:, ['item_id', 'amplification_id']].drop_duplicates().to_csv(
-            path_or_buf=amplifications_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(amplifications_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException("Exception raise in 'write_amplifications_file'", e)
-
-    return amplifications_fp
-
-
-@oasis_log
-def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
-    """
-    Writes an items file.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param items_fp: Items file path
-    :type items_fp: str
-
-    :return: Items file path
-    :rtype: str
-    """
-    try:
-        gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates().to_csv(
-            path_or_buf=items_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(items_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_items_file'", e)
-
-    return items_fp
-
-
-@oasis_log
-def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
-    """
-    Writes a coverages file.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param coverages_fp: Coverages file path
-    :type coverages_fp: str
-
-    :return: Coverages file path
-    :rtype: str
-    """
-    try:
-        gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates().to_csv(
-            path_or_buf=coverages_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(coverages_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_coverages_file'", e)
-
-    return coverages_fp
+    return file_path
 
 
 @oasis_log
@@ -619,9 +493,9 @@ def write_gul_input_files(
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn]))
         for fn in oasis_files_prefixes
     }
-    this_module = sys.modules[__name__]
     # Write the files serially
     for fn in gul_input_files:
-        getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
+        data = file_prepare.get(fn, lambda x: x)(gul_inputs_df)
+        write_file(data, gul_input_files[fn], files_dtype[fn], chunksize=chunksize)
 
     return gul_input_files

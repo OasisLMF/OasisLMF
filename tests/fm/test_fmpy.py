@@ -79,6 +79,9 @@ class FmAcceptanceTests(TestCase):
     def test_issues(self):
         self.run_test('issues', model_perils_covered=['WTC'], fmpy=True)
 
+    def test_issue_1816(self):
+        self.run_test('issue_1816', model_perils_covered=['WTC'], fmpy=True)
+
     def test_insurance_policy_coverage(self):
         self.run_test('insurance_policy_coverage', model_perils_covered=['WTC'], fmpy=True)
 
@@ -102,3 +105,9 @@ class FmAcceptanceTests(TestCase):
 
     def test_insurance_bi_2_subperils(self):
         self.run_test('insurance_bi', fmpy=True, model_perils_covered=['WW2'], expected_dir="expected_subperils")
+
+    def test_cyber(self):
+        self.run_test('cyber', model_perils_covered=['CSB'], fmpy=True)
+
+    def test_cyber_2_subperils(self):
+        self.run_test('cyber', fmpy=True, model_perils_covered=['CC1'], expected_dir="expected_subperils")

@@ -14,6 +14,7 @@ import pytest
 from unittest.mock import patch
 from oasislmf.pytools.gul.manager import run as gulpy_run
 from oasislmf.pytools.utils import assert_allclose
+from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 
 # get tests dirs
 TESTS_DIR = Path(__file__).parent.parent.parent
@@ -68,7 +69,7 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
         # run modelpy + gulpy
         test_out_bin_fname = tmp_result_dir.joinpath(f'gulmc_{test_model_name}.bin')
 
-        test_cmd = 'eve 1 1 | modelpy | gulpy -a{} -S{} -L0 {} --random-generator={} > {}'.format(
+        test_cmd = 'evepy 1 1 | modelpy | gulpy -a{} -S{} -L0 {} --random-generator={} > {}'.format(
             alloc_rule,
             sample_size,
             "--ignore-correlation" if ignore_correlation else "",
@@ -84,11 +85,8 @@ def test_gulpy(test_model: Tuple[str, str], sample_size: int, alloc_rule: int, i
             # if the test fails, convert the binaries to csv, compare them, and print the differences in the `loss` column
 
             # convert to csv
-            subprocess.run(f"gultocsv < {ref_out_bin_fname.with_suffix('.bin')} > {ref_out_bin_fname.with_suffix('.csv')}",
-                           check=True, capture_output=False, shell=True)
-
-            subprocess.run(f"gultocsv < {test_out_bin_fname.with_suffix('.bin')} > {test_out_bin_fname.with_suffix('.csv')}",
-                           check=True, capture_output=False, shell=True)
+            bintocsv(ref_out_bin_fname.with_suffix('.bin'), ref_out_bin_fname.with_suffix('.csv'), 'gul')
+            bintocsv(test_out_bin_fname.with_suffix('.bin'), test_out_bin_fname.with_suffix('.csv'), 'gul')
 
             df_ref = pd.read_csv(ref_out_bin_fname.with_suffix('.csv'))
             df_test = pd.read_csv(test_out_bin_fname.with_suffix('.csv'))

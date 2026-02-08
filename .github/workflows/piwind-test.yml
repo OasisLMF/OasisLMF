@@ -8,8 +8,6 @@
 #
 #   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
 #
-#   ktools_branch: The git reference to a ktools branch, If a ktools reference is set, then
-#                  also build ktools and use the binaries when building the oasislmf package.
 name: PiWind output check
 
 on:
@@ -32,9 +30,6 @@ on:
       piwind_branch:
         description: 'Branch to run PiWind from [git ref]'
         required: true
-      ktools_branch:
-        description: 'Build ktools [git ref]'
-        required: false
       ods_branch:
         description: 'Build ods_tools package before test [git ref]'
         required: false
@@ -45,8 +40,6 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
-    with:
-      ktools_branch: ${{ github.event_name != 'workflow_dispatch' && '' ||  inputs.ktools_branch }}
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}

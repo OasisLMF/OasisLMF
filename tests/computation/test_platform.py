@@ -1,5 +1,4 @@
-import unittest
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import patch, Mock, call
 
 import os
 
@@ -9,8 +8,9 @@ import oasislmf
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
 
-from .data.common import *
-from .data.platform_returns import *
+from .data.platform_returns import (
+    RETURN_PORT, RETURN_ANALYSIS, RETURN_MODELS, MODELS_TABLE, ANAL_TABLE, PORT_TABLE
+)
 from .test_computation import ComputationChecker
 
 import responses
@@ -204,9 +204,9 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(str(context.exception),
                          'Error: At least one of the following inputs is required [portfolio_id, oed_location_csv, oed_accounts_csv]')
 
-    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__enter_password__unauthorized(self, mock_password, mock_username):
+    def test_run_inputs__enter_password__unauthorized(self, mock_password, mock_input):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -214,16 +214,24 @@ class TestPlatformRunInputs(ComputationChecker):
             url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
             status=401)
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'unauthorized'},
+            status=401)
 
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs()
-        self.assertIn(f'HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
-        mock_username.assert_called_once_with('Username: ')
+        self.assertIn('HTTPError: 401 Client Error: Unauthorized for url:', str(context.exception))
+        mock_input.assert_has_calls([
+            call('Use simple JWT [Y/n]: '),
+            call('Username: ')
+        ])
+        self.assertEqual(mock_input.call_count, 2)
         mock_password.assert_called_once_with('Password: ')
 
-    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__auth_failed__error_is_raised(self, mock_password, mock_username):
+    def test_run_inputs__auth_failed__error_is_raised(self, mock_password, mock_input):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
@@ -236,12 +244,16 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(str(context.exception),
                          f'Authentication Error, HTTPError: 500 Server Error: Internal Server Error for url: {self.api_url}/access_token/')
 
-    @patch('builtins.input', side_effect=['AzureDiamond'])
+    @patch('builtins.input', side_effect=['y', 'AzureDiamond'])
     @patch('getpass.getpass', return_value='hunter2')
-    def test_run_inputs__enter_password__authorized(self, mock_username, mock_password):
+    def test_run_inputs__enter_password__authorized(self, mock_password, mock_input):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={'error': 'unauthorized'},
+            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={'error': 'unauthorized'},
@@ -260,8 +272,13 @@ class TestPlatformRunInputs(ComputationChecker):
         self.assertEqual(unauthorized_req.body, b'{"username": "admin", "password": "password"}')
         self.assertEqual(unauthorized_rsp.status_code, 401)
 
-        authorized_req = responses.calls[3].request
-        authorized_rsp = responses.calls[3].response
+        unauthorized_req = responses.calls[3].request
+        unauthorized_rsp = responses.calls[3].response
+        self.assertEqual(unauthorized_req.body, b'{"client_id": "oasis-service", "client_secret": "serviceNotSoSecret"}')
+        self.assertEqual(unauthorized_rsp.status_code, 401)
+
+        authorized_req = responses.calls[5].request
+        authorized_rsp = responses.calls[5].response
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
 
@@ -269,10 +286,6 @@ class TestPlatformRunInputs(ComputationChecker):
         responses.get(
             url=f'{self.api_url}/healthcheck/',
             json={"status": "OK"})
-        responses.post(
-            url=f'{self.api_url}/access_token/',
-            json={'error': 'unauthorized'},
-            status=401)
         responses.post(
             url=f'{self.api_url}/access_token/',
             json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
@@ -286,15 +299,43 @@ class TestPlatformRunInputs(ComputationChecker):
         with self.assertRaises(OasisException) as context:
             self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
 
-        unauthorized_req = responses.calls[1].request
-        unauthorized_rsp = responses.calls[1].response
-        self.assertEqual(unauthorized_req.body, b'{"username": "admin", "password": "password"}')
-        self.assertEqual(unauthorized_rsp.status_code, 401)
-
-        authorized_req = responses.calls[3].request
-        authorized_rsp = responses.calls[3].response
+        authorized_req = responses.calls[1].request
+        authorized_rsp = responses.calls[1].response
         self.assertEqual(authorized_req.body, b'{"username": "AzureDiamond", "password": "hunter2"}')
         self.assertEqual(authorized_rsp.status_code, 200)
+
+    def test_run_inputs__load_json_credentials_oidc(self):
+        responses.get(
+            url=f'{self.api_url}/healthcheck/',
+            json={"status": "OK"})
+        responses.post(
+            url=f'{self.api_url}/access_token/',
+            json={"access_token": "acc_tkn", "refresh_token": "ref_tkn"},
+            headers={"authorization": "Bearer acc_tkn"},
+            match=[json_params_matcher({"client_id": "serviceId", "client_secret": "serviceSecret"})]
+        )
+
+        json_credentials_file = self.tmp_files.get('server_login_json')
+        self.write_json(json_credentials_file, {"client_id": "serviceId", "client_secret": "serviceSecret"})
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
+
+        authorized_req = responses.calls[1].request
+        authorized_rsp = responses.calls[1].response
+        self.assertEqual(authorized_req.body, b'{"client_id": "serviceId", "client_secret": "serviceSecret"}')
+        self.assertEqual(authorized_rsp.status_code, 200)
+
+    def test_run_inputs__load_json_credentials_invalid(self):
+        json_credentials_file = self.tmp_files.get('server_login_json')
+        self.write_json(json_credentials_file, {"invalid_credentials_1": "credentials_1", "invalid_credentials_2": "credentials_2"})
+
+        with self.assertRaises(OasisException) as context:
+            self.manager.platform_run_inputs(server_login_json=json_credentials_file.name)
+
+        self.assertIn("Error: No valid credentials provided for platform", str(context.exception))
+        self.assertIn("invalid_credentials_1", str(context.exception))
+        self.assertIn("invalid_credentials_2", str(context.exception))
 
     def test_run_inputs__given_analysis_id(self):
         ID = 4
@@ -496,7 +537,9 @@ class TestPlatformRunInputs(ComputationChecker):
                 location_fp=exposure_files['oed_location_csv'],
                 accounts_fp=exposure_files['oed_accounts_csv'],
                 ri_info_fp=exposure_files['oed_info_csv'],
-                ri_scope_fp=exposure_files['oed_scope_csv']
+                ri_scope_fp=exposure_files['oed_scope_csv'],
+                currency_conversion_fp=None,
+                reporting_currency=None
             )
 
 
@@ -609,6 +652,8 @@ class TestPlatformRun(ComputationChecker):
         oed_info_csv=st.booleans(),
         oed_scope_csv=st.booleans(),
         output_dir=st.booleans(),
+        currency_conversion_json=st.booleans(),
+        reporting_currency=st.booleans(),
     )
     def test_args__passed_correctly(self,
                                     server_login_json,
@@ -622,7 +667,9 @@ class TestPlatformRun(ComputationChecker):
                                     oed_accounts_csv,
                                     oed_info_csv,
                                     oed_scope_csv,
-                                    output_dir):
+                                    output_dir,
+                                    currency_conversion_json,
+                                    reporting_currency):
 
         # Extract funcution kwargs into dict, and replace booleans with temp file paths
         call_args = {k: v for k, v in locals().items() if k in self.default_args}
@@ -630,6 +677,8 @@ class TestPlatformRun(ComputationChecker):
         for k, v in self.combine_args([self.tmp_files, self.tmp_dirs]).items():
             if call_args[k] is True:
                 call_args[k] = v.name
+                if k == 'server_login_json':
+                    self.write_json(v, {"username": "dummy", "password": "dummy"})
             else:
                 call_args[k] = None
 

@@ -1,6 +1,34 @@
 OasisLMF Changelog
 ==================
 
+`2.5.0`_
+ ---------
+* [#1811](https://github.com/OasisLMF/OasisLMF/pull/1811) - add environment variables and coerce into integers
+* [#1809](https://github.com/OasisLMF/OasisLMF/pull/1812) - Improve PlatformBase login flow and debug messages
+* [#1813](https://github.com/OasisLMF/OasisLMF/pull/1813) - Fixed merging analyses computation_settings on the platform
+* [#1815](https://github.com/OasisLMF/OasisLMF/pull/1815) - Changing non OASIS_ env vars
+* [#1816](https://github.com/OasisLMF/OasisLMF/pull/1817) - very low Insurance Loss values for portfolio with account level terms on version 2.4
+* [#1818](https://github.com/OasisLMF/OasisLMF/pull/1818) - use acc_id and loc_id from merge and agg_id generation in fm files generation
+* [#1822](https://github.com/OasisLMF/OasisLMF/pull/1822) - fixing docs to correctly give way of working
+* [#1823](https://github.com/OasisLMF/OasisLMF/pull/1823) - Added unit tests for exposure data preparation functions
+* [#1824](https://github.com/OasisLMF/OasisLMF/pull/1825) - Wrong insured loss with type 2 terms and disaggregation
+* [#1826](https://github.com/OasisLMF/OasisLMF/pull/1826) - Enhancement/platform roe
+* [#1155, #1807](https://github.com/OasisLMF/OasisLMF/pull/1827) - improve dtype coherence between files gen and pytools
+* [#1830](https://github.com/OasisLMF/OasisLMF/pull/1830) - fix date format in csvs
+* [#1832](https://github.com/OasisLMF/OasisLMF/pull/1833) - katpy help text and cli doesn't allow parquet
+* [#1828](https://github.com/OasisLMF/OasisLMF/pull/1836) - Remove ktools binaries from python package
+* [#1831](https://github.com/OasisLMF/OasisLMF/pull/1838) - haz_cdf_empty dimension issue
+* [#1840](https://github.com/OasisLMF/OasisLMF/pull/1840) - perfomance improvement in lookup
+* [#1843](https://github.com/OasisLMF/OasisLMF/pull/1843) - support for pandas 3, fix BIPOI
+* [#224](https://github.com/OasisLMF/OasisLMF/pull/1844) - Optimise FM
+* [#1846](https://github.com/OasisLMF/OasisLMF/pull/1846) - Fix FM stream output: validate index range when writing special sidx 
+* [#1837](https://github.com/OasisLMF/OasisLMF/pull/1852) - Cyber FM fields not accounted for in oasis lmf profiles
+* [#1853](https://github.com/OasisLMF/OasisLMF/pull/1855) - fm financial terms supported document misleading
+* [#1857](https://github.com/OasisLMF/OasisLMF/pull/1857) - fixup parquet key file exposure run
+* [#1860](https://github.com/OasisLMF/OasisLMF/pull/1860) - CI Fix - test to use new m settings loader
+* [#1223](https://github.com/OasisLMF/OasisLMF/pull/1780) - `gulmc` fails if vulnerability functions are numbered in non-contiguous way
+.. _`2.5.0`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.10...2.5.0
+
 `2.4.10`_
  ---------
 * [#1793](https://github.com/OasisLMF/OasisLMF/pull/1793) - clearer step param help info

@@ -1,6 +1,6 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName,RiskLevel,OEDVersion
-150,AA1,CAD,1,1000000,0,0,0,0.2,2,FAC,T45 xx Pol - FA2,POL,2.0.0
-153,AA1,CAD,1,1000000,0,0,0,0.1,2,PR,T45 xx Pol - PR2,POL,2.0.0
-156,AA1,CAD,1,1000000,1000000,0,0,0.2,2,PR,T45 xx Pol - PR2 L2,POL,2.0.0
-159,AA1,CAD,1,0,0,1000000,2000000,0.2,3,CXL,T45 xx Pol - CX3 L1,POL,2.0.0
-162,AA1,CAD,1,0,0,1000000,5000000,0.2,4,CXL,T45 xx Pol - CX4 L3,POL,2.0.0
+150,AA1,CAD,1,1000000,0,0,0,0.2,2,FAC,T45 xx Pol - FA2,POL,latest version
+153,AA1,CAD,1,1000000,0,0,0,0.1,2,PR,T45 xx Pol - PR2,POL,latest version
+156,AA1,CAD,1,1000000,1000000,0,0,0.2,2,PR,T45 xx Pol - PR2 L2,POL,latest version
+159,AA1,CAD,1,0,0,1000000,2000000,0.2,3,CXL,T45 xx Pol - CX3 L1,POL,latest version
+162,AA1,CAD,1,0,0,1000000,5000000,0.2,4,CXL,T45 xx Pol - CX4 L3,POL,latest version

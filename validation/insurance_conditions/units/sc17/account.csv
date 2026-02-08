@@ -1,3 +1,3 @@
 FlexiAccTestCase,PortNumber,AccNumber,AccCurrency,AccPeril,PolPerilsCovered,PolPeril,CondPeril,CondLimit6All,CondDed6All,CondMinDed6All,CondMaxDed6All,CondLimit5PD,CondDed5PD,CondLimit4BI,CondDed4BI,CondLimit1Building,CondDed1Building,CondDed2Other,CondLimit2Other,CondLimit3Contents,CondDed3Contents,LayerParticipation,LayerAttachment,LayerLimit,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolNumber,CondNumber,CondPriority,CondTag,OEDVersion,CondLimitType6All,CondLimitType5PD,CondDedType1Building,CondLimitType2Other,CondDedType5PD,CondLimitType3Contents,CondDedType3Contents,CondLimitType1Building,CondLimitType4BI,CondDedType4BI,CondDedType2Other,CondDedType6All
-sc17,sc17,A,USD,WW1,WW1,WW1,WW1,100000,10000,,,,,,,,,,,,,0.3,0,235000000,,,5000,,Pol,1,1,1,2.0.1,,,,,,,,,,,,
-sc17,sc17,A,USD,WW1,WW1,WW1,WW1,500000,50000,,,,,,,,,,,,,0.3,0,235000000,,,5000,,Pol,2,2,2,2.0.1,,,,,,,,,,,,
+sc17,sc17,A,USD,WW1,WW1,WW1,WW1,100000,10000,,,,,,,,,,,,,0.3,0,235000000,,,5000,,Pol,1,1,1,latest version,,,,,,,,,,,,
+sc17,sc17,A,USD,WW1,WW1,WW1,WW1,500000,50000,,,,,,,,,,,,,0.3,0,235000000,,,5000,,Pol,2,2,2,latest version,,,,,,,,,,,,

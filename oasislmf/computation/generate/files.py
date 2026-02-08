@@ -72,10 +72,10 @@ class GenerateFiles(ComputationStep):
         # Command line options
         {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
          'help': 'Path to the directory in which to generate the Oasis files'},
-        {'name': 'keys_data_csv', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
+        {'name': 'keys_data_path', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'required': False,
          'help': 'Analysis settings JSON file path'},
-        {'name': 'keys_errors_csv', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
+        {'name': 'keys_errors_path', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys errors CSV file path'},
         {'name': 'profile_loc_json', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
         {'name': 'profile_acc_json', 'flag': '-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
         {'name': 'profile_fm_agg_json', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
@@ -87,12 +87,12 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
         {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
         {'name': 'check_oed', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True check input oed files'},
+        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'disable_summarise_exposure', 'flag': '-S', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Disables creation of an exposure summary report'},
         {'name': 'damage_group_id_cols', 'flag': '-G', 'nargs': '+', 'help': 'Columns from loc file to set group_id', 'default': DAMAGE_GROUP_ID_COLS},
         {'name': 'hazard_group_id_cols', 'flag': '-H', 'nargs': '+', 'help': 'Columns from loc file to set hazard_group_id', 'default': HAZARD_GROUP_ID_COLS},
-        {'name': 'lookup_multiprocessing', 'type': str2bool, 'const': False, 'nargs': '?', 'default': False,
-         'help': 'Flag to enable/disable lookup multiprocessing'},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
 
         # Manager only options (pass data directy instead of filepaths)
@@ -132,7 +132,7 @@ class GenerateFiles(ComputationStep):
             'account': self.oed_accounts_csv,
             'ri_info': self.oed_info_csv,
             'ri_scope': self.oed_scope_csv,
-            'oed_schema_info': self.oed_schema_info,
+            'oed_schema_info': self.oed_schema_info if self.oed_schema_info is not None else self.settings.get('oed_version', None),
             'currency_conversion': self.currency_conversion_json,
             'check_oed': self.check_oed,
             'use_field': True,
@@ -147,7 +147,7 @@ class GenerateFiles(ComputationStep):
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
-        if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
+        if not (self.keys_data_path or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
             raise OasisException(
                 'No pre-generated keys file provided, and no lookup assets '
                 'provided to generate a keys file - if you do not have a '
@@ -159,6 +159,7 @@ class GenerateFiles(ComputationStep):
         self.oasis_files_dir = self._get_output_dir()
         exposure_data = get_exposure_data(self, add_internal_col=True)
         self.kwargs['exposure_data'] = exposure_data
+        oed_compression = 'csv' if self.intermediary_csv else 'parquet'
 
         il = bool(exposure_data.account)
         ri = exposure_data.ri_info and exposure_data.ri_scope and il
@@ -173,13 +174,14 @@ class GenerateFiles(ComputationStep):
             target_dir=self.oasis_files_dir,
             exposure_data=exposure_data,
             exposure_profile_fp=self.profile_loc_json,
-            keys_fp=self.keys_data_csv,
-            keys_errors_fp=self.keys_errors_csv,
+            keys_fp=self.keys_data_path,
+            keys_errors_fp=self.keys_errors_path,
             lookup_config_fp=self.lookup_config_json,
             model_version_fp=self.model_version_csv,
             complex_lookup_config_fp=self.lookup_complex_config_json,
             accounts_profile_fp=self.profile_acc_json,
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
+            oed_compression=oed_compression
         )
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
@@ -195,7 +197,7 @@ class GenerateFiles(ComputationStep):
 
         if self.reporting_currency:
             exposure_data.reporting_currency = self.reporting_currency
-            exposure_data.save(target_dir, self.reporting_currency, save_config=True)
+            exposure_data.save(target_dir, version_name=self.reporting_currency, compression=oed_compression, save_config=True)
 
         location_df = exposure_data.get_subject_at_risk_source().dataframe
 
@@ -222,14 +224,15 @@ class GenerateFiles(ComputationStep):
         # as to allow the lookup to be instantiated and called to generated
         # the keys file.
         _keys_fp = _keys_errors_fp = None
-        if not self.keys_data_csv:
-            _keys_fp = self.kwargs['keys_data_csv'] = os.path.join(target_dir, 'keys.csv')
-            _keys_errors_fp = self.kwargs['keys_errors_csv'] = os.path.join(target_dir, 'keys-errors.csv')
-            GenerateKeys(**self.kwargs).run()
+        if not self.keys_data_path:
+            gen_key_res = GenerateKeys(**self.kwargs).run()
+            _keys_fp = gen_key_res[0]  # _keys_fp is returned as the third element
+            if len(gen_key_res) == 4:
+                _keys_errors_fp = gen_key_res[2]  # if present, keys_errors_fp is returned as the third element
         else:
-            _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_csv))
-            if self.keys_errors_csv:
-                _keys_errors_fp = os.path.join(target_dir, os.path.basename(self.keys_errors_csv))
+            _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_path))
+            if self.keys_errors_path:
+                _keys_errors_fp = os.path.join(target_dir, os.path.basename(self.keys_errors_path))
 
         # Load keys file  **** WARNING - REFACTOR THIS ****
         dtypes = {
@@ -253,10 +256,7 @@ class GenerateFiles(ComputationStep):
 
         # check that all loc_ids have been returned from keys lookup
         try:
-            if self.keys_errors_csv:
-                keys_errors_df = get_dataframe(src_fp=self.keys_errors_csv, memory_map=True)
-            else:
-                keys_errors_df = get_dataframe(src_fp=_keys_errors_fp, memory_map=True)
+            keys_errors_df = get_dataframe(src_fp=_keys_errors_fp, memory_map=True)
         except OasisException:
             # Assume empty file on read error.
             keys_errors_df = pd.DataFrame(columns=['locid'])
@@ -293,14 +293,14 @@ class GenerateFiles(ComputationStep):
             damage_group_id_cols = model_damage_group_fields
         # otherwise load group cols from args
         else:
-            damage_group_id_cols = self.damage_group_id_cols
+            damage_group_id_cols = list(self.damage_group_id_cols)
 
         # load hazard group columns from model_settings.json if not set in kwargs (CLI)
         if model_hazard_group_fields and not self.kwargs.get('hazard_group_id_cols'):
             hazard_group_id_cols = model_hazard_group_fields
         # otherwise load group cols from args
         else:
-            hazard_group_id_cols = self.hazard_group_id_cols
+            hazard_group_id_cols = list(self.hazard_group_id_cols)
 
         damage_group_id_cols: List[str] = process_group_id_cols(group_id_cols=damage_group_id_cols,
                                                                 exposure_df_columns=location_df,

@@ -1,2 +1,2 @@
 PortNumber,AccNumber,LocNumber,LocName,CountryCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,CondTag,LocDedType1Building,LocDed1Building,LocDedType3Contents,LocDed3Contents,LocDedType4BI,LocDed4BI,LocDedType5PD,LocDed5PD,LocDedType6All,LocDed6All,OEDVersion,LocPeril
-MultiPerilStep7,B1,B1,MultiPerilStep,JP,OO1;WTC;WSS,1000000,0,0,0,JPY,,,,,,,,,,,,2.0.0,OO1;WTC;WSS
+MultiPerilStep7,B1,B1,MultiPerilStep,JP,OO1;WTC;WSS,1000000,0,0,0,JPY,,,,,,,,,,,,latest version,OO1;WTC;WSS

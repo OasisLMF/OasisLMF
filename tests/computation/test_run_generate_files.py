@@ -28,16 +28,17 @@ class TestGenerateFiles(ComputationChecker):
         self.tmp_dirs = self.create_tmp_dirs([a for a in self.default_args.keys() if 'dir' in a])
         self.tmp_files = self.create_tmp_files(
             [a for a in self.default_args.keys() if 'csv' in a] +
-            [a for a in self.default_args.keys() if 'json' in a]
+            [a for a in self.default_args.keys() if 'json' in a] +
+            [a for a in self.default_args.keys() if 'path' in a]
         )
         self.min_args = {
             'oed_location_csv': self.tmp_files['oed_location_csv'].name,
-            'keys_data_csv': self.tmp_files['keys_data_csv'].name,
+            'keys_data_path': self.tmp_files['keys_data_path'].name,
         }
         self.write_json(self.tmp_files.get('model_settings_json'), MIN_MODEL_SETTINGS)
         self.write_str(self.tmp_files.get('oed_location_csv'), MIN_LOC)
         self.write_str(self.tmp_files.get('oed_accounts_csv'), MIN_ACC)
-        self.write_str(self.tmp_files.get('keys_data_csv'), MIN_KEYS)
+        self.write_str(self.tmp_files.get('keys_data_path'), MIN_KEYS)
 
     def test_args__default_combine(self):
         expt_combined_args = self.combine_args([

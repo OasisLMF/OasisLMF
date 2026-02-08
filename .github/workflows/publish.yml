@@ -16,7 +16,6 @@
 #   pre_release: Either 'true', 'false', if set to true then the release is marked as a pre-release and the version
 #                tag must be formatted as "{n}.{n}.{n}rc{n}"
 #
-#   build_osx: Either 'true', 'false', optional setting to build and upload an OSX python package (intel support only)
 
 name: Oasislmf Release
 
@@ -34,11 +33,6 @@ on:
       pre_release:
         description: 'Mark GitHub release as pre-release [true, false]'
         required: true
-        default: 'false'
-
-      build_osx:
-        description: 'Build OSX package package [true, false]'
-        required: false
         default: 'false'
 
 
@@ -60,8 +54,6 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     needs: update
-    with:
-      build_osx: ${{ inputs.build_osx }}
 
   build_schema:
     uses: ./.github/workflows/build-schema.yml

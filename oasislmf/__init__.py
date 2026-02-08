@@ -1,4 +1,4 @@
-__version__ = '2.4.10'
+__version__ = '2.5.0'
 
 import sys
 from importlib.abc import MetaPathFinder, Loader
@@ -13,6 +13,14 @@ logger = logging.getLogger(__name__)
 handler = NullHandler()
 handler.name = 'oasislmf'
 logger.addHandler(handler)
+
+
+if sys.platform == 'win32':
+    warnings.warn(
+        "oasislmf is not supported on Windows and may not function correctly.",
+        RuntimeWarning,
+        stacklevel=2
+    )
 
 
 class MyLoader(Loader):

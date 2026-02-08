@@ -13,21 +13,20 @@ __all__ = [
     'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
     'DEFAULT_RTREE_INDEX_PROPS',
-    'KTOOLS_ALLOC_GUL_MAX',
-    'KTOOLS_ALLOC_FM_MAX',
-    'KTOOLS_FIFO_RELATIVE',
-    'KTOOLS_DEBUG',
-    'KTOOLS_DISABLE_ERR_GUARD',
-    'KTOOLS_NUM_PROCESSES',
-    'KTOOLS_GUL_LEGACY_STREAM',
+    'KERNEL_ALLOC_GUL_MAX',
+    'KERNEL_ALLOC_FM_MAX',
+    'KERNEL_FIFO_RELATIVE',
+    'KERNEL_DEBUG',
+    'KERNEL_DISABLE_ERR_GUARD',
+    'KERNEL_NUM_PROCESSES',
     'OASIS_FILES_PREFIXES',
     'SUMMARY_MAPPING',
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'STATIC_DATA_FP',
     'WRITE_CHUNKSIZE',
-    'KTOOLS_ALLOC_IL_DEFAULT',
-    'KTOOLS_ALLOC_RI_DEFAULT',
+    'KERNEL_ALLOC_IL_DEFAULT',
+    'KERNEL_ALLOC_RI_DEFAULT',
 ]
 
 import glob
@@ -56,7 +55,7 @@ SOURCE_FILENAMES = OrderedDict({
     'oed_scope_csv': 'ri_scope.csv',
     'lookup_config_json': 'lookup.json',
     'profile_loc_json': 'profile_location.json',
-    'keys_data_csv': 'keys.csv',
+    'keys_data_path': 'keys.csv',
     'model_version_csv': 'model_version.csv',
     'lookup_complex_config_json': 'lookup_complex.json',
     'profile_acc_json': 'profile_account.json',
@@ -64,8 +63,12 @@ SOURCE_FILENAMES = OrderedDict({
 })
 
 API_EXAMPLE_AUTH = OrderedDict({
-    'user': 'admin',
-    'pass': 'password',
+    # Example credentials for simple JWT login
+    'username': 'admin',
+    'password': 'password',
+    # Example credentials for OIDC client_credentials login
+    'client_id': 'oasis-service',
+    'client_secret': 'serviceNotSoSecret',
 })
 
 DEFAULT_RTREE_INDEX_PROPS = {
@@ -254,26 +257,25 @@ def get_default_deterministic_analysis_settings(path=False):
 
 
 # Defaults for Ktools runtime parameters
-KTOOLS_NUM_PROCESSES = -1
-KTOOLS_FIFO_RELATIVE = False
-KTOOLS_DISABLE_ERR_GUARD = False
-KTOOLS_GUL_LEGACY_STREAM = False
+KERNEL_NUM_PROCESSES = -1
+KERNEL_FIFO_RELATIVE = False
+KERNEL_DISABLE_ERR_GUARD = False
 # ktools gul alloc rules:
 # 3 = total loss using multiplicative method
 # 2 = total loss is maximum subperil loss
 # 1 = default with back allocation
 # 0 = default without back allocation
-KTOOLS_ALLOC_GUL_MAX = 3
-KTOOLS_ALLOC_FM_MAX = 3
-KTOOLS_ALLOC_GUL_DEFAULT = 0
-KTOOLS_ALLOC_IL_DEFAULT = 2
-KTOOLS_ALLOC_RI_DEFAULT = 3
-KTOOLS_TIV_SAMPLE = -2
-KTOOLS_MEAN_SAMPLE_IDX = -1
-KTOOLS_STD_DEV_SAMPLE_IDX = -2
-KTOOLS_TIV_SAMPLE_IDX = -3
-KTOOL_N_GUL_PER_LB = 0
-KTOOL_N_FM_PER_LB = 0
+KERNEL_ALLOC_GUL_MAX = 3
+KERNEL_ALLOC_FM_MAX = 3
+KERNEL_ALLOC_GUL_DEFAULT = 0
+KERNEL_ALLOC_IL_DEFAULT = 2
+KERNEL_ALLOC_RI_DEFAULT = 3
+KERNEL_TIV_SAMPLE = -2
+KERNEL_MEAN_SAMPLE_IDX = -1
+KERNEL_STD_DEV_SAMPLE_IDX = -2
+KERNEL_TIV_SAMPLE_IDX = -3
+KERNEL_N_GUL_PER_LB = 0
+KERNEL_N_FM_PER_LB = 0
 
 # Values for event shuffle rules
 EVE_NO_SHUFFLE = 0
@@ -282,7 +284,7 @@ EVE_FISHER_YATES = 2
 EVE_STD_SHUFFLE = 3
 EVE_DEFAULT_SHUFFLE = EVE_ROUND_ROBIN
 
-KTOOLS_DEBUG = False
+KERNEL_DEBUG = False
 
 SERVER_UPDATE_TIME = 1
 SERVER_DEFAULT_IP = "127.0.0.1"
