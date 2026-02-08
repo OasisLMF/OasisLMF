@@ -62,7 +62,9 @@ INVALID_RUN_SETTINGS = {
     "gul_summaries": [
         {
             "id": 1,
-            "eltcalc": True,
+            "ord_output": {
+                "elt_sample": True,
+            }
         }
     ]
 }
