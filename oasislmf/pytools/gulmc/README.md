@@ -189,16 +189,6 @@ When enabled, intensity values in the hazard footprint are adjusted per item usi
 via `intensity_bin_dict`. Items with different adjustments in the same (areaperil, vuln)
 group receive different `eff_cdf_id` values.
 
-## Performance Optimizations
-
-| Label | Target | Description |
-|---|---|---|
-| O3 | Random number generation | Vectorized inner loops in Latin Hypercube and Mersenne Twister |
-| O5 | Loss computation (CDF cache) | Replaced 5-element tuple cache keys with int64 composite keys; hoisted cache array allocation out of event loop |
-| O6 | Coverage reconstruction | Replaced per-event Numba Dict with pre-allocated array lookups for group→rng_index mapping |
-
-See `performance_optimization_plan.md` and `performance_optimization_results.md` for
-profiling data and detailed results.
 
 ## Binary I/O Format
 
