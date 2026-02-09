@@ -622,7 +622,7 @@ def run(run_dir,
                     write_start = 0
                     while write_start < compute_info['cursor']:
                         select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(byte_mv[write_start: compute_info['cursor']].tobytes())
+                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
 
                 logger.info(f"event {event_ids[0]} DONE")
 
