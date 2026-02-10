@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`2.3.20`_
+ ---------
+* [#1824](https://github.com/OasisLMF/OasisLMF/pull/1825) - Wrong insured loss with type 2 terms and disaggregation
+* [#1846](https://github.com/OasisLMF/OasisLMF/pull/1846) - Fix FM stream output: validate index range when writing special sidx 
+* [#1863](https://github.com/OasisLMF/OasisLMF/pull/1863) - fm: use correct term disaggreagtion filter (#1825) ~ backport
+.. _`2.3.20`:  https://github.com/OasisLMF/OasisLMF/compare/2.3.19...2.3.20
+
 `2.3.19`_
  ---------
 * [#1784](https://github.com/OasisLMF/OasisLMF/pull/1784) - CI fix pip-comple error
