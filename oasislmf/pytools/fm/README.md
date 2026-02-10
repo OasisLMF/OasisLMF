@@ -155,9 +155,11 @@ See `policy.py` for the complete list of supported `calcrule_id` values.
 
 ## Performance Tips
 
-### 1. Use Allocation Rule 2 When Possible
+### 1. Use Allocation Rule
 
-Rule 2 is the most efficient as it computes factors during the forward pass.
+As back allocation is only done once, rule 1 is faster that rule 2 but less precise.
+However, the performance of fmpy with rule 2 is generally good enough to not be an issue
+and should, therefor, be preferred by default.
 
 ### 2. Disable Sorting Unless Needed
 

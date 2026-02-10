@@ -18,7 +18,10 @@ This document provides detailed technical documentation for the Financial Module
 
 ## Overview
 
-The FM sparse computation engine processes insurance/reinsurance losses through a hierarchical node structure. It reads ground-up losses (GUL) from an input stream, applies financial terms (deductibles, limits, shares) at each level of the hierarchy, and outputs the computed insured losses.
+The FM sparse computation engine processes insurance/reinsurance losses through a hierarchical node structure.
+It reads ground-up losses (GUL), insurance loss (IL) or previous cycle or re-insurance loss (RI) from an input stream,
+applies financial terms (deductibles, limits, shares) at each level of the hierarchy,
+and outputs the computed insured losses.
 
 ### Key Design Principles
 
@@ -37,7 +40,7 @@ fm/
 ├── back_allocation.py  # Loss distribution back to children
 ├── stream_sparse.py    # Binary stream reading/writing
 ├── policy.py           # Financial term calculations (calc rules)
-├── policy_extras.py    # Calc rules with extras tracking
+├── policy_extras.py    # Calc rules with extras tracking (deductible, over_limit, under_limit)
 └── common.py           # Shared constants and data types
 ```
 
@@ -47,7 +50,8 @@ fm/
 
 ### CSR-Inspired Sparse Storage
 
-The computation uses a Compressed Sparse Row (CSR) inspired format to store loss data efficiently. This is crucial because most samples may have zero loss, and storing all samples would waste memory.
+The computation uses a Compressed Sparse Row (CSR) inspired format to store loss data efficiently.
+This is crucial because most samples may have zero loss, and storing all samples would waste memory.
 
 ```
 For N nodes, each with variable number of samples:
