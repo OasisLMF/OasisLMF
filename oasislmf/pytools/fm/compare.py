@@ -1,9 +1,12 @@
 import numpy as np
 from numpy.testing import assert_allclose
 from oasislmf.pytools.common.data import oasis_float
-from .stream_sparse import event_agg_dtype, sidx_loss_dtype
 from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
+
+# Define dtypes for reading binary stream format
+event_agg_dtype = np.dtype([('event_id', 'i4'), ('item_id', 'i4')])
+sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
 
 
 def stream_to_dict_array(stream_obj):
