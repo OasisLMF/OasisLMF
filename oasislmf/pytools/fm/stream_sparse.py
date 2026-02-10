@@ -143,7 +143,7 @@ class FMReader(EventReader):
 @nb.jit(cache=True, nopython=True)
 def load_event(byte_mv, event_id, nodes_array,
                sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
-               computes, compute_idx, output_array, i_layer, i_index):
+               computes, compute_idx, output_array, layer_i, val_i):
     cursor = 0
     node_id = computes[compute_idx['level_start_compute_i']]
 
@@ -151,30 +151,30 @@ def load_event(byte_mv, event_id, nodes_array,
         node = nodes_array[node_id]
         node_sidx_start = sidx_indptr[sidx_indexes[node['node_id']]]
         node_sidx_end = sidx_indptr[sidx_indexes[node['node_id']] + 1]
-        node_val_len = node_sidx_end - node_sidx_start
+        node_val_count = node_sidx_end - node_sidx_start
         if node_id < pass_through.shape[0]:
             pass_through_loss = pass_through[node_id]
         else:
             pass_through_loss = 0
-        for layer in range(i_layer, node['layer_len']):
-            output_id = output_array[node['output_ids'] + layer]
-            node_loss_start = loss_indptr[node['loss'] + layer]
+        for layer_cur_i in range(layer_i, node['layer_len']):
+            output_id = output_array[node['output_ids'] + layer_cur_i]
+            node_loss_start = loss_indptr[node['loss'] + layer_cur_i]
 
-            assert node_loss_start + node_val_len < loss_val.shape[0], "loss index is out of range, this must not happen"
+            assert node_loss_start + node_val_count < loss_val.shape[0], "loss index is out of range, this must not happen"
 
             # print('output_id', output_id)
             # print('    ', sidx_val[node_sidx_start: node_sidx_end])
-            # print('    ', loss_val[node_loss_start: node_loss_start + node_val_len])
-            if output_id and node_val_len:  # if output is not in xref output_id is 0
-                if i_index == -1:
+            # print('    ', loss_val[node_loss_start: node_loss_start + node_val_count])
+            if output_id and node_val_count:  # if output is not in xref output_id is 0
+                if val_i == -1:
                     if cursor < PIPE_CAPACITY - ITEM_HEADER_SIZE:  # header + -5, -3, -1 sample
                         cursor = mv_write_item_header(byte_mv, cursor, event_id, output_id)
-                        i_index += 1
+                        val_i += 1
 
                         # write MAX_LOSS_IDX == -5 sidx
-                        if sidx_val[node_sidx_start + i_index] == MAX_LOSS_IDX:
-                            cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, loss_val[node_loss_start + i_index])
-                            i_index += 1
+                        if sidx_val[node_sidx_start + val_i] == MAX_LOSS_IDX:
+                            cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, loss_val[node_loss_start + val_i])
+                            val_i += 1
                         else:
                             cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, 0)
 
@@ -183,38 +183,38 @@ def load_event(byte_mv, event_id, nodes_array,
                             cursor = mv_write_sidx_loss(byte_mv, cursor, CHANCE_OF_LOSS_IDX, pass_through_loss)
 
                         # write TIV_IDX == -3 sidx
-                        if sidx_val[node_sidx_start + i_index] == TIV_IDX and i_index < node_val_len:
-                            cursor = mv_write_sidx_loss(byte_mv, cursor, TIV_IDX, loss_val[node_loss_start + i_index])
-                            i_index += 1
+                        if sidx_val[node_sidx_start + val_i] == TIV_IDX and val_i < node_val_count:
+                            cursor = mv_write_sidx_loss(byte_mv, cursor, TIV_IDX, loss_val[node_loss_start + val_i])
+                            val_i += 1
                         else:
                             cursor = mv_write_sidx_loss(byte_mv, cursor, TIV_IDX, 0)
 
                         # write MEAN_IDX == -1 sidx
-                        if sidx_val[node_sidx_start + i_index] == MEAN_IDX and i_index < node_val_len:
-                            cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, loss_val[node_loss_start + i_index])
-                            i_index += 1
+                        if sidx_val[node_sidx_start + val_i] == MEAN_IDX and val_i < node_val_count:
+                            cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, loss_val[node_loss_start + val_i])
+                            val_i += 1
                         else:
                             cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, 0)
                     else:
-                        return cursor, node_id, layer, i_index
+                        return cursor, node_id, layer_cur_i, val_i
 
                 while cursor < PIPE_CAPACITY - SIDX_LOSS_WRITE_SIZE:
-                    if i_index == node_val_len:
+                    if val_i == node_val_count:
                         cursor = mv_write_delimiter(byte_mv, cursor)
-                        i_index = -1
-                        i_layer = 0
+                        val_i = -1
+                        layer_i = 0
                         break
                     else:
-                        if loss_val[node_loss_start + i_index]:
-                            cursor = mv_write_sidx_loss(byte_mv, cursor, sidx_val[node_sidx_start + i_index], loss_val[node_loss_start + i_index])
-                        i_index += 1
+                        if loss_val[node_loss_start + val_i]:
+                            cursor = mv_write_sidx_loss(byte_mv, cursor, sidx_val[node_sidx_start + val_i], loss_val[node_loss_start + val_i])
+                        val_i += 1
 
                 else:
-                    return cursor, node_id, layer, i_index
+                    return cursor, node_id, layer_cur_i, val_i
         compute_idx['level_start_compute_i'] += 1
         node_id = computes[compute_idx['level_start_compute_i']]
 
-    return cursor, node_id, 0, i_index
+    return cursor, node_id, 0, val_i
 
 
 class EventWriterSparse:
@@ -249,11 +249,11 @@ class EventWriterSparse:
             self.stream_out.close()
 
     def write(self, event_id, compute_idx):
-        i_index = -1
-        i_layer = 0
+        val_i = -1
+        layer_i = 0
         node_id = 1
         while node_id:
-            cursor, node_id, i_layer, i_index = load_event(
+            cursor, node_id, layer_i, val_i = load_event(
                 self.byte_mv,
                 event_id,
                 self.nodes_array,
@@ -262,22 +262,22 @@ class EventWriterSparse:
                 self.computes,
                 compute_idx,
                 self.output_array,
-                i_layer,
-                i_index)
+                layer_i,
+                val_i)
 
             write_mv_to_stream(self.stream_out, self.byte_mv, cursor)
 
 
 @nb.jit(cache=True, nopython=True)
 def get_compute_end(computes, compute_idx):
-    compute_start = compute_end = compute_idx['level_start_compute_i']
-    while computes[compute_end]:
-        compute_end += 1
-    return compute_start, compute_end
+    compute_start_i = compute_end_i = compute_idx['level_start_compute_i']
+    while computes[compute_end_i]:
+        compute_end_i += 1
+    return compute_start_i, compute_end_i
 
 
 class EventWriterOrderedOutputSparse(EventWriterSparse):
     def write(self, event_id, compute_idx):
-        compute_start, compute_end = get_compute_end(self.computes, compute_idx)
-        self.computes[compute_start: compute_end] = np.sort(self.computes[compute_start: compute_end], kind='stable')
+        compute_start_i, compute_end_i = get_compute_end(self.computes, compute_idx)
+        self.computes[compute_start_i: compute_end_i] = np.sort(self.computes[compute_start_i: compute_end_i], kind='stable')
         return super().write(event_id, compute_idx)
