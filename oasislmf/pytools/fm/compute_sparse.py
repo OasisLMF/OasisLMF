@@ -835,7 +835,7 @@ def compute_event(compute_info,
                                 # print(temp_node_extras[profile_i, node_sidx[0], UNDERLIMIT], '=>', extra[0, UNDERLIMIT])
                         if not base_children_count:
                             base_children_count = get_base_children(storage_node, children, nodes_array,
-                                                                  temp_children_queue)
+                                                                    temp_children_queue)
                             if is_allocation_rule_a2:
                                 ba_children_count = base_children_count
                             else:
@@ -859,7 +859,7 @@ def compute_event(compute_info,
                                 #       loss_indptr[storage_node['loss'] + profile_i], loss_in, '=>', loss_out)
                         if not base_children_count:
                             base_children_count = get_base_children(storage_node, children, nodes_array,
-                                                                  temp_children_queue)
+                                                                    temp_children_queue)
                             if is_allocation_rule_a2:
                                 ba_children_count = base_children_count
                             else:
@@ -934,7 +934,8 @@ def compute_event(compute_info,
 
                             child_sidx = sidx_val[child_sidx_start: child_sidx_end]
                             child_loss = loss_val[loss_indptr[child['loss'] + profile_i]: loss_indptr[child['loss'] + profile_i] + child_val_count]
-                            child_net = loss_val[loss_indptr[child['net_loss'] + profile_i]: loss_indptr[child['net_loss'] + profile_i] + child_val_count]
+                            child_net = loss_val[loss_indptr[child['net_loss'] + profile_i]
+                                : loss_indptr[child['net_loss'] + profile_i] + child_val_count]
 
                             for val_i in range(child_val_count):
                                 child_loss[val_i] = child_net[val_i] * temp_node_loss[profile_i, child_sidx[val_i]]

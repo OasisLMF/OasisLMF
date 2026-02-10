@@ -386,7 +386,7 @@ def back_alloc_layer_extra(layer_count, node_val_count, node_loss_ptr_i, node_ex
 
                 if overlimit_factor >= 0:
                     extras_val[layer_extra_ptr_i + val_i, OVERLIMIT] += (overlimit_factor *
-                                                                      (loss_val[layer_loss_ptr_i + val_i] - layer_realloc))
+                                                                         (loss_val[layer_loss_ptr_i + val_i] - layer_realloc))
                 else:
                     extras_val[layer_extra_ptr_i + val_i, OVERLIMIT] *= - overlimit_factor
                 temp_node_loss_layer_ba[layer_i, val_i] = (loss_val[layer_loss_ptr_i + val_i] - layer_realloc) * loss_factor
