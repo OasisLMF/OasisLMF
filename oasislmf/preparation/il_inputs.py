@@ -23,11 +23,11 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
                                           fm_profile_headers, fm_profile_dtype,
                                           fm_profile_step_headers, fm_profile_step_dtype,
                                           fm_programme_headers, fm_programme_dtype,
-                                          fm_xref_headers, fm_xref_dtype
-                                          )
+                                          fm_xref_headers, fm_xref_dtype,
+                                          DTYPE_IDX, calcrule_id, profile_id, layer_id)
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.data import factorize_ndarray, get_ids
+from oasislmf.utils.data import factorize_ndarray, get_ids, DEFAULT_LOC_FIELD_TYPES
 from oasislmf.utils.defaults import (OASIS_FILES_PREFIXES,
                                      get_default_accounts_profile, get_default_exposure_profile,
                                      get_default_fm_aggregation_profile, SOURCE_IDX)
@@ -72,6 +72,9 @@ risk_disaggregation_term = {'deductible', 'deductible_min', 'deductible_max', 'a
 
 fm_term_ids = [fm_term['id'] for fm_term in FM_TERMS.values()]
 
+BITYPE_columns = {"BIWaitingPeriodType", "BIPOIType"}
+BIPOI_default_exeption = "BIPOI"
+
 
 def prepare_ded_and_limit(level_df):
     simplify_no_terms = {
@@ -105,7 +108,7 @@ def get_calc_rule_ids(il_inputs_calc_rules_df, calc_rule_type):
     """
     il_inputs_calc_rules_df = il_inputs_calc_rules_df.copy()
     calc_rules_df, calc_rule_term_info = get_calc_rules(calc_rule_type)
-    calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], axis=1, errors='ignore')
+    calc_rules_df = calc_rules_df.drop(columns=['desc', 'id_key'], errors='ignore')
 
     terms = []
     terms_indicators = []
@@ -177,8 +180,8 @@ def __split_fm_terms_by_risk(df):
          df (DataFrame): the DataFrame an FM level
     """
     for term in risk_disaggregation_term.intersection(set(df.columns)):
-        if f'{term[:3]}_code' in df.columns:
-            code_filter = df[f'{term[:3]}_code'] == 0
+        if f'{term[:3]}_type' in df.columns:
+            code_filter = df[f'{term[:3]}_type'] == 0
             df.loc[code_filter, term] /= df.loc[code_filter, 'NumberOfRisks']
         else:
             df[term] /= df['NumberOfRisks']
@@ -334,14 +337,18 @@ def get_level_term_info(term_df_source, level_column_mapper, level_id, step_leve
     for ProfileElementName, term_info in level_column_mapper[level_id].items():
         if term_info.get("FMTermType") == "tiv":
             continue
-        default_value = oed_schema.get_default(ProfileElementName)
+        if ProfileElementName == BIPOI_default_exeption:
+            default_value = 0.
+        else:
+            default_value = oed_schema.get_default(ProfileElementName)
+
         if ProfileElementName not in term_df_source.columns:
             if default_value == 0 or default_value in BLANK_VALUES:
                 continue
             else:
                 non_zero_default[ProfileElementName] = [term_info['FMTermType'].lower(), default_value]
                 continue
-        else:
+        elif ProfileElementName not in BITYPE_columns:
             fill_empty(term_df_source, ProfileElementName, default_value)
 
         if pd.isna(default_value):
@@ -499,6 +506,18 @@ def get_il_input_items(
             locations_df = locations_df.drop(columns=['PortNumber', 'AccNumber', 'LocNumber'])
             accounts_df = accounts_df[accounts_df['acc_id'].isin(locations_df['acc_id'].unique())].drop(columns=['PortNumber', 'AccNumber'])
 
+            # fill default types
+            for field_type in DEFAULT_LOC_FIELD_TYPES:
+                if field_type['field_col'] not in locations_df.columns:
+                    continue
+                else:
+                    locations_df[field_type['field_col']].fillna(0.)  # set default to 0 to ignore term if empty
+                if field_type['type_col'] not in locations_df.columns:
+                    locations_df[field_type['type_col']] = field_type['type_value']
+                else:
+                    locations_df[field_type['type_col']] = locations_df[field_type['type_col']].fillna(
+                        field_type['type_value'])
+
         else:  # no location, case for cyber, marine ...
             locations_df = None
             gul_inputs_df['acc_id'] = gul_inputs_df['loc_id']
@@ -620,6 +639,7 @@ def get_il_input_items(
                 level_id = level_info['id']
                 is_policy_layer_level = level_id == SUPPORTED_FM_LEVELS['policy layer']['id']
                 step_level = 'StepTriggerType' in level_column_mapper[level_id]  # only true is step policy are present
+                fm_peril_field = fm_peril_field if fm_peril_field in term_df_source.columns else None
                 level_terms, terms_maps, coverage_group_map, fm_group_tiv = get_level_term_info(
                     term_df_source, level_column_mapper, level_id, step_level, fm_peril_field, oed_schema)
                 agg_key = [v['field'] for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
@@ -659,6 +679,9 @@ def get_il_input_items(
                     for term in numeric_terms:
                         if pd.isna(oed_schema.get_default(term)):
                             term_filter |= ~group_df[term].isna()
+                            valid_term_default[terms[term]] = 0
+                        elif term == BIPOI_default_exeption:
+                            term_filter |= (group_df[term] != 0.)
                             valid_term_default[terms[term]] = 0
                         else:
                             term_filter |= (group_df[term] != oed_schema.get_default(term))
@@ -723,7 +746,6 @@ def get_il_input_items(
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
                     continue
-
                 level_df = prepare_ded_and_limit(level_df)
 
                 agg_id_merge_col = list(set(agg_id_merge_col).intersection(level_df.columns))
@@ -861,9 +883,9 @@ def get_il_input_items(
 
                 gul_inputs_df = pd.concat(df for df in [layered_inputs_df, non_layered_inputs_df] if not df.empty)
 
-                gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype('i4')
+                gul_inputs_df['layer_id'] = gul_inputs_df['layer_id'].fillna(1).astype(layer_id[DTYPE_IDX])
                 gul_inputs_df.sort_values(by=['gul_input_id', 'layer_id'])
-                gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype('i4')
+                gul_inputs_df["profile_id"] = gul_inputs_df["profile_id"].fillna(1).astype(profile_id[DTYPE_IDX])
 
                 # check rows in prev df that are this level granularity (if prev_agg_id has multiple corresponding agg_id)
                 need_root_start_df = gul_inputs_df.groupby("agg_id_prev", observed=True)["agg_id"].nunique()
@@ -896,7 +918,7 @@ def get_il_input_items(
 
                 # reset gul_inputs_df level columns
                 gul_inputs_df = reset_gul_inputs(gul_inputs_df)
-                logger.info(f"level {cur_level_id} {level_info} took {time.time()-t0}")
+                logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                 t0 = time.time()
 
         gul_inputs_df = gul_inputs_df.sort_values(['gul_input_id', 'layer_id'], kind='stable')
@@ -977,7 +999,7 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
     :return: FM profile file path
     :rtype: str
     """
-    level_df = level_df.astype({'calcrule_id': 'i4', 'profile_id': 'i4'})
+    level_df = level_df.astype({'calcrule_id': calcrule_id[DTYPE_IDX], 'profile_id': profile_id[DTYPE_IDX]})
     # Step policies exist
     if step_policies_present:
         fm_profile_df = level_df[list(set(level_df.columns).intersection(set(fm_profile_step_headers + ['steptriggertype'])))].copy()

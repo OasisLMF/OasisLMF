@@ -1,6 +1,18 @@
 OasisLMF Changelog
 ==================
 
+`2.4.12`_
+ ---------
+* [#1824](https://github.com/OasisLMF/OasisLMF/pull/1825) - Wrong insured loss with type 2 terms and disaggregation
+* [#1155, #1807](https://github.com/OasisLMF/OasisLMF/pull/1827) - improve dtype coherence between files gen and pytools
+* [#1861](https://github.com/OasisLMF/OasisLMF/pull/1861) - CI Fix - testinstall ods/piwind from last stable, not main
+* [#1843](https://github.com/OasisLMF/OasisLMF/pull/1843) - support for pandas 3, fix BIPOI
+* [#1846](https://github.com/OasisLMF/OasisLMF/pull/1846) - Fix FM stream output: validate index range when writing special sidx 
+* [#1816](https://github.com/OasisLMF/OasisLMF/pull/1817) - very low Insurance Loss values for portfolio with account level terms on version 2.4
+* [#1851](https://github.com/OasisLMF/OasisLMF/pull/1851) - Bashgen fix - swap rl for ri when running summaypy
+* [#1837](https://github.com/OasisLMF/OasisLMF/pull/1852) - Cyber FM fields not accounted for in oasis lmf profiles
+.. _`2.4.12`:  https://github.com/OasisLMF/OasisLMF/compare/2.4.11...2.4.12
+
 `2.4.11`_
  ---------
 * [#1816](https://github.com/OasisLMF/OasisLMF/pull/1817) - very low Insurance Loss values for portfolio with account level terms on version 2.4

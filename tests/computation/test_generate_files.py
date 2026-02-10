@@ -172,8 +172,8 @@ class TestGenFiles(ComputationChecker):
                 self.manager.generate_files(**call_args)
                 loc_df = mock_get_il_items.call_args.kwargs['exposure_data'].location.dataframe
                 acc_df = mock_get_il_items.call_args.kwargs['exposure_data'].account.dataframe
-                self.assertEqual(loc_df['LocCurrency'].unique().to_list(), [CURRENCY])
-                self.assertEqual(acc_df['AccCurrency'].unique().to_list(), [CURRENCY])
+                self.assertEqual(loc_df['LocCurrency'].unique().astype("string[pyarrow]").tolist(), [CURRENCY])
+                self.assertEqual(acc_df['AccCurrency'].unique().astype("string[pyarrow]").tolist(), [CURRENCY])
 
     def test_files__reporting_currency__is_set_invalid(self):
         CURRENCY = 'JPY'
