@@ -185,8 +185,7 @@ class GenerateFiles(ComputationStep):
         )
         # Write merged analysis settings to output directory
         if self.settings:
-            with open(os.path.join(target_dir, 'analysis_settings.json'), 'w') as f:
-                f.write(json.dumps(self.settings))
+            self._store_run_settings(self.settings, target_dir)
 
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy

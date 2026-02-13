@@ -110,13 +110,6 @@ class GenerateLossesBase(ComputationStep):
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
 
-    def _store_run_settings(self, analysis_settings, target_dir):
-        """
-        Writes the analysis settings file to the `target_dir` path
-        """
-        with io.open(os.path.join(target_dir, 'analysis_settings.json'), 'w', encoding='utf-8') as f:
-            f.write(json.dumps(analysis_settings, ensure_ascii=False, indent=4))
-
     def _is_run_settings_stored(self, target_dir):
         """
         Checks if analysis settings file is under target_dir path
