@@ -18,9 +18,9 @@ The `oasislmf` Python package, loosely called the *model development kit (MDK)* 
 ## Versioning and Updates
 
 ### Current Stable Versions (Actively Supported)
-* `1.28.x` [stable/1.28.x](https://github.com/OasisLMF/OasisLMF/tree/stable/1.28.x) From 2023
-* `2.3.x`  [stable/2.3.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.3.x) From 2024
-* `2.4.x`  [stable/2.4.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.4.x) From 2025
+* `2.3.x`  [stable/2.3.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.3.x) From 2024 
+* `2.4.x`  [stable/2.4.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.4.x) From 2025 
+* `2.5.x`  [stable/2.5.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.4.x) From 2026
 
 ### Release Schedule
 Starting in 2023, we transitioned to a yearly release cycle for our stable versions. At the start of Each year, we release a new stable version with an increased **minor** version number `{major}.{minor}.{patch}`.
