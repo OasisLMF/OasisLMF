@@ -2,7 +2,6 @@ __all__ = [
     'ComputationStep',
 ]
 
-import io
 import os
 import pathlib
 import logging
@@ -222,13 +221,6 @@ class ComputationStep:
                 param_schema["enum"] = param.get('choices')
             json_schema["properties"][param['name']] = param_schema
         return json_schema
-
-    def _store_run_settings(self, analysis_settings, target_dir):
-        """
-        Writes the analysis settings file to the `target_dir` path
-        """
-        with io.open(os.path.join(target_dir, 'analysis_settings.json'), 'w', encoding='utf-8') as f:
-            f.write(json.dumps(analysis_settings, ensure_ascii=False, indent=4))
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""

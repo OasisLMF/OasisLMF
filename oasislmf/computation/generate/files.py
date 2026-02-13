@@ -183,10 +183,6 @@ class GenerateFiles(ComputationStep):
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
             oed_compression=oed_compression
         )
-        # Write merged analysis settings to output directory
-        if self.settings:
-            self._store_run_settings(self.settings, target_dir)
-
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
         location_profile = get_json(src_fp=self.profile_loc_json) if self.profile_loc_json else self.profile_loc
