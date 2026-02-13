@@ -224,4 +224,4 @@ class ComputationStep:
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""
-        raise NotImplemented(f'Methode run must be implemented in {self.__class__.__name__}')
+        raise NotImplementedError(f'Method run must be implemented in {self.__class__.__name__}')
