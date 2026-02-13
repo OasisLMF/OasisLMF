@@ -28,8 +28,8 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
 
 class GeneratePostFileGenCmd(OasisComputationCommand):
     """
-    Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
-    see ExposurePreAnalysis for more detail
+    Run a post file generation hook to modify or expand the generated Oasis files
+    before loss calculation.
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PostFileGen'
@@ -37,8 +37,7 @@ class GeneratePostFileGenCmd(OasisComputationCommand):
 
 class GeneratePrelossCmd(OasisComputationCommand):
     """
-    Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
-    see ExposurePreAnalysis for more detail
+    Run a pre-loss hook on each worker to modify input files before loss calculation.
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PreLoss'
@@ -63,8 +62,7 @@ class GenerateOasisFilesCmd(OasisComputationCommand):
 
 class GenerateLossesCmd(OasisComputationCommand):
     """
-    Generates the standard Oasis GUL input files + optionally the IL/FM input
-    files and the RI input files.
+    Run loss calculations with optional pre-loss and post-analysis hooks.
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateOasisLosses'
@@ -72,7 +70,7 @@ class GenerateLossesCmd(OasisComputationCommand):
 
 class GenerateLossesPartialCmd(OasisComputationCommand):
     """
-    Distributed Oasis CMD: desc todo
+    Runs a single analysis event chunk.
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateLossesPartial'
@@ -80,7 +78,7 @@ class GenerateLossesPartialCmd(OasisComputationCommand):
 
 class GenerateLossesOutputCmd(OasisComputationCommand):
     """
-    Distributed Oasis CMD: desc todo
+    Runs the output reports generation on a set of event chunks.
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'GenerateLossesOutput'
