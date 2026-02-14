@@ -365,6 +365,7 @@ class GenerateLossesDir(GenerateLossesBase):
                         create_summary_object_file(summary_dir, runtype)
 
         self._store_run_settings(self.settings, os.path.join(model_run_fp, 'output'))
+        self._store_run_settings(self.settings, model_run_fp)
 
 
 class GenerateLossesPartial(GenerateLossesDir):
