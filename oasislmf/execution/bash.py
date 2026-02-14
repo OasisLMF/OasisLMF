@@ -1,3 +1,53 @@
+"""Bash script generation for the pytools loss calculation pipeline.
+
+This module generates bash scripts that orchestrate the pytools loss calculation
+pipeline. The generated scripts coordinate multiple concurrent processes connected
+via named pipes (FIFOs) to compute ground-up losses (GUL), insured losses (IL),
+reinsurance losses (RI), reinsurance gross losses (RL), and optionally
+fully-correlated (FC) and load-balanced (LB) streams.
+
+The high-level flow of a generated bash script is:
+
+    1. **Initialisation** -- set shell options, logging, error traps, and the
+       completion-check function.
+    2. **Directory and FIFO setup** -- create or clean work, output, and FIFO
+       directories; create named pipes for every process/summary combination.
+    3. **Consumer commands** (written in reverse pipeline order so readers are
+       ready before writers start):
+       a. ``do_ord``  -- per-process ORD output consumers (eltpy, pltpy).
+       b. ``do_tees`` -- ``tee`` commands that fan summary streams out to
+          work folders and ORD FIFOs.
+       c. ``do_summarycalcs`` -- ``summarypy`` commands that read per-runtype
+          FIFOs and write per-summary FIFOs.
+    4. **Main GUL pipeline commands** -- ``evepy | modelpy | gulpy`` (or
+       ``gulmc``) piped through ``fmpy`` for IL/RI, writing into the FIFOs
+       consumed above.
+    5. **Waits** -- ``wait`` on all background PIDs from steps 3-4.
+    6. **Kat concatenation** -- ``katpy`` merges per-process binary ORD files
+       into single output files.
+    7. **Post-wait aggregation** -- ``aalpy`` and ``lecpy`` run over the
+       collected work-folder data to produce ALT and EPT/PSEPT outputs.
+    8. **Cleanup** -- remove working directories and temporary FIFOs.
+    9. **Completion check** -- verify every started process logged a
+       successful finish.
+
+Run types:
+
+    * ``gul`` -- ground-up loss
+    * ``il``  -- insured (direct) loss
+    * ``ri``  -- reinsurance net loss
+    * ``rl``  -- reinsurance gross loss
+    * ``fc``  -- fully correlated ground-up loss
+    * ``lb``  -- load-balanced stream (intermediary between GUL and FM)
+
+Entry points:
+
+    * :func:`genbash`     -- legacy single-call interface that writes a
+      complete bash script.
+    * :func:`bash_params` -- builds a parameter dict consumed by
+      :func:`create_bash_analysis` and :func:`create_bash_outputs`.
+"""
+
 import contextlib
 import io
 import logging
@@ -317,6 +367,17 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
 
 
 def get_fmcmd(fmpy_low_memory=False, fmpy_sort_output=False):
+    """Build the fmpy (financial module) command string.
+
+    Args:
+        fmpy_low_memory (bool): If True, append the ``-l`` flag to enable
+            low-memory mode.
+        fmpy_sort_output (bool): If True, append the ``--sort-output`` flag
+            so that output records are sorted.
+
+    Returns:
+        str: The assembled ``fmpy`` command with any requested flags.
+    """
     cmd = 'fmpy'
     if fmpy_low_memory:
         cmd += ' -l'
@@ -383,6 +444,33 @@ def do_post_wait_processing(
     inuring_priority=None,
     join_summary_info=False,
 ):
+    """Write post-wait aggregation commands (aalpy, lecpy) to the bash script.
+
+    These commands run *after* all per-process ``wait`` calls have completed,
+    operating on the binary work-folder data produced by ``tee`` during the
+    main pipeline.  Specifically this handles:
+
+    * **PALT** (``aalpy``) -- Period Average Loss Table output.
+    * **ALT mean-only** (``aalpy``) -- Average Loss Table (mean only) output.
+    * **EPT / PSEPT** (``lecpy``) -- Exceedance Probability Table and
+      Per-Sample Exceedance Probability Table outputs.
+
+    Args:
+        runtype (str): The run type identifier (e.g. ``'gul'``, ``'il'``,
+            ``'ri'``, ``'rl'``).
+        analysis_settings (dict): The full analysis settings dictionary.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs
+            (keys ``lpid_monitor_count``, etc.).
+        work_sub_dir (str): Relative path prefix for work sub-directories.
+        output_dir (str): Directory where final output files are written.
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+        inuring_priority (str or None): Inuring priority label to embed in
+            file names, or None / empty for the final priority.
+        join_summary_info (bool): If True, append ``join-summary-info``
+            commands to enrich outputs with summary metadata.
+    """
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
 
@@ -529,7 +617,21 @@ def do_post_wait_processing(
 
 
 def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
-    """Standard name for FIFO"""
+    """Build the standardised path for a named pipe (FIFO).
+
+    The naming convention is ``<fifo_dir><producer>_<consumer>_P<id>`` when a
+    consumer is specified, or ``<fifo_dir><producer>_P<id>`` otherwise.
+
+    Args:
+        fifo_dir (str): Base directory for FIFOs (e.g. ``'fifo/'``).
+        producer (str): Run type that produces the stream (e.g. ``'gul'``).
+        producer_id (int): Process number used as a suffix (``P<id>``).
+        consumer (str): Optional consumer identifier appended between the
+            producer and the process id.
+
+    Returns:
+        str: The fully-qualified FIFO path.
+    """
     if consumer:
         return f'{fifo_dir}{producer}_{consumer}_P{producer_id}'
     else:
@@ -537,10 +639,36 @@ def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
 
 
 def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', consumer=''):
+    """Write a single FIFO create or remove command to the bash script.
+
+    Args:
+        producer (str): Run type that produces the stream.
+        producer_id (int): Process number for the FIFO name.
+        filename (str): Path to the bash script being generated.
+        fifo_dir (str): Base directory for FIFOs.
+        action (str): Shell command to execute (``'mkfifo'`` to create,
+            ``'rm'`` to remove).
+        consumer (str): Optional consumer identifier for the FIFO name.
+    """
     print_command(filename, f'{action} {get_fifo_name(fifo_dir, producer, producer_id, consumer)}')
 
 
 def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo', consumer=''):
+    """Write FIFO create/remove commands for every process in the range.
+
+    Iterates over all process IDs and emits one ``mkfifo`` (or ``rm``)
+    command per process for the given run type.
+
+    Args:
+        runtype (str): The run type identifier (e.g. ``'gul'``, ``'il'``).
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        fifo_dir (str): Base directory for FIFOs.
+        process_number (int or None): If set, only that single process ID
+            is used instead of the full range.
+        action (str): Shell command (``'mkfifo'`` or ``'rm'``).
+        consumer (str): Optional consumer identifier for FIFO names.
+    """
     for process_id in process_range(max_process_id, process_number):
         do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
     print_command(filename, '')
@@ -548,6 +676,20 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
 
 def do_fifos_exec_full_correlation(
         runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo'):
+    """Write FIFO create/remove commands for full-correlation sumcalc and fmcalc pipes.
+
+    For each process ID two FIFOs are created: one for the summarycalc input
+    (``<runtype>_sumcalc_P<id>``) and one for the fmcalc input
+    (``<runtype>_fmcalc_P<id>``).
+
+    Args:
+        runtype (str): The run type identifier (typically ``'gul'``).
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        fifo_dir (str): Base directory for FIFOs.
+        process_number (int or None): If set, restrict to a single process.
+        action (str): Shell command (``'mkfifo'`` or ``'rm'``).
+    """
     for process_id in process_range(max_process_id, process_number):
         print_command(filename, '{} {}{}_sumcalc_P{}'.format(
             action, fifo_dir, runtype, process_id
@@ -561,6 +703,25 @@ def do_fifos_exec_full_correlation(
 
 
 def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None, consumer_prefix=None, action='mkfifo'):
+    """Write FIFO create/remove commands for all summary and ORD output pipes.
+
+    For every (process, summary) pair this creates:
+
+    * A summary FIFO (and its ``.idx`` companion when leccalc or ALT output
+      is enabled).
+    * One FIFO per active ORD output type (plt, elt, selt).
+
+    Args:
+        runtype (str): The run type identifier.
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        fifo_dir (str): Base directory for FIFOs.
+        process_number (int or None): If set, restrict to a single process.
+        consumer_prefix (str or None): Optional prefix prepended to consumer
+            names (used for inuring priority labelling).
+        action (str): Shell command (``'mkfifo'`` or ``'rm'``).
+    """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -595,6 +756,19 @@ def create_workfolders(
     work_dir='work/',
     inuring_priority=None
 ):
+    """Write ``mkdir -p`` commands for work sub-directories needed by summary consumers.
+
+    Creates directories that ``tee`` will write binary summary data into for
+    subsequent aggregation by ``lecpy`` (leccalc) and ``aalpy`` (aalcalc).
+
+    Args:
+        runtype (str): The run type identifier (e.g. ``'gul'``, ``'il'``).
+        analysis_settings (dict): The full analysis settings dictionary.
+        filename (str): Path to the bash script being generated.
+        work_dir (str): Root working directory (e.g. ``'work/'``).
+        inuring_priority (str or None): Inuring priority label to embed in
+            directory names, or None / empty for the final priority.
+    """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -641,6 +815,31 @@ def do_kats(
     inuring_priority=None,
     join_summary_info=False,
 ):
+    """Write ``katpy`` concatenation commands to merge per-process ORD files.
+
+    After the main pipeline ``wait`` has completed, per-process binary output
+    files sit in the kat work directory.  ``katpy`` reads them all and
+    produces a single sorted (or unsorted) output file per summary/ORD-table
+    combination.
+
+    Args:
+        runtype (str): The run type identifier.
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs
+            (key ``kpid_monitor_count``).
+        work_dir (str): Kat work directory containing per-process files.
+        output_dir (str): Directory for final concatenated output files.
+        sort_by_event (bool): If True, ``katpy`` sorts output by event id.
+        process_number (int or None): If set, restrict to a single process.
+        inuring_priority (str or None): Inuring priority label for file names.
+        join_summary_info (bool): If True, append ``join-summary-info``
+            commands after each concatenation.
+
+    Returns:
+        bool: True if any ``katpy`` commands were emitted, False otherwise.
+    """
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return False
@@ -694,6 +893,26 @@ def do_summarycalcs(
     gul_full_correlation=False,
     inuring_priority=None,
 ):
+    """Write a ``summarypy`` command for one process to the bash script.
+
+    Reads the per-process run-type FIFO and fans the stream out to one
+    summary FIFO per summary set defined in the analysis settings.
+
+    Args:
+        runtype (str): The run type identifier (e.g. ``'gul'``, ``'il'``).
+        analysis_settings (dict): The full analysis settings dictionary.
+        process_id (int): The process number for this command.
+        filename (str): Path to the bash script being generated.
+        fifo_dir (str): Base directory for FIFOs.
+        stderr_guard (bool): If True, wrap the command in a sub-shell that
+            redirects stderr to the log.
+        num_reinsurance_iterations (int): Total number of reinsurance
+            iterations (used for directory switching).
+        gul_full_correlation (bool): If True, read from the
+            ``_sumcalc`` FIFO variant used by the full-correlation path.
+        inuring_priority (dict or None): Inuring priority dict with keys
+            ``'text'`` and ``'level'``, or None for non-reinsurance runs.
+    """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -720,7 +939,6 @@ def do_summarycalcs(
         input_filename_component = '_sumcalc'
 
     # Use -m flag to create summary index files
-    # This is likely to become default in future ktools releases
     cmd = 'summarypy'
     cmd = f'{cmd} -m {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
@@ -749,6 +967,29 @@ def do_tees(
     work_dir='work/',
     inuring_priority=None
 ):
+    """Write ``tee`` commands that fan each summary stream to ORD and work FIFOs.
+
+    For each summary set, a ``tee`` reads from the summary FIFO and
+    duplicates the stream to:
+
+    * ORD output FIFOs (for ``eltpy``/``pltpy`` consumers).
+    * Work-folder binary files (for ``aalpy``/``lecpy`` post-wait processing).
+
+    When leccalc or ALT output is enabled, a companion ``.idx`` tee is also
+    emitted.
+
+    Args:
+        runtype (str): The run type identifier.
+        analysis_settings (dict): The full analysis settings dictionary.
+        process_id (int): The process number.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs
+            (key ``pid_monitor_count``).
+        fifo_dir (str): Base directory for FIFOs.
+        work_dir (str): Root working directory.
+        inuring_priority (str or None): Inuring priority label for file and
+            FIFO names, or None / empty for the final priority.
+    """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -800,6 +1041,17 @@ def do_tees(
 
 
 def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
+    """Write a ``tee`` command that splits the full-correlation GUL output.
+
+    Duplicates the correlated GUL stream into two FIFOs: one for the
+    summarycalc path and one for the fmcalc (financial module) path.
+
+    Args:
+        process_id (int): The process number.
+        filename (str): Path to the bash script being generated.
+        correlated_output_stems (dict): FIFO path stems returned by
+            :func:`get_correlated_output_stems`.
+    """
 
     if process_id == 1:
         print_command(filename, '')
@@ -818,6 +1070,23 @@ def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
 
 
 def get_correlated_output_stems(fifo_dir):
+    """Return a dict of FIFO path stems for the full-correlation pipeline.
+
+    The returned dict contains three keys:
+
+    * ``'gulcalc_output'`` -- stem for the GUL output FIFO.
+    * ``'fmcalc_input'``   -- stem for the fmcalc input FIFO.
+    * ``'sumcalc_input'``  -- stem for the summarycalc input FIFO.
+
+    Each value is a string ending with ``_P`` so that a process ID can be
+    appended directly.
+
+    Args:
+        fifo_dir (str): Base directory for FIFOs (e.g. ``'fifo/'``).
+
+    Returns:
+        dict: Mapping of stem names to FIFO path prefixes.
+    """
 
     correlated_output_stems = {}
     correlated_output_stems['gulcalc_output'] = '{0}{1}_P'.format(
@@ -844,6 +1113,25 @@ def do_ord(
     stderr_guard=True,
     inuring_priority=None,
 ):
+    """Write ORD output consumer commands (``eltpy``, ``pltpy``) for one process.
+
+    For each summary set and each active ORD output type, reads from the
+    corresponding FIFO and writes per-process binary output files into the
+    kat work directory for later concatenation by ``katpy``.
+
+    Args:
+        runtype (str): The run type identifier.
+        analysis_settings (dict): The full analysis settings dictionary.
+        process_id (int): The process number.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs.
+        fifo_dir (str): Base directory for FIFOs.
+        work_dir (str): Root working directory (kat sub-directory is used).
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+        inuring_priority (str or None): Inuring priority label for file and
+            FIFO names.
+    """
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -895,6 +1183,21 @@ def do_ord(
 
 
 def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+    """Build the list of inuring priority dicts for reinsurance net loss.
+
+    Returns intermediate inuring priorities specified in the analysis settings
+    plus the final priority (the full reinsurance iteration count).
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary,
+            checked for the ``'ri_inuring_priorities'`` key.
+        num_reinsurance_iterations (int): Total number of reinsurance
+            iterations.
+
+    Returns:
+        list[dict]: Each dict has ``'text'`` (file-name prefix) and
+        ``'level'`` (iteration number) keys.
+    """
     intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
     ri_inuring_priorities = [
         {
@@ -908,6 +1211,19 @@ def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
 
 
 def get_rl_inuring_priorities(num_reinsurance_iterations):
+    """Build the list of inuring priority dicts for reinsurance gross loss.
+
+    Unlike :func:`get_ri_inuring_priorities`, every iteration from 1 to
+    ``num_reinsurance_iterations`` is included (there is no "final" entry).
+
+    Args:
+        num_reinsurance_iterations (int): Total number of reinsurance
+            iterations.
+
+    Returns:
+        list[dict]: Each dict has ``'text'`` (file-name prefix) and
+        ``'level'`` (iteration number) keys.
+    """
     rl_inuring_priorities = [
         {
             'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
@@ -929,6 +1245,24 @@ def rl(
     stderr_guard=True,
     process_number=None
 ):
+    """Write all reinsurance gross loss (RL) consumer commands.
+
+    Iterates over each RL inuring priority and emits ``do_ord``, ``do_tees``,
+    and ``do_summarycalcs`` commands for every process.
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs.
+        num_reinsurance_iterations (int): Total number of reinsurance
+            iterations.
+        fifo_dir (str): Base directory for FIFOs.
+        work_dir (str): Root working directory.
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+        process_number (int or None): If set, restrict to a single process.
+    """
 
     for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
@@ -969,6 +1303,24 @@ def ri(
     stderr_guard=True,
     process_number=None
 ):
+    """Write all reinsurance net loss (RI) consumer commands.
+
+    Iterates over each RI inuring priority and emits ``do_ord``, ``do_tees``,
+    and ``do_summarycalcs`` commands for every process.
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs.
+        num_reinsurance_iterations (int): Total number of reinsurance
+            iterations.
+        fifo_dir (str): Base directory for FIFOs.
+        work_dir (str): Root working directory.
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+        process_number (int or None): If set, restrict to a single process.
+    """
 
     for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
 
@@ -1002,6 +1354,22 @@ def ri(
 
 
 def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+    """Write all insured loss (IL) consumer commands.
+
+    Emits ``do_ord``, ``do_tees``, and ``do_summarycalcs`` commands for every
+    process in the range.
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs.
+        fifo_dir (str): Base directory for FIFOs.
+        work_dir (str): Root working directory.
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+        process_number (int or None): If set, restrict to a single process.
+    """
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
                process_counter, fifo_dir, work_dir, stderr_guard)
@@ -1030,6 +1398,22 @@ def do_gul(
     stderr_guard=True,
     process_number=None,
 ):
+    """Write all ground-up loss (GUL) consumer commands.
+
+    Emits ``do_ord``, ``do_tees``, and ``do_summarycalcs`` commands for every
+    process in the range.
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs.
+        fifo_dir (str): Base directory for FIFOs.
+        work_dir (str): Root working directory.
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+        process_number (int or None): If set, restrict to a single process.
+    """
 
     for process_id in process_range(max_process_id, process_number):
         do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
@@ -1059,6 +1443,22 @@ def do_gul_full_correlation(
     stderr_guard=None,
     process_number=None,
 ):
+    """Write GUL consumer commands for the full-correlation path.
+
+    Similar to :func:`do_gul` but operates on the ``full_correlation/``
+    sub-directories and only emits ``do_tees`` (no ``do_ord`` or
+    ``do_summarycalcs``).
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Upper bound of process IDs.
+        filename (str): Path to the bash script being generated.
+        process_counter (dict): Mutable counter dict tracking background PIDs.
+        fifo_dir (str): FIFO directory for full-correlation pipes.
+        work_dir (str): Work directory for full-correlation outputs.
+        stderr_guard: Unused (kept for interface consistency).
+        process_number (int or None): If set, restrict to a single process.
+    """
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(
@@ -1139,7 +1539,7 @@ def get_getmodel_cmd(
         dynamic_footprint=False,
         **kwargs):
     """
-    Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
+    Gets the GUL pipeline command (gulpy/gulmc) for a single process
     :param number_of_samples: The number of samples to run
     :type number_of_samples: int
     :param gul_threshold: The GUL threshold to use
@@ -1216,7 +1616,7 @@ def get_main_cmd_ri_stream(
     rl_inuring_priorities=None
 ):
     """
-    Gets the fmcalc ktools command reinsurance stream
+    Gets the fmpy command for the reinsurance stream
     :param cmd: either gulcalc command stream or correlated output file
     :type cmd: str
     :param process_id: ID corresponding to thread
@@ -1283,7 +1683,7 @@ def get_main_cmd_il_stream(
     process_counter=None,
 ):
     """
-    Gets the fmcalc ktools command insured losses stream
+    Gets the fmpy command for the insured losses stream
     :param cmd: either gulcalc command stream or correlated output file
     :type cmd: str
     :param process_id: ID corresponding to thread
@@ -1350,6 +1750,28 @@ def get_main_cmd_gul_stream(
 
 
 def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
+    """Return a custom GUL command function for complex (third-party) models.
+
+    If ``custom_gulcalc_cmd`` is explicitly provided it must exist in
+    ``PATH``; otherwise the function infers a command name from
+    ``<supplier>_<model>_gulcalc`` and checks for its presence.
+
+    Args:
+        custom_gulcalc_cmd (str or None): Explicit custom GUL binary name,
+            or None to attempt auto-detection.
+        analysis_settings (dict): The full analysis settings dictionary
+            (used to infer the binary name via ``model_supplier_id`` and
+            ``model_name_id``).
+
+    Returns:
+        callable or None: A function with the same signature as
+        :func:`get_getmodel_cmd` that builds the custom GUL command string,
+        or None if no custom binary was found.
+
+    Raises:
+        OasisException: If ``custom_gulcalc_cmd`` is explicitly set but
+            cannot be found on ``PATH``.
+    """
     # If `given_gulcalc_cmd` is set then always run as a complex model
     # and raise an exception when not found in PATH
     if custom_gulcalc_cmd:
@@ -1396,6 +1818,17 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
 
 
 def do_computes(outputs):
+    """Execute a list of deferred compute operations.
+
+    Each entry in *outputs* is a dict with keys ``'compute_fun'``,
+    ``'compute_args'``, and ``'loss_type'``.  The function calls
+    ``compute_fun(**compute_args)`` for every entry, preceded by a
+    comment header identifying the loss type.
+
+    Args:
+        outputs (list[dict]): Deferred compute descriptors built up by the
+            caller (e.g. :func:`create_bash_analysis`).
+    """
 
     if len(outputs) == 0:
         return
@@ -1411,6 +1844,26 @@ def do_computes(outputs):
 
 
 def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name, get_output_stream_name, stderr_guard):
+    """Yield ``load_balancer`` commands that redistribute streams across FIFOs.
+
+    Each load balancer reads from *num_in_per_lb* input FIFOs and writes to
+    *num_out_per_lb* output FIFOs.  Process IDs are assigned sequentially
+    across all load balancers.
+
+    Args:
+        num_lb (int): Number of load balancer processes.
+        num_in_per_lb (int): Number of input FIFOs per load balancer.
+        num_out_per_lb (int): Number of output FIFOs per load balancer.
+        get_input_stream_name (callable): Function accepting ``producer_id``
+            and returning the input FIFO path.
+        get_output_stream_name (callable): Function accepting ``producer_id``
+            and returning the output FIFO path.
+        stderr_guard (bool): If True, wrap commands in a sub-shell that
+            redirects stderr to the log.
+
+    Yields:
+        str: A shell command string for each load balancer process.
+    """
     in_id = 1
     out_id = 1
     for _ in range(num_lb):
@@ -1496,6 +1949,60 @@ def bash_params(
     dynamic_footprint=False,
     **kwargs
 ):
+    """Build the parameter dict consumed by :func:`create_bash_analysis` and :func:`create_bash_outputs`.
+
+    Validates analysis settings (checking output/summary coherence, reinsurance
+    iteration requirements), resolves default allocation and event-shuffle rules,
+    sets up directory paths (FIFO, work, output), and determines the
+    full-correlation and complex-model flags.
+
+    Args:
+        analysis_settings (dict): The full analysis settings dictionary.
+        max_process_id (int): Number of parallel processes (defaults to CPU
+            count when ``<= 0``).
+        number_of_processes (int): Alias used elsewhere (defaults to CPU
+            count when ``<= 0``).
+        num_reinsurance_iterations (int): Number of reinsurance iterations.
+        model_storage_json (dict or None): Optional model storage metadata.
+        fifo_tmp_dir (bool): If True, create FIFOs under ``/tmp/``.
+        gul_alloc_rule (int or None): GUL allocation rule override.
+        il_alloc_rule (int or None): IL allocation rule override.
+        ri_alloc_rule (int or None): RI allocation rule override.
+        num_gul_per_lb (int or None): GUL streams per load balancer.
+        num_fm_per_lb (int or None): FM streams per load balancer.
+        stderr_guard (bool): Wrap commands with stderr redirection.
+        bash_trace (bool): Enable bash ``-x`` tracing.
+        filename (str): Output script filename.
+        _get_getmodel_cmd (callable or None): Custom GUL command builder.
+        custom_gulcalc_cmd (str or None): Explicit custom GUL binary name.
+        custom_gulcalc_log_start (str or None): Custom log-start marker.
+        custom_gulcalc_log_finish (str or None): Custom log-finish marker.
+        custom_args (dict): Extra arguments forwarded to downstream functions.
+        fmpy_low_memory (bool): Enable low-memory mode in ``fmpy``.
+        fmpy_sort_output (bool): Sort ``fmpy`` output.
+        event_shuffle (int or None): Event shuffle rule override.
+        gulmc (bool): Use ``gulmc`` (Monte Carlo sampler).
+        gul_random_generator (int): Random number generator selector.
+        gulmc_effective_damageability (bool): Enable effective damageability.
+        gulmc_vuln_cache_size (int): Vulnerability cache size for ``gulmc``.
+        process_number (int or None): Single chunk number (distributed mode).
+        remove_working_files (bool): Clean up work dirs after completion.
+        model_run_dir (str): Root directory for the model run.
+        model_py_server (bool): Launch a ``servedata`` server.
+        join_summary_info (bool): Append summary metadata to outputs.
+        peril_filter (list): Peril filter list.
+        exposure_df_engine (str): DataFrame engine for exposure data.
+        model_df_engine (str): DataFrame engine for model data.
+        dynamic_footprint (bool): Enable dynamic footprint mode.
+
+    Returns:
+        dict: Parameter dictionary ready for unpacking into
+        :func:`create_bash_analysis` and :func:`create_bash_outputs`.
+
+    Raises:
+        OasisException: If no valid output settings are found or an unknown
+            event shuffle rule is specified.
+    """
 
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
@@ -1634,6 +2141,33 @@ def bash_wrapper(
     custom_gulcalc_log_start=None,
     custom_gulcalc_log_finish=None
 ):
+    """Context manager that wraps the script body with header and footer boilerplate.
+
+    On entry, writes the bash shebang, shell options (``set -euET``), log
+    directory setup, optional bash tracing, the error-trap function, and the
+    completion-check function.
+
+    On exit (after the ``yield``), writes the footer: either a
+    ``check_complete`` call (single-script mode) or a chunk-validation block
+    that verifies no output files are empty (distributed-chunk mode).
+
+    Args:
+        filename (str): Path to the bash script being generated.
+        bash_trace (bool): If True, enable bash ``-x`` tracing.
+        stderr_guard (bool): If True, install the error trap and write the
+            completion-check function.
+        log_sub_dir (str or None): Sub-directory under ``log/`` for chunk
+            mode logging.
+        process_number (int or None): Chunk number when running in
+            distributed mode.
+        custom_gulcalc_log_start (str or None): Custom log-start marker for
+            the completion check.
+        custom_gulcalc_log_finish (str or None): Custom log-finish marker for
+            the completion check.
+
+    Yields:
+        None: Control is yielded to the caller to write the script body.
+    """
     # Header
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -1741,6 +2275,23 @@ def create_bash_analysis(
     dynamic_footprint=False,
     **kwargs
 ):
+    """Write the main analysis section of the bash script.
+
+    This is the core function that assembles the calculation pipeline.  It:
+
+    1. Sets up output, FIFO, and work directories.
+    2. Creates FIFOs for every (process, summary, ORD-type) combination.
+    3. Creates work-folder directories for post-wait aggregation.
+    4. Writes consumer commands in reverse pipeline order (ORD consumers,
+       tees, summarycalcs) so readers are ready before writers.
+    5. Writes the main GUL pipeline commands (``evepy | modelpy | gulpy/gulmc``
+       piped through ``fmpy`` for IL/RI), optionally with load balancers.
+    6. Adds ``wait`` calls for all background processes.
+    7. Cleans up FIFOs.
+
+    All parameters are typically supplied by unpacking the dict returned from
+    :func:`bash_params`.
+    """
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
 
@@ -1859,6 +2410,8 @@ def create_bash_analysis(
         num_lb = 0
         num_gul_output = num_fm_output = max_process_id
 
+    # --- Create FIFOs ---
+    # Build the list of FIFO directories (standard + full-correlation if enabled)
     fifo_dirs = [fifo_queue_dir]
     if full_correlation:
         fifo_dirs.append(fifo_full_correlation_dir)
@@ -1910,8 +2463,11 @@ def create_bash_analysis(
     if full_correlation:
         dirs.append((fifo_full_correlation_dir, work_full_correlation_dir))
 
+    # --- Build deferred consumer commands (ORD, tee, summarycalc) ---
+    # These are written in reverse pipeline order so readers are ready
+    # before writers start producing data.
     compute_outputs = []
-    for (_fifo_dir, _work_dir) in dirs:  # create Summarycalc
+    for (_fifo_dir, _work_dir) in dirs:
         if rl_output:
             rl_computes = {
                 'loss_type': 'reinsurance gross',
@@ -1986,7 +2542,10 @@ def create_bash_analysis(
 
     print_command(filename, '')
 
-    # create all gul streams
+    # --- Build main GUL pipeline commands ---
+    # Accumulate (command, from_file) pairs per FIFO directory.
+    # Each entry is either a getmodel pipeline command string or a FIFO path
+    # to read from (when a load balancer is used).
     get_gul_stream_cmds = {}
 
     if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
@@ -2106,6 +2665,7 @@ def create_bash_analysis(
     else:
         step_flag = ' -S'
 
+    # --- Route GUL streams to downstream pipelines (RI, IL, or GUL-only) ---
     for fifo_dir, gul_streams in get_gul_stream_cmds.items():
         for i, (getmodel_cmd, from_file) in enumerate(gul_streams):
 
@@ -2159,6 +2719,7 @@ def create_bash_analysis(
                 )
                 print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None), kwargs.get("socket_server", False)))
 
+    # --- Wait for all background pipeline processes ---
     print_command(filename, '')
     do_pwaits(filename, process_counter)
     if kwargs.get("socket_server", False) and kwargs.get("analysis_pk", None) is None:
@@ -2193,6 +2754,19 @@ def create_bash_outputs(
     join_summary_info,
     **kwargs
 ):
+    """Write the output-aggregation and cleanup section of the bash script.
+
+    This function runs *after* the main analysis ``wait`` and handles:
+
+    1. **Kat concatenation** -- ``katpy`` merges per-process binary ORD files
+       into single output files for each run type.
+    2. **Post-wait aggregation** -- ``aalpy`` (PALT/ALT) and ``lecpy``
+       (EPT/PSEPT) run over collected work-folder data.
+    3. **Cleanup** -- removes working directories and temporary FIFOs.
+
+    All parameters are typically supplied by unpacking the dict returned from
+    :func:`bash_params`.
+    """
 
     if max_process_id is not None:
         num_gul_per_lb = 0
@@ -2387,7 +2961,7 @@ def genbash(
     socket_server=None
 ):
     """
-    Generates a bash script containing ktools calculation instructions for an
+    Generates a bash script containing pytools calculation instructions for an
     Oasis model.
 
     :param max_process_id: The number of processes to create
@@ -2482,6 +3056,22 @@ def genbash(
 
 
 def add_server_call(call, analysis_pk=None, socket_server=False):
+    """Inject WebSocket or socket-server flags into a GUL command string.
+
+    If the environment variables ``OASIS_WEBSOCKET_URL`` and
+    ``OASIS_WEBSOCKET_PORT`` are set and ``analysis_pk`` is provided, the
+    ``gulmc``/``gulpy`` invocation within *call* is augmented with
+    ``--socket-server`` and ``--analysis-pk`` flags.  Otherwise, only the
+    ``--socket-server`` flag is added.
+
+    Args:
+        call (str): The full pipeline command string.
+        analysis_pk (int or None): Analysis primary key for WebSocket mode.
+        socket_server (bool): Default socket-server flag value.
+
+    Returns:
+        str: The (possibly modified) command string.
+    """
     if '| gul' not in call:
         return call
     if all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT']) and analysis_pk is not None:
