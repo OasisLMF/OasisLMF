@@ -3,6 +3,22 @@ import pandas as pd
 from oasislmf.pytools.common.data import resolve_file
 
 
+def df_to_ndarray(df, dtype):
+    """Convert a pandas DataFrame to a numpy structured ndarray.
+
+    Args:
+        df (pd.DataFrame): Source DataFrame whose columns match dtype field names.
+        dtype (np.dtype): Target numpy structured dtype.
+
+    Returns:
+        np.ndarray: Structured array with the given dtype.
+    """
+    data = np.empty(df.shape[0], dtype=dtype)
+    for name in dtype.names:
+        data[name] = df[name]
+    return data
+
+
 def read_csv_as_ndarray(stack, file_in, headers, dtype):
     file_in = resolve_file(file_in, "r", stack)
 
@@ -12,7 +28,4 @@ def read_csv_as_ndarray(stack, file_in, headers, dtype):
     except pd.errors.EmptyDataError:
         return np.empty(0, dtype=dtype)
 
-    data = np.empty(df.shape[0], dtype=dtype)
-    for name in dtype.names:
-        data[name] = df[name]
-    return data
+    return df_to_ndarray(df, dtype)

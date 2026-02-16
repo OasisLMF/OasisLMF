@@ -368,7 +368,7 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """
 
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
-        return np.fromfile(os.path.join(dir_path, name + '.bin'), dtype=_dtype)
+        return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
         # in csv column cam be out of order and have different name,
         # we load with pandas and write each column to the ndarray
@@ -401,7 +401,7 @@ def load_as_array(dir_path, name, _dtype, must_exist=True):
     """
     fp = os.path.join(dir_path, name + '.bin')
     if os.path.isfile(fp):
-        return np.fromfile(fp, dtype=_dtype)
+        return np.memmap(fp, dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
         fp = os.path.join(dir_path, name + '.csv')
         with open(fp) as file_in:
