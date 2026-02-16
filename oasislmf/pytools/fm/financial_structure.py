@@ -93,7 +93,7 @@ def load_static(static_path):
         stepped = None
     else:
         stepped = True
-    profile = profile.copy() # profile is a memmap but we may update some value so we copy it into its own array.
+    profile = profile.copy()  # profile is a memmap but we may update some value so we copy it into its own array.
     xref = load_as_ndarray(static_path, 'fm_xref', fm_xref_dtype)
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
