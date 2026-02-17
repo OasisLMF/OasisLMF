@@ -208,6 +208,8 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'check_missing_inputs', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
+        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'if True, intermediary file will be csv instead of more compress format'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose', 'default': KERNEL_DEBUG},
@@ -287,6 +289,7 @@ class GenerateLossesDir(GenerateLossesBase):
             il=il,
             ri=ri,
             rl=rl,
+            intermediary_csv = self.intermediary_csv
         )
 
         if not il:
