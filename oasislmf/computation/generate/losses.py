@@ -289,7 +289,7 @@ class GenerateLossesDir(GenerateLossesBase):
             il=il,
             ri=ri,
             rl=rl,
-            intermediary_csv = self.intermediary_csv
+            intermediary_csv=self.intermediary_csv
         )
 
         if not il:

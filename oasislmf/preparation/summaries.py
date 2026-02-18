@@ -569,7 +569,7 @@ def get_summary_xref_df(
 @oasis_log
 def generate_summaryxref_files(
     location_df, account_df, model_run_fp, analysis_settings, il=False,
-    ri=False, rl=False, intermediary_csv = False
+    ri=False, rl=False, intermediary_csv=False
 ):
     """
     Top level function for creating the summaryxref files from the manager.py
