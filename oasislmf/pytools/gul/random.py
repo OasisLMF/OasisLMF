@@ -225,8 +225,7 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
         samples[:] = np.random.random(n)
 
         # re-generate permutations array
-        for i in range(n):
-            perms[i] = i + 1
+        perms[:] = np.arange(1., np.float64(n + 1))
 
         # in-place shuffle permutations
         np.random.shuffle(perms)
