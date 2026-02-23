@@ -4,7 +4,7 @@ chainmap
 chardet
 fastparquet>=0.3.1
 msgpack
-numba>=0.62.0,<0.63
+numba>=0.57.0
 numexpr
 numpy>=1.18
 ods-tools>=5.0.0
