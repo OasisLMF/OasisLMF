@@ -299,8 +299,8 @@ class FootprintBin(Footprint):
 
         footprint_header = np.frombuffer(bytearray(self.footprint[:FootprintHeader.size]), dtype=FootprintHeader)
 
-        self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
-        self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
+        self.num_intensity_bins = int(footprint_header['num_intensity_bins'].item())
+        self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'].item() & intensityMask)
 
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
         footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
@@ -361,9 +361,9 @@ class FootprintBinZ(Footprint):
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.size]), dtype=FootprintHeader)
 
-        self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
-        self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
-        self.uncompressed_size = int((footprint_header['has_intensity_uncertainty'] & uncompressedMask) >> 1)
+        self.num_intensity_bins = int(footprint_header['num_intensity_bins'].item())
+        self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'].item() & intensityMask)
+        self.uncompressed_size = int((footprint_header['has_intensity_uncertainty'].item() & uncompressedMask) >> 1)
 
         if self.uncompressed_size:
             self.index_dtype = EventIndexBinZ
