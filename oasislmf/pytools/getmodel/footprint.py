@@ -27,7 +27,7 @@ from .common import (
     parquetfootprint_chunked_dir,
     parquetfootprint_chunked_lookup, footprint_bin_lookup
 )
-from oasislmf.pytools.common.data import footprint_event_dtype
+from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ class Footprint:
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
-            self.areaperil_ids = areaperil_ids
+            self.areaperil_ids = np.array(areaperil_ids, dtype=areaperil_int)
         else:
             self.areaperil_ids = None
 
