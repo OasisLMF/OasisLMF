@@ -365,7 +365,6 @@ class GenerateLossesDir(GenerateLossesBase):
                         create_summary_object_file(summary_dir, runtype)
 
         self._store_run_settings(self.settings, os.path.join(model_run_fp, 'output'))
-        self._store_run_settings(self.settings, model_run_fp)
 
 
 class GenerateLossesPartial(GenerateLossesDir):
@@ -1039,7 +1038,7 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
 
         # Write new analysis_settings.json to target directory
         analysis_settings_fp = os.path.join(
-            self.target_dir, 'analysis_settings.json'
+            self.target_dir, 'input', 'analysis_settings.json'
         )
         with open(analysis_settings_fp, 'w') as f:
             json.dump(self.settings, f, indent=4, ensure_ascii=False)
