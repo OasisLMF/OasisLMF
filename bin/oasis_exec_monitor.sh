@@ -28,10 +28,6 @@ do
         exit 0
     fi
     if [ -s $ERR_FILE ]; then
-        # Ignore Python warning messages (e.g. DeprecationWarning, UserWarning),
-        # only trigger kill if there are actual errors in the file
-        if grep -qvE "(^[[:space:]]*$|.+:[0-9]+: [A-Za-z]+Warning:|^[[:space:]]+warnings\.warn)" $ERR_FILE; then
-            run_kernel_kill $SCRIPT_PID
-        fi
+        run_kernel_kill $SCRIPT_PID
     fi
 done
