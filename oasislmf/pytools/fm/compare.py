@@ -1,9 +1,12 @@
 import numpy as np
 from numpy.testing import assert_allclose
 from oasislmf.pytools.common.data import oasis_float
-from .stream_sparse import event_agg_dtype, sidx_loss_dtype
-from .common import EXTRA_VALUES
+from .common import EXTRA_SIDX_COUNT
 from .financial_structure import load_static
+
+# Define dtypes for reading binary stream format
+event_agg_dtype = np.dtype([('event_id', 'i4'), ('item_id', 'i4')])
+sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
 
 
 def stream_to_dict_array(stream_obj):
@@ -37,7 +40,7 @@ def stream_to_dict_array(stream_obj):
             #         break
             #     else:
             #         event_id_last = event_id
-            cur_array = np.zeros(len_sample + EXTRA_VALUES, dtype=oasis_float)
+            cur_array = np.zeros(len_sample + EXTRA_SIDX_COUNT, dtype=oasis_float)
             dict_array[(event_id, agg_id)] = cur_array
 
     return stream_type, len_sample, dict_array
@@ -49,7 +52,7 @@ def round_dict_array(dict_array, precision):
 
 
 def dict_array_to_np_array(dict_array, len_sample):
-    res = np.empty(len(dict_array), dtype=np.dtype(f"i4, i4, ({len_sample + EXTRA_VALUES})f4"))
+    res = np.empty(len(dict_array), dtype=np.dtype(f"i4, i4, ({len_sample + EXTRA_SIDX_COUNT})f4"))
     for i, (event_id, agg_id) in enumerate(sorted(dict_array)):
         res[i] = event_id, agg_id, dict_array[(event_id, agg_id)]
     return res
