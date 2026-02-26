@@ -64,7 +64,7 @@ class RunExposure(ComputationStep):
         # Location already in chained command GenerateKeysDeterministic
         {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the source accounts CSV'},
         {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance info CSV'},
-        {'name': 'oed_scope_csv', 'flag': '-r', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
+        {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
         # -s flag for scope in other files taken for src dir already
     ]
 
