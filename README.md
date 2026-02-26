@@ -1,6 +1,5 @@
 <img src="https://oasislmf.org/packages/oasis_theme_package/themes/oasis_theme/assets/src/oasis-lmf-colour.png" alt="Oasis LMF logo" width="250"/>
 
-[![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases)
 [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)
 [![FM Testing Tool](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/OasisLMF/OasisLMF/blob/main/fm_testing_tool/FmTesting.ipynb)
 
@@ -18,9 +17,9 @@ The `oasislmf` Python package, loosely called the *model development kit (MDK)* 
 ## Versioning and Updates
 
 ### Current Stable Versions (Actively Supported)
-* `1.28.x` [stable/1.28.x](https://github.com/OasisLMF/OasisLMF/tree/stable/1.28.x) From 2023
 * `2.3.x`  [stable/2.3.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.3.x) From 2024
 * `2.4.x`  [stable/2.4.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.4.x) From 2025
+* `2.5.x`  [stable/2.5.x](https://github.com/OasisLMF/OasisLMF/tree/stable/2.4.x) From 2026
 
 ### Release Schedule
 Starting in 2023, we transitioned to a yearly release cycle for our stable versions. At the start of Each year, we release a new stable version with an increased **minor** version number `{major}.{minor}.{patch}`.
@@ -155,16 +154,9 @@ OasisLMF uses the ods_tools package to read exposure files and the setting files
 The version compatible with each OasisLMF is manage in the requirement files.
 below is the summary:
 
-- OasisLMF 1.23.x or before => no ods_tools
-- OasisLMF 1.26.x => use ods_tools 2.3.2
-- OasisLMF 1.27.0 => use ods_tools 3.0.0 or later
-- OasisLMF 1.27.1 => use ods_tools 3.0.0 or later
-- OasisLMF 1.27.2 => use ods_tools 3.0.4 or later
-
-### pandas
-Pandas has released its major version number 2 breaking some of the compatibility with the 1st version
-Therefore, for all version of OasisLMF <= 1.27.2, the latest supported version for pandas is 1.5.3
-Support for pandas 2, starts from version 1.27.3
+- OasisLMF 2.3.x => use ods_tools [3.2.x](https://github.com/OasisLMF/ODS_Tools/tree/stable/3.2.x) or later
+- OasisLMF 2.4.x => use ods_tools [4.0.x](https://github.com/OasisLMF/ODS_Tools/tree/stable/4.0.x) or later
+- OasisLMF 2.5.x => use ods_tools [5.0.x](https://github.com/OasisLMF/ODS_Tools/tree/stable/5.0.x) or later
 
 ## Testing
 
