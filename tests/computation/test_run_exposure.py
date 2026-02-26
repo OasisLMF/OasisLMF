@@ -66,9 +66,9 @@ class TestGetExposureDataConfigResolution(ComputationChecker):
         dirs_used = {call.args[0] for call in mock_fp.call_args_list}
         self.assertEqual(dirs_used, {self.tmp.name})
 
-    def test_location_override_bypasses_fallback_for_location_only(self):
+    def test_oed_location_csv_bypasses_fallback_for_location_only(self):
         with NamedTemporaryFile(suffix='.csv') as loc_file:
-            step = _step_with_oasis_files_dir(self.tmp.name, location_override=loc_file.name)
+            step = _step_with_oasis_files_dir(self.tmp.name, oed_location_csv=loc_file.name)
             with patch('oasislmf.computation.run.exposure.find_exposure_fp') as mock_fp:
                 mock_fp.return_value = '/fallback.csv'
                 config = step.get_exposure_data_config()
@@ -87,10 +87,10 @@ class TestGetExposureDataConfigResolution(ComputationChecker):
         ):
             step = _step_with_oasis_files_dir(
                 self.tmp.name,
-                location_override=loc_file.name,
-                account_override=acc_file.name,
-                info_override=info_file.name,
-                scope_override=scope_file.name,
+                oed_location_csv=loc_file.name,
+                oed_account_csv=acc_file.name,
+                oed_info_csv=info_file.name,
+                oed_scope_csv=scope_file.name,
             )
             with patch('oasislmf.computation.run.exposure.find_exposure_fp') as mock_fp:
                 config = step.get_exposure_data_config()
@@ -101,15 +101,15 @@ class TestGetExposureDataConfigResolution(ComputationChecker):
         self.assertEqual(config['ri_info'], info_file.name)
         self.assertEqual(config['ri_scope'], scope_file.name)
 
-    def test_account_and_info_overrides_only(self):
+    def test_account_and_oed_info_csvs_only(self):
         with (
             NamedTemporaryFile(suffix='.csv') as acc_file,
             NamedTemporaryFile(suffix='.csv') as info_file,
         ):
             step = _step_with_oasis_files_dir(
                 self.tmp.name,
-                account_override=acc_file.name,
-                info_override=info_file.name,
+                oed_account_csv=acc_file.name,
+                oed_info_csv=info_file.name,
             )
             with patch('oasislmf.computation.run.exposure.find_exposure_fp') as mock_fp:
                 mock_fp.return_value = '/fallback.csv'
@@ -171,26 +171,26 @@ class TestGetExposureDataConfigSettings(ComputationChecker):
 
 class TestOverrideParamPreExist(ComputationChecker):
 
-    def test_location_override_with_nonexistent_file_raises_at_init(self):
+    def test_oed_location_csv_with_nonexistent_file_raises_at_init(self):
         with self.assertRaises(OasisException):
-            RunExposure(location_override='/nonexistent/path/location.csv')
+            RunExposure(oed_location_csv='/nonexistent/path/location.csv')
 
-    def test_account_override_with_nonexistent_file_raises_at_init(self):
+    def test_oed_account_csv_with_nonexistent_file_raises_at_init(self):
         with self.assertRaises(OasisException):
-            RunExposure(account_override='/nonexistent/path/account.csv')
+            RunExposure(oed_account_csv='/nonexistent/path/account.csv')
 
-    def test_info_override_with_nonexistent_file_raises_at_init(self):
+    def test_oed_info_csv_with_nonexistent_file_raises_at_init(self):
         with self.assertRaises(OasisException):
-            RunExposure(info_override='/nonexistent/path/ri_info.csv')
+            RunExposure(oed_info_csv='/nonexistent/path/ri_info.csv')
 
-    def test_scope_override_with_nonexistent_file_raises_at_init(self):
+    def test_oed_scope_csv_with_nonexistent_file_raises_at_init(self):
         with self.assertRaises(OasisException):
-            RunExposure(scope_override='/nonexistent/path/ri_scope.csv')
+            RunExposure(oed_scope_csv='/nonexistent/path/ri_scope.csv')
 
-    def test_existing_location_override_does_not_raise(self):
+    def test_existing_oed_location_csv_does_not_raise(self):
         with NamedTemporaryFile(suffix='.csv') as f:
-            step = RunExposure(location_override=f.name)
-            self.assertEqual(step.location_override, f.name)
+            step = RunExposure(oed_location_csv=f.name)
+            self.assertEqual(step.oed_location_csv, f.name)
 
     def test_all_overrides_with_existing_files_do_not_raise(self):
         with (
@@ -200,15 +200,15 @@ class TestOverrideParamPreExist(ComputationChecker):
             NamedTemporaryFile(suffix='.csv') as scope,
         ):
             step = RunExposure(
-                location_override=loc.name,
-                account_override=acc.name,
-                info_override=info.name,
-                scope_override=scope.name,
+                oed_location_csv=loc.name,
+                oed_account_csv=acc.name,
+                oed_info_csv=info.name,
+                oed_scope_csv=scope.name,
             )
-            self.assertEqual(step.location_override, loc.name)
-            self.assertEqual(step.account_override, acc.name)
-            self.assertEqual(step.info_override, info.name)
-            self.assertEqual(step.scope_override, scope.name)
+            self.assertEqual(step.oed_location_csv, loc.name)
+            self.assertEqual(step.oed_account_csv, acc.name)
+            self.assertEqual(step.oed_info_csv, info.name)
+            self.assertEqual(step.oed_scope_csv, scope.name)
 
 
 class TestCheckAllocRules(ComputationChecker):
@@ -254,7 +254,6 @@ def _assert_output_matches(actual_path, expected_path):
     expected = pd.read_csv(expected_path)
     actual = pd.read_csv(actual_path)
     cols = [c for c in expected.columns if c != 'acc_idx']
-    breakpoint()
     pd.testing.assert_frame_equal(
         expected[cols],
         actual[cols],
@@ -282,8 +281,8 @@ class TestRunExposureIntegration(ComputationChecker):
     def test_acc_loc_run_returns_il_true_ril_false(self):
         il, ril = _run_exposure(
             self._output_file(),
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
         )
         self.assertTrue(il)
         self.assertFalse(ril)
@@ -291,10 +290,10 @@ class TestRunExposureIntegration(ComputationChecker):
     def test_all_files_run_returns_il_true_ril_true(self):
         il, ril = _run_exposure(
             self._output_file(),
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
-            info_override=RI_INFO,
-            scope_override=RI_SCOPE,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
+            oed_info_csv=RI_INFO,
+            oed_scope_csv=RI_SCOPE,
         )
         self.assertTrue(il)
         self.assertTrue(ril)
@@ -303,16 +302,16 @@ class TestRunExposureIntegration(ComputationChecker):
         with self.assertRaises(Exception):
             _run_exposure(
                 self._output_file(),
-                location_override=LOCATION_INVALID,
-                account_override=ACCOUNTS,
+                oed_location_csv=LOCATION_INVALID,
+                oed_account_csv=ACCOUNTS,
             )
 
     def test_acc_loc_output_matches_expected(self):
         out = self._output_file()
         _run_exposure(
             out,
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
         )
         _assert_output_matches(out, EXPECTED_ACC_LOC)
 
@@ -320,8 +319,8 @@ class TestRunExposureIntegration(ComputationChecker):
         out = self._output_file()
         _run_exposure(
             out,
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
             currency_conversion_json=CURRENCY_CONFIG,
             reporting_currency='USD',
         )
@@ -331,10 +330,10 @@ class TestRunExposureIntegration(ComputationChecker):
         out = self._output_file()
         _run_exposure(
             out,
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
-            info_override=RI_INFO,
-            scope_override=RI_SCOPE,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
+            oed_info_csv=RI_INFO,
+            oed_scope_csv=RI_SCOPE,
         )
         _assert_output_matches(out, EXPECTED_ALL)
 
@@ -351,10 +350,10 @@ class TestRunExposureIntegration(ComputationChecker):
         out = self._output_file()
         _run_exposure(
             out,
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
-            info_override=RI_INFO,
-            scope_override=RI_SCOPE,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
+            oed_info_csv=RI_INFO,
+            oed_scope_csv=RI_SCOPE,
             currency_conversion_json=CURRENCY_CONFIG,
             reporting_currency='USD',
         )
@@ -364,10 +363,10 @@ class TestRunExposureIntegration(ComputationChecker):
         out = self._output_file()
         _run_exposure(
             out,
-            location_override=LOCATION,
-            account_override=ACCOUNTS,
-            info_override=RI_INFO,
-            scope_override=RI_SCOPE,
+            oed_location_csv=LOCATION,
+            oed_account_csv=ACCOUNTS,
+            oed_info_csv=RI_INFO,
+            oed_scope_csv=RI_SCOPE,
             loss_factor=[0.5],
         )
         _assert_output_matches(out, EXPECTED_LOSS_HALF)
