@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+logging.captureWarnings(True)
 
 from oasislmf import __version__ as oasis_version
 from oasislmf.pytools.gulmc import logger, manager

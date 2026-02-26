@@ -90,11 +90,11 @@ def prepare_run_directory(
             |-- RI_1
             |-- RI_2
             |-- ri_layers.json
+            |-- analysis_settings.json
         |-- ...
         |-- output
         |-- static
         |-- work
-        |-- analysis_settings.json
         `-- run_kernel.sh
 
     where the direct GUL and/or FM input files, and the corresponding binaries
@@ -185,7 +185,7 @@ def prepare_run_directory(
             dst = os.path.join(oasis_dst_fp, p)
             if not (os.path.exists(dst) and filecmp.cmp(src, dst)):
                 shutil.copy2(src, pathlib.Path(dst).parent)
-        dst = os.path.join(run_dir, 'analysis_settings.json')
+        dst = os.path.join(run_dir, 'input', 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')

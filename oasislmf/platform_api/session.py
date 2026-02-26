@@ -71,6 +71,7 @@ class APISession(Session):
         if self.auth_type == "token":
             self.tkn_access = self.auth_credentials["access_token"]
             self.tkn_refresh = self.auth_credentials["refresh_token"]
+            self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return
         try:
             url = urljoin(self.url_base, 'access_token/')

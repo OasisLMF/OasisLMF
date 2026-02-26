@@ -27,7 +27,8 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('rng_index', oasis_int),
                                              ('hazard_rng_index', oasis_int),
                                              ('intensity_adjustment', oasis_int),
-                                             ('return_period', oasis_int)
+                                             ('return_period', oasis_int),
+                                             ('eff_cdf_id', oasis_int)
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),
