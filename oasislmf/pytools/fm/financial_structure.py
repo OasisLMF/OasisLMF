@@ -523,6 +523,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         profiles_cursor[node_idx] += 1
 
     # Sort profiles within each node by layer_id (in-place bubble sort)
+    temp_profile = np.empty(1, dtype=profiles_data.dtype)
     for node_idx in range(total_nodes):
         start = profiles_indptr[node_idx]
         end = profiles_indptr[node_idx + 1]
@@ -533,15 +534,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 for k in range(start, end - 1 - j):
                     if profiles_data[k]['layer_id'] > profiles_data[k + 1]['layer_id']:
                         # Swap entries
-                        temp_layer = profiles_data[k]['layer_id']
-                        temp_i_start = profiles_data[k]['i_start']
-                        temp_i_end = profiles_data[k]['i_end']
-                        profiles_data[k]['layer_id'] = profiles_data[k + 1]['layer_id']
-                        profiles_data[k]['i_start'] = profiles_data[k + 1]['i_start']
-                        profiles_data[k]['i_end'] = profiles_data[k + 1]['i_end']
-                        profiles_data[k + 1]['layer_id'] = temp_layer
-                        profiles_data[k + 1]['i_start'] = temp_i_start
-                        profiles_data[k + 1]['i_end'] = temp_i_end
+                        temp_profile[0] = profiles_data[k]
+                        profiles_data[k] = profiles_data[k + 1]
+                        profiles_data[k + 1] = temp_profile[0]
 
     ##### xref #####
     # Create 2D array mapping (agg_id, layer_id) => output_id for out_level nodes
@@ -585,7 +580,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     # Pass 1: Count children per parent and parents per child
     children_count = np.zeros(total_nodes, dtype=oasis_int)
     parents_count = np.zeros(total_nodes, dtype=oasis_int)
-    children_len = 1
     parents_len = 0
 
     for i in range(fm_programme.shape[0]):
@@ -606,8 +600,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     children_indptr = np.zeros(total_nodes + 1, dtype=oasis_int)
     for i in range(total_nodes):
         children_indptr[i + 1] = children_indptr[i] + children_count[i]
-        if children_count[i] > 0:
-            children_len += 1 + children_count[i]
 
     parents_indptr = np.zeros(total_nodes + 1, dtype=oasis_int)
     for i in range(total_nodes):
@@ -701,7 +693,6 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     for level in range(start_level, max_level + 1):
         for agg_id in range(1, level_node_len[level] + 1):
-            node_programme = (nb_oasis_int(level), nb_oasis_int(agg_id))
             node = nodes_array[node_i]
             node['node_id'] = node_i
             node_i += 1
