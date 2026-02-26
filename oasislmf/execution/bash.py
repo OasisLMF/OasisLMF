@@ -1687,8 +1687,11 @@ def bash_wrapper(
     elif stderr_guard and process_number:
         # check stderror.err before exit (fallback check in case of short run)
         print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
-        print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
-        print_command(filename, '    exit 1')
+        print_command(
+            filename, '    if grep -qvE "(^[[:space:]]*$|.+:[0-9]+: [A-Za-z]+Warning:|^[[:space:]]+warnings\\.warn)" $LOG_DIR/stderror.err; then')
+        print_command(filename, '        echo "Error detected in $LOG_DIR/stderror.err"')
+        print_command(filename, '        exit 1')
+        print_command(filename, '    fi')
         print_command(filename, 'fi')
         # check for empty work bin files
         print_command(filename, f'CHUNK_BINS=(`find {process_number}.work -name \'P{process_number}.bin\' | sort -r`)')
