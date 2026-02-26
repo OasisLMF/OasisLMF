@@ -518,7 +518,7 @@ class PrepareRunDirectory(TestCase):
 
                 prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
 
-                with io.open(os.path.join(run_dir, 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
+                with io.open(os.path.join(run_dir, 'input', 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
                     self.assertEqual('{"analysis_settings": "analysis_settings"}', expected_analysis_settings.read())
         finally:
             os.remove(analysis_settings_fp.name)
