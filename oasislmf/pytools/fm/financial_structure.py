@@ -418,8 +418,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for programme in fm_programme:
         parent = (nb_oasis_int(programme['level_id']), nb_oasis_int(programme['to_agg_id']))
         if parent not in node_layers:
-            node_layers[parent] = nb_oasis_int(len(programme_node_to_profiles[parent]))
-            programme_node_to_layers[parent] = programme_node_to_profiles[parent]
+            if parent in programme_node_to_profiles:
+                node_layers[parent] = nb_oasis_int(len(programme_node_to_profiles[parent]))
+                programme_node_to_layers[parent] = programme_node_to_profiles[parent]
+            else:
+                # Initialize nodes without profiles with 0 layers
+                # They will inherit layer count from their children in the next section
+                node_layers[parent] = nb_oasis_int(0)
 
     # create 2 mapping to get the parents and the childs of each nodes
     # update the number of layer for nodes based on the number of layer of their parents
