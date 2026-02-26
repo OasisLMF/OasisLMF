@@ -75,7 +75,6 @@ class RunExposure(ComputationStep):
             if override:
                 return override
             return find_exposure_fp(self.oasis_files_dir, key, required=False)
-
         return {
             'location': _resolve(self.oed_location_csv, 'loc'),
             'account': _resolve(self.oed_accounts_csv, 'acc'),

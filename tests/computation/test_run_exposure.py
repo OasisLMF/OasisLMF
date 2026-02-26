@@ -150,10 +150,10 @@ class TestGetExposureDataConfigSettings(ComputationChecker):
 
     def test_oed_schema_info_falls_back_to_settings_oed_version(self):
         step = _step_with_oasis_files_dir(self.tmp.name)
-        step.settings = {'oed_version': 'v2.0.0'}
+        step.settings = {'oed_version': 'v4.0.0'}
         with patch('oasislmf.computation.run.exposure.find_exposure_fp', return_value=None):
             config = step.get_exposure_data_config()
-        self.assertEqual(config['oed_schema_info'], 'v2.0.0')
+        self.assertEqual(config['oed_schema_info'], 'v4.0.0')
 
     def test_oed_schema_info_none_when_neither_set(self):
         config = self._config()
