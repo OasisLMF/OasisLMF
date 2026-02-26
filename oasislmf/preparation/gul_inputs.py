@@ -14,6 +14,8 @@ from oasislmf.pytools.common.data import (correlations_headers, correlations_dty
                                           complex_items_meta_dtype,
                                           item_id, coverage_id, group_id, section_id,
                                           DTYPE_IDX)
+from oasislmf.pytools.converters.csvtobin.utils import complex_items_write_bin, amplifications_write_bin
+from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.data import merge_dataframes
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
                                      DAMAGE_GROUP_ID_COLS,
