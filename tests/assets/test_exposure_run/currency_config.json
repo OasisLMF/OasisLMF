@@ -1,0 +1,8 @@
+{
+    "currency_conversion_type": "DictBasedCurrencyRates",
+    "source_type": "list",
+    "currency_rates": [["USD", "GBP", 0.85],
+                       ["USD", "EUR", 0.95],
+                       ["GBP", "EUR", 1.12]
+                      ]
+}

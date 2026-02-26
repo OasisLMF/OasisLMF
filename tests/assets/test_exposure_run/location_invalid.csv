@@ -1,0 +1,3 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,OEDVersion
+1,1,A11111,,,10002082047,,,,GB,,0.1,2.0.0
+1,1,A11111,,,10002082048,,,,GB,,0.2,2.0.0
