@@ -88,7 +88,7 @@ class TestGetExposureDataConfigResolution(ComputationChecker):
             step = _step_with_oasis_files_dir(
                 self.tmp.name,
                 oed_location_csv=loc_file.name,
-                oed_account_csv=acc_file.name,
+                oed_accounts_csv=acc_file.name,
                 oed_info_csv=info_file.name,
                 oed_scope_csv=scope_file.name,
             )
@@ -108,7 +108,7 @@ class TestGetExposureDataConfigResolution(ComputationChecker):
         ):
             step = _step_with_oasis_files_dir(
                 self.tmp.name,
-                oed_account_csv=acc_file.name,
+                oed_accounts_csv=acc_file.name,
                 oed_info_csv=info_file.name,
             )
             with patch('oasislmf.computation.run.exposure.find_exposure_fp') as mock_fp:
@@ -175,9 +175,9 @@ class TestOverrideParamPreExist(ComputationChecker):
         with self.assertRaises(OasisException):
             RunExposure(oed_location_csv='/nonexistent/path/location.csv')
 
-    def test_oed_account_csv_with_nonexistent_file_raises_at_init(self):
+    def test_oed_accounts_csv_with_nonexistent_file_raises_at_init(self):
         with self.assertRaises(OasisException):
-            RunExposure(oed_account_csv='/nonexistent/path/account.csv')
+            RunExposure(oed_accounts_csv='/nonexistent/path/account.csv')
 
     def test_oed_info_csv_with_nonexistent_file_raises_at_init(self):
         with self.assertRaises(OasisException):
@@ -201,12 +201,12 @@ class TestOverrideParamPreExist(ComputationChecker):
         ):
             step = RunExposure(
                 oed_location_csv=loc.name,
-                oed_account_csv=acc.name,
+                oed_accounts_csv=acc.name,
                 oed_info_csv=info.name,
                 oed_scope_csv=scope.name,
             )
             self.assertEqual(step.oed_location_csv, loc.name)
-            self.assertEqual(step.oed_account_csv, acc.name)
+            self.assertEqual(step.oed_accounts_csv, acc.name)
             self.assertEqual(step.oed_info_csv, info.name)
             self.assertEqual(step.oed_scope_csv, scope.name)
 
@@ -282,7 +282,7 @@ class TestRunExposureIntegration(ComputationChecker):
         il, ril = _run_exposure(
             self._output_file(),
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
         )
         self.assertTrue(il)
         self.assertFalse(ril)
@@ -291,7 +291,7 @@ class TestRunExposureIntegration(ComputationChecker):
         il, ril = _run_exposure(
             self._output_file(),
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
             oed_info_csv=RI_INFO,
             oed_scope_csv=RI_SCOPE,
         )
@@ -303,7 +303,7 @@ class TestRunExposureIntegration(ComputationChecker):
             _run_exposure(
                 self._output_file(),
                 oed_location_csv=LOCATION_INVALID,
-                oed_account_csv=ACCOUNTS,
+                oed_accounts_csv=ACCOUNTS,
             )
 
     def test_acc_loc_output_matches_expected(self):
@@ -311,7 +311,7 @@ class TestRunExposureIntegration(ComputationChecker):
         _run_exposure(
             out,
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
         )
         _assert_output_matches(out, EXPECTED_ACC_LOC)
 
@@ -320,7 +320,7 @@ class TestRunExposureIntegration(ComputationChecker):
         _run_exposure(
             out,
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
             currency_conversion_json=CURRENCY_CONFIG,
             reporting_currency='USD',
         )
@@ -331,7 +331,7 @@ class TestRunExposureIntegration(ComputationChecker):
         _run_exposure(
             out,
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
             oed_info_csv=RI_INFO,
             oed_scope_csv=RI_SCOPE,
         )
@@ -351,7 +351,7 @@ class TestRunExposureIntegration(ComputationChecker):
         _run_exposure(
             out,
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
             oed_info_csv=RI_INFO,
             oed_scope_csv=RI_SCOPE,
             currency_conversion_json=CURRENCY_CONFIG,
@@ -364,7 +364,7 @@ class TestRunExposureIntegration(ComputationChecker):
         _run_exposure(
             out,
             oed_location_csv=LOCATION,
-            oed_account_csv=ACCOUNTS,
+            oed_accounts_csv=ACCOUNTS,
             oed_info_csv=RI_INFO,
             oed_scope_csv=RI_SCOPE,
             loss_factor=[0.5],

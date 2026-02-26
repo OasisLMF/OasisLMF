@@ -61,10 +61,11 @@ class RunExposure(ComputationStep):
          'help': 'if True run the oasis disaggregation.'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
-        {'name': 'oed_location_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the source location CSV'},
-        {'name': 'oed_account_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the source accounts CSV'},
-        {'name': 'oed_info_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance info CSV'},
-        {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
+        # Location already in chained command GenerateKeysDeterministic
+        {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the source accounts CSV'},
+        {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance info CSV'},
+        {'name': 'oed_scope_csv', 'flag': '-r', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
+        # -s flag for scope in other files taken for src dir already
     ]
 
     chained_commands = [GenerateKeysDeterministic]
@@ -77,7 +78,7 @@ class RunExposure(ComputationStep):
 
         return {
             'location': _resolve(self.oed_location_csv, 'loc'),
-            'account': _resolve(self.oed_account_csv, 'acc'),
+            'account': _resolve(self.oed_accounts_csv, 'acc'),
             'ri_info': _resolve(self.oed_info_csv, 'info'),
             'ri_scope': _resolve(self.oed_scope_csv, 'scope'),
             'oed_schema_info': self.oed_schema_info if self.oed_schema_info is not None else self.settings.get('oed_version', None),
