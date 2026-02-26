@@ -12,18 +12,10 @@ from oasislmf.pytools.data_layer.footprint_layer import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def _make_header(operation: OperationEnum, event_id: int = 0) -> bytes:
     """Build a 16-byte header matching the protocol."""
     return operation.value + event_id.to_bytes(8, byteorder='big') + b'\x00' * 4
 
-
-# ---------------------------------------------------------------------------
-# OperationEnum
-# ---------------------------------------------------------------------------
 
 def test_operation_enum_values_are_4_byte_big_endian():
     assert OperationEnum.GET_DATA.value == (1).to_bytes(4, byteorder='big')
@@ -41,10 +33,6 @@ def test_operation_enum_invalid_value_raises():
     with pytest.raises(ValueError):
         OperationEnum((99).to_bytes(4, byteorder='big'))
 
-
-# ---------------------------------------------------------------------------
-# FootprintLayer._extract_header
-# ---------------------------------------------------------------------------
 
 def test_extract_header_get_data_returns_event_id():
     header = _make_header(OperationEnum.GET_DATA, event_id=42)
@@ -77,10 +65,6 @@ def test_extract_header_non_get_data_returns_none_event_id(op):
     assert operation == op
     assert event_id is None
 
-
-# ---------------------------------------------------------------------------
-# FootprintLayer._stream_footprint_data
-# ---------------------------------------------------------------------------
 
 def test_stream_footprint_data_small_array_single_chunk():
     data = np.array([1, 2, 3], dtype=np.int32)
@@ -115,10 +99,6 @@ def test_stream_footprint_data_reassembled_matches_original():
 
     np.testing.assert_array_equal(pickle.loads(b"".join(chunks)), data)
 
-
-# ---------------------------------------------------------------------------
-# FootprintLayer.__init__ / _define_socket
-# ---------------------------------------------------------------------------
 
 @patch('oasislmf.pytools.data_layer.footprint_layer.socket.socket')
 def test_footprint_layer_init_sets_attributes(mock_socket_cls):
@@ -155,10 +135,6 @@ def test_footprint_layer_init_sets_so_reuseaddr(mock_socket_cls):
     mock_sock.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 
-# ---------------------------------------------------------------------------
-# FootprintLayerClient.poll
-# ---------------------------------------------------------------------------
-
 def test_client_poll_returns_true_when_server_reachable():
     with patch.object(FootprintLayerClient, '_get_socket', return_value=MagicMock()):
         assert FootprintLayerClient.poll() is True
@@ -168,10 +144,6 @@ def test_client_poll_returns_false_on_connection_refused():
     with patch.object(FootprintLayerClient, '_get_socket', side_effect=ConnectionRefusedError):
         assert FootprintLayerClient.poll() is False
 
-
-# ---------------------------------------------------------------------------
-# FootprintLayerClient.get_number_of_intensity_bins
-# ---------------------------------------------------------------------------
 
 def test_client_get_number_of_intensity_bins_sends_correct_operation():
     mock_sock = MagicMock()
@@ -184,10 +156,6 @@ def test_client_get_number_of_intensity_bins_sends_correct_operation():
     assert result == 100
     mock_sock.close.assert_called_once()
 
-
-# ---------------------------------------------------------------------------
-# FootprintLayerClient.get_event
-# ---------------------------------------------------------------------------
 
 def test_client_get_event_sends_correct_header():
     data = np.array([1.0, 2.0], dtype=np.float32)
