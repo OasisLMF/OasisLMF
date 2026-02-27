@@ -384,11 +384,12 @@ def do_post_wait_processing(
     join_summary_info=False,
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
-        return
+        return []
 
     if not inuring_priority:
         inuring_priority = ''
 
+    post_wait_cmds = []
     for summary in analysis_settings['{}_summaries'.format(runtype)]:
         if "id" in summary:
             summary_set = summary['id']
@@ -428,11 +429,13 @@ def do_post_wait_processing(
 
                 if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext}'
-                    print_command(filename, cmd)
+                    process_counter['jpid_monitor_count'] += 1
+                    post_wait_cmds.append(
+                        f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
                     if summary.get('ord_output', {}).get('alct_convergence'):
-                        cmd = f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext}'
-                        print_command(filename, cmd)
+                        process_counter['jpid_monitor_count'] += 1
+                        post_wait_cmds.append(
+                            f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
@@ -458,8 +461,9 @@ def do_post_wait_processing(
 
                 if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext}'
-                    print_command(filename, cmd)
+                    process_counter['jpid_monitor_count'] += 1
+                    post_wait_cmds.append(
+                        f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
             # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
@@ -522,10 +526,14 @@ def do_post_wait_processing(
 
                 if join_summary_info or analysis_settings.get("join_summary_info", False):
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename}'
-                    print_command(filename, cmd)
-                    cmd = f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename}'
-                    print_command(filename, cmd)
+                    process_counter['jpid_monitor_count'] += 1
+                    post_wait_cmds.append(
+                        f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                    process_counter['jpid_monitor_count'] += 1
+                    post_wait_cmds.append(
+                        f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+
+    return post_wait_cmds
 
 
 def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
@@ -649,6 +657,7 @@ def do_kats(
         inuring_priority = ''
 
     anykats = False
+    post_wait_cmds = []
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
@@ -678,9 +687,10 @@ def do_kats(
 
                         if join_summary_info or analysis_settings.get("join_summary_info", False):
                             summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
-                            cmd = f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile}'
-                            print_command(filename, cmd)
-    return anykats
+                            process_counter['jpid_monitor_count'] += 1
+                            post_wait_cmds.append(
+                                f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile} & jpid{process_counter["jpid_monitor_count"]}=$!')
+    return anykats, post_wait_cmds
 
 
 def do_summarycalcs(
@@ -1117,6 +1127,13 @@ def do_kwaits(filename, process_counter):
     Add kwaits to the script
     """
     do_waits('kpid', process_counter['kpid_monitor_count'], filename)
+
+
+def do_jwaits(filename, process_counter):
+    """
+    Add jwaits to the script (join-summary-info processes)
+    """
+    do_waits('jpid', process_counter['jpid_monitor_count'], filename)
 
 
 def get_getmodel_cmd(
@@ -1670,8 +1687,11 @@ def bash_wrapper(
     elif stderr_guard and process_number:
         # check stderror.err before exit (fallback check in case of short run)
         print_command(filename, 'if [ -s $LOG_DIR/stderror.err ]; then')
-        print_command(filename, '    echo "Error detected in $LOG_DIR/stderror.err"')
-        print_command(filename, '    exit 1')
+        print_command(
+            filename, '    if grep -qvE "(^[[:space:]]*$|.+:[0-9]+: [A-Za-z]+Warning:|^[[:space:]]+warnings\\.warn)" $LOG_DIR/stderror.err; then')
+        print_command(filename, '        echo "Error detected in $LOG_DIR/stderror.err"')
+        print_command(filename, '        exit 1')
+        print_command(filename, '    fi')
         print_command(filename, 'fi')
         # check for empty work bin files
         print_command(filename, f'CHUNK_BINS=(`find {process_number}.work -name \'P{process_number}.bin\' | sort -r`)')
@@ -2208,29 +2228,34 @@ def create_bash_outputs(
         num_lb = 0
         num_gul_output = num_fm_output = max_process_id
 
+    # Post wait cmds for do_kats
+    post_wait_cmds = []
+
     # Output Kats
     if rl_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance gross loss kats ---')
         print_command(filename, '')
         for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
-            do_kats(
+            _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                 num_fm_output, filename, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
             )
+            post_wait_cmds.extend(cmds)
 
     if ri_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss kats ---')
         print_command(filename, '')
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-            do_kats(
+            _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
             )
+            post_wait_cmds.extend(cmds)
         if full_correlation:
             print_command(filename, '')
             print_command(
@@ -2238,20 +2263,22 @@ def create_bash_outputs(
                 '# --- Do reinsurance loss kats for fully correlated output ---'
             )
             print_command(filename, '')
-            do_kats(
+            _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
             )
+            post_wait_cmds.extend(cmds)
 
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss kats ---')
         print_command(filename, '')
-        do_kats(
+        _, cmds = do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
         )
+        post_wait_cmds.extend(cmds)
         if full_correlation:
             print_command(filename, '')
             print_command(
@@ -2259,20 +2286,22 @@ def create_bash_outputs(
                 '# --- Do insured loss kats for fully correlated output ---'
             )
             print_command(filename, '')
-            do_kats(
+            _, cmds = do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
             )
+            post_wait_cmds.extend(cmds)
 
     if gul_output:
         print_command(filename, '')
         print_command(filename, '# --- Do ground up loss kats ---')
         print_command(filename, '')
-        do_kats(
+        _, cmds = do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
             process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
         )
+        post_wait_cmds.extend(cmds)
         if full_correlation:
             print_command(filename, '')
             print_command(
@@ -2280,61 +2309,72 @@ def create_bash_outputs(
                 '# --- Do ground up loss kats for fully correlated output ---'
             )
             print_command(filename, '')
-            do_kats(
+            _, cmds = do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
             )
+            post_wait_cmds.extend(cmds)
 
     do_kwaits(filename, process_counter)
+
+    for cmd in post_wait_cmds:
+        print_command(filename, cmd)
+    do_jwaits(filename, process_counter)
+    process_counter['jpid_monitor_count'] = 0
+    post_wait_cmds = []
 
     # Output calcs
     print_command(filename, '')
     if rl_output:
         for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
-            do_post_wait_processing(
+            post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-            )
+            ))
     if ri_output:
         for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-            do_post_wait_processing(
+            post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, '', output_dir, stderr_guard,
                 inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
-            )
+            ))
     if il_output:
-        do_post_wait_processing(
+        post_wait_cmds.extend(do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
             output_dir, stderr_guard, join_summary_info=join_summary_info
-        )
+        ))
     if gul_output:
-        do_post_wait_processing(
+        post_wait_cmds.extend(do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
             output_dir, stderr_guard, join_summary_info=join_summary_info
-        )
+        ))
 
     if full_correlation:
         work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
         if ri_output:
-            do_post_wait_processing(
+            post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-            )
+            ))
         if il_output:
-            do_post_wait_processing(
+            post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-            )
+            ))
         if gul_output:
-            do_post_wait_processing(
+            post_wait_cmds.extend(do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
                 work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
-            )
+            ))
 
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
+
+    for cmd in post_wait_cmds:
+        print_command(filename, cmd)
+    do_jwaits(filename, process_counter)
 
     if remove_working_files:
         print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))

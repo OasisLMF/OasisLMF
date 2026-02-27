@@ -2,7 +2,6 @@ __all__ = [
     'get_gul_input_items',
     'write_gul_input_files',
 ]
-import copy
 import os
 import warnings
 from collections import OrderedDict
@@ -12,10 +11,12 @@ import numpy as np
 
 from oasislmf.pytools.common.data import (correlations_headers, correlations_dtype, amplifications_dtype, items_dtype,
                                           coverages_dtype, item_adjustment_dtype,
+                                          complex_items_meta_dtype,
                                           item_id, coverage_id, group_id, section_id,
                                           DTYPE_IDX)
-from oasislmf.utils.data import (factorize_ndarray, merge_dataframes,
-                                 set_dataframe_column_dtypes)
+from oasislmf.pytools.converters.csvtobin.utils import complex_items_write_bin, amplifications_write_bin
+from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
+from oasislmf.utils.data import merge_dataframes
 from oasislmf.utils.defaults import (CORRELATION_GROUP_ID,
                                      DAMAGE_GROUP_ID_COLS,
                                      HAZARD_GROUP_ID_COLS,
@@ -42,16 +43,6 @@ VALID_OASIS_GROUP_COLS = [
 
 PERIL_CORRELATION_GROUP_COL = 'peril_correlation_group'
 
-files_dtype = {
-    'complex_items': {'item_id': item_id[DTYPE_IDX], 'coverage_id': coverage_id[DTYPE_IDX], 'model_data': str,
-                      'group_id': group_id[DTYPE_IDX]},
-    'items': {col: dtype for col, (dtype, _) in items_dtype.fields.items()},
-    'coverages': {col: dtype for col, (dtype, _) in coverages_dtype.fields.items()},
-    'amplifications': {col: dtype for col, (dtype, _) in amplifications_dtype.fields.items()},
-    'sections': {'section_id': section_id[DTYPE_IDX]},
-    'item_adjustments': {col: dtype for col, (dtype, _) in item_adjustment_dtype.fields.items()}
-}
-
 
 def prepare_sections_df(gul_inputs_df):
     sections = gul_inputs_df.loc[:, ['section_id']].drop_duplicates()
@@ -61,8 +52,44 @@ def prepare_sections_df(gul_inputs_df):
     return sections
 
 
-file_prepare = {
-    'sections': prepare_sections_df
+def coverages_write_gul_bin(data, file_path, dtype):
+    df_to_ndarray(data, dtype)["tiv"].tofile(file_path)
+
+
+def complex_items_write_gul_bin(data, file_path, dtype):
+    with open(file_path, 'wb') as f:
+        complex_items_write_bin(data, f, dtype)
+
+
+def amplifications_write_gul_bin(data, file_path, dtype):
+    with open(file_path, 'wb') as f:
+        amplifications_write_bin(df_to_ndarray(data, dtype), f)
+
+
+def default_write_gul_bin(data, file_path, dtype):
+    df_to_ndarray(data, dtype).tofile(file_path)
+
+
+files_write_info = {
+    'complex_items': {"csv_dtype": {'item_id': item_id[DTYPE_IDX], 'coverage_id': coverage_id[DTYPE_IDX], 'model_data': str, 'group_id': group_id[DTYPE_IDX]},
+                      "bin_dtype": complex_items_meta_dtype,
+                      "write_bin": complex_items_write_gul_bin,
+                      "required_col": {'model_data'}},
+
+    'items': {"csv_dtype": {col: dtype for col, (dtype, _) in items_dtype.fields.items()},
+              "bin_dtype": items_dtype},
+    'coverages': {"csv_dtype": {col: dtype for col, (dtype, _) in coverages_dtype.fields.items()},
+                  "bin_dtype": coverages_dtype,
+                  "write_bin": coverages_write_gul_bin},
+    'amplifications': {"csv_dtype": {col: dtype for col, (dtype, _) in amplifications_dtype.fields.items()},
+                       "bin_dtype": amplifications_dtype,
+                       "write_bin": amplifications_write_gul_bin,
+                       "required_col": {'amplification_id'}},
+    'sections': {"csv_dtype": {'section_id': section_id[DTYPE_IDX]},
+                 "prepare_data": prepare_sections_df,
+                 "required_col": {'section_id'}},
+    'item_adjustments': {"csv_dtype": {col: dtype for col, (dtype, _) in item_adjustment_dtype.fields.items()},
+                         "required_col": {'intensity_adjustment'}}
 }
 
 
@@ -105,39 +132,78 @@ def get_gul_input_items(
     do_disaggregation=True
 ):
     """
-    Generates and returns a Pandas dataframe of GUL input items.
+    Generates GUL (Ground-Up Loss) input items by combining location and keys data.
 
-    :param exposure_df: Exposure dataframe
-    :type exposure_df: pandas.DataFrame
+    This function creates the foundational data structure for loss calculations by
+    merging exposure (location) data with model keys data. Each resulting row
+    represents a unique combination of location, peril, coverage type, and building
+    that will flow through the loss calculation pipeline.
 
-    :param keys_df: Keys dataframe
-    :type keys_df: pandas.DataFrame
+    Overview of Processing Flow:
+    ===========================
+    1. SETUP: Load profiles, extract TIV columns, prepare location data
+    2. MERGE: Join location_df with keys_df on loc_id to create base GUL items
+    3. COVERAGE UNPACKING: Set TIV values based on coverage_type_id
+    4. DISAGGREGATION: If enabled, expand rows by NumberOfBuildings
+    5. ID ASSIGNMENT: Compute item_id, coverage_id, group_id, hazard_group_id
+    6. FINALIZE: Select required columns and return
 
-    :param output_dir: the output directory where input files are stored
-    :type output_dir: str
+    Key Data Structures:
+    ===================
+    - location_df: Source exposure data with TIV columns (BuildingTIV, ContentsTIV, etc.)
+    - keys_df: Model lookup results mapping locations to model-specific IDs
+      (areaperil_id, vulnerability_id, peril_id, coverage_type_id)
+    - gul_inputs_df: Output DataFrame with one row per (location, peril, coverage, building)
 
-    :param exposure_profile: Exposure profile
-    :type exposure_profile: dict
+    Key Output Columns:
+    ==================
+    - item_id: Unique identifier for each GUL item (loc_id, peril_id, coverage_type_id, building_id)
+    - coverage_id: Groups items by (loc_id, building_id, coverage_type_id)
+    - group_id: Damage correlation group (hashed from damage_group_id_cols)
+    - hazard_group_id: Hazard correlation group (hashed from hazard_group_id_cols)
+    - tiv: Total Insured Value for this item's coverage type
+    - areaperil_id, vulnerability_id: Model-specific identifiers from keys
 
-    :param damage_group_id_cols: Columns to be used to generate a hashed damage group id.
-    :type damage_group_id_cols: list[str]
+    Disaggregation:
+    ==============
+    When do_disaggregation=True and NumberOfBuildings > 1:
+    - TIV is divided by NumberOfBuildings
+    - Rows are repeated NumberOfBuildings times
+    - Each repeated row gets a unique building_id (1 to NumberOfBuildings)
+    This allows modeling individual buildings within an aggregate location.
 
-    :param hazard_group_id_cols: Columns to be used to generate a hashed hazard group id.
-    :type hazard_group_id_cols: list[str]
+    Args:
+        location_df (pandas.DataFrame): Exposure data with columns including loc_id,
+            PortNumber, AccNumber, LocNumber, TIV columns, NumberOfBuildings, IsAggregate.
+        keys_df (pandas.DataFrame): Model keys with columns including locid/loc_id,
+            perilid, coveragetypeid, areaperilid, vulnerabilityid.
+        correlations (bool, optional): If True, merge with peril_correlation_group_df
+            for correlation modeling. Default False.
+        peril_correlation_group_df (pandas.DataFrame, optional): Correlation group
+            definitions when correlations=True.
+        exposure_profile (dict, optional): Maps OED fields to FM term types.
+        damage_group_id_cols (list[str], optional): Columns used to compute group_id
+            via hashing. Default: ['loc_id', 'peril_correlation_group'].
+        hazard_group_id_cols (list[str], optional): Columns used to compute hazard_group_id
+            via hashing. Default: ['loc_id'].
+        do_disaggregation (bool, optional): If True, split aggregate locations by
+            NumberOfBuildings. Default True.
 
-    :param do_disaggregation: If True, disaggregates by the number of buildings
-    :type do_disaggregation: bool
+    Returns:
+        pandas.DataFrame: GUL inputs with columns including item_id, coverage_id,
+            group_id, hazard_group_id, tiv, areaperil_id, vulnerability_id, peril_id,
+            coverage_type_id, building_id, and location identifiers.
 
-    :return: GUL inputs dataframe
-    :rtype: pandas.DataFrame
-
+    Raises:
+        OasisException: If exposure profile is missing FM term information.
+        OasisException: If merge of location and keys data produces empty result.
+        OasisException: If all rows have zero TIV after filtering.
     """
-    # Get the grouped exposure profile - this describes the financial terms to
-    # to be found in the source exposure file, which are for the following
-    # FM levels: site coverage (# 1), site pd (# 2), site all (# 3). It also
-    # describes the OED hierarchy terms present in the exposure file, namely
-    # portfolio num., acc. num., loc. num., and cond. num.
-
+    # =========================================================================
+    # SETUP PHASE: Load profiles and extract configuration
+    # =========================================================================
+    # Get the grouped exposure profile - describes FM terms (TIV, limit, deductible)
+    # for site coverage level and OED hierarchy terms (portfolio, account, location)
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile=exposure_profile)
 
     if not profile:
@@ -239,9 +305,10 @@ def get_gul_input_items(
     gul_inputs_df = (location_df[list(set(exposure_df_gul_inputs_cols).intersection(location_df.columns))]
                      .drop_duplicates('loc_id', ignore_index=True))
 
-    # Rename the main keys dataframe columns - this is due to the fact that the
-    # keys file headers use camel case, and don't use underscored names, which
-    # is the convention used for the GUL and IL inputs dataframes in the MDK
+    # =========================================================================
+    # MERGE PHASE: Join location data with model keys
+    # =========================================================================
+    # Keys file uses camelCase headers; rename to snake_case for consistency
     keys_df.rename(
         columns={
             'locid': 'loc_id' if 'loc_id' not in keys_df else 'locid',
@@ -283,68 +350,65 @@ def get_gul_input_items(
     # Free memory after merge, before memory-intensive restructuring of data
     del keys_df
 
-    # prepare column mappings for all coverage types
+    # =========================================================================
+    # COVERAGE UNPACKING: Set TIV based on coverage type
+    # =========================================================================
+    # Map coverage_type_id to the appropriate TIV column (BuildingTIV, ContentsTIV, etc.)
     cols_by_cov_type = {}
     for cov_type in gul_inputs_df.coverage_type_id.unique():
         tiv_col = tiv_terms[cov_type]
         cols_by_cov_type[cov_type] = {
             'tiv_col': tiv_col
         }
-    # coverage unpacking and disaggregation loop:
-    #  - one row representing N coverages is being transformed to N rows, one per coverage.
-    #  - if NumberOfBuildings > 1, on top of unpacking the coverage, it performs the disaggregation of the items
-    #    by repeating the rows `NumberOfBuildings` times and assigning to each row a unique `disagg_id`` number,
-    #    useful for generating `item_id` later.
-    #  - group the rows in the GUL inputs table by coverage type
-    #  - set the IL terms (and BI coverage boolean) in each group and update the corresponding frame section in the GUL inputs table
-    gul_inputs_reformatted_chunks = []
+
+    # If disaggregating, divide TIV by NumberOfBuildings before assigning
     if do_disaggregation:
         # split TIV
         gul_inputs_df[tiv_cols] = gul_inputs_df[tiv_cols].div(np.maximum(1, gul_inputs_df['NumberOfBuildings']), axis=0)
 
-    for (number_of_buildings, cov_type), cov_type_group in gul_inputs_df.groupby(by=['NumberOfBuildings', 'coverage_type_id'], sort=True):
-        if tiv_terms[cov_type] not in gul_inputs_df:
-            continue
-        cov_type_group['tiv'] = cov_type_group[cols_by_cov_type[cov_type]['tiv_col']]
-        cov_type_group['coverage_type_id'] = cov_type
-        cov_type_group = cov_type_group[cov_type_group['tiv'] > 0]
-        if do_disaggregation:
-            # if NumberOfBuildings == 0: still add one entry
-            disagg_df_chunk = (cov_type_group.reset_index()
-                               .join(pd.DataFrame({'building_id': range(1, max(number_of_buildings, 1) + 1)}), how='cross')
-                               .set_index('index'))
-        else:
-            disagg_df_chunk = cov_type_group.copy().assign(building_id=1)
+    # Set tiv column based on coverage_type_id (vectorized)
+    gul_inputs_df['tiv'] = 0.0
+    for cov_type, tiv_col in cols_by_cov_type.items():
+        mask = gul_inputs_df['coverage_type_id'] == cov_type
+        gul_inputs_df.loc[mask, 'tiv'] = gul_inputs_df.loc[mask, tiv_col['tiv_col']]
 
-        gul_inputs_reformatted_chunks.append(disagg_df_chunk)
+    # Filter out rows with zero TIV
+    gul_inputs_df = gul_inputs_df[gul_inputs_df['tiv'] > 0]
 
-    for disagg_df_chunk in gul_inputs_reformatted_chunks:
-        if disagg_df_chunk.shape[0]:
-            break
-    else:
+    if gul_inputs_df.empty:
         raise OasisException('Empty gul_inputs_df dataframe after dropping rows with zero tiv: please check the exposure input files')
 
-    # concatenate all the unpacked chunks. Sort by index to preserve `item_id` order as in the original code
-    gul_inputs_df = (
-        pd.concat(gul_inputs_reformatted_chunks)
-        .sort_index(kind='mergesort')
-        .reset_index(drop=True)
-    )
+    # =========================================================================
+    # DISAGGREGATION: Expand rows by NumberOfBuildings
+    # =========================================================================
+    # For aggregate locations (NumberOfBuildings > 1), create one row per building
+    # Each building gets a unique building_id and its share of the TIV
+    if do_disaggregation:
+        repeat_counts = np.maximum(1, gul_inputs_df['NumberOfBuildings'].values).astype(int)
+        # Repeat rows using np.repeat + iloc (faster than iterative expansion)
+        gul_inputs_df = gul_inputs_df.iloc[np.repeat(np.arange(len(gul_inputs_df)), repeat_counts)].reset_index(drop=True)
+        # Assign building_id: 1, 2, ..., n for each location
+        gul_inputs_df['building_id'] = np.concatenate([np.arange(1, n + 1) for n in repeat_counts])
+    else:
+        gul_inputs_df = gul_inputs_df.copy()
+        gul_inputs_df['building_id'] = 1
 
-    # add risk_id to gul_inputs_df
+    # =========================================================================
+    # ID ASSIGNMENT: Compute item_id, coverage_id, group_id, hazard_group_id
+    # =========================================================================
+    # risk_id/NumberOfRisks: Used for aggregate exposure handling in FM
     gul_inputs_df[['risk_id', 'NumberOfRisks']] = gul_inputs_df[['building_id', 'NumberOfBuildings']]
     gul_inputs_df.loc[gul_inputs_df['IsAggregate'] == 0, ['risk_id', 'NumberOfRisks']] = 1, 1
     gul_inputs_df.loc[gul_inputs_df['NumberOfRisks'] == 0, 'NumberOfRisks'] = 1
 
-    # set 'disagg_id', `item_id` and `coverage_id`
-    gul_inputs_df['item_id'] = factorize_ndarray(
-        gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id', 'building_id']].values, col_idxs=range(4))[0]
-    gul_inputs_df['coverage_id'] = factorize_ndarray(gul_inputs_df.loc[:, ['loc_id', 'building_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
+    # item_id: Unique per (location, peril, coverage_type, building) - the fundamental GUL unit
+    gul_inputs_df['item_id'] = gul_inputs_df.groupby(
+        ['loc_id', 'peril_id', 'coverage_type_id', 'building_id'], sort=False, observed=True).ngroup().astype('int32') + 1
+    # coverage_id: Groups items by (location, building, coverage_type) - ignores peril
+    gul_inputs_df['coverage_id'] = gul_inputs_df.groupby(
+        ['loc_id', 'building_id', 'coverage_type_id'], sort=False, observed=True).ngroup().astype('int32') + 1
 
-    # set default data types
-    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, {'item_id': 'int32', 'coverage_id': 'int32'})
-
-    # Set the group ID
+    # group_id and hazard_group_id: Correlation groups for damage/hazard sampling
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
 
@@ -370,8 +434,9 @@ def get_gul_input_items(
             gul_inputs_df.rename(columns=hazard_group_id_cols_map)[sorted(list(hazard_group_id_cols_map.values()))], index=False).to_numpy() >> 33
     ).astype('uint32')
 
-    # Select only required columns
-    # Order here matches test output expectations
+    # =========================================================================
+    # FINALIZE: Select required columns and return
+    # =========================================================================
     keyscols = ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id']
     additionalcols = ['amplification_id', 'section_id', 'intensity_adjustment', 'return_period']
     for col in additionalcols:
@@ -425,41 +490,38 @@ def write_gul_input_files(
     output_dir,
     oasis_files_prefixes=OASIS_FILES_PREFIXES['gul'],
     chunksize=(2 * 10 ** 5),
+    intermediary_csv=False,
 ):
-    """
-    Writes the standard Oasis GUL input files to a target directory, using a
-    pre-generated dataframe of GUL input items. The files written are
-    ::
+    """Write standard Oasis GUL input files to a target directory.
 
-        items.csv
-        coverages.csv
+    Writes binary files (items.bin, coverages.bin) directly from a pre-generated
+    dataframe of GUL input items. Optional files (complex_items.bin,
+    amplifications.bin) are written when the corresponding columns are present.
+    Files that have no binary consumer (sections.csv, item_adjustments.csv) are
+    always written as CSV.
 
-    and optionally a complex items file in case of a complex/custom model.
+    Args:
+        gul_inputs_df (pd.DataFrame): GUL inputs dataframe.
+        target_dir (str): Target directory in which to write the files.
+        correlations_df (pd.DataFrame): Correlations dataframe. If None, an
+            empty dataframe with correlations_headers columns is used.
+        output_dir (str): Output directory for correlations files.
+        oasis_files_prefixes (dict): Oasis GUL input file name prefixes.
+            Defaults to OASIS_FILES_PREFIXES['gul'].
+        chunksize (int): Chunk size for writing CSV files.
+            Defaults to 200000.
+        intermediary_csv (bool): If True, also write CSV files alongside
+            binary for debugging. Defaults to False.
 
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param target_dir: Target directory in which to write the files
-    :type target_dir: str
-
-    :param oasis_files_prefixes: Oasis GUL input file name prefixes
-    :param oasis_files_prefixes: dict
-
-    :param chunksize: The chunk size to use when writing out the
-                      input files
-    :type chunksize: int
-
-    :return: GUL input files dict
-    :rtype: dict
+    Returns:
+        dict: Mapping of file names to their written file paths.
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
-    oasis_files_prefixes = copy.deepcopy(oasis_files_prefixes)
-
-    if correlations_df is None:
-        correlations_df = pd.DataFrame(columns=correlations_headers)
 
     # write the correlations to a binary file
+    if correlations_df is None:
+        correlations_df = pd.DataFrame(columns=correlations_headers)
     correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
     correlations_df_np_data = np.array([r for r in correlations_df.itertuples(index=False)], dtype=correlations_dtype)
     correlations_df_np_data.tofile(f"{output_dir}/correlations.bin")
@@ -467,35 +529,31 @@ def write_gul_input_files(
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
     chunksize = chunksize or min(chunksize, len(gul_inputs_df))
-    # If no complex model data present then remove the corresponding file
-    # name from the files prefixes dict, which is used for writing the
-    # GUl input files
-    if 'model_data' not in gul_inputs_df:
-        oasis_files_prefixes.pop('complex_items', None)
-
-    # If no amplification IDs then remove corresponding file name from files
-    # prefixes dict
-    if 'amplification_id' not in gul_inputs_df:
-        oasis_files_prefixes.pop('amplifications', None)
-
-    # If no section IDs then remove corresponding file name from files
-    # prefixes dict
-    if 'section_id' not in gul_inputs_df:
-        oasis_files_prefixes.pop('sections', None)
-
-    # If no adjustments data then remove corresponding file name from files
-    # prefixes dict
-    if 'intensity_adjustment' not in gul_inputs_df:
-        oasis_files_prefixes.pop('item_adjustments', None)
 
     # A dict of GUL input file names and file paths
-    gul_input_files = {
-        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn]))
-        for fn in oasis_files_prefixes
-    }
-    # Write the files serially
-    for fn in gul_input_files:
-        data = file_prepare.get(fn, lambda x: x)(gul_inputs_df)
-        write_file(data, gul_input_files[fn], files_dtype[fn], chunksize=chunksize)
+    gul_input_files = {}
+
+    # Write the gul_inputs_df files serially
+    for fm_name, file_name in oasis_files_prefixes.items():
+        file_write_info = files_write_info[fm_name]
+
+        if not file_write_info.get("required_col", set()).issubset(gul_inputs_df.columns):
+            continue
+
+        data = file_write_info.get('prepare_data',
+                                   lambda x: x[list(file_write_info['csv_dtype'].keys())]  # default
+                                   )(gul_inputs_df).drop_duplicates()
+
+        if "bin_dtype" in file_write_info:
+            file_path = os.path.join(target_dir, f"{file_name}.bin")
+            gul_input_files[fm_name] = file_path
+            oasis_log(file_write_info.get("write_bin", default_write_gul_bin))(data, file_path, file_write_info['bin_dtype'])
+            if intermediary_csv:
+                file_path = os.path.join(target_dir, f"{file_name}.csv")
+                write_file(data, file_path, file_write_info['csv_dtype'], chunksize=chunksize)
+        else:
+            file_path = os.path.join(target_dir, f"{file_name}.csv")
+            gul_input_files[fm_name] = file_path
+            write_file(data, file_path, file_write_info['csv_dtype'], chunksize=chunksize)
 
     return gul_input_files

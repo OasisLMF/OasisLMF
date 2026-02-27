@@ -383,6 +383,8 @@ def write_ept(
 
         if use_return_period:
             while True:
+                if next_returnperiod_idx >= len(returnperiods):
+                    break
                 retperiod = max_retperiod / i
                 if returnperiods[next_returnperiod_idx] <= 0:
                     retperiod = 0
@@ -415,8 +417,6 @@ def write_ept(
                         bidx += 1
                 tvar = tvar - (tvar / i)
                 i += 1
-                if next_returnperiod_idx >= len(returnperiods):
-                    break
 
     rets = write_tvar(
         epcalc,
@@ -570,6 +570,8 @@ def write_ept_weighted(
         if use_return_period:
             unused_pw_idx = 0
             while True:
+                if next_returnperiod_idx >= len(returnperiods):
+                    break
                 retperiod = 0
                 if unused_pw_idx < len(unused_period_weights):
                     cumulative_weighting += (
@@ -606,8 +608,6 @@ def write_ept_weighted(
                         bidx += 1
                 tvar = tvar - (tvar / i)
                 i += 1
-                if next_returnperiod_idx >= len(returnperiods):
-                    break
 
     rets = write_tvar(
         epcalc,
@@ -740,6 +740,8 @@ def write_psept(
 
         if use_return_period:
             while True:
+                if next_returnperiod_idx >= len(returnperiods):
+                    break
                 retperiod = max_retperiod / i
                 if returnperiods[next_returnperiod_idx] <= 0:
                     retperiod = 0
@@ -774,8 +776,6 @@ def write_psept(
                         bidx += 1
                 tvar = tvar - (tvar / i)
                 i += 1
-                if next_returnperiod_idx >= len(returnperiods):
-                    break
 
     rets = write_tvar_wheatsheaf(
         num_sidxs,
@@ -927,6 +927,8 @@ def write_psept_weighted(
         if use_return_period:
             unused_pw_idx = 0
             while True:
+                if next_returnperiod_idx >= len(returnperiods):
+                    break
                 retperiod = 0
                 if unused_pw_idx < len(unused_period_weights):
                     cumulative_weighting += (
@@ -966,8 +968,6 @@ def write_psept_weighted(
                         bidx += 1
                 tvar = tvar - (tvar / i)
                 i += 1
-                if next_returnperiod_idx >= len(returnperiods):
-                    break
 
     rets = write_tvar_wheatsheaf(
         num_sidxs,

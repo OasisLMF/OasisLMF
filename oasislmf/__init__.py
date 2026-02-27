@@ -1,4 +1,4 @@
-__version__ = '2.5.0'
+__version__ = '2.5.1'
 
 import sys
 from importlib.abc import MetaPathFinder, Loader
@@ -53,7 +53,7 @@ class MyImport(MetaPathFinder):
     """
 
     def __init__(self):
-        self.depricated_modules = {
+        self.deprecated_modules = {
             "model_execution": "execution",
             "model_preparation": "preparation",
             "api": "platform",
@@ -64,14 +64,14 @@ class MyImport(MetaPathFinder):
         import_path = fullname.split(".", 1)
         if fullname.startswith("oasislmf") and len(import_path) > 1:
             import_path = import_path[1]
-            for deprecated in self.depricated_modules:
+            for deprecated in self.deprecated_modules:
                 if deprecated == import_path or import_path.startswith(deprecated + '.'):
                     with warnings.catch_warnings():
                         warnings.simplefilter("always")
                         warnings.warn(
-                            f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.depricated_modules[deprecated]}' instead."
+                            f"imports from 'oasislmf.{deprecated}' are deprecated. Import by using 'oasislmf.{self.deprecated_modules[deprecated]}' instead."
                         )
-                    import_path = import_path.replace(deprecated, self.depricated_modules[deprecated])
+                    import_path = import_path.replace(deprecated, self.deprecated_modules[deprecated])
 
             return spec_from_loader(fullname, MyLoader(import_path))
 
