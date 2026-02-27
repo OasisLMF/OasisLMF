@@ -13,6 +13,7 @@ import json
 import multiprocessing
 import os
 import re
+
 import subprocess
 import sys
 import warnings
@@ -32,7 +33,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
-from ...execution.bin import (csv_to_bin, prepare_run_directory,
+from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
@@ -207,6 +208,8 @@ class GenerateLossesDir(GenerateLossesBase):
          'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'check_missing_inputs', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?',
          'help': 'Fail an analysis run if IL/RI is requested without the required generated files.'},
+        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'if True, intermediary file will be csv instead of more compress format'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose', 'default': KERNEL_DEBUG},
@@ -233,11 +236,9 @@ class GenerateLossesDir(GenerateLossesBase):
         model_run_fp = self._get_output_dir()
         model_storage = self._get_storage_manager()
 
-        il = all(p in os.listdir(self.oasis_files_dir) for p in [
-            'fm_policytc.csv',
-            'fm_profile.csv',
-            'fm_programme.csv',
-            'fm_xref.csv'])
+        oasis_files = set(os.listdir(self.oasis_files_dir))
+        il = all(f'{name}.bin' in oasis_files or f'{name}.csv' in oasis_files
+                 for name in ['fm_policytc', 'fm_profile', 'fm_programme', 'fm_xref'])
 
         ri_dirs = [fn
                    for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir)
@@ -288,15 +289,8 @@ class GenerateLossesDir(GenerateLossesBase):
             il=il,
             ri=ri,
             rl=rl,
+            intermediary_csv=self.intermediary_csv
         )
-
-        if not ri and not rl:
-            fp = os.path.join(model_run_fp, 'input')
-            csv_to_bin(fp, fp, il=il)
-        else:
-            contents = os.listdir(model_run_fp)
-            for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
-                csv_to_bin(fp, fp, il=True, ri=True)
 
         if not il:
             self.settings['il_output'] = False
@@ -753,18 +747,11 @@ class GenerateLossesDeterministic(ComputationStep):
         losses = OrderedDict({'gul': None, 'il': None, 'ri': None})
         output_dir = self.output_dir or self.oasis_files_dir
 
-        il = all(p in os.listdir(self.oasis_files_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(self.oasis_files_dir))
+        oasis_files = set(os.listdir(self.oasis_files_dir))
+        ri = any(re.match(r'RI_\d+$', fn) for fn in oasis_files)
 
-        step_flag = ''
-        try:
-            pd.read_csv(os.path.join(self.oasis_files_dir, 'fm_profile.csv'))['step_id']
-        except (OSError, FileNotFoundError, KeyError):
-            pass
-        else:
-            step_flag = '-S'
-
-        csv_to_bin(self.oasis_files_dir, output_dir, il=il, ri=ri)
+        # Move pre-built binary files to output directory
+        move_bin(self.oasis_files_dir, output_dir)
 
         # Generate an items and coverages dataframe and set column types (important!!)
         items = merge_dataframes(
@@ -834,11 +821,10 @@ class GenerateLossesDeterministic(ComputationStep):
         with setcwd(self.oasis_files_dir):
             check_call(f"{get_fmcmd()} -a {self.kernel_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
 
-        cmd = '{} -p {} -a {} {} < {} | tee {} > /dev/null'.format(
+        cmd = '{} -p {} -a {} < {} | tee {} > /dev/null'.format(
             get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
             self.kernel_alloc_rule_il,
-            step_flag,
             guls_bin_fp,
             ils_bin_fp
         )
@@ -894,11 +880,10 @@ class GenerateLossesDeterministic(ComputationStep):
                                 f"{get_fmcmd()} -a {self.kernel_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
                                 shell=True)
 
-                        _input = '{} -p {} -a {} {} < {} | tee {} |'.format(
+                        _input = '{} -p {} -a {} < {} | tee {} |'.format(
                             get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
                             self.kernel_alloc_rule_il,
-                            step_flag,
                             guls_bin_fp,
                             ils_bin_fp,
                         ) if layer == 1 else ''
@@ -906,14 +891,13 @@ class GenerateLossesDeterministic(ComputationStep):
                         ri_layer_bin_fp = f"ri{layer}.bin"
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                         net_flag = "-n" if self.net_ri else ""
-                        cmd = '{} {} -p {} {} -a {} {} {} | tee {} > /dev/null'.format(
+                        cmd = '{} {} -p {} {} -a {} {} | tee {} > /dev/null'.format(
                             _input,
                             get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
                             net_flag,
                             self.kernel_alloc_rule_ri,
                             pipe_in_previous_layer,
-                            step_flag,
                             ri_layer_bin_fp,
                         )
                         try:

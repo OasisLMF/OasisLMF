@@ -127,10 +127,10 @@ SUMMARY_MAPPING = OrderedDict({
     'fm_map_fn': 'fm_summary_map.csv'
 })
 
-SUMMARY_OUTPUT = OrderedDict({
-    'gul': 'gulsummaryxref.csv',
-    'il': 'fmsummaryxref.csv'
-})
+SUMMARY_OUTPUT = {
+    'gul': 'gulsummaryxref',
+    'il': 'fmsummaryxref'
+}
 
 SUMMARY_TOP_LEVEL_COLS = ['layer_id', SOURCE_IDX['acc'], 'PolNumber']
 

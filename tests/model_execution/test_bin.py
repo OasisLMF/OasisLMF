@@ -26,7 +26,6 @@ from oasislmf.execution.bin import (
     check_inputs_directory,
     cleanup_bin_directory,
     create_binary_tar_file,
-    csv_to_bin,
     prepare_run_directory,
     prepare_run_inputs,
     set_footprint_set,
@@ -37,116 +36,7 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 
-from tests.data import (
-    standard_input_files,
-    il_input_files,
-    tar_file_targets,
-    ECHO_CONVERSION_INPUT_FILES
-)
-
-
-class CsvToBin(TestCase):
-    def test_directory_only_contains_excluded_files___tar_is_empty(self):
-        with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            with io.open(os.path.join(csv_dir, 'another_file'), 'w', encoding='utf-8') as f:
-                f.write('file data')
-
-            csv_to_bin(csv_dir, bin_dir)
-
-            self.assertEqual(0, len(glob.glob(os.path.join(csv_dir, '*.bin'))))
-
-    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
-    def test_contains_il_and_standard_files_but_il_is_false___il_files_are_excluded(self, standard, il):
-        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            for target in chain(standard, il):
-                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-
-            csv_to_bin(csv_dir, bin_dir, il=False)
-
-            self.assertEqual(len(standard), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
-            for filename in (f + '.bin' for f in standard):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
-
-    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
-    def test_contains_il_and_standard_files_but_il_is_true___all_files_are_included(self, standard, il):
-        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            for target in chain(standard, il):
-                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-
-            csv_to_bin(csv_dir, bin_dir, il=True)
-
-            self.assertEqual(len(standard) + len(il), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
-            for filename in (f + '.bin' for f in chain(standard, il)):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
-
-    def test_subprocess_raises___oasis_exception_is_raised(self):
-        with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            Path(os.path.join(csv_dir, 'events.csv')).touch()
-
-            with patch('oasislmf.model_execution.bin.csvtobin', Mock(side_effect=Exception(1, ''))):
-                with self.assertRaises(OasisException):
-                    csv_to_bin(csv_dir, bin_dir, il=True)
-
-    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
-    def test_single_ri_folder(self, standard, il):
-        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            files = standard + il
-
-            for target in files:
-                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-            os.mkdir(os.path.join(csv_dir, "RI_1"))
-            for target in files:
-                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-
-            csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
-
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
-            for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
-
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
-            for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
-            print("ok")
-
-    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
-    def test_multiple_ri_folders(self, standard, il):
-        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            files = standard + il
-
-            for target in files:
-                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-            os.mkdir(os.path.join(csv_dir, "RI_1"))
-            for target in files:
-                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-            os.mkdir(os.path.join(csv_dir, "RI_2"))
-            for target in files:
-                with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
-                    f.write("")
-
-            csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
-
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
-            for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
-
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
-            for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
-
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_2{}*.bin'.format(os.sep)))))
-            for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_2', filename)))
+from tests.data import il_input_files, tar_file_targets
 
 
 class CreateBinaryTarFile(TestCase):

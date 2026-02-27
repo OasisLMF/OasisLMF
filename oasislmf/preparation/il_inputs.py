@@ -25,6 +25,7 @@ from oasislmf.pytools.common.data import (fm_policytc_headers, fm_policytc_dtype
                                           fm_programme_headers, fm_programme_dtype,
                                           fm_xref_headers, fm_xref_dtype,
                                           DTYPE_IDX, calcrule_id, profile_id, layer_id)
+from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.calc_rules import get_calc_rules
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.data import get_ids, DEFAULT_LOC_FIELD_TYPES
@@ -45,12 +46,13 @@ from oasislmf.utils.profiles import (get_default_step_policies_profile,
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+
 # convertion from np dtype to pandas dtype
-fm_policytc_dtype = {col: dtype for col, (dtype, _) in fm_policytc_dtype.fields.items()}
-fm_profile_dtype = {col: dtype for col, (dtype, _) in fm_profile_dtype.fields.items()}
-fm_profile_step_dtype = {col: dtype for col, (dtype, _) in fm_profile_step_dtype.fields.items()}
-fm_programme_dtype = {col: dtype for col, (dtype, _) in fm_programme_dtype.fields.items()}
-fm_xref_dtype = {col: dtype for col, (dtype, _) in fm_xref_dtype.fields.items()}
+fm_policytc_pd_dtype = {col: dtype for col, (dtype, _) in fm_policytc_dtype.fields.items()}
+fm_profile_pd_dtype = {col: dtype for col, (dtype, _) in fm_profile_dtype.fields.items()}
+fm_profile_step_pd_dtype = {col: dtype for col, (dtype, _) in fm_profile_step_dtype.fields.items()}
+fm_programme_pd_dtype = {col: dtype for col, (dtype, _) in fm_programme_dtype.fields.items()}
+fm_xref_pd_dtype = {col: dtype for col, (dtype, _) in fm_xref_dtype.fields.items()}
 
 
 # Define a list of all supported OED coverage types in the exposure
@@ -459,6 +461,7 @@ def get_il_input_items(
         do_disaggregation=True,
         oasis_files_prefixes=OASIS_FILES_PREFIXES['il'],
         chunksize=(2 * 10 ** 5),
+        intermediary_csv=False,
 ):
     """
     Generates IL (Insured Loss) input items by applying financial terms to GUL items.
@@ -532,6 +535,8 @@ def get_il_input_items(
             by NumberOfRisks. Default True.
         oasis_files_prefixes (dict, optional): File name prefixes for output files.
         chunksize (int, optional): Rows per chunk when writing CSVs. Default 200,000.
+        intermediary_csv (bool, optional): If True, also write CSV files alongside
+            binary for debugging. Defaults to False.
 
     Returns:
         pandas.DataFrame: IL inputs with columns including output_id, layer_id,
@@ -541,17 +546,8 @@ def get_il_input_items(
     # SETUP PHASE: Open output files and prepare input data
     # =========================================================================
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
+    il_input_files = {}
     with contextlib.ExitStack() as stack:
-        fm_policytc_file = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_policytc']}.csv"), 'w'))
-        fm_policytc_file.write(f"{','.join(fm_policytc_headers)}{os.linesep}")
-
-        fm_profile_file = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_profile']}.csv"), 'w'))
-
-        fm_programme_file = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_programme']}.csv"), 'w'))
-        fm_programme_file.write(f"{','.join(fm_programme_headers)}{os.linesep}")
-
-        fm_xref_file = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_xref']}.csv"), 'w'))
-
         if exposure_data.location is not None:
             locations_df = exposure_data.location.dataframe
             accounts_df = exposure_data.account.dataframe
@@ -676,14 +672,43 @@ def get_il_input_items(
                     'FMProfileStep': step_term.get('FMProfileStep')
                 }
             fm_profile_cols = fm_profile_step_headers
+            profile_bin_name = f"{oasis_files_prefixes['fm_profile']}_step"
         else:
             fm_profile_cols = fm_profile_headers
+            profile_bin_name = f"{oasis_files_prefixes['fm_profile']}"
 
-        fm_profile_file.write(f"{','.join(fm_profile_cols)}{os.linesep}")
+        # Binary file handles (always written)
+        il_input_files['fm_policytc'] = os.path.join(target_dir, f"{oasis_files_prefixes['fm_policytc']}.bin")
+        fm_policytc_bin = stack.enter_context(open(il_input_files['fm_policytc'], 'wb'))
+
+        il_input_files['fm_programme'] = os.path.join(target_dir, f"{oasis_files_prefixes['fm_programme']}.bin")
+        fm_programme_bin = stack.enter_context(open(il_input_files['fm_programme'], 'wb'))
+
+        il_input_files['fm_xref'] = os.path.join(target_dir, f"{oasis_files_prefixes['fm_xref']}.bin")
+        fm_xref_bin = stack.enter_context(open(il_input_files['fm_xref'], 'wb'))
+
+        il_input_files['fm_profile'] = os.path.join(target_dir, f"{profile_bin_name}.bin")
+        fm_profile_bin = stack.enter_context(open(il_input_files['fm_profile'], 'wb'))
+
+        # CSV file handles (only when intermediary_csv=True)
+        if intermediary_csv:
+            fm_policytc_csv = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_policytc']}.csv"), 'w'))
+            fm_policytc_csv.write(f"{','.join(fm_policytc_headers)}{os.linesep}")
+            fm_profile_csv = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_profile']}.csv"), 'w'))
+            fm_profile_csv.write(f"{','.join(fm_profile_cols)}{os.linesep}")
+            fm_programme_csv = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_programme']}.csv"), 'w'))
+            fm_programme_csv.write(f"{','.join(fm_programme_headers)}{os.linesep}")
+            fm_xref_csv = stack.enter_context(open(os.path.join(target_dir, f"{oasis_files_prefixes['fm_xref']}.csv"), 'w'))
+        else:
+            fm_policytc_csv = None
+            fm_profile_csv = None
+            fm_programme_csv = None
+            fm_xref_csv = None
+
         pass_through_profile = pd.DataFrame({col: [0] for col in fm_profile_cols})
         pass_through_profile['profile_id'] = 1
         pass_through_profile['calcrule_id'] = PASSTHROUGH_CALCRULE_ID
-        write_fm_profile_level(pass_through_profile, fm_profile_file, step_policies_present, chunksize)
+        write_fm_profile_level(pass_through_profile, fm_profile_csv, fm_profile_bin, step_policies_present, chunksize)
 
         profile_id_offset = 1  # profile_id 1 is the passthrough policy (calcrule 100)
         cur_level_id = 0
@@ -712,8 +737,8 @@ def get_il_input_items(
                 if not terms_maps:  # no terms we skip this level
                     if is_policy_layer_level:  # for policy layer we group all to make sure we can have a0 ALLOCATION_RULE
                         cur_level_id += 1
-                        write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file,
-                                                 fm_programme_file, chunksize)
+                        write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_csv, fm_policytc_bin,
+                                                 fm_programme_csv, fm_programme_bin, chunksize)
                         gul_inputs_df = reset_gul_inputs(gul_inputs_df)
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
@@ -806,8 +831,8 @@ def get_il_input_items(
                 if level_df.empty:  # No actual terms for this level
                     if is_policy_layer_level:  # for policy layer we group all to make sure we can have a0 ALLOCATION_RULE
                         cur_level_id += 1
-                        write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file,
-                                                 fm_programme_file, chunksize)
+                        write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_csv, fm_policytc_bin,
+                                                 fm_programme_csv, fm_programme_bin, chunksize)
                         gul_inputs_df = reset_gul_inputs(gul_inputs_df)
                         logger.info(f"level {cur_level_id} {level_info} took {time.time() - t0}")
                         t0 = time.time()
@@ -922,7 +947,7 @@ def get_il_input_items(
                     level_df['profile_id'] = get_profile_ids(level_df) + profile_id_offset
                     profile_id_offset = level_df['profile_id'].max() if not level_df.empty else profile_id_offset
 
-                write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chunksize=chunksize)
+                write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin, step_policies_present, chunksize=chunksize)
 
                 # =====================================================================
                 # MERGE LEVEL TERMS INTO GUL_INPUTS_DF
@@ -1027,8 +1052,11 @@ def get_il_input_items(
                     fm_policytc_df = gul_inputs_df.loc[gul_inputs_df['layer_id'] == 1, fm_policytc_headers]
                 else:
                     fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]
-                fm_policytc_df.drop_duplicates().astype(fm_policytc_dtype).to_csv(fm_policytc_file, index=False,
-                                                                                  header=False, chunksize=chunksize)
+                fm_policytc_dedup = fm_policytc_df.drop_duplicates()
+                df_to_ndarray(fm_policytc_dedup, fm_policytc_dtype).tofile(fm_policytc_bin)
+                if fm_policytc_csv is not None:
+                    fm_policytc_dedup.astype(fm_policytc_pd_dtype).to_csv(fm_policytc_csv, index=False,
+                                                                          header=False, chunksize=chunksize)
 
                 # fm_programme: Defines hierarchical links between levels
                 # from_agg_id (previous level) -> to_agg_id (current level)
@@ -1038,8 +1066,11 @@ def get_il_input_items(
                     fm_programe_df['from_agg_id'] = gul_inputs_df['agg_id_prev'].where(~gul_inputs_df["root_start"], -gul_inputs_df['gul_input_id'])
                 else:
                     fm_programe_df['from_agg_id'] = gul_inputs_df['agg_id_prev']
-                (fm_programe_df[fm_programme_headers].drop_duplicates().astype(fm_programme_dtype)
-                 .to_csv(fm_programme_file, index=False, header=False, chunksize=chunksize))
+                fm_programe_dedup = fm_programe_df[fm_programme_headers].drop_duplicates()
+                df_to_ndarray(fm_programe_dedup, fm_programme_dtype).tofile(fm_programme_bin)
+                if fm_programme_csv is not None:
+                    fm_programe_dedup.astype(fm_programme_pd_dtype).to_csv(fm_programme_csv, index=False,
+                                                                           header=False, chunksize=chunksize)
 
                 # reset gul_inputs_df level columns
                 gul_inputs_df = reset_gul_inputs(gul_inputs_df)
@@ -1063,10 +1094,10 @@ def get_il_input_items(
 
         # fm_xref: Maps GUL item IDs (agg_id) to FM output IDs
         # This is the final cross-reference between GUL and IL outputs
-        (gul_inputs_df
-         .rename(columns={'gul_input_id': 'agg_id', 'output_id': 'output'})[fm_xref_headers]
-         .astype(fm_xref_dtype)
-         .to_csv(fm_xref_file, index=False, header=True, chunksize=chunksize))
+        fm_xref_df = gul_inputs_df.rename(columns={'gul_input_id': 'agg_id', 'output_id': 'output'})[fm_xref_headers]
+        df_to_ndarray(fm_xref_df, fm_xref_dtype).tofile(fm_xref_bin)
+        if fm_xref_csv is not None:
+            fm_xref_df.astype(fm_xref_pd_dtype).to_csv(fm_xref_csv, index=False, header=True, chunksize=chunksize)
 
         # merge acc_idx
         acc_idx_col = list(set(gul_inputs_df.columns).intersection(accounts_df.columns))
@@ -1087,7 +1118,7 @@ def get_il_input_items(
                 .merge(accounts_df[acc_idx_col + ['acc_idx']].drop_duplicates(subset=acc_idx_col),
                        how='left', validate='many_to_one'))
 
-        return gul_inputs_df
+        return gul_inputs_df, il_input_files
 
 
 def reset_gul_inputs(gul_inputs_df):
@@ -1098,26 +1129,34 @@ def reset_gul_inputs(gul_inputs_df):
         .rename(columns={"agg_id": "agg_id_prev"}))
 
 
-def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_file, fm_programme_file, chunksize):
+def write_empty_policy_layer(gul_inputs_df, cur_level_id, agg_key, fm_policytc_csv, fm_policytc_bin,
+                             fm_programme_csv, fm_programme_bin, chunksize):
     gul_inputs_df["agg_id"] = gul_inputs_df.groupby(agg_key, sort=False, observed=True).ngroup().astype('int32') + 1
     gul_inputs_df["profile_id"] = 1
     gul_inputs_df["level_id"] = cur_level_id
     fm_policytc_df = gul_inputs_df.loc[:, fm_policytc_headers]
-    fm_policytc_df.drop_duplicates().astype(fm_policytc_dtype).to_csv(fm_policytc_file, index=False, header=False,
-                                                                      chunksize=chunksize)
+    fm_policytc_dedup = fm_policytc_df.drop_duplicates()
+    df_to_ndarray(fm_policytc_dedup, fm_policytc_dtype).tofile(fm_policytc_bin)
+    if fm_policytc_csv is not None:
+        fm_policytc_dedup.astype(fm_policytc_pd_dtype).to_csv(fm_policytc_csv, index=False, header=False,
+                                                              chunksize=chunksize)
     fm_programe_df = gul_inputs_df[['level_id', 'agg_id']].rename(columns={'agg_id': 'to_agg_id'})
     fm_programe_df['from_agg_id'] = gul_inputs_df['agg_id_prev']
-    fm_programe_df[fm_programme_headers].drop_duplicates().astype(fm_programme_dtype).to_csv(fm_programme_file, index=False,
-                                                                                             header=False, chunksize=chunksize)
+    fm_programe_dedup = fm_programe_df[fm_programme_headers].drop_duplicates()
+    df_to_ndarray(fm_programe_dedup, fm_programme_dtype).tofile(fm_programme_bin)
+    if fm_programme_csv is not None:
+        fm_programe_dedup.astype(fm_programme_pd_dtype).to_csv(fm_programme_csv, index=False,
+                                                               header=False, chunksize=chunksize)
 
 
-def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chunksize=100000):
+def write_fm_profile_level(level_df, fm_profile_csv, fm_profile_bin_file, step_policies_present, chunksize=100000):
     """
     Writes an FM profile file.
 
     Args:
         level_df (pandas.DataFrame): FM terms dataframe.
-        fm_profile_file (file): Open file object to write to.
+        fm_profile_csv (file): Open CSV file object to write to, or None to skip CSV.
+        fm_profile_bin_file (file): Open binary file object to write to.
         step_policies_present (bool): Flag to determine which type of file to write.
         chunksize (int, optional): Number of rows to write per chunk.
 
@@ -1146,7 +1185,7 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
         fm_profile_df = fm_profile_df.drop_duplicates()
 
         # Ensure step_id is of int data type and set default value to 1
-        fm_profile_df = fm_profile_df.astype(fm_profile_step_dtype)
+        fm_profile_df = fm_profile_df.astype(fm_profile_step_pd_dtype)
         fm_profile_df.loc[fm_profile_df['step_id'] == 0, 'step_id'] = 1
 
         fm_profile_df = fm_profile_df[fm_profile_step_headers].sort_values(by=["profile_id", 'step_id']).drop_duplicates()
@@ -1163,14 +1202,17 @@ def write_fm_profile_level(level_df, fm_profile_file, step_policies_present, chu
             .rename(columns=profile_cols_map)
             .drop_duplicates()
             .assign(share2=0.0, share3=0.0)
-            .astype(fm_profile_dtype)[fm_profile_headers]
+            .astype(fm_profile_pd_dtype)[fm_profile_headers]
         )
     try:
-        fm_profile_df.to_csv(
-            fm_profile_file,
-            index=False,
-            header=False,
-            chunksize=chunksize,
-        )
+        bin_dtype = fm_profile_step_dtype if step_policies_present else fm_profile_dtype
+        df_to_ndarray(fm_profile_df, bin_dtype).tofile(fm_profile_bin_file)
+        if fm_profile_csv is not None:
+            fm_profile_df.to_csv(
+                fm_profile_csv,
+                index=False,
+                header=False,
+                chunksize=chunksize,
+            )
     except (IOError, OSError) as e:
-        raise OasisException("Exception raised in 'write_fm_profile_file'", e)
+        raise OasisException("Exception raised in 'write_fm_profile_level'") from e

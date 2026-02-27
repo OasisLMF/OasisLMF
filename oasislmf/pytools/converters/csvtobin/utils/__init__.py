@@ -1,8 +1,11 @@
 __all__ = [
     "amplifications_tobin",
+    "amplifications_write_bin",
     "complex_items_tobin",
+    "complex_items_write_bin",
     "coverages_tobin",
     "damagebin_tobin",
+    "df_to_ndarray",
     "fm_tobin",
     "footprint_tobin",
     "gul_tobin",
@@ -13,8 +16,9 @@ __all__ = [
     "vulnerability_tobin",
 ]
 
-from .amplifications import amplifications_tobin
-from .complex_items import complex_items_tobin
+from .amplifications import amplifications_tobin, amplifications_write_bin
+from .complex_items import complex_items_tobin, complex_items_write_bin
+from .common import df_to_ndarray
 from .coverages import coverages_tobin
 from .damagebin import damagebin_tobin
 from .fm import fm_tobin
