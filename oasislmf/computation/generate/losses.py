@@ -789,7 +789,7 @@ class GenerateLossesDeterministic(ComputationStep):
                 [KERNEL_MEAN_SAMPLE_IDX, KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX] + \
                 list(range(1, len(self.loss_factor) + 1))
         else:
-            OasisException("Unknown il stream type: {}".format(self.il_stream_type))
+            raise OasisException("Unknown il stream type: {}".format(self.il_stream_type))
 
         # Set damage percentages corresponing to the special indexes.
         # We don't care about mean and std_dev, but
@@ -840,8 +840,7 @@ class GenerateLossesDeterministic(ComputationStep):
         guls.drop(guls[guls['sidx'] < 1].index, inplace=True)
         guls.reset_index(drop=True, inplace=True)
         if self.include_loss_factor:
-            guls['loss_factor_idx'] = guls.apply(
-                lambda r: int(r['sidx'] - 1), axis='columns')
+            guls['loss_factor_idx'] = (guls['sidx'] - 1).astype(int)
         guls.drop('sidx', axis=1, inplace=True)
         guls = guls[(guls[['loss']] != 0).any(axis=1)]
 
@@ -851,8 +850,7 @@ class GenerateLossesDeterministic(ComputationStep):
         ils.drop(ils[ils['sidx'] < 0].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         if self.include_loss_factor:
-            ils['loss_factor_idx'] = ils.apply(
-                lambda r: int(r['sidx'] - 1), axis='columns')
+            ils['loss_factor_idx'] = (ils['sidx'] - 1).astype(int)
         ils.drop('sidx', axis=1, inplace=True)
         ils = ils[(ils[['loss']] != 0).any(axis=1)]
         losses['il'] = ils
@@ -910,8 +908,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)
                         rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
                         if self.include_loss_factor:
-                            rils['loss_factor_idx'] = rils.apply(
-                                lambda r: int(r['sidx'] - 1), axis='columns')
+                            rils['loss_factor_idx'] = (rils['sidx'] - 1).astype(int)
 
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
