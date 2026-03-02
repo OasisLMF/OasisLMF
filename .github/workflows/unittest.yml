@@ -68,13 +68,13 @@ jobs:
         if: matrix.cfg.upload-cov != true
         uses: actions/download-artifact@v4
         with:
-          name: oasislmf-bin-pkg_linux
+          name: oasislmf-source-pkg
           path: ${{ github.workspace }}/
 
-      - name: Install Package (From Package)
+      - name: Install Package (From Source Distribution)
         if: matrix.cfg.upload-cov != true
         run: |
-          pip install ${{ needs.build.outputs.linux_pkg_filename }}
+          pip install ${{ needs.build.outputs.src_pkg_filename }}
 
       - name: Install Oasislmf (Editable mode)
         if: matrix.cfg.upload-cov == true
