@@ -2,13 +2,17 @@
 Resource monitor for pytools processes during model runs.
 
 Uses ``psutil`` to poll all active pytools processes at a configurable
-interval, capturing CPU%, RSS, USS (private memory), and PSS (proportional
-memory, Linux only).  Writes raw data to CSV and optionally generates a
-markdown report with plots (requires matplotlib).
+interval, capturing CPU%, cumulative CPU time (user + system), RSS,
+USS (private memory), and PSS (proportional memory, Linux only).
+Writes raw data to CSV and optionally generates a markdown report with
+plots (requires matplotlib).
 
 USS (Unique Set Size) is the primary memory metric — it represents memory
 private to each process and avoids the double-counting problem that RSS has
 with shared memory and memory-mapped files.
+
+CPU time (user + system) from ``psutil.Process.cpu_times()`` gives the
+actual processor time consumed, equivalent to TIME+ in ``top``.
 """
 
 import csv
@@ -34,7 +38,7 @@ MONITORED_TOOLS = frozenset([
 # Regex to extract a tool name from a process's command-line
 _TOOL_RE = re.compile(r'\b(' + '|'.join(MONITORED_TOOLS) + r')\b')
 
-CSV_HEADER = ['timestamp', 'tool', 'pid', 'cpu_pct', 'rss_kb', 'uss_kb', 'pss_kb']
+CSV_HEADER = ['timestamp', 'tool', 'pid', 'cpu_pct', 'cpu_user_s', 'cpu_sys_s', 'rss_kb', 'uss_kb', 'pss_kb']
 
 # Consistent colors per tool (for plots)
 TOOL_COLORS = {
@@ -134,7 +138,7 @@ class ResourceMonitor:
         """Use psutil to find monitored pytools processes and collect metrics.
 
         Returns:
-            list: CSV rows ``[timestamp, tool, pid, cpu_pct, rss_kb, uss_kb, pss_kb]``.
+            list: CSV rows matching :data:`CSV_HEADER`.
         """
         ts = time.time()
         rows = []
@@ -150,12 +154,17 @@ class ResourceMonitor:
 
                 tool = match.group(1)
                 cpu_pct = proc.cpu_percent()
+                cpu_times = proc.cpu_times()
                 mem = proc.memory_full_info()
                 rss_kb = mem.rss // 1024
                 uss_kb = mem.uss // 1024
                 pss_kb = (mem.pss // 1024) if _HAS_PSS else -1
 
-                rows.append([ts, tool, proc.pid, cpu_pct, rss_kb, uss_kb, pss_kb])
+                rows.append([
+                    ts, tool, proc.pid, cpu_pct,
+                    round(cpu_times.user, 3), round(cpu_times.system, 3),
+                    rss_kb, uss_kb, pss_kb,
+                ])
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
         return rows
@@ -197,6 +206,8 @@ def _load_csv(path):
                     "tool": row["tool"],
                     "pid": int(row["pid"]),
                     "cpu": float(row["cpu_pct"]),
+                    "cpu_user": float(row["cpu_user_s"]),
+                    "cpu_sys": float(row["cpu_sys_s"]),
                     "rss": int(row["rss_kb"]),
                     "uss": int(row["uss_kb"]),
                     "pss": int(row["pss_kb"]),
@@ -236,6 +247,16 @@ def _compute_stats(rows):
         avg_cpu = sum(s["cpu"] for s in samples) / len(samples)
         duration = max(s["ts"] for s in samples) - min(s["ts"] for s in samples)
 
+        # Total CPU time: take the final (max) cpu_user + cpu_sys per PID,
+        # then sum across all PIDs for this tool.
+        pid_final_user = {}
+        pid_final_sys = {}
+        for s in samples:
+            pid_final_user[s["pid"]] = max(pid_final_user.get(s["pid"], 0), s["cpu_user"])
+            pid_final_sys[s["pid"]] = max(pid_final_sys.get(s["pid"], 0), s["cpu_sys"])
+        total_cpu_user = sum(pid_final_user.values())
+        total_cpu_sys = sum(pid_final_sys.values())
+
         stat = {
             "n_instances": len(pids),
             "n_samples": len(samples),
@@ -246,6 +267,9 @@ def _compute_stats(rows):
             "avg_uss_mb": avg_uss,
             "avg_cpu": avg_cpu,
             "duration_s": duration,
+            "total_cpu_user_s": round(total_cpu_user, 1),
+            "total_cpu_sys_s": round(total_cpu_sys, 1),
+            "total_cpu_time_s": round(total_cpu_user + total_cpu_sys, 1),
         }
 
         if has_pss:
@@ -262,7 +286,8 @@ def _aggregate_by_tool_and_time(rows):
     """Aggregate rows by (tool, timestamp).
 
     Returns:
-        dict[tool] -> sorted list of (t_rel, rss_mb, uss_mb, cpu, n_procs).
+        dict[tool] -> sorted list of
+        (t_rel, rss_mb, uss_mb, cpu_pct, n_procs, sum_cpu_user, sum_cpu_sys).
     """
     t0 = min(r["ts"] for r in rows)
     groups = defaultdict(list)
@@ -276,7 +301,10 @@ def _aggregate_by_tool_and_time(rows):
         total_uss = sum(s["uss"] for s in samples) / 1024
         total_cpu = sum(s["cpu"] for s in samples)
         n_procs = len(samples)
-        tool_series[tool].append((t_rel, total_rss, total_uss, total_cpu, n_procs))
+        sum_cpu_user = sum(s["cpu_user"] for s in samples)
+        sum_cpu_sys = sum(s["cpu_sys"] for s in samples)
+        tool_series[tool].append((t_rel, total_rss, total_uss, total_cpu, n_procs,
+                                  sum_cpu_user, sum_cpu_sys))
     return tool_series
 
 
@@ -313,6 +341,7 @@ def _generate_plots(rows, report_dir):
     plots["agg_rss_vs_uss"] = _plot_aggregate_rss_vs_uss(tool_series, report_dir, plt, ticker)
     plots["total"] = _plot_total_footprint(tool_series, report_dir, plt, ticker)
     plots["agg_cpu"] = _plot_aggregate_cpu(tool_series, report_dir, plt)
+    plots["cpu_time"] = _plot_cpu_time(tool_series, report_dir, plt, ticker)
     plots["instances"] = _plot_instance_count(tool_series, report_dir, plt, ticker)
     per_pid = _plot_per_pid_uss(pid_data, report_dir, plt, ticker)
     if per_pid:
@@ -417,6 +446,28 @@ def _plot_aggregate_cpu(tool_series, out_dir, plt):
     return path
 
 
+def _plot_cpu_time(tool_series, out_dir, plt, ticker):
+    """Line plot: cumulative CPU time (user + system) per tool over time."""
+    fig, ax = plt.subplots(figsize=(12, 5))
+    order = sorted(tool_series.keys(), key=lambda t: tool_series[t][0][0])
+    for tool in order:
+        series = tool_series[tool]
+        ts = [s[0] for s in series]
+        cpu_time = [s[5] + s[6] for s in series]  # user + sys
+        ax.plot(ts, cpu_time, label=tool, color=TOOL_COLORS.get(tool), linewidth=1.5)
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Cumulative CPU Time (s)")
+    ax.set_title("Cumulative CPU Time per Tool (user + system, summed across instances)")
+    ax.legend(loc="upper left", fontsize=9)
+    ax.grid(True, alpha=0.3)
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+    fig.tight_layout()
+    path = os.path.join(out_dir, "cpu_time.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
 def _plot_instance_count(tool_series, out_dir, plt, ticker):
     """Line plot: number of active instances per tool over time."""
     fig, ax = plt.subplots(figsize=(12, 4))
@@ -492,8 +543,8 @@ def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
     if has_pss:
         hdr += " Aggr Peak PSS (MB) |"
         sep += "---------------------|"
-    hdr += " Peak CPU% | Avg USS (MB) | Avg CPU% | Duration (s) |"
-    sep += "-----------|--------------|----------|--------------|"
+    hdr += " Peak CPU% | CPU User (s) | CPU Sys (s) | CPU Total (s) | Avg USS (MB) | Avg CPU% | Duration (s) |"
+    sep += "-----------|--------------|-------------|---------------|--------------|----------|--------------|"
     a(hdr)
     a(sep)
     for tool in sorted(stats.keys()):
@@ -503,7 +554,9 @@ def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
                f"{s['agg_peak_rss_mb']:.1f} |")
         if has_pss:
             row += f" {s.get('agg_peak_pss_mb', 0):.1f} |"
-        row += (f" {s['peak_cpu']:.1f}% | {s['avg_uss_mb']:.1f} | "
+        row += (f" {s['peak_cpu']:.1f}% | {s['total_cpu_user_s']:.1f} | "
+                f"{s['total_cpu_sys_s']:.1f} | {s['total_cpu_time_s']:.1f} | "
+                f"{s['avg_uss_mb']:.1f} | "
                 f"{s['avg_cpu']:.1f}% | {s['duration_s']:.1f} |")
         a(row)
     a("")
@@ -531,6 +584,12 @@ def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
         a("## Aggregate CPU%")
         a("")
         a(f"![Aggregate CPU]({os.path.basename(plots['agg_cpu'])})")
+        a("")
+
+    if plots.get("cpu_time"):
+        a("## Cumulative CPU Time (user + system)")
+        a("")
+        a(f"![CPU Time]({os.path.basename(plots['cpu_time'])})")
         a("")
 
     if plots.get("instances"):
