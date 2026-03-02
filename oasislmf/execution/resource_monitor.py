@@ -308,19 +308,6 @@ def _aggregate_by_tool_and_time(rows):
     return tool_series
 
 
-def _per_pid_series(rows):
-    """Returns dict[tool] -> dict[pid] -> sorted list of (t_rel, rss_mb, uss_mb, cpu)."""
-    t0 = min(r["ts"] for r in rows)
-    data = defaultdict(lambda: defaultdict(list))
-    for r in rows:
-        t_rel = r["ts"] - t0
-        data[r["tool"]][r["pid"]].append((t_rel, r["rss"] / 1024, r["uss"] / 1024, r["cpu"]))
-    for tool in data:
-        for pid in data[tool]:
-            data[tool][pid].sort()
-    return data
-
-
 def _generate_plots(rows, report_dir):
     """Generate PNG plots if matplotlib is available. Returns dict of plot paths."""
     try:
@@ -334,18 +321,14 @@ def _generate_plots(rows, report_dir):
         return {}
 
     tool_series = _aggregate_by_tool_and_time(rows)
-    pid_data = _per_pid_series(rows)
 
     plots = {}
     plots["agg_uss"] = _plot_aggregate_uss(tool_series, report_dir, plt, ticker)
     plots["agg_rss_vs_uss"] = _plot_aggregate_rss_vs_uss(tool_series, report_dir, plt, ticker)
     plots["total"] = _plot_total_footprint(tool_series, report_dir, plt, ticker)
     plots["agg_cpu"] = _plot_aggregate_cpu(tool_series, report_dir, plt)
-    plots["cpu_time"] = _plot_cpu_time(tool_series, report_dir, plt, ticker)
+    plots["cpu_time"] = _plot_cpu_time(rows, report_dir, plt, ticker)
     plots["instances"] = _plot_instance_count(tool_series, report_dir, plt, ticker)
-    per_pid = _plot_per_pid_uss(pid_data, report_dir, plt, ticker)
-    if per_pid:
-        plots["per_pid"] = per_pid
     return plots
 
 
@@ -446,14 +429,44 @@ def _plot_aggregate_cpu(tool_series, out_dir, plt):
     return path
 
 
-def _plot_cpu_time(tool_series, out_dir, plt, ticker):
-    """Line plot: cumulative CPU time (user + system) per tool over time."""
+def _plot_cpu_time(rows, out_dir, plt, ticker):
+    """Line plot: cumulative CPU time (user + system) per tool over time.
+
+    Uses per-PID high-water marks so that when a process exits, its final
+    CPU time is retained in the total rather than dropping to zero.
+    """
+    t0 = min(r["ts"] for r in rows)
+
+    # Collect all unique timestamps and sort them
+    all_ts = sorted(set(r["ts"] for r in rows))
+
+    # Group rows by (tool, ts, pid) and keep max cpu_time per pid
+    # Build: tool -> {pid -> best_cpu_time} updated over time
+    tool_ts_map = defaultdict(list)  # tool -> [(t_rel, total_cpu_time)]
+    tool_pid_hwm = defaultdict(dict)  # tool -> {pid -> max(user+sys)}
+
+    for ts in all_ts:
+        # Update high-water marks from rows at this timestamp
+        ts_rows = [r for r in rows if r["ts"] == ts]
+        for r in ts_rows:
+            cpu_total = r["cpu_user"] + r["cpu_sys"]
+            tool = r["tool"]
+            pid = r["pid"]
+            if cpu_total > tool_pid_hwm[tool].get(pid, 0):
+                tool_pid_hwm[tool][pid] = cpu_total
+
+        # Record the sum of high-water marks for each tool at this timestamp
+        t_rel = ts - t0
+        for tool, pid_hwm in tool_pid_hwm.items():
+            tool_ts_map[tool].append((t_rel, sum(pid_hwm.values())))
+
     fig, ax = plt.subplots(figsize=(12, 5))
-    order = sorted(tool_series.keys(), key=lambda t: tool_series[t][0][0])
+    order = sorted(tool_ts_map.keys(),
+                   key=lambda t: tool_ts_map[t][0][0] if tool_ts_map[t] else 0)
     for tool in order:
-        series = tool_series[tool]
+        series = tool_ts_map[tool]
         ts = [s[0] for s in series]
-        cpu_time = [s[5] + s[6] for s in series]  # user + sys
+        cpu_time = [s[1] for s in series]
         ax.plot(ts, cpu_time, label=tool, color=TOOL_COLORS.get(tool), linewidth=1.5)
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Cumulative CPU Time (s)")
@@ -490,33 +503,6 @@ def _plot_instance_count(tool_series, out_dir, plt, ticker):
     return path
 
 
-def _plot_per_pid_uss(pid_data, out_dir, plt, ticker):
-    """One subplot per tool showing individual PID USS traces."""
-    tools = sorted(pid_data.keys())
-    n = len(tools)
-    if n == 0:
-        return None
-    fig, axes = plt.subplots(n, 1, figsize=(12, 3.5 * n), sharex=True)
-    if n == 1:
-        axes = [axes]
-    for ax, tool in zip(axes, tools):
-        pids = pid_data[tool]
-        for pid, series in sorted(pids.items()):
-            ts = [s[0] for s in series]
-            uss = [s[2] for s in series]
-            ax.plot(ts, uss, linewidth=0.8, alpha=0.7)
-        ax.set_ylabel("USS (MB)")
-        ax.set_title(f"{tool} — per-instance USS ({len(pids)} PIDs)")
-        ax.grid(True, alpha=0.3)
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
-    axes[-1].set_xlabel("Time (s)")
-    fig.tight_layout()
-    path = os.path.join(out_dir, "per_pid_uss.png")
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    return path
-
-
 def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
     """Write the markdown summary report."""
     md_path = os.path.join(report_dir, "resource_report.md")
@@ -538,24 +524,24 @@ def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
     # Summary table
     a("## Summary Statistics")
     a("")
-    hdr = "| Tool | Instances | Samples | Peak USS/inst (MB) | Aggr Peak USS (MB) | Aggr Peak RSS (MB) |"
-    sep = "|------|-----------|---------|--------------------|--------------------|---------------------|"
+    hdr = "| Tool | Instances | Samples | **Peak USS/inst (MB)** | **Aggr Peak USS (MB)** | Aggr Peak RSS (MB) |"
+    sep = "|------|-----------|---------|----------------------:|-----------------------:|--------------------:|"
     if has_pss:
         hdr += " Aggr Peak PSS (MB) |"
-        sep += "---------------------|"
-    hdr += " Peak CPU% | CPU User (s) | CPU Sys (s) | CPU Total (s) | Avg USS (MB) | Avg CPU% | Duration (s) |"
-    sep += "-----------|--------------|-------------|---------------|--------------|----------|--------------|"
+        sep += "--------------------:|"
+    hdr += " Peak CPU% | CPU User (s) | CPU Sys (s) | **CPU Total (s)** | Avg USS (MB) | Avg CPU% | Duration (s) |"
+    sep += "----------:|-------------:|------------:|------------------:|-------------:|---------:|-------------:|"
     a(hdr)
     a(sep)
     for tool in sorted(stats.keys()):
         s = stats[tool]
         row = (f"| {tool} | {s['n_instances']} | {s['n_samples']} | "
-               f"{s['single_peak_uss_mb']:.1f} | {s['agg_peak_uss_mb']:.1f} | "
+               f"**{s['single_peak_uss_mb']:.1f}** | **{s['agg_peak_uss_mb']:.1f}** | "
                f"{s['agg_peak_rss_mb']:.1f} |")
         if has_pss:
             row += f" {s.get('agg_peak_pss_mb', 0):.1f} |"
         row += (f" {s['peak_cpu']:.1f}% | {s['total_cpu_user_s']:.1f} | "
-                f"{s['total_cpu_sys_s']:.1f} | {s['total_cpu_time_s']:.1f} | "
+                f"{s['total_cpu_sys_s']:.1f} | **{s['total_cpu_time_s']:.1f}** | "
                 f"{s['avg_uss_mb']:.1f} | "
                 f"{s['avg_cpu']:.1f}% | {s['duration_s']:.1f} |")
         a(row)
@@ -596,12 +582,6 @@ def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
         a("## Active Instance Count")
         a("")
         a(f"![Instance Count]({os.path.basename(plots['instances'])})")
-        a("")
-
-    if plots.get("per_pid"):
-        a("## Per-Instance USS Traces")
-        a("")
-        a(f"![Per PID USS]({os.path.basename(plots['per_pid'])})")
         a("")
 
     a("---")
