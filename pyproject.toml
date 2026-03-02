@@ -63,6 +63,7 @@ exclude = ["tests", "tests.*", "tests.*.*"]
 [tool.setuptools.package-data]
 "*" = ["requirements-package.in", "LICENSE"]
 "oasislmf._data" = ["*"]
+"oasislmf.pytools.common" = ["_write_csv_cython.pyx"]
 rdls = ["rdls_schema.json"]
 
 [tool.setuptools.exclude-package-data]
