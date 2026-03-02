@@ -86,6 +86,20 @@ class TestCorrectOutput:
         data = np.array([(5, 0.25, 0.5)], dtype=dtype)
         assert _write(data, ['A', 'B', 'C'], '%d,%.4f,%.2f', use_cython) == '5,0.2500,0.50\n'
 
+    @pytest.mark.parametrize('use_cython', [False, True], ids=['python', 'cython'])
+    def test_nan_float(self, use_cython):
+        """NaN float values must produce 'nan', not garbage."""
+        dtype = np.dtype([('A', np.int32), ('B', np.float32)])
+        data = np.array([(1, np.nan)], dtype=dtype)
+        assert _write(data, ['A', 'B'], '%d,%.6f', use_cython) == '1,nan\n'
+
+    @pytest.mark.parametrize('use_cython', [False, True], ids=['python', 'cython'])
+    def test_inf_float(self, use_cython):
+        """Inf float values must produce 'inf' / '-inf'."""
+        dtype = np.dtype([('A', np.float32), ('B', np.float32)])
+        data = np.array([(np.inf, np.NINF)], dtype=dtype)
+        assert _write(data, ['A', 'B'], '%.2f,%.2f', use_cython) == 'inf,-inf\n'
+
 
 class TestErrorHandling:
     def test_header_fmt_mismatch_python(self):

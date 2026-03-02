@@ -20,7 +20,7 @@ and calls to the two cdef helpers — no Python objects, no format-string parsin
 import numpy as np
 cimport numpy as cnp
 from libc.stdio cimport snprintf
-from libc.math cimport rint as c_rint
+from libc.math cimport rint as c_rint, isnan, isinf
 
 cnp.import_array()
 
@@ -73,6 +73,18 @@ cdef int write_float(char* buf, double val, int prec) noexcept nogil:
     fractional parts, write both via write_int and a tmp fractional buffer.
     IEEE 754 round-half-to-even via c_rint matches C printf / Python %.
     """
+    # Match Python's '%.Xf' % nan/inf behaviour
+    if isnan(val):
+        buf[0] = 110; buf[1] = 97; buf[2] = 110  # 'nan'
+        return 3
+    if isinf(val):
+        if val > 0.0:
+            buf[0] = 105; buf[1] = 110; buf[2] = 102  # 'inf'
+            return 3
+        else:
+            buf[0] = 45; buf[1] = 105; buf[2] = 110; buf[3] = 102  # '-inf'
+            return 4
+
     cdef long long scale = 1
     cdef int p
     for p in range(prec):
