@@ -95,17 +95,6 @@ perils = tuple(v['id'] for v in PERILS.values())
 
 peril_groups = tuple(v['id'] for v in PERIL_GROUPS.values())
 
-# Used simple echo command rather than ktools conversion utility for testing purposes
-ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
-
-
-def standard_input_files(min_size=0):
-    return lists(
-        sampled_from([target['name'] for target in chain(GUL_INPUT_FILES.values(), OPTIONAL_INPUT_FILES.values())]),
-        min_size=min_size,
-        unique=True,
-    )
-
 
 def il_input_files(min_size=0):
     return lists(

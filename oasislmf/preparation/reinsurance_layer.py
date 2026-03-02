@@ -9,9 +9,10 @@ from ods_tools.oed import fill_empty
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.data import get_dataframe
 from ..utils import oed
 
+from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
+from oasislmf.pytools.common.data import fm_programme_dtype, fm_profile_dtype, fm_policytc_dtype, fm_xref_dtype
 
 REINS_RISK_LEVEL_XREF_COLUMN_MAP = {
     oed.REINS_RISK_LEVEL_LOCATION_GROUP: ["LocGroup", "PortNumber", "AccNumber", "PolNumber", "LocNumber"],
@@ -373,7 +374,7 @@ def _log_dataframe(logger, df_dict, ri_name):
 
 
 @oasis_log
-def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, output_dir, fm_xref_fp, logger):
+def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, output_dir, fm_xref_fp, intermediary_csv, logger):
     """
     Create the Oasis structures - FM Programmes, FM Profiles and FM Policy
     TCs - that represent the reinsurance structure.
@@ -389,7 +390,7 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
     assigned for each row of the reinsurance info dataframe. Finally, the
     Oasis structure is written out.
     """
-    fm_xref_df = get_dataframe(fm_xref_fp)
+    fm_xref_df = pd.DataFrame(np.fromfile(fm_xref_fp, dtype=fm_xref_dtype))
     fm_xref_df['agg_id'] = range(1, 1 + len(fm_xref_df))
     fill_empty(ri_scope_df, RISK_LEVEL_ALL_FIELDS, '')
 
@@ -500,14 +501,16 @@ def write_files_for_reinsurance(ri_info_df, ri_scope_df, xref_descriptions_df, o
                 shutil.rmtree(ri_output_dir)
             os.makedirs(ri_output_dir)
 
-            fm_programme_df.to_csv(
-                os.path.join(ri_output_dir, "fm_programme.csv"), index=False)
-            fm_profile_df.to_csv(
-                os.path.join(ri_output_dir, "fm_profile.csv"), index=False)
-            fm_policytc_df.to_csv(
-                os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
-            fm_xref_df.to_csv(
-                os.path.join(ri_output_dir, "fm_xref.csv"), index=False)
+            df_to_ndarray(fm_programme_df, fm_programme_dtype).tofile(os.path.join(ri_output_dir, "fm_programme.bin"))
+            df_to_ndarray(fm_profile_df, fm_profile_dtype).tofile(os.path.join(ri_output_dir, "fm_profile.bin"))
+            df_to_ndarray(fm_policytc_df, fm_policytc_dtype).tofile(os.path.join(ri_output_dir, "fm_policytc.bin"))
+            df_to_ndarray(fm_xref_df, fm_xref_dtype).tofile(os.path.join(ri_output_dir, "fm_xref.bin"))
+
+            if intermediary_csv:
+                fm_programme_df.to_csv(os.path.join(ri_output_dir, "fm_programme.csv"), index=False)
+                fm_profile_df.to_csv(os.path.join(ri_output_dir, "fm_profile.csv"), index=False)
+                fm_policytc_df.to_csv(os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
+                fm_xref_df.to_csv(os.path.join(ri_output_dir, "fm_xref.csv"), index=False)
 
             inuring_metadata[reinsurance_index] = {
                 'inuring_priority': inuring_priority,

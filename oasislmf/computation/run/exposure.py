@@ -57,6 +57,8 @@ class RunExposure(ComputationStep):
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
         {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
+        {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
+         'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
     ]
@@ -106,6 +108,7 @@ class RunExposure(ComputationStep):
             exposure_data=exposure_data,
             keys_data_path=keys_fp,
             do_disaggregation=self.do_disaggregation,
+            intermediary_csv=self.intermediary_csv,
         ).run()
 
         # 3. Run Deterministic Losses
@@ -407,7 +410,8 @@ class RunFmTest(ComputationStep):
             include_loss_factor=include_loss_factor,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output,
-            keys_format='oasis'
+            keys_format='oasis',
+            intermediary_csv=True,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
