@@ -754,7 +754,8 @@ class GenerateLossesDeterministic(ComputationStep):
         move_bin(self.oasis_files_dir, output_dir)
 
         # Generate an items and coverages dataframe and set column types (important!!)
-        cov_df = pd.DataFrame(load_as_ndarray(self.output_dir, 'coverages', np.dtype([tiv_dtype[0:2]]), must_exist=True)).reset_index(names="coverage_id")
+        cov_df = pd.DataFrame(load_as_ndarray(self.output_dir, 'coverages', np.dtype(
+            [tiv_dtype[0:2]]), must_exist=True)).reset_index(names="coverage_id")
         cov_df["coverage_id"] += 1
         items = merge_dataframes(
             pd.DataFrame(load_as_ndarray(self.output_dir, 'items', items_dtype, must_exist=True)),
