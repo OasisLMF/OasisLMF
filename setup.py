@@ -1,15 +1,12 @@
-import os
-
 from setuptools import setup
 
 try:
     from Cython.Build import cythonize
     import numpy as np
-    _pyx = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        'oasislmf', 'pytools', 'common', '_write_csv_cython.pyx',
+    ext_modules = cythonize(
+        'oasislmf/pytools/common/_write_csv_cython.pyx',
+        compiler_directives={'language_level': '3'},
     )
-    ext_modules = cythonize(_pyx, compiler_directives={'language_level': '3'})
     include_dirs = [np.get_include()]
 except ImportError:
     ext_modules = []

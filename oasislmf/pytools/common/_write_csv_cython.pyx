@@ -150,11 +150,11 @@ def write_rows(output_file, object data, list headers, str row_fmt):
     cdef bytes _fb
     for j in range(n_cols):
         fmt = col_fmts[j]
-        if fmt[-1] in ('d', 'i', 'u'):
+        if fmt.endswith(('d', 'i', 'u')):
             col_type[j] = COL_INT
             col_prec[j] = 0
             fmts_b.append(b'')
-        elif fmt[-1] == 'f' and '.' in fmt:
+        elif fmt.endswith('f') and '.' in fmt:
             dot = fmt.index('.')
             try:
                 prec = int(fmt[dot + 1: dot + 4].rstrip('f'))
