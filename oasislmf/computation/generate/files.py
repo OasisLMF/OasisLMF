@@ -345,6 +345,7 @@ class GenerateFiles(ComputationStep):
             output_dir=self._get_output_dir(),
             oasis_files_prefixes=files_prefixes['gul'],
             chunksize=self.write_chunksize,
+            intermediary_csv=self.intermediary_csv
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
@@ -357,7 +358,7 @@ class GenerateFiles(ComputationStep):
             return gul_input_files
 
         # Get the IL input items and Write the IL/FM input files
-        il_inputs_df = get_il_input_items(
+        il_inputs_df, il_input_files = get_il_input_items(
             gul_inputs_df=gul_inputs_df.copy(),
             exposure_data=exposure_data,
             exposure_profile=location_profile,
@@ -367,9 +368,9 @@ class GenerateFiles(ComputationStep):
             target_dir=target_dir,
             oasis_files_prefixes=files_prefixes['il'],
             chunksize=self.write_chunksize,
-            logger=self.logger
+            logger=self.logger,
+            intermediary_csv=self.intermediary_csv
         )
-        il_input_files = {fm_name: os.path.join(target_dir, f'{file_name}.csv') for fm_name, file_name in files_prefixes['il'].items()}
 
         fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
         write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
@@ -418,6 +419,7 @@ class GenerateFiles(ComputationStep):
             xref_descriptions_df,
             target_dir,
             oasis_files['fm_xref'],
+            self.intermediary_csv,
             self.logger
         )
 

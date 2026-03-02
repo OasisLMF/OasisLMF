@@ -53,8 +53,13 @@ from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 logger = logging.getLogger(__name__)
 
 
-VULN_LOOKUP_KEY_TYPE = nb_Tuple((nb_int32, nb_areaperil_int, nb_int32, nb_int32, nb_int32))
+VULN_LOOKUP_KEY_TYPE = nb_int64
 VULN_LOOKUP_VALUE_TYPE = nb_Tuple((nb_int32, nb_int32))
+
+# Sentinel value to distinguish eff_damage_cdf keys from per-bin keys
+# eff_damage_cdf key:  int64(eff_cdf_id) << 32 | 0xFFFFFFFF
+# per-bin cdf key:     int64(eff_cdf_id) << 32 | int64(haz_bin_id)
+EFF_CDF_KEY_SENTINEL = nb_int64(0xFFFFFFFF)
 
 # parameter for get_corr_rval in a normal cdf
 x_min = 1e-16
@@ -68,19 +73,33 @@ norm_factor = (norm_inv_N - 1) / (cdf_max - cdf_min)
 
 @nb.njit(cache=True)
 def gen_empty_vuln_cdf_lookup(list_size, compute_info):
-    """Generate structures needed to store and retrieve vulnerability cdf in the cache.
+    """Generate structures needed to store and retrieve vulnerability cdfs in the cache.
+
+    Initializes a Numba typed Dict and a keys list used for circular (LRU-like) eviction.
+    The Dict maps composite int64 keys to (slot_index, cdf_length) tuples. The keys list
+    tracks which key occupies each slot so that evicted entries can be removed from the Dict.
+
+    The composite int64 key encodes:
+      - eff_cdf_id (upper 32 bits): sequential id assigned per unique (areaperil, vuln_id)
+        group during reconstruct_coverages.
+      - discriminator (lower 32 bits): 0xFFFFFFFF for the effective damage cdf,
+        or haz_bin_id for per-intensity-bin vulnerability cdfs.
 
     Args:
-        list_size (int): maximum number of cdfs to be stored in the cache.
+        list_size (int): maximum number of cdfs that can be stored in the cache (i.e., the
+          number of rows in cached_vuln_cdfs).
+        compute_info (gulmc_compute_info_type): computation state; its 'next_cached_vuln_cdf_i'
+          field is reset to 0.
 
     Returns:
-        cached_vuln_cdf_lookup (Dict[VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE]): dict to store
-          the map between vuln_id and intensity bin id and the location of the cdf in the cache.
-        cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
+        cached_vuln_cdf_lookup (Dict[int64, Tuple(int32, int32)]): empty dict mapping
+          composite int64 cache key to (slot_index, cdf_length).
+        cached_vuln_cdf_lookup_keys (List[int64]): list of length `list_size`, initialized
+          with dummy keys (-1), used for eviction tracking.
     """
     cached_vuln_cdf_lookup = Dict.empty(VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE)
     cached_vuln_cdf_lookup_keys = List.empty_list(VULN_LOOKUP_KEY_TYPE)
-    dummy = tuple((nb_int32(-1), nb_areaperil_int(0), nb_int32(-1), nb_int32(-1), nb_int32(-1)))
+    dummy = nb_int64(-1)
     for _ in range(list_size):
         cached_vuln_cdf_lookup_keys.append(dummy)
     compute_info['next_cached_vuln_cdf_i'] = 0
@@ -320,6 +339,20 @@ def run(run_dir,
                 jointype='leftouter', usemask=False,
                 defaults={'peril_id': 0}
             )
+        # Pre-compute sequential indices for group_id and hazard_group_id
+        # to enable array-based lookups instead of Numba Dict lookups in reconstruct_coverages
+        unique_group_ids_arr, group_seq_ids = np.unique(items['group_id'], return_inverse=True)
+        unique_haz_group_ids_arr, haz_group_seq_ids = np.unique(items['hazard_group_id'], return_inverse=True)
+        n_unique_groups = len(unique_group_ids_arr)
+        n_unique_haz_groups = len(unique_haz_group_ids_arr)
+        items = rfn.merge_arrays((items,
+                                  np.empty(items.shape,
+                                           dtype=nb.from_dtype(np.dtype([("group_seq_id", np.int32),
+                                                                         ("hazard_group_seq_id", np.int32)])))),
+                                 flatten=True)
+        items['group_seq_id'] = group_seq_ids
+        items['hazard_group_seq_id'] = haz_group_seq_ids
+
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
         # build item map
@@ -370,8 +403,11 @@ def run(run_dir,
         # set the random generator function
         generate_rndm = get_random_generator(random_generator)
         # create the array to store the seeds
-        haz_seeds = np.zeros(len(np.unique(items['hazard_group_id'])), dtype=correlations_dtype['hazard_group_id'])
-        vuln_seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
+        haz_seeds = np.zeros(n_unique_haz_groups, dtype=correlations_dtype['hazard_group_id'])
+        vuln_seeds = np.zeros(n_unique_groups, dtype=items_dtype['group_id'])
+        # Pre-allocated arrays for group_id -> rng_index mapping (replaces per-event Numba Dicts)
+        group_seq_rng_index = np.empty(n_unique_groups, dtype=np.int64)
+        hazard_group_seq_rng_index = np.empty(n_unique_haz_groups, dtype=np.int64)
 
         # haz correlation
         if not ignore_haz_correlation and Nperil_correlation_groups > 0 and any(items['hazard_correlation_value'] > 0):
@@ -478,6 +514,9 @@ def run(run_dir,
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
         damage_eps_ij = np.empty((1, sample_size), dtype='float64')
 
+        # Pre-allocate CDF cache once (reused across events, no need to zero)
+        cached_vuln_cdfs = np.empty((Nvulns_cached, Ndamage_bins_max), dtype=oasis_float)
+
         counter = 0
         timer = time.time()
         ping = kwargs.get('socket_server', 'False') != 'False'
@@ -517,7 +556,9 @@ def run(run_dir,
                     damage_peril_correlation_groups,
                     damage_corr_seeds,
                     dynamic_footprint,
-                    byte_mv
+                    byte_mv,
+                    group_seq_rng_index,
+                    hazard_group_seq_rng_index
                 )
 
                 # since these are never used outside of a sample > 0 branch we can remove the need to
@@ -531,8 +572,7 @@ def run(run_dir,
                     haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                # create vulnerability cdf cache
-                cached_vuln_cdfs = np.zeros((Nvulns_cached, compute_info['Ndamage_bins_max']), dtype=oasis_float)
+                # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
                 cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached, compute_info)
 
                 processing_done = False
@@ -582,7 +622,7 @@ def run(run_dir,
                     write_start = 0
                     while write_start < compute_info['cursor']:
                         select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(byte_mv[write_start: compute_info['cursor']].tobytes())
+                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
 
                 logger.info(f"event {event_ids[0]} DONE")
 
@@ -591,6 +631,7 @@ def run(run_dir,
                 timer = time.time()
                 oasis_ping({"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)})
                 counter = 0
+
     return 0
 
 
@@ -683,6 +724,26 @@ def calc_eff_damage_cdf(vuln_pdf, haz_pdf, eff_damage_cdf_empty):
 
 @nb.njit()
 def cache_cdf(next_cached_vuln_cdf_i, cached_vuln_cdfs, cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cdf, cdf_key):
+    """Store a cdf in the circular cache, evicting the oldest entry if the cache is full.
+
+    Uses a circular buffer strategy: `next_cached_vuln_cdf_i` is the write cursor that
+    wraps around when it reaches the end of the cache. When a slot is reused, the previous
+    key occupying that slot is removed from the lookup Dict.
+
+    Args:
+        next_cached_vuln_cdf_i (int): current write cursor position in the circular buffer.
+        cached_vuln_cdfs (np.array[oasis_float]): 2d cache array of shape (Nvulns_cached, Ndamage_bins_max).
+          Pre-allocated once and reused across events.
+        cached_vuln_cdf_lookup (Dict[int64, Tuple(int32, int32)]): maps composite int64 key
+          to (slot_index, cdf_length).
+        cached_vuln_cdf_lookup_keys (List[int64]): reverse mapping from slot to key, used to
+          remove evicted entries from the Dict.
+        cdf (np.array[oasis_float]): the cdf values to cache.
+        cdf_key (int64): composite cache key (eff_cdf_id << 32 | discriminator).
+
+    Returns:
+        int: updated write cursor position.
+    """
     if cdf_key not in cached_vuln_cdf_lookup:  # already cached
         # cache the cdf
         if cached_vuln_cdf_lookup_keys[next_cached_vuln_cdf_i] in cached_vuln_cdf_lookup:
@@ -745,46 +806,78 @@ def compute_event_losses(compute_info,
                          dynamic_footprint,
                          intensity_bin_dict
                          ):
-    """Compute losses for an event.
+    """Compute ground-up losses for all coverages in a single event.
+
+    Iterates over coverages and their items, looking up or computing the vulnerability cdf
+    for each item, then sampling losses using the pre-generated random numbers. Results are
+    written into a byte buffer for streaming output.
+
+    For each item, the function:
+      1. Retrieves the hazard intensity pdf for the item's areaperil (via haz_arr_i).
+      2. Looks up or computes the effective damage cdf (combining vulnerability and hazard).
+         When effective_damageability is False, also caches per-intensity-bin vulnerability cdfs.
+      3. Computes mean loss, standard deviation, chance of loss, and max loss.
+      4. For each random sample, draws the ground-up loss from the cdf.
+      5. Optionally applies hazard and damage correlation.
+      6. Writes results to the output byte buffer.
+
+    CDF caching uses composite int64 keys built from `eff_cdf_id` (assigned per unique
+    (areaperil, vulnerability) group in reconstruct_coverages). The upper 32 bits encode the
+    eff_cdf_id, the lower 32 bits encode a discriminator (0xFFFFFFFF for effective damage cdfs,
+    or the intensity_bin_id for per-bin vulnerability cdfs). Circular eviction is used when
+    the cache is full.
+
+    If the output buffer cannot fit the next coverage, returns False so the caller can flush
+    the buffer and call again to continue processing.
 
     Args:
-        compute_info (ndarray): information on the state of the computation
-        coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
-        coverage_ids (numpy.array[int]): array of unique coverage ids used in this event.
-        items_event_data (numpy.array[items_data_type]): items-related data.
+        compute_info (gulmc_compute_info_type): computation state (event_id, cursor position,
+          coverage range, cache pointer, thresholds, flags).
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
+        coverage_ids (numpy.array[int]): ordered list of coverage_ids to process in this event.
+        items_event_data (numpy.array[items_MC_data_type]): per-item event data populated by
+          reconstruct_coverages, containing item_idx, haz_arr_i, rng_index, hazard_rng_index,
+          and eff_cdf_id.
         items (np.ndarray): items table merged with correlation parameters.
         sample_size (int): number of random samples to draw.
-        haz_pdf (np.array[oasis_float]): hazard intensity cdf.
-        haz_arr_ptr (np.array[int]): array with the indices where each cdf record starts in `haz_cdf`.
-        vuln_array (np.array[float]): damage pdf for different vulnerability functions, as a function of hazard intensity.
-        damage_bins (List[Union[damagebindictionaryCsv, damagebindictionary]]): loaded data from the damage_bin_dict file.
-        cached_vuln_cdf_lookup (Dict[VULN_LOOKUP_KEY_TYPE, VULN_LOOKUP_VALUE_TYPE]): dict to store
-          the map between vuln_id and intensity bin id and the location of the cdf in the cache.
-        cached_vuln_cdf_lookup_keys (List[VULN_LOOKUP_VALUE_TYPE]): list of lookup keys.
-        cached_vuln_cdfs (np.array[oasis_float]): vulnerability cdf cache.
-        agg_vuln_to_vuln_idxs (dict[int, list[int]]): map between aggregate vulnerability id and the list of indices where the individual vulnerability_ids
-          that compose it are stored in `vuln_array`.
-        areaperil_vuln_idx_to_weight (dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]): map between the areaperil id and the index where the vulnerability function
-          is stored in `vuln_array` and the vulnerability weight.
-        losses (numpy.array[oasis_float]): array (to be re-used) to store losses for each item.
-        haz_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
-          drawn for each seed for the hazard intensity sampling.
-        vuln_rndms_base (numpy.array[float64]): 2d array of shape (number of seeds, sample_size) storing the random values
-          drawn for each seed for the damage sampling.
-        vuln_adj (np.array): map array between vulnerability_idx and the adjustment factor to be applied to the (random numbers extracted) vulnerability function.
-        haz_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for hazard sampling.
-        damage_eps_ij (np.array[float]): correlated random values of shape `(number of seeds, sample_size)` for damage sampling.
-        norm_inv_parameters (NormInversionParameters): parameters for the Normal (Gaussian) inversion functionality.
-        norm_inv_cdf (np.array[float]): inverse Gaussian cdf.
-        norm_cdf (np.array[float]): Gaussian cdf.
-        vuln_z_unif (np.array[float]): buffer to be re-used to store the correlated random values for vuln.
-        haz_z_unif (np.array[float]): buffer to be re-used to store the correlated random values for haz.
-        byte_mv (numpy.array): byte view of where the output is buffered.
-        dynamic_footprint,
-        intensity_bin_dict
+        haz_pdf (np.array[haz_arr_type]): hazard intensity pdf records for this event.
+        haz_arr_ptr (List[int]): indices where each areaperil's hazard records start in haz_pdf.
+        vuln_array (np.array[float]): 3d vulnerability array of shape
+          (Nvulnerability, Ndamage_bins_max, Nintensity_bins).
+        damage_bins (np.array): damage bin dictionary with bin_from, bin_to, interpolation, damage_type.
+        cached_vuln_cdf_lookup (Dict[int64, Tuple(int32, int32)]): cdf cache lookup mapping
+          composite int64 key to (slot_index, cdf_length).
+        cached_vuln_cdf_lookup_keys (List[int64]): reverse mapping from cache slot to key,
+          for circular eviction.
+        cached_vuln_cdfs (np.array[oasis_float]): 2d cdf cache of shape (Nvulns_cached, Ndamage_bins_max).
+        agg_vuln_to_vuln_idxs (Dict[int, List[int]]): map from aggregate vulnerability_id to
+          the list of individual vulnerability indices in vuln_array.
+        areaperil_vuln_idx_to_weight (Dict[Tuple, float]): map from (areaperil_id, vuln_idx) to
+          the weight for aggregate vulnerability composition.
+        losses (numpy.array[oasis_float]): reusable 2d buffer of shape
+          (sample_size + NUM_IDX + 1, max_items_per_coverage) for loss values.
+        haz_rndms_base (numpy.array[float64]): 2d array of shape (n_seeds, sample_size) with
+          base random values for hazard intensity sampling.
+        vuln_rndms_base (numpy.array[float64]): 2d array of shape (n_seeds, sample_size) with
+          base random values for damage sampling.
+        vuln_adj (np.array[float]): per-vulnerability adjustment factors applied to random samples
+          for non-aggregate vulnerabilities.
+        haz_eps_ij (np.array[float]): correlated random values for hazard sampling.
+        damage_eps_ij (np.array[float]): correlated random values for damage sampling.
+        norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion
+          (x_min, x_max, N, cdf_min, cdf_max, inv_factor, norm_factor).
+        norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
+        norm_cdf (np.array[float]): Gaussian cdf lookup table.
+        vuln_z_unif (np.array[float]): reusable buffer for correlated vulnerability random values.
+        haz_z_unif (np.array[float]): reusable buffer for correlated hazard random values.
+        byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
+        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
+        intensity_bin_dict (Dict[Tuple(int32, int32), int32]): map from (peril_id, intensity)
+          to intensity_bin_id, used for dynamic footprint intensity adjustment.
 
     Returns:
-        True if processing is done else false
+        bool: True if all coverages have been processed, False if the buffer is full and
+          the caller should flush and call again.
     """
     haz_cdf_empty = np.empty(vuln_array.shape[2], dtype=oasis_float)
     vuln_pdf_empty = np.empty((vuln_array.shape[2], compute_info['Ndamage_bins_max']), dtype=vuln_array.dtype)
@@ -823,11 +916,6 @@ def compute_event_losses(compute_info,
             else:
                 intensity_adjustment = nb_oasis_int(0)
 
-            if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:
-                agg_vuln_key_id = item['areaperil_id']
-            else:
-                agg_vuln_key_id = nb_areaperil_int(0)
-
             haz_arr_i = item_event_data['haz_arr_i']
             haz_pdf_record = haz_pdf[haz_arr_ptr[haz_arr_i]:haz_arr_ptr[haz_arr_i + 1]]
 
@@ -848,11 +936,9 @@ def compute_event_losses(compute_info,
                 haz_bin_id = haz_pdf_record['intensity_bin_id']
             haz_pdf_prob = haz_pdf_record['probability']
 
-            eff_damage_cdf_key = tuple((item['vulnerability_id'],
-                                        agg_vuln_key_id,
-                                        nb_oasis_int(haz_arr_i),
-                                        nb_oasis_int(intensity_adjustment),
-                                        nb_oasis_int(0)))
+            # Build int64 composite keys from eff_cdf_id
+            eff_cdf_id_shifted = nb_int64(item_event_data['eff_cdf_id']) << nb_int64(32)
+            eff_damage_cdf_key = eff_cdf_id_shifted | EFF_CDF_KEY_SENTINEL
 
             # determine if all the needed cdf are cached
             do_calc_vuln_ptf = eff_damage_cdf_key not in cached_vuln_cdf_lookup
@@ -860,7 +946,7 @@ def compute_event_losses(compute_info,
             Nhaz_bins = haz_cdf_prob.shape[0]
             if not compute_info['effective_damageability']:
                 for haz_i in range(Nhaz_bins):
-                    haz_lookup_key = tuple((item['vulnerability_id'], agg_vuln_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                    haz_lookup_key = eff_cdf_id_shifted | nb_int64(haz_bin_id[haz_i])
                     do_calc_vuln_ptf = do_calc_vuln_ptf or (haz_lookup_key not in cached_vuln_cdf_lookup)
 
             if do_calc_vuln_ptf:  # some cdf are not cached
@@ -910,7 +996,7 @@ def compute_event_losses(compute_info,
                     for haz_i in range(Nhaz_bins):
                         haz_i_to_Ndamage_bins[haz_i] = pdf_to_cdf(vuln_pdf[haz_i], haz_i_to_vuln_cdf[haz_i]).shape[0]
 
-                        lookup_key = tuple((item['vulnerability_id'], agg_vuln_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                        lookup_key = eff_cdf_id_shifted | nb_int64(haz_bin_id[haz_i])
                         compute_info['next_cached_vuln_cdf_i'] = cache_cdf(
                             compute_info['next_cached_vuln_cdf_i'], cached_vuln_cdfs, cached_vuln_cdf_lookup,
                             cached_vuln_cdf_lookup_keys, haz_i_to_vuln_cdf[haz_i][:haz_i_to_Ndamage_bins[haz_i]],
@@ -924,7 +1010,7 @@ def compute_event_losses(compute_info,
                     haz_i_to_Ndamage_bins = haz_i_to_Ndamage_bins_empty[:Nhaz_bins]
                     haz_i_to_vuln_cdf = haz_i_to_vuln_cdf_empty[:Nhaz_bins]
                     for haz_i in range(Nhaz_bins):
-                        lookup_key = tuple((item['vulnerability_id'], agg_vuln_key_id, nb_oasis_int(0), intensity_adjustment, haz_bin_id[haz_i]))
+                        lookup_key = eff_cdf_id_shifted | nb_int64(haz_bin_id[haz_i])
                         start, Ndamage_bins = cached_vuln_cdf_lookup[lookup_key]
 
                         haz_i_to_Ndamage_bins[haz_i] = Ndamage_bins
@@ -984,7 +1070,7 @@ def compute_event_losses(compute_info,
                     # do not use correlation
                     vuln_z_unif[:] = vuln_rndms_base[rng_index]
 
-                if agg_vuln_key_id == 0:  # if 0 we have a single vuln id
+                if item['vulnerability_id'] not in agg_vuln_to_vuln_idxs:  # single vuln id (non-aggregate)
                     vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
                 if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
@@ -1131,44 +1217,71 @@ def reconstruct_coverages(compute_info,
                           damage_peril_correlation_groups,
                           damage_corr_seeds,
                           dynamic_footprint,
-                          byte_mv):
-    """Register each item to its coverage, with the location of the corresponding hazard intensity cdf
-    in the footprint, compute the random seeds for the hazard intensity and vulnerability samples.
+                          byte_mv,
+                          group_seq_rng_index,
+                          hazard_group_seq_rng_index):
+    """Register each item to its coverage and prepare per-item event data for loss computation.
+
+    For each (areaperil_id, vulnerability_id) pair present in the event footprint, iterates
+    over all mapped items and:
+      1. Computes deterministic hash-based random seeds for hazard and damage sampling,
+         using group_id and hazard_group_id respectively. Seeds are deduplicated via
+         pre-allocated arrays indexed by sequential group ids.
+      2. Maps each item to its coverage structure, tracking the start offset and count.
+      3. Stores per-item event data (haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id)
+         in the items_event_data array.
+      4. Assigns a sequential eff_cdf_id to each unique CDF group. For non-dynamic footprints,
+         each (areaperil_id, vulnerability_id) pair gets one eff_cdf_id. For dynamic footprints,
+         groups are further subdivided by intensity_adjustment since different adjustments
+         produce different CDFs. The eff_cdf_id is later used in compute_event_losses to build
+         composite int64 cache keys.
 
     Args:
-        dynamic_compute_info (dynamic_compute_info_type): ndarray that store all dynamic info on computation
-        areaperil_ids (List[int]): list of all areaperil_ids present in the footprint.
-        areaperil_ids_map (Dict[int, Dict[int, int]]) dict storing the mapping between each
-          areaperil_id and all the vulnerability ids associated with it.
-        areaperil_to_haz_arr_i (dict[int, int]): map between the areaperil_id and the hazard arr index.
-        item_map (Dict[ITEM_MAP_KEY_TYPE, ITEM_MAP_VALUE_TYPE]): dict storing
-          the mapping between areaperil_id, vulnerability_id to item.
-        items (np.ndarray): items table merged with correlation parameters.
-        coverages (numpy.array[oasis_float]): array with the coverage values for each coverage_id.
-        compute (numpy.array[int]): list of coverage ids to be computed.
-        haz_seeds (numpy.array[int]): the random seeds to draw the hazard intensity samples.
-        haz_peril_correlation_groups (numpy.array[int]): unique peril_correlation_groups for hazard
-        haz_corr_seeds (numpy.array[int]): empty buffer to write hazard_corr_seeds
-        vuln_seeds (numpy.array[int]): the random seeds to draw the damage samples.
-        damage_peril_correlation_groups (numpy.array[int]): unique peril_correlation_groups for damage
-        damage_corr_seeds (numpy.array[int]): empty buffer to write damage_corr_seeds
-        dynamic_footprint (bollean): true if dynamic_footprint is on
-        byte_mv : writing buffer
+        compute_info (gulmc_compute_info_type): computation state; coverage_i, coverage_n,
+          and event_id fields are read/written.
+        areaperil_ids (List[int]): areaperil_ids present in the event footprint (from
+          process_areaperils_in_footprint).
+        areaperil_ids_map (Dict[int, Dict[int, int]]): mapping from areaperil_id to the set
+          of vulnerability_ids associated with it.
+        areaperil_to_haz_arr_i (Dict[int, int]): mapping from areaperil_id to its sequential
+          index in haz_arr_ptr (assigned per event in process_areaperils_in_footprint).
+        item_map (Dict[Tuple(areaperil_int, int32), List[int64]]): mapping from
+          (areaperil_id, vulnerability_id) to the list of item indices in the items array.
+        items (np.ndarray): items table merged with correlation parameters, containing
+          group_id, hazard_group_id, coverage_id, group_seq_id, hazard_group_seq_id, etc.
+        coverages (numpy.array[coverage_type]): coverage data indexed by coverage_id.
+        compute (numpy.array[int]): output buffer for the list of coverage_ids to be computed.
+        haz_seeds (numpy.array[int]): output buffer for hazard intensity random seeds.
+        haz_peril_correlation_groups (numpy.array[int]): unique peril correlation groups for hazard.
+        haz_corr_seeds (numpy.array[int]): output buffer for hazard correlation seeds.
+        vuln_seeds (numpy.array[int]): output buffer for damage random seeds.
+        damage_peril_correlation_groups (numpy.array[int]): unique peril correlation groups for damage.
+        damage_corr_seeds (numpy.array[int]): output buffer for damage correlation seeds.
+        dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
+        byte_mv (numpy.array[byte]): output byte buffer, may be resized if needed.
+        group_seq_rng_index (numpy.array[int64]): pre-allocated array of size n_unique_groups,
+          used for O(1) group_id to rng_index mapping (reset to -1 each event).
+        hazard_group_seq_rng_index (numpy.array[int64]): pre-allocated array of size
+          n_unique_haz_groups, for hazard_group_id to rng_index mapping.
 
     Returns:
-        compute_i (int): index of the last coverage id stored in `compute`.
-        items_data (numpy.array[items_MC_data_type]): item-related data.
-        rng_index (int): number of unique random seeds for damage sampling computed so far.
-        hazard_rng_index (int): number of unique random seeds for hazard intensity sampling computed so far.
-        byte_mv : writing buffer with increased size if needed
+        tuple: (items_event_data, rng_index, hazard_rng_index, byte_mv)
+          - items_event_data (numpy.array[items_MC_data_type]): per-item data including
+            item_idx, haz_arr_i, rng_index, hazard_rng_index, eff_cdf_id.
+          - rng_index (int): number of unique damage random seeds generated.
+          - hazard_rng_index (int): number of unique hazard random seeds generated.
+          - byte_mv (numpy.array[byte]): output buffer, possibly resized.
     """
     # init data structures
-    group_id_rng_index = Dict.empty(nb_int32, nb_int64)
-    hazard_group_id_hazard_rng_index = Dict.empty(nb_int32, nb_int64)
+    # Reset pre-allocated arrays instead of creating new Numba Dicts
+    group_seq_rng_index[:] = -1
+    hazard_group_seq_rng_index[:] = -1
     rng_index = 0
     hazard_rng_index = 0
     compute_i = 0
     items_data_i = 0
+    # Sequential counter for unique CDF groups
+    eff_cdf_id = nb_oasis_int(0)
     coverages['cur_items'].fill(0)
     items_event_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_MC_data_type)
 
@@ -1181,30 +1294,35 @@ def reconstruct_coverages(compute_info,
         for vuln_id in areaperil_ids_map[areaperil_id]:
             # register the items to their coverage
             item_key = tuple((areaperil_id, vuln_id))
+            # Each (areaperil_id, vuln_id) pair gets a unique eff_cdf_id
+            # For dynamic footprints, items within the same pair may have different
+            # intensity_adjustment, so we sub-divide using a local Dict.
+            this_group_eff_cdf_id = eff_cdf_id
+            if dynamic_footprint is not None:
+                adj_to_cdf_id = Dict.empty(nb_oasis_int, nb_oasis_int)
 
             for item_idx in item_map[item_key]:
                 # if this group_id was not seen yet, process it.
                 # it assumes that hash only depends on event_id and group_id
                 # and that only 1 event_id is processed at a time.
-                group_id = items[item_idx]['group_id']
-                if group_id not in group_id_rng_index:
-                    group_id_rng_index[group_id] = rng_index
-                    vuln_seeds[rng_index] = generate_hash(group_id, compute_info['event_id'])
+                # Use sequential index for array-based lookup instead of Dict
+                group_seq_id = items[item_idx]['group_seq_id']
+                if group_seq_rng_index[group_seq_id] == -1:
+                    group_seq_rng_index[group_seq_id] = rng_index
+                    vuln_seeds[rng_index] = generate_hash(items[item_idx]['group_id'], compute_info['event_id'])
                     this_rng_index = rng_index
                     rng_index += 1
-
                 else:
-                    this_rng_index = group_id_rng_index[group_id]
+                    this_rng_index = group_seq_rng_index[group_seq_id]
 
-                hazard_group_id = items[item_idx]['hazard_group_id']
-                if hazard_group_id not in hazard_group_id_hazard_rng_index:
-                    hazard_group_id_hazard_rng_index[hazard_group_id] = hazard_rng_index
-                    haz_seeds[hazard_rng_index] = generate_hash_hazard(hazard_group_id, compute_info['event_id'])
+                hazard_group_seq_id = items[item_idx]['hazard_group_seq_id']
+                if hazard_group_seq_rng_index[hazard_group_seq_id] == -1:
+                    hazard_group_seq_rng_index[hazard_group_seq_id] = hazard_rng_index
+                    haz_seeds[hazard_rng_index] = generate_hash_hazard(items[item_idx]['hazard_group_id'], compute_info['event_id'])
                     this_hazard_rng_index = hazard_rng_index
                     hazard_rng_index += 1
-
                 else:
-                    this_hazard_rng_index = hazard_group_id_hazard_rng_index[hazard_group_id]
+                    this_hazard_rng_index = hazard_group_seq_rng_index[hazard_group_seq_id]
 
                 coverage_id = items[item_idx]['coverage_id']
                 coverage = coverages[coverage_id]
@@ -1230,8 +1348,19 @@ def reconstruct_coverages(compute_info,
                 if dynamic_footprint is not None:
                     items_event_data[item_i]['intensity_adjustment'] = items[item_idx]['intensity_adjustment']
                     items_event_data[item_i]['return_period'] = items[item_idx]['return_period']
+                    # For dynamic footprints, sub-divide by intensity_adjustment
+                    adj = items[item_idx]['intensity_adjustment']
+                    if adj not in adj_to_cdf_id:
+                        adj_to_cdf_id[adj] = eff_cdf_id
+                        eff_cdf_id += 1
+                    items_event_data[item_i]['eff_cdf_id'] = adj_to_cdf_id[adj]
+                else:
+                    items_event_data[item_i]['eff_cdf_id'] = this_group_eff_cdf_id
 
                 coverage['cur_items'] += 1
+            # Increment eff_cdf_id for non-dynamic footprints (one id per (areaperil, vuln) pair)
+            if dynamic_footprint is None:
+                eff_cdf_id += 1
     compute_info['coverage_i'] = 0
     compute_info['coverage_n'] = compute_i
     byte_mv = adjust_byte_mv_size(byte_mv, np.max(coverages['cur_items']) * compute_info['max_bytes_per_item'])

@@ -55,6 +55,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import pytz
+import chardet
 from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
 
@@ -347,6 +348,9 @@ def detect_encoding(filepath):
             if detector.done:
                 break
     detector.close()
+    if detector.result['encoding'] is None:
+        with io.open(filepath, 'rb') as f:
+            return chardet.detect(f.read())
     return detector.result
 
 

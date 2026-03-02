@@ -37,7 +37,7 @@ def _read_footprint_zips(stack, file_in, idx_file_in):
     footprint_header = np.frombuffer(footprint[:FootprintHeader.size].tobytes(), dtype=FootprintHeader)
 
     uncompressedMask = 1 << 1
-    uncompressed_size = int(footprint_header['has_intensity_uncertainty'] & uncompressedMask)
+    uncompressed_size = int(footprint_header['has_intensity_uncertainty'].item() & uncompressedMask)
 
     if uncompressed_size:
         index_dtype = EventIndexBinZ

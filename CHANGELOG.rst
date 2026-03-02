@@ -1,6 +1,24 @@
 OasisLMF Changelog
 ==================
 
+`2.5.1`_
+ ---------
+* [#1885](https://github.com/OasisLMF/OasisLMF/pull/1889) - race condition with join-summary-info in generated bash script
+* [#1870](https://github.com/OasisLMF/OasisLMF/pull/1862) - Improve time and memory performance for big Portfolio
+* [#1870](https://github.com/OasisLMF/OasisLMF/pull/1864) - Improve time and memory performance for big Portfolio
+* [#1865](https://github.com/OasisLMF/OasisLMF/pull/1865) - latest docker tag repaced with 2.5
+* [#1866](https://github.com/OasisLMF/OasisLMF/pull/1866) - Fix typos and incorrect CLI docstrings
+* [#1869](https://github.com/OasisLMF/OasisLMF/pull/1869) - perf: Optimize GULMC performance - 4.5% faster standard, 76% faster dynamic footprint
+* [#1870](https://github.com/OasisLMF/OasisLMF/pull/1871) - Improve time and memory performance for big Portfolio
+* [#1872](https://github.com/OasisLMF/OasisLMF/pull/1872) - fix/lecpy_outofbounds
+* [#1874](https://github.com/OasisLMF/OasisLMF/pull/1874) - Update package readme
+* [#1821](https://github.com/OasisLMF/OasisLMF/pull/1875) - save combined analysis settings in outputs
+* [#1876](https://github.com/OasisLMF/OasisLMF/pull/1876) - Write binary files directly, bypass CSV intermediary
+* [#1879](https://github.com/OasisLMF/OasisLMF/pull/1879) - fix/oidc_header_fix
+* [#1882](https://github.com/OasisLMF/OasisLMF/pull/1880) - Package updates to either numpy or numba cause loss generation to fail.
+* [#1884, #1887](https://github.com/OasisLMF/OasisLMF/pull/1886) - Logs in main and tests in footprint_layer.py
+.. _`2.5.1`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.0...2.5.1
+
 `2.5.0`_
  ---------
 * [#1811](https://github.com/OasisLMF/OasisLMF/pull/1811) - add environment variables and coerce into integers

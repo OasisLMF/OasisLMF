@@ -181,10 +181,8 @@ def random_MersenneTwister(seeds, n, skip_seeds=0):
         # set the seed
         np.random.seed(seeds[seed_i])
 
-        # draw the random numbers
-        for j in range(n):
-            # by default in numba this should be Mersenne-Twister
-            rndms[seed_i, j] = np.random.uniform(0., 1.)
+        # draw all random numbers at once (vectorized)
+        rndms[seed_i, :] = np.random.random(n)
 
     return rndms
 
@@ -223,15 +221,16 @@ def random_LatinHypercube(seeds, n, skip_seeds=0):
         # set the seed
         np.random.seed(seeds[seed_i])
 
-        # draw the random numbers and re-generate permutations array
-        for i in range(n):
-            samples[i] = np.random.uniform(0., 1.)
-            perms[i] = i + 1
+        # draw all random numbers at once (vectorized)
+        samples[:] = np.random.random(n)
+
+        # re-generate permutations array
+        perms[:] = np.arange(1., np.float64(n + 1))
 
         # in-place shuffle permutations
         np.random.shuffle(perms)
 
-        for j in range(n):
-            rndms[seed_i, j] = (perms[j] - samples[j]) / float(n)
+        # vectorized Latin Hypercube transformation
+        rndms[seed_i, :] = (perms - samples) / float(n)
 
     return rndms
