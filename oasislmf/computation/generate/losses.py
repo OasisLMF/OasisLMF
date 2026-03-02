@@ -24,7 +24,7 @@ from subprocess import CalledProcessError, check_call
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.common.data import oasis_int_size
+from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, oasis_int_size
 import pandas as pd
 import numpy as np
 
@@ -754,9 +754,11 @@ class GenerateLossesDeterministic(ComputationStep):
         move_bin(self.oasis_files_dir, output_dir)
 
         # Generate an items and coverages dataframe and set column types (important!!)
+        cov_df = pd.DataFrame(load_as_ndarray(self.output_dir, 'coverages', np.dtype([tiv_dtype[0:2]]), must_exist=True)).reset_index(names="coverage_id")
+        cov_df["coverage_id"] += 1
         items = merge_dataframes(
-            pd.read_csv(os.path.join(self.oasis_files_dir, 'items.csv')),
-            pd.read_csv(os.path.join(self.oasis_files_dir, 'coverages.csv')),
+            pd.DataFrame(load_as_ndarray(self.output_dir, 'items', items_dtype, must_exist=True)),
+            cov_df,
             on=['coverage_id'], how='left'
         )
 
