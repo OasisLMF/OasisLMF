@@ -2,9 +2,13 @@ from setuptools import setup
 
 try:
     from Cython.Build import cythonize
+    from setuptools import Extension
     import numpy as np
     ext_modules = cythonize(
-        'oasislmf/pytools/common/_write_csv_cython.pyx',
+        Extension(
+            'oasis_writecsv',
+            ['oasislmf/pytools/common/oasis_writecsv.pyx'],
+        ),
         compiler_directives={'language_level': '3'},
     )
     include_dirs = [np.get_include()]

@@ -4,7 +4,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasislmf.pytools.common._write_csv_cython import write_rows as _cython_write_csv
+from oasis_writecsv import write_rows as _cython_write_csv
 
 
 oasis_int = np.dtype(os.environ.get('OASIS_INT', 'i4'))
