@@ -66,9 +66,6 @@ exclude = ["tests", "tests.*", "tests.*.*"]
 "oasislmf.pytools.common" = ["oasis_writecsv.pyx"]
 rdls = ["rdls_schema.json"]
 
-[tool.pytest.ini_options]
-addopts = "--import-mode=importlib"
-
 [tool.setuptools.exclude-package-data]
 "*" = ["__pycache__", "*.py[co]"]
 
