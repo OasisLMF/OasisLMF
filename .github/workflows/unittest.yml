@@ -66,7 +66,7 @@ jobs:
 
       - name: Install Oasislmf
         run: |
-          pip install --no-build-isolation -e .
+          pip install --no-build-isolation .
 
       - name: download ods_tools
         if: needs.ods_tools.outputs.whl_filename != ''
