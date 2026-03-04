@@ -94,6 +94,10 @@ jobs:
           pip uninstall ods_tools -y
           pip install ${{ needs.ods_tools.outputs.whl_filename }}
 
+      - name: Warmup Numba JIT cache
+        if: matrix.cfg.upload-cov != true
+        run: warmup-jit
+
       - name: run pytest (JIT enabled)
         if: matrix.cfg.upload-cov != true
         run: pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation --cov-config=tox.ini --cov=oasislmf --cov-report=xml --cov-report=term
