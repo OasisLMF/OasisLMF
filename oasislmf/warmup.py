@@ -47,12 +47,26 @@ _DATA_DIR = _get_data_dir()
 
 
 # ---------------------------------------------------------------------------
+# Silence helper — suppresses all logging and stdout/stderr in worker processes.
+# ---------------------------------------------------------------------------
+
+def _silence():
+    """Suppress all output in the current (worker) process."""
+    import logging
+    logging.disable(logging.CRITICAL)
+    devnull = open(os.devnull, 'w')
+    sys.stdout = devnull
+    sys.stderr = devnull
+
+
+# ---------------------------------------------------------------------------
 # Worker functions — top-level for pickling by ProcessPoolExecutor.
 # Each does all imports locally so child processes start clean.
 # ---------------------------------------------------------------------------
 
 def _compile_fmpy():
     """FM pipeline — normal + stepped calcrules (sequential to avoid cache races)."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     from oasislmf.computation.run.exposure import RunExposure
 
@@ -83,6 +97,7 @@ def _compile_modelpy_gulpy_gulmc():
 
     Runs sequentially to avoid Numba cache races on shared modelpy JIT functions.
     """
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     with TemporaryDirectory() as tmpdir:
         # gulpy pipeline
@@ -120,6 +135,7 @@ def _compile_modelpy_gulpy_gulmc():
 
 def _compile_summarypy():
     """summarypy manager on single_summary_set."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     from oasislmf.pytools.summary.cli import manager
     with TemporaryDirectory() as tmpdir:
@@ -136,6 +152,7 @@ def _compile_summarypy():
 
 def _compile_eltpy():
     """eltpy manager — event loss table."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     import numpy as np
     from unittest.mock import patch
@@ -157,6 +174,7 @@ def _compile_eltpy():
 
 def _compile_pltpy():
     """pltpy manager — period loss table (with occurrence for occ JIT)."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     from oasislmf.pytools.plt.manager import main as plt_main
     with TemporaryDirectory() as tmpdir:
@@ -171,6 +189,7 @@ def _compile_pltpy():
 
 def _compile_aalpy():
     """aalpy manager — annual aggregate loss."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     from oasislmf.pytools.aal.manager import main as aal_main
     with TemporaryDirectory() as tmpdir:
@@ -190,6 +209,7 @@ def _compile_aalpy():
 
 def _compile_lecpy():
     """lecpy manager — all 8 report flags for max JIT coverage."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     from oasislmf.pytools.lec.manager import main as lec_main
     with TemporaryDirectory() as tmpdir:
@@ -219,6 +239,7 @@ def _compile_lecpy():
 
 def _compile_katpy():
     """katpy manager — sorted mode for nb_heapq JIT."""
+    _silence()
     from oasislmf.warmup import _DATA_DIR as dd
     from oasislmf.pytools.kat.manager import main as kat_main
     with TemporaryDirectory() as tmpdir:
@@ -233,6 +254,7 @@ def _compile_katpy():
 
 def _compile_plapy():
     """plapy — post-loss amplification (generates its own test data)."""
+    _silence()
     from tempfile import NamedTemporaryFile
     import numpy as np
     from oasislmf.pytools.pla.common import (
@@ -360,15 +382,30 @@ def warmup(max_workers=None):
     if max_workers is None:
         max_workers = min(os.cpu_count() or 4, len(ALL_TASKS))
 
+    try:
+        from tqdm import tqdm
+        has_tqdm = True
+    except ImportError:
+        has_tqdm = False
+
     errors = {}
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(fn): name for name, fn in ALL_TASKS.items()}
+        completed = 0
+        pbar = tqdm(total=len(futures), desc="warmup", unit="task",
+                    bar_format="{desc}: {bar} {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") if has_tqdm else None
         for future in as_completed(futures):
             name = futures[future]
             try:
                 future.result()
             except Exception as e:
                 errors[name] = e
+            completed += 1
+            if pbar:
+                pbar.set_postfix_str(name)
+                pbar.update(1)
+        if pbar:
+            pbar.close()
     return errors
 
 
