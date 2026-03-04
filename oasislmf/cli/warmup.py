@@ -1,4 +1,6 @@
 from .command import OasisBaseCommand
+import os
+from pathlib import Path
 
 
 class WarmupCmd(OasisBaseCommand):
@@ -14,11 +16,6 @@ class WarmupCmd(OasisBaseCommand):
         :type args: Namespace
         """
         from oasislmf.warmup import warmup, _DATA_DIR
-
-        import os
-        import sys
-        import traceback
-        from pathlib import Path
 
         if os.environ.get("NUMBA_DISABLE_JIT") == "1":
             self.logger.info("NUMBA_DISABLE_JIT=1 — skipping JIT warmup.")
