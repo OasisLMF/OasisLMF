@@ -96,7 +96,7 @@ jobs:
 
       - name: Warmup Numba JIT cache
         if: matrix.cfg.upload-cov != true
-        run: oasislmf warmup-jit
+        run: oasislmf warmup
 
       - name: run pytest (JIT enabled)
         if: matrix.cfg.upload-cov != true
