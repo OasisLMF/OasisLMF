@@ -98,6 +98,16 @@ Once oasislmf is installed you'll need to be activate the feature by sourcing a 
     echo 'complete -C completer_oasislmf oasislmf' | sudo tee /usr/share/bash-completion/completions/oasislmf
 
 
+## JIT Cache Warmup
+
+OasisLMF uses Numba JIT compilation for performance-critical calculations. The first run after installation incurs a one-time compilation overhead (2-6 minutes). To eliminate this, pre-compile all ~191 JIT functions:
+
+    warmup-jit
+
+This is recommended after installation, especially in Docker images:
+
+    RUN pip install oasislmf && warmup-jit
+
 ## Dependencies
 
 ### System
