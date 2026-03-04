@@ -50,13 +50,31 @@ _DATA_DIR = _get_data_dir()
 # Silence helper — suppresses all logging and stdout/stderr in worker processes.
 # ---------------------------------------------------------------------------
 
-def _silence():
-    """Suppress all output in the current (worker) process."""
-    import logging
-    logging.disable(logging.CRITICAL)
-    devnull = open(os.devnull, 'w')
-    sys.stdout = devnull
-    sys.stderr = devnull
+class _silence:
+    """Context manager that suppresses all logging and stdout/stderr.
+
+    Safe to use both in worker processes and in the main process —
+    restores original state on exit.
+    """
+
+    def __enter__(self):
+        import logging
+        self._prev_disable = logging.root.manager.disable
+        self._prev_stdout = sys.stdout
+        self._prev_stderr = sys.stderr
+        logging.disable(logging.CRITICAL)
+        self._devnull = open(os.devnull, 'w')
+        sys.stdout = self._devnull
+        sys.stderr = self._devnull
+        return self
+
+    def __exit__(self, *exc):
+        import logging
+        sys.stdout = self._prev_stdout
+        sys.stderr = self._prev_stderr
+        logging.disable(self._prev_disable)
+        self._devnull.close()
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -66,30 +84,30 @@ def _silence():
 
 def _compile_fmpy():
     """FM pipeline — normal + stepped calcrules (sequential to avoid cache races)."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    from oasislmf.computation.run.exposure import RunExposure
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        from oasislmf.computation.run.exposure import RunExposure
 
-    for subdir, perils in [
-        ("fmpy/Q1_1", ["WTC"]),
-        ("fmpy/fm54", ["WTC"]),
-    ]:
-        src = dd / subdir
-        if not src.exists():
-            continue
-        with TemporaryDirectory() as tmpdir:
-            RunExposure(
-                src_dir=str(src),
-                run_dir=tmpdir,
-                loss_factor=[1.0],
-                output_level='port',
-                output_file=str(Path(tmpdir) / "loc_summary.csv"),
-                fmpy_sort_output=True,
-                kernel_alloc_rule_il=2,
-                kernel_alloc_rule_ri=2,
-                intermediary_csv=True,
-                model_perils_covered=perils,
-            ).run()
+        for subdir, perils in [
+            ("fmpy/Q1_1", ["WTC"]),
+            ("fmpy/fm54", ["WTC"]),
+        ]:
+            src = dd / subdir
+            if not src.exists():
+                continue
+            with TemporaryDirectory() as tmpdir:
+                RunExposure(
+                    src_dir=str(src),
+                    run_dir=tmpdir,
+                    loss_factor=[1.0],
+                    output_level='port',
+                    output_file=str(Path(tmpdir) / "loc_summary.csv"),
+                    fmpy_sort_output=True,
+                    kernel_alloc_rule_il=2,
+                    kernel_alloc_rule_ri=2,
+                    intermediary_csv=True,
+                    model_perils_covered=perils,
+                ).run()
 
 
 def _compile_modelpy_gulpy_gulmc():
@@ -97,164 +115,169 @@ def _compile_modelpy_gulpy_gulmc():
 
     Runs sequentially to avoid Numba cache races on shared modelpy JIT functions.
     """
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    with TemporaryDirectory() as tmpdir:
-        # gulpy pipeline
-        out_file = Path(tmpdir) / "gulpy_out.bin"
-        cmd = (
-            f"evepy 1 1 | modelpy | gulpy -a1 -S1 -L0 "
-            f"--random-generator=1 > '{out_file}'"
-        )
-        result = subprocess.run(
-            cmd, cwd=str(dd / "model"), shell=True,
-            capture_output=True, timeout=300
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"gulpy pipeline failed (rc={result.returncode}):\n"
-                f"stderr: {result.stderr.decode()}"
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        with TemporaryDirectory() as tmpdir:
+            # gulpy pipeline
+            out_file = Path(tmpdir) / "gulpy_out.bin"
+            cmd = (
+                f"evepy 1 1 | modelpy | gulpy -a1 -S1 -L0 "
+                f"--random-generator=1 > '{out_file}'"
             )
+            result = subprocess.run(
+                cmd, cwd=str(dd / "model"), shell=True,
+                capture_output=True, timeout=300
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"gulpy pipeline failed (rc={result.returncode}):\n"
+                    f"stderr: {result.stderr.decode()}"
+                )
 
-        # gulmc pipeline (sequential — shares modelpy JIT with gulpy)
-        out_file = Path(tmpdir) / "gulmc_out.bin"
-        cmd = (
-            f"evepy 1 1 | modelpy | gulmc -a1 -S1 -L0 "
-            f"--ignore-correlation --random-generator=1 > '{out_file}'"
-        )
-        result = subprocess.run(
-            cmd, cwd=str(dd / "model"), shell=True,
-            capture_output=True, timeout=300
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"gulmc pipeline failed (rc={result.returncode}):\n"
-                f"stderr: {result.stderr.decode()}"
+            # gulmc pipeline (sequential — shares modelpy JIT with gulpy)
+            out_file = Path(tmpdir) / "gulmc_out.bin"
+            cmd = (
+                f"evepy 1 1 | modelpy | gulmc -a1 -S1 -L0 "
+                f"--ignore-correlation --random-generator=1 > '{out_file}'"
             )
+            result = subprocess.run(
+                cmd, cwd=str(dd / "model"), shell=True,
+                capture_output=True, timeout=300
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"gulmc pipeline failed (rc={result.returncode}):\n"
+                    f"stderr: {result.stderr.decode()}"
+                )
 
 
 def _compile_summarypy():
     """summarypy manager on single_summary_set."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    from oasislmf.pytools.summary.cli import manager
-    with TemporaryDirectory() as tmpdir:
-        manager.main(
-            create_summarypy_files=False,
-            low_memory=True,
-            output_zeros=False,
-            static_path=dd / "summarypy" / "single_summary_set",
-            run_type=manager.RUNTYPE_GROUNDUP_LOSS,
-            files_in=[dd / "summarypy" / f"{manager.RUNTYPE_GROUNDUP_LOSS}.bin"],
-            summary_sets_output=["-1", str(Path(tmpdir) / 'gul_S1_summary.bin')]
-        )
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        from oasislmf.pytools.summary.cli import manager
+        with TemporaryDirectory() as tmpdir:
+            manager.main(
+                create_summarypy_files=False,
+                low_memory=True,
+                output_zeros=False,
+                static_path=dd / "summarypy" / "single_summary_set",
+                run_type=manager.RUNTYPE_GROUNDUP_LOSS,
+                files_in=[dd / "summarypy" / f"{manager.RUNTYPE_GROUNDUP_LOSS}.bin"],
+                summary_sets_output=["-1", str(Path(tmpdir) / 'gul_S1_summary.bin')]
+            )
 
 
 def _compile_eltpy():
     """eltpy manager — event loss table."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    import numpy as np
-    from unittest.mock import patch
-    from oasislmf.pytools.common.data import oasis_int, oasis_float
-    from oasislmf.pytools.elt.manager import main as elt_main
-    with TemporaryDirectory() as tmpdir:
-        out_file = Path(tmpdir) / "selt.csv"
-        with patch(
-            'oasislmf.pytools.elt.manager.read_event_rates',
-            return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))
-        ):
-            elt_main(
-                run_dir=Path(tmpdir),
-                files_in=dd / "summarypy1.bin",
-                ext="csv",
-                selt=out_file,
-            )
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        import numpy as np
+        from unittest.mock import patch
+        from oasislmf.pytools.common.data import oasis_int, oasis_float
+        from oasislmf.pytools.elt.manager import main as elt_main
+        with TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "selt.csv"
+            with patch(
+                'oasislmf.pytools.elt.manager.read_event_rates',
+                return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))
+            ):
+                elt_main(
+                    run_dir=Path(tmpdir),
+                    files_in=dd / "summarypy1.bin",
+                    ext="csv",
+                    selt=out_file,
+                )
 
 
 def _compile_pltpy():
     """pltpy manager — period loss table (with occurrence for occ JIT)."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    from oasislmf.pytools.plt.manager import main as plt_main
-    with TemporaryDirectory() as tmpdir:
-        out_file = Path(tmpdir) / "splt.csv"
-        plt_main(
-            run_dir=dd / "pltpy",
-            files_in=dd / "summarypy1.bin",
-            ext="csv",
-            splt=out_file,
-        )
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        from oasislmf.pytools.plt.manager import main as plt_main
+        with TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "splt.csv"
+            plt_main(
+                run_dir=dd / "pltpy",
+                files_in=dd / "summarypy1.bin",
+                ext="csv",
+                splt=out_file,
+            )
 
 
 def _compile_aalpy():
     """aalpy manager — annual aggregate loss."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    from oasislmf.pytools.aal.manager import main as aal_main
-    with TemporaryDirectory() as tmpdir:
-        workspace = Path(tmpdir) / "workspace"
-        shutil.copytree(dd / "aalpy", workspace)
-        out_dir = workspace / "out"
-        out_dir.mkdir()
-        out_file = out_dir / "aal.csv"
-        aal_main(
-            run_dir=workspace,
-            subfolder="gul",
-            aal=out_file,
-            ext="csv",
-            meanonly=False,
-        )
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        from oasislmf.pytools.aal.manager import main as aal_main
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            shutil.copytree(dd / "aalpy", workspace)
+            out_dir = workspace / "out"
+            out_dir.mkdir()
+            out_file = out_dir / "aal.csv"
+            aal_main(
+                run_dir=workspace,
+                subfolder="gul",
+                aal=out_file,
+                ext="csv",
+                meanonly=False,
+            )
 
 
 def _compile_lecpy():
     """lecpy manager — all 8 report flags for max JIT coverage."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    from oasislmf.pytools.lec.manager import main as lec_main
-    with TemporaryDirectory() as tmpdir:
-        workspace = Path(tmpdir) / "workspace"
-        shutil.copytree(dd / "lecpy", workspace)
-        out_dir = workspace / "out"
-        out_dir.mkdir()
-        ept_file = out_dir / "ept.csv"
-        psept_file = out_dir / "psept.csv"
-        lec_main(
-            run_dir=workspace,
-            subfolder="gul",
-            use_return_period=True,
-            agg_full_uncertainty=True,
-            agg_wheatsheaf=True,
-            agg_sample_mean=True,
-            agg_wheatsheaf_mean=True,
-            occ_full_uncertainty=True,
-            occ_wheatsheaf=True,
-            occ_sample_mean=True,
-            occ_wheatsheaf_mean=True,
-            ept=ept_file,
-            psept=psept_file,
-            ext="csv",
-        )
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        from oasislmf.pytools.lec.manager import main as lec_main
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            shutil.copytree(dd / "lecpy", workspace)
+            out_dir = workspace / "out"
+            out_dir.mkdir()
+            ept_file = out_dir / "ept.csv"
+            psept_file = out_dir / "psept.csv"
+            lec_main(
+                run_dir=workspace,
+                subfolder="gul",
+                use_return_period=True,
+                agg_full_uncertainty=True,
+                agg_wheatsheaf=True,
+                agg_sample_mean=True,
+                agg_wheatsheaf_mean=True,
+                occ_full_uncertainty=True,
+                occ_wheatsheaf=True,
+                occ_sample_mean=True,
+                occ_wheatsheaf_mean=True,
+                ept=ept_file,
+                psept=psept_file,
+                ext="csv",
+            )
 
 
 def _compile_katpy():
     """katpy manager — sorted mode for nb_heapq JIT."""
-    _silence()
-    from oasislmf.warmup import _DATA_DIR as dd
-    from oasislmf.pytools.kat.manager import main as kat_main
-    with TemporaryDirectory() as tmpdir:
-        out_file = Path(tmpdir) / "katpy_qplt.csv"
-        kat_main(
-            dir_in=dd / "katpy",
-            qplt=True,
-            out=out_file,
-            unsorted=False,
-        )
+    with _silence():
+        from oasislmf.warmup import _DATA_DIR as dd
+        from oasislmf.pytools.kat.manager import main as kat_main
+        with TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "katpy_qplt.csv"
+            kat_main(
+                dir_in=dd / "katpy",
+                qplt=True,
+                out=out_file,
+                unsorted=False,
+            )
 
 
 def _compile_plapy():
     """plapy — post-loss amplification (generates its own test data)."""
-    _silence()
+    with _silence():
+        _compile_plapy_inner()
+
+
+def _compile_plapy_inner():
+    """Inner implementation of plapy compilation (separated for indentation clarity)."""
     from tempfile import NamedTemporaryFile
     import numpy as np
     from oasislmf.pytools.pla.common import (
