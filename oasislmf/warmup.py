@@ -8,20 +8,20 @@ model run.  This eliminates the 163-365 s cold-start overhead.
 Test assets are bundled in oasislmf/_data/warmup/ (~400 KB) so this works
 both from a source checkout and after ``pip install oasislmf`` from PyPI.
 
+Usage (CLI):
+    oasislmf warmup
+
 Usage (standalone):
     python -m oasislmf.warmup
 
-Usage (after pip install):
-    warmup-jit
-
 Usage (Dockerfile):
-    RUN pip install oasislmf && warmup-jit
+    RUN pip install oasislmf && oasislmf warmup
 
 Usage (pytest):
     pytest tests/pytools/test_jit_compilation.py::test_jit_compile_all -v
 
 Disable (when using NUMBA_DISABLE_JIT):
-    NUMBA_DISABLE_JIT=1 warmup-jit
+    NUMBA_DISABLE_JIT=1 oasislmf warmup
 """
 
 import os
