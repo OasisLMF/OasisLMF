@@ -354,7 +354,7 @@ def test_more_than_64_columns_parity(n_cols):
 
 _FALLBACK_DATA = np.array([(3, 1.5)], dtype=np.dtype([('X', np.int32), ('Y', np.float32)]))
 _FALLBACK_HDRS = ['X', 'Y']
-_FALLBACK_FMT  = '%d,%.2f'
+_FALLBACK_FMT = '%d,%.2f'
 
 
 @pytest.mark.parametrize('exc_type', [RuntimeError, ValueError, MemoryError])
