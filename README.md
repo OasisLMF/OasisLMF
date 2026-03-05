@@ -100,11 +100,12 @@ Once oasislmf is installed you'll need to be activate the feature by sourcing a 
 
 ## JIT Cache Warmup
 
-OasisLMF uses Numba JIT compilation for performance-critical calculations. The first run after installation incurs a one-time compilation overhead (2-6 minutes). To eliminate this, pre-compile all ~191 JIT functions:
+OasisLMF uses Numba JIT compilation for performance-critical calculations. The first run after installation incurs a one-time compilation overhead (2-6 minutes). It is preferable to pre-compile all ~191 JIT functions to reduce overhead and memory peak using:
 
     oasislmf warmup
 
-This is recommended after installation, especially in Docker images:
+Sadly, at the moment, this doesn't work well on docker unless you can guaranty the run happen on the same type of machine.
+In that case you can run this after installation.
 
     RUN pip install oasislmf && oasislmf warmup
 
