@@ -64,6 +64,7 @@ lossfactors_rel_path = Path("static", "lossfactors.bin")
 
 summary_rel_path = Path("work", "gul", "summarypy.bin")
 
+
 def _copy_rel_path(src, dest):
     os.makedirs(Path(dest).parent, exist_ok=True)
     shutil.copyfile(src, dest)
@@ -72,6 +73,7 @@ def _copy_rel_path(src, dest):
 # Worker functions — top-level for pickling by ProcessPoolExecutor.
 # Each does all imports locally so child processes start clean.
 # ---------------------------------------------------------------------------
+
 
 def _compile_fmpy():
     """FM pipeline — normal + stepped calcrules (sequential to avoid cache races)."""
@@ -275,6 +277,7 @@ def _compile_plapy():
 # Silence helper — suppresses all logging and stdout/stderr in worker processes.
 # ---------------------------------------------------------------------------
 
+
 class _silence:
     """Context manager that suppresses all logging and stdout/stderr.
 
@@ -301,6 +304,7 @@ class _silence:
         self._devnull.close()
         return False
 
+
 def _silence_func(func):
     """silence decorator"""
     @functools.wraps(func)
@@ -308,7 +312,6 @@ def _silence_func(func):
         with _silence():
             return func(*args, **kwargs)
     return silenced_func
-
 
 
 def _make_silent(fn, name):
@@ -344,6 +347,7 @@ ALL_SILENT_TASKS = {
     "summarypy": _compile_summarypy_silent,
     "plapy": _compile_plapy_silent,
 }
+
 
 def warmup(max_workers=None):
     """Run all JIT compilations in parallel.
