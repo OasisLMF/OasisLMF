@@ -21,9 +21,9 @@ class WarmupCmd(OasisBaseCommand):
             self.logger.info("NUMBA_DISABLE_JIT=1 — skipping JIT warmup.")
             return
 
-        from oasislmf.warmup import ALL_TASKS
+        from oasislmf.warmup import ALL_SILENT_TASKS
         self.logger.info(
-            f"Warming Numba JIT cache ({len(ALL_TASKS)} tasks, "
+            f"Warming Numba JIT cache ({len(ALL_SILENT_TASKS)} tasks, "
             f"max_workers={os.cpu_count()}) ..."
         )
         errors = warmup()
