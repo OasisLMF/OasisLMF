@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import numba as nb
@@ -5,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 from oasis_writecsv import write_rows as _cython_write_csv
+
+logger = logging.getLogger(__name__)
 
 
 oasis_int = np.dtype(os.environ.get('OASIS_INT', 'i4'))
@@ -433,8 +436,14 @@ def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt, use_cython=Tru
         raise RuntimeError(f"ERROR: write_ndarray_to_fmt_csv requires row_fmt ({row_fmt}) and headers ({headers}) to have the same length.")
 
     if use_cython:
-        _cython_write_csv(output_file, data, headers, row_fmt)
-        return
+        try:
+            _cython_write_csv(output_file, data, headers, row_fmt)
+            return
+        except Exception as e:
+            logger.warning(
+                "Cython CSV writer failed (%s: %s); falling back to Python.",
+                type(e).__name__, e,
+            )
 
     # Copy data as np.ravel does not work with custom dtype arrays
     # Default type of np.empty is np.float64.

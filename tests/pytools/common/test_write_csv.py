@@ -1,5 +1,7 @@
 import io
+import logging
 import timeit
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -114,10 +116,10 @@ def test_col_int_large_value_parity(fmt):
 
 
 # ---------------------------------------------------------------------------
-# Section 3: COL_FIXED fast path (%.1f .. %.9f)
+# Section 3: COL_FIXED fast path (%.0f .. %.15f, %f, %0.9lf)
 # ---------------------------------------------------------------------------
 
-_COL_FIXED_PRECISIONS = list(range(1, 10))
+_COL_FIXED_PRECISIONS = list(range(0, 16))  # 0 through 15 inclusive
 
 _FLOAT_VALS = [
     0.0,
@@ -146,11 +148,14 @@ def test_col_fixed_parity(prec, value):
 
 @pytest.mark.parametrize('prec', _COL_FIXED_PRECISIONS)
 def test_col_fixed_negative_zero(prec):
-    """-0.0 produces '-0.xxx' on both paths (copysign fix)."""
+    """-0.0 produces '-0' or '-0.xxx' on both paths (copysign fix).
+
+    prec=0 produces '-0' (no dot); prec>=1 produces '-0.000...'.
+    """
     data = np.array([(-0.0,)], dtype=np.dtype([('V', np.float64)]))
     py_out = _write(data, ['V'], f'%.{prec}f', use_cython=False)
     cy_out = _write(data, ['V'], f'%.{prec}f', use_cython=True)
-    assert py_out.startswith('-0.'), f"Python produced {py_out!r}"
+    assert py_out.rstrip('\n').startswith('-0'), f"Python produced {py_out!r}"
     assert cy_out == py_out, f"cython={cy_out!r} != python={py_out!r}"
 
 
@@ -171,24 +176,114 @@ def test_col_fixed_rounding_half_parity(value):
 
 
 # ---------------------------------------------------------------------------
-# Section 4: COL_PYTHON fallback
+# Section 4a: Extended COL_FIXED fast paths (Group A+D)
+# Formats that were previously COL_PYTHON but are now fast paths.
+# ---------------------------------------------------------------------------
+
+_COL_FIXED_EXTENDED_FMTS = [
+    '%f',       # bare %f → prec=6
+    '%.0f',     # prec=0: no decimal point
+    '%.10f',    # prec 10-15: high precision, narrow overflow threshold
+    '%.15f',
+    '%0.9lf',   # zero-flag + length modifier stripped → prec=9
+    '%+.2f',    # sign flag: always '+'
+    '% .2f',    # sign flag: space for positive
+]
+
+_COL_FIXED_EXTENDED_VALS = [
+    0.0, 1.0, -1.0, 42.0, -42.0,
+    0.123456789, 100.25, -100.25,
+    1e6, 1e-6, 1e9, -1e9,
+    np.float64('nan'), np.float64('inf'), np.float64('-inf'),
+]
+
+
+@pytest.mark.parametrize('fmt', _COL_FIXED_EXTENDED_FMTS)
+@pytest.mark.parametrize('value', _COL_FIXED_EXTENDED_VALS)
+def test_col_fixed_extended_parity(fmt, value):
+    """Group A+D: extended COL_FIXED formats match Python output."""
+    _parity(fmt, value)
+
+
+# ---------------------------------------------------------------------------
+# Section 4b: Extended COL_INT fast paths (Group D — sign flags)
+# ---------------------------------------------------------------------------
+
+_COL_INT_SIGN_FMTS = ['%+d', '% d', '%+i']
+
+_COL_INT_SIGN_VALS = [0.0, 1.0, -1.0, 42.0, -42.0, 9999.0, -9999.0, 3.7, -3.7]
+
+
+@pytest.mark.parametrize('fmt', _COL_INT_SIGN_FMTS)
+@pytest.mark.parametrize('value', _COL_INT_SIGN_VALS)
+def test_col_int_sign_flag_parity(fmt, value):
+    """Sign-flag COL_INT matches Python for normal values."""
+    _parity(fmt, value)
+
+
+@pytest.mark.parametrize('fmt', _COL_INT_SIGN_FMTS)
+@pytest.mark.parametrize('special', [np.nan, np.inf, -np.inf])
+def test_col_int_sign_flag_special_same_exception(fmt, special):
+    """Sign-flag COL_INT raises same exception as Python for nan/inf."""
+    data = np.array([(special,)], dtype=np.dtype([('V', np.float64)]))
+    py_exc = cy_exc = None
+    try:
+        _write(data, ['V'], fmt, use_cython=False)
+    except Exception as e:
+        py_exc = type(e)
+    try:
+        _write(data, ['V'], fmt, use_cython=True)
+    except Exception as e:
+        cy_exc = type(e)
+    assert py_exc is not None, "Python path should raise"
+    assert py_exc == cy_exc
+
+
+def test_col_int_sign_flag_neg_zero():
+    """%+d / % d with -0.0: IEEE 754 -0.0 == 0.0, so gets '+0' / ' 0' (not '-0').
+
+    COL_INT uses >= 0.0 (not copysign) so -0.0 is treated as non-negative,
+    matching Python's behaviour: '%+d' % -0.0 == '%+d' % 0 == '+0'.
+    """
+    data = np.array([(-0.0,)], dtype=np.dtype([('V', np.float64)]))
+    for fmt in ('%+d', '% d'):
+        _parity(fmt, -0.0)
+        cy_out = _write(data, ['V'], fmt, use_cython=True).rstrip('\n')
+        assert cy_out[0] in ('+', ' '), f"{fmt}: expected sign prefix, got {cy_out!r}"
+
+
+# ---------------------------------------------------------------------------
+# Section 4c: Sign flag edge cases for COL_FIXED
+# ---------------------------------------------------------------------------
+
+def test_col_fixed_sign_flag_neg_zero():
+    """%+.2f / % .2f with -0.0 → '-0.00', not '+0.00' / ' 0.00'.
+
+    COL_FIXED uses copysign to check sign, so -0.0 (negative sign bit) is
+    NOT treated as positive — write_float emits '-0.xx', matching Python.
+    Compare with COL_INT where -0.0 >= 0.0 is True and gets a sign prefix.
+    """
+    data = np.array([(-0.0,)], dtype=np.dtype([('V', np.float64)]))
+    for fmt in ('%+.2f', '% .2f'):
+        py_out = _write(data, ['V'], fmt, use_cython=False)
+        cy_out = _write(data, ['V'], fmt, use_cython=True)
+        assert cy_out == py_out, f"{fmt}: cython={cy_out!r} != python={py_out!r}"
+        # Python emits '-0.00' (not '+0.00' or ' 0.00')
+        assert py_out.rstrip('\n') == '-0.00', f"{fmt}: expected '-0.00', got {py_out!r}"
+
+
+# ---------------------------------------------------------------------------
+# Section 4d: Remaining COL_PYTHON fallback formats (width/alignment, %e, %g)
 # ---------------------------------------------------------------------------
 
 _PYTHON_FLOAT_FMTS = [
-    '%f',
-    '%.0f',         # 0 d.p. — below COL_FIXED range
-    '%.10f',        # above COL_FIXED range
-    '%.15f',
     '%e', '%E',
     '%.2e', '%.2E',
     '%g', '%G',
     '%.4g', '%.4G',
-    '%10.2f',       # width
+    '%10.2f',       # width field → COL_PYTHON (width not yet implemented)
     '%-10.2f',      # left-aligned
-    '%010.2f',      # zero-padded
-    '%+.2f',        # always sign
-    '% .2f',        # space for positive
-    '%0.9lf',       # length modifier (period_weighting in data.py)
+    '%010.2f',      # zero-padded width
 ]
 
 _PYTHON_FLOAT_VALS = [
@@ -205,7 +300,7 @@ def test_python_fallback_float_parity(fmt, value):
     _parity(fmt, value)
 
 
-_PYTHON_INT_FMTS = ['%10d', '%-10d', '%010d', '%+d', '% d', '%+i', '%-8i', '%8u', '%-8u']
+_PYTHON_INT_FMTS = ['%10d', '%-10d', '%010d', '%-8i', '%8u', '%-8u']
 _PYTHON_INT_VALS = [0.0, 1.0, -1.0, 42.0, -42.0, 9999.0, -9999.0, 3.7, -3.7]
 
 
@@ -226,7 +321,7 @@ def test_multirow_all_format_classes():
     dtype = np.dtype([
         ('a', np.float64),  # %d      → COL_INT
         ('b', np.float64),  # %.3f    → COL_FIXED
-        ('c', np.float64),  # %f      → COL_PYTHON
+        ('c', np.float64),  # %f      → COL_FIXED (bare %f = %.6f)
         ('d', np.float64),  # %e      → COL_PYTHON
         ('e', np.float64),  # %g      → COL_PYTHON
         ('f', np.float64),  # %10.4f  → COL_PYTHON (has width)
@@ -254,8 +349,55 @@ def test_more_than_64_columns_parity(n_cols):
 
 
 # ---------------------------------------------------------------------------
-# Section 7: Error handling
+# Section 7: Cython fallback on runtime error
 # ---------------------------------------------------------------------------
+
+_FALLBACK_DATA = np.array([(3, 1.5)], dtype=np.dtype([('X', np.int32), ('Y', np.float32)]))
+_FALLBACK_HDRS = ['X', 'Y']
+_FALLBACK_FMT  = '%d,%.2f'
+
+
+@pytest.mark.parametrize('exc_type', [RuntimeError, ValueError, MemoryError])
+def test_cython_fallback_produces_correct_output(exc_type):
+    """When the Cython writer raises, Python fallback produces the correct output."""
+    expected = _write(_FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=False)
+
+    with patch('oasislmf.pytools.common.data._cython_write_csv', side_effect=exc_type("boom")):
+        result = _write(_FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=True)
+
+    assert result == expected
+
+
+def test_cython_fallback_logs_warning(caplog):
+    """A logger.warning is emitted when the Cython writer falls back."""
+    with patch('oasislmf.pytools.common.data._cython_write_csv', side_effect=RuntimeError("test error")):
+        with caplog.at_level(logging.WARNING, logger='oasislmf.pytools.common.data'):
+            _write(_FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=True)
+
+    assert any(
+        'RuntimeError' in r.message and 'falling back' in r.message
+        for r in caplog.records
+    ), f"Expected fallback warning, got: {[r.message for r in caplog.records]}"
+
+
+def test_cython_fallback_no_partial_write():
+    """Output file is empty if Cython raises before its single write() call.
+
+    The Cython path buffers all output then calls output_file.write() exactly
+    once at the end, so any earlier exception leaves the file untouched.
+    """
+    buf = io.StringIO()
+    original_write = buf.write
+    write_calls = []
+    buf.write = lambda s: (write_calls.append(s), original_write(s))[1]
+
+    with patch('oasislmf.pytools.common.data._cython_write_csv', side_effect=RuntimeError("early fail")):
+        write_ndarray_to_fmt_csv(buf, _FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=True)
+
+    # The only write call should be from the Python fallback, not a partial Cython write
+    assert len(write_calls) <= 2  # Python path does at most 2 writes (data + '\n')
+    assert buf.getvalue() != ''   # Python fallback did write something
+
 
 def test_header_fmt_mismatch():
     dtype = np.dtype([('X', np.int32), ('Y', np.float32)])
@@ -266,17 +408,22 @@ def test_header_fmt_mismatch():
         _write(data, ['X', 'Y'], '%d', use_cython=True)
 
 
-def test_col_python_buffer_overflow_raises():
-    """COL_PYTHON output exceeding the 128-char per-cell estimate raises RuntimeError.
+def test_col_python_buffer_overflow_falls_back(caplog):
+    """%.100f on 1e100 overflows the Cython buffer; the fallback produces correct output.
 
-    %.100f on 1e100 produces ~202 chars, exceeding the 128-char budget.
-    Python path is unaffected (no buffer; pure string ops).
+    The Cython path raises RuntimeError internally (buffer overflow), which is
+    caught by the write_ndarray_to_fmt_csv fallback. The Python path then handles
+    it correctly, so the caller sees the right output rather than an exception.
     """
     data = np.array([(1e100,)], dtype=np.dtype([('V', np.float64)]))
-    with pytest.raises(RuntimeError, match="buffer overflow"):
-        _write(data, ['V'], '%.100f', use_cython=True)
-    # Python path handles it fine
-    assert len(_write(data, ['V'], '%.100f', use_cython=False)) > 100
+    expected = _write(data, ['V'], '%.100f', use_cython=False)
+    assert len(expected) > 100  # sanity: Python produces a long string
+
+    with caplog.at_level(logging.WARNING, logger='oasislmf.pytools.common.data'):
+        result = _write(data, ['V'], '%.100f', use_cython=True)
+
+    assert result == expected
+    assert any('falling back' in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
