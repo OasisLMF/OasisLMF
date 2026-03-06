@@ -186,8 +186,11 @@ class ResourceMonitor:
         os.makedirs(report_dir, exist_ok=True)
 
         stats = _compute_stats(rows)
-        plots = _generate_plots(rows, report_dir)
-        md_path = _write_markdown(self._csv_path, report_dir, stats, plots, len(rows))
+        system_memory_mb = psutil.virtual_memory().total / (1024 * 1024)
+        peak_total_uss_mb = _compute_peak_total_uss(rows)
+        plots = _generate_plots(rows, report_dir, system_memory_mb)
+        md_path = _write_markdown(self._csv_path, report_dir, stats, plots,
+                                  len(rows), system_memory_mb, peak_total_uss_mb)
         logger.info("Resource monitor report: %s (%d samples, %d plots)",
                     md_path, len(rows), len(plots))
 
@@ -282,6 +285,17 @@ def _compute_stats(rows):
     return stats
 
 
+def _compute_peak_total_uss(rows):
+    """Compute the peak instantaneous total USS across all processes.
+
+    Groups all rows by timestamp, sums USS at each instant, returns the max in MB.
+    """
+    ts_uss = defaultdict(int)
+    for r in rows:
+        ts_uss[r["ts"]] += r["uss"]
+    return max(ts_uss.values()) / 1024 if ts_uss else 0
+
+
 def _aggregate_by_tool_and_time(rows):
     """Aggregate rows by (tool, timestamp).
 
@@ -308,7 +322,7 @@ def _aggregate_by_tool_and_time(rows):
     return tool_series
 
 
-def _generate_plots(rows, report_dir):
+def _generate_plots(rows, report_dir, system_memory_mb=None):
     """Generate PNG plots if matplotlib is available. Returns dict of plot paths."""
     try:
         import matplotlib
@@ -325,7 +339,7 @@ def _generate_plots(rows, report_dir):
     plots = {}
     plots["agg_uss"] = _plot_aggregate_uss(tool_series, report_dir, plt, ticker)
     plots["agg_rss_vs_uss"] = _plot_aggregate_rss_vs_uss(tool_series, report_dir, plt, ticker)
-    plots["total"] = _plot_total_footprint(tool_series, report_dir, plt, ticker)
+    plots["total"] = _plot_total_footprint(tool_series, report_dir, plt, ticker, system_memory_mb)
     plots["agg_cpu"] = _plot_aggregate_cpu(tool_series, report_dir, plt)
     plots["cpu_time"] = _plot_cpu_time(rows, report_dir, plt, ticker)
     plots["instances"] = _plot_instance_count(tool_series, report_dir, plt, ticker)
@@ -380,7 +394,7 @@ def _plot_aggregate_rss_vs_uss(tool_series, out_dir, plt, ticker):
     return path
 
 
-def _plot_total_footprint(tool_series, out_dir, plt, ticker):
+def _plot_total_footprint(tool_series, out_dir, plt, ticker, system_memory_mb=None):
     """Stacked area of USS (private memory) across all tools."""
     all_ts = sorted(set(s[0] for series in tool_series.values() for s in series))
     order = sorted(tool_series.keys(), key=lambda t: tool_series[t][0][0])
@@ -395,6 +409,23 @@ def _plot_total_footprint(tool_series, out_dir, plt, ticker):
         ax.fill_between(all_ts, bottoms, [b + v for b, v in zip(bottoms, vals)],
                         label=tool, alpha=0.6, color=TOOL_COLORS.get(tool))
         bottoms = [b + v for b, v in zip(bottoms, vals)]
+
+    # Peak total USS annotation
+    peak_total = max(bottoms)
+    peak_idx = bottoms.index(peak_total)
+    peak_ts = all_ts[peak_idx]
+    ax.axhline(y=peak_total, color='red', linestyle=':', linewidth=1, alpha=0.7)
+    ax.annotate(f"Peak: {peak_total:,.0f} MB",
+                xy=(peak_ts, peak_total), xytext=(10, 8),
+                textcoords="offset points", fontsize=9, color='red',
+                arrowprops=dict(arrowstyle='->', color='red', lw=0.8))
+
+    # System memory line
+    if system_memory_mb:
+        ax.axhline(y=system_memory_mb, color='black', linestyle='--', linewidth=1.2, alpha=0.5)
+        ax.text(all_ts[0], system_memory_mb, f" System: {system_memory_mb:,.0f} MB",
+                va='bottom', ha='left', fontsize=9, color='black', alpha=0.7)
+
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Total USS (MB)")
     ax.set_title("Total Private Memory Footprint (stacked by tool)")
@@ -503,7 +534,8 @@ def _plot_instance_count(tool_series, out_dir, plt, ticker):
     return path
 
 
-def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
+def _write_markdown(csv_path, report_dir, stats, plots, total_samples,
+                    system_memory_mb=None, peak_total_uss_mb=None):
     """Write the markdown summary report."""
     md_path = os.path.join(report_dir, "resource_report.md")
     has_pss = any("agg_peak_pss_mb" in s for s in stats.values())
@@ -516,6 +548,12 @@ def _write_markdown(csv_path, report_dir, stats, plots, total_samples):
     a(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     a(f"**Total samples:** {total_samples:,}")
     a(f"**Source:** `{os.path.basename(csv_path)}`")
+    if system_memory_mb:
+        a(f"**System memory:** {system_memory_mb:,.0f} MB")
+    if peak_total_uss_mb is not None:
+        pct = (peak_total_uss_mb / system_memory_mb * 100) if system_memory_mb else 0
+        a(f"**Peak total USS:** {peak_total_uss_mb:,.0f} MB"
+          + (f" ({pct:.1f}% of system memory)" if system_memory_mb else ""))
     a("")
     a("> **USS** (Unique Set Size) = private memory per process.  ")
     a("> **RSS** includes shared/mmap pages counted in every process — USS avoids this double-counting.")
