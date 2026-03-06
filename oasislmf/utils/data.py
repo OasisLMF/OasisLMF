@@ -56,7 +56,10 @@ import numpy as np
 import pandas as pd
 import pytz
 import chardet
-from chardet.universaldetector import UniversalDetector
+try:
+    from chardet import UniversalDetector
+except ImportError:  # chardet < 7
+    from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
 
 from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
