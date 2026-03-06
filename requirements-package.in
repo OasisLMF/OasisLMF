@@ -10,6 +10,7 @@ numpy>=1.18
 ods-tools>=5.0.0
 oasis-data-manager>=0.1.1
 pandas>=1.0.3,!=1.1.0,!=1.1.1
+psutil>=5.9.0
 pyarrow>=15.0.0
 pytz
 requests-toolbelt
