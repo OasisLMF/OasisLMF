@@ -58,7 +58,7 @@ import pytz
 import chardet
 try:
     from chardet import UniversalDetector
-except ImportError: # chardet < 7
+except ImportError:  # chardet < 7
     from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
 
