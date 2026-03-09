@@ -18,8 +18,29 @@ import numpy as np
 cimport numpy as cnp
 from libc.math cimport rint as c_rint, isnan, isinf, copysign
 from libc.stdlib cimport malloc, free
+from libc.string cimport memcpy
+from cpython.unicode cimport PyUnicode_DecodeASCII
 
 cnp.import_array()
+
+# Two-digit ASCII lookup table: _DIGITS2[n*2] and _DIGITS2[n*2+1] give the
+# two-character decimal representation of n (00..99).  Declared as a C static
+# so it lives in read-only data and is shared across calls with zero overhead.
+cdef extern from *:
+    """
+    static const char _DIGITS2[200] =
+        "00010203040506070809"
+        "10111213141516171819"
+        "20212223242526272829"
+        "30313233343536373839"
+        "40414243444546474849"
+        "50515253545556575859"
+        "60616263646566676869"
+        "70717273747576777879"
+        "80818283848586878889"
+        "90919293949596979899";
+    """
+    const char* _DIGITS2
 
 DEF COL_INT    = 0   # %d / %i / %u              — fast C path
 DEF COL_FIXED  = 1   # %.Xf (X=0..15) / %f       — fast C path
@@ -39,42 +60,61 @@ DEF SIGN_SPACE = 2   # col_flags bit: prepend ' ' for non-negative values
 # ---------------------------------------------------------------------------
 
 cdef int write_int(char* buf, long long val) noexcept nogil:
-    """Write decimal integer to buf, return chars written."""
-    cdef char tmp[22]
-    cdef int i = 0, n = 0
+    """Write decimal integer to buf, return chars written.
+
+    Processes two digits per iteration using _DIGITS2, filling a local buffer
+    right-to-left (MSB order) to avoid a reversal pass, then memcpy to buf.
+    Halves the number of integer divisions vs the single-digit approach.
+    """
+    cdef char[22] tmp
+    cdef int pos = 22, n = 0, digit_count
+    cdef bint neg = val < 0
+    cdef long long v = -val if neg else val
+    cdef long long q
+    cdef int r
+
     if val == 0:
         buf[0] = 48  # '0'
         return 1
-    cdef bint neg = val < 0
-    cdef long long v = -val if neg else val
-    # Extract digits LSB-first into tmp
-    while v > 0:
-        tmp[i] = <char>(48 + v % 10)
-        i += 1
-        v //= 10
+
+    # Two digits at a time, filling tmp from the right so digits end up in
+    # MSB-first order — no reversal needed.
+    while v >= 100:
+        q = v // 100
+        r = <int>(v - q * 100)   # v % 100, avoiding a second idiv
+        pos -= 2
+        tmp[pos]     = _DIGITS2[r * 2]
+        tmp[pos + 1] = _DIGITS2[r * 2 + 1]
+        v = q
+
+    if v >= 10:
+        pos -= 2
+        tmp[pos]     = _DIGITS2[<int>v * 2]
+        tmp[pos + 1] = _DIGITS2[<int>v * 2 + 1]
+    else:
+        pos -= 1
+        tmp[pos] = <char>(48 + <int>v)
+
     if neg:
         buf[n] = 45  # '-'
         n += 1
-    # Copy in reverse via while loop (range(i-1,-1,-1) triggers wraparound warning)
-    cdef int k = i - 1
-    while k >= 0:
-        buf[n] = tmp[k]
-        k -= 1
-        n += 1
-    return n
+
+    digit_count = 22 - pos
+    memcpy(buf + n, tmp + pos, digit_count)
+    return n + digit_count
 
 
-cdef int write_float(char* buf, double val, int prec) noexcept nogil:
+cdef int write_float(char* buf, double val, int prec, long long scale) noexcept nogil:
     """
     Write val as %.{prec}f to buf (prec 0..15), return chars written.
 
-    Uses integer arithmetic: multiply by 10^prec, split into integer and
-    fractional parts, write both via write_int and a tmp fractional buffer.
+    scale must equal 10^prec and is precomputed once per column by the caller,
+    eliminating the per-call multiply loop.  The fractional digits are filled
+    right-to-left into ftmp then copied forward with memcpy rather than a loop.
     IEEE 754 round-half-to-even via c_rint matches C printf / Python %.
     prec=0 omits the decimal point entirely (e.g. '%.0f' % 3.7 -> '4').
     """
-    cdef long long scale = 1
-    cdef int p, n = 0, k
+    cdef int n = 0, k
     cdef bint neg
     cdef long long ival, int_part, frac_part, fp
     cdef char[16] ftmp  # 16 covers prec up to 15
@@ -90,9 +130,6 @@ cdef int write_float(char* buf, double val, int prec) noexcept nogil:
         else:
             buf[0] = 45; buf[1] = 105; buf[2] = 110; buf[3] = 102  # '-inf'
             return 4
-
-    for p in range(prec):
-        scale *= 10
 
     # Use copysign to detect negative zero (avoids -0.0 printing as 0.00)
     neg = copysign(1.0, val) < 0.0
@@ -112,7 +149,8 @@ cdef int write_float(char* buf, double val, int prec) noexcept nogil:
     if prec > 0:
         buf[n] = 46  # '.'
         n += 1
-        # Fill fractional digits right-to-left into ftmp, then copy forward.
+        # Fill fractional digits right-to-left into ftmp, then copy forward
+        # with memcpy (replaces the per-byte loop).
         # while loop avoids range(prec-1, -1, -1) wraparound=False warning.
         fp = frac_part
         k = prec - 1
@@ -120,9 +158,8 @@ cdef int write_float(char* buf, double val, int prec) noexcept nogil:
             ftmp[k] = <char>(48 + fp % 10)
             fp //= 10
             k -= 1
-        for p in range(prec):
-            buf[n] = ftmp[p]
-            n += 1
+        memcpy(buf + n, ftmp, prec)
+        n += prec
 
     return n
 
@@ -142,14 +179,15 @@ def write_rows(output_file, object data, list headers, str row_fmt):
         int*    col_prec     = <int*>    malloc(n_cols * sizeof(int))
         double* col_overflow = <double*> malloc(n_cols * sizeof(double))
         char*   col_flags    = <char*>   malloc(n_cols * sizeof(char))
+        long long* col_scale = <long long*> malloc(n_cols * sizeof(long long))
         cnp.ndarray[cnp.float64_t, ndim=2] data_cpy
         double[:, :] vals
         bytearray out
         char[:] buf
         bytes py_str             # reused for COL_PYTHON fallback
 
-    if col_type is NULL or col_prec is NULL or col_overflow is NULL or col_flags is NULL:
-        free(col_type); free(col_prec); free(col_overflow); free(col_flags)
+    if col_type is NULL or col_prec is NULL or col_overflow is NULL or col_flags is NULL or col_scale is NULL:
+        free(col_type); free(col_prec); free(col_overflow); free(col_flags); free(col_scale)
         raise MemoryError("failed to allocate column metadata arrays")
 
     cdef list col_fmts = row_fmt.split(',')
@@ -221,6 +259,7 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                 for _ in range(prec):
                     scale *= 10
                 col_overflow[j] = 9.2e18 / scale if prec > 0 else 9.2e18
+                col_scale[j]    = <long long>scale
             else:
                 col_type[j] = COL_PYTHON; col_prec[j] = 0; col_overflow[j] = 0.0
 
@@ -251,11 +290,12 @@ def write_rows(output_file, object data, list headers, str row_fmt):
         # Hot loop
         #   COL_INT / COL_FIXED: pure C, no Python objects
         #   COL_PYTHON:          Python's % — correct for any format specifier
+        #
+        # '\n' is written after each row (not before rows 1+) to remove the
+        # per-row branch.  PyUnicode_DecodeASCII builds the output str directly
+        # from the buffer, eliminating the intermediate bytearray slice.
         # -----------------------------------------------------------------------
         for i in range(n_rows):
-            if i > 0:
-                buf[pos] = 10   # '\n'
-                pos += 1
             for j in range(n_cols):
                 if j > 0:
                     buf[pos] = 44  # ','
@@ -296,9 +336,9 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                         # copysign correctly excludes -0.0 (sign bit negative → no prefix),
                         # so write_float renders -0.0 as '-0.XX' matching Python.
                         buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32  # '+' or ' '
-                        written = 1 + write_float(&buf[pos + 1], vals[i, j], col_prec[j])
+                        written = 1 + write_float(&buf[pos + 1], vals[i, j], col_prec[j], col_scale[j])
                     else:
-                        written = write_float(&buf[pos], vals[i, j], col_prec[j])
+                        written = write_float(&buf[pos], vals[i, j], col_prec[j], col_scale[j])
                 else:  # COL_PYTHON
                     # vals[i, j] is a C double; Cython boxes it to Python float,
                     # matching exactly what the Python fallback passes to %.
@@ -312,14 +352,18 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                         )
                     out[pos:pos + written] = py_str
                 pos += written
+            buf[pos] = 10   # '\n' — written after each row, no per-row branch needed
+            pos += 1
 
-        buf[pos] = 10   # trailing '\n'
-        pos += 1
+        if n_rows == 0:
+            buf[pos] = 10   # '\n' — preserve empty-input behaviour (trailing newline)
+            pos += 1
 
-        output_file.write(out[:pos].decode('ascii'))
+        output_file.write(PyUnicode_DecodeASCII(&buf[0], pos, NULL))
 
     finally:
         free(col_type)
         free(col_prec)
         free(col_overflow)
         free(col_flags)
+        free(col_scale)
