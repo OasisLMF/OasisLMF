@@ -115,6 +115,32 @@ def test_col_int_large_value_parity(fmt):
     _parity(fmt, -1e19)
 
 
+def test_col_int_llong_min_parity():
+    """write_int(LLONG_MIN) previously overflowed via -LLONG_MIN (C UB → outputs '-0').
+
+    Fixed by detecting neg-and-v<0 before the digit loop and emitting the
+    literal string directly.
+    """
+    val = np.iinfo(np.int64).min  # -9223372036854775808
+    dtype = np.dtype([('V', np.int64)])
+    data = np.array([(val,)], dtype=dtype)
+    py_out = _write(data, ['V'], '%d', use_cython=False)
+    cy_out = _write(data, ['V'], '%d', use_cython=True)
+    assert cy_out == py_out, f"cython={cy_out!r} != python={py_out!r}"
+    assert py_out.strip() == '-9223372036854775808'
+
+
+def test_col_int_u_format_negative_parity():
+    """%u with negative signed-int columns matches Python 3.
+
+    Python 3 treats %u as equivalent to %d (both output the signed decimal).
+    Verifies Cython does the same rather than treating the value as unsigned.
+    """
+    dtype = np.dtype([('V', np.int32)])
+    data = np.array([(-1,), (-42,), (0,), (2147483647,)], dtype=dtype)
+    assert _write(data, ['V'], '%u', use_cython=False) == _write(data, ['V'], '%u', use_cython=True)
+
+
 # ---------------------------------------------------------------------------
 # Section 3: COL_FIXED fast path (%.0f .. %.15f, %f, %0.9lf)
 # ---------------------------------------------------------------------------
@@ -173,6 +199,28 @@ def test_col_fixed_rounding_half_parity(value):
     """Rounding at .5 boundaries matches Python (IEEE 754 round-half-to-even)."""
     for prec in _COL_FIXED_PRECISIONS:
         _parity(f'%.{prec}f', value)
+
+
+@pytest.mark.parametrize('int_dtype,values', [
+    (np.int32,  [100, -1, 0, 2147483647, -2147483648]),
+    (np.uint32, [0, 1, 200, 4294967295]),
+    (np.int64,  [100, -1, 0, 9223372036854775807, -9223372036854775808]),
+])
+def test_col_fixed_integer_dtype_parity(int_dtype, values):
+    """COL_FIXED (%.Xf) on integer-dtype columns reads the correct 4/8-byte value.
+
+    Bug: the else: # NATIVE_FLOAT64 branch was reached for NATIVE_INT32/UINT32/INT64,
+    reading 8 bytes from a 4-byte field — out-of-bounds read and garbage output.
+    """
+    dtype = np.dtype([('V', int_dtype)])
+    data = np.array([(v,) for v in values], dtype=dtype)
+    for prec in (0, 2, 6):
+        fmt = f'%.{prec}f'
+        py_out = _write(data, ['V'], fmt, use_cython=False)
+        cy_out = _write(data, ['V'], fmt, use_cython=True)
+        assert cy_out == py_out, (
+            f"dtype={int_dtype.__name__} fmt={fmt!r}: cython={cy_out!r} != python={py_out!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -335,17 +383,34 @@ def test_multirow_all_format_classes():
 
 
 # ---------------------------------------------------------------------------
-# Section 6: No column-count limit (was MAX_COLS = 64)
+# Section 6: Column-count limit (MAX_COLS = 64)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize('n_cols', [65, 100, 128])
-def test_more_than_64_columns_parity(n_cols):
-    """Column counts above the old MAX_COLS=64 hard limit work correctly."""
+@pytest.mark.parametrize('n_cols', [1, 10, 64])
+def test_within_max_cols_parity(n_cols):
+    """Column counts up to MAX_COLS=64 produce identical Cython and Python output."""
     dtype = np.dtype([(f'c{i}', np.float64) for i in range(n_cols)])
     headers = [f'c{i}' for i in range(n_cols)]
     fmt = ','.join(['%.2f'] * n_cols)
     data = np.ones(10, dtype=dtype)
     assert _write(data, headers, fmt, False) == _write(data, headers, fmt, True)
+
+
+@pytest.mark.parametrize('n_cols', [65, 100, 128])
+def test_above_max_cols_falls_back(n_cols, caplog):
+    """Column counts above MAX_COLS=64: Cython raises ValueError and falls back to Python.
+
+    The fallback produces correct output and logs a warning containing 'MAX_COLS'.
+    """
+    dtype = np.dtype([(f'c{i}', np.float64) for i in range(n_cols)])
+    headers = [f'c{i}' for i in range(n_cols)]
+    fmt = ','.join(['%.2f'] * n_cols)
+    data = np.ones(10, dtype=dtype)
+    expected = _write(data, headers, fmt, use_cython=False)
+    with caplog.at_level(logging.WARNING, logger='oasislmf.pytools.common.data'):
+        result = _write(data, headers, fmt, use_cython=True)
+    assert result == expected
+    assert any('MAX_COLS' in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
