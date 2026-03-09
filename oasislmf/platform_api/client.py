@@ -361,6 +361,8 @@ class API_analyses(ApiEndpoint):
         self.run_log_file = FileEndpoint(self.session, self.url_endpoint, 'run_log_file/')
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
+        # Platform 2.0 only (Check might be needed here)
+        self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
 
     def create(self, name, portfolio_id, model_id, data_files=[]):
         data = {"name": name,

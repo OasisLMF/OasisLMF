@@ -257,6 +257,7 @@ class PlatformRunInputs(PlatformBase):
         {'name': 'oed_scope_csv', 'flag': '-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
         {'name': 'currency_conversion_json', 'is_path': True, 'pre_exist': True, 'help': 'settings to perform currency conversion of oed files'},
         {'name': 'reporting_currency', 'type': str, 'help': 'currency to use in the results reported'},
+        {'name': 'lookup_chunks', 'type': int, 'help': 'Set the number of chunks lookup chunks in a V2 run'},
     ]
 
     def run(self):
@@ -313,7 +314,13 @@ class PlatformRunInputs(PlatformBase):
             model_id=self.model_id,
             analysis_settings_fp=self.analysis_settings_json,
         )
+
         self.analysis_id = analysis['id']
+        if self.lookup_chunks:
+            self.server.analyses.chunking_configuration.post(self.analysis_id, {
+                "lookup_strategy": "FIXED_CHUNKS",
+                "fixed_lookup_chunks": self.lookup_chunks
+            })
 
         # Execure run
         self.server.run_generate(self.analysis_id)
@@ -328,9 +335,15 @@ class PlatformRunLosses(PlatformBase):
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True,
             'help': 'Output data directory for results data (absolute or relative file path)', 'default': './'},
         {'name': 'analysis_settings_json', 'flag': '-a', 'is_path': True, 'pre_exist': True, 'help': 'Analysis settings JSON file path'},
+        {'name': 'analysis_chunks', 'type': int, 'help': 'Set the numer of analyses chunks in a V2 run'},
     ]
 
     def run(self):
+        if self.analysis_chunks:
+            self.server.analyses.chunking_configuration.post(self.analysis_id, {
+                "loss_strategy": "FIXED_CHUNKS",
+                "fixed_analysis_chunks": self.analysis_chunks
+            })
         self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
         self.server.download_output(self.analysis_id, self.output_dir)
 
