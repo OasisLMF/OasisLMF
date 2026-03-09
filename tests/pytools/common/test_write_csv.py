@@ -202,9 +202,9 @@ def test_col_fixed_rounding_half_parity(value):
 
 
 @pytest.mark.parametrize('int_dtype,values', [
-    (np.int32,  [100, -1, 0, 2147483647, -2147483648]),
+    (np.int32, [100, -1, 0, 2147483647, -2147483648]),
     (np.uint32, [0, 1, 200, 4294967295]),
-    (np.int64,  [100, -1, 0, 9223372036854775807, -9223372036854775808]),
+    (np.int64, [100, -1, 0, 9223372036854775807, -9223372036854775808]),
 ])
 def test_col_fixed_integer_dtype_parity(int_dtype, values):
     """COL_FIXED (%.Xf) on integer-dtype columns reads the correct 4/8-byte value.
