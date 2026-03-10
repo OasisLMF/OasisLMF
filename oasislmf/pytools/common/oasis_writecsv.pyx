@@ -5,9 +5,9 @@ falling back to Python's % operator for full format compatibility.
 
 Fast paths (no format-string parsing per row):
   - %d / %i / %u                    ->  write_int:   two-digit table, fill right-to-left + memcpy
-  - %[+| ]d / %[+| ]i / %[+| ]u    ->  write_int:   with leading '+' or ' ' for non-negative
+  - %[+ ]d / %[+ ]i / %[+ ]u        ->  write_int:   with leading '+' or ' ' for non-negative
   - %.Xf (X=0..15), %f, %0.Xlf     ->  write_float: val * 10^X as integer, two-digit frac pairs
-  - %[+| ].Xf / %[+| ]f            ->  write_float: with leading '+' or ' ' for non-negative
+  - %[+ ].Xf / %[+ ]f              ->  write_float: with leading '+' or ' ' for non-negative
 
 Column data is read directly from the structured numpy array via typed C pointers
 and per-column strides, eliminating the intermediate float64 copy.  All column
@@ -28,9 +28,8 @@ from cpython.unicode cimport PyUnicode_DecodeASCII
 
 cnp.import_array()
 
-# #4: Thread-local output buffer — reused across calls so each call avoids a
-# fresh malloc/zero.  Thread-local (not module-level) so concurrent threads
-# each write to their own buffer without clobbering each other.
+# Thread-local output buffer — reused across calls (avoids malloc/zero) and
+# safe for concurrent use: each thread writes to its own buffer.
 _tls = threading.local()
 
 # Two-digit ASCII lookup table: _DIGITS2[n*2] and _DIGITS2[n*2+1] give the
@@ -88,7 +87,7 @@ cdef int write_int(char* buf, long long val) noexcept nogil:
     Halves the number of integer divisions vs the single-digit approach.
     """
     cdef char[22] tmp
-    cdef int pos = 22, n = 0, digit_count
+    cdef int pos = 22, digit_count
     cdef bint neg = val < 0
     cdef long long v = -val if neg else val
     cdef long long q
@@ -105,9 +104,8 @@ cdef int write_int(char* buf, long long val) noexcept nogil:
         memcpy(buf, _LLONG_MIN_STR, 20)
         return 20
 
-    # #5: Short-circuit for 1- and 2-digit values.  Eliminates the loop, the
-    # 22-byte tmp stack frame, and the final memcpy for the vast majority of
-    # production values (SummaryId, SampleId, EPType, etc. are all small ints).
+    # Short-circuit for 1- and 2-digit values: eliminates the loop, tmp stack
+    # frame, and memcpy for the vast majority of production values.
     if v < 10:
         if neg:
             buf[0] = 45                      # '-'
@@ -143,13 +141,13 @@ cdef int write_int(char* buf, long long val) noexcept nogil:
         pos -= 1
         tmp[pos] = <char>(48 + <int>v)
 
-    if neg:
-        buf[n] = 45  # '-'
-        n += 1
-
     digit_count = 22 - pos
-    memcpy(buf + n, tmp + pos, digit_count)
-    return n + digit_count
+    if neg:
+        buf[0] = 45  # '-'
+        memcpy(buf + 1, tmp + pos, digit_count)
+        return 1 + digit_count
+    memcpy(buf, tmp + pos, digit_count)
+    return digit_count
 
 
 cdef int write_float(char* buf, double val, int prec, long long scale) noexcept nogil:
@@ -209,11 +207,11 @@ cdef int write_float(char* buf, double val, int prec, long long scale) noexcept 
         # Two digits at a time: fills ftmp right-to-left (LSB pair first at
         # ftmp[k-2..k-1]), ending with the MSB pair at ftmp[0..1], so the buffer
         # is already in output order and can be memcpy'd directly.
-        # For %.2f (the most common production format) this is one iteration with
-        # a single table lookup — no divisions at all.
+        # For %.2f (the most common production format) one iteration covers
+        # both digits with a single table lookup.
         while k >= 2:
             q2 = fp // 100
-            r  = <int>(fp - q2 * 100)   # fp % 100, one idiv total
+            r  = <int>(fp - q2 * 100)   # fp % 100, avoiding a second idiv
             fp = q2
             ftmp[k - 2] = _DIGITS2[r * 2]
             ftmp[k - 1] = _DIGITS2[r * 2 + 1]
@@ -256,7 +254,7 @@ def write_rows(output_file, object data, list headers, str row_fmt):
         double    dbl_val
         cnp.ndarray col_arr_nd
         bytearray out
-        char[::1] buf   # C-contiguous: required for nogil memoryview access (#7)
+        char[::1] buf   # C-contiguous: required for nogil memoryview access
         bytes py_str
         list col_fmts
         list coerced_cols
@@ -275,8 +273,8 @@ def write_rows(output_file, object data, list headers, str row_fmt):
     # Column access setup:   dtype → col_native, col_ptr, col_stride
     #
     # Fast paths (COL_INT / COL_FIXED) are taken for:
-    #   COL_INT:   %[+| ]?d|i|u          (optional sign flag, no width)
-    #   COL_FIXED: %[+| ]?[0]?[.X]?[l|h|ll|L]?f
+    #   COL_INT:   %[+ ]?d|i|u           (optional sign flag, no width)
+    #   COL_FIXED: %[+ ]?[0]?[.X]?[l|h|ll|L]?f
     #              where X is 0..15; bare %f treated as %.6f;
     #              length modifiers (l/h/ll/L) are ignored (no-op in Python too);
     #              leading '0' flag without a width field is also a no-op.
@@ -288,7 +286,7 @@ def write_rows(output_file, object data, list headers, str row_fmt):
         col_flags[j] = 0
 
         if not raw_fmt.startswith('%'):
-            col_type[j] = COL_PYTHON; col_prec[j] = 0; col_overflow[j] = 0.0
+            col_type[j] = COL_PYTHON; col_prec[j] = 0; col_overflow[j] = 0.0; col_scale[j] = 0  # prec/overflow/scale unused for COL_PYTHON
         else:
             s = raw_fmt[1:]  # strip leading '%'
 
@@ -301,9 +299,9 @@ def write_rows(output_file, object data, list headers, str row_fmt):
 
             if s in ('d', 'i', 'u'):
                 col_type[j] = COL_INT
-                col_prec[j] = 0
-                # Used only when col_native is FLOAT32/FLOAT64 (float column with
-                # an integer format specifier). Integer dtypes never need the guard.
+                col_prec[j] = 0        # unused for COL_INT
+                col_scale[j] = 0       # unused for COL_INT
+                # overflow guard only applies to float-typed columns (%d on a float field)
                 col_overflow[j] = 9.2e18
                 col_flags[j] = sign_flag
             else:
@@ -338,7 +336,7 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                     col_overflow[j] = 9.2e18 / scale if prec > 0 else 9.2e18
                     col_scale[j]    = <long long>scale
                 else:
-                    col_type[j] = COL_PYTHON; col_prec[j] = 0; col_overflow[j] = 0.0
+                    col_type[j] = COL_PYTHON; col_prec[j] = 0; col_overflow[j] = 0.0; col_scale[j] = 0  # prec/overflow/scale unused for COL_PYTHON
 
         # Set up typed C pointer and row stride for this column.
         # np.asarray on a structured array field returns a strided view with no
@@ -380,26 +378,20 @@ def write_rows(output_file, object data, list headers, str row_fmt):
             chars_per_row += 128
     buf_size = n_rows * chars_per_row + 64
 
-    # #4: Reuse a thread-local buffer — avoids malloc/zero on every call.
-    # Thread-local ensures concurrent callers each write to their own buffer.
+    # Reuse the thread-local buffer — avoids malloc/zero on every call.
     if not hasattr(_tls, 'buf') or len(_tls.buf) < buf_size:
         _tls.buf = bytearray(max(buf_size, 262144))  # 256 KB minimum
     out = <bytearray>_tls.buf
     buf = out
 
     # -----------------------------------------------------------------------
-    # Hot loop — #7: GIL released for the full duration.
-    #   COL_INT / COL_FIXED fast paths: pure C — no Python objects touched.
-    #   COL_PYTHON + COL_FIXED finite-overflow: reacquire GIL via 'with gil:'
-    #     for the Python % call, then release again automatically on exit.
-    #
-    # COL_FIXED inf/nan: write_float handles them at C level ("inf"/"nan"),
-    #   so only truly large finite values (> col_overflow threshold) need GIL.
-    #   In production those thresholds are never reached.
-    #
-    # '\n' is written after each row (not before rows 1+) to remove the
-    # per-row branch.  PyUnicode_DecodeASCII builds the output str directly
-    # from the buffer, eliminating the intermediate bytearray slice.
+    # Hot loop — GIL released for the full duration.
+    #   COL_INT / COL_FIXED: pure C, no Python objects touched.
+    #   COL_PYTHON + COL_FIXED overflow: GIL reacquired via 'with gil:' for
+    #     the Python % call only; in production those paths are never taken.
+    #   write_float handles inf/nan at C level, matching Python's output.
+    #   '\n' appended after each row; PyUnicode_DecodeASCII builds the result
+    #   string directly from the buffer without an intermediate copy.
     # -----------------------------------------------------------------------
     with nogil:
         for i in range(n_rows):
@@ -420,9 +412,9 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                         else:
                             written = write_int(&buf[pos], ll_val)
                     elif col_native[j] == NATIVE_UINT32:
-                        # u4: always fits in long long, no guard needed.
+                        # u4: always fits in long long; cast to long long is always >= 0.
                         ll_val = <long long>((<unsigned int*>raw_ptr)[0])
-                        if col_flags[j] and ll_val >= 0:
+                        if col_flags[j]:
                             buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
                             written = 1 + write_int(&buf[pos + 1], ll_val)
                         else:
@@ -468,12 +460,8 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                     else:  # NATIVE_FLOAT64
                         dbl_val = (<double*>raw_ptr)[0]
 
-                    # Guard: only truly large *finite* values (val*scale overflows
-                    # long long) need Python %.  inf/nan go directly to write_float:
-                    #   nan → write_float emits "nan"  (matches Python)
-                    #   inf → write_float emits "inf"  (matches Python)
-                    # The old guard also routed inf to Python %; this is equivalent
-                    # because write_float already produces the same strings.
+                    # Only finite values that overflow long long (val*scale > 9.2e18)
+                    # need the Python % fallback; inf/nan go directly to write_float.
                     if not isinf(dbl_val) and (dbl_val >= col_overflow[j] or dbl_val <= -col_overflow[j]):
                         with gil:
                             py_str = (col_fmts[j] % dbl_val).encode('ascii')
@@ -486,10 +474,9 @@ def write_rows(output_file, object data, list headers, str row_fmt):
                                 )
                             out[pos:pos + written] = py_str
                     elif col_flags[j] and (isnan(dbl_val) or copysign(1.0, dbl_val) > 0.0):
-                        # Sign flag: prepend '+' or ' ' for nan and positive values.
-                        # Python applies sign flags to nan: '%+.2f' % nan == '+nan'.
-                        # copysign correctly excludes -0.0 (sign bit negative → no prefix),
-                        # so write_float renders -0.0 as '-0.XX' matching Python.
+                        # Prepend '+' or ' ' for nan and positive values.
+                        # copysign excludes -0.0 so write_float renders it as '-0.XX',
+                        # matching Python ('%+.2f' % -0.0 == '-0.00').
                         buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32  # '+' or ' '
                         written = 1 + write_float(&buf[pos + 1], dbl_val, col_prec[j], col_scale[j])
                     else:

@@ -201,6 +201,22 @@ def test_col_fixed_rounding_half_parity(value):
         _parity(f'%.{prec}f', value)
 
 
+@pytest.mark.parametrize('value,prec', [
+    (-0.4, 0),   # |val| < 0.5 → rounds to ±0; IEEE 754 rint(-0.4) = -0.0 → '-0'
+    (-0.49, 0),
+    (-0.004, 2),   # rint(-0.004*100) = rint(-0.4) = -0.0 → '-0.00'
+    (-0.0049, 2),
+    (-4e-7, 6),   # rint(-4e-7 * 1e6) = rint(-0.4) = -0.0 → '-0.000000'
+])
+def test_col_fixed_negative_rounds_to_zero_parity(value, prec):
+    """Negative values whose magnitude rounds to zero match Python output.
+
+    IEEE 754 rint(-x) = -0.0 for 0 < x < 0.5, so printf('%.0f', -0.4) = '-0'
+    on glibc.  The Cython copysign approach produces the same result.
+    """
+    _parity(f'%.{prec}f', value)
+
+
 @pytest.mark.parametrize('int_dtype,values', [
     (np.int32, [100, -1, 0, 2147483647, -2147483648]),
     (np.uint32, [0, 1, 200, 4294967295]),
@@ -427,7 +443,7 @@ def test_cython_fallback_produces_correct_output(exc_type):
     """When the Cython writer raises, Python fallback produces the correct output."""
     expected = _write(_FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=False)
 
-    with patch('oasislmf.pytools.common.data._cython_write_csv', side_effect=exc_type("boom")):
+    with patch('oasislmf.pytools.common.data.cython_write_csv', side_effect=exc_type("boom")):
         result = _write(_FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=True)
 
     assert result == expected
@@ -435,7 +451,7 @@ def test_cython_fallback_produces_correct_output(exc_type):
 
 def test_cython_fallback_logs_warning(caplog):
     """A logger.warning is emitted when the Cython writer falls back."""
-    with patch('oasislmf.pytools.common.data._cython_write_csv', side_effect=RuntimeError("test error")):
+    with patch('oasislmf.pytools.common.data.cython_write_csv', side_effect=RuntimeError("test error")):
         with caplog.at_level(logging.WARNING, logger='oasislmf.pytools.common.data'):
             _write(_FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=True)
 
@@ -456,7 +472,7 @@ def test_cython_fallback_no_partial_write():
     write_calls = []
     buf.write = lambda s: (write_calls.append(s), original_write(s))[1]
 
-    with patch('oasislmf.pytools.common.data._cython_write_csv', side_effect=RuntimeError("early fail")):
+    with patch('oasislmf.pytools.common.data.cython_write_csv', side_effect=RuntimeError("early fail")):
         write_ndarray_to_fmt_csv(buf, _FALLBACK_DATA, _FALLBACK_HDRS, _FALLBACK_FMT, use_cython=True)
 
     # The only write call should be from the Python fallback, not a partial Cython write

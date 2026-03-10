@@ -5,7 +5,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasis_writecsv import write_rows as _cython_write_csv
+from oasis_writecsv import write_rows as cython_write_csv
 
 logger = logging.getLogger(__name__)
 
@@ -437,7 +437,7 @@ def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt, use_cython=Tru
 
     if use_cython:
         try:
-            _cython_write_csv(output_file, data, headers, row_fmt)
+            cython_write_csv(output_file, data, headers, row_fmt)
             return
         except Exception as e:
             logger.warning(
