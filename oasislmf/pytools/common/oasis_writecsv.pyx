@@ -22,7 +22,7 @@ import threading
 
 import numpy as np
 cimport numpy as cnp
-from libc.math cimport rint as c_rint, isnan, isinf, copysign
+from libc.math cimport rint as c_rint, isnan, isinf, copysign, rintl
 from libc.string cimport memcpy
 from cpython.unicode cimport PyUnicode_DecodeASCII
 
@@ -186,7 +186,13 @@ cdef int write_float(char* buf, double val, int prec, long long scale) noexcept 
         val = -val
 
     # Round using IEEE 754 round-half-to-even (same mode as C printf / Python %)
-    ival      = <long long>c_rint(val * scale)
+    # For prec >= 9, val * scale can exceed double precision — use long double
+    # to avoid a half-ULP error in the last digit.  For prec < 9 the 64-bit
+    # multiply is exact enough, and c_rint (SSE2) is ~12% faster than rintl.
+    if prec >= 9:
+        ival = <long long>rintl(<long double>val * <long double>scale)
+    else:
+        ival  = <long long>c_rint(val * scale)
     int_part  = ival // scale
     frac_part = ival % scale
 
