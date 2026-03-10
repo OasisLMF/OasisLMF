@@ -18,6 +18,8 @@ own % operator, producing output identical to the non-Cython path in
 write_ndarray_to_fmt_csv.
 """
 
+import threading
+
 import numpy as np
 cimport numpy as cnp
 from libc.math cimport rint as c_rint, isnan, isinf, copysign
@@ -25,6 +27,11 @@ from libc.string cimport memcpy
 from cpython.unicode cimport PyUnicode_DecodeASCII
 
 cnp.import_array()
+
+# #4: Thread-local output buffer — reused across calls so each call avoids a
+# fresh malloc/zero.  Thread-local (not module-level) so concurrent threads
+# each write to their own buffer without clobbering each other.
+_tls = threading.local()
 
 # Two-digit ASCII lookup table: _DIGITS2[n*2] and _DIGITS2[n*2+1] give the
 # two-character decimal representation of n (00..99).  Declared as a C static
@@ -97,6 +104,26 @@ cdef int write_int(char* buf, long long val) noexcept nogil:
     if neg and v < 0:
         memcpy(buf, _LLONG_MIN_STR, 20)
         return 20
+
+    # #5: Short-circuit for 1- and 2-digit values.  Eliminates the loop, the
+    # 22-byte tmp stack frame, and the final memcpy for the vast majority of
+    # production values (SummaryId, SampleId, EPType, etc. are all small ints).
+    if v < 10:
+        if neg:
+            buf[0] = 45                      # '-'
+            buf[1] = <char>(48 + <int>v)
+            return 2
+        buf[0] = <char>(48 + <int>v)
+        return 1
+    if v < 100:
+        if neg:
+            buf[0] = 45                      # '-'
+            buf[1] = _DIGITS2[<int>v * 2]
+            buf[2] = _DIGITS2[<int>v * 2 + 1]
+            return 3
+        buf[0] = _DIGITS2[<int>v * 2]
+        buf[1] = _DIGITS2[<int>v * 2 + 1]
+        return 2
 
     # Two digits at a time, filling tmp from the right so digits end up in
     # MSB-first order — no reversal needed.
@@ -223,7 +250,7 @@ def write_rows(output_file, object data, list headers, str row_fmt):
         double    dbl_val
         cnp.ndarray col_arr_nd
         bytearray out
-        char[:] buf
+        char[::1] buf   # C-contiguous: required for nogil memoryview access (#7)
         bytes py_str
         list col_fmts
         list coerced_cols
@@ -346,136 +373,152 @@ def write_rows(output_file, object data, list headers, str row_fmt):
         else:
             chars_per_row += 128
     buf_size = n_rows * chars_per_row + 64
-    out = bytearray(buf_size)
+
+    # #4: Reuse a thread-local buffer — avoids malloc/zero on every call.
+    # Thread-local ensures concurrent callers each write to their own buffer.
+    if not hasattr(_tls, 'buf') or len(_tls.buf) < buf_size:
+        _tls.buf = bytearray(max(buf_size, 262144))  # 256 KB minimum
+    out = <bytearray>_tls.buf
     buf = out
 
     # -----------------------------------------------------------------------
-    # Hot loop
-    #   COL_INT:    typed pointer → long long → write_int  (no overflow guard)
-    #   COL_FIXED:  typed pointer → double    → write_float
-    #   COL_PYTHON: Python's % — correct for any format specifier
+    # Hot loop — #7: GIL released for the full duration.
+    #   COL_INT / COL_FIXED fast paths: pure C — no Python objects touched.
+    #   COL_PYTHON + COL_FIXED finite-overflow: reacquire GIL via 'with gil:'
+    #     for the Python % call, then release again automatically on exit.
+    #
+    # COL_FIXED inf/nan: write_float handles them at C level ("inf"/"nan"),
+    #   so only truly large finite values (> col_overflow threshold) need GIL.
+    #   In production those thresholds are never reached.
     #
     # '\n' is written after each row (not before rows 1+) to remove the
     # per-row branch.  PyUnicode_DecodeASCII builds the output str directly
     # from the buffer, eliminating the intermediate bytearray slice.
     # -----------------------------------------------------------------------
-    for i in range(n_rows):
-        for j in range(n_cols):
-            if j > 0:
-                buf[pos] = 44  # ','
-                pos += 1
+    with nogil:
+        for i in range(n_rows):
+            for j in range(n_cols):
+                if j > 0:
+                    buf[pos] = 44  # ','
+                    pos += 1
 
-            raw_ptr = <char*>col_ptr[j] + i * col_stride[j]
+                raw_ptr = <char*>col_ptr[j] + i * col_stride[j]
 
-            if col_type[j] == COL_INT:
-                if col_native[j] == NATIVE_INT32:
-                    # i4: always fits in long long, no guard needed.
-                    ll_val = <long long>((<int*>raw_ptr)[0])
-                    if col_flags[j] and ll_val >= 0:
-                        buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
-                        written = 1 + write_int(&buf[pos + 1], ll_val)
+                if col_type[j] == COL_INT:
+                    if col_native[j] == NATIVE_INT32:
+                        # i4: always fits in long long, no guard needed.
+                        ll_val = <long long>((<int*>raw_ptr)[0])
+                        if col_flags[j] and ll_val >= 0:
+                            buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
+                            written = 1 + write_int(&buf[pos + 1], ll_val)
+                        else:
+                            written = write_int(&buf[pos], ll_val)
+                    elif col_native[j] == NATIVE_UINT32:
+                        # u4: always fits in long long, no guard needed.
+                        ll_val = <long long>((<unsigned int*>raw_ptr)[0])
+                        if col_flags[j] and ll_val >= 0:
+                            buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
+                            written = 1 + write_int(&buf[pos + 1], ll_val)
+                        else:
+                            written = write_int(&buf[pos], ll_val)
+                    elif col_native[j] == NATIVE_INT64:
+                        # i8: exact long long, no guard needed.
+                        ll_val = (<long long*>raw_ptr)[0]
+                        if col_flags[j] and ll_val >= 0:
+                            buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
+                            written = 1 + write_int(&buf[pos + 1], ll_val)
+                        else:
+                            written = write_int(&buf[pos], ll_val)
                     else:
-                        written = write_int(&buf[pos], ll_val)
-                elif col_native[j] == NATIVE_UINT32:
-                    # u4: always fits in long long, no guard needed.
-                    ll_val = <long long>((<unsigned int*>raw_ptr)[0])
-                    if col_flags[j] and ll_val >= 0:
-                        buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
-                        written = 1 + write_int(&buf[pos + 1], ll_val)
-                    else:
-                        written = write_int(&buf[pos], ll_val)
-                elif col_native[j] == NATIVE_INT64:
-                    # i8: exact long long, no guard needed.
-                    ll_val = (<long long*>raw_ptr)[0]
-                    if col_flags[j] and ll_val >= 0:
-                        buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
-                        written = 1 + write_int(&buf[pos + 1], ll_val)
-                    else:
-                        written = write_int(&buf[pos], ll_val)
-                else:
-                    # Float-typed column with an integer format specifier.
-                    # Read as double and apply the NaN/Inf/overflow guard,
-                    # matching Python's truncation-toward-zero behaviour.
-                    # dbl_val >= 0.0 treats -0.0 as non-negative, matching
-                    # Python: '%+d' % -0.0 == '+0'.
+                        # Float-typed column with an integer format specifier.
+                        # Read as double and apply the NaN/Inf/overflow guard,
+                        # matching Python's truncation-toward-zero behaviour.
+                        # dbl_val >= 0.0 treats -0.0 as non-negative, matching
+                        # Python: '%+d' % -0.0 == '+0'.
+                        if col_native[j] == NATIVE_FLOAT32:
+                            dbl_val = <double>((<float*>raw_ptr)[0])
+                        else:  # NATIVE_FLOAT64
+                            dbl_val = (<double*>raw_ptr)[0]
+                        if isnan(dbl_val) or isinf(dbl_val) or dbl_val >= col_overflow[j] or dbl_val <= -col_overflow[j]:
+                            with gil:
+                                py_str = (col_fmts[j] % dbl_val).encode('ascii')
+                                written = len(py_str)
+                                out[pos:pos + written] = py_str
+                        elif col_flags[j] and dbl_val >= 0.0:
+                            buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
+                            written = 1 + write_int(&buf[pos + 1], <long long>dbl_val)
+                        else:
+                            written = write_int(&buf[pos], <long long>dbl_val)
+
+                elif col_type[j] == COL_FIXED:
                     if col_native[j] == NATIVE_FLOAT32:
+                        dbl_val = <double>((<float*>raw_ptr)[0])
+                    elif col_native[j] == NATIVE_INT32:
+                        dbl_val = <double>((<int*>raw_ptr)[0])
+                    elif col_native[j] == NATIVE_UINT32:
+                        dbl_val = <double>((<unsigned int*>raw_ptr)[0])
+                    elif col_native[j] == NATIVE_INT64:
+                        dbl_val = <double>((<long long*>raw_ptr)[0])
+                    else:  # NATIVE_FLOAT64
+                        dbl_val = (<double*>raw_ptr)[0]
+
+                    # Guard: only truly large *finite* values (val*scale overflows
+                    # long long) need Python %.  inf/nan go directly to write_float:
+                    #   nan → write_float emits "nan"  (matches Python)
+                    #   inf → write_float emits "inf"  (matches Python)
+                    # The old guard also routed inf to Python %; this is equivalent
+                    # because write_float already produces the same strings.
+                    if not isinf(dbl_val) and (dbl_val >= col_overflow[j] or dbl_val <= -col_overflow[j]):
+                        with gil:
+                            py_str = (col_fmts[j] % dbl_val).encode('ascii')
+                            written = len(py_str)
+                            if pos + written > buf_size - 2:
+                                raise RuntimeError(
+                                    f"output buffer overflow at row {i}, col {j}: "
+                                    f"format '{col_fmts[j]}' produced {written} chars "
+                                    f"but only {buf_size - pos - 2} remain"
+                                )
+                            out[pos:pos + written] = py_str
+                    elif col_flags[j] and (isnan(dbl_val) or copysign(1.0, dbl_val) > 0.0):
+                        # Sign flag: prepend '+' or ' ' for nan and positive values.
+                        # Python applies sign flags to nan: '%+.2f' % nan == '+nan'.
+                        # copysign correctly excludes -0.0 (sign bit negative → no prefix),
+                        # so write_float renders -0.0 as '-0.XX' matching Python.
+                        buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32  # '+' or ' '
+                        written = 1 + write_float(&buf[pos + 1], dbl_val, col_prec[j], col_scale[j])
+                    else:
+                        written = write_float(&buf[pos], dbl_val, col_prec[j], col_scale[j])
+
+                else:  # COL_PYTHON
+                    # Read value at C level (nogil-safe), then format with Python's %
+                    # inside a brief GIL reacquisition.
+                    if col_native[j] == NATIVE_INT32:
+                        dbl_val = <double>((<int*>raw_ptr)[0])
+                    elif col_native[j] == NATIVE_UINT32:
+                        dbl_val = <double>((<unsigned int*>raw_ptr)[0])
+                    elif col_native[j] == NATIVE_INT64:
+                        dbl_val = <double>((<long long*>raw_ptr)[0])
+                    elif col_native[j] == NATIVE_FLOAT32:
                         dbl_val = <double>((<float*>raw_ptr)[0])
                     else:  # NATIVE_FLOAT64
                         dbl_val = (<double*>raw_ptr)[0]
-                    if isnan(dbl_val) or isinf(dbl_val) or dbl_val >= col_overflow[j] or dbl_val <= -col_overflow[j]:
+                    with gil:
                         py_str = (col_fmts[j] % dbl_val).encode('ascii')
                         written = len(py_str)
+                        if pos + written > buf_size - 2:
+                            raise RuntimeError(
+                                f"output buffer overflow at row {i}, col {j}: "
+                                f"format '{col_fmts[j]}' produced {written} chars "
+                                f"but only {buf_size - pos - 2} remain"
+                            )
                         out[pos:pos + written] = py_str
-                    elif col_flags[j] and dbl_val >= 0.0:
-                        buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32
-                        written = 1 + write_int(&buf[pos + 1], <long long>dbl_val)
-                    else:
-                        written = write_int(&buf[pos], <long long>dbl_val)
 
-            elif col_type[j] == COL_FIXED:
-                if col_native[j] == NATIVE_FLOAT32:
-                    dbl_val = <double>((<float*>raw_ptr)[0])
-                elif col_native[j] == NATIVE_INT32:
-                    dbl_val = <double>((<int*>raw_ptr)[0])
-                elif col_native[j] == NATIVE_UINT32:
-                    dbl_val = <double>((<unsigned int*>raw_ptr)[0])
-                elif col_native[j] == NATIVE_INT64:
-                    dbl_val = <double>((<long long*>raw_ptr)[0])
-                else:  # NATIVE_FLOAT64
-                    dbl_val = (<double*>raw_ptr)[0]
+                pos += written
+            buf[pos] = 10   # '\n' — written after each row, no per-row branch needed
+            pos += 1
 
-                # Guard: finite values where val*scale would overflow long long.
-                # nan comparisons return False → nan reaches write_float (handled).
-                # inf comparisons return True  → inf/−inf fall to Python % (same output).
-                if dbl_val >= col_overflow[j] or dbl_val <= -col_overflow[j]:
-                    py_str = (col_fmts[j] % dbl_val).encode('ascii')
-                    written = len(py_str)
-                    if pos + written > buf_size - 2:
-                        raise RuntimeError(
-                            f"output buffer overflow at row {i}, col {j}: "
-                            f"format '{col_fmts[j]}' produced {written} chars "
-                            f"but only {buf_size - pos - 2} remain"
-                        )
-                    out[pos:pos + written] = py_str
-                elif col_flags[j] and (isnan(dbl_val) or copysign(1.0, dbl_val) > 0.0):
-                    # Sign flag: prepend '+' or ' ' for nan and positive values.
-                    # Python applies sign flags to nan: '%+.2f' % nan == '+nan'.
-                    # copysign correctly excludes -0.0 (sign bit negative → no prefix),
-                    # so write_float renders -0.0 as '-0.XX' matching Python.
-                    buf[pos] = 43 if (col_flags[j] & SIGN_PLUS) else 32  # '+' or ' '
-                    written = 1 + write_float(&buf[pos + 1], dbl_val, col_prec[j], col_scale[j])
-                else:
-                    written = write_float(&buf[pos], dbl_val, col_prec[j], col_scale[j])
-
-            else:  # COL_PYTHON
-                # Read as double regardless of native type, matching the float64
-                # boxing that the old vals[i,j] path provided to Python's %.
-                if col_native[j] == NATIVE_INT32:
-                    dbl_val = <double>((<int*>raw_ptr)[0])
-                elif col_native[j] == NATIVE_UINT32:
-                    dbl_val = <double>((<unsigned int*>raw_ptr)[0])
-                elif col_native[j] == NATIVE_INT64:
-                    dbl_val = <double>((<long long*>raw_ptr)[0])
-                elif col_native[j] == NATIVE_FLOAT32:
-                    dbl_val = <double>((<float*>raw_ptr)[0])
-                else:  # NATIVE_FLOAT64
-                    dbl_val = (<double*>raw_ptr)[0]
-                py_str = (col_fmts[j] % dbl_val).encode('ascii')
-                written = len(py_str)
-                if pos + written > buf_size - 2:
-                    raise RuntimeError(
-                        f"output buffer overflow at row {i}, col {j}: "
-                        f"format '{col_fmts[j]}' produced {written} chars "
-                        f"but only {buf_size - pos - 2} remain"
-                    )
-                out[pos:pos + written] = py_str
-
-            pos += written
-        buf[pos] = 10   # '\n' — written after each row, no per-row branch needed
-        pos += 1
-
-    if n_rows == 0:
-        buf[pos] = 10   # '\n' — preserve empty-input behaviour (trailing newline)
-        pos += 1
+        if n_rows == 0:
+            buf[pos] = 10   # '\n' — preserve empty-input behaviour (trailing newline)
+            pos += 1
 
     output_file.write(PyUnicode_DecodeASCII(&buf[0], pos, NULL))
