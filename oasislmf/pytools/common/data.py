@@ -2,8 +2,6 @@ import os
 import sys
 import numba as nb
 import numpy as np
-import pandas as pd
-
 
 oasis_int = np.dtype(os.environ.get('OASIS_INT', 'i4'))
 nb_oasis_int = nb.from_dtype(oasis_int)
@@ -375,12 +373,9 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
         if col_map is None:
             col_map = {}
         with open(os.path.join(dir_path, name + '.csv')) as file_in:
-            cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
-            df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype, usecols=list(cvs_dtype.keys()))
-            res = np.empty(df.shape[0], dtype=_dtype)
-            for name in _dtype.names:
-                res[name] = df[col_map.get(name, name)]
-            return res
+            header = file_in.readline().split(',')
+            _usecols = [i for i, col in header if col in _dtype.fields.keys()]
+            return np.loadtxt(file_in, delimiter=',', dtype=_dtype, usecols=_usecols)
     else:
         return np.empty(0, dtype=_dtype)
 

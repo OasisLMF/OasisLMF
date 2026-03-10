@@ -26,7 +26,6 @@ event based intermediary data structure:
 import numpy as np
 import numba as nb
 from numba.typed import Dict as nb_dict
-import pandas as pd
 import json
 
 from contextlib import ExitStack
@@ -34,7 +33,6 @@ import logging
 import os
 from itertools import zip_longest
 
-from oasislmf.execution.bash import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
                                           null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
@@ -44,6 +42,10 @@ from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, 
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
+
+RUNTYPE_GROUNDUP_LOSS = 'gul'
+RUNTYPE_INSURED_LOSS = 'il'
+RUNTYPE_REINSURANCE_LOSS = 'ri'
 
 
 SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
@@ -80,16 +82,26 @@ def get_summary_object(static_path, run_type):
     # extract item_id to index in the loss summary
     if run_type == RUNTYPE_GROUNDUP_LOSS:
         summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', gul_summary_xref_dtype)
-        summary_map = pd.read_csv(os.path.join(static_path, 'gul_summary_map.csv'),
-                                  usecols=['loc_id', 'item_id', 'building_id', 'coverage_id'],
-                                  dtype=oasis_int)
+        with open(os.path.join(static_path, 'gul_summary_map.csv')) as gul_summary_map_file:
+            header = gul_summary_map_file.readline().split(",")
+            _usecols = [i for i, col in enumerate(header) if col in ['loc_id', 'item_id', 'building_id']]
+            _dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
+            summary_map = np.loadtxt(gul_summary_map_file,
+                                     usecols=_usecols,
+                                     dtype=_dtype,
+                                     delimiter=',')
     elif run_type == RUNTYPE_INSURED_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = pd.read_csv(os.path.join(static_path, 'fm_summary_map.csv'),
-                                  usecols=['loc_id', 'output_id', 'building_id', 'coverage_id'],
-                                  dtype=oasis_int,
-                                  ).rename(columns={'output_id': 'item_id'})
+        with open(os.path.join(static_path, 'fm_summary_map.csv')) as fm_summary_map_file:
+            header = fm_summary_map_file.readline().split(",")
+            _usecols = [i for i, col in enumerate(header) if col in ['loc_id', 'output_id', 'building_id']]
+            _dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
+            summary_map = np.loadtxt(fm_summary_map_file,
+                                     usecols=_usecols,
+                                     dtype=_dtype,
+                                     delimiter=',')
+
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
@@ -134,17 +146,17 @@ def read_summary_objects(static_path, run_type):
 
 
 @nb.njit(cache=True)
-def nb_extract_risk_info(item_id_to_risks_i, summary_map_item_ids, summary_map_loc_ids, summary_map_building_ids):
+def nb_extract_risk_info(item_id_to_risks_i, summary_map):
     loc_id_building_id_to_building_risk = nb_dict.empty(risk_key_type, nb_oasis_int)
     last_risk_i = 0
-    for i in range(summary_map_item_ids.shape[0]):
-        loc_id_building_id = (nb_oasis_int(summary_map_loc_ids[i]), nb_oasis_int(summary_map_building_ids[i]))
+    for i in range(summary_map.shape[0]):
+        loc_id_building_id = (nb_oasis_int(summary_map["loc_id"][i]), nb_oasis_int(summary_map["building_id"][i]))
         if loc_id_building_id in loc_id_building_id_to_building_risk:
             risk_i = loc_id_building_id_to_building_risk[loc_id_building_id]
         else:
             loc_id_building_id_to_building_risk[loc_id_building_id] = risk_i = nb_oasis_int(last_risk_i)
             last_risk_i += 1
-        item_id_to_risks_i[summary_map_item_ids[i]] = nb_oasis_int(risk_i)
+        item_id_to_risks_i[summary_map["item_id"][i]] = nb_oasis_int(risk_i)
     return last_risk_i
 
 
@@ -162,9 +174,7 @@ def extract_risk_info(len_item_id, summary_map):
     item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
     nb_risk = nb_extract_risk_info(
         item_id_to_risks_i,
-        summary_map['item_id'].astype(oasis_int).to_numpy(),
-        summary_map['loc_id'].astype(oasis_int).to_numpy(),
-        summary_map['building_id'].astype(oasis_int).to_numpy())
+        summary_map)
     return nb_risk, item_id_to_risks_i
 
 
