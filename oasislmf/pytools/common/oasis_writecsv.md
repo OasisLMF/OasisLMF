@@ -9,6 +9,26 @@ ASCII buffer that is written to the output file in a single call.
 
 ---
 
+## Table of contents
+
+1. [High-level call flow](#high-level-call-flow)
+2. [Column classification](#column-classification)
+3. [Direct pointer access (no float64 copy)](#direct-pointer-access-no-float64-copy)
+4. [Hot loop dispatch](#hot-loop-dispatch)
+   - [COL_INT](#col_int---d--i--u)
+   - [COL_FIXED](#col_fixed---xf)
+   - [COL_PYTHON](#col_python---e-g-x-width-fields-etc)
+5. [C-level formatters](#c-level-formatters)
+   - [The two-digit lookup table](#the-two-digit-lookup-table)
+   - [write_int](#write_int--integer-formatter)
+   - [write_float](#write_float--fixed-point-formatter)
+     - [Rounding](#rounding)
+     - [Negative zero](#negative-zero)
+6. [Output buffer](#output-buffer)
+7. [Limitations](#limitations)
+
+---
+
 ## High-level call flow
 
 ```
@@ -21,10 +41,10 @@ write_rows(output_file, data, headers, row_fmt)
     │      col_ptr[j]    = pointer to element 0 of column j in data's memory
     │      col_stride[j] = col_arr_nd.strides[0]  (= parent struct's itemsize)
     │
-    ├─ 3. Size & acquire buffer      (Python, GIL held)
+    ├─ 2. Size & acquire buffer      (Python, GIL held)
     │      estimate chars_per_row; reuse / grow thread-local bytearray
     │
-    └─ 4. Hot loop (nogil)           ← most CPU time spent here
+    └─ 3. Hot loop (nogil)           ← most CPU time spent here
            for each row i:
                for each col j:
                    raw_ptr = col_ptr[j] + i * col_stride[j]
@@ -43,7 +63,7 @@ and each specifier is classified into one of three types:
 | Type | Constant | Matched specifiers | Formatter |
 |------|----------|--------------------|-----------|
 | Integer | `COL_INT` | `%d`, `%i`, `%u`, `%+d`, `% d` | `write_int` |
-| Fixed-point | `COL_FIXED` | `%.Xf` (X=0..15), `%f`, `%0.Xf`, `%lf`, `%Lf`, `%llf` | `write_float` |
+| Fixed-point | `COL_FIXED` | `%.Xf` (X=0..15), `%f`, `%0.Xf`, `%lf`, `%hf`, `%Lf`, `%llf` | `write_float` |
 | Python fallback | `COL_PYTHON` | everything else (`%e`, `%g`, `%10.2f`, `%x`, …) | Python `%` |
 
 Sign flags `+` and ` ` (space) are recognised and stored in `col_flags[j]`; they are
@@ -95,7 +115,127 @@ and the copy is kept alive in `coerced_cols` until the hot loop finishes.
 
 ---
 
-## The two-digit lookup table
+## Hot loop dispatch
+
+The GIL is released for the entire hot loop.  For each `(row i, col j)`:
+
+```
+raw_ptr = col_ptr[j] + i * col_stride[j]
+```
+
+The column type then determines the path.  Each is shown separately below.
+
+---
+
+### COL_INT — `%d` / `%i` / `%u`
+
+Integer dtypes (`int32`, `uint32`, `int64`) fit directly in `long long` — no overflow
+guard needed.  Float dtypes need a guard because `nan`/`inf`/large values can't be
+truncated to `long long`.
+
+```
+                                         COL_INT
+                                            │
+               ┌────────────────────────────┼────────────────────────────┐
+               ▼                            ▼                            ▼
+          int32/int64                     uint32               float32/float64
+               │                            │                (shown separately below)
+         ll_val = cast               ll_val = cast
+               │                            │
+      sign flag && ll_val >= 0?         sign flag?
+    ┌───────────┼───────────┐        (unconditional: uint32 always gets sign)  ← uint32 is always >= 0
+   yes                      no                       ┌─────────────┼─────────────┐
+    ▼                       ▼                       yes                          no
+buf[pos]='+'/' '        write_int(buf+pos, ll_val)   ▼                           ▼
+write_int(buf+1, ll_val)                            buf[pos]='+'/' '          write_int(buf+pos, ll_val)
+                                                    write_int(buf+1, ll_val)
+
+          float32/float64  (float dtype, %d format)
+                          │
+                    dbl_val = cast
+                          │
+                          ▼
+             nan / inf / |val| >= 9.2e18?
+              ┌───────────┼──────────┐
+             yes                     no
+              ▼                      ▼
+        ┌─with gil─┐           truncate:
+        │ fmt%val  │           ll_val = (long long)dbl_val
+        │ .encode()│                     │
+        └──────────┘        sign flag && dbl_val >= 0.0?  ← -0.0 treated as +0, matching Python
+                               ┌─────────┼─────────┐
+                              yes                  no
+                               ▼                   ▼
+                    buf[pos]='+'/' '             write_int(buf+pos, ll_val)
+                    write_int(buf+1, ll_val)
+```
+
+---
+
+### COL_FIXED — `%.Xf`
+
+All dtypes are cast to `double` first.  The overflow guard fires only for finite values
+too large to represent as `long long` after scaling.  `inf` and `nan` bypass the guard
+and go directly to `write_float`, which handles them at C level.
+
+```
+                                  COL_FIXED
+                                      │
+                     any dtype → dbl_val = (double)cast
+                                      │
+                 finite AND |val| >= 9.2e18 / scale?
+                 (i.e. val * scale would overflow long long)
+                        ┌────────────┼────────────┐
+                       yes                        no  (includes inf and nan)
+                        ▼                         ▼
+                 ┌─with gil─┐          sign flag && (isnan OR copysign(1,val) > 0)? ← excludes -0.0
+                 │ fmt%val  │              ┌────────────┼────────────┐
+                 │ .encode()│             yes                        no
+                 └──────────┘              ▼                         ▼
+                                       buf[pos]='+'/' '            write_float(buf+pos, dbl_val,
+                                       write_float(buf+1, …)                   prec, scale)
+```
+
+The sign flag condition uses `copysign` to exclude `-0.0`: Python produces `"-0.00"`
+for `'%+.2f' % -0.0`, so `-0.0` must not get a `'+'` prepended — it falls to the
+`else` branch where `write_float` handles the sign itself.
+
+---
+
+### COL_PYTHON — `%e`, `%g`, `%x`, width fields, etc.
+
+```
+                                  COL_PYTHON
+                                      │
+                     any dtype → dbl_val = (double)cast   ← done nogil
+                                      │
+                                      ▼
+                               ┌─with gil─┐
+                               │ fmt%val  │
+                               │ .encode()│
+                               └──────────┘
+```
+
+The value is read at C level (nogil-safe), then the GIL is reacquired only for the
+Python `%` call.  In production schemas this path is never taken; it exists as a
+correctness fallback for any specifier the fast paths don't cover.
+
+---
+
+The `with gil:` reacquisitions are the only points where the hot loop touches Python
+objects.  Everything else — pointer arithmetic, dtype dispatch, `write_int`,
+`write_float`, comma and newline insertion — is pure C.
+
+---
+
+## C-level formatters
+
+The three functions below are declared `cdef noexcept nogil` — C-level only, not
+callable from Python.  They are invoked directly from the hot loop.
+
+---
+
+### The two-digit lookup table
 
 Rather than one division per digit, both `write_int` and `write_float` use a
 200-byte static table `_DIGITS2` that encodes all two-character pairs `"00"` through
@@ -124,7 +264,7 @@ This halves the integer divisions compared to the per-digit approach.
 
 ---
 
-## `write_int` — integer formatter
+### `write_int` — integer formatter
 
 ```
 write_int(buf, val: long long) → chars written
@@ -142,7 +282,7 @@ is emitted directly via `memcpy`.
 
 ---
 
-## `write_float` — fixed-point formatter
+### `write_float` — fixed-point formatter
 
 Implements `%.{prec}f` for `prec` 0..15.
 
@@ -172,7 +312,7 @@ frac_part = 346 % 100  = 46
 output: "3" + "." + _DIGITS2[46*2.."46*2+1"] = "3.46"
 ```
 
-### Rounding
+#### Rounding
 
 Matching Python's `%` operator requires IEEE 754 round-half-to-even.  Two rounding
 functions are used depending on precision:
@@ -204,7 +344,7 @@ The threshold prec >= 9 is chosen because at that point `scale >= 1e9`, and a va
 near `1e9` times a typical input starts to exhaust the 53-bit mantissa.  Below the
 threshold `c_rint` is used because it is ~12% faster on benchmarks.
 
-### Negative zero
+#### Negative zero
 
 `val < 0.0` returns `False` for `-0.0`, which would cause it to be printed as
 `"0.00"` instead of `"-0.00"`.  `copysign(1.0, val) < 0.0` reads the raw sign bit
@@ -218,130 +358,6 @@ copysign(1.0, -0.0) < 0.0    → True    (sign bit is set)
 
 → neg = True → '-' prepended → "-0.00"   matches Python '%.2f' % -0.0
 ```
-
----
-
-## Hot loop dispatch
-
-The GIL is released for the entire hot loop.  For each `(row i, col j)`:
-
-```
-raw_ptr = col_ptr[j] + i * col_stride[j]
-```
-
-The column type then determines the path.  Each is shown separately below.
-
----
-
-### COL_INT — `%d` / `%i` / `%u`
-
-Integer dtypes (`int32`, `uint32`, `int64`) fit directly in `long long` — no overflow
-guard needed.  Float dtypes need a guard because `nan`/`inf`/large values can't be
-truncated to `long long`.
-
-```
-                         COL_INT
-                            │
-          ┌─────────────────┼──────────────────┐
-          ▼                 ▼                  ▼
-      int32/int64         uint32          float32/float64
-          │                 │             (shown separately below)
-    ll_val = cast     ll_val = cast
-          │                 │
-     sign flag?        sign flag?
-     ll_val >= 0?      (unconditional:    ← uint32 is always >= 0
-       │       │        uint32 always
-      yes      no       gets sign)
-       │       │          │       │
-    buf[pos] write_int  buf[pos] write_int
-    = '+'/   (buf+pos,  = '+'/   (buf+pos,
-      ' '     ll_val)    ' '     ll_val)
-    write_int           write_int
-    (buf+1,             (buf+1,
-     ll_val)             ll_val)
-
-          float32 / float64
-          (float dtype, %d fmt)
-                       │
-               dbl_val = cast
-                       │
-          nan / inf / |val| >= 9.2e18?
-                  │            │
-                 yes            no
-                  │             │
-           ┌─with gil─┐    truncate:
-           │ fmt%val  │    ll_val = (long long)dbl_val
-           │ .encode()│         │
-           └──────────┘    sign flag?
-                           dbl_val >= 0.0?   ← -0.0 treated as +0, matching Python
-                             │       │
-                            yes      no
-                             │       │
-                         buf[pos]  write_int
-                         = '+'/    (buf+pos,
-                           ' '      ll_val)
-                         write_int
-                         (buf+1, ll_val)
-```
-
----
-
-### COL_FIXED — `%.Xf`
-
-All dtypes are cast to `double` first.  The overflow guard fires only for finite values
-too large to represent as `long long` after scaling.  `inf` and `nan` bypass the guard
-and go directly to `write_float`, which handles them at C level.
-
-```
-                   COL_FIXED
-                       │
-          any dtype → dbl_val = (double)cast
-                       │
-          finite AND |val| >= 9.2e18 / scale?
-          (i.e. val * scale would overflow long long)
-                  │            │
-                 yes            no  (includes inf and nan)
-                  │             │
-           ┌─with gil─┐    sign flag?
-           │ fmt%val  │    nan OR copysign(1,val) > 0?   ← excludes -0.0
-           │ .encode()│         │             │
-           └──────────┘        yes             no
-                                │              │
-                            buf[pos]       write_float
-                            = '+'/         (buf+pos,
-                              ' '           dbl_val,
-                            write_float     prec,
-                            (buf+1, …)      scale)
-```
-
-The sign flag condition uses `copysign` to exclude `-0.0`: Python produces `"-0.00"`
-for `'%+.2f' % -0.0`, so `-0.0` must not get a `'+'` prepended — it falls to the
-`else` branch where `write_float` handles the sign itself.
-
----
-
-### COL_PYTHON — `%e`, `%g`, `%x`, width fields, etc.
-
-```
-                  COL_PYTHON
-                      │
-          any dtype → dbl_val = (double)cast   ← done nogil
-                      │
-                 ┌─with gil─┐
-                 │ fmt%val  │
-                 │ .encode()│
-                 └──────────┘
-```
-
-The value is read at C level (nogil-safe), then the GIL is reacquired only for the
-Python `%` call.  In production schemas this path is never taken; it exists as a
-correctness fallback for any specifier the fast paths don't cover.
-
----
-
-The `with gil:` reacquisitions are the only points where the hot loop touches Python
-objects.  Everything else — pointer arithmetic, dtype dispatch, `write_int`,
-`write_float`, comma and newline insertion — is pure C.
 
 ---
 
@@ -416,6 +432,9 @@ from the C buffer — there is no intermediate `bytearray` → `bytes` → `str`
 - **Unusual dtypes**: Any dtype not in {`int32`, `uint32`, `int64`, `float32`,
   `float64`} is coerced to `float64` before the hot loop — a one-time copy per column,
   not per row.
+
+- **Empty input**: When `n_rows == 0`, a single `'\n'` is written (no data rows, but
+  the trailing newline is preserved to match the non-empty case).
 
 - **Thread safety**: Safe for concurrent use only if each thread calls `write_rows`
   independently.  The buffer is per-thread (`threading.local`), but `output_file` is
