@@ -271,15 +271,25 @@ def _run_exposure(output_file, **kwargs):
     ).run()
 
 
-class TestRunExposureIntegration(ComputationChecker):
+class _RunExposureIntegrationBase(ComputationChecker):
+    """Base class for RunExposure integration tests.
+
+    Subclasses set ``extra_kwargs`` to vary parameters (e.g. intermediary_csv)
+    without duplicating test logic.
+    """
+    extra_kwargs = {}
+
     def setUp(self):
         self.tmp = self.tmp_dir()
 
     def _output_file(self):
         return os.path.join(self.tmp.name, 'output.csv')
 
+    def _run(self, output_file, **kwargs):
+        return _run_exposure(output_file, **self.extra_kwargs, **kwargs)
+
     def test_acc_loc_run_returns_il_true_ril_false(self):
-        il, ril = _run_exposure(
+        il, ril = self._run(
             self._output_file(),
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -288,7 +298,7 @@ class TestRunExposureIntegration(ComputationChecker):
         self.assertFalse(ril)
 
     def test_all_files_run_returns_il_true_ril_true(self):
-        il, ril = _run_exposure(
+        il, ril = self._run(
             self._output_file(),
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -300,7 +310,7 @@ class TestRunExposureIntegration(ComputationChecker):
 
     def test_invalid_location_file_raises(self):
         with self.assertRaises(Exception):
-            _run_exposure(
+            self._run(
                 self._output_file(),
                 oed_location_csv=LOCATION_INVALID,
                 oed_accounts_csv=ACCOUNTS,
@@ -308,7 +318,7 @@ class TestRunExposureIntegration(ComputationChecker):
 
     def test_acc_loc_output_matches_expected(self):
         out = self._output_file()
-        _run_exposure(
+        self._run(
             out,
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -317,7 +327,7 @@ class TestRunExposureIntegration(ComputationChecker):
 
     def test_acc_loc_usd_output_matches_expected(self):
         out = self._output_file()
-        _run_exposure(
+        self._run(
             out,
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -328,7 +338,7 @@ class TestRunExposureIntegration(ComputationChecker):
 
     def test_all_files_output_matches_expected(self):
         out = self._output_file()
-        _run_exposure(
+        self._run(
             out,
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -343,12 +353,12 @@ class TestRunExposureIntegration(ComputationChecker):
         for f in (LOCATION, ACCOUNTS, RI_INFO, RI_SCOPE):
             shutil.copy(f, src_tmp.name)
         out = self._output_file()
-        _run_exposure(out, src_dir=src_tmp.name)
+        self._run(out, src_dir=src_tmp.name)
         _assert_output_matches(out, EXPECTED_ALL)
 
     def test_all_files_usd_output_matches_expected(self):
         out = self._output_file()
-        _run_exposure(
+        self._run(
             out,
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -361,7 +371,7 @@ class TestRunExposureIntegration(ComputationChecker):
 
     def test_loss_factor_half_output_matches_expected(self):
         out = self._output_file()
-        _run_exposure(
+        self._run(
             out,
             oed_location_csv=LOCATION,
             oed_accounts_csv=ACCOUNTS,
@@ -370,3 +380,13 @@ class TestRunExposureIntegration(ComputationChecker):
             loss_factor=[0.5],
         )
         _assert_output_matches(out, EXPECTED_LOSS_HALF)
+
+
+class TestRunExposureIntegration(_RunExposureIntegrationBase):
+    """Integration tests using default (non-intermediary) mode."""
+    extra_kwargs = {}
+
+
+class TestRunExposureIntegrationIntermediaryCsv(_RunExposureIntegrationBase):
+    """Integration tests with intermediary_csv=True."""
+    extra_kwargs = {'intermediary_csv': True}
