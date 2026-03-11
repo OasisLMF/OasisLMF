@@ -428,9 +428,7 @@ def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt, use_cython=Tru
         data (ndarray[<custom dtype>]): Custom dtype ndarray with column names
         headers (list[str]): Column names for custom ndarray
         row_fmt (str): Format for each row in csv
-        use_cython (bool): Use the Cython implementation (~5x faster). Requires the
-            package to have been installed with C extensions compiled
-            (pip install or python setup.py build_ext --inplace). Default: True.
+        use_cython (bool): Use the Cython implementation. Default: True.
     """
     if len(headers) != len(row_fmt.split(",")):
         raise RuntimeError(f"ERROR: write_ndarray_to_fmt_csv requires row_fmt ({row_fmt}) and headers ({headers}) to have the same length.")
