@@ -78,9 +78,9 @@ class TestGenFiles(ComputationChecker):
             file_gen_return = self.manager.generate_files(**self.min_args)
 
             expected_return = {
-                'items': f'{expected_run_dir}/items.csv',
-                'coverages': f'{expected_run_dir}/coverages.csv',
-                'amplifications': f'{expected_run_dir}/amplifications.csv'
+                'items': f'{expected_run_dir}/items.bin',
+                'coverages': f'{expected_run_dir}/coverages.bin',
+                'amplifications': f'{expected_run_dir}/amplifications.bin'
             }
             self.assertEqual(file_gen_return, expected_return)
             for _, filepath in expected_return.items():
@@ -95,13 +95,13 @@ class TestGenFiles(ComputationChecker):
             file_gen_return = self.manager.generate_files(**self.il_args)
 
             expected_return = {
-                'items': f'{expected_run_dir}/items.csv',
-                'coverages': f'{expected_run_dir}/coverages.csv',
-                'amplifications': f'{expected_run_dir}/amplifications.csv',
-                'fm_policytc': f'{expected_run_dir}/fm_policytc.csv',
-                'fm_profile': f'{expected_run_dir}/fm_profile.csv',
-                'fm_programme': f'{expected_run_dir}/fm_programme.csv',
-                'fm_xref': f'{expected_run_dir}/fm_xref.csv'
+                'items': f'{expected_run_dir}/items.bin',
+                'coverages': f'{expected_run_dir}/coverages.bin',
+                'amplifications': f'{expected_run_dir}/amplifications.bin',
+                'fm_policytc': f'{expected_run_dir}/fm_policytc.bin',
+                'fm_profile': f'{expected_run_dir}/fm_profile.bin',
+                'fm_programme': f'{expected_run_dir}/fm_programme.bin',
+                'fm_xref': f'{expected_run_dir}/fm_xref.bin'
             }
             self.assertEqual(file_gen_return, expected_return)
             for _, filepath in expected_return.items():
@@ -113,13 +113,13 @@ class TestGenFiles(ComputationChecker):
             expected_run_dir = t_dir
             file_gen_return = self.manager.generate_files(**{**self.ri_args, 'oasis_files_dir': t_dir})
             expected_return = {
-                'items': f'{expected_run_dir}/items.csv',
-                'coverages': f'{expected_run_dir}/coverages.csv',
-                'amplifications': f'{expected_run_dir}/amplifications.csv',
-                'fm_policytc': f'{expected_run_dir}/fm_policytc.csv',
-                'fm_profile': f'{expected_run_dir}/fm_profile.csv',
-                'fm_programme': f'{expected_run_dir}/fm_programme.csv',
-                'fm_xref': f'{expected_run_dir}/fm_xref.csv',
+                'items': f'{expected_run_dir}/items.bin',
+                'coverages': f'{expected_run_dir}/coverages.bin',
+                'amplifications': f'{expected_run_dir}/amplifications.bin',
+                'fm_policytc': f'{expected_run_dir}/fm_policytc.bin',
+                'fm_profile': f'{expected_run_dir}/fm_profile.bin',
+                'fm_programme': f'{expected_run_dir}/fm_programme.bin',
+                'fm_xref': f'{expected_run_dir}/fm_xref.bin',
                 'ri_layers': f'{expected_run_dir}/ri_layers.json',
                 'RI_1': f'{expected_run_dir}/RI_1'
             }
@@ -133,7 +133,7 @@ class TestGenFiles(ComputationChecker):
 
     @patch('oasislmf.computation.generate.files.get_il_input_items')
     def test_files__fm_aggregation__str_to_int_called(self, mock_get_il_items):
-        mock_get_il_items.return_value = FAKE_IL_ITEMS_RETURN
+        mock_get_il_items.return_value = (FAKE_IL_ITEMS_RETURN, {})
         with self.tmp_dir() as t_dir:
             with setcwd(t_dir):
                 expected_fm_agg_profile = self.default_args['profile_fm_agg']
@@ -160,7 +160,7 @@ class TestGenFiles(ComputationChecker):
             json={'rates': {"JPY": 180.4}},
             status=200
         )
-        mock_get_il_items.return_value = FAKE_IL_ITEMS_RETURN
+        mock_get_il_items.return_value = (FAKE_IL_ITEMS_RETURN, {})
         currency_config_file = self.tmp_files.get('currency_conversion_json')
         self.write_json(currency_config_file, currency_config)
         CURRENCY = 'JPY'
