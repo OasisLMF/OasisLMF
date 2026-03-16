@@ -143,7 +143,7 @@ truncated to `long long`.
          ll_val = cast               ll_val = cast
                │                            │
       sign flag && ll_val >= 0?         sign flag?
-    ┌───────────┼───────────┐        (unconditional: uint32 always gets sign)  ← uint32 is always >= 0
+    ┌───────────┼───────────┐        (uint32 is always >= 0)───────┐
    yes                      no                       ┌─────────────┼─────────────┐
     ▼                       ▼                       yes                          no
 buf[pos]='+'/' '        write_int(buf+pos, ll_val)   ▼                           ▼
@@ -372,12 +372,10 @@ call 1 (1000 rows, %d,%.2f)          call 2 (500 rows, same schema)
 
   _tls.buf (bytearray, 256 KB)
   ┌─────────────────────────────┐
-  │ 1,2.50\n3,4.75\n … (12 KB) │  ← pos = 12000 after hot loop
+  │ 1,2.50\n3,4.75\n … (12 KB)  │  ← pos = 12000 after hot loop
   └─────────────────────────────┘
           │
-          └─ PyUnicode_DecodeASCII(&buf[0], pos)
-             → Python str (no copy: reads directly from buf)
-             → output_file.write(str)
+          └─ PyUnicode_DecodeASCII(&buf[0], pos) → Python str → output_file.write(str)
 
   call 2: buf is reused (pos reset to 0), no malloc/zero
 ```
@@ -402,8 +400,8 @@ total = n_rows * chars_per_row + 64
 floor = 262144 bytes (256 KB minimum, even for tiny inputs)
 ```
 
-At the end, `PyUnicode_DecodeASCII(&buf[0], pos)` constructs a Python `str` directly
-from the C buffer — there is no intermediate `bytearray` → `bytes` → `str` conversion.
+At the end, `PyUnicode_DecodeASCII(&buf[0], pos)` constructs a Python `str` from the
+C buffer — one copy, but no intermediate `bytearray` → `bytes` → `str` conversion.
 
 ---
 
@@ -435,6 +433,11 @@ from the C buffer — there is no intermediate `bytearray` → `bytes` → `str`
 
 - **Empty input**: When `n_rows == 0`, a single `'\n'` is written (no data rows, but
   the trailing newline is preserved to match the non-empty case).
+
+- **Buffer overflow guard**: The pre-allocated buffer size is an estimate.  If a
+  COL_PYTHON or COL_FIXED-overflow format produces more bytes than the estimate
+  reserved for that cell, a `RuntimeError` is raised rather than silently
+  overwriting adjacent memory.
 
 - **Thread safety**: Safe for concurrent use only if each thread calls `write_rows`
   independently.  The buffer is per-thread (`threading.local`), but `output_file` is
