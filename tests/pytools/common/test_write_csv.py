@@ -102,7 +102,7 @@ def test_col_int_parity(fmt, dtype, values):
 @pytest.mark.parametrize('fmt', _COL_INT_FMTS)
 @pytest.mark.parametrize('special', [np.nan, np.inf, -np.inf])
 def test_col_int_special_same_exception(fmt, special):
-    """Cython raises the same exception type as Python for NaN/Inf (was: C UB)."""
+    """COL_INT raises the same exception type as Python for NaN/Inf input."""
     data = np.array([(special,)], dtype=np.dtype([('V', np.float64)]))
     py_exc = cy_exc = None
     try:
@@ -119,16 +119,16 @@ def test_col_int_special_same_exception(fmt, special):
 
 @pytest.mark.parametrize('fmt', _COL_INT_FMTS)
 def test_col_int_large_value_parity(fmt):
-    """Values above LLONG_MAX fall through to Python's arbitrary-precision %d (was: C UB)."""
+    """Values above LLONG_MAX fall through to Python's arbitrary-precision % operator."""
     _parity(fmt, 1e19)
     _parity(fmt, -1e19)
 
 
 def test_col_int_llong_min_parity():
-    """write_int(LLONG_MIN) previously overflowed via -LLONG_MIN (C UB → outputs '-0').
+    """LLONG_MIN (-9223372036854775808) is special-cased in write_int.
 
-    Fixed by detecting neg-and-v<0 before the digit loop and emitting the
-    literal string directly.
+    -LLONG_MIN is C signed-integer overflow; Cython detects it before the digit
+    loop and emits the precomputed literal string directly.
     """
     val = np.iinfo(np.int64).min  # -9223372036854775808
     dtype = np.dtype([('V', np.int64)])
@@ -151,7 +151,7 @@ def test_col_int_u_format_negative_parity():
 
 
 # ---------------------------------------------------------------------------
-# Section 3: COL_FIXED fast path (%.0f .. %.15f, %f, %0.9lf)
+# Section 3: COL_FIXED fast path (%.Xf, precision 0–15)
 # ---------------------------------------------------------------------------
 
 _COL_FIXED_PRECISIONS = list(range(0, 16))  # 0 through 15 inclusive
@@ -187,9 +187,10 @@ def test_col_fixed_parity(prec, dtype, values):
 
 @pytest.mark.parametrize('prec', _COL_FIXED_PRECISIONS)
 def test_col_fixed_negative_zero(prec):
-    """-0.0 produces '-0' or '-0.xxx' on both paths (copysign fix).
+    """-0.0 produces '-0' or '-0.xxx' on both paths.
 
     prec=0 produces '-0' (no dot); prec>=1 produces '-0.000...'.
+    Cython uses copysign to detect the sign bit, matching Python's output.
     """
     data = np.array([(-0.0,)], dtype=np.dtype([('V', np.float64)]))
     py_out = _write(data, ['V'], f'%.{prec}f', use_cython=False)
@@ -200,7 +201,7 @@ def test_col_fixed_negative_zero(prec):
 
 @pytest.mark.parametrize('prec', _COL_FIXED_PRECISIONS)
 def test_col_fixed_overflow_threshold_parity(prec):
-    """Values above 9.2e18/10^prec fall back to Python % (was: C UB via long long overflow)."""
+    """Values above 9.2e18/10^prec exceed the long long range and fall back to Python %."""
     threshold = 9.2e18 / (10 ** prec)
     overflow_val = threshold * 1.01
     _parity(f'%.{prec}f', overflow_val)
@@ -239,8 +240,8 @@ def test_col_fixed_negative_rounds_to_zero_parity(value, prec):
 def test_col_fixed_integer_dtype_parity(int_dtype, values):
     """COL_FIXED (%.Xf) on integer-dtype columns reads the correct 4/8-byte value.
 
-    Bug: the else: # NATIVE_FLOAT64 branch was reached for NATIVE_INT32/UINT32/INT64,
-    reading 8 bytes from a 4-byte field — out-of-bounds read and garbage output.
+    Each integer dtype has a dedicated pointer cast in the hot loop; falling through
+    to the float64 branch would read the wrong number of bytes from the struct field.
     """
     dtype = np.dtype([('V', int_dtype)])
     data = np.array([(v,) for v in values], dtype=dtype)
@@ -254,15 +255,14 @@ def test_col_fixed_integer_dtype_parity(int_dtype, values):
 
 
 # ---------------------------------------------------------------------------
-# Section 4a: Extended COL_FIXED fast paths (Group A+D)
-# Formats that were previously COL_PYTHON but are now fast paths.
+# Section 4a: COL_FIXED additional formats (bare %f, sign flags, length modifiers)
 # ---------------------------------------------------------------------------
 
 _COL_FIXED_EXTENDED_FMTS = [
     '%f',       # bare %f → prec=6
     '%.0f',     # prec=0: no decimal point
-    '%.10f',    # prec 10-15: high precision, narrow overflow threshold
-    '%.15f',
+    '%.10f',    # prec=10: high precision, narrow overflow threshold
+    '%.15f',    # prec=15: maximum supported precision
     '%0.9lf',   # zero-flag + length modifier stripped → prec=9
     '%+.2f',    # sign flag: always '+'
     '% .2f',    # sign flag: space for positive
@@ -282,7 +282,7 @@ _COL_FIXED_EXTENDED_VALS = [
 ], ids=['f64', 'f32'])
 @pytest.mark.parametrize('fmt', _COL_FIXED_EXTENDED_FMTS)
 def test_col_fixed_extended_parity(fmt, dtype, values):
-    """Group A+D: extended COL_FIXED formats match Python output."""
+    """Extended COL_FIXED formats match Python output."""
     for v in values:
         _parity(fmt, v, dtype)
 
@@ -313,7 +313,7 @@ def test_col_fixed_length_modifier_parity(fmt, canonical):
 
 
 # ---------------------------------------------------------------------------
-# Section 4b: Extended COL_INT fast paths (Group D — sign flags)
+# Section 4b: COL_INT with sign flags
 # ---------------------------------------------------------------------------
 
 _COL_INT_SIGN_FMTS = ['%+d', '% d', '%+i', '% i', '%+u', '% u']
@@ -339,7 +339,7 @@ def test_col_int_sign_flag_parity(fmt, dtype, values):
 @pytest.mark.parametrize('fmt', _COL_INT_SIGN_FMTS)
 @pytest.mark.parametrize('special', [np.nan, np.inf, -np.inf])
 def test_col_int_sign_flag_special_same_exception(fmt, special):
-    """Sign-flag COL_INT raises same exception as Python for nan/inf."""
+    """Sign-flag COL_INT raises the same exception type as Python for NaN/Inf input."""
     data = np.array([(special,)], dtype=np.dtype([('V', np.float64)]))
     py_exc = cy_exc = None
     try:
@@ -351,7 +351,7 @@ def test_col_int_sign_flag_special_same_exception(fmt, special):
     except Exception as e:
         cy_exc = type(e)
     assert py_exc is not None, "Python path should raise"
-    assert py_exc == cy_exc
+    assert py_exc == cy_exc, f"Python raised {py_exc.__name__}, Cython raised {getattr(cy_exc, '__name__', cy_exc)}"
 
 
 def test_col_int_sign_flag_neg_zero():
@@ -389,10 +389,11 @@ def test_col_fixed_sign_flag_neg_zero():
 
 @pytest.mark.parametrize('fmt', ['%+.2f', '% .2f', '%+f', '% f'])
 def test_col_fixed_sign_flag_special_parity(fmt):
-    """COL_FIXED sign flag with nan/inf: Cython matches Python output.
+    """COL_FIXED sign flag with nan/inf matches Python output.
 
-    The Cython branch: col_flags and (isnan or copysign > 0) → prepend '+'/space.
-    Python applies the same sign-flag logic, so outputs must agree for all specials.
+    nan and positive inf trigger the sign-prefix branch (isnan or copysign > 0);
+    -inf has a negative copysign result and is written without a prefix, both
+    matching Python's behaviour.
     """
     for special in (np.float64('nan'), np.float64('inf'), np.float64('-inf')):
         _parity(fmt, special)
@@ -407,7 +408,7 @@ _PYTHON_FLOAT_FMTS = [
     '%.2e', '%.2E',
     '%g', '%G',
     '%.4g', '%.4G',
-    '%10.2f',       # width field → COL_PYTHON (width not yet implemented)
+    '%10.2f',       # width field → COL_PYTHON
     '%-10.2f',      # left-aligned
     '%010.2f',      # zero-padded width
 ]
@@ -426,6 +427,7 @@ _PYTHON_FLOAT_VALS = [
 ], ids=['f64', 'f32'])
 @pytest.mark.parametrize('fmt', _PYTHON_FLOAT_FMTS)
 def test_python_fallback_float_parity(fmt, dtype, values):
+    """COL_PYTHON float formats match Python output for both float64 and float32."""
     for v in values:
         _parity(fmt, v, dtype)
 
@@ -443,6 +445,7 @@ _UINT_INT_VALS = [v for v in _PYTHON_INT_VALS if v >= 0]
 ], ids=['f64', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _PYTHON_INT_FMTS)
 def test_python_fallback_int_parity(fmt, dtype, values):
+    """COL_PYTHON integer formats (with width/alignment) match Python output across dtypes."""
     for v in values:
         _parity(fmt, v, dtype)
 
@@ -576,6 +579,7 @@ def test_cython_fallback_no_partial_write():
 
 
 def test_header_fmt_mismatch():
+    """Mismatched header count and format field count raises RuntimeError on both paths."""
     dtype = np.dtype([('X', np.int32), ('Y', np.float32)])
     data = np.array([(1, 2.0)], dtype=dtype)
     with pytest.raises(RuntimeError):
@@ -585,11 +589,11 @@ def test_header_fmt_mismatch():
 
 
 def test_col_python_buffer_overflow_falls_back(caplog):
-    """%.100f on 1e100 overflows the Cython buffer; the fallback produces correct output.
+    """A format that produces more bytes than the Cython buffer estimate triggers the fallback.
 
-    The Cython path raises RuntimeError internally (buffer overflow), which is
-    caught by the write_ndarray_to_fmt_csv fallback. The Python path then handles
-    it correctly, so the caller sees the right output rather than an exception.
+    The per-cell buffer estimate is generous but finite; a pathological format like
+    %.100f on a large value exceeds it.  Cython raises RuntimeError, which the
+    write_ndarray_to_fmt_csv wrapper catches and retries via the Python path.
     """
     data = np.array([(1e100,)], dtype=np.dtype([('V', np.float64)]))
     expected = _write(data, ['V'], '%.100f', use_cython=False)
@@ -602,10 +606,6 @@ def test_col_python_buffer_overflow_falls_back(caplog):
     assert any('falling back' in r.message for r in caplog.records)
 
 
-# ---------------------------------------------------------------------------
-# Section 7b: Thread-local buffer reuse
-# ---------------------------------------------------------------------------
-
 def test_tls_buffer_reuse():
     """Thread-local buffer is reused (not reallocated) when already large enough.
 
@@ -613,7 +613,7 @@ def test_tls_buffer_reuse():
     so _tls.buf is used as-is.  pos is a local variable always reset to 0, so stale
     bytes from the previous call cannot leak into the new output.
     """
-    import oasis_writecsv as _mod
+    import oasis_writecsv as _mod  # type: ignore[import-not-found]
 
     # Prime with a large call to guarantee _tls.buf exists and is at least 256 KB.
     large_data = np.ones(5000, dtype=np.dtype([('X', np.float64)]))
@@ -638,6 +638,7 @@ def test_tls_buffer_reuse():
     ('MPLT', MPLT_headers, MPLT_dtype, MPLT_fmt),
 ])
 def test_realworld_dtype_parity(label, headers, dtype, fmt):
+    """Production schemas (MELT, SELT, MPLT) produce identical Cython and Python output."""
     data = _make_data(dtype, 500)
     py_out = _write(data, headers, fmt, use_cython=False)
     cy_out = _write(data, headers, fmt, use_cython=True)
@@ -653,7 +654,7 @@ def test_realworld_dtype_parity(label, headers, dtype, fmt):
     ('MPLT', MPLT_headers, MPLT_dtype, MPLT_fmt),
 ])
 def test_cython_speedup(label, headers, dtype, fmt):
-    """Cython must be at least 2× faster than Python at 50k rows."""
+    """Cython must be at least 4× faster than Python at 50k rows."""
     N = 50_000
     data = _make_data(dtype, N)
 
@@ -668,7 +669,7 @@ def test_cython_speedup(label, headers, dtype, fmt):
     cython_t = min(timeit.repeat(lambda: run(True), repeat=5, number=1))
     speedup = python_t / cython_t
 
-    assert speedup >= 2.0, (
-        f"{label}: expected >=2x speedup, got {speedup:.2f}x "
+    assert speedup >= 4.0, (
+        f"{label}: expected >=4x speedup, got {speedup:.2f}x "
         f"(python={python_t * 1000:.1f}ms, cython={cython_t * 1000:.1f}ms)"
     )

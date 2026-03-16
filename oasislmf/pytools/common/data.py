@@ -5,7 +5,7 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasis_writecsv import write_rows as cython_write_csv
+from oasis_writecsv import write_rows as cython_write_csv  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 
