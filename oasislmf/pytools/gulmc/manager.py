@@ -375,12 +375,13 @@ def run(run_dir,
         logger.info(f"Detected {Nperil_correlation_groups} peril correlation groups.")
 
         logger.debug('import footprint')
-        footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
+            footprint_obj = None
         else:
+            footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
+                                                df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('import vulnerabilities')

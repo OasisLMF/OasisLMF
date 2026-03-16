@@ -305,7 +305,7 @@ class FootprintBin(Footprint):
         f = self.stack.enter_context(self.storage.with_fileno(footprint_index_filename))
         footprint_mmap = np.memmap(f, dtype=EventIndexBin, mode='r')
 
-        self.footprint_index = pd.DataFrame(footprint_mmap, columns=footprint_mmap.dtype.names).set_index('event_id').to_dict('index')
+        self.footprint_index = np.array(footprint_mmap)
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
             with lookup_file as f:
@@ -334,11 +334,11 @@ class FootprintBin(Footprint):
             if not self.areaperil_in_range(event_id, self.events_dict):
                 return None
 
-        event_info = self.footprint_index.get(event_id)
-        if event_info is None:
-            return
-        else:
-            return np.frombuffer(self.footprint[event_info['offset']: event_info['offset'] + event_info['size']], Event)
+        idx = np.searchsorted(self.footprint_index['event_id'], event_id)
+        if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
+            return None
+        event_info = self.footprint_index[idx]
+        return np.frombuffer(self.footprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])], Event)
 
 
 class FootprintBinZ(Footprint):
@@ -373,7 +373,7 @@ class FootprintBinZ(Footprint):
         f = self.stack.enter_context(self.storage.with_fileno(zfootprint_index_filename))
 
         zfootprint_mmap = np.memmap(f, dtype=self.index_dtype, mode='r')
-        self.footprint_index = pd.DataFrame(zfootprint_mmap, columns=zfootprint_mmap.dtype.names).set_index('event_id').to_dict('index')
+        self.footprint_index = np.array(zfootprint_mmap)
 
         try:
             lookup_file = self.storage.with_fileno(footprint_bin_lookup)
@@ -400,16 +400,16 @@ class FootprintBinZ(Footprint):
         Returns: (np.array[Event]) the event that was extracted
         """
 
-        event_info = self.footprint_index.get(event_id)
-        if event_info is None:
-            return
-        elif self.events_dict:
+        idx = np.searchsorted(self.footprint_index['event_id'], event_id)
+        if idx >= len(self.footprint_index) or self.footprint_index['event_id'][idx] != event_id:
+            return None
+        event_info = self.footprint_index[idx]
+        if self.events_dict:
             if not self.areaperil_in_range(event_id, self.events_dict):
                 return None
-        else:
-            zdata = self.zfootprint[event_info['offset']: event_info['offset'] + event_info['size']]
-            data = decompress(zdata)
-            return np.frombuffer(data, Event)
+        zdata = self.zfootprint[int(event_info['offset']): int(event_info['offset']) + int(event_info['size'])]
+        data = decompress(zdata)
+        return np.frombuffer(data, Event)
 
 
 class FootprintParquet(Footprint):
