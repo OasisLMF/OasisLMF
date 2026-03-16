@@ -24,13 +24,13 @@ def _write(data, headers, fmt, use_cython=False):
     return buf.getvalue()
 
 
-def _parity(fmt, value):
-    """Assert Cython output == Python output for a single float64 cell."""
-    data = np.array([(value,)], dtype=np.dtype([('V', np.float64)]))
+def _parity(fmt, value, dtype=np.float64):
+    """Assert Cython output == Python output for a single cell of the given dtype."""
+    data = np.array([(value,)], dtype=np.dtype([('V', dtype)]))
     py_out = _write(data, ['V'], fmt, use_cython=False)
     cy_out = _write(data, ['V'], fmt, use_cython=True)
     assert cy_out == py_out, (
-        f"fmt={fmt!r} value={value!r}: cython={cy_out!r} != python={py_out!r}"
+        f"fmt={fmt!r} value={value!r} dtype={np.dtype(dtype)}: cython={cy_out!r} != python={py_out!r}"
     )
 
 
@@ -82,12 +82,21 @@ _INT_VALS = [
     3.7, -3.7,    # truncation toward zero → '3' / '-3'
     -0.9,         # truncation → '0'
 ]
+_UINT_VALS = [v for v in _INT_VALS if v >= 0]
 
 
+@pytest.mark.parametrize('dtype,values', [
+    (np.float64, _INT_VALS),
+    (np.float32, _INT_VALS),
+    (np.int32,   _INT_VALS),
+    (np.uint32,  _UINT_VALS),   # uint32 cannot represent negative values
+    (np.int64,   _INT_VALS),
+], ids=['f64', 'f32', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _COL_INT_FMTS)
-@pytest.mark.parametrize('value', _INT_VALS)
-def test_col_int_parity(fmt, value):
-    _parity(fmt, value)
+def test_col_int_parity(fmt, dtype, values):
+    """COL_INT fast path across all native dtypes matches Python output."""
+    for v in values:
+        _parity(fmt, v, dtype)
 
 
 @pytest.mark.parametrize('fmt', _COL_INT_FMTS)
@@ -165,11 +174,15 @@ _FLOAT_VALS = [
 ]
 
 
+@pytest.mark.parametrize('dtype,values', [
+    (np.float64, _FLOAT_VALS),
+    (np.float32, _FLOAT_VALS),
+], ids=['f64', 'f32'])
 @pytest.mark.parametrize('prec', _COL_FIXED_PRECISIONS)
-@pytest.mark.parametrize('value', _FLOAT_VALS)
-def test_col_fixed_parity(prec, value):
+def test_col_fixed_parity(prec, dtype, values):
     """COL_FIXED matches Python's %.Xf including nan/inf handling."""
-    _parity(f'%.{prec}f', value)
+    for v in values:
+        _parity(f'%.{prec}f', v, dtype)
 
 
 @pytest.mark.parametrize('prec', _COL_FIXED_PRECISIONS)
@@ -194,11 +207,12 @@ def test_col_fixed_overflow_threshold_parity(prec):
     _parity(f'%.{prec}f', -overflow_val)
 
 
+@pytest.mark.parametrize('dtype', [np.float64, np.float32], ids=['f64', 'f32'])
 @pytest.mark.parametrize('value', [0.5, 1.5, 2.5, 3.5, 4.5, -0.5, -1.5, -2.5])
-def test_col_fixed_rounding_half_parity(value):
+def test_col_fixed_rounding_half_parity(value, dtype):
     """Rounding at .5 boundaries matches Python (IEEE 754 round-half-to-even)."""
     for prec in _COL_FIXED_PRECISIONS:
-        _parity(f'%.{prec}f', value)
+        _parity(f'%.{prec}f', value, dtype)
 
 
 @pytest.mark.parametrize('value,prec', [
@@ -262,27 +276,64 @@ _COL_FIXED_EXTENDED_VALS = [
 ]
 
 
+@pytest.mark.parametrize('dtype,values', [
+    (np.float64, _COL_FIXED_EXTENDED_VALS),
+    (np.float32, _COL_FIXED_EXTENDED_VALS),
+], ids=['f64', 'f32'])
 @pytest.mark.parametrize('fmt', _COL_FIXED_EXTENDED_FMTS)
-@pytest.mark.parametrize('value', _COL_FIXED_EXTENDED_VALS)
-def test_col_fixed_extended_parity(fmt, value):
+def test_col_fixed_extended_parity(fmt, dtype, values):
     """Group A+D: extended COL_FIXED formats match Python output."""
-    _parity(fmt, value)
+    for v in values:
+        _parity(fmt, v, dtype)
+
+
+@pytest.mark.parametrize('fmt,canonical', [
+    ('%lf',    '%f'),
+    ('%hf',    '%f'),
+    ('%Lf',    '%f'),
+    ('%llf',   '%f'),
+    ('%.2lf',  '%.2f'),
+    ('%.4llf', '%.4f'),
+])
+def test_col_fixed_length_modifier_parity(fmt, canonical):
+    """C length modifiers (l/h/L/ll) before f are stripped → same Cython output as canonical.
+
+    Python's % operator doesn't accept %llf/%hf/%Lf, so this tests Cython-only:
+    the modifier is stripped during column classification, giving the same COL_FIXED
+    fast path and identical output as the unmodified canonical format.
+    """
+    vals = [0.0, 1.0, -1.0, 42.5, np.float64('nan'), np.float64('inf')]
+    for v in vals:
+        data = np.array([(v,)], dtype=np.dtype([('V', np.float64)]))
+        cy_out = _write(data, ['V'], fmt, use_cython=True)
+        canon_out = _write(data, ['V'], canonical, use_cython=True)
+        assert cy_out == canon_out, (
+            f"fmt={fmt!r} value={v!r}: Cython output {cy_out!r} differs from canonical {canon_out!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Section 4b: Extended COL_INT fast paths (Group D — sign flags)
 # ---------------------------------------------------------------------------
 
-_COL_INT_SIGN_FMTS = ['%+d', '% d', '%+i']
+_COL_INT_SIGN_FMTS = ['%+d', '% d', '%+i', '% i', '%+u', '% u']
 
 _COL_INT_SIGN_VALS = [0.0, 1.0, -1.0, 42.0, -42.0, 9999.0, -9999.0, 3.7, -3.7]
+_UINT_SIGN_VALS = [v for v in _COL_INT_SIGN_VALS if v >= 0]
 
 
+@pytest.mark.parametrize('dtype,values', [
+    (np.float64, _COL_INT_SIGN_VALS),
+    (np.float32, _COL_INT_SIGN_VALS),
+    (np.int32,   _COL_INT_SIGN_VALS),
+    (np.uint32,  _UINT_SIGN_VALS),   # uint32 cannot represent negative values
+    (np.int64,   _COL_INT_SIGN_VALS),
+], ids=['f64', 'f32', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _COL_INT_SIGN_FMTS)
-@pytest.mark.parametrize('value', _COL_INT_SIGN_VALS)
-def test_col_int_sign_flag_parity(fmt, value):
-    """Sign-flag COL_INT matches Python for normal values."""
-    _parity(fmt, value)
+def test_col_int_sign_flag_parity(fmt, dtype, values):
+    """Sign-flag COL_INT matches Python across all native dtypes."""
+    for v in values:
+        _parity(fmt, v, dtype)
 
 
 @pytest.mark.parametrize('fmt', _COL_INT_SIGN_FMTS)
@@ -336,6 +387,17 @@ def test_col_fixed_sign_flag_neg_zero():
         assert py_out.rstrip('\n') == '-0.00', f"{fmt}: expected '-0.00', got {py_out!r}"
 
 
+@pytest.mark.parametrize('fmt', ['%+.2f', '% .2f', '%+f', '% f'])
+def test_col_fixed_sign_flag_special_parity(fmt):
+    """COL_FIXED sign flag with nan/inf: Cython matches Python output.
+
+    The Cython branch: col_flags and (isnan or copysign > 0) → prepend '+'/space.
+    Python applies the same sign-flag logic, so outputs must agree for all specials.
+    """
+    for special in (np.float64('nan'), np.float64('inf'), np.float64('-inf')):
+        _parity(fmt, special)
+
+
 # ---------------------------------------------------------------------------
 # Section 4d: Remaining COL_PYTHON fallback formats (width/alignment, %e, %g)
 # ---------------------------------------------------------------------------
@@ -358,20 +420,53 @@ _PYTHON_FLOAT_VALS = [
 ]
 
 
+@pytest.mark.parametrize('dtype,values', [
+    (np.float64, _PYTHON_FLOAT_VALS),
+    (np.float32, _PYTHON_FLOAT_VALS),
+], ids=['f64', 'f32'])
 @pytest.mark.parametrize('fmt', _PYTHON_FLOAT_FMTS)
-@pytest.mark.parametrize('value', _PYTHON_FLOAT_VALS)
-def test_python_fallback_float_parity(fmt, value):
-    _parity(fmt, value)
+def test_python_fallback_float_parity(fmt, dtype, values):
+    for v in values:
+        _parity(fmt, v, dtype)
 
 
 _PYTHON_INT_FMTS = ['%10d', '%-10d', '%010d', '%-8i', '%8u', '%-8u']
 _PYTHON_INT_VALS = [0.0, 1.0, -1.0, 42.0, -42.0, 9999.0, -9999.0, 3.7, -3.7]
+_UINT_INT_VALS = [v for v in _PYTHON_INT_VALS if v >= 0]
 
 
+@pytest.mark.parametrize('dtype,values', [
+    (np.float64, _PYTHON_INT_VALS),
+    (np.int32,   _PYTHON_INT_VALS),
+    (np.uint32,  _UINT_INT_VALS),   # uint32 cannot represent negative values
+    (np.int64,   _PYTHON_INT_VALS),
+], ids=['f64', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _PYTHON_INT_FMTS)
-@pytest.mark.parametrize('value', _PYTHON_INT_VALS)
-def test_python_fallback_int_parity(fmt, value):
-    _parity(fmt, value)
+def test_python_fallback_int_parity(fmt, dtype, values):
+    for v in values:
+        _parity(fmt, v, dtype)
+
+
+# ---------------------------------------------------------------------------
+# Section 4e: Unusual dtype coercion to float64
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('dtype', [np.int8, np.int16, np.uint8, np.uint16, np.float16],
+                          ids=['i8', 'i16', 'u8', 'u16', 'f16'])
+@pytest.mark.parametrize('fmt', ['%d', '%.2f'])
+def test_unusual_dtype_coerced_parity(fmt, dtype):
+    """Dtypes not in {int32,uint32,int64,float32,float64} are coerced to float64 before the hot loop.
+
+    Both COL_INT (%d) and COL_FIXED (%.2f) paths must read the coerced value correctly.
+    """
+    if np.issubdtype(dtype, np.unsignedinteger):
+        values = [0, 1, 42, 100]
+    else:
+        values = [0, 1, -1, 42, -42]
+    data = np.array([(v,) for v in values], dtype=np.dtype([('V', dtype)]))
+    py_out = _write(data, ['V'], fmt, use_cython=False)
+    cy_out = _write(data, ['V'], fmt, use_cython=True)
+    assert cy_out == py_out, f"dtype={np.dtype(dtype)} fmt={fmt!r}: cython={cy_out!r} != python={py_out!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -505,6 +600,32 @@ def test_col_python_buffer_overflow_falls_back(caplog):
 
     assert result == expected
     assert any('falling back' in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Section 7b: Thread-local buffer reuse
+# ---------------------------------------------------------------------------
+
+def test_tls_buffer_reuse():
+    """Thread-local buffer is reused (not reallocated) when already large enough.
+
+    The reuse path: `if not hasattr(_tls, 'buf') or len(_tls.buf) < buf_size` is False,
+    so _tls.buf is used as-is.  pos is a local variable always reset to 0, so stale
+    bytes from the previous call cannot leak into the new output.
+    """
+    import oasis_writecsv as _mod
+
+    # Prime with a large call to guarantee _tls.buf exists and is at least 256 KB.
+    large_data = np.ones(5000, dtype=np.dtype([('X', np.float64)]))
+    _write(large_data, ['X'], '%.6f', use_cython=True)
+    buf_id = id(_mod._tls.buf)
+
+    # Smaller call — buf_size < existing capacity, must reuse the same bytearray.
+    small_data = np.ones(10, dtype=np.dtype([('X', np.float64)]))
+    out = _write(small_data, ['X'], '%.6f', use_cython=True)
+
+    assert id(_mod._tls.buf) == buf_id, "Buffer was reallocated when reuse was expected"
+    assert out == '1.000000\n' * 10
 
 
 # ---------------------------------------------------------------------------
