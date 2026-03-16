@@ -88,9 +88,9 @@ _UINT_VALS = [v for v in _INT_VALS if v >= 0]
 @pytest.mark.parametrize('dtype,values', [
     (np.float64, _INT_VALS),
     (np.float32, _INT_VALS),
-    (np.int32,   _INT_VALS),
-    (np.uint32,  _UINT_VALS),   # uint32 cannot represent negative values
-    (np.int64,   _INT_VALS),
+    (np.int32, _INT_VALS),
+    (np.uint32, _UINT_VALS),   # uint32 cannot represent negative values
+    (np.int64, _INT_VALS),
 ], ids=['f64', 'f32', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _COL_INT_FMTS)
 def test_col_int_parity(fmt, dtype, values):
@@ -288,11 +288,11 @@ def test_col_fixed_extended_parity(fmt, dtype, values):
 
 
 @pytest.mark.parametrize('fmt,canonical', [
-    ('%lf',    '%f'),
-    ('%hf',    '%f'),
-    ('%Lf',    '%f'),
-    ('%llf',   '%f'),
-    ('%.2lf',  '%.2f'),
+    ('%lf', '%f'),
+    ('%hf', '%f'),
+    ('%Lf', '%f'),
+    ('%llf', '%f'),
+    ('%.2lf', '%.2f'),
     ('%.4llf', '%.4f'),
 ])
 def test_col_fixed_length_modifier_parity(fmt, canonical):
@@ -325,9 +325,9 @@ _UINT_SIGN_VALS = [v for v in _COL_INT_SIGN_VALS if v >= 0]
 @pytest.mark.parametrize('dtype,values', [
     (np.float64, _COL_INT_SIGN_VALS),
     (np.float32, _COL_INT_SIGN_VALS),
-    (np.int32,   _COL_INT_SIGN_VALS),
-    (np.uint32,  _UINT_SIGN_VALS),   # uint32 cannot represent negative values
-    (np.int64,   _COL_INT_SIGN_VALS),
+    (np.int32, _COL_INT_SIGN_VALS),
+    (np.uint32, _UINT_SIGN_VALS),   # uint32 cannot represent negative values
+    (np.int64, _COL_INT_SIGN_VALS),
 ], ids=['f64', 'f32', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _COL_INT_SIGN_FMTS)
 def test_col_int_sign_flag_parity(fmt, dtype, values):
@@ -439,9 +439,9 @@ _UINT_INT_VALS = [v for v in _PYTHON_INT_VALS if v >= 0]
 
 @pytest.mark.parametrize('dtype,values', [
     (np.float64, _PYTHON_INT_VALS),
-    (np.int32,   _PYTHON_INT_VALS),
-    (np.uint32,  _UINT_INT_VALS),   # uint32 cannot represent negative values
-    (np.int64,   _PYTHON_INT_VALS),
+    (np.int32, _PYTHON_INT_VALS),
+    (np.uint32, _UINT_INT_VALS),   # uint32 cannot represent negative values
+    (np.int64, _PYTHON_INT_VALS),
 ], ids=['f64', 'i32', 'u32', 'i64'])
 @pytest.mark.parametrize('fmt', _PYTHON_INT_FMTS)
 def test_python_fallback_int_parity(fmt, dtype, values):
@@ -455,7 +455,7 @@ def test_python_fallback_int_parity(fmt, dtype, values):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize('dtype', [np.int8, np.int16, np.uint8, np.uint16, np.float16],
-                          ids=['i8', 'i16', 'u8', 'u16', 'f16'])
+                         ids=['i8', 'i16', 'u8', 'u16', 'f16'])
 @pytest.mark.parametrize('fmt', ['%d', '%.2f'])
 def test_unusual_dtype_coerced_parity(fmt, dtype):
     """Dtypes not in {int32,uint32,int64,float32,float64} are coerced to float64 before the hot loop.
