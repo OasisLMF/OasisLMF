@@ -37,27 +37,14 @@ on:
 
 
 jobs:
-  build:
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-
-  ods_tools:
-    if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
-    uses: OasisLMF/ODS_Tools/.github/workflows/build.yml@main
-    secrets: inherit
-    with:
-      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' ||  inputs.ods_branch }}
-
   platform2:
     if: ${{ ! failure() || ! cancelled() }}
     uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
     secrets: inherit
-    needs: [build, ods_tools]
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix/add-testing-timeout' || inputs.piwind_branch }}
-      oasislmf_package: ${{ needs.build.outputs.linux_pkg_filename }}
-      oasislmf_branch: ''
-      ods_package: ${{ needs.ods_tools.outputs.whl_filename }}
+      oasislmf_branch: ${{ github.ref }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' ||  inputs.ods_branch }}
       platform_version: 'PR-1356_test'
       pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
       worker_api_ver: 'v2'
