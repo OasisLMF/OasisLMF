@@ -39,7 +39,7 @@ on:
 jobs:
   platform2:
     if: ${{ ! failure() || ! cancelled() }}
-    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@main
+    uses: OasisLMF/OasisPiWind/.github/workflows/test.yml@ci/add-ods-branch
     secrets: inherit
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix/add-testing-timeout' || inputs.piwind_branch }}
