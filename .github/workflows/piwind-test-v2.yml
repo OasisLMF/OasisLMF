@@ -8,7 +8,7 @@
 #
 #   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
 #
-name: PiWind output check
+name: Platform 2 - PiWind check
 
 on:
   pull_request:
@@ -19,11 +19,7 @@ on:
 
   workflow_dispatch:
     inputs:
-      platform_1_version:
-        description: 'OasisPlatform 1 - Version to test [docker tag]'
-        required: true
-        default: latest
-      platform_2_version:
+      platform_version:
         description: 'OasisPlatform 2 - Version to test [docker tag]'
         required: true
         default: latest
@@ -45,7 +41,7 @@ jobs:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix/add-testing-timeout' || inputs.piwind_branch }}
       oasislmf_branch: ${{ github.ref }}
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' ||  inputs.ods_branch }}
-      platform_version: 'PR-1356_test'
+      platform_version: ${{ github.event_name != 'workflow_dispatch' && '2.5' ||  inputs.platform_version }}
       pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
       worker_api_ver: 'v2'
       storage_suffix: '_platform2'
