@@ -813,11 +813,11 @@ class GenerateLossesDeterministic(ComputationStep):
             'sidx': int,
             'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
-        guls_bin_fp = "guls.bin"
+        guls_bin_fp = os.path.join(output_dir, "guls.bin")
         guls.to_csv(guls_fp, index=False)
 
         # il_stream_type = 2 if self.fmpy else 1
-        ils_bin_fp = "ils.bin"
+        ils_bin_fp = os.path.join(output_dir, "ils.bin")
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
@@ -890,8 +890,8 @@ class GenerateLossesDeterministic(ComputationStep):
                             guls_bin_fp,
                             ils_bin_fp,
                         ) if layer == 1 else ''
-                        pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
-                        ri_layer_bin_fp = f"ri{layer}.bin"
+                        pipe_in_previous_layer = '< {}'.format(os.path.join(output_dir, 'ri{}.bin'.format(layer - 1))) if layer > 1 else ''
+                        ri_layer_bin_fp = os.path.join(output_dir, f"ri{layer}.bin")
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                         net_flag = "-n" if self.net_ri else ""
                         cmd = '{} {} -p {} {} -a {} {} | tee {} > /dev/null'.format(
