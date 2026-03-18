@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
@@ -35,10 +36,11 @@ class GenbashBase(TestCase):
         cls.bash_trace = False
         cls.stderr_guard = False
 
-        # Recreate output folder
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_')
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)
 
     def setUp(self):
         self.temp_reference_file = None
@@ -242,7 +244,7 @@ class Genbash_base(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_base")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_base_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_base")
 
 
@@ -253,7 +255,7 @@ class Genbash_ErrorGuard_and_TempDir(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_err")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_err_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_err")
 
         cls.gul_alloc_rule = 1
@@ -261,10 +263,6 @@ class Genbash_ErrorGuard_and_TempDir(GenbashBase):
         cls.ri_alloc_rule = 3
         cls.fifo_tmp_dir = True
         cls.stderr_guard = True
-
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
 
 @discover_and_add_tests
@@ -274,16 +272,12 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_lb")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_lb_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_lb")
 
         cls.num_gul_per_lb = 2
         cls.num_fm_per_lb = 2
         cls.gulmc = False
-
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
 
 # Special case: Custom gulcalc tests
@@ -292,12 +286,8 @@ class Genbash_CustomGulcalc(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_csm")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_csm_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_csm")
-
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
     @staticmethod
     def _get_getmodel_cmd(**kwargs):
