@@ -7,7 +7,7 @@ from numba.core import types
 from numba.typed import Dict
 import numpy as np
 
-from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore import BaseStorage
 from oasislmf.pytools.common.data import lossfactors_headers, lossfactors_dtype
 from oasislmf.pytools.common.event_stream import mv_read
 from .common import PLAFACTORS_FILE

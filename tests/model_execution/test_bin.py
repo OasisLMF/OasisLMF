@@ -32,7 +32,7 @@ from oasislmf.execution.bin import (
     set_vulnerability_set
 )
 
-from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore import LocalStorage
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_dataset, parquetvulnerability_meta_filename
 

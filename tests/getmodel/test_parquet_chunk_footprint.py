@@ -2,7 +2,7 @@ from oasislmf.pytools.getmodel.footprint import (
     FootprintParquetChunk, FootprintBin
 )
 import pytest
-from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore import LocalStorage
 from pathlib import Path
 import numpy as np
 import pandas as pd

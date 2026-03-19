@@ -28,8 +28,7 @@ from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as ti
 import pandas as pd
 import numpy as np
 
-from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore import get_storage_from_config_path, LocalStorage
 
 from ...execution import bash, runner
 from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS

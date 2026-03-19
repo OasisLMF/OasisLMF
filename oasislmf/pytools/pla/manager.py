@@ -5,7 +5,7 @@ import logging
 
 from .streams import read_and_write_streams
 from .structure import get_post_loss_amplification_factors
-from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasis_data_manager.filestore import get_storage_from_config_path
 from oasislmf.pytools.utils import redirect_logging
 from oasislmf.pytools.common.input_files import read_amplifications
 from oasislmf.pytools.common.event_stream import get_streams_in

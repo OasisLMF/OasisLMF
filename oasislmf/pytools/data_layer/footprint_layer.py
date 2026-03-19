@@ -12,8 +12,8 @@ from typing import Optional, Set, Tuple, List
 
 import numpy as np
 
-from oasis_data_manager.filestore.backends.local import LocalStorage
-from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore import LocalStorage
+from oasis_data_manager.filestore import BaseStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag.txt"

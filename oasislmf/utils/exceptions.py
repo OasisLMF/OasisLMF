@@ -1,4 +1,4 @@
-from oasis_data_manager.errors import OasisException
+from oasis_data_manager import OasisException
 
 __all__ = [
     'OasisException'

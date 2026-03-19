@@ -19,9 +19,9 @@ from numba import int32 as nb_int32
 from numba.typed import Dict
 from numba.types import Tuple as nb_Tuple
 
-from oasis_data_manager.df_reader.config import get_df_reader, clean_config, InputReaderConfig
-from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasis_data_manager.df_reader import get_df_reader, clean_config
+from oasis_data_manager.filestore import BaseStorage
+from oasis_data_manager.filestore import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
 from oasislmf.pytools.common.data import (
@@ -469,7 +469,7 @@ def get_vulns(
             meta_data = json.load(outfile)
         logger.debug(f"loading {source_url}")
 
-        df_reader_config = clean_config(InputReaderConfig(filepath=vulnerability_dataset, engine=df_engine))
+        df_reader_config = clean_config({"filepath": vulnerability_dataset, "engine": df_engine})
         df_reader_config["engine"]["options"]["storage"] = storage
         reader = get_df_reader(df_reader_config, filters=[[('vulnerability_id', '==', vuln_id)] for vuln_id in vuln_dict.keys()])
         df = reader.as_pandas()

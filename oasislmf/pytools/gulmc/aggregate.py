@@ -11,7 +11,7 @@ from numba import njit
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32
 
-from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.filestore import BaseStorage
 from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, aggregatevulnerability_dtype, vulnerability_weight_dtype
 
 logger = logging.getLogger(__name__)

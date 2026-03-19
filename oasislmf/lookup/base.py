@@ -18,7 +18,7 @@ import pandas as pd
 from ..utils.path import as_path
 from ..utils.exceptions import OasisException
 
-from oasis_data_manager.filestore.config import get_storage_from_config, LocalStorage
+from oasis_data_manager.filestore import get_storage_from_config, LocalStorage
 
 UNKNOWN_ID = -1
 

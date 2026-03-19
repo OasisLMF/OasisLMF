@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 from oasislmf.pytools.getmodel.footprint import FootprintBin
-from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore import LocalStorage
 from oasislmf.pytools.data_layer.conversions.footprint import convert_bin_to_parquet_chunk
 
 script_dir = Path(__file__).resolve().parent

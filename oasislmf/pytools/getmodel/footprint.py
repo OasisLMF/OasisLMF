@@ -14,9 +14,8 @@ import numpy as np
 import pandas as pd
 import numba as nb
 
-from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
-from oasis_data_manager.df_reader.reader import OasisReader
-from oasis_data_manager.filestore.backends.base import BaseStorage
+from oasis_data_manager.df_reader import clean_config, get_df_reader, OasisReader
+from oasis_data_manager.filestore import BaseStorage
 from .common import (
     FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
     EventDynamic, footprint_filename, footprint_index_filename,
@@ -205,7 +204,7 @@ class Footprint:
 
     def get_df_reader(self, filepath, **kwargs) -> OasisReader:
         # load the base df engine config and add the connection parameters
-        df_reader_config = clean_config(InputReaderConfig(filepath=filepath, engine=self.df_engine))
+        df_reader_config = clean_config({"filepath": filepath, "engine": self.df_engine})
         df_reader_config["engine"]["options"]["storage"] = self.storage
 
         return get_df_reader(df_reader_config, **kwargs)

@@ -15,7 +15,7 @@ from numba.typed import Dict, List
 import time
 from oasislmf.utils.ping import oasis_ping
 
-from oasis_data_manager.filestore.config import get_storage_from_config_path
+from oasis_data_manager.filestore import get_storage_from_config_path
 from oasislmf.pytools.common.data import correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, mv_write_item_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM)

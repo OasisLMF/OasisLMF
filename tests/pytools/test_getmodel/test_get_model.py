@@ -10,7 +10,7 @@ import tempfile
 
 from oasislmf.pytools.getmodel.manager import get_vulns
 from oasislmf.pytools.getmodel.vulnerability import vulnerability_to_parquet
-from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasis_data_manager.filestore import LocalStorage
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
 
 import numpy as np
