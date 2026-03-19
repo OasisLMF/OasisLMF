@@ -18,7 +18,7 @@ from numba.types import int64 as nb_int64
 
 from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
+from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
@@ -204,6 +204,7 @@ def run(run_dir,
         max_cached_vuln_cdf_size_MB=200,
         model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         dynamic_footprint=False,
+        footprint_format=None,
         **kwargs):
     """Execute the main gulmc workflow.
 
@@ -361,6 +362,8 @@ def run(run_dir,
             coverages,
             valid_areaperil_id,
             agg_vuln_to_vuln_ids)
+        oed_areaperils = np.array(sorted(areaperil_ids_map.keys())).astype(areaperil_int)
+
         if aggregate_weights is not None:
             logger.debug('reconstruct aggregate vulnerability definitions and weights')
             process_vulnerability_weights(areaperil_vuln_idx_to_weight, vuln_dict, aggregate_weights)
@@ -376,7 +379,8 @@ def run(run_dir,
 
         logger.debug('import footprint')
         footprint_obj = stack.enter_context(Footprint.load(model_storage, ignore_file_type,
-                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys())))
+                                            df_engine=model_df_engine, areaperil_ids=list(areaperil_ids_map.keys()),
+                                            footprint_format=footprint_format))
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
             logger.info(f"got {num_intensity_bins} intensity bins from server")
@@ -491,6 +495,16 @@ def run(run_dir,
         # maximum bytes to be written in the output stream for 1 item
         event_footprint_obj = FootprintLayerClient if data_server else footprint_obj
 
+        if hasattr(event_footprint_obj, "get_event_items"):
+            get_event_items = event_footprint_obj.get_event_items
+        else:
+            def get_event_items(event_id, oed_areaperils, dynamic_footprint):
+                event_footprint = event_footprint_obj.get_event(event_id)
+                if event_footprint is not None:
+                    return process_areaperils_in_footprint(event_footprint, oed_areaperils, dynamic_footprint)
+                else:
+                    return None, 0, None, None, None
+
         if dynamic_footprint:
             intensity_bin_dict = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
         else:
@@ -528,103 +542,101 @@ def run(run_dir,
 
             # get the next event_id from the input stream
             compute_info['event_id'] = event_ids[0]
-            event_footprint = event_footprint_obj.get_event(event_ids[0])
+            areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, haz_pdf, haz_arr_ptr = get_event_items(
+                event_ids[0],
+                oed_areaperils,
+                dynamic_footprint
+            )
+            if Nhaz_arr_this_event == 0:
+                # no items to be computed for this event
+                counter += 1
+                continue
 
-            if event_footprint is not None:
-                areaperil_ids, Nhaz_arr_this_event, areaperil_to_haz_arr_i, haz_pdf, haz_arr_ptr = process_areaperils_in_footprint(
-                    event_footprint,
-                    areaperil_ids_map,
-                    dynamic_footprint)
-                if Nhaz_arr_this_event == 0:
-                    # no items to be computed for this event
-                    counter += 1
-                    continue
+            items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
+                compute_info,
+                areaperil_ids,
+                areaperil_ids_map,
+                areaperil_to_haz_arr_i,
+                item_map,
+                items,
+                coverages,
+                compute,
+                haz_seeds,
+                haz_peril_correlation_groups,
+                haz_corr_seeds,
+                vuln_seeds,
+                damage_peril_correlation_groups,
+                damage_corr_seeds,
+                dynamic_footprint,
+                byte_mv,
+                group_seq_rng_index,
+                hazard_group_seq_rng_index
+            )
 
-                items_event_data, rng_index, hazard_rng_index, byte_mv = reconstruct_coverages(
-                    compute_info,
-                    areaperil_ids,
-                    areaperil_ids_map,
-                    areaperil_to_haz_arr_i,
-                    item_map,
-                    items,
-                    coverages,
-                    compute,
-                    haz_seeds,
-                    haz_peril_correlation_groups,
-                    haz_corr_seeds,
-                    vuln_seeds,
-                    damage_peril_correlation_groups,
-                    damage_corr_seeds,
-                    dynamic_footprint,
-                    byte_mv,
-                    group_seq_rng_index,
-                    hazard_group_seq_rng_index
-                )
+            # since these are never used outside of a sample > 0 branch we can remove the need to
+            # generate (and potentially allocate) the random values. As at 2.3.5 the sampling method
+            # for random values accounts for 25% of the runtime of the losses step not including
+            # the get_event despite having a sample size of 0.
+            if sample_size > 0:
+                # generation of "base" random values for hazard intensity and vulnerability sampling
+                haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
+                vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
+                haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+                damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                # since these are never used outside of a sample > 0 branch we can remove the need to
-                # generate (and potentially allocate) the random values. As at 2.3.5 the sampling method
-                # for random values accounts for 25% of the runtime of the losses step not including
-                # the get_event despite having a sample size of 0.
-                if sample_size > 0:
-                    # generation of "base" random values for hazard intensity and vulnerability sampling
-                    haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
-                    vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
-                    haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
-                    damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
+            # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
+            cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached, compute_info)
 
-                # Reset CDF cache lookup per event (cached_vuln_cdfs array is reused, no reallocation)
-                cached_vuln_cdf_lookup, lookup_keys = gen_empty_vuln_cdf_lookup(Nvulns_cached, compute_info)
+            processing_done = False
+            while not processing_done:
+                try:
+                    processing_done = compute_event_losses(
+                        compute_info,
+                        coverages,
+                        compute,
+                        items_event_data,
+                        items,
+                        sample_size,
+                        haz_pdf,
+                        haz_arr_ptr,
+                        vuln_array,
+                        damage_bins,
+                        cached_vuln_cdf_lookup,
+                        lookup_keys,
+                        cached_vuln_cdfs,
+                        agg_vuln_to_vuln_idxs,
+                        areaperil_vuln_idx_to_weight,
+                        losses,
+                        haz_rndms_base,
+                        vuln_rndms_base,
+                        vuln_adj,
+                        haz_eps_ij,
+                        damage_eps_ij,
+                        norm_inv_parameters,
+                        norm_inv_cdf,
+                        norm_cdf,
+                        vuln_z_unif,
+                        haz_z_unif,
+                        byte_mv,
+                        dynamic_footprint,
+                        intensity_bin_dict
+                    )
+                except Exception:
+                    data = {
+                        "event_id": event_ids[0]
+                    }
+                    with open("event_error.json", "w") as f:
+                        json.dump(data, f, default=str)
 
-                processing_done = False
-                while not processing_done:
-                    try:
-                        processing_done = compute_event_losses(
-                            compute_info,
-                            coverages,
-                            compute,
-                            items_event_data,
-                            items,
-                            sample_size,
-                            haz_pdf,
-                            haz_arr_ptr,
-                            vuln_array,
-                            damage_bins,
-                            cached_vuln_cdf_lookup,
-                            lookup_keys,
-                            cached_vuln_cdfs,
-                            agg_vuln_to_vuln_idxs,
-                            areaperil_vuln_idx_to_weight,
-                            losses,
-                            haz_rndms_base,
-                            vuln_rndms_base,
-                            vuln_adj,
-                            haz_eps_ij,
-                            damage_eps_ij,
-                            norm_inv_parameters,
-                            norm_inv_cdf,
-                            norm_cdf,
-                            vuln_z_unif,
-                            haz_z_unif,
-                            byte_mv,
-                            dynamic_footprint,
-                            intensity_bin_dict
-                        )
-                    except Exception:
-                        data = {
-                            "event_id": event_ids[0]
-                        }
-                        with open("event_error.json", "w") as f:
-                            json.dump(data, f, default=str)
+                    logger.error(f"event id={event_ids[0]} failed in summary")
+                    raise
+                # write the losses to the output stream
+                write_start = 0
+                while write_start < compute_info['cursor']:
+                    select([], select_stream_list, select_stream_list)
+                    write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
 
-                        logger.error(f"event id={event_ids[0]} failed in summary")
-                        raise
-                    # write the losses to the output stream
-                    write_start = 0
-                    while write_start < compute_info['cursor']:
-                        select([], select_stream_list, select_stream_list)
-                        write_start += stream_out.write(memoryview(byte_mv[write_start: compute_info['cursor']]))
-
-                logger.info(f"event {event_ids[0]} DONE")
+            logger.info(f"event {event_ids[0]} DONE")
 
             counter += 1
             if ping and time.time() - timer > SERVER_UPDATE_TIME:
@@ -1289,8 +1301,8 @@ def reconstruct_coverages(compute_info,
     # for each item:
     #  - compute the seeds for the hazard intensity sampling and for the damage sampling
     #  - store data for later processing (hazard cdf index, etc.)
-    for areaperil_id in areaperil_ids:
-
+    for i in range(len(areaperil_ids)):
+        areaperil_id = areaperil_ids[i]
         for vuln_id in areaperil_ids_map[areaperil_id]:
             # register the items to their coverage
             item_key = tuple((areaperil_id, vuln_id))

@@ -53,6 +53,11 @@ parser.add_argument('--model-df-engine', help='The engine to use when loading mo
                     default='oasis_data_manager.df_reader.reader.OasisPandasReader')
 parser.add_argument('--dynamic-footprint', help='Apply dynamic footprint logic with intensity adjustments',
                     default=False)
+parser.add_argument('--footprint-format',
+                    help='Force a specific footprint format, bypassing auto-detection.\n'
+                         'Valid: OFPT, v2_parquet_nested, v2_parquet_flat, parquet_chunk,\n'
+                         '       parquet, binZ, bin, csv, parquet_dynamic',
+                    default=None, type=str, dest='footprint_format')
 parser.add_argument('--socket-server', help='Send progress updates to a local socket server with this url',
                     default='False')
 parser.add_argument('--analysis-pk', help='Only used by platform to link run to an analysis',

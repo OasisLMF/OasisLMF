@@ -14,6 +14,13 @@ import numpy as np
 import pandas as pd
 import numba as nb
 
+from numba.typed import Dict, List
+from numba.types import Tuple as nb_Tuple
+from numba.types import int32 as nb_int32
+from numba.types import int64 as nb_int64
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
+from oasislmf.pytools.gulmc.common import haz_arr_type
+
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
 from oasis_data_manager.filestore.backends.base import BaseStorage
@@ -25,7 +32,8 @@ from .common import (
     parquetfootprint_meta_filename, event_defintion_filename,
     hazard_case_filename, fp_format_priorities,
     parquetfootprint_chunked_dir,
-    parquetfootprint_chunked_lookup, footprint_bin_lookup
+    parquetfootprint_chunked_lookup, footprint_bin_lookup,
+    OFPT_dir, v2_parquet_nested_dir, v2_parquet_flat_dir
 )
 from oasislmf.pytools.common.data import footprint_event_dtype, areaperil_int
 
@@ -129,6 +137,27 @@ class Footprint:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
 
+    FORMAT_TO_CLASS = None  # populated after all subclasses are defined
+
+    @classmethod
+    def _get_format_to_class(cls):
+        """Get mapping from format name to Footprint subclass.
+
+        Returns:
+            dict: format name -> class
+        """
+        if cls.FORMAT_TO_CLASS is None:
+            cls.FORMAT_TO_CLASS = {
+                'OFPT': FootprintOFPT,
+                'v2_parquet_nested': FootprintV2ParquetNested,
+                'v2_parquet_flat': FootprintV2ParquetFlat,
+                'parquet_chunk': FootprintParquetChunk,
+                'parquet': FootprintParquet, 'csv': FootprintCsv,
+                'binZ': FootprintBinZ, 'bin': FootprintBin,
+                'parquet_dynamic': FootprintParquetDynamic,
+            }
+        return cls.FORMAT_TO_CLASS
+
     @staticmethod
     def get_footprint_fmt_priorities():
         """
@@ -136,12 +165,7 @@ class Footprint:
 
         Returns: (list) footprint file format classes
         """
-        format_to_class = {
-            'parquet_chunk': FootprintParquetChunk,
-            'parquet': FootprintParquet, 'csv': FootprintCsv,
-            'binZ': FootprintBinZ, 'bin': FootprintBin,
-            'parquet_dynamic': FootprintParquetDynamic,
-        }
+        format_to_class = Footprint._get_format_to_class()
         priorities = [format_to_class[fmt] for fmt in fp_format_priorities if fmt in format_to_class]
 
         return priorities
@@ -153,6 +177,7 @@ class Footprint:
         ignore_file_type=set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         areaperil_ids=None,
+        footprint_format=None,
         **kwargs
     ):
         """
@@ -172,15 +197,24 @@ class Footprint:
         Args:
             storage (BaseStorage): the storage object used to lookup files
             ignore_file_type (Set[str]): type of file to be skipped in the hierarchy. This can be a choice of:
+                parquet, json, z, bin, idx
+            footprint_format (str, optional): force a specific footprint format by name
+                (e.g. 'bin', 'binZ', 'OFPT', 'v2_parquet_nested', 'v2_parquet_flat').
+                Bypasses the priority scan when set. Defaults to None (auto-detect).
 
-            parquet
-            json
-            z
-            bin
-            idx
-
-        Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
+        Returns: (Footprint) the loaded footprint subclass instance
         """
+        if footprint_format is not None:
+            format_to_class = cls._get_format_to_class()
+            if footprint_format not in format_to_class:
+                raise OasisFootPrintError(
+                    message=f"Unknown footprint format '{footprint_format}'. "
+                    f"Valid formats: {', '.join(format_to_class.keys())}"
+                )
+            footprint_class = format_to_class[footprint_format]
+            logger.info(f"Using forced footprint format: {footprint_format}")
+            return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
+
         for footprint_class in cls.get_footprint_fmt_priorities():
             for filename in footprint_class.footprint_filenames:
                 if (not storage.exists(filename) or filename.rsplit('.', 1)[-1] in ignore_file_type):
@@ -229,6 +263,310 @@ class Footprint:
             self.areaperil_ids, min_areaperil_id, max_areaperil_id
         )
 
+@nb.njit(cache=True, nopython=True)
+def OFPT_process_event(oed_areaperils, event_areaperil_ids, cum_offsets, probabilities, intensity_bin_ids):
+    # init data structures
+    match_areaperil_ids = np.empty_like(event_areaperil_ids)
+    areaperil_to_haz_arr_i = Dict.empty(nb_areaperil_int, nb_oasis_int)
+
+    arr_ptr_start = 0
+    arr_ptr_end = 0
+    haz_pdf = np.empty(len(probabilities), dtype=haz_arr_type)  # max size
+    haz_arr_ptr = List([0])
+
+    match_ap_i = 0
+    present_ap_i = 0
+    event_ap_i = 0
+
+    while present_ap_i < len(oed_areaperils) and event_ap_i < len(event_areaperil_ids):
+        if oed_areaperils[present_ap_i] < event_areaperil_ids[event_ap_i]:
+            present_ap_i += 1
+            continue
+        if oed_areaperils[present_ap_i] > event_areaperil_ids[event_ap_i]:
+            event_ap_i += 1
+            continue
+        match_areaperil_ids[match_ap_i] = oed_areaperils[present_ap_i]
+        areaperil_to_haz_arr_i[oed_areaperils[present_ap_i]] = nb_int32(match_ap_i)
+        arr_ptr_end = arr_ptr_start + cum_offsets[event_ap_i + 1] - cum_offsets[event_ap_i]
+        haz_pdf['probability'][arr_ptr_start: arr_ptr_end] = probabilities[
+            cum_offsets[event_ap_i]: cum_offsets[event_ap_i + 1]]
+        haz_pdf['intensity_bin_id'][arr_ptr_start: arr_ptr_end] = intensity_bin_ids[
+            cum_offsets[event_ap_i]: cum_offsets[event_ap_i + 1]]
+
+        haz_arr_ptr.append(arr_ptr_end)
+        arr_ptr_start = arr_ptr_end
+
+        match_ap_i += 1
+        present_ap_i += 1
+        event_ap_i += 1
+
+    return (match_areaperil_ids[:match_ap_i],
+            match_ap_i,
+            areaperil_to_haz_arr_i,
+            haz_pdf[:arr_ptr_end],
+            haz_arr_ptr)
+
+
+class FootprintOFPT(Footprint):
+    footprint_filenames = ["footprint_OFPT"]
+
+    def __enter__(self):
+        from oasislmf.pytools.common.ofpt import NpMemMap, OFPTScanner
+        from pathlib import Path
+        root_dir = "/home/sstruzik/OasisPiWind/model_data/PiWind/"
+        OFPT_DIR = Path(root_dir, "footprint_OFPT")
+        self.OFPT_scanner = OFPTScanner(OFPT_DIR, NpMemMap)
+
+        self.num_intensity_bins = pd.read_csv('static/intensity_bin_dict.csv')['bin_index'].max() + 1
+
+        return self
+
+    def get_event(self, event_id):
+        return self.OFPT_scanner.get_event(event_id, self.areaperil_ids)
+        event_header, event_chunks = self.OFPT_scanner.get_event_info(event_id)
+        if has_number_in_range(self.areaperil_ids, event_chunks["min_areaperil_id"], event_chunks["max_areaperil_id"]):
+            self.OFPT_scanner.get_event(event_header, event_chunks, self.areaperil_ids)
+        else:
+            return None
+        breakpoint()
+
+        # # event_id to file hex
+        # event_hex = f"{event_id:08x}"
+        # even_file = f"{OFPT_dir}/{event_hex[:2]}/{event_hex[2:4]}/{event_hex[4:6]}.ofpt"
+        # if self.cur_file != even_file: # new event we need to load:
+        #     self.cur_file = even_file
+        # event_header, event_chunks = self.OFPT_scanner.get_event_info(event_id)
+
+    def get_event_items(self, event_id,
+                        oed_areaperils,
+                        dynamic_footprint):
+        """
+        areaperil_to_haz_arr_i should not be a dict
+
+
+        Args:
+            event_id:
+            oed_areaperils:
+            dynamic_footprint:
+
+        Returns:
+
+        """
+        event_chunk =  self.get_event(event_id)
+        if event_chunk is None:
+            return None, 0, None, None, None
+        return OFPT_process_event(oed_areaperils, *event_chunk)
+
+
+class FootprintV2ParquetNested(Footprint):
+    """Footprint loader for V2 nested Parquet format.
+
+    Reads from the ``footprint_v2_nested/footprint/`` directory tree.
+    Each file holds up to 256 events. Each row contains one (event_id,
+    areaperils_id) pair with list columns for probabilities and
+    intensity_bin_ids.
+    """
+    footprint_filenames = [v2_parquet_nested_dir]
+
+    def __enter__(self):
+        import pyarrow.parquet as pq
+
+        self.fp_root = os.path.join(self.storage.root_dir, v2_parquet_nested_dir, "footprint")
+
+        # Read metadata from the first parquet file found
+        for dirpath, _, filenames in os.walk(self.fp_root):
+            for fname in sorted(filenames):
+                if fname.endswith(".parquet"):
+                    meta = pq.read_metadata(os.path.join(dirpath, fname))
+                    custom = meta.schema.to_arrow_schema().metadata
+                    self.num_intensity_bins = int(custom[b"oasis:max_intensity_bin_id"])
+                    self.has_intensity_uncertainty = int(custom[b"oasis:has_intensity_uncertainty"])
+                    return self
+
+        raise OasisFootPrintError("No parquet files found in footprint_v2_nested")
+
+    def _event_path(self, event_id):
+        """Compute the parquet file path for a given event_id.
+
+        Args:
+            event_id (int): The event identifier.
+
+        Returns:
+            str: Absolute path to the parquet file.
+        """
+        b3 = (event_id >> 24) & 0xFF
+        b2 = (event_id >> 16) & 0xFF
+        b1 = (event_id >> 8) & 0xFF
+        return os.path.join(self.fp_root, f"{b3:02X}", f"{b2:02X}", f"{b1:02X}.parquet")
+
+    def get_event(self, event_id):
+        """Get event data in columnar format from nested parquet.
+
+        Args:
+            event_id (int): The event identifier.
+
+        Returns:
+            tuple or None: (areaperil_ids, cum_offsets, probabilities, intensity_bin_ids)
+                or None if the event is not found.
+        """
+        import pyarrow.parquet as pq
+        import pyarrow.compute as pc
+
+        path = self._event_path(event_id)
+        if not os.path.exists(path):
+            return None
+
+        table = pq.read_table(path, filters=[("event_id", "=", int(event_id))])
+        if len(table) == 0:
+            return None
+
+        # Sort by areaperils_id
+        table = table.sort_by("areaperils_id")
+
+        areaperils_ids = table["areaperils_id"].combine_chunks().to_numpy().astype(areaperil_int)
+        prob_list = table["probabilities"]
+        bin_list = table["intensity_bin_ids"]
+
+        # Flatten list columns
+        flat_probs = pc.list_flatten(prob_list).combine_chunks().to_numpy().astype(np.float32)
+        flat_bins = pc.list_flatten(bin_list).combine_chunks().to_numpy().astype(np.int32)
+
+        # Build cumulative offsets (scenarios per areaperil)
+        n_per_row = pc.list_value_length(prob_list).combine_chunks().to_numpy()
+        cum_offsets = np.zeros(len(n_per_row) + 1, dtype=np.int32)
+        np.cumsum(n_per_row, out=cum_offsets[1:])
+
+        return areaperils_ids, cum_offsets, flat_probs, flat_bins
+
+    def get_event_items(self, event_id, oed_areaperils, dynamic_footprint):
+        """Get filtered event data ready for gulmc processing.
+
+        Args:
+            event_id (int): The event identifier.
+            oed_areaperils (np.ndarray): Sorted array of OED areaperil IDs.
+            dynamic_footprint: Dynamic footprint flag (unused).
+
+        Returns:
+            tuple: (areaperil_ids, count, areaperil_to_haz_arr_i, haz_pdf, haz_arr_ptr)
+        """
+        event_chunk = self.get_event(event_id)
+        if event_chunk is None:
+            return None, 0, None, None, None
+        return OFPT_process_event(oed_areaperils, *event_chunk)
+
+
+class FootprintV2ParquetFlat(Footprint):
+    """Footprint loader for V2 flat Parquet format.
+
+    Reads from the ``footprint_v2_flat/footprint/`` directory tree.
+    Each file holds up to 256 events. Each row contains one
+    (event_id, areaperils_id, scenario_index, intensity_index) tuple
+    with scalar columns.
+    """
+    footprint_filenames = [v2_parquet_flat_dir]
+
+    def __enter__(self):
+        import pyarrow.parquet as pq
+
+        self.fp_root = os.path.join(self.storage.root_dir, v2_parquet_flat_dir, "footprint")
+
+        # Read metadata from the first parquet file found
+        for dirpath, _, filenames in os.walk(self.fp_root):
+            for fname in sorted(filenames):
+                if fname.endswith(".parquet"):
+                    meta = pq.read_metadata(os.path.join(dirpath, fname))
+                    custom = meta.schema.to_arrow_schema().metadata
+                    self.num_intensity_bins = int(custom[b"oasis:max_intensity_bin_id"])
+                    self.has_intensity_uncertainty = int(custom[b"oasis:has_intensity_uncertainty"])
+                    return self
+
+        raise OasisFootPrintError("No parquet files found in footprint_v2_flat")
+
+    def _event_path(self, event_id):
+        """Compute the parquet file path for a given event_id.
+
+        Args:
+            event_id (int): The event identifier.
+
+        Returns:
+            str: Absolute path to the parquet file.
+        """
+        b3 = (event_id >> 24) & 0xFF
+        b2 = (event_id >> 16) & 0xFF
+        b1 = (event_id >> 8) & 0xFF
+        return os.path.join(self.fp_root, f"{b3:02X}", f"{b2:02X}", f"{b1:02X}.parquet")
+
+    def get_event(self, event_id):
+        """Get event data in columnar format from flat parquet.
+
+        Args:
+            event_id (int): The event identifier.
+
+        Returns:
+            tuple or None: (areaperil_ids, cum_offsets, probabilities, intensity_bin_ids)
+                or None if the event is not found.
+        """
+        import pyarrow.parquet as pq
+
+        path = self._event_path(event_id)
+        if not os.path.exists(path):
+            return None
+
+        table = pq.read_table(path, filters=[("event_id", "=", int(event_id))])
+        if len(table) == 0:
+            return None
+
+        df = table.to_pandas()
+        df = df.sort_values(["areaperils_id", "scenario_index", "intensity_index"])
+
+        areaperils_ids_list = []
+        cum_offsets = [0]
+        all_probs = []
+        all_bins = []
+
+        for apid, grp in df.groupby("areaperils_id", sort=True):
+            areaperils_ids_list.append(apid)
+            k = int(grp["intensity_index"].max()) + 1
+
+            if k == 1:
+                # Each row is one scenario
+                n_scenarios = len(grp)
+                all_probs.extend(grp["probability"].values.tolist())
+                all_bins.extend(grp["intensity_bin_id"].values.tolist())
+                cum_offsets.append(cum_offsets[-1] + n_scenarios)
+            else:
+                # K>1: group by scenario, collect bins in column-major order
+                probs = grp[grp["intensity_index"] == 0].sort_values("scenario_index")["probability"].values
+                n_scenarios = len(probs)
+                all_probs.extend(probs.tolist())
+                for iidx in range(k):
+                    type_bins = grp[grp["intensity_index"] == iidx].sort_values("scenario_index")["intensity_bin_id"].values
+                    all_bins.extend(type_bins.tolist())
+                cum_offsets.append(cum_offsets[-1] + n_scenarios)
+
+        return (
+            np.array(areaperils_ids_list, dtype=areaperil_int),
+            np.array(cum_offsets, dtype=np.int32),
+            np.array(all_probs, dtype=np.float32),
+            np.array(all_bins, dtype=np.int32),
+        )
+
+    def get_event_items(self, event_id, oed_areaperils, dynamic_footprint):
+        """Get filtered event data ready for gulmc processing.
+
+        Args:
+            event_id (int): The event identifier.
+            oed_areaperils (np.ndarray): Sorted array of OED areaperil IDs.
+            dynamic_footprint: Dynamic footprint flag (unused).
+
+        Returns:
+            tuple: (areaperil_ids, count, areaperil_to_haz_arr_i, haz_pdf, haz_arr_ptr)
+        """
+        event_chunk = self.get_event(event_id)
+        if event_chunk is None:
+            return None, 0, None, None, None
+        return OFPT_process_event(oed_areaperils, *event_chunk)
+
 
 class FootprintCsv(Footprint):
     """
@@ -243,7 +581,6 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
-        self.reader = pd.read_csv()
         self.reader = self.get_df_reader("footprint.csv", dtype=footprint_event_dtype)
 
         self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())

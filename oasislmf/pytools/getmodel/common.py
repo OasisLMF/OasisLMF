@@ -8,6 +8,7 @@ from oasislmf.pytools.common.data import areaperil_int, oasis_float
 
 # Footprint file formats in order of priority
 fp_format_priorities = [
+    'OFPT', 'v2_parquet_nested', 'v2_parquet_flat',
     'parquet_chunk', 'parquet', 'binZ', 'bin', 'csv', 'parquet_dynamic'
 ]
 
@@ -25,6 +26,9 @@ footprint_csv_lookup = 'footprint_lookup.csv'
 parquetfootprint_meta_filename = 'footprint_parquet_meta.json'
 event_defintion_filename = 'event_definition.parquet'
 hazard_case_filename = 'hazard_case.parquet'
+OFPT_dir = 'footprint_OFPT'
+v2_parquet_nested_dir = 'footprint_v2_nested'
+v2_parquet_flat_dir = 'footprint_v2_flat'
 
 
 FootprintHeader = nb.from_dtype(np.dtype([('num_intensity_bins', np.int32),
