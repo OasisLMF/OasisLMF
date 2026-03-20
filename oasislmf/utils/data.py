@@ -169,16 +169,16 @@ DEFAULT_LOC_FIELD_TYPES = [{'field_col': 'BIWaitingPeriod',
 
 DEFAULT_ADDITIONAL_FIELDS = {
     'Loc': {
-        'acc_id': {'pd_dtype': 'Int64'},
-        'loc_id': {'pd_dtype': 'Int64'},
-        'loc_idx': {'pd_dtype': 'Int64'},
-        'BIWaitingPeriodType': {'pd_dtype': 'Int8'},
-        'BIPOIType': {'pd_dtype': 'Int8'}
+        'acc_id': {'pd_dtype': 'Int64', 'pa_dtype': 'int64[pyarrow]'},
+        'loc_id': {'pd_dtype': 'Int64', 'pa_dtype': 'int64[pyarrow]'},
+        'loc_idx': {'pd_dtype': 'Int64', 'pa_dtype': 'int64[pyarrow]'},
+        'BIWaitingPeriodType': {'pd_dtype': 'Int8', 'pa_dtype': 'int64[pyarrow]'},
+        'BIPOIType': {'pd_dtype': 'Int8', 'pa_dtype': 'int64[pyarrow]'}
     },
     'Acc': {
-        'acc_id': {'pd_dtype': 'Int64'},
-        'acc_idx': {'pd_dtype': 'Int64'},
-        'layer_id': {'pd_dtype': 'Int64'}
+        'acc_id': {'pd_dtype': 'Int64', 'pa_dtype': 'int64[pyarrow]'},
+        'acc_idx': {'pd_dtype': 'Int64', 'pa_dtype': 'int64[pyarrow]'},
+        'layer_id': {'pd_dtype': 'Int64', 'pa_dtype': 'int64[pyarrow]'}
     },
     'ReinsInfo': {
     },
@@ -870,7 +870,8 @@ def get_exposure_data(computation_step, add_internal_col=False):
             if hasattr(computation_step, 'oasis_files_dir') and Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME).is_file():
                 logger.debug(f"Exposure data is read from {Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME)}")
                 exposure_data = OedExposure.from_config(Path(computation_step.oasis_files_dir, OedExposure.DEFAULT_EXPOSURE_CONFIG_NAME),
-                                                        additional_fields=DEFAULT_ADDITIONAL_FIELDS)
+                                                        additional_fields=DEFAULT_ADDITIONAL_FIELDS,
+                                                        backend_dtype=getattr(computation_step, 'oed_backend_dtype', None))
             elif hasattr(computation_step, 'get_exposure_data_config'):  # if computation step input specify ExposureData config
                 logger.debug("Exposure data is generated from `get_exposure_data_config` key of computation kwargs")
                 data_config = computation_step.get_exposure_data_config()
