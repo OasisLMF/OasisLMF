@@ -121,6 +121,9 @@ class BinScanner:
     footprint_filename = 'footprint.bin'
     footprint_index_filename = 'footprint.idx'
 
+    z_footprint_filename = 'footprint.bin.z'
+    z_footprint_index_filename = 'footprint.idx.z'
+
     footprint_bin_header = np.dtype([
         ('num_intensity_bins', np.int32),
         ('has_intensity_uncertainty', np.int32)
@@ -138,9 +141,18 @@ class BinScanner:
     ])
 
     def __init__(self, bin_root_dir, reader:Reader):
-        import os
-        self.footprint_path = os.path.join(bin_root_dir, self.footprint_filename)
-        self.footprint_index_path = os.path.join(bin_root_dir, self.footprint_index_filename)
+        footprint_path = Path(bin_root_dir, self.footprint_filename)
+        footprint_index_path = Path(bin_root_dir, self.footprint_index_filename)
+        if Path(bin_root_dir, self.footprint_filename).exists() and Path(bin_root_dir, self.footprint_index_filename).exists():
+            self.footprint_path = Path(bin_root_dir, self.footprint_filename)
+            self.footprint_index_path = Path(bin_root_dir, self.footprint_index_filename)
+            self.compressed = False
+        elif Path(bin_root_dir, self.z_footprint_filename).exists() and Path(bin_root_dir, self.z_footprint_index_filename).exists():
+            self.footprint_path = Path(bin_root_dir, self.z_footprint_filename)
+            self.footprint_index_path = Path(bin_root_dir, self.z_footprint_index_filename)
+            self.compressed = True
+        else:
+            raise FileNotFoundError(f"no footprint founf in {bin_root_dir}")
 
         # I need an interface for the reader but not clear yet
         self.footprint_reader = reader(self.footprint_path, mode='r')
@@ -152,7 +164,12 @@ class BinScanner:
         sorted_event_id_indices = np.argsort(self.footprint_index['event_id'])
         for event_i in sorted_event_id_indices:
             event_info = self.footprint_index[event_i]
-            yield event_info, np.frombuffer(self.footprint_reader.read_bytes_range(event_info['offset'], event_info['offset'] + event_info['size']), dtype=self.Event_dtype)
+            raw_footprint = self.footprint_reader.read_bytes_range(event_info['offset'], event_info['offset'] + event_info['size'])
+            if self.compressed:
+                yield event_info, np.frombuffer(zlib.decompress(raw_footprint), dtype=self.Event_dtype)
+            else:
+                yield event_info, np.frombuffer(raw_footprint, dtype=self.Event_dtype)
+
 
 class OFPTScanner:
     def __init__(self, root_dir, reader_interface):
@@ -445,8 +462,11 @@ if __name__ == "__main__":
     #     print(event_data)
     #     break
     import shutil
+    import sys
 
-    root_dir = "/home/sstruzik/OasisPiWind/model_data/PiWind/"
+    #root_dir = "/home/sstruzik/OasisPiWind/model_data/PiWind/
+    #root_dir = "/home/sstruzik/BangladeshCyclone/model_data"
+    root_dir = Path(sys.argv[1])
     OFPT_DIR = Path(root_dir, "footprint_OFPT")
     shutil.rmtree(OFPT_DIR, ignore_errors=True)
     bin_to_OFPF(root_dir, OFPT_DIR)
