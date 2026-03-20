@@ -636,7 +636,7 @@ def run(run_dir,
     return 0
 
 
-# @nb.njit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def get_haz_cdf(item_event_data, haz_cdf, haz_cdf_ptr, dynamic_footprint, intensity_adjustment, intensity_bin_dict):
     # get the right hazard cdf from the array containing all hazard cdfs
     hazcdf_i = item_event_data['hazcdf_i']
