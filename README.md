@@ -66,7 +66,7 @@ The reusable libraries are organised into several sub-packages, the most relevan
 
 Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency of the MDK we are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is version `1.3.3` (published 12/03/2019).
 
-Also for this release (and all future releases) a **minimum of Python 3.9 is required**.
+Also for this release (and all future releases) a **minimum of Python 3.10 is required**.
 
 
 ## Installation
@@ -82,6 +82,19 @@ Alternatively you can install the latest development version using:
 You can also install from a specific branch `<branch name>` using:
 
     pip install [-v] git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
+
+### macOS Apple Silicon (M1/M2/M3/M4)
+
+OasisLMF installs natively on Apple Silicon Macs via `pip install oasislmf`. Ensure you have:
+
+- **Python 3.10+** (the system Python on macOS is 3.9 — install via `brew install python@3.12` or pyenv)
+- **macOS 12 (Monterey) or later** (required for scipy ARM64 wheels)
+
+For optional geospatial extras (`pip install oasislmf[extra]`), also install:
+
+    brew install spatialindex geos
+
+See [docs/installation_for_mac.md](docs/installation_for_mac.md) for full details, troubleshooting, and ktools information.
 
 ## Enable Bash completion
 
