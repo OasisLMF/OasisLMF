@@ -36,8 +36,6 @@ class GenbashBase(TestCase):
         cls.bash_trace = False
         cls.stderr_guard = False
 
-        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_')
-
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)

@@ -4,6 +4,7 @@ This file contains general-purpose utilities.
 import logging
 import numpy as np
 import os
+import shutil
 import tempfile
 import uuid
 
@@ -64,8 +65,9 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     """
     def inner(func):
         def wrapper(*args, **kwargs):
-            _log_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_') \
-                if os.environ.get('OASIS_PYTEST_TMP_LOGDIR') else log_dir
+            _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_') \
+                if os.environ.get('OASIS_PYTEST_TMP_LOGDIR') else None
+            _log_dir = _tmp_dir or log_dir
             if not os.path.isdir(_log_dir):
                 os.makedirs(_log_dir)
             logging_config = logging.root.manager.loggerDict.keys()
@@ -114,6 +116,8 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                 logger.removeHandler(rootFileHandler)
                 logging.shutdown()
                 logging.captureWarnings(False)
+                if _tmp_dir:
+                    shutil.rmtree(_tmp_dir, ignore_errors=True)
         return wrapper
     return inner
 
