@@ -195,6 +195,8 @@ class OFPTScanner:
         assert self.file_footer['magic'] == magic_footer
         assert self.file_footer['footer_size'] == self.trailing_locator['footer_size']
 
+        self.ap_dtype = nb.from_dtype(np.dtype(f"<u{self.file_footer['areaperil_width']}"))
+
         self.slot_table, backward_cursor = complex_reverse_mv_read(self.footer_buffer, backward_cursor, slot_table_dtype, slot_table_len)
         assert (zlib.crc32(self.slot_table.tobytes()) & 0xFFFFFFFF) == self.file_footer['slot_table_crc32']
 
@@ -218,6 +220,7 @@ class OFPTScanner:
         event_start = self.slot_table[slot_i]['event_footer_offset']
         event_end = event_start + self.slot_table[slot_i]['event_footer_size']
         event_footer = self.event_footer_bloc[event_start: event_end]
+
 
         event_footer_bloc_header = np.frombuffer(event_footer[:event_footer_bloc_header_dtype_u4.itemsize], dtype=event_footer_bloc_header_dtype_u4)[0]
         assert event_footer_bloc_header['magic'] == magic_event
@@ -251,13 +254,13 @@ class OFPTScanner:
             return None
         for event_footer_bloc_chunk in event_footer_bloc_chunks:
             if has_number_in_range(areaperil_ids, event_footer_bloc_chunk["min_areaperil_id"], event_footer_bloc_chunk["max_areaperil_id"]):
-                areaperil_ids, cum_offsets, probabilities, intensity_bin_ids = decode_chunk(self.get_event_chunk(event_footer_bloc_chunk), areaperil_width=self.file_footer['areaperil_width'])
+                areaperil_ids, cum_offsets, probabilities, intensity_bin_ids = decode_chunk(self.get_event_chunk(event_footer_bloc_chunk),
+                                                                                            ap_dtype=self.ap_dtype,
+                                                                                            ap_size=self.file_footer['areaperil_width'])
                 return areaperil_ids, cum_offsets, probabilities, intensity_bin_ids
 
-
-def decode_chunk(raw, areaperil_width=4):
-    ap_dtype = f'<u{areaperil_width}'
-    ap_size = areaperil_width
+@nb.njit(cache=True)
+def decode_chunk(raw, ap_dtype, ap_size):
     cursor = 0
 
     num_areaperils = np.frombuffer(raw[cursor:cursor + ap_size], dtype=ap_dtype)[0]

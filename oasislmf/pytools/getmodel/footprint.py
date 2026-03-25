@@ -263,7 +263,7 @@ class Footprint:
             self.areaperil_ids, min_areaperil_id, max_areaperil_id
         )
 
-@nb.njit(cache=True, nopython=True)
+@nb.njit(cache=True)
 def OFPT_process_event(oed_areaperils, event_areaperil_ids, cum_offsets, probabilities, intensity_bin_ids):
     # init data structures
     match_areaperil_ids = np.empty_like(event_areaperil_ids)
