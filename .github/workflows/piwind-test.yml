@@ -45,7 +45,7 @@ on:
 jobs:
   build_platform:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' }}
-    uses: OasisLMF/OasisPlatform/.github/workflows/build-images.yml@main
+    uses: OasisLMF/OasisPlatform/.github/workflows/build-images.yml@fix/stalled-ci-pipeline
     secrets: inherit
     with:
       docker_push: 'true'
@@ -56,7 +56,7 @@ jobs:
   platform1:
     if: ${{ !failure() && !cancelled() }}
     needs: [build_platform]
-    uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
+    uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@adjust-ci-for-plat-build
     secrets: inherit
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix/add-testing-timeout' || inputs.piwind_branch }}
