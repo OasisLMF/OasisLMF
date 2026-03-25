@@ -77,7 +77,7 @@ jobs:
     uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
     secrets: inherit
     with:
-      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix/add-testing-timeout' || inputs.piwind_branch }}
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }
       oasislmf_branch: ${{ github.ref_name }}
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
       worker_image: coreoasis/github-actions
