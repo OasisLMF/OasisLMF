@@ -1452,10 +1452,39 @@ class APIClientTests(unittest.TestCase):
             sub_task_data = json.load(f)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
-            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(sub_task_url, json=sub_task_data)
-            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.post(exec_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_QUEUED",
+                "sub_task_list": "http://some-url",
+                'run_mode': 'V2',
+                "status_count": {
+                    "CANCELLED": 0,
+                    "COMPLETED": 0,
+                    "ERROR": 0,
+                    "PENDING": 0,
+                    "QUEUED": 10,
+                    "STARTED": 0,
+                    "TOTAL": 10,
+                    "TOTAL_IN_QUEUE": 10
+                }
+            })
+            rsps.get(expected_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_STARTED",
+                "sub_task_list":
+                "http://some-url",
+                'run_mode': 'V2',
+                "status_count": {
+                    "CANCELLED": 0,
+                    "COMPLETED": 6,
+                    "ERROR": 0,
+                    "PENDING": 0,
+                    "QUEUED": 2,
+                    "STARTED": 2,
+                    "TOTAL": 10,
+                    "TOTAL_IN_QUEUE": 2
+                }
+            })
             rsps.get(expected_url, json={"id": ID, "status": "READY"})
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
             self.assertTrue(result)
@@ -1471,10 +1500,38 @@ class APIClientTests(unittest.TestCase):
             sub_task_data = json.load(f)
 
         with responses.RequestsMock(assert_all_requests_are_fired=True, registry=OrderedRegistry) as rsps:
-            rsps.post(exec_url, json={"id": ID, "status": "INPUTS_GENERATION_QUEUED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_STARTED", "sub_task_list": "http://some-url", 'run_mode': 'V2'})
-            rsps.get(sub_task_url, json=sub_task_data)
-            rsps.get(sub_task_url, json=sub_task_data)
+            rsps.post(exec_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_QUEUED",
+                "sub_task_list": "http://some-url",
+                "run_mode": "V2",
+                "status_count": {
+                    "CANCELLED": 0,
+                    "COMPLETED": 0,
+                    "ERROR": 0,
+                    "PENDING": 0,
+                    "QUEUED": 10,
+                    "STARTED": 0,
+                    "TOTAL": 10,
+                    "TOTAL_IN_QUEUE": 10
+                }
+            })
+            rsps.get(expected_url, json={
+                "id": ID,
+                "status": "INPUTS_GENERATION_STARTED",
+                "sub_task_list": "http://some-url",
+                "run_mode": "V2",
+                "status_count": {
+                    "CANCELLED": 0,
+                    "COMPLETED": 6,
+                    "ERROR": 0,
+                    "PENDING": 0,
+                    "QUEUED": 2,
+                    "STARTED": 2,
+                    "TOTAL": 10,
+                    "TOTAL_IN_QUEUE": 2
+                }
+            })
             rsps.get(expected_url, json={"id": ID, "status": "INPUTS_GENERATION_CANCELLED"})
             result = self.client.run_generate(analysis_id=ID, poll_interval=0.1)
             self.assertFalse(result)
