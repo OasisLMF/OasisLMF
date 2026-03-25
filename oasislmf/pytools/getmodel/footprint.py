@@ -312,14 +312,40 @@ class FootprintOFPT(Footprint):
 
     def __enter__(self):
         from oasislmf.pytools.common.ofpt import NpMemMap, OFPTScanner
-        from pathlib import Path
-        root_dir = "/home/sstruzik/OasisPiWind/model_data/PiWind/"
-        OFPT_DIR = Path(root_dir, "footprint_OFPT")
-        self.OFPT_scanner = OFPTScanner(OFPT_DIR, NpMemMap)
 
-        self.num_intensity_bins = pd.read_csv('static/intensity_bin_dict.csv')['bin_index'].max() + 1
+        ofpt_dir = os.path.join(self.storage.root_dir, OFPT_dir)
+        self.OFPT_scanner = OFPTScanner(ofpt_dir, NpMemMap)
+
+        self.num_intensity_bins = self._read_num_intensity_bins()
 
         return self
+
+    def _read_num_intensity_bins(self):
+        """Read num_intensity_bins from footprint.bin or footprint.bin.z header.
+
+        Returns:
+            int: Number of intensity bins.
+        """
+        try:
+            with self.storage.with_fileno(footprint_filename) as f:
+                fp = mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ)
+                header = np.frombuffer(bytearray(fp[:FootprintHeader.size]), dtype=FootprintHeader)
+                fp.close()
+                return int(header['num_intensity_bins'].item())
+        except FileNotFoundError:
+            pass
+
+        try:
+            with self.storage.with_fileno(zfootprint_filename) as f:
+                fp = mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ)
+                header = np.frombuffer(bytearray(fp[:FootprintHeader.size]), dtype=FootprintHeader)
+                fp.close()
+                return int(header['num_intensity_bins'].item())
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Cannot determine num_intensity_bins: neither {footprint_filename} "
+                f"nor {zfootprint_filename} found in {self.storage.root_dir}"
+            )
 
     def get_event(self, event_id):
         return self.OFPT_scanner.get_event(event_id, self.areaperil_ids)
