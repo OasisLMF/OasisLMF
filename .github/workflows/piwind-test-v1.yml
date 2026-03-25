@@ -68,7 +68,7 @@ jobs:
       cve_severity: 'SKIP'
       docker_push: 'true'
       checkout_ref: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }}
-      oasislmf_branch: ${{ github.ref_name }}
+      oasislmf_branch: ${{ github.ref }}
       ods_branch: ${{ inputs.ods_branch }}
 
   platform1:

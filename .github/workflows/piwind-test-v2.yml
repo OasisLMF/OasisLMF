@@ -78,7 +78,7 @@ jobs:
     secrets: inherit
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
-      oasislmf_branch: ${{ github.ref_name }}
+      oasislmf_branch: ${{ github.ref }}
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
       worker_image: coreoasis/github-actions
       worker_tag: model_worker-${{ needs.check_images.outputs.platform_sha }}
