@@ -17,6 +17,7 @@ Usage:
 import argparse
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
 
@@ -585,19 +586,49 @@ def v1_bin_to_flat_parquet(bin_root_dir, parquet_root_dir,
                             reader_interface)
 
 
+def _v1_event_to_columnar_k1(event_data):
+    """Fast columnar conversion for V1 K=1 data.
+
+    Avoids the 2-key lexsort and 2D reshape of event_to_columnar.
+
+    Args:
+        event_data (np.ndarray): V1 event array with dtype
+            (areaperil_id u4, intensity_bin_id i4, probability f4).
+
+    Returns:
+        tuple: (areaperil_ids, cum_offsets, probabilities, intensity_bin_ids).
+            All 1-D arrays; intensity_bin_ids is flat (K=1).
+    """
+    sorted_idx = np.argsort(event_data['areaperil_id'], kind='mergesort')
+    sorted_data = event_data[sorted_idx]
+
+    areaperil_ids, counts = np.unique(
+        sorted_data['areaperil_id'], return_counts=True)
+
+    cum_offsets = np.empty(len(areaperil_ids) + 1, dtype=np.int32)
+    cum_offsets[0] = 0
+    np.cumsum(counts, out=cum_offsets[1:])
+
+    return (areaperil_ids, cum_offsets,
+            sorted_data['probability'],
+            sorted_data['intensity_bin_id'])
+
+
 def _v1_bin_to_parquet_tree(bin_root_dir, parquet_root_dir, schema_type,
-                            reader_interface=NpMemMap):
+                            reader_interface=NpMemMap, max_workers=None):
     """Convert V1 footprint binary to a Parquet directory tree.
 
     Reads from footprint.bin / footprint.bin.z using BinScanner,
     converts each event's data to columnar form, groups events by
     path key (upper 3 bytes), and writes one Parquet file per group.
+    Uses ThreadPoolExecutor to write files in parallel.
 
     Args:
         bin_root_dir (str): Directory with footprint.bin and footprint.idx.
         parquet_root_dir (str): Root output directory.
         schema_type (str): "nested" or "flat".
         reader_interface: Reader class.
+        max_workers (int or None): Thread pool size (default: cpu_count, max 8).
     """
     if schema_type not in ("nested", "flat"):
         raise ValueError(
@@ -606,117 +637,144 @@ def _v1_bin_to_parquet_tree(bin_root_dir, parquet_root_dir, schema_type,
     scanner = BinScanner(bin_root_dir, reader_interface)
     total_events = len(scanner.footprint_index)
 
+    if max_workers is None:
+        max_workers = min(os.cpu_count() or 4, 8)
+
+    flush_fn = _flush_nested_fast if schema_type == "nested" else _flush_flat_fast
+
     cur_path_key = None
     cur_events = []
+    futures = []
 
-    def flush_events(events, path_key):
-        """Write accumulated events to a single Parquet file."""
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+
+    def submit_flush(events):
+        """Submit a group of events for async Parquet write."""
         if not events:
             return
-
         sample_eid = events[0][0]
         rel_path = event_id_to_path(sample_eid, ext="parquet")
         abs_path = os.path.join(parquet_root_dir, rel_path)
+        fut = executor.submit(flush_fn, events, abs_path)
+        futures.append(fut)
+        # Backpressure: if too many in-flight, wait for one
+        if len(futures) > max_workers * 2:
+            done = futures.pop(0)
+            done.result()
 
-        if schema_type == "nested":
-            _flush_nested(events, abs_path)
-        else:
-            _flush_flat(events, abs_path)
+    try:
+        for event_info, event_data in tqdm(scanner.sorted_iter(),
+                                           total=total_events,
+                                           desc="V1 bin -> Parquet",
+                                           unit="event"):
+            event_id = int(event_info['event_id'])
+            path_key = (event_id >> 8) & 0xFFFFFF
 
-    for event_info, event_data in tqdm(scanner.sorted_iter(),
-                                       total=total_events,
-                                       desc="V1 bin -> Parquet",
-                                       unit="event"):
-        event_id = int(event_info['event_id'])
-        path_key = (event_id >> 8) & 0xFFFFFF
+            if cur_path_key is not None and path_key != cur_path_key:
+                submit_flush(cur_events)
+                cur_events = []
 
-        if cur_path_key is not None and path_key != cur_path_key:
-            flush_events(cur_events, cur_path_key)
-            cur_events = []
+            cur_path_key = path_key
+            areaperil_ids, cum_offsets, probabilities, intensity_bin_ids = \
+                _v1_event_to_columnar_k1(event_data)
+            cur_events.append(
+                (event_id, areaperil_ids, cum_offsets, probabilities,
+                 intensity_bin_ids, 1))
 
-        cur_path_key = path_key
-        areaperil_ids, cum_offsets, probabilities, intensity_bin_ids = \
-            event_to_columnar(event_data)
-        # event_to_columnar returns intensity_bin_ids as (T, K) row-major.
-        # Convert to (K*T,) column-major to match the OFPT/Parquet convention.
-        k = intensity_bin_ids.shape[1] if intensity_bin_ids.ndim == 2 else 1
-        if intensity_bin_ids.ndim == 2:
-            t = intensity_bin_ids.shape[0]
-            # Column-major: all type-0 bins, then type-1, etc.
-            intensity_bin_ids = intensity_bin_ids.T.ravel()
-        cur_events.append(
-            (event_id, areaperil_ids, cum_offsets, probabilities,
-             intensity_bin_ids, k))
+        submit_flush(cur_events)
 
-    flush_events(cur_events, cur_path_key)
+        # Wait for all remaining writes
+        for fut in futures:
+            fut.result()
+    finally:
+        executor.shutdown(wait=False)
 
 
-def _flush_nested(events, parquet_path):
-    """Write a list of events as a single nested Parquet file.
+def _flush_nested_fast(events, parquet_path):
+    """Vectorized write of events as a nested Parquet file (K=1 fast path).
+
+    Builds pa.ListArray directly from concatenated numpy arrays and
+    offset arithmetic — no per-areaperil Python loops.
 
     Args:
         events (list): List of (event_id, areaperil_ids, cum_offsets,
             probabilities, intensity_bin_ids, k) tuples.
         parquet_path (str): Output path.
     """
-    all_event_ids = []
-    all_areaperils_ids = []
-    all_probabilities = []
-    all_intensity_bin_ids = []
+    event_id_parts = []
+    areaperil_id_parts = []
+    prob_values_parts = []
+    bin_values_parts = []
+    offsets_parts = []
+    running_offset = np.int32(0)
     has_uncertainty = False
     max_bin = 0
     k_max = 0
-    ap_set = set()
+    n_unique_aps = 0
 
     for event_id, areaperil_ids, cum_offsets, probabilities, intensity_bin_ids, k in events:
         if k > k_max:
             k_max = k
 
         m = len(areaperil_ids)
-        t = int(cum_offsets[-1])
 
+        # Event ID repeated per areaperil
+        event_id_parts.append(np.full(m, event_id, dtype=np.int32))
+        areaperil_id_parts.append(areaperil_ids.astype(np.uint32))
+
+        # Probabilities and bins (flat values)
+        prob_values_parts.append(np.asarray(probabilities, dtype=np.float32))
+        bin_values_parts.append(np.asarray(intensity_bin_ids, dtype=np.int32))
+
+        # Offsets: shift local cum_offsets into global space
+        # For K=1: bins have same offsets as probs
+        # For K>1: bins list per row has K * n_scenarios elements
+        local_offsets = cum_offsets[:m].astype(np.int32)
+        offsets_parts.append(local_offsets + running_offset)
+
+        t = int(cum_offsets[-1])
+        running_offset += np.int32(t)
+
+        if not has_uncertainty and np.any(np.diff(cum_offsets) > 1):
+            has_uncertainty = True
         if len(intensity_bin_ids) > 0:
             chunk_max = int(np.max(intensity_bin_ids))
             if chunk_max > max_bin:
                 max_bin = chunk_max
 
-        for i in range(m):
-            start = int(cum_offsets[i])
-            end = int(cum_offsets[i + 1])
-            n = end - start
+    if not events:
+        return
 
-            if n > 1:
-                has_uncertainty = True
+    # Concatenate all parts into single arrays
+    all_event_ids = np.concatenate(event_id_parts)
+    all_areaperils = np.concatenate(areaperil_id_parts)
+    all_prob_flat = np.concatenate(prob_values_parts)
+    all_bin_flat = np.concatenate(bin_values_parts)
 
-            probs = probabilities[start:end].astype(np.float32).tolist()
-            all_probabilities.append(probs)
+    # Build offsets array with final sentinel
+    all_offsets = np.append(np.concatenate(offsets_parts), running_offset)
 
-            bins = []
-            for ki in range(k):
-                bins.extend(
-                    intensity_bin_ids[ki * t + start:ki * t + end]
-                    .astype(np.int32).tolist()
-                )
-            all_intensity_bin_ids.append(bins)
+    n_unique_aps = len(np.unique(all_areaperils))
 
-            all_event_ids.append(np.int32(event_id))
-            all_areaperils_ids.append(np.uint32(int(areaperil_ids[i])))
-            ap_set.add(int(areaperil_ids[i]))
+    # Build ListArrays directly from offsets + flat values — zero per-row overhead
+    prob_list_arr = pa.ListArray.from_arrays(
+        pa.array(all_offsets, type=pa.int32()),
+        pa.array(all_prob_flat, type=pa.float32()),
+    )
+    bin_list_arr = pa.ListArray.from_arrays(
+        pa.array(all_offsets, type=pa.int32()),
+        pa.array(all_bin_flat, type=pa.int32()),
+    )
 
     metadata = _build_parquet_metadata(
-        len(events), len(ap_set), max_bin, has_uncertainty, k_max, "nested")
-
+        len(events), n_unique_aps, max_bin, has_uncertainty, k_max, "nested")
     schema = _build_nested_schema().with_metadata(metadata)
 
     table = pa.table({
         "event_id": pa.array(all_event_ids, type=pa.int32()),
-        "areaperils_id": pa.array(all_areaperils_ids, type=pa.uint32()),
-        "probabilities": pa.array(
-            all_probabilities,
-            type=pa.list_(pa.field("item", pa.float32(), nullable=False))),
-        "intensity_bin_ids": pa.array(
-            all_intensity_bin_ids,
-            type=pa.list_(pa.field("item", pa.int32(), nullable=False))),
+        "areaperils_id": pa.array(all_areaperils, type=pa.uint32()),
+        "probabilities": prob_list_arr,
+        "intensity_bin_ids": bin_list_arr,
     }, schema=schema)
 
     os.makedirs(os.path.dirname(parquet_path), exist_ok=True)
@@ -728,24 +786,24 @@ def _flush_nested(events, parquet_path):
     )
 
 
-def _flush_flat(events, parquet_path):
-    """Write a list of events as a single flat Parquet file.
+def _flush_flat_fast(events, parquet_path):
+    """Vectorized write of events as a flat Parquet file (K=1 fast path).
+
+    Uses numpy repeat/tile instead of per-row Python loops.
 
     Args:
         events (list): List of (event_id, areaperil_ids, cum_offsets,
             probabilities, intensity_bin_ids, k) tuples.
         parquet_path (str): Output path.
     """
-    all_event_ids = []
-    all_areaperils_ids = []
-    all_scenario_indices = []
-    all_intensity_indices = []
-    all_bin_ids = []
-    all_probs = []
+    event_id_parts = []
+    areaperil_id_parts = []
+    scenario_idx_parts = []
+    bin_id_parts = []
+    prob_parts = []
     has_uncertainty = False
     max_bin = 0
     k_max = 0
-    ap_set = set()
 
     for event_id, areaperil_ids, cum_offsets, probabilities, intensity_bin_ids, k in events:
         if k > k_max:
@@ -753,44 +811,52 @@ def _flush_flat(events, parquet_path):
 
         m = len(areaperil_ids)
         t = int(cum_offsets[-1])
+        counts = np.diff(cum_offsets).astype(np.int32)
 
+        if not has_uncertainty and np.any(counts > 1):
+            has_uncertainty = True
         if len(intensity_bin_ids) > 0:
             chunk_max = int(np.max(intensity_bin_ids))
             if chunk_max > max_bin:
                 max_bin = chunk_max
 
-        for i in range(m):
-            start = int(cum_offsets[i])
-            end = int(cum_offsets[i + 1])
-            n = end - start
+        # For K=1: one flat row per scenario (no intensity_index expansion)
+        # Event ID and areaperil_id: repeat each by its scenario count
+        event_id_parts.append(np.full(t, event_id, dtype=np.int32))
+        areaperil_id_parts.append(np.repeat(
+            areaperil_ids.astype(np.uint32), counts))
 
-            if n > 1:
-                has_uncertainty = True
+        # Scenario index: 0,1,...,n_i-1 for each areaperil i
+        scenario_idx_parts.append(np.concatenate(
+            [np.arange(c, dtype=np.int32) for c in counts]))
 
-            apid = int(areaperil_ids[i])
-            ap_set.add(apid)
-            for s in range(n):
-                prob = float(probabilities[start + s])
-                for ki in range(k):
-                    bin_id = int(intensity_bin_ids[ki * t + start + s])
-                    all_event_ids.append(event_id)
-                    all_areaperils_ids.append(apid)
-                    all_scenario_indices.append(s)
-                    all_intensity_indices.append(ki)
-                    all_bin_ids.append(bin_id)
-                    all_probs.append(prob)
+        # Bins and probs are already flat arrays of length T
+        bin_id_parts.append(np.asarray(intensity_bin_ids, dtype=np.int32))
+        prob_parts.append(np.asarray(probabilities, dtype=np.float32))
+
+    if not events:
+        return
+
+    all_event_ids = np.concatenate(event_id_parts)
+    all_areaperils = np.concatenate(areaperil_id_parts)
+    all_scenario = np.concatenate(scenario_idx_parts)
+    all_bins = np.concatenate(bin_id_parts)
+    all_probs = np.concatenate(prob_parts)
+    # K=1: intensity_index is always 0
+    all_intensity = np.zeros(len(all_event_ids), dtype=np.int32)
+
+    n_unique_aps = len(np.unique(all_areaperils))
 
     metadata = _build_parquet_metadata(
-        len(events), len(ap_set), max_bin, has_uncertainty, k_max, "flat")
-
+        len(events), n_unique_aps, max_bin, has_uncertainty, k_max, "flat")
     schema = _build_flat_schema().with_metadata(metadata)
 
     table = pa.table({
         "event_id": pa.array(all_event_ids, type=pa.int32()),
-        "areaperils_id": pa.array(all_areaperils_ids, type=pa.uint32()),
-        "scenario_index": pa.array(all_scenario_indices, type=pa.int32()),
-        "intensity_index": pa.array(all_intensity_indices, type=pa.int32()),
-        "intensity_bin_id": pa.array(all_bin_ids, type=pa.int32()),
+        "areaperils_id": pa.array(all_areaperils, type=pa.uint32()),
+        "scenario_index": pa.array(all_scenario, type=pa.int32()),
+        "intensity_index": pa.array(all_intensity, type=pa.int32()),
+        "intensity_bin_id": pa.array(all_bins, type=pa.int32()),
         "probability": pa.array(all_probs, type=pa.float32()),
     }, schema=schema)
 
