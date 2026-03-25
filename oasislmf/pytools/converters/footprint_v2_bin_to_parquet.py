@@ -635,7 +635,13 @@ def _v1_bin_to_parquet_tree(bin_root_dir, parquet_root_dir, schema_type,
         cur_path_key = path_key
         areaperil_ids, cum_offsets, probabilities, intensity_bin_ids = \
             event_to_columnar(event_data)
-        k = len(intensity_bin_ids) // len(probabilities) if len(probabilities) > 0 else 1
+        # event_to_columnar returns intensity_bin_ids as (T, K) row-major.
+        # Convert to (K*T,) column-major to match the OFPT/Parquet convention.
+        k = intensity_bin_ids.shape[1] if intensity_bin_ids.ndim == 2 else 1
+        if intensity_bin_ids.ndim == 2:
+            t = intensity_bin_ids.shape[0]
+            # Column-major: all type-0 bins, then type-1, etc.
+            intensity_bin_ids = intensity_bin_ids.T.ravel()
         cur_events.append(
             (event_id, areaperil_ids, cum_offsets, probabilities,
              intensity_bin_ids, k))
