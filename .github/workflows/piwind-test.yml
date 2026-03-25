@@ -1,0 +1,90 @@
+# Workflow to remote call the PiWind output checks using
+# a branch of oasislmf
+#
+# Inputs:
+#   platform_version: The docker tag (OasisPlatfrom Release) to test the oasis stack with
+#                     SemVar string of published docker images "1.26.4" ({n}.{n}.{n})
+#                     default is "latest"
+#
+#   platform_branch: A branch of OasisPlatform to build images from [git ref]
+#                    Takes precedence over platform_version when set.
+#                    Builds coreoasis/github-actions:{server,worker} images from that branch
+#                    and passes them directly to the integration tests.
+#
+#   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
+#
+name: PiWind check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - stable**
+
+  workflow_dispatch:
+    inputs:
+      platform_version:
+        description: 'OasisPlatform - Version to test [docker tag]'
+        required: false
+        default: latest
+      platform_branch:
+        description: 'OasisPlatform - Branch to build images from [git ref]'
+        required: false
+        default: main
+        type: string
+      piwind_branch:
+        description: 'Branch to run PiWind from [git ref]'
+        required: true
+      ods_branch:
+        description: 'Build ods_tools package before test [git ref]'
+        required: false
+        type: string
+
+
+jobs:
+  build_platform:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' }}
+    uses: OasisLMF/OasisPlatform/.github/workflows/build-images.yml@main
+    secrets: inherit
+    with:
+      docker_push: 'true'
+      checkout_ref: ${{ inputs.platform_branch }}
+      oasislmf_branch: ${{ github.ref_name }}
+      ods_branch: ${{ inputs.ods_branch }}
+
+  platform1:
+    if: ${{ !failure() && !cancelled() }}
+    needs: [build_platform]
+    uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
+    secrets: inherit
+    with:
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'fix/add-testing-timeout' || inputs.piwind_branch }}
+      oasislmf_branch: ${{ github.ref_name }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
+      worker_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
+      worker_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('model_worker-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
+      server_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
+      server_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('api_server-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
+      debug_mode: '1'
+      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
+      worker_api_ver: 'v1'
+      storage_suffix: '_platform1'
+
+  platform2:
+    if: ${{ !failure() && !cancelled() }}
+    needs: [build_platform]
+    uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
+    secrets: inherit
+    with:
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
+      oasislmf_branch: ${{ github.ref_name }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
+      worker_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
+      worker_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('model_worker-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
+      server_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
+      server_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('api_server-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
+      debug_mode: '1'
+      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
+      worker_api_ver: 'v2'
+      storage_suffix: '_platform2'
