@@ -60,12 +60,12 @@ jobs:
     secrets: inherit
     with:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
-      oasislmf_branch: ${{ github.ref }}
+      oasislmf_branch: ${{ github.ref_name }}
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
-      server_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
-      server_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('api_server-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
       worker_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
       worker_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('model_worker-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
+      server_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
+      server_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('api_server-{0}', github.sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
       debug_mode: '1'
       pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
       worker_api_ver: 'v2'
