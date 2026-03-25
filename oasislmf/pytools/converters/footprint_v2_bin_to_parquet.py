@@ -18,6 +18,8 @@ import argparse
 import os
 import logging
 
+from tqdm import tqdm
+
 import numpy as np
 import pyarrow as pa
 from pyarrow import parquet as pq
@@ -381,15 +383,11 @@ def _ofpt_to_parquet_tree(ofpt_root_dir, parquet_root_dir, schema_type,
         raise FileNotFoundError(f"No .ofpt files found under {fp_dir}")
 
     ofpt_files.sort()
-    total_files = len(ofpt_files)
 
-    for file_idx, ofpt_path in enumerate(ofpt_files):
+    for ofpt_path in tqdm(ofpt_files, desc="OFPT -> Parquet", unit="file"):
         rel_path = os.path.relpath(ofpt_path, ofpt_root_dir)
         parquet_rel = os.path.splitext(rel_path)[0] + ".parquet"
         parquet_path = os.path.join(parquet_root_dir, parquet_rel)
-
-        logger.info("Converting %s (%d/%d)", ofpt_path, file_idx + 1,
-                    total_files)
 
         if schema_type == "nested":
             _convert_file_nested(ofpt_path, parquet_path, reader_interface)
@@ -606,6 +604,7 @@ def _v1_bin_to_parquet_tree(bin_root_dir, parquet_root_dir, schema_type,
             f"schema_type must be 'nested' or 'flat', got {schema_type!r}")
 
     scanner = BinScanner(bin_root_dir, reader_interface)
+    total_events = len(scanner.footprint_index)
 
     cur_path_key = None
     cur_events = []
@@ -624,7 +623,10 @@ def _v1_bin_to_parquet_tree(bin_root_dir, parquet_root_dir, schema_type,
         else:
             _flush_flat(events, abs_path)
 
-    for event_info, event_data in scanner.sorted_iter():
+    for event_info, event_data in tqdm(scanner.sorted_iter(),
+                                       total=total_events,
+                                       desc="V1 bin -> Parquet",
+                                       unit="event"):
         event_id = int(event_info['event_id'])
         path_key = (event_id >> 8) & 0xFFFFFF
 
