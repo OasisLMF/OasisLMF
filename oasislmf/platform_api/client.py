@@ -645,25 +645,25 @@ class APIClient(object):
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
                     if analysis.get('run_mode', '') == 'V2':
-                        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
-                        with tqdm(total=len(sub_tasks_list),
+                        sub_task_total = analysis['status_count']['TOTAL']
+                        with tqdm(total=sub_task_total,
                                   unit=' sub_task',
                                   desc='Input Generation') as pbar:
 
-                            completed = []
-                            while len(completed) < len(sub_tasks_list):
-                                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
+                            completed = analysis['status_count']['COMPLETED']
+                            while completed < sub_task_total:
                                 analysis = self.analyses.get(analysis_id).json()
-                                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
-                                pbar.update(len(completed) - pbar.n)
-                                time.sleep(poll_interval)
-
                                 # Exit conditions
                                 if ('_CANCELLED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
                                 elif 'READY' in analysis['status']:
                                     pbar.update(pbar.total - pbar.n)
                                     break
+
+                                # continue polling
+                                completed = analysis['status_count']['COMPLETED']
+                                pbar.update(completed - pbar.n)
+                                time.sleep(poll_interval)
 
                     else:
                         time.sleep(poll_interval)
