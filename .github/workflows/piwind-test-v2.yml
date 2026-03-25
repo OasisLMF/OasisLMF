@@ -2,14 +2,10 @@
 # a branch of oasislmf
 #
 # Inputs:
-#   platform_version: The docker tag (OasisPlatfrom Release) to test the oasis stack with
-#                     SemVar string of published docker images "1.26.4" ({n}.{n}.{n})
-#                     default is "latest"
-#
 #   platform_branch: A branch of OasisPlatform to build images from [git ref]
-#                    Takes precedence over platform_version when set.
+#                    Defaults to 'main' on push/PR events.
 #                    Builds coreoasis/github-actions:{server,worker} images from that branch
-#                    and uses them as the base for the piwind worker/server images.
+#                    and passes them directly to the integration tests.
 #
 #   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
 #
@@ -24,10 +20,6 @@ on:
 
   workflow_dispatch:
     inputs:
-      platform_version:
-        description: 'OasisPlatform 2 - Version to test [docker tag]'
-        required: false
-        default: latest
       platform_branch:
         description: 'OasisPlatform 2 - Branch to build images from [git ref]'
         required: false
@@ -44,7 +36,6 @@ on:
 
 jobs:
   check_images:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' }}
     runs-on: ubuntu-latest
     outputs:
       images_exist: ${{ steps.check.outputs.images_exist }}
@@ -58,7 +49,7 @@ jobs:
       - name: Check if platform images already exist
         id: check
         run: |
-          PLATFORM_SHA=$(git ls-remote https://github.com/OasisLMF/OasisPlatform.git refs/heads/${{ inputs.platform_branch }} | cut -f1)
+          PLATFORM_SHA=$(git ls-remote https://github.com/OasisLMF/OasisPlatform.git refs/heads/${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }} | cut -f1)
           echo "platform_sha=$PLATFORM_SHA" >> $GITHUB_OUTPUT
           if docker manifest inspect coreoasis/github-actions:model_worker-$PLATFORM_SHA > /dev/null 2>&1 && \
              docker manifest inspect coreoasis/github-actions:api_server-$PLATFORM_SHA > /dev/null 2>&1; then
@@ -76,7 +67,7 @@ jobs:
       ignore_unfixed: 'true'
       cve_severity: 'SKIP'
       docker_push: 'true'
-      checkout_ref: ${{ inputs.platform_branch || 'main' }}
+      checkout_ref: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }}
       oasislmf_branch: ${{ github.ref_name }}
       ods_branch: ${{ inputs.ods_branch }}
 
@@ -89,10 +80,10 @@ jobs:
       piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
       oasislmf_branch: ${{ github.ref_name }}
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
-      worker_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
-      worker_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('model_worker-{0}', needs.check_images.outputs.platform_sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
-      server_image: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && 'coreoasis/github-actions' || '' }}
-      server_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_branch != '' && format('api_server-{0}', needs.check_images.outputs.platform_sha) || github.event_name != 'workflow_dispatch' && '2.5' || inputs.platform_version }}
+      worker_image: coreoasis/github-actions
+      worker_tag: model_worker-${{ needs.check_images.outputs.platform_sha }}
+      server_image: coreoasis/github-actions
+      server_tag: api_server-${{ needs.check_images.outputs.platform_sha }}
       debug_mode: '1'
       pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
       worker_api_ver: 'v2'
