@@ -7,6 +7,7 @@ import random
 import re
 import shutil
 import string
+import tempfile
 from collections import Counter
 from functools import partial
 
@@ -1556,7 +1557,10 @@ def bash_params(
 
     # Set fifo dirs
     if fifo_tmp_dir:
-        bash_params['fifo_queue_dir'] = '/tmp/{}/fifo/'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+        bash_params['fifo_queue_dir'] = os.path.join(
+            os.environ.get('OASIS_TMPDIR', tempfile.gettempdir()),
+            ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)),
+            'fifo') + '/'
     else:
         bash_params['fifo_queue_dir'] = os.path.join(model_run_dir, 'fifo/')
 

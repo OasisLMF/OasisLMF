@@ -625,42 +625,45 @@ def run(
             raise RuntimeError(f"ERROR: katpy, file type {input_type} not supported.")
 
     if bin_to_csv or bin_to_parquet:
-        data = np.memmap(out_file, dtype=KAT_MAP[out_type]["dtype"])
-        headers = KAT_MAP[out_type]["headers"]
-        fmt = KAT_MAP[out_type]["fmt"]
-        num_rows = data.shape[0]
-        if bin_to_csv:
-            csv_out_file = open(final_out_file_path, "w")
-            csv_out_file.write(",".join(headers) + "\n")
+        try:
+            data = np.memmap(out_file, dtype=KAT_MAP[out_type]["dtype"])
+            headers = KAT_MAP[out_type]["headers"]
+            fmt = KAT_MAP[out_type]["fmt"]
+            num_rows = data.shape[0]
+            if bin_to_csv:
+                csv_out_file = open(final_out_file_path, "w")
+                csv_out_file.write(",".join(headers) + "\n")
 
-            buffer_size = DEFAULT_BUFFER_SIZE
-            for start in range(0, num_rows, buffer_size):
-                end = min(start + buffer_size, num_rows)
-                buffer_data = data[start:end]
-                write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
-            csv_out_file.close()
-        if bin_to_parquet:
-            parquet_writer = None
-            buffer_size = DEFAULT_BUFFER_SIZE
-            for start in range(0, num_rows, buffer_size):
-                end = min(start + buffer_size, num_rows)
-                buffer_data = data[start:end]
+                buffer_size = DEFAULT_BUFFER_SIZE
+                for start in range(0, num_rows, buffer_size):
+                    end = min(start + buffer_size, num_rows)
+                    buffer_data = data[start:end]
+                    write_ndarray_to_fmt_csv(csv_out_file, buffer_data, headers, fmt)
+                csv_out_file.close()
+            if bin_to_parquet:
+                parquet_writer = None
+                buffer_size = DEFAULT_BUFFER_SIZE
+                for start in range(0, num_rows, buffer_size):
+                    end = min(start + buffer_size, num_rows)
+                    buffer_data = data[start:end]
 
-                arrays = []
-                fields = []
-                for name in buffer_data.dtype.names:
-                    array = pa.array(buffer_data[name])
-                    arrays.append(array)
-                    fields.append((name, array.type))
+                    arrays = []
+                    fields = []
+                    for name in buffer_data.dtype.names:
+                        array = pa.array(buffer_data[name])
+                        arrays.append(array)
+                        fields.append((name, array.type))
 
-                schema = pa.schema(fields)
-                table = pa.Table.from_arrays(arrays, schema=schema)
-                if parquet_writer is None:
-                    parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
-                parquet_writer.write_table(table)
+                    schema = pa.schema(fields)
+                    table = pa.Table.from_arrays(arrays, schema=schema)
+                    if parquet_writer is None:
+                        parquet_writer = pq.ParquetWriter(final_out_file_path, schema)
+                    parquet_writer.write_table(table)
 
-            if parquet_writer is not None:
-                parquet_writer.close()
+                if parquet_writer is not None:
+                    parquet_writer.close()
+        finally:
+            out_file.unlink(missing_ok=True)
 
 
 @redirect_logging(exec_name='katpy')
