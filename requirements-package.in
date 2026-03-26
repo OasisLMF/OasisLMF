@@ -1,6 +1,5 @@
 anytree>=2.4.3
 argparsetree>=0.0.5
-chainmap
 chardet
 fastparquet>=0.3.1
 msgpack
@@ -15,7 +14,6 @@ pytz
 requests-toolbelt
 requests>=2.20.0
 scipy
-shutilwhich
 tabulate>=0.8.2
 tblib
 tqdm
