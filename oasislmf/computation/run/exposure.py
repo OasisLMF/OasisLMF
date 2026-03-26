@@ -100,7 +100,7 @@ class RunExposure(ComputationStep):
             os.makedirs(run_dir)
 
         # 1. Create Deterministic keys file
-        keys_fp = GenerateKeysDeterministic(**{**self.kwargs, **{"exposure_data": exposure_data}}).run()[0]
+        keys_fp = GenerateKeysDeterministic(**{**self.kwargs, **{"exposure_data": exposure_data, "oasis_files_dir": run_dir}}).run()[0]
 
         # 2. Start Oasis files generation
         GenerateFiles(

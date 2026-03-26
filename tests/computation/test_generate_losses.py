@@ -17,7 +17,6 @@ from .data.common import (
     PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, merge_dirs
 )
 from .test_computation import ComputationChecker
-from oasislmf.computation.generate.losses import GenerateLosses
 
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
