@@ -674,6 +674,9 @@ class TestPlatformRun(ComputationChecker):
         # Extract funcution kwargs into dict, and replace booleans with temp file paths
         call_args = {k: v for k, v in locals().items() if k in self.default_args}
         call_args['server_url'] = self.api_url
+        call_args['lookup_chunks'] = None
+        call_args['analysis_chunks'] = None
+
         for k, v in self.combine_args([self.tmp_files, self.tmp_dirs]).items():
             if call_args[k] is True:
                 call_args[k] = v.name
