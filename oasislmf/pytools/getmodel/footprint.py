@@ -552,6 +552,7 @@ class FootprintParquetDynamic(Footprint):
         self.partitioned = self._is_partitioned_by_section()
 
         if self.partitioned:
+            self._load_partitioned_data()
             self.get_event = self._get_event_partitioned
         else:
             self.get_event = self._get_event_flat
