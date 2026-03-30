@@ -9,7 +9,7 @@ __all__ = [
     'check_inputs_directory',
     'cleanup_bin_directory',
     'create_binary_tar_file',
-    'csv_to_bin',
+    'move_bin',
     'prepare_run_directory',
     'prepare_run_inputs',
     'set_footprint_set',
@@ -90,11 +90,11 @@ def prepare_run_directory(
             |-- RI_1
             |-- RI_2
             |-- ri_layers.json
+            |-- analysis_settings.json
         |-- ...
         |-- output
         |-- static
         |-- work
-        |-- analysis_settings.json
         `-- run_kernel.sh
 
     where the direct GUL and/or FM input files, and the corresponding binaries
@@ -185,7 +185,7 @@ def prepare_run_directory(
             dst = os.path.join(oasis_dst_fp, p)
             if not (os.path.exists(dst) and filecmp.cmp(src, dst)):
                 shutil.copy2(src, pathlib.Path(dst).parent)
-        dst = os.path.join(run_dir, 'analysis_settings.json')
+        dst = os.path.join(run_dir, 'input', 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
@@ -571,7 +571,11 @@ def check_inputs_directory(directory_to_check, il=False, ri=False, check_binarie
 
 def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=True):
     """
-    Detailed check of a specific directory
+    Detailed check of a specific directory.
+
+    Accepts either .csv or .bin for each required input file.
+    When check_binaries is True, raises if both .csv and .bin exist
+    for the same file (ambiguous state).
     """
 
     if il:
@@ -580,86 +584,37 @@ def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=Tr
         input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] not in ['optional', 'il'])
 
     for input_file in input_files:
-        file_path = os.path.join(directory_to_check, input_file + ".csv")
-        if not os.path.exists(file_path):
-            raise OasisException("Failed to find {}".format(file_path))
+        csv_path = os.path.join(directory_to_check, input_file + ".csv")
+        bin_path = os.path.join(directory_to_check, input_file + ".bin")
+        has_csv = os.path.exists(csv_path)
+        has_bin = os.path.exists(bin_path)
 
-        if check_binaries:
-            file_path = os.path.join(directory_to_check, input_file + ".bin")
-            if os.path.exists(file_path):
-                raise OasisException("Binary file already exists: {}".format(file_path))
+        if not has_csv and not has_bin:
+            raise OasisException("Failed to find {} (checked .csv and .bin)".format(
+                os.path.join(directory_to_check, input_file)))
 
-
-@oasis_log
-def csv_to_bin(csv_directory, bin_directory, il=False, ri=False):
-    """
-    Create the binary files.
-
-    :param csv_directory: the directory containing the CSV files
-    :type csv_directory: str
-
-    :param bin_directory: the directory to write the binary files
-    :type bin_directory: str
-
-    :param il: whether to create the binaries required for insured loss calculations
-    :type il: bool
-
-    :param ri: whether to create the binaries required for reinsurance calculations
-    :type ri: bool
-
-    :raises OasisException: If one of the conversions fails
-    """
-    csvdir = os.path.abspath(csv_directory)
-    bindir = os.path.abspath(bin_directory)
-
-    il = il or ri
-
-    _csv_to_bin(csvdir, bindir, il)
-
-    if ri:
-        for ri_csvdir in glob.glob('{}{}RI_[0-9]*'.format(csvdir, os.sep)):
-            _csv_to_bin(
-                ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), il=True)
+        if check_binaries and has_csv and has_bin:
+            raise OasisException("Binary file already exists: {}".format(bin_path))
 
 
-def _csv_to_bin(csv_directory, bin_directory, il=False):
-    """
-    Create a set of binary files.
-    """
-    if not os.path.exists(bin_directory):
-        os.mkdir(bin_directory)
+def move_bin(src, dst):
+    """select binary files from src and move them to dst folder"""
+    def move_single_folder(src, dst):
+        os.makedirs(dst, exist_ok=True)
+        for input_file in INPUT_FILES.values():
+            if "step_flag" in input_file and os.path.isfile(os.path.join(src, f"{input_file['name']}_step.bin")):
+                extension = "_step.bin"
+            else:
+                extension = ".bin"
+            src_path = os.path.join(src, f"{input_file['name']}{extension}")
+            dst_path = os.path.join(dst, f"{input_file['name']}{extension}")
+            if os.path.isfile(src_path):
+                shutil.move(src_path, dst_path)
 
-    if il:
-        input_files = INPUT_FILES.values()
-    else:
-        input_files = (f for f in INPUT_FILES.values() if f['type'] != 'il')
-
-    for input_file in input_files:
-        conversion_tool = input_file['conversion_tool']
-        input_file_path = os.path.join(csv_directory, '{}.csv'.format(input_file['name']))
-        if not os.path.exists(input_file_path):
-            continue
-
-        output_file_path = os.path.join(bin_directory, '{}.bin'.format(input_file['name']))
-
-        # If input file is different for step policies, apply flag when
-        # executing conversion tool should step policies be present
-        step_flag = input_file.get('step_flag')
-        col_names = []
-        if step_flag:
-            with open(input_file_path, "r") as f:
-                col_names = f.readline().strip().split(",")
-
-        csvtobin_type = input_file["csvtobin_type"]
-        if 'step_id' in col_names:
-            output_file_path = os.path.join(
-                bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
-            )
-            csvtobin_type = input_file["csvtobin_type"] + "_step"
-        try:
-            csvtobin(input_file_path, output_file_path, csvtobin_type)
-        except Exception as e:
-            raise OasisException("Error while converting csv's to binary format: {}".format(e))
+    if src != dst:
+        move_single_folder(src, dst)
+        for ri_src in glob.glob('{}{}RI_[0-9]*'.format(src, os.sep)):
+            move_single_folder(ri_src, os.path.join(dst, os.path.basename(ri_src)))
 
 
 @oasis_log

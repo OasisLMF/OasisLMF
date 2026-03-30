@@ -16,13 +16,6 @@ from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from oasislmf.pytools.getmodel.footprint import Footprint
 
-# configuring process meta data
-logging.basicConfig(
-    filename='footprint_tcp_server.log',
-    filemode='w',
-    format='%(name)s - %(levelname)s - %(message)s',
-    level=os.environ.get("OASIS_PACKAGE_LOG_LEVEL", "INFO")
-)
 POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag.txt"
 TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
@@ -319,6 +312,12 @@ def _shutdown_port(connection: socket.socket) -> None:
 
 
 def main() -> None:
+    logging.basicConfig(
+        filename='footprint_tcp_server.log',
+        filemode='w',
+        format='%(name)s - %(levelname)s - %(message)s',
+        level=os.environ.get("OASIS_PACKAGE_LOG_LEVEL", "INFO")
+    )
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
     parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)

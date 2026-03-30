@@ -130,7 +130,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         fm_reader = FMReader(nodes_array, sidx_indexes, sidx_indptr, sidx_val,
                              loss_indptr, loss_val, pass_through, len_array, computes, compute_idx)
         try:
-            for i, event_id in enumerate(fm_reader.read_streams(streams_in)):
+            for event_i, event_id in enumerate(fm_reader.read_streams(streams_in)):
                 compute_event_sparse(
                     compute_info,
                     keep_input_loss,
@@ -156,7 +156,7 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
         except Exception:
             node = nodes_array[computes[compute_idx['compute_i']]]
             data = {
-                "event_index": i,
+                "event_index": event_i,
                 "event_id": event_id,
                 "agg_id": node['agg_id'],
                 "node_level_id": node['level_id']
@@ -165,5 +165,5 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
             with open("event_error.json", "w") as f:
                 json.dump(data, f, default=str)
 
-            logger.error(f"event index={i} id={event_id}, at node level_id={node['level_id']} agg_id={node['agg_id']} failed in fm")
+            logger.error(f"event index={event_i} id={event_id}, at node level_id={node['level_id']} agg_id={node['agg_id']} failed in fm")
             raise

@@ -64,7 +64,7 @@ def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
 
     else:
         aggregate_vulnerability = None
-        logging.warning(
+        logger.warning(
             f"Aggregate vulnerability table not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without aggregate vulnerability definitions.")
 
     return aggregate_vulnerability
@@ -94,7 +94,7 @@ def read_vulnerability_weights(storage: BaseStorage, ignore_file_type=set()):
 
     else:
         aggregate_weights = None
-        logging.warning(
+        logger.warning(
             f"Vulnerability weights not found at {storage.get_storage_url('', encode_params=False)[0]}. Continuing without vulnerability weights definitions.")
 
     return aggregate_weights

@@ -41,7 +41,10 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
+from oasislmf.pytools.common.data import gul_summary_xref_dtype, fm_summary_xref_dtype
+from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
+
 
 MAP_SUMMARY_DTYPES = {
     'loc_id': 'int',
@@ -566,7 +569,7 @@ def get_summary_xref_df(
 @oasis_log
 def generate_summaryxref_files(
     location_df, account_df, model_run_fp, analysis_settings, il=False,
-    ri=False, rl=False,
+    ri=False, rl=False, intermediary_csv=False
 ):
     """
     Top level function for creating the summaryxref files from the manager.py
@@ -656,7 +659,9 @@ def generate_summaryxref_files(
             id_set_index
         )
         # Write Xref file
-        write_df_to_csv_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])
+        df_to_ndarray(gul_summaryxref_df, gul_summary_xref_dtype).tofile(os.path.join(model_run_fp, 'input', f"{SUMMARY_OUTPUT['gul']}.bin"))
+        if intermediary_csv:
+            write_df_to_csv_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), f"{SUMMARY_OUTPUT['gul']}.csv")
 
         # Write summary_id description files
         for desc_key in gul_summary_desc:
@@ -684,7 +689,9 @@ def generate_summaryxref_files(
             'il'
         )
         # Write Xref file
-        write_df_to_csv_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['il'])
+        df_to_ndarray(il_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(model_run_fp, 'input', f"{SUMMARY_OUTPUT['il']}.bin"))
+        if intermediary_csv:
+            write_df_to_csv_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'), f"{SUMMARY_OUTPUT['il']}.csv")
 
         # Write summary_id description files
         for desc_key in il_summary_desc:
@@ -731,7 +738,9 @@ def generate_summaryxref_files(
         for inuring_priority in ri_inuring_priorities:
             summary_ri_fp = os.path.join(
                 model_run_fp, 'input', os.path.basename(ri_settings[str(inuring_priority)]['directory']))
-            write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, SUMMARY_OUTPUT['il'])
+            df_to_ndarray(ri_summaryxref_df, fm_summary_xref_dtype).tofile(os.path.join(summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.bin"))
+            if intermediary_csv:
+                write_df_to_csv_file(ri_summaryxref_df, summary_ri_fp, f"{SUMMARY_OUTPUT['il']}.csv")
 
         # Write summary_id description files
         for desc_key in ri_summary_desc:
