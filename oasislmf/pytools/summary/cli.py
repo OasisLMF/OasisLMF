@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter  # for multi-line help text
 )
 
-parser.add_argument('-i', '--files-in', help='names of the input file_path', nargs='+')
+parser.add_argument('-i', '--files-in', help='names of the input file_path', nargs='?')
 parser.add_argument('-t', '--run-type', help='stream run type', choices=manager.SUPPORTED_RUN_TYPE)
 parser.add_argument('-m', '--low-memory', help='reduce downstream memory use with index file(s)', action='store_true')
 parser.add_argument('-p', '--static-path', help='path to the folder containing the static files', default='input')

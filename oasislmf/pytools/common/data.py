@@ -368,14 +368,24 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
-        # in csv column cam be out of order and have different name,
-        # we load with pandas and write each column to the ndarray
+        # in csv column can be out of order and have different name,
+        # col_map maps {dtype_field_name: csv_header_name}
         if col_map is None:
             col_map = {}
         with open(os.path.join(dir_path, name + '.csv')) as file_in:
-            header = file_in.readline().split(',')
-            _usecols = [i for i, col in header if col in _dtype.fields.keys()]
-            return np.loadtxt(file_in, delimiter=',', dtype=_dtype, usecols=_usecols)
+            header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}
+            _usecols = []
+            _use_dtype = []
+            for field_name, (field_dtype, _) in _dtype.fields.items():
+                csv_name = col_map.get(field_name, field_name)
+                if csv_name in header:
+                    _usecols.append(header[csv_name])
+                    _use_dtype.append((field_name, field_dtype))
+
+            if _usecols:
+                return np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols)
+            else:
+                return np.empty(0, dtype=_dtype)
     else:
         return np.empty(0, dtype=_dtype)
 

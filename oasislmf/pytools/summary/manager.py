@@ -80,32 +80,21 @@ def get_summary_object(static_path, run_type):
     """read static files to get summary static data structure"""
 
     # extract item_id to index in the loss summary
+    summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
     if run_type == RUNTYPE_GROUNDUP_LOSS:
         summary_xref = load_as_ndarray(static_path, 'gulsummaryxref', gul_summary_xref_dtype)
-        with open(os.path.join(static_path, 'gul_summary_map.csv')) as gul_summary_map_file:
-            header = gul_summary_map_file.readline().split(",")
-            _usecols = [i for i, col in enumerate(header) if col in ['loc_id', 'item_id', 'building_id']]
-            _dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
-            summary_map = np.loadtxt(gul_summary_map_file,
-                                     usecols=_usecols,
-                                     dtype=_dtype,
-                                     delimiter=',')
+        summary_map = load_as_ndarray(static_path, 'gul_summary_map', summary_map_dtype)
+
     elif run_type == RUNTYPE_INSURED_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        with open(os.path.join(static_path, 'fm_summary_map.csv')) as fm_summary_map_file:
-            header = fm_summary_map_file.readline().split(",")
-            _usecols = [i for i, col in enumerate(header) if col in ['loc_id', 'output_id', 'building_id']]
-            _dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
-            summary_map = np.loadtxt(fm_summary_map_file,
-                                     usecols=_usecols,
-                                     dtype=_dtype,
-                                     delimiter=',')
+        summary_map = load_as_ndarray(static_path, 'fm_summary_map', summary_map_dtype, col_map={'item_id': 'output_id'})
 
     elif run_type == RUNTYPE_REINSURANCE_LOSS:
         summary_xref = load_as_ndarray(static_path, 'fmsummaryxref', fm_summary_xref_dtype)
         summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
         summary_map = None  # numba use none to optimise function when some part are not used
+
     else:
         raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
 
