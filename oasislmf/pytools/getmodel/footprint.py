@@ -644,7 +644,7 @@ class FootprintParquetDynamic(Footprint):
         df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=['section_id', 'areaperil_id'], how='outer')
         df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
 
-        if len(df_footprint.index) > 0:
+        if len(df_footprint) > 0:
             df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
                 (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
             df_footprint['intensity'] = df_footprint['intensity'].astype('int')
@@ -652,12 +652,9 @@ class FootprintParquetDynamic(Footprint):
             df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
             df_footprint['intensity_bin_id'] = 0  # Placeholder for intensity bin ID
             df_footprint['probability'] = 1
+            return df_to_numpy(df_footprint, EventDynamic)
         else:
-            df_footprint.loc[:, 'intensity'] = []
-            df_footprint.loc[:, 'intensity_bin_id'] = []
-            df_footprint.loc[:, 'probability'] = []
-
-        return df_to_numpy(df_footprint, EventDynamic)
+            return None
 
 
 if __name__ == "__main__":
