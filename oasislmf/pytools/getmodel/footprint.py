@@ -519,12 +519,23 @@ class FootprintParquetDynamic(Footprint):
     This class is responsible for loading event data from parquet dynamic event sets and maps
     It will build the footprint from the underlying event defintion and hazard case files
 
+    If the event_definition.parquet is partitioned by section_id (has subdirectories like
+    section_id=N/), data is bulk-loaded at __enter__ for fast indexed lookups in get_event.
+    Otherwise, event definitions are read lazily per get_event call.
+
     Attributes (when in context):
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty. Only "no" is supported
         return periods (list): the list of return periods in the model. Not currently used
     """
     footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
+
+    def _is_partitioned_by_section(self):
+        """Check if event_definition.parquet is partitioned by section_id."""
+        for section in self.location_sections:
+            if self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}'):
+                return True
+        return False
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
@@ -538,65 +549,115 @@ class FootprintParquetDynamic(Footprint):
         if self.areaperil_ids is None:
             self.areaperil_ids = pd.read_csv('input/keys.csv', usecols=['AreaPerilID']).AreaPerilID.unique()
 
+        self.partitioned = self._is_partitioned_by_section()
+
+        if self.partitioned:
+            self.get_event = self._get_event_partitioned
+        else:
+            self.get_event = self._get_event_flat
         return self
 
-    def get_event(self, event_id: int):
-        """
-        Gets the event data from the partitioned parquet data file.
+    def _load_partitioned_data(self):
+        """Bulk-load event definitions and hazard cases from section-partitioned parquet."""
+        self.df_event_definition = None
+        self.df_hazard_case = None
+        self.event_set = set()
 
-        Args:
-            event_id: (int) the ID belonging to the Event being extracted
+        if len(self.location_sections) > 0:
+            df_event_definition_list = []
+            for section in self.location_sections:
+                df_section = self.get_df_reader(
+                    f'{event_defintion_filename}/section_id={int(section)}'
+                ).as_pandas()
+                df_section['section_id'] = section
+                df_event_definition_list.append(df_section)
+            df_event_definition = pd.concat(df_event_definition_list, ignore_index=True)
 
-        Returns: (np.array[Event]) the event that was extracted
-        """
+            self.df_event_definition = df_event_definition.set_index('event_id')
+            self.event_set = set(df_event_definition['event_id'].unique())
+
+            df_hazard_case_list = []
+            for section in self.location_sections:
+                df_section = self.get_df_reader(
+                    f'{hazard_case_filename}/section_id={int(section)}',
+                    filters=[("areaperil_id", "in", self.areaperil_ids)]
+                ).as_pandas()
+                df_section['section_id'] = section
+                df_hazard_case_list.append(df_section)
+            df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True)
+
+            self.df_hazard_case = df_hazard_case.set_index('section_id')
+
+    def _get_event_partitioned(self, event_id):
+        """Fast path: lookup from pre-loaded indexed DataFrames."""
+        if event_id not in self.event_set:
+            return None
+
+        this_event_definition = self.df_event_definition.loc[[event_id]].reset_index()
+        sections = this_event_definition['section_id'].unique()
+        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+
+        return self._build_footprint(df_hazard_case, this_event_definition)
+
+    def _get_event_flat(self, event_id):
+        """Lazy path: read event definition and hazard cases from parquet per call."""
         event_defintion_reader = self.get_df_reader(event_defintion_filename, filters=[("event_id", "==", event_id)])
         df_event_defintion = event_defintion_reader.as_pandas()
         event_sections = list(df_event_defintion['section_id'])
         sections = list(set(event_sections) & self.location_sections)
 
-        if len(sections) > 0:
-            df_hazard_case = {}
-            for section in sections:
-                hazard_case_reader = self.get_df_reader(
-                    f'{hazard_case_filename}/section_id={int(section)}',
-                    filters=[("areaperil_id", "in", self.areaperil_ids)]
-                )
-                df_hazard_case[section] = hazard_case_reader.as_pandas()
-                df_hazard_case[section]['section_id'] = section
-            df_hazard_case = pd.concat(df_hazard_case, ignore_index=True)
+        if len(sections) == 0:
+            return None
 
-            from_cols = ['section_id', 'areaperil_id', 'intensity']
-            to_cols = from_cols + ['interpolation', 'return_period']
+        df_hazard_case_list = []
+        for section in sections:
+            df_section = self.get_df_reader(
+                f'{hazard_case_filename}/section_id={int(section)}',
+                filters=[("areaperil_id", "in", self.areaperil_ids)]
+            ).as_pandas()
+            df_section['section_id'] = section
+            df_hazard_case_list.append(df_section)
+        df_hazard_case = pd.concat(df_hazard_case_list, ignore_index=True)
 
-            df_hazard_case_from = df_hazard_case.merge(
-                df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from'])[from_cols].rename(
-                    columns={'intensity': 'from_intensity'})
+        return self._build_footprint(df_hazard_case, df_event_defintion)
 
-            df_hazard_case_to = df_hazard_case.merge(
-                df_event_defintion, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to'])[to_cols].rename(
-                    columns={'intensity': 'to_intensity'})
+    def _build_footprint(self, df_hazard_case, df_event_definition):
+        """Build the interpolated footprint from hazard case and event definition DataFrames.
 
-            df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=['section_id', 'areaperil_id'], how='outer')
-            df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
+        Args:
+            df_hazard_case: (pd.DataFrame) hazard case data with section_id, areaperil_id, return_period, intensity
+            df_event_definition: (pd.DataFrame) event definition with section_id, rp_from, rp_to, interpolation
 
-            if len(df_footprint.index) > 0:
-                df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
-                    (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-                df_footprint['intensity'] = df_footprint['intensity'].astype('int')
-                df_footprint = df_footprint.sort_values('intensity', ascending=False)
-                df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
-                df_footprint['intensity_bin_id'] = 0  # Placeholder for intensity bin ID
-                df_footprint['probability'] = 1
-            else:
-                df_footprint.loc[:, 'intensity'] = []
-                df_footprint.loc[:, 'intensity_bin_id'] = []
-                df_footprint.loc[:, 'probability'] = []
+        Returns: (np.array[EventDynamic]) the interpolated footprint, or None if empty
+        """
+        from_cols = ['section_id', 'areaperil_id', 'intensity']
+        to_cols = from_cols + ['interpolation', 'return_period']
 
-            numpy_data = np.empty(len(df_footprint), dtype=EventDynamic)
-            for column in ['areaperil_id', 'intensity_bin_id', 'intensity', 'probability', 'return_period']:
-                numpy_data[:][column] = df_footprint[column].to_numpy()
+        df_hazard_case_from = df_hazard_case.merge(
+            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from'])[from_cols].rename(
+                columns={'intensity': 'from_intensity'})
 
-            return numpy_data
+        df_hazard_case_to = df_hazard_case.merge(
+            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to'])[to_cols].rename(
+                columns={'intensity': 'to_intensity'})
+
+        df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=['section_id', 'areaperil_id'], how='outer')
+        df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
+
+        if len(df_footprint.index) > 0:
+            df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
+                (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
+            df_footprint['intensity'] = df_footprint['intensity'].astype('int')
+            df_footprint = df_footprint.sort_values('intensity', ascending=False)
+            df_footprint = df_footprint.drop_duplicates(subset=['areaperil_id'], keep='first')
+            df_footprint['intensity_bin_id'] = 0  # Placeholder for intensity bin ID
+            df_footprint['probability'] = 1
+        else:
+            df_footprint.loc[:, 'intensity'] = []
+            df_footprint.loc[:, 'intensity_bin_id'] = []
+            df_footprint.loc[:, 'probability'] = []
+
+        return df_to_numpy(df_footprint, EventDynamic)
 
 
 if __name__ == "__main__":
