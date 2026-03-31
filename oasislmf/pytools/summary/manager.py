@@ -34,7 +34,7 @@ import os
 from itertools import zip_longest
 
 from oasislmf.pytools.common.data import (load_as_ndarray, oasis_int, nb_oasis_int, oasis_int_size, oasis_float, oasis_float_size,
-                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype)
+                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype, write_ndarray_to_fmt_csv)
 from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
                                                   mv_read, mv_write_summary_header, mv_write_sidx_loss, mv_write_delimiter,
                                                   GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
@@ -428,7 +428,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
 
         # data for index file (low_memory==True)
         summary_sets_cursor = np.zeros(summary_sets_id.shape[0], dtype=np.int64)
-        summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=np.dtype([('summary_id', oasis_int), ('offset', np.int64)]))
+        summary_stream_index_dtype = np.dtype([('summary_id', oasis_int), ('offset', np.int64)])
+        summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
 
         for summary_set_index, summary_set_id in enumerate(summary_sets_id):
             summary_pipe = summary_sets_pipe[summary_set_id]
@@ -456,9 +457,12 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, **kwargs):
                             break
                     if low_memory:
                         # write the summary.idx file
-                        np.savetxt(summary_sets_index_pipe[summary_set_id],
-                                   summary_stream_index[:summary_index_cursor],
-                                   fmt="%i,%i")
+                        write_ndarray_to_fmt_csv(
+                            summary_sets_index_pipe[summary_set_id],
+                            summary_stream_index[:summary_index_cursor],
+                            summary_stream_index_dtype.names,
+                            "%i,%i"
+                        )
 
                 loss_summary.fill(0)
                 present_summary_id.fill(0)
