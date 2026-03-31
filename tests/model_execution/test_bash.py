@@ -1,6 +1,8 @@
 import json
 import os
+import re
 import shutil
+import tempfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
@@ -35,10 +37,9 @@ class GenbashBase(TestCase):
         cls.bash_trace = False
         cls.stderr_guard = False
 
-        # Recreate output folder
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER, ignore_errors=True)
 
     def setUp(self):
         self.temp_reference_file = None
@@ -170,19 +171,42 @@ class GenbashBase(TestCase):
 
     def _prepare_dynamic_reference(self, output_filename, ref_template):
         """Create temp reference file with dynamic FIFO directory replaced"""
-        # Extract FIFO directory from output
-        tmp_fifo_dir = None
+        # Clean up any previous temp reference file (check_chunks calls check() multiple times
+        # per test, and we must not leak earlier temp files when overwriting self.temp_reference_file)
+        if self.temp_reference_file:
+            if os.path.exists(self.temp_reference_file.name):
+                os.remove(self.temp_reference_file.name)
+            self.temp_reference_file = None
+
+        # Extract the full fifo base path from the generated script.
+        # Three patterns are tried in order:
+        #   1. Analysis partition-0: "mkdir -p .../fifo/"
+        #   2. Output script:        "rm -R -f .../" (absolute path, no wildcard)
+        #   3. Partition scripts 1+: any line with an absolute ".../fifo/" path
+        #      (e.g. "find .../fifo/ ..." or "mkfifo .../fifo/name")
+        fifo_base = None
         with open(output_filename, 'r') as f:
             for line in f:
-                if '/tmp/' in line:
-                    tmp_fifo_dir = line.split('/')[2]
+                stripped = line.strip()
+                if stripped.startswith('mkdir -p') and stripped.endswith('/fifo/'):
+                    path = stripped.split()[-1]
+                    fifo_base = path[:path.rindex('/fifo/')]
+                    break
+                if stripped.startswith('rm -R -f') and not stripped.endswith('*'):
+                    path = stripped.split()[-1].rstrip('/')
+                    if os.path.isabs(path):
+                        fifo_base = path
+                        break
+                match = re.search(r'(\S+)/fifo/', line)
+                if match and os.path.isabs(match.group(1)):
+                    fifo_base = match.group(1)
                     break
 
-        # Create temp reference with placeholder replaced
+        # Create temp reference with /tmp/%FIFO_DIR% replaced by the full base path
         ref_tmp_file = NamedTemporaryFile("w+", delete=False, prefix='bash')
         with open(ref_template, 'r') as f:
             kernel_script = f.read()
-        kernel_script = kernel_script.replace('%FIFO_DIR%', tmp_fifo_dir)
+        kernel_script = kernel_script.replace('/tmp/%FIFO_DIR%', fifo_base)
         ref_tmp_file.write(kernel_script)
         ref_tmp_file.close()
 
@@ -242,7 +266,7 @@ class Genbash_base(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_base")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_base_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_base")
 
 
@@ -253,7 +277,7 @@ class Genbash_ErrorGuard_and_TempDir(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_err")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_err_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_err")
 
         cls.gul_alloc_rule = 1
@@ -261,10 +285,6 @@ class Genbash_ErrorGuard_and_TempDir(GenbashBase):
         cls.ri_alloc_rule = 3
         cls.fifo_tmp_dir = True
         cls.stderr_guard = True
-
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
 
 @discover_and_add_tests
@@ -274,16 +294,12 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_lb")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_lb_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_lb")
 
         cls.num_gul_per_lb = 2
         cls.num_fm_per_lb = 2
         cls.gulmc = False
-
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
 
 # Special case: Custom gulcalc tests
@@ -292,12 +308,8 @@ class Genbash_CustomGulcalc(GenbashBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_csm")
+        cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_csm_')
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_csm")
-
-        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
-        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
     @staticmethod
     def _get_getmodel_cmd(**kwargs):
