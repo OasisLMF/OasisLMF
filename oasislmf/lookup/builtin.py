@@ -38,6 +38,11 @@ try:  # needed for geotiff
 except ImportError:
     gdal = None
 
+try:  # needed for h3 lookup
+    import h3
+except ImportError:
+    h3 = None
+
 import math
 import re
 
@@ -905,6 +910,82 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
 
         return geotiff_lookup
+
+    def build_h3(self, resolution, file_path, file_type='csv', **kwargs):
+        """
+        Function factory to look up area_peril_id using H3 hexagonal grid indexing.
+
+        Converts latitude/longitude to an H3 cell at the specified resolution,
+        converts the cell to its int64 representation, then maps to an int32
+        area_peril_id using a mapping file supplied by the model provider.
+
+        The mapping file must contain at least two columns:
+            - ``h3_int64``      : H3 cell index as a 64-bit integer
+            - ``area_peril_id`` : Oasis area peril ID (int32)
+
+        Config example::
+
+            "h3_area_peril": {
+                "type": "h3",
+                "columns": ["latitude", "longitude"],
+                "parameters": {
+                    "resolution": 5,
+                    "file_path": "%%KEYS_DATA_PATH%%/h3_to_areaperil.csv"
+                }
+            }
+
+        Parameters
+        ----------
+        resolution : int
+            H3 resolution level (0–15). Higher values produce finer cells.
+        file_path : str
+            Path to the int64→area_peril_id mapping file.
+            Supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+        file_type : str
+            Pandas read function suffix (``'csv'``, ``'parquet'``, etc.).
+            Defaults to ``'csv'``.
+        **kwargs
+            Additional keyword arguments forwarded to the pandas read function.
+        """
+        if h3 is None:
+            raise OasisException(
+                "h3 module is required for h3 lookups; install it with 'pip install h3>=4'"
+            )
+
+        read_func = getattr(pd, f"read_{file_type}", None)
+        if callable(read_func):
+            h3_mapping_df = read_func(self.to_abs_filepath(file_path), **kwargs)
+        else:
+            h3_mapping_df = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
+
+        h3_mapping_df.columns = [c.lower() for c in h3_mapping_df.columns]
+        if 'h3_int64' not in h3_mapping_df.columns:
+            raise OasisException(
+                f"H3 mapping file must contain an 'h3_int64' column, found: {list(h3_mapping_df.columns)}"
+            )
+        h3_mapping_df['h3_int64'] = h3_mapping_df['h3_int64'].astype('int64')
+
+        def h3_lookup(locations):
+            valid = locations['latitude'].notna() & locations['longitude'].notna()
+            locations['h3_int64'] = pd.NA
+
+            if valid.any():
+                locations.loc[valid, 'h3_int64'] = [
+                    h3.str_to_int(h3.latlng_to_cell(lat, lon, resolution))
+                    for lat, lon in zip(
+                        locations.loc[valid, 'latitude'],
+                        locations.loc[valid, 'longitude'],
+                    )
+                ]
+
+            locations['h3_int64'] = locations['h3_int64'].astype('Int64')
+            locations = locations.merge(
+                h3_mapping_df[['h3_int64', 'area_peril_id']], on='h3_int64', how='left'
+            )
+            locations.drop(columns=['h3_int64'], inplace=True)
+            return self.set_id_columns(locations, ['area_peril_id'])
+
+        return h3_lookup
 
     def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
         """
