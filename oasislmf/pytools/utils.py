@@ -4,6 +4,8 @@ This file contains general-purpose utilities.
 import logging
 import numpy as np
 import os
+import shutil
+import tempfile
 import uuid
 
 
@@ -63,18 +65,21 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
     """
     def inner(func):
         def wrapper(*args, **kwargs):
-            if not os.path.isdir(log_dir):
-                os.makedirs(log_dir)
+            _tmp_dir = tempfile.mkdtemp(prefix=f'oasis_{exec_name}_', dir=os.environ.get('OASIS_TMPDIR')) \
+                if os.environ.get('OASIS_PYTEST_REDIRECT_LOGS') else None
+            _log_dir = _tmp_dir or log_dir
+            if not os.path.isdir(_log_dir):
+                os.makedirs(_log_dir)
             logging_config = logging.root.manager.loggerDict.keys()
             logging.captureWarnings(True)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             log_file = f'{exec_name}_{os.getpid()}_{uuid.uuid4()}.log'
 
-            childFileHandler = logging.FileHandler(os.path.join(log_dir, log_file))
+            childFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
             childFileHandler.setLevel(log_level)
             childFileHandler.setFormatter(formatter)
 
-            rootFileHandler = logging.FileHandler(os.path.join(log_dir, log_file))
+            rootFileHandler = logging.FileHandler(os.path.join(_log_dir, log_file))
             rootFileHandler.setLevel(logging.INFO)
             rootFileHandler.setFormatter(formatter)
 
@@ -111,6 +116,8 @@ def redirect_logging(exec_name, log_dir='./log', log_level=logging.WARNING):
                 logger.removeHandler(rootFileHandler)
                 logging.shutdown()
                 logging.captureWarnings(False)
+                if _tmp_dir:
+                    shutil.rmtree(_tmp_dir, ignore_errors=True)
         return wrapper
     return inner
 

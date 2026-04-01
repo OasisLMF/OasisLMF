@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Cython-generated C source files
+oasislmf/**/oasis_writecsv.c
+
 # Ktools binary files
 *.bin
 
@@ -121,15 +124,6 @@ requirements.txt
 .mypy_cache/
 
 # output bash scripts from tests
-tests/model_execution/cov_kparse_output/
-tests/model_execution/err_kparse_output/
-tests/model_execution/eve_kparse_output/
-tests/model_execution/itm_kparse_output/
-tests/model_execution/lb_kparse_output/
-tests/model_execution/tmp_kparse_output/
-tests/model_execution/err_fc_kparse_output/
-tests/model_execution/itm_fc_kparse_output/
-tests/model_execution/tmp_fc_kparse_output/
 tests/assets/test_summarypy/**/error_files/
 tests/assets/test_join-summary-info/**/error_files/
 tests/assets/test_katpy/**/error_files/
