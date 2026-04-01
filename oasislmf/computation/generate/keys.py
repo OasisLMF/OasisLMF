@@ -210,7 +210,7 @@ class GenerateKeysDeterministic(KeyComputationStep):
                 if not coverage_info['SubCoverages']
                 and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
             self.supported_oed_coverage_types = cob_coverage
-        else: # default for old oed version
+        else:  # default for old oed version
             self.supported_oed_coverage_types = [1, 2, 3, 4]
 
         config = {'builtin_lookup_type': 'peril_covered_deterministic',
