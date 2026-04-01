@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "Cython>=3.0", "numpy>=1.18"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -63,6 +63,7 @@ exclude = ["tests", "tests.*", "tests.*.*"]
 [tool.setuptools.package-data]
 "*" = ["requirements-package.in", "LICENSE"]
 "oasislmf._data" = ["*"]
+"oasislmf.pytools.common" = ["oasis_writecsv.pyx"]
 rdls = ["rdls_schema.json"]
 
 [tool.setuptools.exclude-package-data]
