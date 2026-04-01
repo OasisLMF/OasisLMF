@@ -203,15 +203,16 @@ class GenerateKeysDeterministic(KeyComputationStep):
 
         exposure_data = get_exposure_data(self, add_internal_col=True)
 
-        if self.supported_oed_coverage_types is None and 'CoverageValues' in exposure_data.oed_schema.schema:
-            coverage_values = exposure_data.oed_schema.schema['CoverageValues']
-            cob_coverage = list(
-                coverage_info['CoverageID'] for coverage_info in coverage_values.values()
-                if not coverage_info['SubCoverages']
-                and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
-            self.supported_oed_coverage_types = cob_coverage
-        else:  # default for old oed version
-            self.supported_oed_coverage_types = [1, 2, 3, 4]
+        if self.supported_oed_coverage_types is None:
+            if 'CoverageValues' in exposure_data.oed_schema.schema:
+                coverage_values = exposure_data.oed_schema.schema['CoverageValues']
+                cob_coverage = list(
+                    coverage_info['CoverageID'] for coverage_info in coverage_values.values()
+                    if not coverage_info['SubCoverages']
+                    and coverage_info['Type'] == exposure_data.class_of_business_info['name'])
+                self.supported_oed_coverage_types = cob_coverage
+            else:  # default for old oed version
+                self.supported_oed_coverage_types = [1, 2, 3, 4]
 
         config = {'builtin_lookup_type': 'peril_covered_deterministic',
                   'model': {"supplier_id": "OasisLMF",
