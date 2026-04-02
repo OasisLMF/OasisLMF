@@ -75,7 +75,7 @@ class TestGenFiles(ComputationChecker):
         with self.tmp_dir() as t_dir:
             expected_run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
             mock_output_dir.return_value = expected_run_dir
-            file_gen_return = self.manager.generate_files(**self.min_args)
+            file_gen_return = self.manager.generate_files(**{**self.min_args, 'oasis_files_dir': t_dir})
 
             expected_return = {
                 'items': f'{expected_run_dir}/items.bin',
@@ -92,7 +92,7 @@ class TestGenFiles(ComputationChecker):
         with self.tmp_dir() as t_dir:
             expected_run_dir = os.path.join(t_dir, 'runs', 'files-TIMESTAMP')
             mock_output_dir.return_value = expected_run_dir
-            file_gen_return = self.manager.generate_files(**self.il_args)
+            file_gen_return = self.manager.generate_files(**{**self.il_args, 'oasis_files_dir': t_dir})
 
             expected_return = {
                 'items': f'{expected_run_dir}/items.bin',
@@ -182,7 +182,7 @@ class TestGenFiles(ComputationChecker):
         CURRENCY = 'JPY'
         with self.tmp_dir() as t_dir:
             with self.assertRaises(OdsException) as context:
-                call_args = {**self.ri_args, 'reporting_currency': CURRENCY}
+                call_args = {**self.ri_args, 'oasis_files_dir': t_dir, 'reporting_currency': CURRENCY}
                 file_gen_return = self.manager.generate_files(**call_args)
             expected_err_msg = f'Currency Convertion needs to be specified in order to convert term to reporting currency {CURRENCY}'
             self.assertIn(expected_err_msg, str(context.exception))
@@ -191,7 +191,7 @@ class TestGenFiles(ComputationChecker):
         model_settings_file = self.tmp_files.get('model_settings_json').name
         with self.tmp_dir() as t_dir:
             with self._caplog.at_level(logging.WARN):
-                call_args = {**self.ri_args, 'model_settings_json': model_settings_file}
+                call_args = {**self.ri_args, 'oasis_files_dir': t_dir, 'model_settings_json': model_settings_file}
                 file_gen_return = self.manager.generate_files(**call_args)
                 self.assertIn('WARNING: Failed to load "damage_group_fields"', self._caplog.messages[0])
                 self.assertIn('WARNING: Failed to load "hazard_group_fields"', self._caplog.messages[1])
@@ -200,14 +200,14 @@ class TestGenFiles(ComputationChecker):
         model_settings_file = self.tmp_files.get('model_settings_json')
         self.write_json(model_settings_file, GROUP_FIELDS_MODEL_SETTINGS)
         with self.tmp_dir() as t_dir:
-            call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
+            call_args = {**self.ri_args, 'oasis_files_dir': t_dir, 'model_settings_json': model_settings_file.name}
             file_gen_return = self.manager.generate_files(**call_args)
 
     def test_files__model_settings_given__old_group_fields_are_valid(self):
         model_settings_file = self.tmp_files.get('model_settings_json')
         self.write_json(model_settings_file, OLD_GROUP_FIELDS_MODEL_SETTINGS)
         with self.tmp_dir() as t_dir:
-            call_args = {**self.ri_args, 'model_settings_json': model_settings_file.name}
+            call_args = {**self.ri_args, 'oasis_files_dir': t_dir, 'model_settings_json': model_settings_file.name}
             file_gen_return = self.manager.generate_files(**call_args)
 
     def test_files__keys_csv__is_given(self):
@@ -228,6 +228,7 @@ class TestGenFiles(ComputationChecker):
         with self.tmp_dir() as t_dir:
             with self.assertRaises(OasisException) as context:
                 call_args = {**self.ri_args,
+                             'oasis_files_dir': t_dir,
                              'oed_location_csv': loc_file,
                              'keys_data_path': keys_file,
                              'keys_errors_path': keys_err_file}
@@ -242,6 +243,7 @@ class TestGenFiles(ComputationChecker):
         with self.tmp_dir() as t_dir:
             with self.assertRaises(OasisException) as context:
                 call_args = {**self.ri_args,
+                             'oasis_files_dir': t_dir,
                              'oed_location_csv': loc_file,
                              'keys_data_path': keys_file}
                 file_gen_return = self.manager.generate_files(**call_args)
@@ -254,9 +256,10 @@ class TestGenFiles(ComputationChecker):
         self.write_json(model_settings_file, CORRELATIONS_MODEL_SETTINGS)
         analysis_settings_file = self.tmp_files.get('analysis_settings_json')
         self.write_json(analysis_settings_file, MIN_RUN_CORRELATIONS_SETTINGS)
-        with self.tmp_dir() as _:
+        with self.tmp_dir() as t_dir:
             call_args = {
                 **self.ri_args,
+                'oasis_files_dir': t_dir,
                 'model_settings_json': model_settings_file.name,
                 'analysis_settings_json': analysis_settings_file.name
             }
@@ -298,6 +301,7 @@ class TestGenFiles(ComputationChecker):
             mock_output_dir.return_value = expected_run_dir
             call_args = {
                 **self.ri_args,
+                'oasis_files_dir': t_dir,
                 'model_settings_json': model_settings_file.name
             }
             file_gen_return = self.manager.generate_files(**call_args)
@@ -345,6 +349,7 @@ class TestGenFiles(ComputationChecker):
             mock_output_dir.return_value = expected_run_dir
             call_args = {
                 **self.ri_args,
+                'oasis_files_dir': t_dir,
                 'model_settings_json': model_settings_file.name
             }
             file_gen_return = self.manager.generate_files(**call_args)

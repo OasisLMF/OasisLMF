@@ -17,7 +17,6 @@ from .data.common import (
     PARQUET_GUL_SETTINGS, MIN_MODEL_SETTINGS, merge_dirs
 )
 from .test_computation import ComputationChecker
-from oasislmf.computation.generate.losses import GenerateLosses
 
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
@@ -217,8 +216,14 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_oasis_losses(**call_args)
             self.assertTrue(mock_post_analysis.called)
 
-    @patch('subprocess.check_output')
-    def test_losses__run_ri__all_outputs__check_bash_script(self, sub_process_run):
+    @patch('subprocess.Popen')
+    def test_losses__run_ri__all_outputs__check_bash_script(self, mock_popen):
+        mock_proc = Mock()
+        mock_proc.pid = 12345
+        mock_proc.communicate.return_value = (b'', None)
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
         summary_type = 'summarypy'
         with self.tmp_dir() as model_run_dir, self.subTest(summary_type):
             self.manager.generate_files(summarypy=summary_type == 'summarypy', **self.args_gen_files_ri)
@@ -236,8 +241,8 @@ class TestGenLosses(ComputationChecker):
                 self.manager.generate_losses(**call_args)
 
             # Check bash script vs reference
-            self.assertTrue(sub_process_run.called)
-            bash_script_path = sub_process_run.call_args.args[0][1]
+            self.assertTrue(mock_popen.called)
+            bash_script_path = mock_popen.call_args.args[0][1]
             result_script = self.read_file(bash_script_path).decode()
             expected_script = self.read_file(ALL_EXPECTED_SCRIPT.format(summary_type)).decode()
             self.assertEqual(expected_script, result_script)
