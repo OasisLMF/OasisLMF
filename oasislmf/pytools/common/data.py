@@ -3,12 +3,10 @@ import os
 import sys
 import numba as nb
 import numpy as np
-import pandas as pd
 
 from oasis_writecsv import write_rows as cython_write_csv  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
-
 
 oasis_int = np.dtype(os.environ.get('OASIS_INT', 'i4'))
 nb_oasis_int = nb.from_dtype(oasis_int)
@@ -375,17 +373,24 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     if os.path.isfile(os.path.join(dir_path, name + '.bin')):
         return np.memmap(os.path.join(dir_path, name + '.bin'), dtype=_dtype, mode='r')
     elif must_exist or os.path.isfile(os.path.join(dir_path, name + '.csv')):
-        # in csv column cam be out of order and have different name,
-        # we load with pandas and write each column to the ndarray
+        # in csv column can be out of order and have different name,
+        # col_map maps {dtype_field_name: csv_header_name}
         if col_map is None:
             col_map = {}
         with open(os.path.join(dir_path, name + '.csv')) as file_in:
-            cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
-            df = pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype, usecols=list(cvs_dtype.keys()))
-            res = np.empty(df.shape[0], dtype=_dtype)
-            for name in _dtype.names:
-                res[name] = df[col_map.get(name, name)]
-            return res
+            header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}
+            _usecols = []
+            _use_dtype = []
+            for field_name, (field_dtype, _) in _dtype.fields.items():
+                csv_name = col_map.get(field_name, field_name)
+                if csv_name in header:
+                    _usecols.append(header[csv_name])
+                    _use_dtype.append((field_name, field_dtype))
+
+            if _usecols:
+                return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
+            else:
+                return np.empty(0, dtype=_dtype)
     else:
         return np.empty(0, dtype=_dtype)
 
