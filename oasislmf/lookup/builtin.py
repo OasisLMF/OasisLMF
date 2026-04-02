@@ -687,7 +687,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
                                                         axis=1,
                                                         result_type='reduce')
-                gdf_loc = gdf_loc.set_geometry('loc_geometry')
+                gdf_loc = gdf_loc.set_geometry('loc_geometry', crs="EPSG:4326")
 
                 gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
