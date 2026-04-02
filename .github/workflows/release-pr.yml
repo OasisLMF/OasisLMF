@@ -5,9 +5,11 @@
 #   stable_branch:   The target branch for the PR, e.g. stable/2.x
 #
 # Actions:
-#   1. Updates the package version via version.yml and pushes a commit
+#   0. If the triggering branch is not release/*, create release/<release_version>
+#      branching from the current branch and continue on that
+#   1. Updates the package version (mirrors version.yml logic) and pushes a commit
 #   2. Scans git history since the most recent tag and extracts merged PR numbers
-#   3. Creates a PR from the current branch to stable_branch titled "Release <version>"
+#   3. Creates a PR from the release branch to stable_branch titled "Release <version>"
 #      If a PR already exists for this head→base pair, updates its body instead
 
 name: Create Release PR
@@ -24,32 +26,106 @@ on:
 
 
 jobs:
-  update-version:
-    uses: ./.github/workflows/version.yml
-    secrets: inherit
-    with:
-      oasislmf_version: ${{ inputs.release_version }}
-
-
-  create-release-pr:
+  # ── Job 1 ──────────────────────────────────────────────────────────────────
+  # Determine (and optionally create) the release branch to work on.
+  # Outputs the branch name used by all subsequent jobs.
+  setup:
     runs-on: ubuntu-latest
-    needs: update-version
-    permissions:
-      contents: read
-      pull-requests: write
+    outputs:
+      working_branch: ${{ steps.branch.outputs.working_branch }}
 
     steps:
-      - name: Checkout
+      - name: Resolve working branch
+        id: branch
+        run: |
+          if [[ "${{ github.ref_name }}" == release/* ]]; then
+            echo "Already on a release branch: ${{ github.ref_name }}"
+            echo "working_branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            NEW_BRANCH="release/${{ inputs.release_version }}"
+            echo "Not on a release branch — will create: $NEW_BRANCH"
+            echo "working_branch=${NEW_BRANCH}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout (only needed when creating a new branch)
+        if: ${{ !startsWith(github.ref_name, 'release/') }}
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
 
+      - name: Create and push release branch
+        if: ${{ !startsWith(github.ref_name, 'release/') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
+        run: |
+          git checkout -b release/${{ inputs.release_version }}
+          git push origin release/${{ inputs.release_version }}
+
+
+  # ── Job 2 ──────────────────────────────────────────────────────────────────
+  # Update the package version on the working branch and commit.
+  # Mirrors the logic in version.yml but targets the working_branch ref.
+  update-version:
+    runs-on: ubuntu-latest
+    needs: setup
+
+    env:
+      oasislmf_file: 'oasislmf/__init__.py'
+      oasislmf_regex: '^__version__'
+
+    steps:
+      - name: Check input is valid semvar
+        run: |
+          VALID=$(echo "${{ inputs.release_version }}" | grep -oPc "^(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)$")
+          [[ "$VALID" -eq "1" ]] || { echo "Invalid semvar: ${{ inputs.release_version }}"; exit 1; }
+
+      - name: Checkout working branch
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.setup.outputs.working_branch }}
+
+      - name: Setup git user
+        run: |
+          git config --global user.email "${{ secrets.BUILD_GIT_EMAIL }}"
+          git config --global user.name "${{ secrets.BUILD_GIT_USERNAME }}"
+          git config --global pull.ff only
+
+      - name: Write oasislmf version
+        run: |
+          CURRENT_VER=$(grep "${{ env.oasislmf_regex }}" "${{ env.oasislmf_file }}" | awk -F"'" '{print $2}')
+          sed -i "s|${CURRENT_VER}|${{ inputs.release_version }}|g" "${{ env.oasislmf_file }}"
+          git add "${{ env.oasislmf_file }}"
+          [[ -z $(git status -s) ]] || git commit -m "Set oasislmf to version ${{ inputs.release_version }}"
+
+      - name: Push
+        run: git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
+
+
+  # ── Job 3 ──────────────────────────────────────────────────────────────────
+  # Build the PR body from merged PRs since the last tag, then create or update
+  # the release PR targeting stable_branch.
+  create-release-pr:
+    runs-on: ubuntu-latest
+    needs: [setup, update-version]
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.setup.outputs.working_branch }}
+
       - name: Pull latest (pick up version bump commit)
         run: git pull
 
       - name: Build PR body
-        id: pr_body
         run: |
           # Find the most recent tag reachable from HEAD
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -62,8 +138,8 @@ jobs:
             LOG_RANGE="${LATEST_TAG}..HEAD"
           fi
 
-          # Extract PR numbers from commit subjects, e.g. "fix foo (#1830)" -> "1830"
-          # Deduplicate while preserving order (most recent first)
+          # Extract PR numbers from commit subjects e.g. "fix foo (#1830)" -> "* #1830"
+          # Deduplicate while preserving most-recent-first order
           PR_LINES=$(git log --pretty=format:"%s" $LOG_RANGE \
             | grep -oP '\(#\d+\)' \
             | grep -oP '\d+' \
@@ -74,7 +150,7 @@ jobs:
             PR_LINES="* No PRs found since last tag"
           fi
 
-          # Write body to a file to avoid quoting issues
+          # Write body to a file to avoid shell-quoting issues with multiline strings
           {
             echo "### Release ${{ inputs.release_version }}"
             echo ""
@@ -90,7 +166,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=$(gh pr list \
-            --head "${{ github.ref_name }}" \
+            --head "${{ needs.setup.outputs.working_branch }}" \
             --base "${{ inputs.stable_branch }}" \
             --json number \
             --jq '.[0].number // empty')
@@ -110,7 +186,7 @@ jobs:
             --title "Release ${{ inputs.release_version }}" \
             --body-file /tmp/pr_body.md \
             --base "${{ inputs.stable_branch }}" \
-            --head "${{ github.ref_name }}"
+            --head "${{ needs.setup.outputs.working_branch }}"
 
       - name: Update existing PR body
         if: steps.check_pr.outputs.pr_number != ''
