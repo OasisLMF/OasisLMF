@@ -967,7 +967,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def h3_lookup(locations):
             valid = locations['latitude'].notna() & locations['longitude'].notna()
-            locations['h3_int64'] = pd.NA
+            locations['h3_int64'] = 0 #  0 correponds to an invalid H3 index
 
             if valid.any():
                 locations.loc[valid, 'h3_int64'] = [
@@ -978,7 +978,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     )
                 ]
 
-            locations['h3_int64'] = locations['h3_int64'].astype('Int64')
             locations = locations.merge(
                 h3_mapping_df[['h3_int64', 'area_peril_id']], on='h3_int64', how='left'
             )
