@@ -5,7 +5,6 @@ in the future we may want to improve on the management of files used to generate
 tutorial for pandas and parquet https://towardsdatascience.com/a-gentle-introduction-to-apache-arrow-with-apache-spark-and-pandas-bb19ffe0ddae
 
 """
-
 import warnings
 
 import numba as nb
@@ -24,12 +23,8 @@ try:  # needed for rtree
     # We're also not aware of any performance issues caused by this.
     # Upgrading to Shapely 2 will likely address this issue.
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            module="geopandas._compat",
-            message="The Shapely GEOS version",
-        )
+        warnings.filterwarnings('ignore', category=UserWarning, module="geopandas._compat",
+                                message="The Shapely GEOS version")
         import geopandas as gpd
     try:  # needed only for min distance
         from sklearn.neighbors import BallTree
@@ -51,16 +46,14 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
-OPT_INSTALL_MESSAGE = (
-    "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
-)
+OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
 
 def get_nearest(src_points, candidates, k_neighbors=1):
     """Find nearest neighbors for all source points from a set of candidate points"""
 
     # Create tree from the candidate points
-    tree = BallTree(candidates, leaf_size=15, metric="haversine")
+    tree = BallTree(candidates, leaf_size=15, metric='haversine')
 
     # Find closest points and distances
     distances, indices = tree.query(src_points, k=k_neighbors)
@@ -92,16 +85,8 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     right = right_gdf.copy().reset_index(drop=True)
 
     # Parse coordinates from points and insert them into a numpy array as RADIANS
-    left_radians = np.array(
-        left_gdf[left_geom_col]
-        .apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180))
-        .to_list()
-    )
-    right_radians = np.array(
-        right[right_geom_col]
-        .apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180))
-        .to_list()
-    )
+    left_radians = np.array(left_gdf[left_geom_col].apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180)).to_list())
+    right_radians = np.array(right[right_geom_col].apply(lambda geom: (geom.x * np.pi / 180, geom.y * np.pi / 180)).to_list())
 
     # Find the nearest points
     # -----------------------
@@ -120,7 +105,7 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
     if return_dist:
         # Convert to meters from radians
         earth_radius = 6371000  # meters
-        closest_points["distance"] = dist * earth_radius
+        closest_points['distance'] = dist * earth_radius
 
     return closest_points
 
@@ -131,28 +116,14 @@ W_E_PIXEL_RESOLUTION = 1  # w-e pixel resolution / pixel width.
 ROW_ROTATION = 2  # row rotation (typically zero).
 Y_COORDINATE = 3  # y-coordinate of the upper-left corner of the upper-left pixel.
 COLUMN_ROTATION = 4  # column rotation (typically zero).
-N_S_PIXEL_RESOLUTION = (
-    5  # n-s pixel resolution / pixel height (negative value for a north-up image).
-)
+N_S_PIXEL_RESOLUTION = 5  # n-s pixel resolution / pixel height (negative value for a north-up image).
 
 
 @nb.njit(cache=True)
-def jit_gda_loc_to_val(
-    ds_array, inv_gt, x_array, y_array, useful_array_idx, defaults, res
-):
+def jit_gda_loc_to_val(ds_array, inv_gt, x_array, y_array, useful_array_idx, defaults, res):
     for loc_i in range(res.shape[0]):
-        px = int(
-            inv_gt[X_COORDINATE]
-            + x_array[loc_i] * inv_gt[W_E_PIXEL_RESOLUTION]
-            + y_array[loc_i] * inv_gt[ROW_ROTATION]
-            + 0.5
-        )
-        py = int(
-            inv_gt[Y_COORDINATE]
-            + x_array[loc_i] * inv_gt[COLUMN_ROTATION]
-            + y_array[loc_i] * inv_gt[N_S_PIXEL_RESOLUTION]
-            + 0.5
-        )
+        px = int(inv_gt[X_COORDINATE] + x_array[loc_i] * inv_gt[W_E_PIXEL_RESOLUTION] + y_array[loc_i] * inv_gt[ROW_ROTATION] + 0.5)
+        py = int(inv_gt[Y_COORDINATE] + x_array[loc_i] * inv_gt[COLUMN_ROTATION] + y_array[loc_i] * inv_gt[N_S_PIXEL_RESOLUTION] + 0.5)
         if 0 <= px < ds_array.shape[1] and 0 <= py < ds_array.shape[0]:
             for col_i in range(useful_array_idx.shape[0]):
                 res[loc_i, col_i] = ds_array[py, px, useful_array_idx[col_i]]
@@ -190,7 +161,7 @@ def z_index_to_normal(index, size_across):
         return index
     index -= 1
     lat, long = undo_z_index(index)
-    return lat + long * size_across + 1
+    return (lat + long * size_across + 1)
 
 
 @nb.njit(cache=True)
@@ -210,23 +181,19 @@ def create_lat_lon_id_functions(
     lon_cell_size = arc_size
 
     if lat_reverse:
-
         @nb.njit()
         def lat_id(lat):
             return math.floor((lat_max - lat) / lat_cell_size)
     else:
-
         @nb.njit()
         def lat_id(lat):
             return math.floor((lat - lat_min) / lat_cell_size)
 
     if lon_reverse:
-
         @nb.njit()
         def lon_id(lon):
             return math.floor((lon_max - lon) / lon_cell_size)
     else:
-
         @nb.njit()
         def lon_id(lon):
             return math.floor((lon - lon_min) / lon_cell_size)
@@ -236,7 +203,8 @@ def create_lat_lon_id_functions(
 
 @nb.jit
 def jit_geo_grid_lookup(
-    lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id, lat_id, lon_id
+    lat, lon, lat_min, lat_max, lon_min, lon_max, compute_id,
+    lat_id, lon_id
 ):
     """Returns an array of area peril IDs for all lats given"""
     area_peril_id = np.empty_like(lat, dtype=np.int64)
@@ -257,15 +225,7 @@ def get_step(grid):
     return length * width
 
 
-key_columns = [
-    "loc_id",
-    "peril_id",
-    "coverage_type",
-    "area_peril_id",
-    "vulnerability_id",
-    "status",
-    "message",
-]
+key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
 
 class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
@@ -273,47 +233,25 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
 
     def process_locations(self, locations):
         peril_groups_df = get_peril_groups_df()
-        model_perils_covered = np.unique(
-            pd.DataFrame({"peril_group_id": self.config["model_perils_covered"]}).merge(
-                peril_groups_df
-            )["peril_id"]
-        )
-        peril_covered_column = (
-            "LocPerilsCovered"
-            if "LocPerilsCovered" in locations.columns
-            else "PolPerilsCovered"
-        )
+        model_perils_covered = np.unique(pd.DataFrame({'peril_group_id': self.config['model_perils_covered']})
+                                         .merge(peril_groups_df)['peril_id'])
+        peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        locations["peril_group_id"] = (
-            locations[peril_covered_column].astype(str).str.split(";")
-        )
-        keys_df = (
-            locations.explode("peril_group_id")
-            .drop_duplicates()
-            .merge(peril_groups_df)[["loc_id", "peril_id"]]
-        )
-        locations.drop(columns="peril_group_id")
+        locations['peril_group_id'] = locations[peril_covered_column].astype(str).str.split(';')
+        keys_df = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)[['loc_id', 'peril_id']]
+        locations.drop(columns='peril_group_id')
 
-        coverage_df = pd.DataFrame(
-            {"coverage_type": self.config["supported_oed_coverage_types"]},
-            dtype="Int32",
-        )
-        keys_df = keys_df.merge(coverage_df, how="cross").sort_values(
-            ["loc_id", "peril_id", "coverage_type"], kind="stable"
-        )
-        keys_df["message"] = ""
-        success_df = keys_df["peril_id"].isin(model_perils_covered)
+        coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
+        keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
+        keys_df['message'] = ''
+        success_df = keys_df['peril_id'].isin(model_perils_covered)
         success_df_len = keys_df[success_df].shape[0]
-        keys_df.loc[success_df, "area_peril_id"] = np.arange(1, success_df_len + 1)
-        keys_df.loc[success_df, "vulnerability_id"] = np.arange(1, success_df_len + 1)
-        keys_df.loc[success_df, "status"] = OASIS_KEYS_STATUS["success"]["id"]
-        keys_df.loc[~success_df, ["status", "message"]] = (
-            OASIS_KEYS_STATUS["noreturn"]["id"],
-            "unsuported peril_id",
-        )
-        keys_df[["area_peril_id", "vulnerability_id"]] = keys_df[
-            ["area_peril_id", "vulnerability_id"]
-        ].astype("Int32")
+        keys_df.loc[success_df, 'area_peril_id'] = np.arange(1, success_df_len + 1)
+        keys_df.loc[success_df, 'vulnerability_id'] = np.arange(1, success_df_len + 1)
+        keys_df.loc[success_df, 'status'] = OASIS_KEYS_STATUS['success']['id']
+        keys_df.loc[~success_df, ['status', 'message']
+                    ] = OASIS_KEYS_STATUS['noreturn']['id'], 'unsuported peril_id'
+        keys_df[['area_peril_id', 'vulnerability_id']] = keys_df[['area_peril_id', 'vulnerability_id']].astype('Int32')
 
         return keys_df
 
@@ -390,7 +328,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return fct
 
     """
-
     interface_version = "1"
 
     def set_step_function(self, step_name, step_config, function_being_set=None):
@@ -409,94 +346,57 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if hasattr(self, step_name):
             step_function = getattr(self, step_name)
         else:
-            if step_config["type"] == "combine":  # we need to build the child function
-                if (
-                    function_being_set is None
-                ):  # make sure we catch cyclic strategy definition
+            if step_config['type'] == 'combine':  # we need to build the child function
+                if function_being_set is None:  # make sure we catch cyclic strategy definition
                     function_being_set = {step_name}
                 elif step_name in function_being_set:
-                    raise OasisException(
-                        f"lookup config has a cyclic strategy definition {function_being_set} then {step_name} again"
-                    )
+                    raise OasisException(f"lookup config has a cyclic strategy definition {function_being_set} then {step_name} again")
                 else:
                     function_being_set.add(step_name)
 
                 functions = []
-                for child_step_name in step_config["parameters"]["strategy"]:
+                for child_step_name in step_config["parameters"]['strategy']:
                     child_fct = self.set_step_function(
                         step_name=child_step_name,
-                        step_config=self.config["step_definition"][child_step_name],
-                        function_being_set=function_being_set,
-                    )
-                    functions.append(
-                        {
-                            "function": child_fct,
-                            "columns": set(step_config.get("columns", [])),
-                        }
-                    )
-                step_config["parameters"]["strategy"] = functions
+                        step_config=self.config['step_definition'][child_step_name],
+                        function_being_set=function_being_set)
+                    functions.append({'function': child_fct, 'columns': set(step_config.get("columns", []))})
+                step_config['parameters']['strategy'] = functions
 
-            step_function = getattr(self, f"build_{step_config['type']}")(
-                **step_config["parameters"]
-            )
+            step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
             setattr(self, step_name, step_function)
         return step_function
 
     def process_locations(self, locations):
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
-        useful_cols = set(
-            ["loc_id"]
-            + sum(
-                (
-                    step_config.get("columns", [])
-                    for step_config in self.config["step_definition"].values()
-                ),
-                [],
-            )
-        )
+        useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
 
-        useful_cols_map = {
-            lower_case_column_map[useful_col.lower()]: useful_col
-            for useful_col in useful_cols
-            if useful_col.lower() in lower_case_column_map
-        }
+        useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
+                           for useful_col in useful_cols
+                           if useful_col.lower() in lower_case_column_map}
         locations = locations.rename(columns=useful_cols_map)
-        locations = locations[
-            list(useful_cols.intersection(locations.columns))
-        ].drop_duplicates()
+        locations = locations[list(useful_cols.intersection(locations.columns))].drop_duplicates()
 
         # set default status and message
-        locations["status"] = OASIS_KEYS_STATUS["success"]["id"]
-        locations["message"] = ""
+        locations['status'] = OASIS_KEYS_STATUS['success']['id']
+        locations['message'] = ''
 
         # process each step of the strategy
         for step_name in self.config["strategy"]:
-            step_config = self.config["step_definition"][step_name]
+            step_config = self.config['step_definition'][step_name]
             needed_column = set(step_config.get("columns", []))
             if not needed_column.issubset(locations.columns):
                 raise OasisException(
-                    f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}"
-                )
+                    f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
 
         key_columns = [
-            "loc_id",
-            "peril_id",
-            "coverage_type",
-            "area_peril_id",
-            "vulnerability_id",
-            "status",
-            "message",
+            'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
+            'vulnerability_id', 'status', 'message'
         ]
-        additional_columns = [
-            "amplification_id",
-            "model_data",
-            "section_id",
-            "intensity_adjustment",
-            "return_period",
-        ]
+        additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
         for col in additional_columns:
             if col in locations.columns:
                 key_columns += [col]
@@ -504,21 +404,17 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         locations = locations[key_columns]
 
         # check all ids are of the good type
-        id_cols = ["coverage_type", "area_peril_id", "vulnerability_id"]
-        if "amplification_id" in locations.columns:
-            id_cols += ["amplification_id"]
+        id_cols = ['coverage_type', 'area_peril_id', 'vulnerability_id']
+        if 'amplification_id' in locations.columns:
+            id_cols += ['amplification_id']
         self.set_id_columns(locations, id_cols)
         # check all success location have all ids set correctly
-        success_locations = locations.loc[
-            locations["status"] == OASIS_KEYS_STATUS["success"]["id"]
-        ]
+        success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]
         for id_col in id_cols:
             unknown_ids = success_locations[id_col] == OASIS_UNKNOWN_ID
             fail_locations = success_locations.loc[unknown_ids].index
-            locations.loc[fail_locations, ["status", "message"]] = (
-                OASIS_KEYS_STATUS["fail"]["id"],
-                f"{id_col} has an unknown id",
-            )
+            locations.loc[fail_locations, ['status', 'message']] = OASIS_KEYS_STATUS['fail'][
+                'id'], f'{id_col} has an unknown id'
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
@@ -532,17 +428,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         Returns:
             str: filepath where placeholder are replace their actual value.
         """
-        placeholder_keys = set(re.findall(r"%%(.+?)%%", filepath))
+        placeholder_keys = set(re.findall(r'%%(.+?)%%', filepath))
         for placeholder_key in placeholder_keys:
-            filepath = filepath.replace(
-                f"%%{placeholder_key}%%", self.config[placeholder_key.lower()]
-            )
+            filepath = filepath.replace(f'%%{placeholder_key}%%', self.config[placeholder_key.lower()])
         if "keys_data_path" in [key.lower() for key in placeholder_keys]:
             return filepath
         else:
-            return self.storage.get_storage_url(filepath, encode_params=False)[
-                1
-            ].replace("file://", "")
+            return self.storage.get_storage_url(filepath, encode_params=False)[1].replace('file://', '')
 
     @staticmethod
     def set_id_columns(df, id_columns):
@@ -555,13 +447,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if col not in df:
                 df[col] = OASIS_UNKNOWN_ID
             else:
-                df[col] = df[col].astype("Int64")
+                df[col] = df[col].astype('Int64')
                 df.loc[(df[col].isna()) | (df[col] <= 0), col] = OASIS_UNKNOWN_ID
         return df
 
-    def build_interval_to_index(
-        self, value_column_name, sorted_array, index_column_name=None, side="left"
-    ):
+    def build_interval_to_index(self, value_column_name, sorted_array, index_column_name=None, side='left'):
         """
         Allow to map a value column to an index according to it's index in the interval defined by sorted_array.
         nan value are kept as nan
@@ -577,33 +467,23 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if isinstance(sorted_array, list):
             pass
         elif isinstance(sorted_array, str):
-            sorted_array = [
-                float(val)
-                for val in open(self.to_abs_filepath(sorted_array))
-                if val.strip()
-            ]
+            sorted_array = [float(val) for val in open(self.to_abs_filepath(sorted_array)) if val.strip()]
         else:
-            raise OasisException(
-                "sorted_array must be a list of the interval sorted or a path to a csv file containing those interval"
-            )
+            raise OasisException("sorted_array must be a list of the interval sorted or a path to a csv file containing those interval")
 
         if index_column_name is None:
-            index_column_name = value_column_name + "_idx"
+            index_column_name = value_column_name + '_idx'
 
         def fct(locations):
-            locations[index_column_name] = np.searchsorted(
-                sorted_array, locations[value_column_name], side=side
-            )
+            locations[index_column_name] = np.searchsorted(sorted_array, locations[value_column_name], side=side)
             empty_values = is_empty(locations, value_column_name)
-            locations.loc[empty_values, index_column_name] = locations.loc[
-                empty_values, value_column_name
-            ]
+            locations.loc[empty_values, index_column_name] = locations.loc[empty_values, value_column_name]
             return locations
 
         return fct
 
     @staticmethod
-    def build_combine(id_columns, strategy, logical_type="or"):
+    def build_combine(id_columns, strategy, logical_type='or'):
         """
         build a function that will combine several strategy trying to achieve the same purpose by different mean into one.
         for example, finding the correct area_peril_id for a location with one method using (latitude, longitude)
@@ -642,17 +522,14 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         Returns:
             function: function combining all strategies
         """
-        if logical_type.lower() == "or":
-
+        if logical_type.lower() == 'or':
             def fct(locations):
                 initial_columns = locations.columns
                 result = []
                 for child_strategy in strategy:
-                    if not child_strategy["columns"].issubset(
-                        locations.columns
-                    ):  # needed column not present to run this strategy
+                    if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
                         continue
-                    locations = child_strategy["function"](locations)
+                    locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns)
                     is_valid = (locations[id_columns] != OASIS_UNKNOWN_ID).any(axis=1)
                     result.append(locations[is_valid])
@@ -660,34 +537,25 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     if locations.empty:
                         break
                 result.append(locations)
-                return Lookup.set_id_columns(
-                    pd.concat(result, ignore_index=True), id_columns
-                )
+                return Lookup.set_id_columns(pd.concat(result, ignore_index=True), id_columns)
 
-        elif logical_type.lower() == "and":
-
+        elif logical_type.lower() == 'and':
             def fct(locations):
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
-                    if not child_strategy["columns"].issubset(
-                        locations.columns
-                    ):  # needed column not present to run this strategy
+                    if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
                         continue
-                    locations = child_strategy["function"](locations)
+                    locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns[i])
-                    is_valid = (locations[id_columns[i]] != OASIS_UNKNOWN_ID).any(
-                        axis=1
-                    )
+                    is_valid = (locations[id_columns[i]] != OASIS_UNKNOWN_ID).any(axis=1)
                     result.append(locations[~is_valid][initial_columns])
                     locations = locations[is_valid]
 
                     if locations.empty:
                         break
                 result.append(locations)
-                return Lookup.set_id_columns(
-                    pd.concat(result, ignore_index=True), id_columns[-1]
-                )
+                return Lookup.set_id_columns(pd.concat(result, ignore_index=True), id_columns[-1])
 
         else:
             raise OasisException(f"Unsupported logical_type {logical_type}")
@@ -707,48 +575,31 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def fct(locations):
             for col in locations.columns:
-                if col.lower() == "locperilscovered":
+                if col.lower() == 'locperilscovered':
                     perils_covered_column = col
                     break
-                elif col.lower() == "polperilscovered":
+                elif col.lower() == 'polperilscovered':
                     perils_covered_column = col
                     break
             else:
-                raise OasisException("missing PerilsCovered column in location")
+                raise OasisException('missing PerilsCovered column in location')
 
-            locations["peril_group_id"] = (
-                locations[perils_covered_column].astype(str).str.split(";")
-            )
-            peril_locations = (
-                locations.explode("peril_group_id")
-                .drop_duplicates()
-                .merge(peril_groups_df)
-            )
-            locations.drop(columns="peril_group_id")
+            locations['peril_group_id'] = locations[perils_covered_column].astype(str).str.split(';')
+            peril_locations = locations.explode('peril_group_id').drop_duplicates().merge(peril_groups_df)
+            locations.drop(columns='peril_group_id')
 
             if model_perils_covered:
                 df_model_perils_covered = pd.Series(model_perils_covered)
-                df_model_perils_covered.name = "model_perils_covered"
-                peril_locations = peril_locations.merge(
-                    df_model_perils_covered,
-                    left_on="peril_id",
-                    right_on="model_perils_covered",
-                    sort=True,
-                )
-            not_covered_location = locations[
-                ~locations["loc_id"].isin(peril_locations["loc_id"])
-            ]
+                df_model_perils_covered.name = 'model_perils_covered'
+                peril_locations = peril_locations.merge(df_model_perils_covered,
+                                                        left_on='peril_id', right_on='model_perils_covered',
+                                                        sort=True)
+            not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])]
             if not not_covered_location.empty:
-                not_covered_location["status"] = OASIS_KEYS_STATUS["notatrisk"]
-                not_covered_location["message"] = (
-                    not_covered_location[perils_covered_column].astype(str)
-                    + " have no perils modelled"
-                )
-                peril_locations = pd.concat(
-                    [peril_locations, not_covered_location], ignore_index=True
-                )
+                not_covered_location['status'] = OASIS_KEYS_STATUS['notatrisk']
+                not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
+                peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
             return peril_locations
-
         return fct
 
     @staticmethod
@@ -763,7 +614,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 Note that we use the string representation of numpy dtype available at
                 https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
         """
-
         def prepare(locations):
             for column_name, preparations in kwargs.items():
                 if "default" in preparations:
@@ -771,30 +621,16 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         locations[column_name] = preparations["default"]
                     else:
                         fill_empty(locations, column_name, preparations["default"])
-                if "max" in preparations:
-                    locations.loc[
-                        locations[column_name] > preparations["max"], column_name
-                    ] = preparations["max"]
-                if "min" in preparations:
-                    locations.loc[
-                        locations[column_name] > preparations["min"], column_name
-                    ] = preparations["min"]
-                if "type" in preparations:
-                    locations[column_name] = locations[column_name].astype(
-                        preparations["type"]
-                    )
+                if 'max' in preparations:
+                    locations.loc[locations[column_name] > preparations['max'], column_name] = preparations['max']
+                if 'min' in preparations:
+                    locations.loc[locations[column_name] > preparations['min'], column_name] = preparations['min']
+                if 'type' in preparations:
+                    locations[column_name] = locations[column_name].astype(preparations['type'])
             return locations
-
         return prepare
 
-    def build_rtree(
-        self,
-        file_path,
-        file_type,
-        id_columns,
-        area_peril_read_params=None,
-        nearest_neighbor_min_distance=-1,
-    ):
+    def build_rtree(self, file_path, file_type, id_columns, area_peril_read_params=None, nearest_neighbor_min_distance=-1):
         """
         Function Factory to associate location to area_peril based on the rtree method
 
@@ -823,25 +659,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         """
         if Point is None:
-            raise OasisException(
-                f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}"
-            )
+            raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
         if hasattr(gpd, f"read_{file_type}"):
             if area_peril_read_params is None:
                 area_peril_read_params = {}
-            gdf_area_peril = getattr(gpd, f"read_{file_type}")(
-                self.to_abs_filepath(file_path), **area_peril_read_params
-            )
+            gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path), **area_peril_read_params)
         else:
             raise OasisException(f"Unregognised Geopandas read type {file_type}")
 
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
-                raise OasisException(
-                    f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}"
-                )
-            gdf_area_peril["center"] = gdf_area_peril.centroid
+                raise OasisException(f"scikit-learn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
+            gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
 
         def get_area(locations, gdf_area_peril):
@@ -849,71 +679,49 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             null_gdf = locations["longitude"].isna() | locations["latitude"].isna()
             null_gdf_loc = locations[null_gdf]
             if not null_gdf_loc.empty:
-                gdf_loc = gpd.GeoDataFrame(
-                    locations[~null_gdf], columns=locations.columns
-                )
+                gdf_loc = gpd.GeoDataFrame(locations[~null_gdf], columns=locations.columns)
             else:
                 gdf_loc = gpd.GeoDataFrame(locations, columns=locations.columns)
 
             if not gdf_loc.empty:
-                gdf_loc["loc_geometry"] = gdf_loc.apply(
-                    lambda row: Point(row["longitude"], row["latitude"]),
-                    axis=1,
-                    result_type="reduce",
-                )
-                gdf_loc = gdf_loc.set_geometry("loc_geometry", crs="EPSG:4326")
+                gdf_loc["loc_geometry"] = gdf_loc.apply(lambda row: Point(row["longitude"], row["latitude"]),
+                                                        axis=1,
+                                                        result_type='reduce')
+                gdf_loc = gdf_loc.set_geometry('loc_geometry', crs="EPSG:4326")
 
-                gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, "left")
+                gdf_loc = gpd.sjoin(gdf_loc, gdf_area_peril, 'left')
 
                 if nearest_neighbor_min_distance > 0:
-                    gdf_loc_na = gdf_loc.loc[gdf_loc["index_right"].isna()]
+                    gdf_loc_na = gdf_loc.loc[gdf_loc['index_right'].isna()]
 
                     if gdf_loc_na.shape[0]:
-                        gdf_area_peril.set_geometry("center", inplace=True)
-                        nearest_neighbor_df = nearest_neighbor(
-                            gdf_loc_na, gdf_area_peril, return_dist=True
-                        )
+                        gdf_area_peril.set_geometry('center', inplace=True)
+                        nearest_neighbor_df = nearest_neighbor(gdf_loc_na, gdf_area_peril, return_dist=True)
 
                         gdf_area_peril.set_geometry(base_geometry_name, inplace=True)
-                        valid_nearest_neighbor = (
-                            nearest_neighbor_df["distance"]
-                            <= nearest_neighbor_min_distance
-                        )
-                        common_col = list(
-                            set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns)
-                        )
-                        gdf_loc.loc[valid_nearest_neighbor.index, common_col] = (
-                            nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
-                        )
+                        valid_nearest_neighbor = nearest_neighbor_df['distance'] <= nearest_neighbor_min_distance
+                        common_col = list(set(gdf_loc_na.columns) & set(nearest_neighbor_df.columns))
+                        gdf_loc.loc[valid_nearest_neighbor.index, common_col] = nearest_neighbor_df.loc[valid_nearest_neighbor, common_col]
             if not null_gdf_loc.empty:
                 gdf_loc = pd.concat([gdf_loc, null_gdf_loc])
             self.set_id_columns(gdf_loc, id_columns)
 
             # index column are created during the sjoin, we can drop them
-            gdf_loc = gdf_loc.drop(
-                columns=["index_right", "index_left"], errors="ignore"
-            )
+            gdf_loc = gdf_loc.drop(columns=['index_right', 'index_left'], errors='ignore')
 
             return gdf_loc
 
         def fct(locations):
-            if "peril_id" in gdf_area_peril.columns:
-                peril_id_covered = np.unique(gdf_area_peril["peril_id"])
-                res = [locations[~locations["peril_id"].isin(peril_id_covered)]]
+            if 'peril_id' in gdf_area_peril.columns:
+                peril_id_covered = np.unique(gdf_area_peril['peril_id'])
+                res = [locations[~locations['peril_id'].isin(peril_id_covered)]]
                 for peril_id in peril_id_covered:
-                    res.append(
-                        get_area(
-                            locations.loc[locations["peril_id"] == peril_id],
-                            gdf_area_peril.loc[
-                                gdf_area_peril["peril_id"] == peril_id
-                            ].drop(columns=["peril_id"]),
-                        )
-                    )
+                    res.append(get_area(locations.loc[locations['peril_id'] == peril_id],
+                                        gdf_area_peril.loc[gdf_area_peril['peril_id'] == peril_id].drop(columns=['peril_id'])))
 
                 return pd.concat(res).reset_index()
             else:
                 return get_area(locations, gdf_area_peril)
-
         return fct
 
     @staticmethod
@@ -929,51 +737,37 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                      Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
                      value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
         """
-
         def fct(locs_peril):
             start_index = 0
             step = get_step(next(iter(perils_dict.values())))
 
-            locs_peril["area_peril_id"] = (
-                OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
-            )
+            locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID  # if `peril_id` not in `perils_dict`
             for peril_id, fixed_geo_grid_params in perils_dict.items():
-                curr_grid_fct = Lookup.build_fixed_size_geo_grid(
-                    **fixed_geo_grid_params
-                )
+                curr_grid_fct = Lookup.build_fixed_size_geo_grid(**fixed_geo_grid_params)
 
-                curr_locs_peril = locs_peril[locs_peril["peril_id"] == peril_id]
+                curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
                 curr_locs_peril = curr_grid_fct(curr_locs_peril)
                 curr_locs_peril.loc[
                     curr_locs_peril["area_peril_id"] != OASIS_UNKNOWN_ID,
-                    "area_peril_id",
+                    "area_peril_id"
                 ] = curr_locs_peril["area_peril_id"] + start_index
 
                 start_index += step
 
                 locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
             return locs_peril
-
         return fct
 
     @staticmethod
-    def build_fixed_size_geo_grid(
-        lat_min,
-        lat_max,
-        lon_min,
-        lon_max,
-        arc_size,
-        lat_reverse=False,
-        lon_reverse=False,
-        lon_first=False,
-    ):
+    def build_fixed_size_geo_grid(lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse=False, lon_reverse=False, lon_first=False):
         """
         associate an id to each square of the grid define by the limit of lat and lon
         reverse allow to change the ordering of id from (min to max) to (max to min)
         """
 
         lat_id, lon_id = create_lat_lon_id_functions(
-            lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse
+            lat_min, lat_max, lon_min, lon_max, arc_size,
+            lat_reverse, lon_reverse
         )
 
         if lon_first:
@@ -988,16 +782,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return lon_id(lon) * grid_size + lat_id(lat) + 1
 
         def geo_grid_lookup(locations):
-            locations["area_peril_id"] = jit_geo_grid_lookup(
-                locations["latitude"].to_numpy(),
-                locations["longitude"].to_numpy(),
-                lat_min,
-                lat_max,
-                lon_min,
-                lon_max,
-                get_id,
-                lat_id,
-                lon_id,
+            locations['area_peril_id'] = jit_geo_grid_lookup(
+                locations['latitude'].to_numpy(),
+                locations['longitude'].to_numpy(),
+                lat_min, lat_max, lon_min, lon_max,
+                get_id, lat_id, lon_id
             )
             return locations
 
@@ -1015,41 +804,29 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                      Dictionary with `peril_id` as key and `fixed_size_geo_grid` parameter dict as
                      value. i.e `{'peril_id' : {fixed_size_geo_grid parameters}}`
         """
-
         def fct(locs_peril):
             locs_peril["area_peril_id"] = OASIS_UNKNOWN_ID
             # if `peril_id` not in `perils_dict`
             shift = len(perils_dict.items())
-            for index, (peril_id, fixed_geo_grid_params) in enumerate(
-                perils_dict.items()
-            ):
-                curr_grid_fct = Lookup.build_fixed_size_z_index_geo_grid(
-                    **fixed_geo_grid_params
-                )
+            for index, (peril_id, fixed_geo_grid_params) in enumerate(perils_dict.items()):
+                curr_grid_fct = Lookup.build_fixed_size_z_index_geo_grid(**fixed_geo_grid_params)
 
-                curr_locs_peril = locs_peril[locs_peril["peril_id"] == peril_id]
+                curr_locs_peril = locs_peril[locs_peril['peril_id'] == peril_id]
                 curr_locs_peril = curr_grid_fct(curr_locs_peril)
                 curr_locs_peril.loc[
                     curr_locs_peril["area_peril_id"] != OASIS_UNKNOWN_ID,
-                    "area_peril_id",
+                    "area_peril_id"
                 ] = curr_locs_peril["area_peril_id"] * shift + index
 
                 locs_peril[locs_peril["peril_id"] == peril_id] = curr_locs_peril
 
             return locs_peril
-
         return fct
 
     @staticmethod
     def build_fixed_size_z_index_geo_grid(
-        lat_min,
-        lat_max,
-        lon_min,
-        lon_max,
-        arc_size,
-        lat_reverse=False,
-        lon_reverse=False,
-        lon_first=False,
+        lat_min, lat_max, lon_min, lon_max, arc_size,
+        lat_reverse=False, lon_reverse=False, lon_first=False
     ):
         """
         associate an id to each square of the grid defined by z-order indexing.
@@ -1058,7 +835,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
 
         lat_id, lon_id = create_lat_lon_id_functions(
-            lat_min, lat_max, lon_min, lon_max, arc_size, lat_reverse, lon_reverse
+            lat_min, lat_max, lon_min, lon_max, arc_size,
+            lat_reverse, lon_reverse
         )
 
         @nb.jit(cache=True)
@@ -1068,16 +846,11 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return z_index(lat_id(lat), lon_id(lon)) + 1
 
         def geo_grid_lookup(locations):
-            locations["area_peril_id"] = jit_geo_grid_lookup(
-                locations["latitude"].to_numpy(),
-                locations["longitude"].to_numpy(),
-                lat_min,
-                lat_max,
-                lon_min,
-                lon_max,
-                get_id,
-                lat_id,
-                lon_id,
+            locations['area_peril_id'] = jit_geo_grid_lookup(
+                locations['latitude'].to_numpy(),
+                locations['longitude'].to_numpy(),
+                lat_min, lat_max, lon_min, lon_max,
+                get_id, lat_id, lon_id
             )
             return locations
 
@@ -1106,42 +879,34 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         tiff_dataset = gdal.Open(self.to_abs_filepath(file_path), gdal.GA_ReadOnly)
         inv_gt = gdal.InvGeoTransform(tiff_dataset.GetGeoTransform())
 
-        defaults = np.empty(
-            len(band_info), dtype=tiff_dataset.GetVirtualMemArray().dtype
-        )
-        usefull_array_idx = np.empty(len(band_info), dtype="int")
+        defaults = np.empty(len(band_info), dtype=tiff_dataset.GetVirtualMemArray().dtype)
+        usefull_array_idx = np.empty(len(band_info), dtype='int')
         for i, (col_name, info) in enumerate(band_info.items()):
-            if not 1 <= info["id"] <= tiff_dataset.RasterCount:
-                raise OasisException(
-                    f"band {col_name}, {info} has id outside of [1-{tiff_dataset.RasterCount}]"
-                )
-            idx = info["id"] - 1
+            if not 1 <= info['id'] <= tiff_dataset.RasterCount:
+                raise OasisException(f"band {col_name}, {info} has id outside of [1-{tiff_dataset.RasterCount}]")
+            idx = info['id'] - 1
             usefull_array_idx[i] = idx
-            defaults[idx] = info["default"]
+            defaults[idx] = info['default']
 
         def geotiff_lookup(locations):
             tiff_array = tiff_dataset.GetVirtualMemArray()
             if len(tiff_array.shape) == 2:
-                tiff_array = tiff_array.reshape(
-                    (tiff_array.shape[0], tiff_array.shape[1], 1)
-                )
+                tiff_array = tiff_array.reshape((tiff_array.shape[0], tiff_array.shape[1], 1))
             res = np.empty((len(locations), len(band_info)), dtype=tiff_array.dtype)
-            jit_gda_loc_to_val(
-                tiff_array,
-                inv_gt,
-                locations["longitude"].to_numpy(),
-                locations["latitude"].to_numpy(),
-                usefull_array_idx,
-                defaults,
-                res,
-            )
+            jit_gda_loc_to_val(tiff_array,
+                               inv_gt,
+                               locations['longitude'].to_numpy(),
+                               locations['latitude'].to_numpy(),
+                               usefull_array_idx,
+                               defaults,
+                               res)
             for col_i, col_name in enumerate(band_info.keys()):
                 locations[col_name] = res[:, col_i]
             return locations
 
         return geotiff_lookup
 
-    def build_merge(self, file_path, id_columns=[], file_type="csv", **kwargs):
+    def build_merge(self, file_path, id_columns=[], file_type='csv', **kwargs):
         """
         this method will merge the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
@@ -1154,22 +919,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             df_to_merge = read_func(self.to_abs_filepath(file_path), **kwargs)
         else:
             df_to_merge = pd.read_csv(self.to_abs_filepath(file_path), **kwargs)
-        df_to_merge.rename(
-            columns={column: column.lower() for column in df_to_merge.columns},
-            inplace=True,
-        )
+        df_to_merge.rename(columns={column: column.lower() for column in df_to_merge.columns}, inplace=True)
 
         def merge(locations: pd.DataFrame):
-            rename_map = {
-                col.lower(): col
-                for col in locations.columns
-                if col.lower() in df_to_merge.columns
-            }
-            locations = locations.merge(
-                df_to_merge.rename(columns=rename_map), how="left"
-            )
+            rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
+            locations = locations.merge(df_to_merge.rename(columns=rename_map), how='left')
             return self.set_id_columns(locations, id_columns)
-
         return merge
 
     @staticmethod
@@ -1198,7 +953,6 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
 
         """
-
         def simple_pivot(locations):
             pivoted_dfs = []
             pivoted_cols = set()
@@ -1222,9 +976,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         Serialises specified columns from the OED file into a model_data dict
         """
-
         def model_data(locations):
-            locations["model_data"] = locations[columns].to_dict("records")
+            locations['model_data'] = locations[columns].to_dict('records')
             return locations
 
         return model_data
@@ -1235,12 +988,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         Converts specified columns from the OED file into intensity adjustments and
         return period protection.
         """
-
         def adjustments(locations):
-            locations["intensity_adjustment"] = locations[
-                intensity_adjustment_col
-            ].values
-            locations["return_period"] = locations[return_period_col].values
+            locations['intensity_adjustment'] = locations[intensity_adjustment_col].values
+            locations['return_period'] = locations[return_period_col].values
             return locations
 
         return adjustments
