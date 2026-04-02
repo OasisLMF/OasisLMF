@@ -314,15 +314,15 @@ def write_rows(output_file, object data, list headers, str row_fmt):
 
                 # Strip C length modifiers before the 'f' type char
                 if t.endswith('llf'):
-                    t = t[:-3] + 'f'
+                    t = t[:len(t)-3] + 'f'
                 elif t.endswith('lf') or t.endswith('hf') or t.endswith('Lf'):
-                    t = t[:-2] + 'f'
+                    t = t[:len(t)-2] + 'f'
 
                 # Resolve precision
                 if t == 'f':
                     prec = 6  # bare %f — Python default is 6 decimal places
-                elif t.startswith('.') and t.endswith('f') and t[1:-1].isdigit():
-                    prec = int(t[1:-1])
+                elif t.startswith('.') and t.endswith('f') and t[1:len(t)-1].isdigit():
+                    prec = int(t[1:len(t)-1])
                 else:
                     prec = 16  # sentinel: out of [0..15], forces COL_PYTHON below
 
