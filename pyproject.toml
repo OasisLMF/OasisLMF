@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "Cython>=3.0", "numpy>=1.18"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,14 +7,13 @@ name = "oasislmf"
 dynamic = ["version", "dependencies", "optional-dependencies"]
 description = "Core loss modelling framework."
 readme = {file = "README.md", content-type = "text/markdown"}
-license = {text = "BSD 3-Clause"}
+license = "BSD-3-Clause"
 authors = [
     {name = "Oasis LMF", email = "support@oasislmf.org"}
 ]
 keywords = ["oasis", "lmf", "loss", "modeling", "framework"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Operating System :: Unix",
@@ -63,6 +62,7 @@ exclude = ["tests", "tests.*", "tests.*.*"]
 [tool.setuptools.package-data]
 "*" = ["requirements-package.in", "LICENSE"]
 "oasislmf._data" = ["*"]
+"oasislmf.pytools.common" = ["oasis_writecsv.pyx"]
 rdls = ["rdls_schema.json"]
 
 [tool.setuptools.exclude-package-data]

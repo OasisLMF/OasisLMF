@@ -3,3 +3,4 @@ geopandas
 scikit-learn
 rtree>=0.8.3
 forex_python
+matplotlib

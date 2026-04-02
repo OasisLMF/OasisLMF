@@ -9,6 +9,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import (bash_wrapper, create_bash_analysis,
                    create_bash_outputs, genbash)
+from .resource_monitor import ResourceMonitor
 
 
 @oasis_log()
@@ -26,6 +27,7 @@ def run(analysis_settings,
         df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         model_df_engine=None,
         dynamic_footprint=False,
+        resource_monitor_interval=1,
         **kwargs
         ):
     model_df_engine = model_df_engine or df_engine
@@ -101,8 +103,17 @@ def run(analysis_settings,
         dynamic_footprint=dynamic_footprint,
         **kwargs,
     )
-    bash_trace = subprocess.check_output(['bash', filename])
-    logging.info(bash_trace.decode('utf-8'))
+    monitor = ResourceMonitor(
+        output_dir='log',
+        poll_interval=resource_monitor_interval,
+    )
+    proc = subprocess.Popen(['bash', filename], stdout=subprocess.PIPE)
+    monitor.start(proc.pid)
+    stdout, _ = proc.communicate()
+    monitor.stop()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, ['bash', filename], output=stdout)
+    logging.info(stdout.decode('utf-8'))
 
 
 def rerun():
