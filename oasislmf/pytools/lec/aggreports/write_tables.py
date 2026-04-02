@@ -232,17 +232,23 @@ def write_tvar(
         tail_offsets (ndarray[int64]): Array of start positions per summary_id in tail
         max_summary_id (int): Maximum summary ID
     Returns:
-        rets (list[EPT_dtype]): Return period and Loss EPT data
+        rets (ndarray[EPT_dtype]): Return period and Loss EPT data
     """
-    rets = []
+    rets = np.empty(np.sum(tail_sizes), dtype=EPT_dtype)
+    pos = 0
     for i in range(max_summary_id):
         size = tail_sizes[i]
         if size == 0:
             continue
         summary_id = i + 1
         for j in range(size):
-            pos = tail_offsets[i] + j
-            rets.append((summary_id, epcalc, eptype_tvar, tail[pos]["retperiod"], tail[pos]["tvar"]))
+            p = tail_offsets[i] + j
+            rets[pos]["SummaryId"] = summary_id
+            rets[pos]["EPCalc"] = epcalc
+            rets[pos]["EPType"] = eptype_tvar
+            rets[pos]["ReturnPeriod"] = tail[p]["retperiod"]
+            rets[pos]["Loss"] = tail[p]["tvar"]
+            pos += 1
     return rets
 
 
@@ -264,17 +270,23 @@ def write_tvar_wheatsheaf(
         tail_offsets (ndarray[int64]): Array of start positions per idx in tail
         total_idxs (int): Total number of (summary_id, sidx) index entries
     Returns:
-        rets (list[PSEPT_dtype]): Return period and Loss PSEPT data
+        rets (ndarray[PSEPT_dtype]): Return period and Loss PSEPT data
     """
-    rets = []
+    rets = np.empty(np.sum(tail_sizes), dtype=PSEPT_dtype)
+    pos = 0
     for idx in range(total_idxs):
         size = tail_sizes[idx]
         if size == 0:
             continue
         sidx, summary_id = get_wheatsheaf_items_idx_data(idx, num_sidxs)
         for j in range(size):
-            pos = tail_offsets[idx] + j
-            rets.append((summary_id, sidx, eptype_tvar, tail[pos]["retperiod"], tail[pos]["tvar"]))
+            p = tail_offsets[idx] + j
+            rets[pos]["SummaryId"] = summary_id
+            rets[pos]["SampleId"] = sidx
+            rets[pos]["EPType"] = eptype_tvar
+            rets[pos]["ReturnPeriod"] = tail[p]["retperiod"]
+            rets[pos]["Loss"] = tail[p]["tvar"]
+            pos += 1
     return rets
 
 
@@ -449,11 +461,11 @@ def write_ept(
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["EPCalc"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["EPCalc"] = ret["EPCalc"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -651,11 +663,11 @@ def write_ept_weighted(
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["EPCalc"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["EPCalc"] = ret["EPCalc"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -831,11 +843,11 @@ def write_psept(
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["SampleId"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["SampleId"] = ret["SampleId"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
@@ -1035,11 +1047,11 @@ def write_psept_weighted(
         if bidx >= len(buffer):
             yield buffer[:bidx]
             bidx = 0
-        buffer[bidx]["SummaryId"] = ret[0]
-        buffer[bidx]["SampleId"] = ret[1]
-        buffer[bidx]["EPType"] = ret[2]
-        buffer[bidx]["ReturnPeriod"] = ret[3]
-        buffer[bidx]["Loss"] = ret[4]
+        buffer[bidx]["SummaryId"] = ret["SummaryId"]
+        buffer[bidx]["SampleId"] = ret["SampleId"]
+        buffer[bidx]["EPType"] = ret["EPType"]
+        buffer[bidx]["ReturnPeriod"] = ret["ReturnPeriod"]
+        buffer[bidx]["Loss"] = ret["Loss"]
         bidx += 1
     yield buffer[:bidx]
 
