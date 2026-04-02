@@ -47,6 +47,8 @@ class AggReports():
         self.lec_files_folder = lec_files_folder
         self.output_binary = output_binary
         self.output_parquet = output_parquet
+        self.row_used_indices_mean = np.where(outloss_mean["row_used"])[0]
+        self.row_used_indices_sample = np.where(outloss_sample["row_used"])[0]
 
     def output_data(self, data, out_type):
         if self.output_binary:
@@ -74,8 +76,7 @@ class AggReports():
         """
         epcalc = MEANDR
 
-        # Get row indices that are used
-        row_used_indices = np.where(self.outloss_mean["row_used"])[0]
+        row_used_indices = self.row_used_indices_mean
 
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_mean_damage_ratio-{outloss_type}-items.bdat")
@@ -144,8 +145,7 @@ class AggReports():
         """
         epcalc = FULL
 
-        # Get row indices that are used
-        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+        row_used_indices = self.row_used_indices_sample
 
         # Allocate storage for the flat data array
         items_fp = Path(self.lec_files_folder, f"lec_full_uncertainty-{outloss_type}-items.bdat")
@@ -218,8 +218,7 @@ class AggReports():
         """
         epcalc = PERSAMPLEMEAN
 
-        # Get row indices that are used
-        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+        row_used_indices = self.row_used_indices_sample
 
         wheatsheaf_items_file = Path(self.lec_files_folder, f"lec_wheatsheaf-items-{outloss_type}.bdat")
         wheatsheaf_items = np.memmap(
@@ -384,8 +383,7 @@ class AggReports():
         else:
             raise ValueError(f"Error: Unknown outloss_type: {outloss_type}")
 
-        # Get row indices that are used
-        row_used_indices = np.where(self.outloss_sample["row_used"])[0]
+        row_used_indices = self.row_used_indices_sample
 
         # Reorder outlosses by summary_id and period_no
         reorder_losses_by_summary_and_period(
