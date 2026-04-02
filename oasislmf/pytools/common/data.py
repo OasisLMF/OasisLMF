@@ -388,7 +388,7 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
                     _use_dtype.append((field_name, field_dtype))
 
             if _usecols:
-                return np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols)
+                return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
             else:
                 return np.empty(0, dtype=_dtype)
     else:
