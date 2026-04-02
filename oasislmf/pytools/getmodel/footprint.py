@@ -16,6 +16,7 @@ import numba as nb
 
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
 from oasis_data_manager.df_reader.reader import OasisReader
+from oasis_data_manager.errors import OasisException
 from oasis_data_manager.filestore.backends.base import BaseStorage
 from .common import (
     FootprintHeader, EventIndexBin, EventIndexBinZ, Event,
@@ -532,10 +533,15 @@ class FootprintParquetDynamic(Footprint):
 
     def _is_partitioned_by_section(self):
         """Check if event_definition.parquet is partitioned by section_id."""
-        for section in self.location_sections:
-            if self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}'):
+        section_exist = [self.storage.exists(f'{event_defintion_filename}/section_id={int(section)}') for section in self.location_sections]
+        if any(section_exist):
+            if all(section_exist):
                 return True
-        return False
+            else:
+                missing_section = [s for s, exists in zip(self.location_sections, section_exist) if not exists]
+                raise OasisException(f"Sections {missing_section} are missing from the footprint")
+        else:
+            return False
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
