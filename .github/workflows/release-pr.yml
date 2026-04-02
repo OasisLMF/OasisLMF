@@ -1,0 +1,122 @@
+# Workflow to create (or update) a release PR
+#
+# Inputs:
+#   release_version: The semvar version to release, e.g. 2.3.1 or 2.3.1rc1
+#   stable_branch:   The target branch for the PR, e.g. stable/2.x
+#
+# Actions:
+#   1. Updates the package version via version.yml and pushes a commit
+#   2. Scans git history since the most recent tag and extracts merged PR numbers
+#   3. Creates a PR from the current branch to stable_branch titled "Release <version>"
+#      If a PR already exists for this head→base pair, updates its body instead
+
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version [semvar]'
+        required: true
+      stable_branch:
+        description: 'Target stable branch (e.g. stable/2.x)'
+        required: true
+
+
+jobs:
+  update-version:
+    uses: ./.github/workflows/version.yml
+    secrets: inherit
+    with:
+      oasislmf_version: ${{ inputs.release_version }}
+
+
+  create-release-pr:
+    runs-on: ubuntu-latest
+    needs: update-version
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Pull latest (pick up version bump commit)
+        run: git pull
+
+      - name: Build PR body
+        id: pr_body
+        run: |
+          # Find the most recent tag reachable from HEAD
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "No tags found — scanning full history"
+            LOG_RANGE="HEAD"
+          else
+            echo "Scanning commits since tag: $LATEST_TAG"
+            LOG_RANGE="${LATEST_TAG}..HEAD"
+          fi
+
+          # Extract PR numbers from commit subjects, e.g. "fix foo (#1830)" -> "1830"
+          # Deduplicate while preserving order (most recent first)
+          PR_LINES=$(git log --pretty=format:"%s" $LOG_RANGE \
+            | grep -oP '\(#\d+\)' \
+            | grep -oP '\d+' \
+            | awk '!seen[$0]++' \
+            | sed 's/^/* #/')
+
+          if [[ -z "$PR_LINES" ]]; then
+            PR_LINES="* No PRs found since last tag"
+          fi
+
+          # Write body to a file to avoid quoting issues
+          {
+            echo "### Release ${{ inputs.release_version }}"
+            echo ""
+            echo "$PR_LINES"
+          } > /tmp/pr_body.md
+
+          echo "--- PR body ---"
+          cat /tmp/pr_body.md
+
+      - name: Check for existing PR
+        id: check_pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --head "${{ github.ref_name }}" \
+            --base "${{ inputs.stable_branch }}" \
+            --json number \
+            --jq '.[0].number // empty')
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          if [[ -n "$PR_NUMBER" ]]; then
+            echo "Found existing PR #${PR_NUMBER}"
+          else
+            echo "No existing PR found"
+          fi
+
+      - name: Create PR
+        if: steps.check_pr.outputs.pr_number == ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "Release ${{ inputs.release_version }}" \
+            --body-file /tmp/pr_body.md \
+            --base "${{ inputs.stable_branch }}" \
+            --head "${{ github.ref_name }}"
+
+      - name: Update existing PR body
+        if: steps.check_pr.outputs.pr_number != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "${{ steps.check_pr.outputs.pr_number }}" \
+            --body-file /tmp/pr_body.md
+          echo "Updated PR #${{ steps.check_pr.outputs.pr_number }}"
