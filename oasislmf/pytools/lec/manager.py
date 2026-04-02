@@ -370,17 +370,17 @@ def run(
             outloss_mean_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(file_data["no_of_periods"] * max_summary_id),
+            shape=(int(file_data["no_of_periods"]) * max_summary_id),
         )
 
         # outloss_sample has all SIDXs plus -2 and -3
-        num_sidxs = sample_size + 2
+        num_sidxs = int(sample_size) + 2
         outloss_sample_file = Path(lec_files_folder, "lec_outloss_sample.bdat")
         outloss_sample = np.memmap(
             outloss_sample_file,
             dtype=OUTLOSS_DTYPE,
             mode="w+",
-            shape=(file_data["no_of_periods"] * num_sidxs * max_summary_id),
+            shape=(int(file_data["no_of_periods"]) * num_sidxs * max_summary_id),
         )
 
         # Array of Summary IDs found
