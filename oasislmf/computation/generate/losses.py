@@ -20,11 +20,11 @@ import warnings
 from collections import OrderedDict
 from json import JSONDecodeError
 from pathlib import Path
-from subprocess import CalledProcessError, check_call
+from subprocess import CalledProcessError
 
 from oasislmf.pytools.converters.bintocsv.manager import bintocsv
 from oasislmf.pytools.converters.csvtobin.manager import csvtobin
-from oasislmf.pytools.common.data import oasis_int_size
+from oasislmf.pytools.common.data import load_as_ndarray, items_dtype, tiv as tiv_dtype, oasis_int_size
 import pandas as pd
 import numpy as np
 
@@ -32,11 +32,12 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from ...execution import bash, runner
-from ...execution.bash import get_fmcmd, RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
+from ...execution.bash import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS
 from ...execution.bin import (move_bin, prepare_run_directory,
                               prepare_run_inputs, set_footprint_set, set_vulnerability_set, set_loss_factors_set)
 from ...preparation.summaries import generate_summaryxref_files
 from ...pytools.fm.financial_structure import create_financial_structure
+from ...pytools.fm.manager import run as fmpy_run
 from oasislmf.pytools.summary.manager import create_summary_object_file
 from ...utils.data import (get_dataframe, get_exposure_data, get_json,
                            get_utctimestamp, merge_dataframes, set_dataframe_column_dtypes,
@@ -619,7 +620,9 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'dynamic_footprint', 'default': False,
             'help': 'Dynamic Footprint'},
         {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
-        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'}
+        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -676,7 +679,8 @@ class GenerateLosses(GenerateLossesDir):
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
                         analysis_pk=self.kwargs.get('analysis_pk', None),
-                        socket_server=socket_server
+                        socket_server=socket_server,
+                        resource_monitor_interval=self.resource_monitor_interval,
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
@@ -754,9 +758,12 @@ class GenerateLossesDeterministic(ComputationStep):
         move_bin(self.oasis_files_dir, output_dir)
 
         # Generate an items and coverages dataframe and set column types (important!!)
+        cov_df = pd.DataFrame(load_as_ndarray(self.output_dir, 'coverages', np.dtype(
+            [tiv_dtype[0:2]]), must_exist=True)).reset_index(names="coverage_id")
+        cov_df["coverage_id"] += 1
         items = merge_dataframes(
-            pd.read_csv(os.path.join(self.oasis_files_dir, 'items.csv')),
-            pd.read_csv(os.path.join(self.oasis_files_dir, 'coverages.csv')),
+            pd.DataFrame(load_as_ndarray(self.output_dir, 'items', items_dtype, must_exist=True)),
+            cov_df,
             on=['coverage_id'], how='left'
         )
 
@@ -789,7 +796,7 @@ class GenerateLossesDeterministic(ComputationStep):
                 [KERNEL_MEAN_SAMPLE_IDX, KERNEL_STD_DEV_SAMPLE_IDX, KERNEL_TIV_SAMPLE_IDX] + \
                 list(range(1, len(self.loss_factor) + 1))
         else:
-            OasisException("Unknown il stream type: {}".format(self.il_stream_type))
+            raise OasisException("Unknown il stream type: {}".format(self.il_stream_type))
 
         # Set damage percentages corresponing to the special indexes.
         # We don't care about mean and std_dev, but
@@ -810,38 +817,37 @@ class GenerateLossesDeterministic(ComputationStep):
             'sidx': int,
             'loss': float})[['event_id', 'item_id', 'sidx', 'loss']]
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
-        guls_bin_fp = "guls.bin"
+        guls_bin_fp = os.path.join(output_dir, "guls.bin")
         guls.to_csv(guls_fp, index=False)
 
         # il_stream_type = 2 if self.fmpy else 1
-        ils_bin_fp = "ils.bin"
+        ils_bin_fp = os.path.join(output_dir, "ils.bin")
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
-        with setcwd(self.oasis_files_dir):
-            check_call(f"{get_fmcmd()} -a {self.kernel_alloc_rule_il} --create-financial-structure-files -p {output_dir}", shell=True)
-
-        cmd = '{} -p {} -a {} < {} | tee {} > /dev/null'.format(
-            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
-            output_dir,
-            self.kernel_alloc_rule_il,
-            guls_bin_fp,
-            ils_bin_fp
-        )
+        create_financial_structure(self.kernel_alloc_rule_il, output_dir)
 
         try:
             csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=len(self.loss_factor))
-            self.logger.debug("RUN: " + cmd)
-            check_call(cmd, shell=True)
+            fmpy_run(
+                create_financial_structure_files=False,
+                allocation_rule=self.kernel_alloc_rule_il,
+                static_path=output_dir,
+                files_in=[guls_bin_fp],
+                files_out=[ils_bin_fp],
+                low_memory=self.fmpy_low_memory,
+                sort_output=self.fmpy_sort_output,
+                net_loss=None,
+                storage_method='sparse',
+            )
             bintocsv(ils_bin_fp, ils_fp, "fm")
-        except CalledProcessError as e:
+        except Exception as e:
             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
 
         guls.drop(guls[guls['sidx'] < 1].index, inplace=True)
         guls.reset_index(drop=True, inplace=True)
         if self.include_loss_factor:
-            guls['loss_factor_idx'] = guls.apply(
-                lambda r: int(r['sidx'] - 1), axis='columns')
+            guls['loss_factor_idx'] = (guls['sidx'] - 1).astype(int)
         guls.drop('sidx', axis=1, inplace=True)
         guls = guls[(guls[['loss']] != 0).any(axis=1)]
 
@@ -851,8 +857,7 @@ class GenerateLossesDeterministic(ComputationStep):
         ils.drop(ils[ils['sidx'] < 0].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         if self.include_loss_factor:
-            ils['loss_factor_idx'] = ils.apply(
-                lambda r: int(r['sidx'] - 1), axis='columns')
+            ils['loss_factor_idx'] = (ils['sidx'] - 1).astype(int)
         ils.drop('sidx', axis=1, inplace=True)
         ils = ils[(ils[['loss']] != 0).any(axis=1)]
         losses['il'] = ils
@@ -875,43 +880,45 @@ class GenerateLossesDeterministic(ComputationStep):
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
                         # Create RI fmpy financial structures
-                        with setcwd(self.oasis_files_dir):
-                            check_call(
-                                f"{get_fmcmd()} -a {self.kernel_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}",
-                                shell=True)
+                        create_financial_structure(self.kernel_alloc_rule_ri, layer_inputs_fp)
 
-                        _input = '{} -p {} -a {} < {} | tee {} |'.format(
-                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
-                            output_dir,
-                            self.kernel_alloc_rule_il,
-                            guls_bin_fp,
-                            ils_bin_fp,
-                        ) if layer == 1 else ''
-                        pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
-                        ri_layer_bin_fp = f"ri{layer}.bin"
+                        ri_layer_bin_fp = os.path.join(output_dir, f"ri{layer}.bin")
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
-                        net_flag = "-n" if self.net_ri else ""
-                        cmd = '{} {} -p {} {} -a {} {} | tee {} > /dev/null'.format(
-                            _input,
-                            get_fmcmd(self.fmpy_low_memory, self.fmpy_sort_output),
-                            layer_inputs_fp,
-                            net_flag,
-                            self.kernel_alloc_rule_ri,
-                            pipe_in_previous_layer,
-                            ri_layer_bin_fp,
-                        )
                         try:
-                            self.logger.debug("RUN: " + cmd)
                             csvtobin(guls_fp, guls_bin_fp, "gul", stream_type=self.il_stream_type, max_sample_index=1)
-                            check_call(cmd, shell=True)
+                            if layer == 1:
+                                fmpy_run(
+                                    create_financial_structure_files=False,
+                                    allocation_rule=self.kernel_alloc_rule_il,
+                                    static_path=output_dir,
+                                    files_in=[guls_bin_fp],
+                                    files_out=[ils_bin_fp],
+                                    low_memory=self.fmpy_low_memory,
+                                    sort_output=self.fmpy_sort_output,
+                                    net_loss=None,
+                                    storage_method='sparse',
+                                )
+                                ri_input_fp = ils_bin_fp
+                            else:
+                                ri_input_fp = os.path.join(output_dir, f'ri{layer - 1}.bin')
+                            fmpy_run(
+                                create_financial_structure_files=False,
+                                allocation_rule=self.kernel_alloc_rule_ri,
+                                static_path=layer_inputs_fp,
+                                files_in=[ri_input_fp],
+                                files_out=[ri_layer_bin_fp],
+                                low_memory=self.fmpy_low_memory,
+                                sort_output=self.fmpy_sort_output,
+                                net_loss='' if self.net_ri else None,
+                                storage_method='sparse',
+                            )
                             bintocsv(ri_layer_bin_fp, ri_layer_fp, "fm")
-                        except CalledProcessError as e:
+                        except Exception as e:
                             raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
                         rils = get_dataframe(src_fp=ri_layer_fp, lowercase_cols=False)
                         rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
                         if self.include_loss_factor:
-                            rils['loss_factor_idx'] = rils.apply(
-                                lambda r: int(r['sidx'] - 1), axis='columns')
+                            rils['loss_factor_idx'] = (rils['sidx'] - 1).astype(int)
 
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)

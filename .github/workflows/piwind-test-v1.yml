@@ -1,0 +1,85 @@
+# Workflow to remote call the PiWind output checks using
+# a branch of oasislmf
+#
+# Inputs:
+#   platform_branch: A branch of OasisPlatform to build images from [git ref]
+#                    Defaults to 'main' on push/PR events.
+#                    Builds coreoasis/github-actions:{server,worker} images from that branch
+#                    and passes them directly to the integration tests.
+#
+#   piwind_branch: The git reference (like branch name / Pull request) to run the PiWind tests from
+#
+name: Platform 1 - PiWind check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - stable**
+
+  workflow_dispatch:
+    inputs:
+      platform_branch:
+        description: 'OasisPlatform 1 - Branch to build images from [git ref]'
+        required: false
+        default: main
+        type: string
+      piwind_branch:
+        description: 'Branch to run PiWind from [git ref]'
+        required: true
+      ods_branch:
+        description: 'Build ods_tools package before test [git ref]'
+        required: false
+        type: string
+
+
+jobs:
+  check_images:
+    runs-on: ubuntu-latest
+    outputs:
+      images_exist: ${{ steps.check.outputs.images_exist }}
+      platform_sha: ${{ steps.check.outputs.platform_sha }}
+    steps:
+      - name: Check if platform images already exist
+        id: check
+        run: |
+          PLATFORM_SHA=$(git ls-remote https://github.com/OasisLMF/OasisPlatform.git refs/heads/${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }} | cut -f1)
+          echo "platform_sha=$PLATFORM_SHA" >> $GITHUB_OUTPUT
+          if docker manifest inspect coreoasis/github-actions:model_worker-$PLATFORM_SHA > /dev/null 2>&1 && \
+             docker manifest inspect coreoasis/github-actions:api_server-$PLATFORM_SHA > /dev/null 2>&1; then
+            echo "images_exist=true" >> $GITHUB_OUTPUT
+          else
+            echo "images_exist=false" >> $GITHUB_OUTPUT
+          fi
+
+  build_platform:
+    if: ${{ !failure() && !cancelled() && needs.check_images.outputs.images_exist != 'true' }}
+    needs: [check_images]
+    uses: OasisLMF/OasisPlatform/.github/workflows/build-images.yml@main
+    secrets: inherit
+    with:
+      ignore_unfixed: 'true'
+      cve_severity: 'SKIP'
+      docker_push: 'true'
+      checkout_ref: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.platform_branch }}
+      oasislmf_branch: ${{ github.ref }}
+      ods_branch: ${{ inputs.ods_branch }}
+
+  platform1:
+    if: ${{ !failure() && !cancelled() }}
+    needs: [check_images, build_platform]
+    uses: OasisLMF/OasisPiWind/.github/workflows/integration.yml@main
+    secrets: inherit
+    with:
+      piwind_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.piwind_branch }}
+      oasislmf_branch: ${{ github.ref }}
+      ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' || inputs.ods_branch }}
+      worker_image: coreoasis/github-actions
+      worker_tag: model_worker-${{ needs.check_images.outputs.platform_sha }}
+      server_image: coreoasis/github-actions
+      server_tag: api_server-${{ needs.check_images.outputs.platform_sha }}
+      debug_mode: '1'
+      pytest_opts: "--docker-compose=./docker/plat2-v2.docker-compose.yml"
+      worker_api_ver: 'v1'
+      storage_suffix: '_platform1'

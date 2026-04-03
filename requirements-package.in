@@ -1,6 +1,5 @@
 anytree>=2.4.3
 argparsetree>=0.0.5
-chainmap
 chardet
 fastparquet>=0.3.1
 msgpack
@@ -10,12 +9,12 @@ numpy>=1.18
 ods-tools>=5.0.0
 oasis-data-manager>=0.1.1
 pandas>=1.0.3,!=1.1.0,!=1.1.1
+psutil>=5.9.0
 pyarrow>=15.0.0
 pytz
 requests-toolbelt
 requests>=2.20.0
 scipy
-shutilwhich
 tabulate>=0.8.2
 tblib
 tqdm
