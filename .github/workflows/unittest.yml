@@ -68,13 +68,15 @@ jobs:
         if: matrix.cfg.upload-cov != true
         uses: actions/download-artifact@v4
         with:
-          name: oasislmf-bin-pkg_linux-${{ matrix.cfg.python-version }}
+          name: oasislmf-wheels-ubuntu-latest-x86_64
           path: ${{ github.workspace }}/
 
       - name: Install Package (From Package)
         if: matrix.cfg.upload-cov != true
         run: |
-          pip install $(find ${{ github.workspace }} -name "oasislmf-*.whl" | head -1)
+          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
+          WHL=$(find ${{ github.workspace }} -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
+          pip install "$WHL"
 
       - name: Install Oasislmf (Editable mode)
         if: matrix.cfg.upload-cov == true

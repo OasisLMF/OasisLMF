@@ -77,3 +77,18 @@ dependencies = {file = ["requirements-package.in"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
 extra = {file = ["optional-package.in"]}
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip  = "pp* *-win32 *-manylinux_i686 *-musllinux_i686"
+before-build = "pip install Cython>=3.0 numpy>=1.18"
+test-command = "python -c \"from oasis_writecsv import write_rows; print('oasis_writecsv OK')\""
+
+[tool.cibuildwheel.linux]
+archs = "x86_64 aarch64"
+
+[tool.cibuildwheel.macos]
+archs = "x86_64 arm64"
+
+[tool.cibuildwheel.windows]
+archs = "AMD64"

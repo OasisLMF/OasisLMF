@@ -13,8 +13,6 @@
 #  Outputs:
 #    src_pkg_filename:  source package filename, used for downloading the stored
 #                       artifact in other related Jobs
-#
-#    bin_pkg_filename: wheel package filename
 
 name: Oasislmf Build
 
@@ -26,40 +24,50 @@ on:
       src_pkg_filename:
         description: "Source package filename"
         value: ${{ jobs.oasislmf.outputs.src_pkg_filename }}
-      linux_pkg_filename:
-        description: "Bin package filename"
-        value: ${{ jobs.oasislmf.outputs.bin_pkg_filename }}
 
 jobs:
   build-wheels:
-    runs-on: ubuntu-latest
+    name: Build wheels (${{ matrix.os }} / ${{ matrix.archs }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        include:
+          - os: ubuntu-latest
+            archs: x86_64
+          - os: ubuntu-latest
+            archs: aarch64
+          - os: macos-13
+            archs: x86_64
+          - os: macos-14
+            archs: arm64
+          - os: windows-latest
+            archs: AMD64
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - name: Set up QEMU (aarch64)
+      if: matrix.archs == 'aarch64'
+      uses: docker/setup-qemu-action@v3
       with:
-        python-version: ${{ matrix.python-version }}
+        platforms: arm64
 
-    - name: Build wheel
-      run: |
-        pip install --upgrade setuptools wheel build
-        python -m build --wheel
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.21.3
+      env:
+        CIBW_ARCHS: ${{ matrix.archs }}
 
-    - name: Store - binary distribution
+    - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: oasislmf-bin-pkg_linux-${{ matrix.python-version }}
-        path: ./dist/oasislmf-*.whl
+        name: oasislmf-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: ./wheelhouse/*.whl
         retention-days: 5
 
   oasislmf:
     runs-on: ubuntu-latest
     outputs:
       src_pkg_filename: ${{ steps.package_src.outputs.filename }}
-      bin_pkg_filename: ${{ steps.bin_whl.outputs.filename }}
     steps:
     - name: Dump github context
       run:   echo "$GITHUB_CONTEXT"
@@ -77,15 +85,13 @@ jobs:
     - name: Build
       run: |
         pip install --upgrade setuptools wheel build
-        python -m build
+        python -m build --sdist
 
     - name: find outputs
       run: |
         TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
-        WHL_LINUX=$(find ./dist/ -name "oasislmf-*.whl")
 
         echo "PKG_SRC_PATH=${TAR_PKG}" >> $GITHUB_ENV
-        echo "PKG_BIN_PATH=${WHL_LINUX}" >> $GITHUB_ENV
 
     - name: Store - source distribution
       uses: actions/upload-artifact@v4
@@ -101,15 +107,3 @@ jobs:
         echo "filename=$FILENAME" >> $GITHUB_OUTPUT
 
 
-    - name: Store - binary distribution
-      uses: actions/upload-artifact@v4
-      with:
-        name: oasislmf-bin-pkg_linux
-        path: ${{ env.PKG_BIN_PATH }}
-        retention-days: 5
-
-    - name: Filename - binary distribution
-      id: bin_whl
-      run: |
-        FILENAME=$(find ./dist/ -name "oasislmf-*.whl" -exec basename {} \;)
-        echo "filename=$FILENAME" >> $GITHUB_OUTPUT
