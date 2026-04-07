@@ -5,7 +5,10 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
-from oasis_writecsv import write_rows as cython_write_csv  # type: ignore[import-not-found]
+try:
+    from oasis_writecsv import write_rows as cython_write_csv
+except ImportError:
+    cython_write_csv = None
 
 logger = logging.getLogger(__name__)
 
@@ -433,7 +436,9 @@ def write_ndarray_to_fmt_csv(output_file, data, headers, row_fmt, use_cython=Tru
     if len(headers) != len(row_fmt.split(",")):
         raise RuntimeError(f"ERROR: write_ndarray_to_fmt_csv requires row_fmt ({row_fmt}) and headers ({headers}) to have the same length.")
 
-    if use_cython:
+    if use_cython and cython_write_csv is None:
+        logger.warning("Cython CSV writer requested but oasis_writecsv is not available; falling back to Python.")
+    if use_cython and cython_write_csv is not None:
         try:
             cython_write_csv(output_file, data, headers, row_fmt)
             return
