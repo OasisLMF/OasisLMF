@@ -96,7 +96,7 @@ jobs:
           "
 
   macos-x86_64-install:
-    runs-on: macos-13  # Intel runner
+    runs-on: macos-14  # Intel runner
     strategy:
       matrix:
         python-version: ["3.10", "3.12"]
