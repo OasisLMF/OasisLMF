@@ -5,6 +5,7 @@ import numba as nb
 import numpy as np
 
 from oasis_writecsv import write_rows as cython_write_csv  # type: ignore[import-not-found]
+from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
 
@@ -377,15 +378,21 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
         # col_map maps {dtype_field_name: csv_header_name}
         if col_map is None:
             col_map = {}
-        with open(os.path.join(dir_path, name + '.csv')) as file_in:
+        filepath = os.path.join(dir_path, name + '.csv')
+        with open(filepath) as file_in:
             header = {h.strip(): i for i, h in enumerate(file_in.readline().split(','))}
             _usecols = []
             _use_dtype = []
+            missing = []
             for field_name, (field_dtype, _) in _dtype.fields.items():
                 csv_name = col_map.get(field_name, field_name)
                 if csv_name in header:
                     _usecols.append(header[csv_name])
                     _use_dtype.append((field_name, field_dtype))
+                else:
+                    missing.append(csv_name)
+            if missing:
+                raise OasisException(f"columns expected in {filepath} but not found: {missing}")
 
             if _usecols:
                 return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
