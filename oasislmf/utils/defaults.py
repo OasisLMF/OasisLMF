@@ -6,6 +6,8 @@ __all__ = [
     'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
+    'get_default_perils',
+    'get_default_peril_groups',
     'store_exposure_fp',
     'find_exposure_fp',
     'DAMAGE_GROUP_ID_COLS',
@@ -222,6 +224,16 @@ def get_default_unified_profile():
 def get_default_fm_aggregation_profile():
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {FM_LEVELS_PROFILE[v['FMLevelName']]['id']: v for _, v in get_default_json(src_fp=fp).items()}
+
+
+def get_default_perils():
+    fp = os.path.join(STATIC_DATA_FP, 'default_perils.json')
+    return OrderedDict([(d['id'], d) for d in get_default_json(src_fp=fp)])
+
+
+def get_default_peril_groups():
+    fp = os.path.join(STATIC_DATA_FP, 'default_peril_groups.json')
+    return OrderedDict([(d['id'], d) for d in get_default_json(src_fp=fp)])
 
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
