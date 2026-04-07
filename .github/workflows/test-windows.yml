@@ -15,8 +15,10 @@ on:
 
 jobs:
   build:
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/build-extra-wheels.yml
     secrets: inherit
+    with:
+      platforms: 'windows-latest/AMD64'
 
   windows-x86_64-install:
     runs-on: windows-latest

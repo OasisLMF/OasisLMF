@@ -75,7 +75,7 @@ jobs:
         if: matrix.cfg.upload-cov != true
         run: |
           PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
-          WHL=$(find ${{ github.workspace }} -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
+          WHL=$(find ${{ github.workspace }} -name "oasislmf-*-${PY_TAG}-*manylinux*.whl" | head -1)
           pip install "$WHL"
 
       - name: Install Oasislmf (Editable mode)

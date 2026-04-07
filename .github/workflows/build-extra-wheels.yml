@@ -1,27 +1,46 @@
-# Builds wheels for slower platforms (aarch64, musllinux) that are excluded from
-# the regular per-PR build due to QEMU emulation overhead.
-# Called by publish.yml at release time, or triggered manually.
+# Builds wheels for all non-Linux-x86_64 platforms plus slow platforms (aarch64).
+# Not run on every PR — called by publish.yml at release time, smoke test workflows, or manually.
+#
+# Inputs:
+#   platforms: comma-separated list of os/arch pairs to build, e.g. "windows-latest/AMD64,macos-14/arm64"
+#              defaults to all platforms when called via workflow_dispatch or publish.yml
 
 name: Oasislmf Build Extra Wheels
 
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      platforms:
+        description: 'Platforms to build (all if omitted)'
+        required: false
+        default: 'all'
 
 jobs:
   build-extra-wheels:
     name: Build wheels (${{ matrix.os }} / ${{ matrix.archs }})
     runs-on: ${{ matrix.os }}
+    if: >
+      inputs.platforms == 'all' ||
+      inputs.platforms == '' ||
+      contains(inputs.platforms, matrix.os) && contains(inputs.platforms, matrix.archs)
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             archs: aarch64
+          - os: macos-14
+            archs: x86_64
+          - os: macos-14
+            archs: arm64
+          - os: windows-latest
+            archs: AMD64
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up QEMU (aarch64)
+      if: matrix.archs == 'aarch64'
       uses: docker/setup-qemu-action@v3
       with:
         platforms: arm64
