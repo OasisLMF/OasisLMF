@@ -117,16 +117,12 @@ jobs:
 
     - name: Test package names
       run: |
-        ERROR_CODE=0
         SRC_VER=$(echo ${{ needs.build.outputs.src_pkg_filename }} | grep -oP "(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)")
-        BIN_VER=$(echo ${{ needs.build.outputs.linux_pkg_filename }} | grep -oP "(\d+)\.(\d+)\.(\d+)rc(\d+)|(\d+)\.(\d+)\.(\d+)")
-        [[ "${{ env.RELEASE_TAG }}" = "$SRC_VER" ]] || ERROR_CODE=1
-        [[ "${{ env.RELEASE_TAG }}" = "$BIN_VER" ]] || ERROR_CODE=1
-        if [[ "$ERROR_CODE" == 1 ]]; then
-            echo "Package names don't match release tag."
+        if [[ "${{ env.RELEASE_TAG }}" != "$SRC_VER" ]]; then
+            echo "Source package name doesn't match release tag."
             echo "  RELEASE_TAG: ${{ env.RELEASE_TAG }}"
-            echo "  PACKAGES: ${{ needs.build.outputs.src_pkg_filename }}, ${{ needs.build.outputs.linux_pkg_filename }}"
-            exit $ERROR_CODE
+            echo "  SRC_PACKAGE: ${{ needs.build.outputs.src_pkg_filename }}"
+            exit 1
         fi
 
     # --- Setup Changelog builder script --- #
@@ -199,18 +195,12 @@ jobs:
         name: oasislmf-source-pkg
         path: ${{ github.workspace }}/
 
-    - name: Download Linux package
+    - name: Download all wheels
       uses: actions/download-artifact@v4
       with:
-        name: oasislmf-bin-pkg_linux
-        path: ${{ github.workspace }}/
-
-    - name: Download OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
-      uses: actions/download-artifact@v4
-      with:
-        name: oasislmf-bin-pkg_darwin
-        path: ${{ github.workspace }}/
+        pattern: oasislmf-wheels-*
+        path: ${{ github.workspace }}/wheels/
+        merge-multiple: true
 
 
     # --- Fetch schema --- #
@@ -272,40 +262,18 @@ jobs:
         asset_content_type: application/json
 
 
-    - name: Upload Linux package
-      id: upload-linux-release-asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload wheels to release
       env:
         GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.linux_pkg_filename }}
-        asset_name: ${{ needs.build.outputs.linux_pkg_filename }}
-        asset_content_type: application/octet-stream
-
-    - name: Upload OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
-      id: upload-osx-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.BUILD_GIT_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ github.workspace }}/${{ needs.build.outputs.osx_pkg_filename }}
-        asset_name: ${{ needs.build.outputs.osx_pkg_filename }}
-        asset_content_type: application/octet-stream
+      run: |
+        for whl in ${{ github.workspace }}/wheels/*.whl; do
+          gh release upload ${{ env.RELEASE_TAG }} "$whl" --repo ${{ github.repository }}
+        done
 
 
     # --- Publish to Pypi --- #
-    - name: PYPI - Linux package
-      run: twine upload --skip-existing ${{ needs.build.outputs.linux_pkg_filename }} --verbose
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-
-    - name: PYPI - OSX package
-      if: needs.build.outputs.osx_pkg_filename != ''
-      run: twine upload --skip-existing ${{ needs.build.outputs.osx_pkg_filename }} --verbose
+    - name: PYPI - Upload all wheels
+      run: twine upload --skip-existing ${{ github.workspace }}/wheels/*.whl --verbose
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
