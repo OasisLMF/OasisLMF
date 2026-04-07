@@ -278,6 +278,7 @@ def get_cond_info(locations_df, accounts_df):
                         cond_level_start = max(cond_level_start, i + 1)
                         break
             cond_info['cond_level_start'] = cond_level_start
+            cond_peril = cond_info.get('CondPeril') or 'AA1'
             for layer_id, exclusion_conds in account_layer_exclusion[acc_id].items():
                 if layer_id not in cond_info['layers']:
                     PolNumber, LayerNumber, acc_idx = pol_info[(acc_id, layer_id)]
@@ -292,7 +293,7 @@ def get_cond_info(locations_df, accounts_df):
                             'CondNumber': 'FullFilter',
                             'CondDed6All': 1,
                             'CondDedType6All': 1,
-                            'CondPeril': 'AA1',
+                            'CondPeril': cond_peril,
                         })
                     else:
                         extra_accounts.append({
@@ -303,7 +304,7 @@ def get_cond_info(locations_df, accounts_df):
                             'CondTag': cond_tag,
                             'layer_id': layer_id,
                             'CondNumber': '',
-                            'CondPeril': 'AA1',
+                            'CondPeril': cond_peril,
                         })
             level_conds.setdefault(cond_level_start, set()).add(cond_key)
     return level_conds, extra_accounts

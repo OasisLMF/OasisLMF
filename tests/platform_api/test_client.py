@@ -1702,7 +1702,8 @@ class APIClientTests(unittest.TestCase):
             expected_url_get = f'{self.client.analyses.url_endpoint}{ID}/output_file/'
             rsps.get(expected_url_get, json={'Error': 'Analysis not found'}, status=404)
             with self.assertRaises(OasisException):
-                self.client.download_output(ID)
+                with TemporaryDirectory() as d:
+                    self.client.download_output(ID, download_path=d)
 
     def test_get_currency_conversion_returns_json(self):
         path = self.client.get_currency_conversion(CURRENCY_CONVERSION_LIST)
