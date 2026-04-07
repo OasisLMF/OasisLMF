@@ -1,0 +1,39 @@
+# Builds wheels for slower platforms (aarch64, musllinux) that are excluded from
+# the regular per-PR build due to QEMU emulation overhead.
+# Called by publish.yml at release time, or triggered manually.
+
+name: Oasislmf Build Extra Wheels
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-extra-wheels:
+    name: Build wheels (${{ matrix.os }} / ${{ matrix.archs }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            archs: aarch64
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up QEMU (aarch64)
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.21.3
+      env:
+        CIBW_ARCHS: ${{ matrix.archs }}
+
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: oasislmf-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: ./wheelhouse/*.whl
+        retention-days: 5

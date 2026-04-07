@@ -35,8 +35,6 @@ jobs:
         include:
           - os: ubuntu-latest
             archs: x86_64
-          - os: ubuntu-latest
-            archs: aarch64
           - os: macos-14
             archs: x86_64
           - os: macos-14
@@ -45,12 +43,6 @@ jobs:
             archs: AMD64
     steps:
     - uses: actions/checkout@v4
-
-    - name: Set up QEMU (aarch64)
-      if: matrix.archs == 'aarch64'
-      uses: docker/setup-qemu-action@v3
-      with:
-        platforms: arm64
 
     - name: Build wheels
       uses: pypa/cibuildwheel@v2.21.3
