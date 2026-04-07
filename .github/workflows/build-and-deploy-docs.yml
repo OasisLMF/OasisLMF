@@ -36,9 +36,8 @@ jobs:
            pip install pip-tools
            pip-compile requirements.in
       - name: Install required packages
-        run: |
+        run: | 
             pip install -r requirements.txt
-            pip install .
             pip install furo
       - name: Build
         run: ./docs/build.sh

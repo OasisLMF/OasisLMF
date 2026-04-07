@@ -19,10 +19,10 @@ AAL_meanonly_output = [
 ]
 
 ALCT_output = [
-    ("SummaryId", oasis_int, '%d'),
+    ("SummaryId", oasis_float, '%d'),
     ("MeanLoss", oasis_float, '%.6f'),
     ("SDLoss", oasis_float, '%.6f'),
-    ("SampleSize", oasis_int, '%d'),
+    ("SampleSize", oasis_float, '%d'),
     ("LowerCI", oasis_float, '%.6f'),
     ("UpperCI", oasis_float, '%.6f'),
     ("StandardError", oasis_float, '%.6f'),

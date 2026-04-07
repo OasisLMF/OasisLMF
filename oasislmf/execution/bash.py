@@ -214,7 +214,7 @@ exit_handler(){
        printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> $LOG_DIR/killout.txt
 
        ps -jf f -g $sess_pid > $LOG_DIR/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\.log$  | egrep -v *startup.sh$ | sort -n -r)
+       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\\.log$  | egrep -v *startup.sh$ | sort -n -r)
        echo "$PIDS_KILL" >> $LOG_DIR/killout.txt
        kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
        exit $exit_code
@@ -324,7 +324,7 @@ def get_modelcmd(server=False, peril_filter=[]) -> str:
 
     """
     py_cmd = 'modelpy'
-    if server is True:
+    if server:
         py_cmd = f'{py_cmd} --data-server'
 
     if peril_filter:
@@ -2332,7 +2332,7 @@ def create_bash_analysis(
             print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
         else:
             print_command(
-                filename, f"find {fifo_queue_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+                filename, f"find {fifo_queue_dir} \\( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \\)" + " -exec rm -R -f {} +")
 
         if full_correlation:
             print_command(filename, 'mkdir -p {}'.format(fifo_full_correlation_dir))
@@ -2340,7 +2340,7 @@ def create_bash_analysis(
     # if not process_number:
     print_command(filename, 'rm -R -f {}*'.format(work_dir))
     # else:
-    #    print_command(filename, f"find {work_dir} \( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \)" + " -exec rm -R -f {} +")
+    #    print_command(filename, f"find {work_dir} \\( -name '*P{process_number}[^0-9]*' -o -name '*P{process_number}' \\)" + " -exec rm -R -f {} +")
 
     print_command(filename, 'mkdir -p {}'.format(work_kat_dir))
     if full_correlation:

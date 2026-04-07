@@ -620,7 +620,9 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'dynamic_footprint', 'default': False,
             'help': 'Dynamic Footprint'},
         {'name': 'socket_server_ip', 'default': False, 'help': 'IP to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_IP."'},
-        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'}
+        {'name': 'socket_server_port', 'default': False, 'help': 'Port to use for progress updates. Sets env variable "OASIS_SOCKET_SERVER_PORT".'},
+        {'name': 'resource_monitor_interval', 'default': 1.0, 'type': float,
+         'help': 'Polling interval in seconds for the resource monitor that tracks pytools CPU and memory usage (default: 1.0)'},
     ]
 
     def run(self):
@@ -677,7 +679,8 @@ class GenerateLosses(GenerateLossesDir):
                         model_df_engine=self.model_df_engine or self.base_df_engine,
                         dynamic_footprint=self.dynamic_footprint,
                         analysis_pk=self.kwargs.get('analysis_pk', None),
-                        socket_server=socket_server
+                        socket_server=socket_server,
+                        resource_monitor_interval=self.resource_monitor_interval,
                     )
                     model_runner_module.run(self.settings, **run_args)
                 except TypeError:
