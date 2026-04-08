@@ -13,10 +13,10 @@ PERIL_GROUPS = get_default_peril_groups()
 def get_peril_groups_df():
     res = []
     for peril in PERILS.values():
-        res.append((peril['id'], peril['id']))
+        res.append((peril['peril_code'], peril['peril_code']))
 
     for peril_group in PERIL_GROUPS.values():
         for peril in peril_group['peril_ids']:
-            res.append((peril_group['id'], peril))
+            res.append((peril_group['peril_code'], peril))
 
     return pd.DataFrame(res, columns=['peril_group_id', 'peril_id'])
