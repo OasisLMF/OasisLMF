@@ -9,12 +9,19 @@ name: Oasislmf Build Extra Wheels
 
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms to build (all if omitted)'
+        required: false
+        default: 'all'
+        type: string
   workflow_call:
     inputs:
       platforms:
         description: 'Platforms to build (all if omitted)'
         required: false
         default: 'all'
+        type: string
 
 jobs:
   build-extra-wheels:
