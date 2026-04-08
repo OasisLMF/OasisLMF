@@ -18,6 +18,18 @@
         "peril_code": "BSK"
     },
     {
+        "id": "drought induced subsidence",
+        "desc": "Drought Induced Subsidence",
+        "group_peril": "all",
+        "peril_code": "SSD"
+    },
+    {
+        "id": "crop hail from convective storm",
+        "desc": "Crop Hail (from convective storm)",
+        "group_peril": "all crop perils",
+        "peril_code": "XCH"
+    },
+    {
         "id": "nbcr terrorism",
         "desc": "NBCR Terrorism",
         "group_peril": "terrorism",
@@ -155,5 +167,35 @@
         "desc": "Cyber Security Property Damage",
         "group_peril": "all Cyber perils",
         "peril_code": "CPD"
+    },
+    {
+        "id": "pandemic flu",
+        "desc": "Pandemic Flu",
+        "group_peril": "all pandemic perils",
+        "peril_code": "PNF"
+    },
+    {
+        "id": "volcanic ash cloud",
+        "desc": "Volcanic Ash Cloud",
+        "group_peril": "all volcanic perils",
+        "peril_code": "VVA"
+    },
+    {
+        "id": "volcanic lava flow",
+        "desc": "Volcanic lava flow/eruption",
+        "group_peril": "all volcanic perils",
+        "peril_code": "VVE"
+    },
+    {
+        "id": "volcanic landlaslide",
+        "desc": "Volcanic landslide/mudslide",
+        "group_peril": "all volcanic perils",
+        "peril_code": "VVL"
+    },
+    {
+        "id": "sewage backup",
+        "desc": "Sewage Backup",
+        "group_peril": "all",
+        "peril_code": "SBU"
     }
 ]
