@@ -41,7 +41,8 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
-from ods_tools.oed import fill_empty, OedExposure, OdsException, AnalysisSettingHandler, ModelSettingHandler
+from ods_tools.oed import (AnalysisSettingHandler, ModelSettingHandler,
+                           OdsException, OedExposure, fill_empty)
 from ods_tools.oed.oed_schema import OedSchema
 
 try:
@@ -52,16 +53,15 @@ except ImportError:
 import logging
 from typing import List, Optional
 
+import chardet
 import numpy as np
 import pandas as pd
 import pytz
-import chardet
 from chardet import UniversalDetector
 from tabulate import tabulate
 
-from oasislmf.utils.defaults import SOURCE_IDX, SAR_ID
+from oasislmf.utils.defaults import SAR_ID, SOURCE_IDX
 from oasislmf.utils.exceptions import OasisException
-
 
 logger = logging.getLogger(__name__)
 
@@ -690,7 +690,7 @@ def get_timestamp(thedate=datetime.now(), fmt='%Y%m%d%H%M%S'):
     return thedate.strftime(fmt)
 
 
-def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
+def get_utctimestamp(thedate=datetime.now(), fmt='%Y-%b-%d %H:%M:%S'):
     """
     Get a UTC timestamp string from a ``datetime.datetime`` object
 
