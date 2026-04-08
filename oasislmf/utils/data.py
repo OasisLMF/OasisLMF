@@ -1145,8 +1145,3 @@ def fill_na_with_categoricals(df, fill_value):
     # related to fillna and categorical dtypes. This bug should be fixed in >1.1.2.
     # https://github.com/pandas-dev/pandas/issues/35731
     df.fillna(value=fill_value, inplace=True)
-
-    # Note that the following lines do not work properly with Pandas 1.1.0/1.1.1, due to a bug
-    # related to fillna and categorical dtypes. This bug should be fixed in >1.1.2.
-    # https://github.com/pandas-dev/pandas/issues/35731
-    df.fillna(value=fill_value, inplace=True)
