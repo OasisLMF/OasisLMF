@@ -4,7 +4,6 @@ __all__ = [
 ]
 
 import pandas as pd
-
 from oasislmf.utils.defaults import get_default_peril_groups, get_default_perils
 
 PERILS = get_default_perils()
