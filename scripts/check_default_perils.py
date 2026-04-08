@@ -76,6 +76,22 @@ def check_all_default_peril_groups_correct(default_peril_groups, spec_peril_cove
     return errors
 
 
+def check_peril_description(default_perils, spec_peril_info):
+    errors = []
+    for peril in default_perils.values():
+        spec_peril = spec_peril_info.get(peril['peril_code'], None)
+        if spec_peril is None:
+            continue
+
+        if spec_peril['Peril Description'].lower() != peril['desc'].lower():
+            errors.append({
+                'level': 'WARNING',
+                'test_name': 'check_peril_description',
+                'error_message': f'{peril["peril_code"]} description does not match spec.'
+            })
+    return errors
+
+
 def main(oed_version="latest version", ignore_warnings=False):
     # Prepare inputs
     perils = get_default_perils()
@@ -94,6 +110,7 @@ def main(oed_version="latest version", ignore_warnings=False):
     errors += check_all_perils_included(oed_peril_info,
                                         combined_perils_default, 'LMF peril codes')
     errors += check_all_default_peril_groups_correct(peril_groups, oed_peril_groups)
+    errors += check_peril_description(combined_perils_default, oed_peril_info)
 
     print_errors(errors, ignore_warnings)
     return errors
