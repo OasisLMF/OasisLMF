@@ -7,37 +7,10 @@ import logging
 import numba as nb
 import numpy as np
 import pandas as pd
-from numba import njit
-from numba.typed import Dict, List
-from numba.types import int32 as nb_int32
-
 from oasis_data_manager.filestore.backends.base import BaseStorage
-from oasislmf.pytools.common.data import areaperil_int, nb_areaperil_int, nb_oasis_float, aggregatevulnerability_dtype, vulnerability_weight_dtype
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_int, aggregatevulnerability_dtype, vulnerability_weight_dtype
 
 logger = logging.getLogger(__name__)
-
-AGG_VULN_WEIGHTS_KEY_TYPE = nb.types.Tuple((nb.from_dtype(areaperil_int), nb.types.int32))
-AGG_VULN_WEIGHTS_VAL_TYPE = nb.types.float32
-
-
-@njit(cache=True)
-def gen_empty_agg_vuln_to_vuln_ids():
-    """Generate empty map to store the definitions of aggregate vulnerability functions.
-
-    Returns:
-        dict[int, list[int]]: map of aggregate vulnerability id to list of vulnerability ids.
-    """
-    return Dict.empty(nb_int32, List.empty_list(nb_int32))
-
-
-@njit(cache=True)
-def gen_empty_areaperil_vuln_idx_to_weights():
-    """Generate empty map to store the weights of individual vulnerability functions in each aggregate vulnerability.
-
-    Returns:
-        dict[AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE]: map of areaperil_id, vulnerability id to weight.
-    """
-    return Dict.empty(AGG_VULN_WEIGHTS_KEY_TYPE, AGG_VULN_WEIGHTS_VAL_TYPE)
 
 
 def read_aggregate_vulnerability(storage: BaseStorage, ignore_file_type=set()):
@@ -101,51 +74,66 @@ def read_vulnerability_weights(storage: BaseStorage, ignore_file_type=set()):
 
 
 def process_aggregate_vulnerability(aggregate_vulnerability):
-    """Rearrange aggregate vulnerability definitions from tabular format to a map between aggregate
-    vulnerability id and the list of vulnerability ids that it is made of.
+    """Rearrange aggregate vulnerability definitions from tabular format into CRS arrays
+    mapping aggregate vulnerability id to the list of vulnerability ids that compose it.
 
     Args:
         aggregate_vulnerability (np.array[AggregateVulnerability]): aggregate vulnerability table.
 
     Returns:
-        dict[int, list[int]]: map of aggregate vulnerability id to list of vulnerability ids.
+        agg_vuln_ids (np.array[oasis_int]): sorted array of aggregate vulnerability ids.
+        agg_vuln_id_ja_offsets (np.array[oasis_int]): jagged array offsets. Row i spans
+            agg_vuln_id_ja_vuln_ids[agg_vuln_id_ja_offsets[i]:agg_vuln_id_ja_offsets[i+1]].
+        agg_vuln_id_ja_vuln_ids (np.array[oasis_int]): flat jagged array of constituent vulnerability ids.
     """
-    agg_vuln_to_vuln_ids = gen_empty_agg_vuln_to_vuln_ids()
-
-    if aggregate_vulnerability is not None:
-
+    if aggregate_vulnerability is not None and len(aggregate_vulnerability) > 0:
         agg_vuln_df = pd.DataFrame(aggregate_vulnerability)
-        # init agg_vuln_to_vuln_ids to allow numba to compile later functions
-        # vulnerability_id and aggregate_vulnerability_id are remapped to the internal ids
-        # using the vulnd_dict map that contains only the vulnerability_id used in this portfolio.
+        # Group by aggregate_vulnerability_id, preserving insertion order of sub-vulns.
+        # Sort groups so agg_vuln_ids is sorted for binary search in generate_item_map.
+        grouped = agg_vuln_df.groupby('aggregate_vulnerability_id', sort=True)
+        n_groups = len(grouped)
+        n_entries = len(agg_vuln_df)
 
-        # here we read all aggregate vulnerability_id, then, after processing the items file,
-        # we will filter out the aggregate vulnerability that are not used in this portfolio.
-        for agg, grp in agg_vuln_df.groupby('aggregate_vulnerability_id'):
-            agg_vuln_id = nb_int32(agg)
+        agg_vuln_ids = np.empty(n_groups, dtype=oasis_int)
+        agg_vuln_id_ja_vuln_ids = np.empty(n_entries, dtype=oasis_int)
+        agg_vuln_id_ja_offsets = np.empty(n_groups + 1, dtype=oasis_int)
+        agg_vuln_id_ja_offsets[0] = 0
+        ptr = 0
 
-            if agg_vuln_id not in agg_vuln_to_vuln_ids:
-                agg_vuln_to_vuln_ids[agg_vuln_id] = List.empty_list(nb_int32)
+        for i, (agg_id, grp) in enumerate(grouped):
+            agg_vuln_ids[i] = agg_id
+            sub_vulns = grp['vulnerability_id'].values
+            n_sub = len(sub_vulns)
+            agg_vuln_id_ja_vuln_ids[ptr:ptr + n_sub] = sub_vulns
+            ptr += n_sub
+            agg_vuln_id_ja_offsets[i + 1] = ptr
+    else:
+        agg_vuln_ids = np.empty(0, dtype=oasis_int)
+        agg_vuln_id_ja_vuln_ids = np.empty(0, dtype=oasis_int)
+        agg_vuln_id_ja_offsets = np.zeros(1, dtype=oasis_int)
 
-            for entry in grp['vulnerability_id'].to_list():
-                agg_vuln_to_vuln_ids[agg_vuln_id].append(nb_int32(entry))
-
-    return agg_vuln_to_vuln_ids
+    return agg_vuln_ids, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids
 
 
 @nb.njit(cache=True)
-def process_vulnerability_weights(areaperil_vuln_i_to_weight, vuln_dict, aggregate_weights):
+def process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_vuln_idxs,
+                                  areaperil_agg_vuln_idx_ja_weights, vuln_dict, aggregate_weights):
     """
-    Polpulate the useful (areaperil_id, vulnerability_i) in areaperil_vuln_i_to_weight with the weight from aggregate_weights
+    Populate the weights flat array by matching aggregate_weights records against jagged array entries.
 
     Args:
-        areaperil_vuln_i_to_weight: dict of useful (areaperil_id, vulnerability_i) to 0. (weight placeholder to be updated)
-        vuln_dict: vuln_dict (Tuple[Dict[int, int]): vulnerability dictionary, vuln_id => vuln_i.
+        areaperil_agg_vuln_idx_ja_areaperil_ids (np.array[areaperil_int]): areaperil_id for each entry.
+        areaperil_agg_vuln_idx_ja_vuln_idxs (np.array[oasis_int]): dense vulnerability index for each entry.
+        areaperil_agg_vuln_idx_ja_weights (np.array[oasis_float]): flat array of weights to populate.
+        vuln_dict (Dict[int, int]): vulnerability dictionary, vuln_id => dense_vuln_idx.
         aggregate_weights (np.array[VulnerabilityWeight]): vulnerability weights table.
     """
+    n_entries = len(areaperil_agg_vuln_idx_ja_vuln_idxs)
     for i in range(len(aggregate_weights)):
         rec = aggregate_weights[i]
         if rec['vulnerability_id'] in vuln_dict:
-            key = (nb_areaperil_int(rec['areaperil_id']), vuln_dict[rec['vulnerability_id']])
-            if key in areaperil_vuln_i_to_weight:
-                areaperil_vuln_i_to_weight[key] = nb_oasis_float(rec['weight'])
+            dense_idx = vuln_dict[rec['vulnerability_id']]
+            ap_id = nb_areaperil_int(rec['areaperil_id'])
+            for j in range(n_entries):
+                if areaperil_agg_vuln_idx_ja_areaperil_ids[j] == ap_id and areaperil_agg_vuln_idx_ja_vuln_idxs[j] == dense_idx:
+                    areaperil_agg_vuln_idx_ja_weights[j] = nb_oasis_float(rec['weight'])

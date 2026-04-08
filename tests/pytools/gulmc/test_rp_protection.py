@@ -10,17 +10,15 @@ Three levels of coverage:
   3. compute_event_losses             – losses are zeroed when event_rp < item_rp
 """
 import numpy as np
-import numba as nb
 from numba.typed import Dict, List
 from numba.types import int32 as nb_int32, Tuple as nb_Tuple
 
-from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_int, oasis_float, damagebin_dtype
+from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_int, oasis_float, oasis_int, damagebin_dtype
 from oasislmf.pytools.getmodel.common import EventDynamic
 from oasislmf.pytools.gulmc.common import (
     items_MC_data_type, coverage_type, haz_arr_type, gulmc_compute_info_type, NormInversionParameters,
 )
 from oasislmf.pytools.gulmc.manager import process_areaperils_in_footprint, compute_event_losses, gen_empty_vuln_cdf_lookup
-from oasislmf.pytools.gulmc.aggregate import gen_empty_areaperil_vuln_idx_to_weights
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 
 
@@ -83,7 +81,8 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
         ('damage_correlation_value', np.float32),
         ('hazard_group_id', np.int32),
         ('hazard_correlation_value', np.float32),
-        ('vulnerability_idx', np.int32),
+        ('vulnerability_idx', oasis_int),
+        ('areaperil_agg_vuln_idx', oasis_int),
         ('intensity_adjustment', np.int32),
         ('return_period', np.int32),
         ('peril_id', np.int32),
@@ -97,6 +96,7 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
     items[0]['vulnerability_id'] = VULN_ID
     items[0]['group_id'] = 1
     items[0]['vulnerability_idx'] = 0
+    items[0]['areaperil_agg_vuln_idx'] = -1
     items[0]['peril_id'] = PERIL_ID
     items[0]['intensity_adjustment'] = intensity_adjustment
     items[0]['return_period'] = return_period
@@ -190,9 +190,10 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     )
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
-    # --- aggregate vulnerability maps (empty – no aggregate vulns) ---
-    agg_vuln_to_vuln_idxs = Dict.empty(nb_int32, nb.types.ListType(nb_int32))
-    areaperil_vuln_idx_to_weight = gen_empty_areaperil_vuln_idx_to_weights()
+    # --- aggregate vulnerability CRS arrays (empty – no aggregate vulns) ---
+    areaperil_agg_vuln_idx_ja_vuln_idxs = np.empty(0, dtype=oasis_int)
+    areaperil_agg_vuln_idx_ja_weights = np.empty(0, dtype=oasis_float)
+    areaperil_agg_vuln_idx_ja_offsets = np.zeros(1, dtype=oasis_int)  # single sentinel: [0]
 
     # --- losses buffer ---
     losses = np.zeros((sample_size + 6, 1), dtype=oasis_float)  # 6 = NUM_IDX + 1
@@ -224,7 +225,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
         cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
-        agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight,
+        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs, areaperil_agg_vuln_idx_ja_weights,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
@@ -421,7 +422,8 @@ def test_rp_protection_only_affects_protected_items():
         ('vulnerability_id', np.int32), ('group_id', np.uint32),
         ('peril_correlation_group', np.int32), ('damage_correlation_value', np.float32),
         ('hazard_group_id', np.int32), ('hazard_correlation_value', np.float32),
-        ('vulnerability_idx', np.int32), ('intensity_adjustment', np.int32),
+        ('vulnerability_idx', oasis_int), ('areaperil_agg_vuln_idx', oasis_int),
+        ('intensity_adjustment', np.int32),
         ('return_period', np.int32), ('peril_id', np.int32),
         ('group_seq_id', np.int32), ('hazard_group_seq_id', np.int32),
     ])
@@ -433,6 +435,7 @@ def test_rp_protection_only_affects_protected_items():
         items[i]['vulnerability_id'] = VULN_ID
         items[i]['group_id'] = 1
         items[i]['vulnerability_idx'] = 0
+        items[i]['areaperil_agg_vuln_idx'] = -1
         items[i]['peril_id'] = PERIL_ID
         items[i]['group_seq_id'] = 0
         items[i]['hazard_group_seq_id'] = 0
@@ -471,8 +474,9 @@ def test_rp_protection_only_affects_protected_items():
         Nvulns_cached, compute_info)
     cached_vuln_cdfs = np.zeros((Nvulns_cached, Ndamage_bins), dtype=oasis_float)
 
-    agg_vuln_to_vuln_idxs = Dict.empty(nb_int32, nb.types.ListType(nb_int32))
-    areaperil_vuln_idx_to_weight = gen_empty_areaperil_vuln_idx_to_weights()
+    areaperil_agg_vuln_idx_ja_vuln_idxs = np.empty(0, dtype=oasis_int)
+    areaperil_agg_vuln_idx_ja_weights = np.empty(0, dtype=oasis_float)
+    areaperil_agg_vuln_idx_ja_offsets = np.zeros(1, dtype=oasis_int)
 
     losses = np.zeros((sample_size + 6, 2), dtype=oasis_float)
 
@@ -495,7 +499,7 @@ def test_rp_protection_only_affects_protected_items():
         compute_info, coverages, coverage_ids, items_event_data, items,
         sample_size, haz_pdf, haz_arr_ptr, vuln_array, damage_bins,
         cached_vuln_cdf_lookup, cached_vuln_cdf_lookup_keys, cached_vuln_cdfs,
-        agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight,
+        areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs, areaperil_agg_vuln_idx_ja_weights,
         losses, haz_rndms_base, vuln_rndms_base, vuln_adj,
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,

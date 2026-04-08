@@ -1,3 +1,11 @@
+"""Ground-up loss Monte Carlo (gulmc) manager.
+
+Jagged Array Naming Convention
+------------------------------
+    <key_name>_ja_id_ind    — optional sparse ID → dense index (id_index.py)
+    <key_name>_ja_offsets   — row boundaries: row i spans [offsets[i], offsets[i+1])
+    <key_name>_ja_<values>  — one or more parallel flat arrays holding payload data
+"""
 import atexit
 import logging
 import os
@@ -20,6 +28,7 @@ from oasislmf.utils.data import analysis_settings_loader
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.data import nb_areaperil_int, nb_oasis_float, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
+from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.input_files import read_coverages, read_correlations
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 from oasislmf.pytools.getmodel.footprint import Footprint
@@ -289,7 +298,7 @@ def run(run_dir,
         logger.debug('import aggregate vulnerability definitions and vulnerability weights')
         aggregate_vulnerability = read_aggregate_vulnerability(model_storage, ignore_file_type)
         aggregate_weights = read_vulnerability_weights(model_storage, ignore_file_type)
-        agg_vuln_to_vuln_ids = process_aggregate_vulnerability(aggregate_vulnerability)
+        agg_vuln_ids, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids = process_aggregate_vulnerability(aggregate_vulnerability)
 
         if aggregate_vulnerability is not None and aggregate_weights is None:
             raise FileNotFoundError(
@@ -317,8 +326,10 @@ def run(run_dir,
         )
         items = rfn.merge_arrays((items,
                                   np.empty(items.shape,
-                                           dtype=nb.from_dtype(np.dtype([("vulnerability_idx", np.int32)])))),
+                                           dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
+                                                                         ("areaperil_agg_vuln_idx", oasis_int)])))),
                                  flatten=True)
+        items['areaperil_agg_vuln_idx'] = -1
 
         # intensity adjustment
         if dynamic_footprint:
@@ -355,15 +366,22 @@ def run(run_dir,
 
         items.sort(order=['areaperil_id', 'vulnerability_id'])
 
+        # build id_index for aggregate vulnerability lookup
+        agg_vuln_id_ja_id_ind = id_index_build(agg_vuln_ids)
+
         # build item map
-        item_map, areaperil_ids_map, vuln_dict, agg_vuln_to_vuln_idxs, areaperil_vuln_idx_to_weight = generate_item_map(
+        (item_map, areaperil_ids_map, vuln_dict,
+         areaperil_agg_vuln_idx_ja_offsets, areaperil_agg_vuln_idx_ja_vuln_idxs,
+         areaperil_agg_vuln_idx_ja_weights, areaperil_agg_vuln_idx_ja_areaperil_ids) = generate_item_map(
             items,
             coverages,
             valid_areaperil_id,
-            agg_vuln_to_vuln_ids)
+            agg_vuln_id_ja_id_ind, agg_vuln_id_ja_offsets, agg_vuln_id_ja_vuln_ids)
         if aggregate_weights is not None:
             logger.debug('reconstruct aggregate vulnerability definitions and weights')
-            process_vulnerability_weights(areaperil_vuln_idx_to_weight, vuln_dict, aggregate_weights)
+            process_vulnerability_weights(areaperil_agg_vuln_idx_ja_areaperil_ids, areaperil_agg_vuln_idx_ja_vuln_idxs,
+                                          areaperil_agg_vuln_idx_ja_weights, vuln_dict, aggregate_weights)
+        del areaperil_agg_vuln_idx_ja_areaperil_ids  # only needed during setup
 
         # import array to store the coverages to be computed
         # coverages are numebered from 1, therefore skip element 0.
@@ -593,8 +611,9 @@ def run(run_dir,
                             cached_vuln_cdf_lookup,
                             lookup_keys,
                             cached_vuln_cdfs,
-                            agg_vuln_to_vuln_idxs,
-                            areaperil_vuln_idx_to_weight,
+                            areaperil_agg_vuln_idx_ja_offsets,
+                            areaperil_agg_vuln_idx_ja_vuln_idxs,
+                            areaperil_agg_vuln_idx_ja_weights,
                             losses,
                             haz_rndms_base,
                             vuln_rndms_base,
@@ -789,8 +808,9 @@ def compute_event_losses(compute_info,
                          cached_vuln_cdf_lookup,
                          cached_vuln_cdf_lookup_keys,
                          cached_vuln_cdfs,
-                         agg_vuln_to_vuln_idxs,
-                         areaperil_vuln_idx_to_weight,
+                         areaperil_agg_vuln_idx_ja_offsets,
+                         areaperil_agg_vuln_idx_ja_vuln_idxs,
+                         areaperil_agg_vuln_idx_ja_weights,
                          losses,
                          haz_rndms_base,
                          vuln_rndms_base,
@@ -850,10 +870,12 @@ def compute_event_losses(compute_info,
         cached_vuln_cdf_lookup_keys (List[int64]): reverse mapping from cache slot to key,
           for circular eviction.
         cached_vuln_cdfs (np.array[oasis_float]): 2d cdf cache of shape (Nvulns_cached, Ndamage_bins_max).
-        agg_vuln_to_vuln_idxs (Dict[int, List[int]]): map from aggregate vulnerability_id to
-          the list of individual vulnerability indices in vuln_array.
-        areaperil_vuln_idx_to_weight (Dict[Tuple, float]): map from (areaperil_id, vuln_idx) to
-          the weight for aggregate vulnerability composition.
+        areaperil_agg_vuln_idx_ja_offsets (np.array[oasis_int]): jagged array offsets. Block i spans
+          vuln_idxs[offsets[i]:offsets[i+1]]. Items reference blocks via 'areaperil_agg_vuln_idx'.
+        areaperil_agg_vuln_idx_ja_vuln_idxs (np.array[oasis_int]): flat jagged array of dense vulnerability
+          indices for aggregate vulnerabilities.
+        areaperil_agg_vuln_idx_ja_weights (np.array[oasis_float]): flat jagged array of vulnerability weights,
+          aligned with vuln_idxs.
         losses (numpy.array[oasis_float]): reusable 2d buffer of shape
           (sample_size + NUM_IDX + 1, max_items_per_coverage) for loss values.
         haz_rndms_base (numpy.array[float64]): 2d array of shape (n_seeds, sample_size) with
@@ -956,33 +978,36 @@ def compute_event_losses(compute_info,
                 # we get the vuln_pdf, needed for effcdf and each cdf
                 vuln_pdf = vuln_pdf_empty[:Nhaz_bins]
                 vuln_pdf[:] = 0
-                if item['vulnerability_id'] in agg_vuln_to_vuln_idxs:  # we calculate the custom vuln_array for this aggregate
+                if item['areaperil_agg_vuln_idx'] >= 0:  # aggregate vulnerability — use jagged arrays
                     tot_weights = 0.
-                    agg_vulns_idx = agg_vuln_to_vuln_idxs[item['vulnerability_id']]
-                    for j, vuln_i in enumerate(agg_vulns_idx):
-                        if (item['areaperil_id'], vuln_i) in areaperil_vuln_idx_to_weight:
-                            weight = np.float64(areaperil_vuln_idx_to_weight[(item['areaperil_id'], vuln_i)])
-                            if weight > 0:
-                                tot_weights += weight
-                                for haz_i in range(Nhaz_bins):
-                                    has_prob = False
-                                    for damage_bin_i in range(compute_info['Ndamage_bins_max']):
-                                        if vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1] > 0:
-                                            has_prob = True
-                                            vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[
-                                                haz_i] - 1] * weight
-                                    if not has_prob:
-                                        # the pdf is all zeros, i.e. probability of no loss is 100%
-                                        # store it as 100% * weight in the first damage bin
-                                        vuln_pdf[haz_i, 0] += weight
+                    blk = item['areaperil_agg_vuln_idx']
+                    ptr = areaperil_agg_vuln_idx_ja_offsets[blk]
+                    n_sub = areaperil_agg_vuln_idx_ja_offsets[blk + 1] - ptr
+                    for j in range(n_sub):
+                        vuln_i = areaperil_agg_vuln_idx_ja_vuln_idxs[ptr + j]
+                        weight = np.float64(areaperil_agg_vuln_idx_ja_weights[ptr + j])
+                        if weight > 0:
+                            tot_weights += weight
+                            for haz_i in range(Nhaz_bins):
+                                has_prob = False
+                                for damage_bin_i in range(compute_info['Ndamage_bins_max']):
+                                    if vuln_array[vuln_i, damage_bin_i, haz_bin_id[haz_i] - 1] > 0:
+                                        has_prob = True
+                                        vuln_pdf[haz_i, damage_bin_i] += vuln_array[vuln_i, damage_bin_i, haz_bin_id[
+                                            haz_i] - 1] * weight
+                                if not has_prob:
+                                    # the pdf is all zeros, i.e. probability of no loss is 100%
+                                    # store it as 100% * weight in the first damage bin
+                                    vuln_pdf[haz_i, 0] += weight
 
                     if tot_weights > 0:
                         vuln_pdf /= tot_weights
                     else:
-                        for j, vuln_i in enumerate(agg_vulns_idx):
+                        for j in range(n_sub):
+                            vuln_i = areaperil_agg_vuln_idx_ja_vuln_idxs[ptr + j]
                             for haz_i in range(Nhaz_bins):
                                 vuln_pdf[haz_i] += vuln_array[vuln_i, :, haz_bin_id[haz_i] - 1]
-                        vuln_pdf /= len(agg_vulns_idx)
+                        vuln_pdf /= n_sub
                 else:
                     for haz_i in range(Nhaz_bins):
                         vuln_pdf[haz_i] = vuln_array[item['vulnerability_idx'], :, haz_bin_id[haz_i] - 1]
@@ -1073,7 +1098,7 @@ def compute_event_losses(compute_info,
                     # do not use correlation
                     vuln_z_unif[:] = vuln_rndms_base[rng_index]
 
-                if item['vulnerability_id'] not in agg_vuln_to_vuln_idxs:  # single vuln id (non-aggregate)
+                if item['areaperil_agg_vuln_idx'] < 0:  # single vuln id (non-aggregate)
                     vuln_z_unif *= vuln_adj[item['vulnerability_idx']]
 
                 if compute_info['debug'] == 1:  # store the random value used for the hazard sampling instead of the loss
