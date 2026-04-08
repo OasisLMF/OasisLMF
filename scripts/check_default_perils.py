@@ -30,18 +30,6 @@ def print_errors(errors, ignore_warnings):
 # Checks
 
 
-def check_all_oed_peril_groups_included_in_lmf(peril_groups):
-    return []
-
-
-def check_all_lmf_peril_groups_included_in_oed(peril_groups):
-    return []
-
-
-def check_all_oed_perils_included_in_lmf(perils):
-    return []
-
-
 def check_all_perils_included(peril_dct, all_perils_dct, all_perils_name='peril codes'):
     '''
     Check `peril` dict keys are in  all_perils.
@@ -56,6 +44,35 @@ def check_all_perils_included(peril_dct, all_perils_dct, all_perils_name='peril 
                 'error_message': f'{p_code} not found in {all_perils_name}.'
             })
 
+    return errors
+
+
+def check_all_default_peril_groups_correct(default_peril_groups, spec_peril_covered):
+    errors = []
+    for peril_group in default_peril_groups.values():
+        perils_covered = spec_peril_covered.get(peril_group['peril_code'], None)
+        if perils_covered is None:
+            errors.append({
+                'level': 'ERROR',
+                'test_name': 'check_all_default_peril_groups_correct',
+                'error_message': f'{peril_group["peril_code"]} peril group not found in OEDSpec perils covered.'
+            })
+            continue
+        if set(perils_covered) != set(peril_group['peril_ids']):
+            perils_in_default = set(perils_covered).difference(peril_group['peril_ids'])
+            perils_in_spec = set(peril_group['peril_ids']).difference(perils_covered)
+
+            error_template = {
+                'level': 'ERROR',
+                'test_name': 'check_all_default_peril_groups_correct',
+            }
+
+            errors.append(error_template | {'error_message': f'{peril_group["peril_code"]} peril group does not match OEDSpec perils covered.'})
+
+            if perils_in_default:
+                errors.append(error_template | {'error_message': f'Missing perils: {perils_in_default}'})
+            if perils_in_spec:
+                errors.append(error_template | {'error_message': f'Extra perils: {perils_in_spec}'})
     return errors
 
 
@@ -76,6 +93,7 @@ def main(oed_version="latest version", ignore_warnings=False):
                                         oed_peril_info, 'schema peril codes')
     errors += check_all_perils_included(oed_peril_info,
                                         combined_perils_default, 'LMF peril codes')
+    errors += check_all_default_peril_groups_correct(peril_groups, oed_peril_groups)
 
     print_errors(errors, ignore_warnings)
     return errors
