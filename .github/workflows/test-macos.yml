@@ -14,8 +14,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  build:
+    uses: ./.github/workflows/build-extra-wheels.yml
+    secrets: inherit
+    with:
+      platforms: 'macos-14/arm64'
+
   macos-arm64-install:
     runs-on: macos-14  # Apple Silicon (M1) runner
+    needs: [build]
     strategy:
       matrix:
         python-version: ["3.10", "3.12"]
@@ -31,10 +38,18 @@ jobs:
         run: |
           python -c "import platform; arch = platform.machine(); print(f'Architecture: {arch}'); assert arch == 'arm64', f'Expected arm64, got {arch}'"
 
-      - name: Install oasislmf from source
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: oasislmf-wheels-macos-14-arm64
+          path: ${{ github.workspace }}/
+
+      - name: Install oasislmf from wheel
         run: |
+          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
+          WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
           pip install --upgrade pip
-          pip install -e .
+          pip install "$WHL"
 
       - name: Run validation script
         run: python scripts/validate_install.py
@@ -94,4 +109,3 @@ jobs:
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
           print('Core numerical stack works on ARM64')
           "
-
