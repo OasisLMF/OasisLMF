@@ -18,6 +18,8 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
+    with:
+      platforms: 'ubuntu-22.04/x86_64'
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
@@ -28,7 +30,7 @@ jobs:
 
   unittest:
     if: ${{ ! failure() || ! cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [build, ods_tools]
     strategy:
       matrix:
@@ -50,17 +52,13 @@ jobs:
           python -m pip install --upgrade "pip<23.3"
           pip install pip-tools
 
-      - name: Set pip resolver flag
-        if: matrix.cfg.python-version == 3.7
-        run: |
-          echo "PIP_RESOLVER=--resolver=backtracking" >> $GITHUB_ENV
       - name: Pip Compile
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            pip-compile requirements.in -o requirements.txt ${PIP_RESOLVER}
+            pip-compile requirements.in -o requirements.txt
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt ${PIP_RESOLVER}
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
           fi
           pip install -r requirements.txt
 
@@ -68,7 +66,8 @@ jobs:
         if: matrix.cfg.upload-cov != true
         uses: actions/download-artifact@v4
         with:
-          name: oasislmf-wheels-ubuntu-latest-x86_64
+          pattern: oasislmf-wheels-ubuntu-*-x86_64
+          merge-multiple: true
           path: ${{ github.workspace }}/
 
       - name: Install Package (From Package)

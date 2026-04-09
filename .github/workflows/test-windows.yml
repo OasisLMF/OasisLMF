@@ -1,4 +1,4 @@
-# Workflow to validate oasislmf installation and basic functionality on Windows x86_64
+# Workflow to validate oasislmf installation and basic functionality on Windows.
 #
 # This runs on every PR and push to main to catch Windows-specific regressions.
 # It is intentionally lightweight — install + smoke test only — to keep CI costs low.
@@ -15,13 +15,13 @@ on:
 
 jobs:
   build:
-    uses: ./.github/workflows/build-extra-wheels.yml
+    uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      platforms: 'windows-latest/AMD64'
+      platforms: 'windows-2022/AMD64 windows-11-arm/ARM64'
 
-  windows-x86_64-install:
-    runs-on: windows-latest
+  windows-amd64-install:
+    runs-on: windows-2022
     needs: [build]
     strategy:
       matrix:
@@ -37,7 +37,7 @@ jobs:
       - name: Download wheel
         uses: actions/download-artifact@v4
         with:
-          name: oasislmf-wheels-windows-latest-AMD64
+          name: oasislmf-wheels-windows-2022-AMD64
           path: ${{ github.workspace }}/
 
       - name: Install oasislmf from wheel
@@ -69,7 +69,7 @@ jobs:
         run: |
           python -c "
           from oasis_writecsv import write_rows
-          print('oasis_writecsv Cython extension loaded successfully on Windows')
+          print('oasis_writecsv Cython extension loaded successfully on Windows x86_64')
           "
 
       - name: Smoke test - core numerical stack
@@ -87,4 +87,73 @@ jobs:
           print(f'numpy {np.__version__}, pandas {pd.__version__}, scipy {scipy.__version__}')
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
           print('Core numerical stack works on Windows x86_64')
+          "
+
+  windows-arm64-install:
+    runs-on: windows-11-arm
+    needs: [build]
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: oasislmf-wheels-windows-11-arm-ARM64
+          path: ${{ github.workspace }}/
+
+      - name: Install oasislmf from wheel
+        shell: bash
+        run: |
+          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
+          WHL=$(find "${{ github.workspace }}" -name "oasislmf-*-${PY_TAG}-*.whl" | head -1)
+          pip install --upgrade pip
+          pip install "$WHL"
+
+      - name: Run validation script
+        run: python scripts/validate_install.py
+
+      - name: Smoke test - CLI entry point
+        run: oasislmf --help
+
+      - name: Smoke test - import and version
+        run: |
+          python -c "
+          import oasislmf
+          print(f'Version: {oasislmf.__version__}')
+          from oasislmf.pytools.fm.cli import main as fm_main
+          from oasislmf.pytools.gulpy import main as gul_main
+          from oasislmf.execution.bin import check_conversion_tools
+          print('All key submodules imported successfully')
+          "
+
+      - name: Smoke test - oasis_writecsv Cython extension
+        run: |
+          python -c "
+          from oasis_writecsv import write_rows
+          print('oasis_writecsv Cython extension loaded successfully on Windows ARM64')
+          "
+
+      - name: Smoke test - core numerical stack
+        run: |
+          python -c "
+          import numpy as np
+          import pandas as pd
+          import scipy
+          import pyarrow
+          import fastparquet
+
+          arr = np.random.rand(1000)
+          df = pd.DataFrame({'values': arr})
+          assert len(df) == 1000
+          print(f'numpy {np.__version__}, pandas {pd.__version__}, scipy {scipy.__version__}')
+          print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
+          print('Core numerical stack works on Windows ARM64')
           "
