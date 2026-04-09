@@ -4,7 +4,6 @@ __all__ = [
 ]
 
 import pandas as pd
-from collections import defaultdict
 
 from ods_tools.oed import OedSchema
 
