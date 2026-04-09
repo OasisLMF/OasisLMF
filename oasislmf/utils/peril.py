@@ -10,44 +10,26 @@ from ods_tools.oed import OedSchema
 
 
 def get_peril_info_from_schema(oed_version='latest version'):
+    '''
+    Get perils and peril_groups info from OedSchema.
+
+    Args:
+        oed_version (str): The version of OedSchema, default to `latest version`.
+    '''
     oed_schema = OedSchema.from_oed_schema_info(oed_version)
 
     peril_info = oed_schema.schema['perils']['info']
     peril_covered = oed_schema.schema['perils']['covered']
 
-    peril_to_group = defaultdict(list)
-
     peril_groups = {}
-    for p, v in peril_info.items():
-        if v['Grouped PerilCode'] != 'Yes':
-            continue
-
-        peril_groups[p] = {'id': p, 'desc': v['Peril Description'],
-                           'peril_ids': peril_covered[p]}
-
-        for peril in peril_covered[p]:
-            peril_to_group[peril].append(p)
-
     perils = {}
-    group_count = defaultdict(int)
     for peril_code, peril in peril_info.items():
-        if peril_code in peril_groups:
-            continue
-
-        curr_peril = {'id': peril_code,
-                      'desc': peril['Peril Description']
-                      }
-
-        group_codes = peril_to_group.get(peril_code, ['AA1'])
-        curr_peril['group_perils'] = group_codes
-        perils[peril_code] = curr_peril
-
-        for group_code in group_codes:
-            group_count[group_code] += 1
-
-    for peril_code, peril in perils.items():
-        perils[peril_code]['group_perils'] = sorted(perils[peril_code]['group_perils'],
-                                                    key=lambda x: group_count[x])
+        if peril['Grouped PerilCode'] == 'Yes':
+            peril_groups[peril_code] = {'id': peril_code, 'desc': peril['Peril Description'],
+                                        'peril_ids': peril_covered[peril_code]}
+        else:
+            perils[peril_code] = {'id': peril_code,
+                                  'desc': peril['Peril Description']}
 
     return perils, peril_groups
 
