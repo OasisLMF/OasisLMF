@@ -20,6 +20,7 @@ jobs:
     secrets: inherit
     with:
       platforms: 'ubuntu-22.04/x86_64'
+      skip_musllinux: true
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}

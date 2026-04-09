@@ -28,6 +28,11 @@ on:
         required: false
         default: 'all'
         type: string
+      skip_musllinux:
+        description: 'Skip musllinux wheels to speed up CI'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       platforms:
@@ -35,6 +40,11 @@ on:
         required: false
         default: 'all'
         type: string
+      skip_musllinux:
+        description: 'Skip musllinux wheels to speed up CI'
+        required: false
+        default: false
+        type: boolean
     outputs:
       src_pkg_filename:
         description: "Source package filename"
@@ -114,6 +124,7 @@ jobs:
       uses: pypa/cibuildwheel@v2.21.3
       env:
         CIBW_ARCHS: ${{ matrix.archs }}
+        CIBW_SKIP: ${{ inputs.skip_musllinux && '*musllinux*' || '' }}
 
     - name: Upload wheels
       uses: actions/upload-artifact@v4
