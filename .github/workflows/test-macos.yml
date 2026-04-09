@@ -108,7 +108,7 @@ jobs:
           "
 
   macos-x86_64-install:
-    runs-on: macos-13
+    runs-on: macos-14  # ARM64 runner; x86_64 Python + wheel run via Rosetta 2
     needs: [build]
     strategy:
       matrix:
@@ -116,10 +116,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }} (x86_64)
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          architecture: x64
 
       - name: Verify x86_64 architecture
         run: |
