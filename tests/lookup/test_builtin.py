@@ -2,7 +2,9 @@ import pytest
 import numpy as np
 import numba as nb
 import pandas as pd
+from pandas.testing import assert_frame_equal
 from pathlib import Path
+from mock import patch
 from oasislmf.lookup.builtin import (
     Lookup, z_index, undo_z_index,
     z_index_to_normal, normal_to_z_index,
@@ -114,6 +116,37 @@ def test_build_merge_respects_filetype(file_path, file_type, success):
     else:
         with pytest.raises(Exception):
             Lookup(config={}).build_merge(file_path=str(FILES_DIR / file_path), file_type=file_type, id_columns=['FIRST_ID', 'SECOND_ID', 'FIFTH_ID'])
+
+
+@patch("oasislmf.utils.peril.PERILS")
+@patch("oasislmf.utils.peril.PERIL_GROUPS")
+def test_build_split_loc_perils_covered(mock_peril_groups, mock_perils):
+    mock_perils.values.return_value = [
+        {'id': 'PERIL1'},
+        {'id': 'PERIL2'}
+    ]
+
+    mock_peril_groups.values.return_value = [
+        {'id': 'ALL', 'peril_ids': ['PERIL1', 'PERIL2']}
+    ]
+
+    lookup_fn = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["ALL", "PERIL1", "PERIL2"])
+
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3],
+        "LocPerilsCovered": ["ALL", "PERIL1", "PERIL2"]
+    })
+
+    result = lookup_fn(locations)
+    expected_result = pd.DataFrame({
+        'loc_id': [1, 1, 2, 3],
+        'peril_group_id': ['ALL', 'ALL', 'PERIL1', 'PERIL2'],
+        'peril_id': ['PERIL1', 'PERIL2', 'PERIL1', 'PERIL2']
+    })
+
+    result = result[expected_result.columns].sort_values(by=['loc_id', 'peril_id'],
+                                                         ignore_index=True)
+    assert_frame_equal(result, expected_result)
 
 
 # ---------------------------------------------------------------------------
