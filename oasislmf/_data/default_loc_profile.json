@@ -24,11 +24,6 @@
         "OEDHierarchy": "Portfolio",
         "Key": "PortNum"
     },
-    "CondNumber": {
-        "ProfileElementName": "CondNumber",
-        "OEDHierarchy": "SpecialCondition",
-        "Key": "CondNum"
-    },
     "BuildingTIV": {
         "ProfileElementName": "BuildingTIV",
         "CoverageTypeID": 1,
