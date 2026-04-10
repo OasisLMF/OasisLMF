@@ -124,7 +124,7 @@ jobs:
       uses: pypa/cibuildwheel@v2.21.3
       env:
         CIBW_ARCHS: ${{ matrix.archs }}
-        CIBW_SKIP: ${{ inputs.skip_musllinux && '*musllinux*' || '' }}
+        CIBW_SKIP: "cp310-win_arm64${{ inputs.skip_musllinux && ' *musllinux*' || '' }}"
 
     - name: Upload wheels
       uses: actions/upload-artifact@v4
