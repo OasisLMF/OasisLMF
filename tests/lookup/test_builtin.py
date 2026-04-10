@@ -112,5 +112,3 @@ def test_build_merge_respects_filetype(file_path, file_type, success):
     else:
         with pytest.raises(Exception):
             Lookup(config={}).build_merge(file_path=str(FILES_DIR / file_path), file_type=file_type, id_columns=['FIRST_ID', 'SECOND_ID', 'FIFTH_ID'])
-
-
