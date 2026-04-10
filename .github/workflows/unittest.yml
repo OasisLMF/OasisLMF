@@ -18,6 +18,8 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
+    with:
+      platforms: 'ubuntu-22.04/x86_64'
 
   ods_tools:
     if: ${{ inputs.ods_branch != '' || github.event_name != 'workflow_dispatch' }}
@@ -27,8 +29,8 @@ jobs:
       ods_branch: ${{ github.event_name != 'workflow_dispatch' && 'main' ||  inputs.ods_branch }} # Enable 'ods-tools' build by default
 
   unittest:
-    if: ${{ ! failure() || ! cancelled() }}
-    runs-on: ubuntu-latest
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-22.04
     needs: [build, ods_tools]
     strategy:
       matrix:
@@ -39,28 +41,23 @@ jobs:
           - { python-version: "3.13", pkg-version: "", upload-cov: false }
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.cfg.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.cfg.python-version }}
 
       - name: Install pip-tools
         run: |
-          python -m pip install --upgrade "pip<23.3"
-          pip install pip-tools
+          python -m pip install --upgrade pip pip-tools
 
-      - name: Set pip resolver flag
-        if: matrix.cfg.python-version == 3.7
-        run: |
-          echo "PIP_RESOLVER=--resolver=backtracking" >> $GITHUB_ENV
       - name: Pip Compile
         run: |
           rm -f requirements.txt
           if [ -z "${{ matrix.cfg.pkg-version }}" ]; then
-            pip-compile requirements.in -o requirements.txt ${PIP_RESOLVER}
+            pip-compile requirements.in -o requirements.txt
           else
-            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt ${PIP_RESOLVER}
+            pip-compile --upgrade-package "${{ matrix.cfg.pkg-version }}" requirements.in -o requirements.txt
           fi
           pip install -r requirements.txt
 
@@ -68,13 +65,16 @@ jobs:
         if: matrix.cfg.upload-cov != true
         uses: actions/download-artifact@v4
         with:
-          name: oasislmf-bin-pkg_linux-${{ matrix.cfg.python-version }}
+          pattern: oasislmf-wheels-ubuntu-*-x86_64
+          merge-multiple: true
           path: ${{ github.workspace }}/
 
       - name: Install Package (From Package)
         if: matrix.cfg.upload-cov != true
         run: |
-          pip install $(find ${{ github.workspace }} -name "oasislmf-*.whl" | head -1)
+          PY_TAG="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
+          WHL=$(find ${{ github.workspace }} -name "oasislmf-*-${PY_TAG}-*manylinux*.whl" | head -1)
+          pip install "$WHL"
 
       - name: Install Oasislmf (Editable mode)
         if: matrix.cfg.upload-cov == true
