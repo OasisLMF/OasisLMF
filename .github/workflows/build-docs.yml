@@ -28,7 +28,6 @@ jobs:
       - name: Install required packages
         run: |
             pip install -r requirements.txt
-            pip install .
             pip install furo
       - name: Build
         run: ./docs/build.sh
