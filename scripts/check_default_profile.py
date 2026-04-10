@@ -3,6 +3,7 @@ from copy import copy
 import argparse
 
 from ods_tools.oed import OedSchema
+from oasislmf.utils.data import DEFAULT_ADDITIONAL_FIELDS
 from oasislmf.utils.defaults import get_default_accounts_profile, get_default_exposure_profile
 
 error_t_string = '%(level)s - %(test_name)s: %(message_prefix)s%(error_message)s'
@@ -32,7 +33,7 @@ def print_errors(errors, ignore_warnings):
 # Checks
 
 
-def check_profile_fields_in_spec(profile, schema_fields, message_prefix=''):
+def check_profile_fields_in_spec(profile, schema_fields, additional_fields=[], message_prefix=''):
     '''Check that the fields in `default_profile` are part of the OEDSpec.
     Throw an error if not as they will not pass the OED validation.
     '''
@@ -44,9 +45,10 @@ def check_profile_fields_in_spec(profile, schema_fields, message_prefix=''):
 
     errors = []
     for field in fields_only_in_profile:
-        errors.append({'level': 'ERROR', 'test_name': 'check_profile_fields_in_spec',
-                       'message_prefix': message_prefix,
-                       'error_message': f'{field} not found in OEDSpec.'})
+        if field not in additional_fields:
+            errors.append({'level': 'ERROR', 'test_name': 'check_profile_fields_in_spec',
+                           'message_prefix': message_prefix,
+                           'error_message': f'{field} not found in OEDSpec.'})
 
     return errors
 
@@ -95,9 +97,11 @@ def main(oed_version="latest version", ignore_warnings=False,
     # Prepare inputs
     accounts_profile = get_default_accounts_profile()
     acc_schema_fields = get_oed_fields('Acc', oed_version=oed_version)
+    acc_additional_fields = DEFAULT_ADDITIONAL_FIELDS['Acc'].keys()
 
     exposure_profile = get_default_exposure_profile()
     loc_schema_fields = get_oed_fields('Loc', oed_version=oed_version)
+    loc_additional_fields = DEFAULT_ADDITIONAL_FIELDS['Loc'].keys()
 
     errors = []
 
@@ -107,8 +111,14 @@ def main(oed_version="latest version", ignore_warnings=False,
         errors += check_spec_fields_in_profile(exposure_profile, loc_schema_fields, 'exposure_profile')
 
     if profile_in_spec:
-        errors += check_profile_fields_in_spec(accounts_profile, acc_schema_fields, 'accounts_profile')
-        errors += check_profile_fields_in_spec(exposure_profile, loc_schema_fields, 'exposure_profile')
+        errors += check_profile_fields_in_spec(accounts_profile,
+                                               acc_schema_fields,
+                                               acc_additional_fields,
+                                               'accounts_profile')
+        errors += check_profile_fields_in_spec(exposure_profile,
+                                               loc_schema_fields,
+                                               loc_additional_fields,
+                                               'exposure_profile')
 
     if element_name_check:
         errors += check_element_name_same_as_key(accounts_profile, 'accounts_profile')
