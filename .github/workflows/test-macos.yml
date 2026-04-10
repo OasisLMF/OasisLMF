@@ -18,7 +18,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      platforms: 'macos-14/arm64 macos-15-intel/x86_64'
+      platforms: 'macos-14/arm64'
 
   macos-arm64-install:
     runs-on: macos-14
@@ -106,7 +106,3 @@ jobs:
           print(f'pyarrow {pyarrow.__version__}, fastparquet {fastparquet.__version__}')
           print('Core numerical stack works on ARM64')
           "
-
-  # macOS x86_64 wheel is smoke-tested inline by cibuildwheel's test-command
-  # (see [tool.cibuildwheel.macos] in pyproject.toml) on the macos-15-intel
-  # build runner — no separate job needed and no actions/setup-python OS mismatch.

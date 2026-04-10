@@ -80,19 +80,12 @@ extra = {file = ["optional-package.in"]}
 
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-*"
-skip  = "pp* *-win32 *-manylinux_i686 *-musllinux_i686 cp310-win_arm64"
-test-skip = "*-macosx_x86_64"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-macosx_x86_64"
-environment = {MACOSX_DEPLOYMENT_TARGET = "12.0"}
 
 [tool.cibuildwheel.linux]
 archs = "x86_64 aarch64"
 
 [tool.cibuildwheel.macos]
-archs = "x86_64 arm64"
-test-command = "python -c \"from oasis_writecsv import write_rows; print('oasis_writecsv OK on macOS')\""
+archs = "arm64"
 
 [tool.cibuildwheel.windows]
 archs = "AMD64"
