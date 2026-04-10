@@ -1,10 +1,11 @@
 from mock import patch
 
 from oasislmf.utils.peril import get_peril_info_from_schema
+from ods_tools.oed import OedSchema
 
 
 @patch("oasislmf.utils.peril.OedSchema")
-def test_get_peril_info_from_schema(mock_oed_schema):
+def test_get_peril_info_from_schema__expected_output(mock_oed_schema):
     schema = {
         'perils': {
             'info': {
@@ -37,3 +38,18 @@ def test_get_peril_info_from_schema(mock_oed_schema):
 
     assert perils == expected_perils
     assert expected_group_perils == expected_group_perils
+
+
+def test_get_peril_info_from_schema__runs_with_latest():
+    '''Make sure all the peril info loaded from the latest oed schema, no mocking.'''
+    oed_version = 'latest version'
+    perils, peril_groups = get_peril_info_from_schema(oed_version)
+
+    generated_peril_ids = [p['id'] for p in perils.values()]
+    generated_peril_ids += [p['id'] for p in peril_groups.values()]
+
+    oed_schema = OedSchema.from_oed_schema_info(oed_version)
+    oed_peril_info = oed_schema.schema['perils']['info']
+
+    assert len(generated_peril_ids) == len(oed_peril_info.keys())
+    assert set(generated_peril_ids) == set(oed_peril_info.keys())
