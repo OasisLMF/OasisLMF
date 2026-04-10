@@ -36,8 +36,8 @@ def check_profile_fields_in_spec(profile, schema_fields, message_prefix=''):
     '''Check that the fields in `default_profile` are part of the OEDSpec.
     Throw an error if not as they will not pass the OED validation.
     '''
-    schema_fields = OedSchema.column_to_field(list(profile.keys()), schema_fields)
-    fields_only_in_profile = set(profile.keys()).difference(schema_fields.keys())
+    mapped_schema_fields = OedSchema.column_to_field(list(profile.keys()), schema_fields)
+    fields_only_in_profile = set(profile.keys()).difference(mapped_schema_fields.keys())
 
     if message_prefix:
         message_prefix = message_prefix + ' - '
@@ -108,7 +108,7 @@ def main(oed_version="latest version", ignore_warnings=False,
 
     if profile_in_spec:
         errors += check_profile_fields_in_spec(accounts_profile, acc_schema_fields, 'accounts_profile')
-        errors += check_profile_fields_in_spec(exposure_profile, loc_schema_fields, 'accounts_profile')
+        errors += check_profile_fields_in_spec(exposure_profile, loc_schema_fields, 'exposure_profile')
 
     if element_name_check:
         errors += check_element_name_same_as_key(accounts_profile, 'accounts_profile')
