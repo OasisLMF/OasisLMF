@@ -101,7 +101,7 @@ jobs:
         fi
 
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0 # fetch the whole repo for complete history
         ref: ${{ github.ref_name }}
@@ -146,7 +146,7 @@ jobs:
         git tag ${{ env.RELEASE_TAG }}
 
     - name: Setup python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
