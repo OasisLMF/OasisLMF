@@ -3,6 +3,7 @@ import io
 import json
 import os
 import string
+import time
 from collections import OrderedDict
 from datetime import datetime
 from unittest import TestCase
@@ -1337,18 +1338,100 @@ class TestGetTimestamp(TestCase):
 
         self.assertEqual(result, expected)
 
-    # Windows does not support converting datetimes after 3001-01-01T20:59:59
-    @settings(max_examples=10, deadline=None)
-    @given(
-        dt=datetimes(min_value=datetime.now(),
-                     max_value=datetime(3001, 1, 1)),
-        fmt=just('%Y-%b-%d %H:%M:%S')
-    )
-    def test_get_utctimestamp(self, dt, fmt):
-        expected = dt.astimezone(pytz.utc).strftime(fmt)
-        result = get_utctimestamp(dt, fmt=fmt)
 
-        self.assertEqual(result, expected)
+class TestGetUtctimestamp(TestCase):
+    """Semantic tests for ``get_utctimestamp`` (issue #1936).
+
+    The previous test in this file asserted
+    ``get_utctimestamp(dt) == dt.astimezone(pytz.utc).strftime(fmt)``,
+    which is exactly the function body — so both sides shared the same
+    bug and the test passed for all the wrong reasons. These tests assert
+    the user-visible contract instead: the function returns a UTC
+    wall-clock string for the passed datetime, regardless of the local
+    timezone of the process.
+    """
+
+    # A known wall-clock: 2026-03-05 00:30:00 UTC == 01:30:00 Europe/Zurich
+    # (CET, UTC+1, still in standard time). Chosen so that a timezone
+    # handling bug flips both the hour AND the date, which is exactly the
+    # symptom reported in issue #1936.
+    _SAMPLE_UTC = datetime(2026, 3, 5, 0, 30, 0, tzinfo=pytz.utc)
+    _SAMPLE_ZURICH = _SAMPLE_UTC.astimezone(pytz.timezone('Europe/Zurich'))
+    _RUN_DIR_FMT = '%Y%m%d%H%M%S'
+
+    def test_utc_aware_input_returns_utc_wallclock(self):
+        # A tz-aware UTC datetime must be rendered with its own wall-clock,
+        # not shifted by the process's local offset.
+        result = get_utctimestamp(self._SAMPLE_UTC, fmt=self._RUN_DIR_FMT)
+        self.assertEqual(result, '20260305003000')
+
+    def test_non_utc_aware_input_is_converted(self):
+        # Passing the same instant as a tz-aware Europe/Zurich datetime
+        # must produce the same UTC wall-clock string.
+        result = get_utctimestamp(self._SAMPLE_ZURICH, fmt=self._RUN_DIR_FMT)
+        self.assertEqual(result, '20260305003000')
+
+    def test_default_argument_is_evaluated_at_call_time(self):
+        # Regression test for the mutable-default-argument bug: the
+        # default value for ``thedate`` must resolve at call time, not
+        # once at import time. We patch ``datetime`` in the module under
+        # test and assert both calls see the patched "now".
+        fake_now = datetime(2030, 1, 2, 3, 4, 5, tzinfo=pytz.utc)
+        with patch('oasislmf.utils.data.datetime') as mock_datetime:
+            mock_datetime.now.return_value = fake_now
+            result = get_utctimestamp(fmt=self._RUN_DIR_FMT)
+        self.assertEqual(result, '20300102030405')
+
+    def test_naive_input_is_treated_as_utc(self):
+        # The function's name says ``utctimestamp`` — a naive datetime
+        # must be interpreted as a UTC wall-clock, NOT as local time.
+        # CPython's ``naive.astimezone()`` treats naive datetimes as
+        # local, and that's precisely what makes the default-argument
+        # path of the current implementation wrong on any non-UTC box
+        # (issue #1936). This test pins the desired contract so a
+        # well-meaning future edit can't silently reintroduce the
+        # off-by-local-offset bug.
+        original_tz = os.environ.get('TZ')
+        try:
+            for tz_name in ('UTC', 'Europe/Zurich', 'Pacific/Auckland'):
+                os.environ['TZ'] = tz_name
+                if hasattr(time, 'tzset'):
+                    time.tzset()
+                naive = datetime(2026, 3, 5, 0, 30, 0)
+                result = get_utctimestamp(naive, fmt=self._RUN_DIR_FMT)
+                self.assertEqual(
+                    result, '20260305003000',
+                    f'naive input drifted under TZ={tz_name!r}')
+        finally:
+            if original_tz is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = original_tz
+            if hasattr(time, 'tzset'):
+                time.tzset()
+
+    def test_output_is_stable_across_process_timezone(self):
+        # The whole point of issue #1936: the run-directory timestamp
+        # must not depend on the TZ env var of the process. We flip TZ
+        # to two wildly different zones and check the output matches.
+        original_tz = os.environ.get('TZ')
+        try:
+            for tz_name in ('UTC', 'Europe/Zurich', 'Pacific/Auckland'):
+                os.environ['TZ'] = tz_name
+                if hasattr(time, 'tzset'):
+                    time.tzset()
+                result = get_utctimestamp(
+                    self._SAMPLE_UTC, fmt=self._RUN_DIR_FMT)
+                self.assertEqual(
+                    result, '20260305003000',
+                    f'timestamp drifted under TZ={tz_name!r}')
+        finally:
+            if original_tz is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = original_tz
+            if hasattr(time, 'tzset'):
+                time.tzset()
 
 
 class TestValidateVulnerabilityReplacements(TestCase):
