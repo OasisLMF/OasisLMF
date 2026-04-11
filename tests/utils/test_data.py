@@ -6,7 +6,7 @@ import string
 import time
 from collections import OrderedDict
 from datetime import datetime
-from unittest import TestCase
+from unittest import TestCase, skipUnless
 from unittest.mock import patch, MagicMock
 
 import numpy as np
@@ -1371,32 +1371,47 @@ class TestGetUtctimestamp(TestCase):
         result = get_utctimestamp(self._SAMPLE_ZURICH, fmt=self._RUN_DIR_FMT)
         self.assertEqual(result, '20260305003000')
 
-    def test_default_argument_is_evaluated_at_call_time(self):
-        # Regression test for the mutable-default-argument bug: the
-        # default value for ``thedate`` must resolve at call time, not
-        # once at import time. We patch ``datetime`` in the module under
-        # test and assert both calls see the patched "now".
+    def test_default_fmt_produces_human_readable_utc(self):
+        # The function's default ``fmt`` is ``'%Y-%b-%d %H:%M:%S'``. This
+        # test pins the full default-fmt output so a change to either the
+        # fmt default or the rendering path is caught. Also covers the
+        # default-fmt path that the previous hypothesis test used to
+        # exercise with random datetimes.
+        result = get_utctimestamp(self._SAMPLE_UTC)
+        self.assertEqual(result, '2026-Mar-05 00:30:00')
+
+    def test_default_now_is_resolved_at_call_time(self):
+        # When called with no ``thedate`` argument, the current UTC time
+        # must be evaluated on each call rather than once at import time.
+        # The previous signature used a mutable default
+        # (``thedate=datetime.utcnow()``) which only ran at import — this
+        # test guards against that regression. We patch the module's
+        # ``datetime`` and assert the call-time ``now()`` is used.
         fake_now = datetime(2030, 1, 2, 3, 4, 5, tzinfo=pytz.utc)
         with patch('oasislmf.utils.data.datetime') as mock_datetime:
             mock_datetime.now.return_value = fake_now
             result = get_utctimestamp(fmt=self._RUN_DIR_FMT)
         self.assertEqual(result, '20300102030405')
 
+    @skipUnless(
+        hasattr(time, 'tzset'),
+        'Flipping TZ mid-process requires POSIX time.tzset()')
     def test_naive_input_is_treated_as_utc(self):
         # The function's name says ``utctimestamp`` — a naive datetime
         # must be interpreted as a UTC wall-clock, NOT as local time.
         # CPython's ``naive.astimezone()`` treats naive datetimes as
-        # local, and that's precisely what makes the default-argument
-        # path of the current implementation wrong on any non-UTC box
+        # local, and that's precisely what made the default-argument
+        # path of the previous implementation wrong on any non-UTC box
         # (issue #1936). This test pins the desired contract so a
         # well-meaning future edit can't silently reintroduce the
-        # off-by-local-offset bug.
+        # off-by-local-offset bug. Skipped on non-POSIX platforms
+        # because flipping ``os.environ['TZ']`` without ``tzset()`` has
+        # no effect on the process's local-time view.
         original_tz = os.environ.get('TZ')
         try:
             for tz_name in ('UTC', 'Europe/Zurich', 'Pacific/Auckland'):
                 os.environ['TZ'] = tz_name
-                if hasattr(time, 'tzset'):
-                    time.tzset()
+                time.tzset()
                 naive = datetime(2026, 3, 5, 0, 30, 0)
                 result = get_utctimestamp(naive, fmt=self._RUN_DIR_FMT)
                 self.assertEqual(
@@ -1407,19 +1422,23 @@ class TestGetUtctimestamp(TestCase):
                 os.environ.pop('TZ', None)
             else:
                 os.environ['TZ'] = original_tz
-            if hasattr(time, 'tzset'):
-                time.tzset()
+            time.tzset()
 
+    @skipUnless(
+        hasattr(time, 'tzset'),
+        'Flipping TZ mid-process requires POSIX time.tzset()')
     def test_output_is_stable_across_process_timezone(self):
-        # The whole point of issue #1936: the run-directory timestamp
-        # must not depend on the TZ env var of the process. We flip TZ
-        # to two wildly different zones and check the output matches.
+        # Regression guard: the run-directory timestamp must not depend
+        # on the TZ env var of the process, even for tz-aware inputs.
+        # This is a forward guard — if a future edit reintroduces a
+        # local-time conversion step, this test catches it under any
+        # non-UTC TZ. Skipped on non-POSIX platforms for the same reason
+        # as ``test_naive_input_is_treated_as_utc``.
         original_tz = os.environ.get('TZ')
         try:
             for tz_name in ('UTC', 'Europe/Zurich', 'Pacific/Auckland'):
                 os.environ['TZ'] = tz_name
-                if hasattr(time, 'tzset'):
-                    time.tzset()
+                time.tzset()
                 result = get_utctimestamp(
                     self._SAMPLE_UTC, fmt=self._RUN_DIR_FMT)
                 self.assertEqual(
@@ -1430,8 +1449,7 @@ class TestGetUtctimestamp(TestCase):
                 os.environ.pop('TZ', None)
             else:
                 os.environ['TZ'] = original_tz
-            if hasattr(time, 'tzset'):
-                time.tzset()
+            time.tzset()
 
 
 class TestValidateVulnerabilityReplacements(TestCase):
