@@ -6,8 +6,6 @@ from ods_tools.oed import OedSchema
 from oasislmf.utils.data import DEFAULT_ADDITIONAL_FIELDS
 from oasislmf.utils.defaults import get_default_accounts_profile, get_default_exposure_profile
 
-class OasisWarning(UserWarning):
-    pass
 
 def get_oed_fields(profile, oed_type, oed_version="latest version"):
     """Get the relevant OED fields from the spec for a given profile.
@@ -16,12 +14,15 @@ def get_oed_fields(profile, oed_type, oed_version="latest version"):
     schema_fields = oed_schema.schema['input_fields'][oed_type]
     return schema_fields
 
+
 def get_additional_fields(oed_type):
     return DEFAULT_ADDITIONAL_FIELDS[oed_type].keys()
+
 
 @pytest.fixture
 def acc_profile():
     return get_default_accounts_profile()
+
 
 @pytest.fixture
 def exposure_profile():
