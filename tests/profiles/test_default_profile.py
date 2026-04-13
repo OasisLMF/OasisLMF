@@ -1,0 +1,54 @@
+"""Script to check default profiles are valid according to OEDSpec"""
+import warnings
+import pytest
+
+from ods_tools.oed import OedSchema
+from oasislmf.utils.data import DEFAULT_ADDITIONAL_FIELDS
+from oasislmf.utils.defaults import get_default_accounts_profile, get_default_exposure_profile
+
+class OasisWarning(UserWarning):
+    pass
+
+def get_oed_fields(profile, oed_type, oed_version="latest version"):
+    """Get the relevant OED fields from the spec for a given profile.
+    """
+    oed_schema = OedSchema.from_oed_schema_info(oed_version)
+    schema_fields = oed_schema.schema['input_fields'][oed_type]
+    return schema_fields
+
+def get_additional_fields(oed_type):
+    return DEFAULT_ADDITIONAL_FIELDS[oed_type].keys()
+
+@pytest.fixture
+def acc_profile():
+    return get_default_accounts_profile()
+
+@pytest.fixture
+def exposure_profile():
+    return get_default_exposure_profile()
+
+
+@pytest.mark.parametrize("profile,message_prefix",
+                         [("acc_profile", "accounts_profile"),
+                          ("exposure_profile", "exposure_profile")])
+def test_PorfileElementName_same_as_key(profile, message_prefix, request):
+    profile = request.getfixturevalue(profile)
+    keys = list(profile.keys())
+    profile_element_values = [profile[k]['ProfileElementName'] for k in keys]
+    assert keys == profile_element_values
+
+
+@pytest.mark.parametrize("profile,oed_type,profile_name",
+                         [("acc_profile", 'Acc', 'accounts_profile'),
+                          ("exposure_profile", 'Loc', 'exposure_profile')])
+def test_profile_fields_in_spec(profile, oed_type, profile_name, request):
+    profile = request.getfixturevalue(profile)
+    schema_fields = get_oed_fields(profile, oed_type)
+
+    mapped_schema_fields = OedSchema.column_to_field(list(profile.keys()), schema_fields)
+    additional_fields = get_additional_fields(oed_type)
+
+    valid_schema_fields = set(mapped_schema_fields.keys()).union(additional_fields)
+    fields_only_in_profile = set(profile.keys()).difference(valid_schema_fields)
+
+    assert len(fields_only_in_profile) == 0, f'Fields in profile are not valid OED Fields: {fields_only_in_profile}'
