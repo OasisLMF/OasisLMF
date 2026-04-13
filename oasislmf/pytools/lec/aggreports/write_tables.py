@@ -1083,6 +1083,8 @@ def write_wheatsheaf_mean(
         if np.sum(mean_map[summary_id - 1]["count"]) == 0:
             continue
         for mc in mean_map[summary_id - 1]:
+            if mc["count"] == 0:
+                continue
             if bidx >= len(buffer):
                 yield buffer[:bidx]
                 bidx = 0

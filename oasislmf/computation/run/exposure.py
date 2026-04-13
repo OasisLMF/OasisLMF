@@ -22,7 +22,8 @@ from oasislmf.utils.data import (get_dataframe, get_exposure_data,
 from oasislmf.utils.defaults import (KERNEL_ALLOC_FM_MAX,
                                      KERNEL_ALLOC_IL_DEFAULT,
                                      KERNEL_ALLOC_RI_DEFAULT,
-                                     OASIS_FILES_PREFIXES)
+                                     OASIS_FILES_PREFIXES,
+                                     find_exposure_fp)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.inputs import str2bool
 
@@ -56,14 +57,38 @@ class RunExposure(ComputationStep):
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
-        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True, 'help': 'if True run the oasis disaggregation.'},
+        {'name': 'do_disaggregation', 'type': str2bool, 'const': True, 'nargs': '?', 'default': True,
+         'help': 'if True run the oasis disaggregation.'},
         {'name': 'intermediary_csv', 'type': str2bool, 'const': True, 'nargs': '?', 'default': False,
          'help': 'if True, intermediary file will be csv instead of more compress format'},
         {'name': 'oed_backend_dtype', 'type': str, 'default': 'pd_dtype',
          'help': "define what type dtype the oed column will be (pd_dtype or pa_dtype)"},
+        # Location already in chained command GenerateKeysDeterministic
+        {'name': 'oed_accounts_csv', 'flag': '-y', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the source accounts CSV'},
+        {'name': 'oed_info_csv', 'flag': '-i', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance info CSV'},
+        {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True, 'help': 'Override path for the reinsurance scope CSV'},
+        # -s flag for scope in other files taken for src dir already
     ]
 
     chained_commands = [GenerateKeysDeterministic]
+
+    def get_exposure_data_config(self):
+        def _resolve(override, key):
+            if override:
+                return override
+            return find_exposure_fp(self.oasis_files_dir, key, required=False)
+        return {
+            'location': _resolve(self.oed_location_csv, 'loc'),
+            'account': _resolve(self.oed_accounts_csv, 'acc'),
+            'ri_info': _resolve(self.oed_info_csv, 'info'),
+            'ri_scope': _resolve(self.oed_scope_csv, 'scope'),
+            'oed_schema_info': self.oed_schema_info if self.oed_schema_info is not None else self.settings.get('oed_version', None),
+            'currency_conversion': self.currency_conversion_json,
+            'check_oed': self.check_oed,
+            'use_field': True,
+            'reporting_currency': self.reporting_currency,
+            'backend_dtype': self.oed_backend_dtype,
+        }
 
     def _check_alloc_rules(self):
         alloc_ranges = {
@@ -100,7 +125,7 @@ class RunExposure(ComputationStep):
             os.makedirs(run_dir)
 
         # 1. Create Deterministic keys file
-        keys_fp = GenerateKeysDeterministic(**{**self.kwargs, **{"exposure_data": exposure_data}}).run()[0]
+        keys_fp = GenerateKeysDeterministic(**{**self.kwargs, **{"exposure_data": exposure_data, "oasis_files_dir": run_dir}}).run()[0]
 
         # 2. Start Oasis files generation
         GenerateFiles(
@@ -268,8 +293,6 @@ class RunExposure(ComputationStep):
 
             if self.print_summary:
                 cols_to_print = all_loss_cols.copy()
-                if False:
-                    cols_to_print.remove('loss_factor_idx')
                 if include_loss_factor:
                     print_dataframe(
                         all_losses_df[all_losses_df.loss_factor_idx == str(i)],

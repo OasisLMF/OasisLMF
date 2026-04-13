@@ -8,6 +8,7 @@ from oasislmf.cli.exposure import ExposureCmd
 from oasislmf.cli.model import ModelCmd
 from oasislmf.cli.test import TestCmd
 from oasislmf.cli.version import VersionCmd
+from oasislmf.cli.warmup import WarmupCmd
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -22,7 +23,8 @@ class RootCmd(OasisBaseCommand):
         'model': ModelCmd,
         'exposure': ExposureCmd,
         'api': ApiCmd,
-        'config': ConfigCmd
+        'config': ConfigCmd,
+        'warmup': WarmupCmd
     }
 
     def run(self, args=None):

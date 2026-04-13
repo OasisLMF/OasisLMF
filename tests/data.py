@@ -24,8 +24,7 @@ __all__ = [
 import string
 
 from itertools import chain
-from chainmap import ChainMap
-from collections import OrderedDict
+from collections import ChainMap, OrderedDict
 
 import pandas as pd
 
