@@ -70,7 +70,7 @@ def check_spec_fields_in_profile(profile, all_schema_fields, message_prefix=''):
         errors.append({
             'level': 'WARNING', 'test_name': 'check_spec_fields_in_profile',
             'message_prefix': message_prefix,
-            'error_message': f'OEDSpec key {k} : {v["Input Field Name"]} is not in profile.'
+            'error_message': f'{v["Input Field Name"]} is in spec and not in profile.'
         })
     return errors
 
@@ -88,6 +88,10 @@ def check_element_name_same_as_key(profile, message_prefix=''):
                 'error_message': f'Profile key {k} does not match ProfileElementName {v["ProfileElementName"]}.'
             })
     return errors
+
+
+def check_all_fm_terms_included(profile, all_schema_fields, message_prefix=''):
+    pass
 
 
 def main(oed_version="latest version", ignore_warnings=False,
@@ -131,7 +135,7 @@ def main(oed_version="latest version", ignore_warnings=False,
 parser = argparse.ArgumentParser(prog='check_default_profile',
                                  description='Validate default profiles against OEDSpec')
 parser.add_argument('-s', '--oed-version', default="latest version", help="Version of OEDSpec to use.")
-parser.add_argument('-w', '--ignore-warnings', action="store_false", help="Do not show WARNING messages")
+parser.add_argument('-w', '--ignore-warnings', action="store_true", help="Do not show WARNING messages")
 parser.add_argument('--profile-in-spec', action="store_false", help="Check if all profile fields in spec, error level ERROR.")
 parser.add_argument('--spec-in-profile', action="store_false", help="Check if all spec fields are in profile, error level WARNING.")
 parser.add_argument('--element-name-check', action="store_false", help="Check profile key matches ProfileElementName, error level WARNING.")
